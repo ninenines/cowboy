@@ -63,7 +63,10 @@ use one of the predefined handlers or write your own. An hello world HTTP
 handler could be written like this:
 
     -module(my_handler).
-    -export([handle/2]).
+    -export([init/2, handle/2]).
 
-    handle(Opts, Req) ->
+    init(Req, Opts) ->
+        {ok, undefined}.
+
+    handle(Req, State) ->
         {reply, 200, [], "Hello World!"}.

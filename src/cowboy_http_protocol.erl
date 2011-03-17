@@ -106,14 +106,24 @@ header({http_header, _I, Field, _R, Value}, Req, State) ->
 header(http_eoh, #http_req{host=undefined}, State) ->
 	error_terminate(400, State);
 header(http_eoh, Req, State) ->
-	handler_loop(Req, State).
+	handler_init(Req, State).
 
--spec handler_loop(Req::#http_req{}, State::#state{}) -> ok.
-handler_loop(Req, State=#state{handler={Handler, Opts}}) ->
-	case Handler:handle(Opts, Req) of
+-spec handler_init(Req::#http_req{}, State::#state{}) -> ok.
+handler_init(Req, State=#state{handler={Handler, Opts}}) ->
+	case Handler:init(Req, Opts) of
+		{ok, HandlerState} ->
+			handler_loop(HandlerState, Req, State)
+		%% @todo {mode, active}; {upgrade_protocol, Module}; {error, Reason}
+	end.
+
+-spec handler_loop(HandlerState::term(), Req::#http_req{},
+	State::#state{}) -> ok.
+handler_loop(HandlerState, Req, State=#state{handler={Handler, _Opts}}) ->
+	case Handler:handle(Req, HandlerState) of
+		%% @todo {ok, HandlerState}; {mode, active}
+		%% @todo Move the reply code to the cowboy_http_req module.
 		{reply, RCode, RHeaders, RBody} ->
 			reply(RCode, RHeaders, RBody, State)
-		%% @todo stream_reply, request_body, stream_request_body...
 	end.
 
 -spec error_terminate(Code::http_status(), State::#state{}) -> ok.
