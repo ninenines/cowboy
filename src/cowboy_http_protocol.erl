@@ -23,6 +23,7 @@
 	socket :: socket(),
 	transport :: module(),
 	dispatch :: dispatch(),
+	handler :: {Handler::module(), Opts::term()},
 	timeout :: timeout(),
 	connection = keepalive :: keepalive | close
 }).
@@ -81,12 +82,19 @@ wait_header(Req, State=#state{socket=Socket,
 
 -spec header({http_header, I::integer(), Field::http_header(), R::term(),
 	Value::string()} | http_eoh, Req::#http_req{}, State::#state{}) -> ok.
-header({http_header, _I, 'Host', _R, Value}, Req, State) ->
+header({http_header, _I, 'Host', _R, Value}, Req=#http_req{path=Path},
+		State=#state{dispatch=Dispatch}) ->
 	Host = cowboy_dispatcher:split_host(Value),
-	%% @todo We have Host and Path at this point, dispatch right away and
-	%%       error_terminate(404) early if it fails.
-	wait_header(Req#http_req{host=Host,
-		headers=[{'Host', Value}|Req#http_req.headers]}, State);
+	%% @todo We probably want to filter the Host and Path here to allow
+	%%       things like url rewriting.
+	case cowboy_dispatcher:match(Host, Path, Dispatch) of
+		{ok, Handler, Opts, Binds} ->
+			wait_header(Req#http_req{host=Host, bindings=Binds,
+				headers=[{'Host', Value}|Req#http_req.headers]},
+				State#state{handler={Handler, Opts}});
+		{error, notfound} ->
+			error_terminate(404, State)
+	end;
 header({http_header, _I, 'Connection', _R, Connection}, Req, State) ->
 	wait_header(Req#http_req{
 		headers=[{'Connection', Connection}|Req#http_req.headers]},
@@ -97,22 +105,16 @@ header({http_header, _I, Field, _R, Value}, Req, State) ->
 %% The Host header is required.
 header(http_eoh, #http_req{host=undefined}, State) ->
 	error_terminate(400, State);
-header(http_eoh, Req=#http_req{host=Host, path=Path},
-		State=#state{dispatch=Dispatch}) ->
-	%% @todo We probably want to filter the Host and Patch here to allow
-	%%       things like url rewriting.
-	dispatch(cowboy_dispatcher:match(Host, Path, Dispatch), Req, State).
+header(http_eoh, Req, State) ->
+	handler_loop(Req, State).
 
--spec dispatch({ok, Handler::module(), Opts::term(), Binds::bindings()}
-	| {error, notfound}, Req::#http_req{}, State::#state{}) -> ok.
-dispatch({ok, Handler, Opts, Binds}, Req, State) ->
-	case Handler:handle(Opts, Req#http_req{bindings=Binds}) of
+-spec handler_loop(Req::#http_req{}, State::#state{}) -> ok.
+handler_loop(Req, State=#state{handler={Handler, Opts}}) ->
+	case Handler:handle(Opts, Req) of
 		{reply, RCode, RHeaders, RBody} ->
 			reply(RCode, RHeaders, RBody, State)
 		%% @todo stream_reply, request_body, stream_request_body...
-	end;
-dispatch({error, notfound}, _Req, State) ->
-	error_terminate(404, State).
+	end.
 
 -spec error_terminate(Code::http_status(), State::#state{}) -> ok.
 error_terminate(Code, State) ->
