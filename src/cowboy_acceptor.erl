@@ -35,7 +35,7 @@ acceptor(LSocket, Transport, Protocol, Opts) ->
 		{ok, CSocket} ->
 			{ok, Pid} = supervisor:start_child(cowboy_protocols_sup,
 				[CSocket, Transport, Protocol, Opts]),
-			ok = Transport:controlling_process(CSocket, Pid);
+			Transport:controlling_process(CSocket, Pid);
 		{error, _Reason} ->
 			%% @todo Probably do something here. If the socket was closed,
 			%%       we may want to try and listen again on the port?
