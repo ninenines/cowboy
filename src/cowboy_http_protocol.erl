@@ -118,8 +118,7 @@ handler_loop(Req, State=#state{handler={Handler, Opts}}) ->
 
 -spec error_terminate(Code::http_status(), State::#state{}) -> ok.
 error_terminate(Code, State) ->
-	reply(Code, [], [], State#state{connection=close}),
-	terminate(State).
+	reply(Code, [], [], State#state{connection=close}).
 
 -spec terminate(State::#state{}) -> ok.
 terminate(#state{socket=Socket, transport=Transport}) ->
