@@ -111,7 +111,7 @@ header(http_eoh, Req, State) ->
 -spec handler_init(Req::#http_req{}, State::#state{}) -> ok.
 handler_init(Req, State=#state{handler={Handler, Opts}}) ->
 	case Handler:init(Req, Opts) of
-		{ok, HandlerState} ->
+		{ok, Req, HandlerState} ->
 			handler_loop(HandlerState, Req, State)
 		%% @todo {mode, active}; {upgrade_protocol, Module}; {error, Reason}
 	end.

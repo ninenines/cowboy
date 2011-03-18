@@ -66,7 +66,7 @@ handler could be written like this:
     -export([init/2, handle/2]).
 
     init(Req, Opts) ->
-        {ok, undefined}.
+        {ok, Req, undefined}.
 
     handle(Req, State) ->
         {reply, 200, [], "Hello World!"}.
