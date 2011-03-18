@@ -120,10 +120,24 @@ handler_init(Req, State=#state{handler={Handler, Opts}}) ->
 	State::#state{}) -> ok.
 handler_loop(HandlerState, Req, State=#state{handler={Handler, _Opts}}) ->
 	case Handler:handle(Req, HandlerState) of
-		%% @todo {ok, HandlerState}; {mode, active}
+		%% @todo {ok, Req2, HandlerState2} -> and use them in handler_terminate
 		%% @todo Move the reply code to the cowboy_http_req module.
 		{reply, RCode, RHeaders, RBody} ->
-			reply(RCode, RHeaders, RBody, State)
+			reply(RCode, RHeaders, RBody, State),
+			handler_terminate(HandlerState, Req, State)
+		%% @todo {mode, active}
+	end.
+
+-spec handler_terminate(HandlerState::term(), Req::#http_req{},
+	State::#state{}) -> ok.
+handler_terminate(HandlerState, Req, State=#state{handler={Handler, _Opts}}) ->
+	Res = Handler:terminate(Req, HandlerState),
+	%% @todo We need to check if the Req has been replied to.
+	%%       All requests must have a reply, at worst an error.
+	%%       If a request started but wasn't completed, complete it.
+	case Res of
+		ok     -> next_request(State);
+		closed -> terminate(State)
 	end.
 
 -spec error_terminate(Code::http_status(), State::#state{}) -> ok.
@@ -138,14 +152,13 @@ terminate(#state{socket=Socket, transport=Transport}) ->
 -spec reply(Code::http_status(), Headers::http_headers(), Body::iolist(),
 	State::#state{}) -> ok.
 %% @todo Don't be naive about the headers!
-reply(Code, Headers, Body, State=#state{socket=Socket,
+reply(Code, Headers, Body, #state{socket=Socket,
 		transport=TransportMod, connection=Connection}) ->
 	StatusLine = ["HTTP/1.1 ", status(Code), "\r\n"],
 	BaseHeaders = ["Connection: ", atom_to_connection(Connection),
 		"\r\nContent-Length: ", integer_to_list(iolist_size(Body)), "\r\n"],
 	TransportMod:send(Socket,
-		[StatusLine, BaseHeaders, Headers, "\r\n", Body]),
-	next_request(State).
+		[StatusLine, BaseHeaders, Headers, "\r\n", Body]).
 
 -spec next_request(State::#state{}) -> ok.
 next_request(State=#state{connection=keepalive}) ->
