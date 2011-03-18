@@ -69,7 +69,8 @@ handler could be written like this:
         {ok, Req, undefined}.
 
     handle(Req, State) ->
-        {reply, 200, [], "Hello World!"}.
+        {ok, Req2} = cowboy_http_req:reply(200, [], "Hello World!", Req),
+        {ok, Req2, State}.
 
     terminate(Req, State) ->
         ok.

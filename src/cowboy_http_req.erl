@@ -13,25 +13,26 @@
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 -module(cowboy_http_req).
+
 -export([
-	listener/1, method/1, version/1, peer/1,
+	method/1, version/1, peer/1,
 	host/1, raw_host/1,
 	path/1, raw_path/1,
 	qs_val/2, qs_val/3, qs_vals/1, raw_qs/1,
 	binding/2, binding/3, bindings/1,
 	header/2, header/3, headers/1
 %%	cookie/2, cookie/3, cookies/1 @todo
-]). %% API.
+]). %% Request API.
+
+-export([
+	reply/4
+]). %% Response API.
 
 -include("include/types.hrl").
 -include("include/http.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
-%% API.
-
--spec listener(Req::#http_req{}) -> {Listener::atom(), Req::#http_req{}}.
-listener(Req) ->
-	{Req#http_req.listener, Req}.
+%% Request API.
 
 -spec method(Req::#http_req{}) -> {Method::http_method(), Req::#http_req{}}.
 method(Req) ->
@@ -125,6 +126,20 @@ header(Name, Default, Req) ->
 headers(Req) ->
 	{Req#http_req.headers, Req}.
 
+%% Response API.
+
+-spec reply(Code::http_status(), Headers::http_headers(),
+	Body::iolist(), Req::#http_req{}) -> ok.
+%% @todo Don't be naive about the headers!
+reply(Code, Headers, Body, Req=#http_req{socket=Socket,
+		transport=Transport, connection=Connection}) ->
+	StatusLine = ["HTTP/1.1 ", status(Code), "\r\n"],
+	BaseHeaders = ["Connection: ", atom_to_connection(Connection),
+		"\r\nContent-Length: ", integer_to_list(iolist_size(Body)), "\r\n"],
+	Transport:send(Socket,
+		[StatusLine, BaseHeaders, Headers, "\r\n", Body]),
+	{ok, Req}.
+
 %% Internal.
 
 -spec parse_qs(Qs::string()) -> list({Name::string(), Value::string()}).
@@ -137,6 +152,68 @@ parse_qs(Qs) ->
 			{Name, [$=|Value]} = lists:split(N - 1, Token),
 			{Name, Value}
 	end || Token <- Tokens].
+
+-spec atom_to_connection(Atom::keepalive | close) -> string().
+atom_to_connection(keepalive) ->
+	"keep-alive";
+atom_to_connection(close) ->
+	"close".
+
+-spec status(Code::http_status()) -> string().
+status(100) -> "100 Continue";
+status(101) -> "101 Switching Protocols";
+status(102) -> "102 Processing";
+status(200) -> "200 OK";
+status(201) -> "201 Created";
+status(202) -> "202 Accepted";
+status(203) -> "203 Non-Authoritative Information";
+status(204) -> "204 No Content";
+status(205) -> "205 Reset Content";
+status(206) -> "206 Partial Content";
+status(207) -> "207 Multi-Status";
+status(226) -> "226 IM Used";
+status(300) -> "300 Multiple Choices";
+status(301) -> "301 Moved Permanently";
+status(302) -> "302 Found";
+status(303) -> "303 See Other";
+status(304) -> "304 Not Modified";
+status(305) -> "305 Use Proxy";
+status(306) -> "306 Switch Proxy";
+status(307) -> "307 Temporary Redirect";
+status(400) -> "400 Bad Request";
+status(401) -> "401 Unauthorized";
+status(402) -> "402 Payment Required";
+status(403) -> "403 Forbidden";
+status(404) -> "404 Not Found";
+status(405) -> "405 Method Not Allowed";
+status(406) -> "406 Not Acceptable";
+status(407) -> "407 Proxy Authentication Required";
+status(408) -> "408 Request Timeout";
+status(409) -> "409 Conflict";
+status(410) -> "410 Gone";
+status(411) -> "411 Length Required";
+status(412) -> "412 Precondition Failed";
+status(413) -> "413 Request Entity Too Large";
+status(414) -> "414 Request-URI Too Long";
+status(415) -> "415 Unsupported Media Type";
+status(416) -> "416 Requested Range Not Satisfiable";
+status(417) -> "417 Expectation Failed";
+status(418) -> "418 I'm a teapot";
+status(422) -> "422 Unprocessable Entity";
+status(423) -> "423 Locked";
+status(424) -> "424 Failed Dependency";
+status(425) -> "425 Unordered Collection";
+status(426) -> "426 Upgrade Required";
+status(500) -> "500 Internal Server Error";
+status(501) -> "501 Not Implemented";
+status(502) -> "502 Bad Gateway";
+status(503) -> "503 Service Unavailable";
+status(504) -> "504 Gateway Timeout";
+status(505) -> "505 HTTP Version Not Supported";
+status(506) -> "506 Variant Also Negotiates";
+status(507) -> "507 Insufficient Storage";
+status(510) -> "510 Not Extended";
+status(L) when is_list(L) -> L.
 
 %% Tests.
 

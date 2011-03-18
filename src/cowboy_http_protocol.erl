@@ -66,8 +66,8 @@ request({http_request, Method, {abs_path, AbsPath}, Version},
 		State=#state{socket=Socket, transport=Transport}) ->
 	{Path, Qs} = cowboy_dispatcher:split_path(AbsPath),
 	{ok, Peer} = Transport:peername(Socket),
-	wait_header(#http_req{method=Method, version=Version,
-		peer=Peer, path=Path, raw_qs=Qs}, State).
+	wait_header(#http_req{socket=Socket, transport=Transport, method=Method,
+		version=Version, peer=Peer, path=Path, raw_qs=Qs}, State).
 
 -spec wait_header(Req::#http_req{}, State::#state{}) -> ok.
 %% @todo We don't want to wait T at each header...
@@ -96,9 +96,10 @@ header({http_header, _I, 'Host', _R, Value}, Req=#http_req{path=Path},
 			error_terminate(404, State)
 	end;
 header({http_header, _I, 'Connection', _R, Connection}, Req, State) ->
-	wait_header(Req#http_req{
+	ConnAtom = connection_to_atom(Connection),
+	wait_header(Req#http_req{connection=ConnAtom,
 		headers=[{'Connection', Connection}|Req#http_req.headers]},
-		State#state{connection=connection_to_atom(Connection)});
+		State#state{connection=ConnAtom});
 header({http_header, _I, Field, _R, Value}, Req, State) ->
 	wait_header(Req#http_req{headers=[{Field, Value}|Req#http_req.headers]},
 		State);
@@ -120,11 +121,8 @@ handler_init(Req, State=#state{handler={Handler, Opts}}) ->
 	State::#state{}) -> ok.
 handler_loop(HandlerState, Req, State=#state{handler={Handler, _Opts}}) ->
 	case Handler:handle(Req, HandlerState) of
-		%% @todo {ok, Req2, HandlerState2} -> and use them in handler_terminate
-		%% @todo Move the reply code to the cowboy_http_req module.
-		{reply, RCode, RHeaders, RBody} ->
-			reply(RCode, RHeaders, RBody, State),
-			handler_terminate(HandlerState, Req, State)
+		{ok, Req2, HandlerState2} ->
+			handler_terminate(HandlerState2, Req2, State)
 		%% @todo {mode, active}
 	end.
 
@@ -135,30 +133,22 @@ handler_terminate(HandlerState, Req, State=#state{handler={Handler, _Opts}}) ->
 	%% @todo We need to check if the Req has been replied to.
 	%%       All requests must have a reply, at worst an error.
 	%%       If a request started but wasn't completed, complete it.
-	case Res of
-		ok     -> next_request(State);
-		closed -> terminate(State)
+	case {Res, State#state.connection} of
+		{ok, keepalive} -> next_request(State);
+		_Closed -> terminate(State)
 	end.
 
 -spec error_terminate(Code::http_status(), State::#state{}) -> ok.
-error_terminate(Code, State) ->
-	reply(Code, [], [], State#state{connection=close}).
+error_terminate(Code, State=#state{socket=Socket, transport=Transport,
+		connection=Connection}) ->
+	cowboy_http_req:reply(Code, [], [], #http_req{socket=Socket,
+		transport=Transport, connection=Connection}),
+	terminate(State).
 
 -spec terminate(State::#state{}) -> ok.
 terminate(#state{socket=Socket, transport=Transport}) ->
 	Transport:close(Socket),
 	ok.
-
--spec reply(Code::http_status(), Headers::http_headers(), Body::iolist(),
-	State::#state{}) -> ok.
-%% @todo Don't be naive about the headers!
-reply(Code, Headers, Body, #state{socket=Socket,
-		transport=TransportMod, connection=Connection}) ->
-	StatusLine = ["HTTP/1.1 ", status(Code), "\r\n"],
-	BaseHeaders = ["Connection: ", atom_to_connection(Connection),
-		"\r\nContent-Length: ", integer_to_list(iolist_size(Body)), "\r\n"],
-	TransportMod:send(Socket,
-		[StatusLine, BaseHeaders, Headers, "\r\n", Body]).
 
 -spec next_request(State::#state{}) -> ok.
 next_request(State=#state{connection=keepalive}) ->
@@ -174,65 +164,3 @@ connection_to_atom(Connection) ->
 		"close" -> close;
 		_Any -> keepalive
 	end.
-
--spec atom_to_connection(Atom::keepalive | close) -> string().
-atom_to_connection(keepalive) ->
-	"keep-alive";
-atom_to_connection(close) ->
-	"close".
-
--spec status(Code::http_status()) -> string().
-status(100) -> "100 Continue";
-status(101) -> "101 Switching Protocols";
-status(102) -> "102 Processing";
-status(200) -> "200 OK";
-status(201) -> "201 Created";
-status(202) -> "202 Accepted";
-status(203) -> "203 Non-Authoritative Information";
-status(204) -> "204 No Content";
-status(205) -> "205 Reset Content";
-status(206) -> "206 Partial Content";
-status(207) -> "207 Multi-Status";
-status(226) -> "226 IM Used";
-status(300) -> "300 Multiple Choices";
-status(301) -> "301 Moved Permanently";
-status(302) -> "302 Found";
-status(303) -> "303 See Other";
-status(304) -> "304 Not Modified";
-status(305) -> "305 Use Proxy";
-status(306) -> "306 Switch Proxy";
-status(307) -> "307 Temporary Redirect";
-status(400) -> "400 Bad Request";
-status(401) -> "401 Unauthorized";
-status(402) -> "402 Payment Required";
-status(403) -> "403 Forbidden";
-status(404) -> "404 Not Found";
-status(405) -> "405 Method Not Allowed";
-status(406) -> "406 Not Acceptable";
-status(407) -> "407 Proxy Authentication Required";
-status(408) -> "408 Request Timeout";
-status(409) -> "409 Conflict";
-status(410) -> "410 Gone";
-status(411) -> "411 Length Required";
-status(412) -> "412 Precondition Failed";
-status(413) -> "413 Request Entity Too Large";
-status(414) -> "414 Request-URI Too Long";
-status(415) -> "415 Unsupported Media Type";
-status(416) -> "416 Requested Range Not Satisfiable";
-status(417) -> "417 Expectation Failed";
-status(418) -> "418 I'm a teapot";
-status(422) -> "422 Unprocessable Entity";
-status(423) -> "423 Locked";
-status(424) -> "424 Failed Dependency";
-status(425) -> "425 Unordered Collection";
-status(426) -> "426 Upgrade Required";
-status(500) -> "500 Internal Server Error";
-status(501) -> "501 Not Implemented";
-status(502) -> "502 Bad Gateway";
-status(503) -> "503 Service Unavailable";
-status(504) -> "504 Gateway Timeout";
-status(505) -> "505 HTTP Version Not Supported";
-status(506) -> "506 Variant Also Negotiates";
-status(507) -> "507 Insufficient Storage";
-status(510) -> "510 Not Extended";
-status(L) when is_list(L) -> L.
