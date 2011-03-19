@@ -101,7 +101,8 @@ header({http_header, _I, 'Host', _R, Value}, Req=#http_req{path=Path,
 	%%       things like url rewriting.
 	case cowboy_dispatcher:match(Host, Path, Dispatch) of
 		{ok, Handler, Opts, Binds} ->
-			wait_header(Req#http_req{host=Host, bindings=Binds,
+			wait_header(Req#http_req{
+				host=Host, raw_host=Value2, bindings=Binds,
 				headers=[{'Host', Value2}|Req#http_req.headers]},
 				State#state{handler={Handler, Opts}});
 		{error, notfound, host} ->

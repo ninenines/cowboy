@@ -19,8 +19,8 @@
 	method     = 'GET'     :: http_method(),
 	version    = {1, 1}    :: http_version(),
 	peer       = undefined :: undefined | {Address::ip_address(), Port::port_number()},
-	host       = undefined :: undefined | path_tokens(), %% todo
-	raw_host   = undefined :: undefined | string(), %% todo
+	host       = undefined :: undefined | path_tokens(),
+	raw_host   = undefined :: undefined | string(),
 	path       = undefined :: undefined | path_tokens(), %% todo
 	raw_path   = undefined :: undefined | string(), %% todo
 	qs_vals    = undefined :: undefined | bindings(), %% todo
