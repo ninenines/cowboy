@@ -128,25 +128,29 @@ header(http_eoh, Req, State) ->
 
 -spec handler_init(Req::#http_req{}, State::#state{}) -> ok.
 handler_init(Req, State=#state{handler={Handler, Opts}}) ->
-	case Handler:init(Req, Opts) of
+	case catch Handler:init(Req, Opts) of
 		{ok, Req, HandlerState} ->
-			handler_loop(HandlerState, Req, State)
+			handler_loop(HandlerState, Req, State);
 		%% @todo {mode, active}; {upgrade_protocol, Module}; {error, Reason}
+		{'EXIT', _Reason} ->
+			error_terminate(500, State)
 	end.
 
 -spec handler_loop(HandlerState::term(), Req::#http_req{},
 	State::#state{}) -> ok.
 handler_loop(HandlerState, Req, State=#state{handler={Handler, _Opts}}) ->
-	case Handler:handle(Req, HandlerState) of
+	case catch Handler:handle(Req, HandlerState) of
 		{ok, Req2, HandlerState2} ->
-			handler_terminate(HandlerState2, Req2, State)
+			handler_terminate(HandlerState2, Req2, State);
 		%% @todo {mode, active}
+		{'EXIT', _Reason} ->
+			terminate(State)
 	end.
 
 -spec handler_terminate(HandlerState::term(), Req::#http_req{},
 	State::#state{}) -> ok.
 handler_terminate(HandlerState, Req, State=#state{handler={Handler, _Opts}}) ->
-	Res = Handler:terminate(Req, HandlerState),
+	Res = (catch Handler:terminate(Req, HandlerState)),
 	%% @todo We need to check if the Req has been replied to.
 	%%       All requests must have a reply, at worst an error.
 	%%       If a request started but wasn't completed, complete it.
