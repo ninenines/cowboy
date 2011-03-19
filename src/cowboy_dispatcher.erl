@@ -25,6 +25,8 @@ split_host(Host) ->
 	string:tokens(Host, ".").
 
 -spec split_path(Path::string()) -> {Tokens::path_tokens(), Qs::string()}.
+split_path('*') ->
+	{'*', []};
 split_path(Path) ->
 	case string:chr(Path, $?) of
 		0 ->
@@ -56,6 +58,8 @@ match(Host, Path, [{HostMatch, PathMatchs}|Tail]) ->
 match_path(_Path, [], _HostBinds) ->
 	{error, notfound, path};
 match_path(_Path, [{'_', Handler, Opts}|_Tail], HostBinds) ->
+	{ok, Handler, Opts, HostBinds};
+match_path('*', [{'*', Handler, Opts}|_Tail], HostBinds) ->
 	{ok, Handler, Opts, HostBinds};
 match_path(Path, [{PathMatch, Handler, Opts}|Tail], HostBinds) ->
 	case try_match(path, Path, PathMatch) of
@@ -120,7 +124,6 @@ split_path_test_() ->
 	Tests = [
 		{"?", [], []},
 		{"???", [], "??"},
-		{"*", ["*"], []},
 		{"/", [], []},
 		{"/users", ["users"], []},
 		{"/users?", ["users"], []},
@@ -128,7 +131,8 @@ split_path_test_() ->
 		{"/users/42/friends?a=b&c=d&e=notsure?whatever",
 			["users", "42", "friends"], "a=b&c=d&e=notsure?whatever"}
 	],
-	[{P, fun() -> {R, Qs} = split_path(P) end} || {P, R, Qs} <- Tests].
+	[{"atom '*'", fun() -> {'*', []} = split_path('*') end}]
+		++ [{P, fun() -> {R, Qs} = split_path(P) end} || {P, R, Qs} <- Tests].
 
 match_test_() ->
 	Dispatch = [

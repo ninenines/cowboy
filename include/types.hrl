@@ -25,8 +25,8 @@
 -type port_number() :: 0..65535.
 
 -type bindings() :: list({Key::atom(), Value::string()}).
--type path_tokens() :: list(string()).
--type match() :: '_' | list(string() | '_' | atom()).
+-type path_tokens() :: '*' | list(string()).
+-type match() :: '_' | '*' | list(string() | '_' | atom()).
 
 -type dispatch_rules() :: {Host::match(), list({Path::match(),
 	Handler::module(), Opts::term()})}.
