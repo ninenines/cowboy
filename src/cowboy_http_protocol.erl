@@ -88,8 +88,8 @@ wait_header(Req, State=#state{socket=Socket,
 
 -spec header({http_header, I::integer(), Field::http_header(), R::term(),
 	Value::string()} | http_eoh, Req::#http_req{}, State::#state{}) -> ok.
-header({http_header, _I, 'Host', _R, Value}, Req=#http_req{path=Path},
-		State=#state{dispatch=Dispatch}) ->
+header({http_header, _I, 'Host', _R, Value}, Req=#http_req{path=Path,
+		host=undefined}, State=#state{dispatch=Dispatch}) ->
 	Value2 = string:to_lower(Value),
 	Host = cowboy_dispatcher:split_host(Value2),
 	%% @todo We probably want to filter the Host and Path here to allow
@@ -102,6 +102,9 @@ header({http_header, _I, 'Host', _R, Value}, Req=#http_req{path=Path},
 		{error, notfound} ->
 			error_terminate(404, State)
 	end;
+%% Ignore Host headers if we already have it.
+header({http_header, _I, 'Host', _R, _V}, Req, State) ->
+	wait_header(Req, State);
 header({http_header, _I, 'Connection', _R, Connection}, Req, State) ->
 	ConnAtom = connection_to_atom(Connection),
 	wait_header(Req#http_req{connection=ConnAtom,
