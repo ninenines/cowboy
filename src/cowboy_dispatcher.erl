@@ -25,8 +25,6 @@ split_host(Host) ->
 	string:tokens(Host, ".").
 
 -spec split_path(Path::string()) -> {Tokens::path_tokens(), Qs::string()}.
-split_path('*') ->
-	{'*', []};
 split_path(Path) ->
 	case string:chr(Path, $?) of
 		0 ->
