@@ -99,7 +99,9 @@ header({http_header, _I, 'Host', _R, Value}, Req=#http_req{path=Path,
 			wait_header(Req#http_req{host=Host, bindings=Binds,
 				headers=[{'Host', Value2}|Req#http_req.headers]},
 				State#state{handler={Handler, Opts}});
-		{error, notfound} ->
+		{error, notfound, host} ->
+			error_terminate(400, State);
+		{error, notfound, path} ->
 			error_terminate(404, State)
 	end;
 %% Ignore Host headers if we already have it.

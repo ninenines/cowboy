@@ -28,8 +28,8 @@
 -type path_tokens() :: list(string()).
 -type match() :: '_' | list(string() | '_' | atom()).
 
--type dispatch_rules() :: {Host::match(), Path::match(),
-	Handler::module(), Opts::term()}.
+-type dispatch_rules() :: {Host::match(), list({Path::match(),
+	Handler::module(), Opts::term()})}.
 -type dispatch() :: list(dispatch_rules()).
 
 -type http_method() :: 'OPTIONS' | 'GET' | 'HEAD'

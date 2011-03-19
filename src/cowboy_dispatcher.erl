@@ -35,18 +35,34 @@ split_path(Path) ->
 	end.
 
 -spec match(Host::path_tokens(), Path::path_tokens(), Dispatch::dispatch())
-	-> {ok, Handler::module(), Opts::term(), Binds::bindings()} | {error, notfound}.
+	-> {ok, Handler::module(), Opts::term(), Binds::bindings()}
+	| {error, notfound, host} | {error, notfound, path}.
 match(_Host, _Path, []) ->
-	{error, notfound};
-match(_Host, _Path, [{'_', '_', Handler, Opts}|_Tail]) ->
-	{ok, Handler, Opts, []};
-match(Host, Path, [{HostMatch, PathMatch, Handler, Opts}|Tail]) ->
+	{error, notfound, host};
+match(_Host, Path, [{'_', PathMatchs}|_Tail]) ->
+	match_path(Path, PathMatchs, []);
+match(Host, Path, [{HostMatch, PathMatchs}|Tail]) ->
 	case try_match(host, Host, HostMatch) of
-		false -> match(Host, Path, Tail);
-		{true, HostBinds} -> case try_match(path, Path, PathMatch) of
-			false -> match(Host, Path, Tail);
-			{true, PathBinds} -> {ok, Handler, Opts, HostBinds ++ PathBinds}
-		end
+		false ->
+			match(Host, Path, Tail);
+		{true, HostBinds} ->
+			match_path(Path, PathMatchs, HostBinds)
+	end.
+
+-spec match_path(Path::path_tokens(), list({Path::match(),
+	Handler::module(), Opts::term()}), HostBinds::bindings())
+	-> {ok, Handler::module(), Opts::term(), Binds::bindings()}
+	| {error, notfound, path}.
+match_path(_Path, [], _HostBinds) ->
+	{error, notfound, path};
+match_path(_Path, [{'_', Handler, Opts}|_Tail], HostBinds) ->
+	{ok, Handler, Opts, HostBinds};
+match_path(Path, [{PathMatch, Handler, Opts}|Tail], HostBinds) ->
+	case try_match(path, Path, PathMatch) of
+		false ->
+			match_path(Path, Tail, HostBinds);
+		{true, PathBinds} ->
+			{ok, Handler, Opts, HostBinds ++ PathBinds}
 	end.
 
 %% Internal.
@@ -116,16 +132,24 @@ split_path_test_() ->
 
 match_test_() ->
 	Dispatch = [
-		{["www", '_', "dev-extend", "eu"], ["users", '_', "mails"],
-			match_any_subdomain_users, []},
-		{["dev-extend", "eu"], ["users", id, "friends"],
-			match_extend_users_friends, []},
-		{["dev-extend", var], ["threads", var],
-			match_duplicate_vars, [we, {expect, two}, var, here]},
-		{["dev-extend", "eu"], '_', match_extend, []},
-		{["erlang", ext], '_', match_erlang_ext, []},
-		{'_', ["users", id, "friends"], match_users_friends, []},
-		{'_', '_', match_any, []}
+		{["www", '_', "dev-extend", "eu"], [
+			{["users", '_', "mails"], match_any_subdomain_users, []}
+		]},
+		{["dev-extend", "eu"], [
+			{["users", id, "friends"], match_extend_users_friends, []},
+			{'_', match_extend, []}
+		]},
+		{["dev-extend", var], [
+			{["threads", var], match_duplicate_vars,
+				[we, {expect, two}, var, here]}
+		]},
+		{["erlang", ext], [
+			{'_', match_erlang_ext, []}
+		]},
+		{'_', [
+			{["users", id, "friends"], match_users_friends, []},
+			{'_', match_any, []}
+		]}
 	],
 	%% {Host, Path, Result}
 	Tests = [
@@ -135,16 +159,16 @@ match_test_() ->
 		{["www", "dev-extend", "eu"], ["users", "42", "mails"],
 			{ok, match_any, [], []}},
 		{["www", "any", "dev-extend", "eu"], ["not_users", "42", "mails"],
-			{ok, match_any, [], []}},
+			{error, notfound, path}},
 		{["dev-extend", "eu"], [], {ok, match_extend, [], []}},
 		{["dev-extend", "eu"], ["users", "42", "friends"],
 			{ok, match_extend_users_friends, [], [{id, "42"}]}},
 		{["erlang", "fr"], '_', {ok, match_erlang_ext, [], [{ext, "fr"}]}},
 		{["any"], ["users", "444", "friends"],
 			{ok, match_users_friends, [], [{id, "444"}]}},
-		{["dev-extend", "eu"], ["threads", "987"],
+		{["dev-extend", "fr"], ["threads", "987"],
 			{ok, match_duplicate_vars, [we, {expect, two}, var, here],
-			[{var, "eu"}, {var, "987"}]}}
+			[{var, "fr"}, {var, "987"}]}}
 	],
 	[{lists:flatten(io_lib:format("~p, ~p", [H, P])), fun() ->
 		R = match(H, P, Dispatch)

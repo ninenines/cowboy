@@ -49,8 +49,8 @@ Code speaks more than words:
 
     application:start(cowboy),
     Dispatch = [
-        %% Host, Path, Handler, Opts
-        {'_', '_', my_handler, []}
+        %% {Host, list({Path, Handler, Opts})}
+        {'_', [{'_', my_handler, []}]}
     ],
     %% NbAcceptors, Transport, TransOpts, Protocol, ProtoOpts
     cowboy_listener_sup:start_link(100,
