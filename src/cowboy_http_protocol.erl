@@ -84,13 +84,14 @@ wait_header(Req, State=#state{socket=Socket,
 	Value::string()} | http_eoh, Req::#http_req{}, State::#state{}) -> ok.
 header({http_header, _I, 'Host', _R, Value}, Req=#http_req{path=Path},
 		State=#state{dispatch=Dispatch}) ->
-	Host = cowboy_dispatcher:split_host(Value),
+	Value2 = string:to_lower(Value),
+	Host = cowboy_dispatcher:split_host(Value2),
 	%% @todo We probably want to filter the Host and Path here to allow
 	%%       things like url rewriting.
 	case cowboy_dispatcher:match(Host, Path, Dispatch) of
 		{ok, Handler, Opts, Binds} ->
 			wait_header(Req#http_req{host=Host, bindings=Binds,
-				headers=[{'Host', Value}|Req#http_req.headers]},
+				headers=[{'Host', Value2}|Req#http_req.headers]},
 				State#state{handler={Handler, Opts}});
 		{error, notfound} ->
 			error_terminate(404, State)
