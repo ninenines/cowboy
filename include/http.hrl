@@ -21,9 +21,9 @@
 	peer       = undefined :: undefined | {Address::ip_address(), Port::port_number()},
 	host       = undefined :: undefined | path_tokens(),
 	raw_host   = undefined :: undefined | string(),
-	path       = undefined :: undefined | path_tokens(), %% todo
-	raw_path   = undefined :: undefined | string(), %% todo
-	qs_vals    = undefined :: undefined | bindings(), %% todo
+	path       = undefined :: undefined | path_tokens(),
+	raw_path   = undefined :: undefined | string(),
+	qs_vals    = undefined :: undefined | bindings(),
 	raw_qs     = undefined :: undefined | string(),
 	bindings   = undefined :: undefined | bindings(),
 	headers    = []        :: http_headers()

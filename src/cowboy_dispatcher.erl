@@ -30,10 +30,10 @@ split_path('*') ->
 split_path(Path) ->
 	case string:chr(Path, $?) of
 		0 ->
-			{string:tokens(Path, "/"), []};
+			{string:tokens(Path, "/"), Path, []};
 		N ->
 			{Path2, [$?|Qs]} = lists:split(N - 1, Path),
-			{string:tokens(Path2, "/"), Qs}
+			{string:tokens(Path2, "/"), Path2, Qs}
 	end.
 
 -spec match(Host::path_tokens(), Path::path_tokens(), Dispatch::dispatch())

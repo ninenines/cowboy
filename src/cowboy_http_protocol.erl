@@ -64,15 +64,16 @@ request({http_request, _Method, _URI, Version}, State)
 %% @todo We need to cleanup the URI properly.
 request({http_request, Method, {abs_path, AbsPath}, Version},
 		State=#state{socket=Socket, transport=Transport}) ->
-	{Path, Qs} = cowboy_dispatcher:split_path(AbsPath),
+	{Path, RawPath, Qs} = cowboy_dispatcher:split_path(AbsPath),
 	{ok, Peer} = Transport:peername(Socket),
 	wait_header(#http_req{socket=Socket, transport=Transport, method=Method,
-		version=Version, peer=Peer, path=Path, raw_qs=Qs}, State);
+		version=Version, peer=Peer, path=Path, raw_path=RawPath, raw_qs=Qs},
+		State);
 request({http_request, Method, '*', Version},
 		State=#state{socket=Socket, transport=Transport}) ->
 	{ok, Peer} = Transport:peername(Socket),
 	wait_header(#http_req{socket=Socket, transport=Transport, method=Method,
-		version=Version, peer=Peer, path='*', raw_qs=[]}, State);
+		version=Version, peer=Peer, path='*', raw_path="*", raw_qs=[]}, State);
 request({http_request, _Method, _URI, _Version}, State) ->
 	error_terminate(501, State);
 request({http_error, "\r\n"}, State) ->
