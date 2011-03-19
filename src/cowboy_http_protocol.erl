@@ -68,6 +68,8 @@ request({http_request, Method, {abs_path, AbsPath}, Version},
 	{ok, Peer} = Transport:peername(Socket),
 	wait_header(#http_req{socket=Socket, transport=Transport, method=Method,
 		version=Version, peer=Peer, path=Path, raw_qs=Qs}, State);
+request({http_request, _Method, _URI, _Version}, State) ->
+	error_terminate(501, State);
 request({http_error, "\r\n"}, State) ->
 	wait_request(State);
 request({http_error, _Any}, State) ->
