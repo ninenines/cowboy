@@ -139,10 +139,9 @@ handler_terminate(HandlerState, Req, State=#state{handler={Handler, _Opts}}) ->
 	end.
 
 -spec error_terminate(Code::http_status(), State::#state{}) -> ok.
-error_terminate(Code, State=#state{socket=Socket, transport=Transport,
-		connection=Connection}) ->
+error_terminate(Code, State=#state{socket=Socket, transport=Transport}) ->
 	cowboy_http_req:reply(Code, [], [], #http_req{socket=Socket,
-		transport=Transport, connection=Connection}),
+		transport=Transport, connection=close}),
 	terminate(State).
 
 -spec terminate(State::#state{}) -> ok.
