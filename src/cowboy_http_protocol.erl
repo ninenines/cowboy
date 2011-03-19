@@ -69,7 +69,9 @@ request({http_request, Method, {abs_path, AbsPath}, Version},
 	wait_header(#http_req{socket=Socket, transport=Transport, method=Method,
 		version=Version, peer=Peer, path=Path, raw_qs=Qs}, State);
 request({http_error, "\r\n"}, State) ->
-	wait_request(State).
+	wait_request(State);
+request({http_error, _Any}, State) ->
+	error_terminate(400, State).
 
 -spec wait_header(Req::#http_req{}, State::#state{}) -> ok.
 %% @todo We don't want to wait T at each header...
