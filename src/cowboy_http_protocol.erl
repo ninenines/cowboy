@@ -66,14 +66,17 @@ request({http_request, Method, {abs_path, AbsPath}, Version},
 		State=#state{socket=Socket, transport=Transport}) ->
 	{Path, RawPath, Qs} = cowboy_dispatcher:split_path(AbsPath),
 	{ok, Peer} = Transport:peername(Socket),
-	wait_header(#http_req{socket=Socket, transport=Transport, method=Method,
-		version=Version, peer=Peer, path=Path, raw_path=RawPath, raw_qs=Qs},
-		State);
+	ConnAtom = version_to_connection(Version),
+	wait_header(#http_req{socket=Socket, transport=Transport,
+		connection=ConnAtom, method=Method, version=Version,
+		peer=Peer, path=Path, raw_path=RawPath, raw_qs=Qs}, State);
 request({http_request, Method, '*', Version},
 		State=#state{socket=Socket, transport=Transport}) ->
 	{ok, Peer} = Transport:peername(Socket),
-	wait_header(#http_req{socket=Socket, transport=Transport, method=Method,
-		version=Version, peer=Peer, path='*', raw_path="*", raw_qs=[]}, State);
+	ConnAtom = version_to_connection(Version),
+	wait_header(#http_req{socket=Socket, transport=Transport,
+		connection=ConnAtom, method=Method, version=Version,
+		peer=Peer, path='*', raw_path="*", raw_qs=[]}, State);
 request({http_request, _Method, _URI, _Version}, State) ->
 	error_terminate(501, State);
 request({http_error, "\r\n"}, State) ->
@@ -179,6 +182,10 @@ next_request(State=#state{connection=close}) ->
 	terminate(State).
 
 %% Internal.
+
+-spec version_to_connection(Version::http_version()) -> keepalive | close.
+version_to_connection({1, 1}) -> keepalive;
+version_to_connection(_Any) -> close.
 
 -spec connection_to_atom(Connection::string()) -> keepalive | close.
 connection_to_atom(Connection) ->
