@@ -67,7 +67,9 @@ request({http_request, Method, {abs_path, AbsPath}, Version},
 	{Path, Qs} = cowboy_dispatcher:split_path(AbsPath),
 	{ok, Peer} = Transport:peername(Socket),
 	wait_header(#http_req{socket=Socket, transport=Transport, method=Method,
-		version=Version, peer=Peer, path=Path, raw_qs=Qs}, State).
+		version=Version, peer=Peer, path=Path, raw_qs=Qs}, State);
+request({http_error, "\r\n"}, State) ->
+	wait_request(State).
 
 -spec wait_header(Req::#http_req{}, State::#state{}) -> ok.
 %% @todo We don't want to wait T at each header...
