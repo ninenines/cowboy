@@ -156,18 +156,21 @@ handler_loop(HandlerState, Req, State=#state{handler={Handler, _Opts}}) ->
 handler_terminate(HandlerState, Req, State=#state{handler={Handler, _Opts}}) ->
 	Res = (catch Handler:terminate(
 		Req#http_req{resp_state=locked}, HandlerState)),
-	%% @todo We need to check if the Req has been replied to.
-	%%       All requests must have a reply, at worst an error.
-	%%       If a request started but wasn't completed, complete it.
+	%% @todo We must skip any body data from the request
+	%%       before processing another.
+	ensure_response(Req, State),
 	case {Res, State#state.connection} of
 		{ok, keepalive} -> next_request(State);
 		_Closed -> terminate(State)
 	end.
 
--spec error_terminate(Code::http_status(), State::#state{}) -> ok.
-error_terminate(Code, State) ->
-	error_response(Code, State#state{connection=close}),
-	terminate(State).
+%% No response has been sent but everything apparently went fine.
+%% Reply with 204 No Content to indicate this.
+ensure_response(#http_req{resp_state=waiting}, State) ->
+	error_response(204, State);
+%% The handler has already fully replied to the client.
+ensure_response(#http_req{resp_state=done}, _State) ->
+	ok.
 
 -spec error_response(Code::http_status(), State::#state{}) -> ok.
 error_response(Code, #state{socket=Socket,
@@ -175,6 +178,11 @@ error_response(Code, #state{socket=Socket,
 	cowboy_http_req:reply(Code, [], [], #http_req{
 		socket=Socket, transport=Transport,
 		connection=Connection, resp_state=waiting}).
+
+-spec error_terminate(Code::http_status(), State::#state{}) -> ok.
+error_terminate(Code, State) ->
+	error_response(Code, State#state{connection=close}),
+	terminate(State).
 
 -spec terminate(State::#state{}) -> ok.
 terminate(#state{socket=Socket, transport=Transport}) ->
