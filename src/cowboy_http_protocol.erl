@@ -143,7 +143,8 @@ handler_init(Req, State=#state{handler={Handler, Opts}}) ->
 -spec handler_loop(HandlerState::term(), Req::#http_req{},
 	State::#state{}) -> ok.
 handler_loop(HandlerState, Req, State=#state{handler={Handler, _Opts}}) ->
-	case catch Handler:handle(Req, HandlerState) of
+	case catch Handler:handle(Req#http_req{resp_state=waiting},
+			HandlerState) of
 		{ok, Req2, HandlerState2} ->
 			handler_terminate(HandlerState2, Req2, State);
 		{'EXIT', _Reason} ->
@@ -153,7 +154,8 @@ handler_loop(HandlerState, Req, State=#state{handler={Handler, _Opts}}) ->
 -spec handler_terminate(HandlerState::term(), Req::#http_req{},
 	State::#state{}) -> ok.
 handler_terminate(HandlerState, Req, State=#state{handler={Handler, _Opts}}) ->
-	Res = (catch Handler:terminate(Req, HandlerState)),
+	Res = (catch Handler:terminate(
+		Req#http_req{resp_state=locked}, HandlerState)),
 	%% @todo We need to check if the Req has been replied to.
 	%%       All requests must have a reply, at worst an error.
 	%%       If a request started but wasn't completed, complete it.

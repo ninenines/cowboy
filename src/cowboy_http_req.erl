@@ -135,13 +135,14 @@ headers(Req) ->
 	Body::iolist(), Req::#http_req{}) -> ok.
 %% @todo Don't be naive about the headers!
 reply(Code, Headers, Body, Req=#http_req{socket=Socket,
-		transport=Transport, connection=Connection}) ->
+		transport=Transport, connection=Connection,
+		resp_state=waiting}) ->
 	StatusLine = ["HTTP/1.1 ", status(Code), "\r\n"],
 	BaseHeaders = ["Connection: ", atom_to_connection(Connection),
 		"\r\nContent-Length: ", integer_to_list(iolist_size(Body)), "\r\n"],
 	Transport:send(Socket,
 		[StatusLine, BaseHeaders, Headers, "\r\n", Body]),
-	{ok, Req}.
+	{ok, Req#http_req{resp_state=done}}.
 
 %% Internal.
 

@@ -13,9 +13,12 @@
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 -record(http_req, {
+	%% Transport.
 	socket     = undefined :: undefined | socket(),
 	transport  = undefined :: undefined | module(),
 	connection = keepalive :: keepalive | close,
+
+	%% Request.
 	method     = 'GET'     :: http_method(),
 	version    = {1, 1}    :: http_version(),
 	peer       = undefined :: undefined | {Address::ip_address(), Port::port_number()},
@@ -26,6 +29,9 @@
 	qs_vals    = undefined :: undefined | bindings(),
 	raw_qs     = undefined :: undefined | string(),
 	bindings   = undefined :: undefined | bindings(),
-	headers    = []        :: http_headers()
+	headers    = []        :: http_headers(),
 %%	cookies    = undefined :: undefined | http_cookies() %% @todo
+
+	%% Response.
+	resp_state = locked    :: locked | waiting | done
 }).
