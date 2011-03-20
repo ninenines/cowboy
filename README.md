@@ -30,8 +30,8 @@ Embedding Cowboy
 * Start Cowboy and add one or more listeners.
 * Write handlers.
 
-Starting and stopping
----------------------
+Getting Started
+---------------
 
 Cowboy can be started and stopped like any other application. However the
 Cowboy application do not start any listener, those must be started manually.
