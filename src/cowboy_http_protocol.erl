@@ -14,7 +14,7 @@
 
 -module(cowboy_http_protocol).
 -export([start_link/3]). %% API.
--export([init/3]). %% FSM.
+-export([init/3, wait_request/1]). %% FSM.
 
 -include("include/types.hrl").
 -include("include/http.hrl").
@@ -177,7 +177,7 @@ terminate(#state{socket=Socket, transport=Transport}) ->
 
 -spec next_request(State::#state{}) -> ok.
 next_request(State=#state{connection=keepalive}) ->
-	wait_request(State);
+	?MODULE:wait_request(State);
 next_request(State=#state{connection=close}) ->
 	terminate(State).
 
