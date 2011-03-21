@@ -55,6 +55,6 @@ controlling_process(Socket, Pid) ->
 peername(Socket) ->
 	inet:peername(Socket).
 
--spec close(Socket::socket()) -> ok | {error, Reason::posix}.
+-spec close(Socket::socket()) -> ok.
 close(Socket) ->
 	gen_tcp:close(Socket).
