@@ -32,6 +32,9 @@
 	headers    = []        :: http_headers(),
 %%	cookies    = undefined :: undefined | http_cookies() %% @todo
 
+	%% Request body.
+	body_state = waiting   :: waiting | done,
+
 	%% Response.
 	resp_state = locked    :: locked | waiting | done
 }).

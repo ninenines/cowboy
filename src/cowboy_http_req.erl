@@ -25,6 +25,10 @@
 ]). %% Request API.
 
 -export([
+	body/2
+]). %% Request Body API.
+
+-export([
 	reply/4
 ]). %% Response API.
 
@@ -115,8 +119,10 @@ bindings(Req) ->
 -spec header(Name::atom() | string(), Req::#http_req{})
 	-> {Value::string(), Req::#http_req{}}.
 header(Name, Req) ->
-	{Name, Value} = lists:keyfind(Name, 1, Req#http_req.headers),
-	{Value, Req}.
+	case lists:keyfind(Name, 1, Req#http_req.headers) of
+		{Name, Value} -> {Value, Req};
+		false -> {"", Req}
+	end.
 
 -spec header(Name::atom() | string(), Default::term(), Req::#http_req{})
 	-> {Value::string() | term(), Req::#http_req{}}.
@@ -128,6 +134,19 @@ header(Name, Default, Req) ->
 	-> {list({Name::atom() | string(), Value::string()}), Req::#http_req{}}.
 headers(Req) ->
 	{Req#http_req.headers, Req}.
+
+%% Request Body API.
+
+%% @todo We probably want to configure the timeout.
+%% @todo We probably want to allow a max length.
+-spec body(Length::non_neg_integer(), Req::#http_req{})
+	-> {Body::binary(), Req::#http_req{}} | {error, Reason::posix()}.
+body(Length, Req=#http_req{socket=Socket, transport=Transport, body_state=waiting}) ->
+	Transport:setopts(Socket, [{packet, raw}]),
+	case Transport:recv(Socket, Length, 5000) of
+		{ok, Body} -> {ok, Body, Req#http_req{body_state=done}};
+		{error, Reason} -> {error, Reason}
+	end.
 
 %% Response API.
 

@@ -154,14 +154,32 @@ handler_loop(HandlerState, Req, State=#state{handler={Handler, _Opts}}) ->
 -spec handler_terminate(HandlerState::term(), Req::#http_req{},
 	State::#state{}) -> ok.
 handler_terminate(HandlerState, Req, State=#state{handler={Handler, _Opts}}) ->
-	Res = (catch Handler:terminate(
+	HandlerRes = (catch Handler:terminate(
 		Req#http_req{resp_state=locked}, HandlerState)),
-	%% @todo We must skip any body data from the request
-	%%       before processing another.
+	BodyRes = ensure_body_processed(Req),
 	ensure_response(Req, State),
-	case {Res, State#state.connection} of
-		{ok, keepalive} -> next_request(State);
+	case {HandlerRes, BodyRes, State#state.connection} of
+		{ok, ok, keepalive} -> next_request(State);
 		_Closed -> terminate(State)
+	end.
+
+-spec ensure_body_processed(Req::#http_req{}) -> ok | close.
+ensure_body_processed(#http_req{body_state=done}) ->
+	ok;
+ensure_body_processed(Req=#http_req{body_state=waiting}) ->
+	{Length, Req2} = cowboy_http_req:header('Content-Length', Req),
+	case Length of
+		"" -> ok;
+		_Any ->
+			Length2 = list_to_integer(Length),
+			skip_body(Length2, Req2)
+	end.
+
+-spec skip_body(Length::non_neg_integer(), Req::#http_req{}) -> ok | close.
+skip_body(Length, Req) ->
+	case cowboy_http_req:body(Length, Req) of
+		{error, _Reason} -> close;
+		_Any -> ok
 	end.
 
 %% No response has been sent but everything apparently went fine.
