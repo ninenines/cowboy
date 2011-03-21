@@ -38,8 +38,7 @@ start_link(Socket, Transport, Opts) ->
 
 %% FSM.
 
--spec init(Socket::socket(), Transport::module(), Opts::term())
-	-> ok | {error, no_ammo}.
+-spec init(Socket::socket(), Transport::module(), Opts::term()) -> ok.
 init(Socket, Transport, Opts) ->
 	Dispatch = proplists:get_value(dispatch, Opts, []),
 	Timeout = proplists:get_value(timeout, Opts, 5000),
