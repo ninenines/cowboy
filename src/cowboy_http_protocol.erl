@@ -182,13 +182,14 @@ skip_body(Length, Req) ->
 		_Any -> ok
 	end.
 
+-spec ensure_response(Req::#http_req{}, State::#state{}) -> ok.
+%% The handler has already fully replied to the client.
+ensure_response(#http_req{resp_state=done}, _State) ->
+	ok;
 %% No response has been sent but everything apparently went fine.
 %% Reply with 204 No Content to indicate this.
 ensure_response(#http_req{resp_state=waiting}, State) ->
-	error_response(204, State);
-%% The handler has already fully replied to the client.
-ensure_response(#http_req{resp_state=done}, _State) ->
-	ok.
+	error_response(204, State).
 
 -spec error_response(Code::http_status(), State::#state{}) -> ok.
 error_response(Code, #state{socket=Socket,
