@@ -121,17 +121,17 @@ split_host_test_() ->
 split_path_test_() ->
 	%% {Path, Result, QueryString}
 	Tests = [
-		{"?", [], []},
-		{"???", [], "??"},
-		{"/", [], []},
-		{"/users", ["users"], []},
-		{"/users?", ["users"], []},
-		{"/users?a", ["users"], "a"},
+		{"?", [], "", ""},
+		{"???", [], "", "??"},
+		{"/", [], "/", ""},
+		{"/users", ["users"], "/users", ""},
+		{"/users?", ["users"], "/users", ""},
+		{"/users?a", ["users"], "/users", "a"},
 		{"/users/42/friends?a=b&c=d&e=notsure?whatever",
-			["users", "42", "friends"], "a=b&c=d&e=notsure?whatever"}
+			["users", "42", "friends"],
+			"/users/42/friends", "a=b&c=d&e=notsure?whatever"}
 	],
-	[{"atom '*'", fun() -> {'*', []} = split_path('*') end}]
-		++ [{P, fun() -> {R, Qs} = split_path(P) end} || {P, R, Qs} <- Tests].
+	[{P, fun() -> {R, RawP, Qs} = split_path(P) end} || {P, R, RawP, Qs} <- Tests].
 
 match_test_() ->
 	Dispatch = [
