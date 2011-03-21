@@ -163,7 +163,7 @@ body(Length, Req=#http_req{socket=Socket, transport=Transport, body_state=waitin
 %% Response API.
 
 -spec reply(Code::http_status(), Headers::http_headers(),
-	Body::iolist(), Req::#http_req{}) -> ok.
+	Body::iolist(), Req::#http_req{}) -> {ok, Req::#http_req{}}.
 %% @todo Don't be naive about the headers!
 reply(Code, Headers, Body, Req=#http_req{socket=Socket,
 		transport=Transport, connection=Connection,
