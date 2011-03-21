@@ -25,7 +25,7 @@
 ]). %% Request API.
 
 -export([
-	body/2
+	body/1, body/2
 ]). %% Request Body API.
 
 -export([
@@ -137,8 +137,19 @@ headers(Req) ->
 
 %% Request Body API.
 
-%% @todo We probably want to configure the timeout.
 %% @todo We probably want to allow a max length.
+-spec body(Req::#http_req{})
+	-> {Body::binary(), Req::#http_req{}} | {error, Reason::posix()}.
+body(Req) ->
+	{Length, Req2} = cowboy_http_req:header('Content-Length', Req),
+	case Length of
+		"" -> {error, badarg};
+		_Any ->
+			Length2 = list_to_integer(Length),
+			body(Length2, Req2)
+	end.
+
+%% @todo We probably want to configure the timeout.
 -spec body(Length::non_neg_integer(), Req::#http_req{})
 	-> {Body::binary(), Req::#http_req{}} | {error, Reason::posix()}.
 body(Length, Req=#http_req{socket=Socket, transport=Transport, body_state=waiting}) ->

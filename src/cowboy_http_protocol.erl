@@ -167,17 +167,8 @@ handler_terminate(HandlerState, Req, State=#state{handler={Handler, _Opts}}) ->
 ensure_body_processed(#http_req{body_state=done}) ->
 	ok;
 ensure_body_processed(Req=#http_req{body_state=waiting}) ->
-	{Length, Req2} = cowboy_http_req:header('Content-Length', Req),
-	case Length of
-		"" -> ok;
-		_Any ->
-			Length2 = list_to_integer(Length),
-			skip_body(Length2, Req2)
-	end.
-
--spec skip_body(Length::non_neg_integer(), Req::#http_req{}) -> ok | close.
-skip_body(Length, Req) ->
-	case cowboy_http_req:body(Length, Req) of
+	case cowboy_http_req:body(Req) of
+		{error, badarg} -> ok; %% No body.
 		{error, _Reason} -> close;
 		_Any -> ok
 	end.
