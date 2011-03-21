@@ -196,7 +196,8 @@ error_response(Code, #state{socket=Socket,
 		transport=Transport, connection=Connection}) ->
 	cowboy_http_req:reply(Code, [], [], #http_req{
 		socket=Socket, transport=Transport,
-		connection=Connection, resp_state=waiting}).
+		connection=Connection, resp_state=waiting}),
+	ok.
 
 -spec error_terminate(Code::http_status(), State::#state{}) -> ok.
 error_terminate(Code, State) ->
