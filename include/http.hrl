@@ -24,7 +24,7 @@
 	peer       = undefined :: undefined | {Address::ip_address(), Port::port_number()},
 	host       = undefined :: undefined | path_tokens(),
 	raw_host   = undefined :: undefined | string(),
-	path       = undefined :: undefined | path_tokens(),
+	path       = undefined :: undefined | '*' | path_tokens(),
 	raw_path   = undefined :: undefined | string(),
 	qs_vals    = undefined :: undefined | bindings(),
 	raw_qs     = undefined :: undefined | string(),
