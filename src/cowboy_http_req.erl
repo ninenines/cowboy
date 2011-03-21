@@ -88,7 +88,8 @@ qs_val(Name, Default, Req) ->
 	Value = proplists:get_value(Name, Req#http_req.qs_vals, Default),
 	{Value, Req}.
 
--spec qs_vals(Req::#http_req{}) -> list({Name::atom(), Value::string()}).
+-spec qs_vals(Req::#http_req{})
+	-> {list({Name::atom(), Value::string()}), Req::#http_req{}}.
 qs_vals(Req=#http_req{raw_qs=RawQs, qs_vals=undefined}) ->
 	QsVals = parse_qs(RawQs),
 	qs_vals(Req#http_req{qs_vals=QsVals});
