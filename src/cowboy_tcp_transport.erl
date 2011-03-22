@@ -13,10 +13,13 @@
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 -module(cowboy_tcp_transport).
--export([listen/1, accept/1, recv/3, send/2, setopts/2,
+-export([name/0, listen/1, accept/1, recv/3, send/2, setopts/2,
 	controlling_process/2, peername/1, close/1]).
 
 -include("include/types.hrl").
+
+-spec name() -> tcp.
+name() -> tcp.
 
 -spec listen([{port, Port::port_number()}])
 	-> {ok, LSocket::socket()} | {error, Reason::posix()}.
