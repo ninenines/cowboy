@@ -135,7 +135,9 @@ handler_init(Req, State=#state{
 	case catch Handler:init({Transport:name(), http}, Req, Opts) of
 		{ok, Req, HandlerState} ->
 			handler_loop(HandlerState, Req, State);
-		%% @todo {upgrade, transport, Module}; {upgrade, protocol, Module}
+		%% @todo {upgrade, transport, Module}
+		{upgrade, protocol, Module} ->
+			Module:upgrade(Handler, Opts, Req);
 		{'EXIT', _Reason} ->
 			error_terminate(500, State)
 	end.
