@@ -140,7 +140,7 @@ headers(Req) ->
 
 %% @todo We probably want to allow a max length.
 -spec body(Req::#http_req{})
-	-> {Body::binary(), Req::#http_req{}} | {error, Reason::posix()}.
+	-> {ok, Body::binary(), Req::#http_req{}} | {error, Reason::posix()}.
 body(Req) ->
 	{Length, Req2} = cowboy_http_req:header('Content-Length', Req),
 	case Length of
@@ -152,7 +152,7 @@ body(Req) ->
 
 %% @todo We probably want to configure the timeout.
 -spec body(Length::non_neg_integer(), Req::#http_req{})
-	-> {Body::binary(), Req::#http_req{}} | {error, Reason::posix()}.
+	-> {ok, Body::binary(), Req::#http_req{}} | {error, Reason::posix()}.
 body(Length, Req=#http_req{socket=Socket, transport=Transport, body_state=waiting}) ->
 	Transport:setopts(Socket, [{packet, raw}]),
 	case Transport:recv(Socket, Length, 5000) of
