@@ -25,7 +25,7 @@
 ]). %% Request API.
 
 -export([
-	body/1, body/2
+	body/1, body/2, body_qs/1
 ]). %% Request Body API.
 
 -export([
@@ -159,6 +159,12 @@ body(Length, Req=#http_req{socket=Socket, transport=Transport, body_state=waitin
 		{ok, Body} -> {ok, Body, Req#http_req{body_state=done}};
 		{error, Reason} -> {error, Reason}
 	end.
+
+-spec body_qs(Req::#http_req{})
+	-> {list({Name::string(), Value::string()}), Req::#http_req{}}.
+body_qs(Req) ->
+	{ok, Body, Req2} = body(Req),
+	{parse_qs(binary_to_list(Body)), Req2}.
 
 %% Response API.
 
