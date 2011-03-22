@@ -177,7 +177,7 @@ reply(Code, Headers, Body, Req=#http_req{socket=Socket,
 
 %% Internal.
 
--spec parse_qs(Qs::string()) -> list({Name::string(), Value::string()}).
+-spec parse_qs(Qs::string()) -> list({Name::string(), Value::string() | true}).
 parse_qs(Qs) ->
 	Tokens = string:tokens(Qs, "&"),
 	[case string:chr(Token, $=) of
