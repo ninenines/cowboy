@@ -130,8 +130,9 @@ header(http_eoh, Req, State) ->
 	handler_init(Req, State).
 
 -spec handler_init(Req::#http_req{}, State::#state{}) -> ok.
-handler_init(Req, State=#state{handler={Handler, Opts}}) ->
-	case catch Handler:init(Req, Opts) of
+handler_init(Req, State=#state{
+		transport=Transport, handler={Handler, Opts}}) ->
+	case catch Handler:init({Transport:name(), http}, Req, Opts) of
 		{ok, Req, HandlerState} ->
 			handler_loop(HandlerState, Req, State);
 		%% @todo {upgrade, transport, Module}; {upgrade, protocol, Module}
