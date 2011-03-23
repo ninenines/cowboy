@@ -1,13 +1,15 @@
 # See LICENSE for licensing information.
 
+REBAR = ./rebar
+
 all: app
 
 app:
-	@./rebar compile
+	@$(REBAR) compile
 
 clean:
-	@./rebar clean
+	@$(REBAR) clean
 	rm -f erl_crash.dump
 
 test:
-	@./rebar eunit
+	@$(REBAR) eunit
