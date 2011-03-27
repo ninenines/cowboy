@@ -71,13 +71,15 @@ raw_path(Req) ->
 	{Req#http_req.raw_path, Req}.
 
 -spec qs_val(Name::string(), Req::#http_req{})
-	-> {Value::string() | true, Req::#http_req{}}.
+	-> {Value::string() | true | undefined, Req::#http_req{}}.
 qs_val(Name, Req=#http_req{raw_qs=RawQs, qs_vals=undefined}) ->
 	QsVals = parse_qs(RawQs),
 	qs_val(Name, Req#http_req{qs_vals=QsVals});
 qs_val(Name, Req) ->
-	{Name, Value} = lists:keyfind(Name, 1, Req#http_req.qs_vals),
-	{Value, Req}.
+	case lists:keyfind(Name, 1, Req#http_req.qs_vals) of
+		{Name, Value} -> {Value, Req};
+		false -> {undefined, Req}
+	end.
 
 -spec qs_val(Name::string(), Default::term(), Req::#http_req{})
 	-> {Value::string() | term() | true, Req::#http_req{}}.
@@ -101,10 +103,12 @@ raw_qs(Req) ->
 	{Req#http_req.raw_qs, Req}.
 
 -spec binding(Name::atom(), Req::#http_req{})
-	-> {Value::string(), Req::#http_req{}}.
+	-> {Value::string() | undefined, Req::#http_req{}}.
 binding(Name, Req) ->
-	{Name, Value} = lists:keyfind(Name, 1, Req#http_req.bindings),
-	{Value, Req}.
+	case lists:keyfind(Name, 1, Req#http_req.bindings) of
+		{Name, Value} -> {Value, Req};
+		false -> {undefined, Req}
+	end.
 
 -spec binding(Name::atom(), Default::term(), Req::#http_req{})
 	-> {Value::string() | term(), Req::#http_req{}}.
@@ -118,11 +122,11 @@ bindings(Req) ->
 	{Req#http_req.bindings, Req}.
 
 -spec header(Name::atom() | string(), Req::#http_req{})
-	-> {Value::string(), Req::#http_req{}}.
+	-> {Value::string() | undefined, Req::#http_req{}}.
 header(Name, Req) ->
 	case lists:keyfind(Name, 1, Req#http_req.headers) of
 		{Name, Value} -> {Value, Req};
-		false -> {"", Req}
+		false -> {undefined, Req}
 	end.
 
 -spec header(Name::atom() | string(), Default::term(), Req::#http_req{})
