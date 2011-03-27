@@ -26,7 +26,7 @@
 	raw_host   = undefined :: undefined | string(),
 	path       = undefined :: undefined | '*' | path_tokens(),
 	raw_path   = undefined :: undefined | string(),
-	qs_vals    = undefined :: undefined | bindings(),
+	qs_vals    = undefined :: undefined | list({Name::string(), Value::string() | true}),
 	raw_qs     = undefined :: undefined | string(),
 	bindings   = undefined :: undefined | bindings(),
 	headers    = []        :: http_headers(),
