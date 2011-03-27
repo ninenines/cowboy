@@ -70,8 +70,8 @@ path(Req) ->
 raw_path(Req) ->
 	{Req#http_req.raw_path, Req}.
 
--spec qs_val(Name::atom(), Req::#http_req{})
-	-> {Value::string(), Req::#http_req{}}.
+-spec qs_val(Name::string(), Req::#http_req{})
+	-> {Value::string() | true, Req::#http_req{}}.
 qs_val(Name, Req=#http_req{raw_qs=RawQs, qs_vals=undefined}) ->
 	QsVals = parse_qs(RawQs),
 	qs_val(Name, Req#http_req{qs_vals=QsVals});
@@ -79,8 +79,8 @@ qs_val(Name, Req) ->
 	{Name, Value} = lists:keyfind(Name, 1, Req#http_req.qs_vals),
 	{Value, Req}.
 
--spec qs_val(Name::atom(), Default::term(), Req::#http_req{})
-	-> {Value::string() | term(), Req::#http_req{}}.
+-spec qs_val(Name::string(), Default::term(), Req::#http_req{})
+	-> {Value::string() | term() | true, Req::#http_req{}}.
 qs_val(Name, Default, Req=#http_req{raw_qs=RawQs, qs_vals=undefined}) ->
 	QsVals = parse_qs(RawQs),
 	qs_val(Name, Default, Req#http_req{qs_vals=QsVals});
@@ -89,7 +89,7 @@ qs_val(Name, Default, Req) ->
 	{Value, Req}.
 
 -spec qs_vals(Req::#http_req{})
-	-> {list({Name::atom(), Value::string()}), Req::#http_req{}}.
+	-> {list({Name::string(), Value::string() | true}), Req::#http_req{}}.
 qs_vals(Req=#http_req{raw_qs=RawQs, qs_vals=undefined}) ->
 	QsVals = parse_qs(RawQs),
 	qs_vals(Req#http_req{qs_vals=QsVals});
@@ -162,7 +162,7 @@ body(Length, Req=#http_req{socket=Socket, transport=Transport,
 	end.
 
 -spec body_qs(Req::#http_req{})
-	-> {list({Name::string(), Value::string()}), Req::#http_req{}}.
+	-> {list({Name::string(), Value::string() | true}), Req::#http_req{}}.
 body_qs(Req) ->
 	{ok, Body, Req2} = body(Req),
 	{parse_qs(binary_to_list(Body)), Req2}.
