@@ -215,6 +215,10 @@ version_to_connection({1, 1}) -> keepalive;
 version_to_connection(_Any) -> close.
 
 -spec connection_to_atom(Connection::string()) -> keepalive | close.
+connection_to_atom("keep-alive") ->
+	keepalive;
+connection_to_atom("close") ->
+	close;
 connection_to_atom(Connection) ->
 	case string:to_lower(Connection) of
 		"close" -> close;
