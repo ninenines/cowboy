@@ -73,17 +73,17 @@ raw_path(Req) ->
 
 -spec qs_val(Name::string(), Req::#http_req{})
 	-> {Value::string() | true | undefined, Req::#http_req{}}.
-%% @equiv qs_val(Name, Req) -> qs_val(Name, undefined, Req)
+%% @equiv qs_val(Name, Req) -> qs_val(Name, Req, undefined)
 qs_val(Name, Req) ->
-	qs_val(Name, undefined, Req).
+	qs_val(Name, Req, undefined).
 
--spec qs_val(Name::string(), Default, Req::#http_req{})
+-spec qs_val(Name::string(), Req::#http_req{}, Default)
 	-> {Value::string() | true | Default, Req::#http_req{}}
 	when Default::term().
-qs_val(Name, Default, Req=#http_req{raw_qs=RawQs, qs_vals=undefined}) ->
+qs_val(Name, Req=#http_req{raw_qs=RawQs, qs_vals=undefined}, Default) ->
 	QsVals = parse_qs(RawQs),
-	qs_val(Name, Default, Req#http_req{qs_vals=QsVals});
-qs_val(Name, Default, Req) ->
+	qs_val(Name, Req#http_req{qs_vals=QsVals}, Default);
+qs_val(Name, Req, Default) ->
 	case lists:keyfind(Name, 1, Req#http_req.qs_vals) of
 		{Name, Value} -> {Value, Req};
 		false -> {Default, Req}
@@ -103,13 +103,13 @@ raw_qs(Req) ->
 
 -spec binding(Name::atom(), Req::#http_req{})
 	-> {Value::string() | undefined, Req::#http_req{}}.
-%% @equiv binding(Name, Req) -> binding(Name, undefined, Req)
+%% @equiv binding(Name, Req) -> binding(Name, Req, undefined)
 binding(Name, Req) ->
-	binding(Name, undefined, Req).
+	binding(Name, Req, undefined).
 
--spec binding(Name::atom(), Default, Req::#http_req{})
+-spec binding(Name::atom(), Req::#http_req{}, Default)
 	-> {Value::string() | Default, Req::#http_req{}} when Default::term().
-binding(Name, Default, Req) ->
+binding(Name, Req, Default) ->
 	case lists:keyfind(Name, 1, Req#http_req.bindings) of
 		{Name, Value} -> {Value, Req};
 		false -> {Default, Req}
@@ -122,13 +122,13 @@ bindings(Req) ->
 
 -spec header(Name::atom() | string(), Req::#http_req{})
 	-> {Value::string() | undefined, Req::#http_req{}}.
-%% @equiv header(Name, Req) -> header(Name, undefined, Req)
+%% @equiv header(Name, Req) -> header(Name, Req, undefined)
 header(Name, Req) ->
-	header(Name, undefined, Req).
+	header(Name, Req, undefined).
 
--spec header(Name::atom() | string(), Default, Req::#http_req{})
+-spec header(Name::atom() | string(), Req::#http_req{}, Default)
 	-> {Value::string() | Default, Req::#http_req{}} when Default::term().
-header(Name, Default, Req) ->
+header(Name, Req, Default) ->
 	case lists:keyfind(Name, 1, Req#http_req.headers) of
 		{Name, Value} -> {Value, Req};
 		false -> {Default, Req}
