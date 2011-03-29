@@ -148,7 +148,7 @@ headers(Req) ->
 body(Req) ->
 	{Length, Req2} = cowboy_http_req:header('Content-Length', Req),
 	case Length of
-		"" -> {error, badarg};
+		undefined -> {error, badarg};
 		_Any ->
 			Length2 = list_to_integer(Length),
 			body(Length2, Req2)
