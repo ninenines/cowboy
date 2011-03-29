@@ -1,4 +1,5 @@
 %% Copyright (c) 2011, Loïc Hoguin <essen@dev-extend.eu>
+%% Copyright (c) 2011, Anthony Ramine <nox@dev-extend.eu>
 %%
 %% Permission to use, copy, modify, and/or distribute this software for any
 %% purpose with or without fee is hereby granted, provided that the above
@@ -72,23 +73,21 @@ raw_path(Req) ->
 
 -spec qs_val(Name::string(), Req::#http_req{})
 	-> {Value::string() | true | undefined, Req::#http_req{}}.
-qs_val(Name, Req=#http_req{raw_qs=RawQs, qs_vals=undefined}) ->
-	QsVals = parse_qs(RawQs),
-	qs_val(Name, Req#http_req{qs_vals=QsVals});
+%% @equiv qs_val(Name, Req) -> qs_val(Name, undefined, Req)
 qs_val(Name, Req) ->
-	case lists:keyfind(Name, 1, Req#http_req.qs_vals) of
-		{Name, Value} -> {Value, Req};
-		false -> {undefined, Req}
-	end.
+	qs_val(Name, undefined, Req).
 
--spec qs_val(Name::string(), Default::term(), Req::#http_req{})
-	-> {Value::string() | term() | true, Req::#http_req{}}.
+-spec qs_val(Name::string(), Default, Req::#http_req{})
+	-> {Value::string() | true | Default, Req::#http_req{}}
+	when Default::term().
 qs_val(Name, Default, Req=#http_req{raw_qs=RawQs, qs_vals=undefined}) ->
 	QsVals = parse_qs(RawQs),
 	qs_val(Name, Default, Req#http_req{qs_vals=QsVals});
 qs_val(Name, Default, Req) ->
-	Value = proplists:get_value(Name, Req#http_req.qs_vals, Default),
-	{Value, Req}.
+	case lists:keyfind(Name, 1, Req#http_req.qs_vals) of
+		{Name, Value} -> {Value, Req};
+		false -> {Default, Req}
+	end.
 
 -spec qs_vals(Req::#http_req{})
 	-> {list({Name::string(), Value::string() | true}), Req::#http_req{}}.
@@ -104,17 +103,17 @@ raw_qs(Req) ->
 
 -spec binding(Name::atom(), Req::#http_req{})
 	-> {Value::string() | undefined, Req::#http_req{}}.
+%% @equiv binding(Name, Req) -> binding(Name, undefined, Req)
 binding(Name, Req) ->
+	binding(Name, undefined, Req).
+
+-spec binding(Name::atom(), Default, Req::#http_req{})
+	-> {Value::string() | Default, Req::#http_req{}} when Default::term().
+binding(Name, Default, Req) ->
 	case lists:keyfind(Name, 1, Req#http_req.bindings) of
 		{Name, Value} -> {Value, Req};
-		false -> {undefined, Req}
+		false -> {Default, Req}
 	end.
-
--spec binding(Name::atom(), Default::term(), Req::#http_req{})
-	-> {Value::string() | term(), Req::#http_req{}}.
-binding(Name, Default, Req) ->
-	Value = proplists:get_value(Name, Req#http_req.bindings, Default),
-	{Value, Req}.
 
 -spec bindings(Req::#http_req{})
 	-> {list({Name::atom(), Value::string()}), Req::#http_req{}}.
@@ -123,17 +122,17 @@ bindings(Req) ->
 
 -spec header(Name::atom() | string(), Req::#http_req{})
 	-> {Value::string() | undefined, Req::#http_req{}}.
+%% @equiv header(Name, Req) -> header(Name, undefined, Req)
 header(Name, Req) ->
+	header(Name, undefined, Req).
+
+-spec header(Name::atom() | string(), Default, Req::#http_req{})
+	-> {Value::string() | Default, Req::#http_req{}} when Default::term().
+header(Name, Default, Req) ->
 	case lists:keyfind(Name, 1, Req#http_req.headers) of
 		{Name, Value} -> {Value, Req};
-		false -> {undefined, Req}
+		false -> {Default, Req}
 	end.
-
--spec header(Name::atom() | string(), Default::term(), Req::#http_req{})
-	-> {Value::string() | term(), Req::#http_req{}}.
-header(Name, Default, Req) ->
-	Value = proplists:get_value(Name, Req#http_req.headers, Default),
-	{Value, Req}.
 
 -spec headers(Req::#http_req{})
 	-> {list({Name::atom() | string(), Value::string()}), Req::#http_req{}}.
