@@ -12,15 +12,22 @@
 %% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-{application, cowboy, [
-	{description, "Small, fast, modular HTTP server."},
-	{vsn, "0.1.0"},
-	{modules, []},
-	{registered, []},
-	{applications, [
-		kernel,
-		stdlib
-	]},
-	{mod, {cowboy_app, []}},
-	{env, []}
-]}.
+-module(cowboy).
+-export([start_listener/6, stop_listener/1]). %% API.
+
+%% API.
+
+-spec start_listener(Ref::term(), NbAcceptors::non_neg_integer(),
+	Transport::module(), TransOpts::term(), Protocol::module(),
+	ProtoOpts::term()) -> {ok, Pid::pid()}.
+start_listener(Ref, NbAcceptors, Transport, TransOpts, Protocol, ProtoOpts) ->
+	supervisor:start_child(cowboy_sup,
+		{{cowboy_listener_sup, Ref}, {cowboy_listener_sup, start_link, [
+			NbAcceptors, Transport, TransOpts, Protocol, ProtoOpts
+		]},
+		permanent, 5000, supervisor, [cowboy_listener_sup]}).
+
+-spec stop_listener(Ref::term()) -> ok.
+stop_listener(Ref) ->
+	supervisor:terminate_child(cowboy_sup, {cowboy_listener_sup, Ref}),
+	supervisor:delete_child(cowboy_sup, {cowboy_listener_sup, Ref}).

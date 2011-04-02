@@ -12,15 +12,19 @@
 %% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-{application, cowboy, [
-	{description, "Small, fast, modular HTTP server."},
-	{vsn, "0.1.0"},
-	{modules, []},
-	{registered, []},
-	{applications, [
-		kernel,
-		stdlib
-	]},
-	{mod, {cowboy_app, []}},
-	{env, []}
-]}.
+-module(cowboy_app).
+-behaviour(application).
+
+-export([start/2, stop/1]). %% API.
+
+-include("include/types.hrl").
+
+%% API.
+
+-spec start(Type::application_start_type(), Args::term()) -> {ok, Pid::pid()}.
+start(_Type, _Args) ->
+	cowboy_sup:start_link().
+
+-spec stop(State::term()) -> ok.
+stop(_State) ->
+	ok.

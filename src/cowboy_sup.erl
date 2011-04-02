@@ -12,15 +12,22 @@
 %% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-{application, cowboy, [
-	{description, "Small, fast, modular HTTP server."},
-	{vsn, "0.1.0"},
-	{modules, []},
-	{registered, []},
-	{applications, [
-		kernel,
-		stdlib
-	]},
-	{mod, {cowboy_app, []}},
-	{env, []}
-]}.
+-module(cowboy_sup).
+-behaviour(supervisor).
+
+-export([start_link/0]). %% API.
+-export([init/1]). %% supervisor.
+
+-define(SUPERVISOR, ?MODULE).
+
+%% API.
+
+-spec start_link() -> {ok, Pid::pid()}.
+start_link() ->
+	supervisor:start_link({local, ?SUPERVISOR}, ?MODULE, []).
+
+%% supervisor.
+
+-spec init([]) -> term(). %% @todo These specs should be improved.
+init([]) ->
+	{ok, {{one_for_one, 10, 10}, []}}.

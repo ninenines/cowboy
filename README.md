@@ -33,8 +33,8 @@ Embedding Cowboy
 Getting Started
 ---------------
 
-Cowboy provides an anonymous listener supervisor that you can directly embed
-in your application's supervision tree.
+Cowboy can be started and stopped like any other application. However, the
+Cowboy application do not start any listener, those must be started manually.
 
 A listener is a special kind of supervisor that handles a pool of acceptor
 processes. It also manages all its associated request processes. This allows
@@ -48,25 +48,22 @@ before you can start a listener supervisor.
 For HTTP applications the transport can be either TCP or SSL for HTTP and
 HTTPS respectively. On the other hand, the protocol is of course HTTP.
 
+You can start and stop listeners by calling cowboy:start_listener and
+cowboy:stop_listener respectively. It is your responsability to give each
+listener a unique name.
+
 Code speaks more than words:
 
-    -module(my_app).
-    -behaviour(application).
-    -export([start/2, stop/1]).
-
-    start(_Type, _Args) ->
-        Dispatch = [
-            %% {Host, list({Path, Handler, Opts})}
-            {'_', [{'_', my_handler, []}]}
-        ],
-        %% NbAcceptors, Transport, TransOpts, Protocol, ProtoOpts
-        cowboy_listener_sup:start_link(100,
-            cowboy_tcp_transport, [{port, 8080}],
-            cowboy_http_protocol, [{dispatch, Dispatch}]
-        ).
-
-    stop(_State) ->
-        ok.
+    application:start(cowboy),
+    Dispatch = [
+        %% {Host, list({Path, Handler, Opts})}
+        {'_', [{'_', my_handler, []}]}
+    ],
+    %% Name, NbAcceptors, Transport, TransOpts, Protocol, ProtoOpts
+    cowboy:start_listener(http, 100,
+        cowboy_tcp_transport, [{port, 8080}],
+        cowboy_http_protocol, [{dispatch, Dispatch}]
+    ).
 
 You must also write the `my_handler` module to process requests. You can
 use one of the predefined handlers or write your own. An hello world HTTP
