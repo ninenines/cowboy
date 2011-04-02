@@ -25,14 +25,15 @@
 -spec start_link(NbAcceptors::non_neg_integer(), Transport::module(),
 	TransOpts::term(), Protocol::module(), ProtoOpts::term(), ReqsPid::pid())
 	-> {ok, Pid::pid()}.
-start_link(LSocket, NbAcceptors, Transport, Protocol, ProtoOpts, ReqsPid) ->
-	supervisor:start_link(?MODULE, [LSocket, NbAcceptors,
-		Transport, Protocol, ProtoOpts, ReqsPid]).
+start_link(NbAcceptors, Transport, TransOpts, Protocol, ProtoOpts, ReqsPid) ->
+	supervisor:start_link(?MODULE, [NbAcceptors,
+		Transport, TransOpts, Protocol, ProtoOpts, ReqsPid]).
 
 %% supervisor.
 
 -spec init(list(term())) -> term(). %% @todo These specs should be improved.
-init([LSocket, NbAcceptors, Transport, Protocol, ProtoOpts, ReqsPid]) ->
+init([NbAcceptors, Transport, TransOpts, Protocol, ProtoOpts, ReqsPid]) ->
+	{ok, LSocket} = Transport:listen(TransOpts),
 	Procs = [{{acceptor, self(), N}, {cowboy_acceptor, start_link, [
 				LSocket, Transport, Protocol, ProtoOpts, ReqsPid
 			]}, permanent, brutal_kill, worker, dynamic}
