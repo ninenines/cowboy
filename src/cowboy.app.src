@@ -20,7 +20,5 @@
 	{applications, [
 		kernel,
 		stdlib
-	]},
-	{mod, {cowboy_app, []}},
-	{env, []}
+	]}
 ]}.

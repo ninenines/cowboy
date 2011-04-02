@@ -13,27 +13,28 @@
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 -module(cowboy_acceptor).
--export([start_link/4]). %% API.
--export([acceptor/4]). %% Internal.
+-export([start_link/5]). %% API.
+-export([acceptor/5]). %% Internal.
 
 -include("include/types.hrl").
 
 %% API.
 
 -spec start_link(LSocket::socket(), Transport::module(),
-	Protocol::module(), Opts::term()) -> {ok, Pid::pid()}.
-start_link(LSocket, Transport, Protocol, Opts) ->
-	Pid = spawn_link(?MODULE, acceptor, [LSocket, Transport, Protocol, Opts]),
+	Protocol::module(), Opts::term(), ReqsSup::pid()) -> {ok, Pid::pid()}.
+start_link(LSocket, Transport, Protocol, Opts, ReqsSup) ->
+	Pid = spawn_link(?MODULE, acceptor,
+		[LSocket, Transport, Protocol, Opts, ReqsSup]),
 	{ok, Pid}.
 
 %% Internal.
 
 -spec acceptor(LSocket::socket(), Transport::module(),
-	Protocol::module(), Opts::term()) -> no_return().
-acceptor(LSocket, Transport, Protocol, Opts) ->
+	Protocol::module(), Opts::term(), ReqsSup::pid()) -> no_return().
+acceptor(LSocket, Transport, Protocol, Opts, ReqsSup) ->
 	case Transport:accept(LSocket) of
 		{ok, CSocket} ->
-			{ok, Pid} = supervisor:start_child(cowboy_protocols_sup,
+			{ok, Pid} = supervisor:start_child(ReqsSup,
 				[CSocket, Transport, Protocol, Opts]),
 			Transport:controlling_process(CSocket, Pid);
 		{error, _Reason} ->
@@ -41,4 +42,4 @@ acceptor(LSocket, Transport, Protocol, Opts) ->
 			%%       we may want to try and listen again on the port?
 			ignore
 	end,
-	?MODULE:acceptor(LSocket, Transport, Protocol, Opts).
+	?MODULE:acceptor(LSocket, Transport, Protocol, Opts, ReqsSup).

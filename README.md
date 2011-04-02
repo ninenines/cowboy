@@ -33,30 +33,40 @@ Embedding Cowboy
 Getting Started
 ---------------
 
-Cowboy can be started and stopped like any other application. However the
-Cowboy application do not start any listener, those must be started manually.
+Cowboy provides an anonymous listener supervisor that you can directly embed
+in your application's supervision tree.
 
 A listener is a special kind of supervisor that handles a pool of acceptor
-processes. An acceptor simply accept connections and forward them to a
-protocol module, for example HTTP. You must thus define the transport and
-protocol module to use for the listener, their options and the number of
-acceptors in the pool before you can start a listener supervisor.
+processes. It also manages all its associated request processes. This allows
+you to shutdown all processes related to a listener by stopping the supervisor.
+
+An acceptor simply accepts connections and forwards them to a protocol module,
+for example HTTP. You must thus define the transport and protocol module to
+use for the listener, their options and the number of acceptors in the pool
+before you can start a listener supervisor.
 
 For HTTP applications the transport can be either TCP or SSL for HTTP and
 HTTPS respectively. On the other hand, the protocol is of course HTTP.
 
 Code speaks more than words:
 
-    application:start(cowboy),
-    Dispatch = [
-        %% {Host, list({Path, Handler, Opts})}
-        {'_', [{'_', my_handler, []}]}
-    ],
-    %% NbAcceptors, Transport, TransOpts, Protocol, ProtoOpts
-    cowboy_listener_sup:start_link(100,
-        cowboy_tcp_transport, [{port, 8080}],
-        cowboy_http_protocol, [{dispatch, Dispatch}]
-    ).
+    -module(my_app).
+    -behaviour(application).
+    -export([start/2, stop/1]).
+
+    start(_Type, _Args) ->
+        Dispatch = [
+            %% {Host, list({Path, Handler, Opts})}
+            {'_', [{'_', my_handler, []}]}
+        ],
+        %% NbAcceptors, Transport, TransOpts, Protocol, ProtoOpts
+        cowboy_listener_sup:start_link(100,
+            cowboy_tcp_transport, [{port, 8080}],
+            cowboy_http_protocol, [{dispatch, Dispatch}]
+        ).
+
+    stop(_State) ->
+        ok.
 
 You must also write the `my_handler` module to process requests. You can
 use one of the predefined handlers or write your own. An hello world HTTP

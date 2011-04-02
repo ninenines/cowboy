@@ -12,30 +12,28 @@
 %% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
--module(cowboy_protocols_sup).
+-module(cowboy_requests_sup).
 -behaviour(supervisor).
 
--export([start_link/0, start_protocol/4]). %% API.
+-export([start_link/0, start_request/4]). %% API.
 -export([init/1]). %% supervisor.
 
 -include("include/types.hrl").
-
--define(SUPERVISOR, ?MODULE).
 
 %% API.
 
 -spec start_link() -> {ok, Pid::pid()}.
 start_link() ->
-	supervisor:start_link({local, ?SUPERVISOR}, ?MODULE, []).
+	supervisor:start_link(?MODULE, []).
 
--spec start_protocol(Socket::socket(), Transport::module(),
+-spec start_request(Socket::socket(), Transport::module(),
 	Protocol::module(), Opts::term()) -> {ok, Pid::pid()}.
-start_protocol(Socket, Transport, Protocol, Opts) ->
+start_request(Socket, Transport, Protocol, Opts) ->
 	Protocol:start_link(Socket, Transport, Opts).
 
 %% supervisor.
 
 -spec init([]) -> term(). %% @todo These specs should be improved.
 init([]) ->
-	{ok, {{simple_one_for_one, 0, 1}, [{?MODULE, {?MODULE, start_protocol, []},
+	{ok, {{simple_one_for_one, 0, 1}, [{?MODULE, {?MODULE, start_request, []},
 		temporary, brutal_kill, worker, [?MODULE]}]}}.

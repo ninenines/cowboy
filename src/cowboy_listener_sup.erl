@@ -26,8 +26,7 @@
 start_link(NbAcceptors, Transport, TransOpts, Protocol, ProtoOpts) ->
 	case Transport:listen(TransOpts) of
 		{ok, LSocket} ->
-			supervisor:start_link(?MODULE, [LSocket,
-				NbAcceptors, Transport, Protocol, ProtoOpts]);
+			start_sup(LSocket, NbAcceptors, Transport, Protocol, ProtoOpts);
 		{error, Reason} ->
 			{error, Reason}
 	end.
@@ -35,9 +34,22 @@ start_link(NbAcceptors, Transport, TransOpts, Protocol, ProtoOpts) ->
 %% supervisor.
 
 %% @todo These specs should be improved.
--spec init(list(term())) -> term().
-init([LSocket, NbAcceptors, Transport, Protocol, ProtoOpts]) ->
-	Procs = [{{acceptor, self(), N}, {cowboy_acceptor, start_link,
-		[LSocket, Transport, Protocol, ProtoOpts]}, permanent,
-		brutal_kill, worker, dynamic} || N <- lists:seq(1, NbAcceptors)],
-	{ok, {{one_for_one, 10, 10}, Procs}}.
+-spec init([]) -> term().
+init([]) ->
+	{ok, {{one_for_one, 0, 1}, []}}.
+
+%% Internal.
+
+-spec start_sup(NbAcceptors::non_neg_integer(), Transport::module(),
+	TransOpts::term(), Protocol::module(), ProtoOpts::term())
+	-> {ok, Pid::pid()}.
+start_sup(LSocket, NbAcceptors, Transport, Protocol, ProtoOpts) ->
+	{ok, SupPid} = supervisor:start_link(?MODULE, []),
+	{ok, ReqsPid} = supervisor:start_child(SupPid,
+		{cowboy_requests_sup, {cowboy_requests_sup, start_link, []},
+		 permanent, 5000, supervisor, [cowboy_requests_sup]}),
+	{ok, _PoolPid} = supervisor:start_child(SupPid,
+		{cowboy_acceptors_sup, {cowboy_acceptors_sup, start_link, [
+			LSocket, NbAcceptors, Transport, Protocol, ProtoOpts, ReqsPid
+		]}, permanent, 5000, supervisor, [cowboy_acceptors_sup]}),
+	{ok, SupPid}.

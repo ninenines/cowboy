@@ -12,26 +12,29 @@
 %% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
--module(cowboy_sup).
+-module(cowboy_acceptors_sup).
 -behaviour(supervisor).
 
--export([start_link/0]). %% API.
+-export([start_link/6]). %% API.
 -export([init/1]). %% supervisor.
 
--define(SUPERVISOR, ?MODULE).
+-include("include/types.hrl").
 
 %% API.
 
--spec start_link() -> {ok, Pid::pid()}.
-start_link() ->
-	supervisor:start_link({local, ?SUPERVISOR}, ?MODULE, []).
+-spec start_link(NbAcceptors::non_neg_integer(), Transport::module(),
+	TransOpts::term(), Protocol::module(), ProtoOpts::term(), ReqsPid::pid())
+	-> {ok, Pid::pid()}.
+start_link(LSocket, NbAcceptors, Transport, Protocol, ProtoOpts, ReqsPid) ->
+	supervisor:start_link(?MODULE, [LSocket, NbAcceptors,
+		Transport, Protocol, ProtoOpts, ReqsPid]).
 
 %% supervisor.
 
--spec init([]) -> term(). %% @todo These specs should be improved.
-init([]) ->
-	Procs = [
-		{cowboy_protocols_sup, {cowboy_protocols_sup, start_link, []},
-			permanent, 5000, supervisor, [cowboy_protocols_sup]}
-	],
+-spec init(list(term())) -> term(). %% @todo These specs should be improved.
+init([LSocket, NbAcceptors, Transport, Protocol, ProtoOpts, ReqsPid]) ->
+	Procs = [{{acceptor, self(), N}, {cowboy_acceptor, start_link, [
+				LSocket, Transport, Protocol, ProtoOpts, ReqsPid
+			]}, permanent, brutal_kill, worker, dynamic}
+		|| N <- lists:seq(1, NbAcceptors)],
 	{ok, {{one_for_one, 10, 10}, Procs}}.
