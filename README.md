@@ -34,7 +34,7 @@ Getting Started
 ---------------
 
 Cowboy can be started and stopped like any other application. However, the
-Cowboy application do not start any listener, those must be started manually.
+Cowboy application does not start any listener, those must be started manually.
 
 A listener is a special kind of supervisor that handles a pool of acceptor
 processes. It also manages all its associated request processes. This allows
