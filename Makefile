@@ -13,3 +13,6 @@ clean:
 
 test:
 	@$(REBAR) eunit
+
+dialyze:
+	@$(REBAR) dialyze
