@@ -1,6 +1,6 @@
 # See LICENSE for licensing information.
 
-REBAR = ./rebar
+REBAR = rebar
 
 all: app
 
