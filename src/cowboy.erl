@@ -27,7 +27,11 @@ start_listener(Ref, NbAcceptors, Transport, TransOpts, Protocol, ProtoOpts) ->
 		]},
 		permanent, 5000, supervisor, [cowboy_listener_sup]}).
 
--spec stop_listener(Ref::term()) -> ok.
+-spec stop_listener(Ref::term()) -> ok | {error, not_found}.
 stop_listener(Ref) ->
-	supervisor:terminate_child(cowboy_sup, {cowboy_listener_sup, Ref}),
-	supervisor:delete_child(cowboy_sup, {cowboy_listener_sup, Ref}).
+	case supervisor:terminate_child(cowboy_sup, {cowboy_listener_sup, Ref}) of
+		ok ->
+			supervisor:delete_child(cowboy_sup, {cowboy_listener_sup, Ref});
+		{error, Reason} ->
+			{error, Reason}
+	end.
