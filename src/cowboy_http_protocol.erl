@@ -67,14 +67,16 @@ request({http_request, Method, {abs_path, AbsPath}, Version},
 	ConnAtom = version_to_connection(Version),
 	wait_header(#http_req{socket=Socket, transport=Transport,
 		connection=ConnAtom, method=Method, version=Version,
-		path=Path, raw_path=RawPath, raw_qs=Qs}, State);
+		path=Path, raw_path=RawPath, raw_qs=Qs},
+		State#state{connection=ConnAtom});
 request({http_request, Method, '*', Version},
 		State=#state{socket=Socket, transport=Transport}) ->
 	{ok, Peer} = Transport:peername(Socket),
 	ConnAtom = version_to_connection(Version),
 	wait_header(#http_req{socket=Socket, transport=Transport,
 		connection=ConnAtom, method=Method, version=Version,
-		peer=Peer, path='*', raw_path="*", raw_qs=[]}, State);
+		peer=Peer, path='*', raw_path="*", raw_qs=[]},
+		State#state{connection=ConnAtom});
 request({http_request, _Method, _URI, _Version}, State) ->
 	error_terminate(501, State);
 request({http_error, "\r\n"}, State) ->
