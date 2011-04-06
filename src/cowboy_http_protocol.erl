@@ -128,7 +128,9 @@ header({http_header, _I, Field, _R, Value}, Req, State) ->
 header(http_eoh, #http_req{host=undefined}, State) ->
 	error_terminate(400, State);
 header(http_eoh, Req, State) ->
-	handler_init(Req, State).
+	handler_init(Req, State);
+header({http_error, _String}, _Req, State) ->
+	error_terminate(500, State).
 
 -spec handler_init(Req::#http_req{}, State::#state{}) -> ok.
 handler_init(Req, State=#state{
