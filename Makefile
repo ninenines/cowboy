@@ -9,10 +9,12 @@ app:
 
 clean:
 	@$(REBAR) clean
+	rm -f test/*.beam
 	rm -f erl_crash.dump
 
-test:
+tests: app
 	@$(REBAR) eunit
+	@$(REBAR) ct
 
 dialyze:
 	@$(REBAR) dialyze
