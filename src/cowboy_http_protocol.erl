@@ -24,6 +24,8 @@
 	transport :: module(),
 	dispatch :: dispatch(),
 	handler :: {Handler::module(), Opts::term()},
+	req_empty_lines = 0 :: integer(),
+	max_empty_lines :: integer(),
 	timeout :: timeout(),
 	connection = keepalive :: keepalive | close
 }).
@@ -41,9 +43,10 @@ start_link(Socket, Transport, Opts) ->
 -spec init(Socket::socket(), Transport::module(), Opts::term()) -> ok.
 init(Socket, Transport, Opts) ->
 	Dispatch = proplists:get_value(dispatch, Opts, []),
+	MaxEmptyLines = proplists:get_value(max_empty_lines, Opts, 5),
 	Timeout = proplists:get_value(timeout, Opts, 5000),
 	wait_request(#state{socket=Socket, transport=Transport,
-		dispatch=Dispatch, timeout=Timeout}).
+		dispatch=Dispatch, max_empty_lines=MaxEmptyLines, timeout=Timeout}).
 
 -spec wait_request(State::#state{}) -> ok.
 wait_request(State=#state{socket=Socket, transport=Transport, timeout=T}) ->
@@ -78,8 +81,11 @@ request({http_request, Method, '*', Version},
 		State#state{connection=ConnAtom});
 request({http_request, _Method, _URI, _Version}, State) ->
 	error_terminate(501, State);
-request({http_error, "\r\n"}, State) ->
-	wait_request(State);
+request({http_error, "\r\n"},
+		State=#state{req_empty_lines=N, max_empty_lines=N}) ->
+	error_terminate(400, State);
+request({http_error, "\r\n"}, State=#state{req_empty_lines=N}) ->
+	wait_request(State#state{req_empty_lines=N + 1});
 request({http_error, _Any}, State) ->
 	error_terminate(400, State).
 
