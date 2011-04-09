@@ -97,6 +97,7 @@ raw_req(Packet, Config) ->
 raw(Config) ->
 	Tests = [
 		{"\r\n\r\n\r\n\r\n\r\nGET / HTTP/1.1\r\nHost: localhost\r\n\r\n", 200},
+		{"\n", 400},
 		{"Garbage\r\n\r\n", 400},
 		{"\r\n\r\n\r\n\r\n\r\n\r\n", 400},
 		{"GET / HTTP/1.1\r\nHost: dev-extend.eu\r\n\r\n", 400},
