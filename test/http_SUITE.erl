@@ -90,7 +90,7 @@ raw_req(Packet, Config) ->
 		[binary, {active, false}, {packet, raw}]),
 	ok = gen_tcp:send(Socket, Packet),
 	{ok, << "HTTP/1.1 ", Str:24/bits, _Rest/bits >>}
-		= gen_tcp:recv(Socket, 0, 5000),
+		= gen_tcp:recv(Socket, 0, 6000),
 	gen_tcp:close(Socket),
 	{Packet, list_to_integer(binary_to_list(Str))}.
 
@@ -99,6 +99,14 @@ raw(Config) ->
 		{"\r\n\r\n\r\n\r\n\r\nGET / HTTP/1.1\r\nHost: localhost\r\n\r\n", 200},
 		{"Garbage\r\n\r\n", 400},
 		{"GET / HTTP/1.1\r\nHost: dev-extend.eu\r\n\r\n", 400},
+		{"", 408},
+		{"\r\n", 408},
+		{"\r\n\r\n", 408},
+		{"GET / HTTP/1.1", 408},
+		{"GET / HTTP/1.1\r\n", 408},
+		{"GET / HTTP/1.1\r\nHost: localhost", 408},
+		{"GET / HTTP/1.1\r\nHost: localhost\r\n", 408},
+		{"GET / HTTP/1.1\r\nHost: localhost\r\n\r", 408},
 		{"GET http://localhost/ HTTP/1.1\r\n\r\n", 501},
 		{"GET / HTTP/1.2\r\nHost: localhost\r\n\r\n", 505}
 	],
