@@ -18,7 +18,8 @@
 
 -export([all/0, groups/0, init_per_suite/1, end_per_suite/1,
 	init_per_group/2, end_per_group/2]). %% ct.
--export([http_200/1, http_404/1]). %% Common tests for http and https.
+-export([raw/1]). %% http.
+-export([http_200/1, http_404/1]). %% http and https.
 
 %% ct.
 
@@ -27,7 +28,7 @@ all() ->
 
 groups() ->
 	BaseTests = [http_200, http_404],
-	[{http, [], BaseTests},
+	[{http, [], [raw] ++ BaseTests},
 	{https, [], BaseTests}].
 
 init_per_suite(Config) ->
@@ -81,7 +82,30 @@ init_http_dispatch() ->
 init_https_dispatch() ->
 	init_http_dispatch().
 
-%% Common tests for http and https.
+%% http.
+
+raw_req(Packet, Config) ->
+	{port, Port} = lists:keyfind(port, 1, Config),
+	{ok, Socket} = gen_tcp:connect("localhost", Port,
+		[binary, {active, false}, {packet, raw}]),
+	ok = gen_tcp:send(Socket, Packet),
+	{ok, << "HTTP/1.1 ", Str:24/bits, _Rest/bits >>}
+		= gen_tcp:recv(Socket, 0, 5000),
+	gen_tcp:close(Socket),
+	{Packet, list_to_integer(binary_to_list(Str))}.
+
+raw(Config) ->
+	Tests = [
+		{"\r\n\r\n\r\n\r\n\r\nGET / HTTP/1.1\r\nHost: localhost\r\n\r\n", 200},
+		{"Garbage\r\n\r\n", 400},
+		{"GET / HTTP/1.1\r\nHost: dev-extend.eu\r\n\r\n", 400},
+		{"GET http://localhost/ HTTP/1.1\r\n\r\n", 501},
+		{"GET / HTTP/1.2\r\nHost: localhost\r\n\r\n", 505}
+	],
+	[{Packet, StatusCode} = raw_req(Packet, Config)
+		|| {Packet, StatusCode} <- Tests].
+
+%% http and https.
 
 build_url(Path, Config) ->
 	{scheme, Scheme} = lists:keyfind(scheme, 1, Config),
