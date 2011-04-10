@@ -18,7 +18,7 @@
 
 -export([all/0, groups/0, init_per_suite/1, end_per_suite/1,
 	init_per_group/2, end_per_group/2]). %% ct.
--export([raw/1]). %% http.
+-export([pipeline/1, raw/1]). %% http.
 -export([http_200/1, http_404/1]). %% http and https.
 
 %% ct.
@@ -28,7 +28,7 @@ all() ->
 
 groups() ->
 	BaseTests = [http_200, http_404],
-	[{http, [], [raw] ++ BaseTests},
+	[{http, [], [pipeline, raw] ++ BaseTests},
 	{https, [], BaseTests}].
 
 init_per_suite(Config) ->
@@ -83,6 +83,36 @@ init_https_dispatch() ->
 	init_http_dispatch().
 
 %% http.
+
+pipeline(Config) ->
+	{port, Port} = lists:keyfind(port, 1, Config),
+	{ok, Socket} = gen_tcp:connect("localhost", Port,
+		[binary, {active, false}, {packet, raw}]),
+	ok = gen_tcp:send(Socket,
+		"GET / HTTP/1.1\r\nHost: localhost\r\nConnection: keep-alive\r\n\r\n"
+		"GET / HTTP/1.1\r\nHost: localhost\r\nConnection: keep-alive\r\n\r\n"
+		"GET / HTTP/1.1\r\nHost: localhost\r\nConnection: keep-alive\r\n\r\n"
+		"GET / HTTP/1.1\r\nHost: localhost\r\nConnection: keep-alive\r\n\r\n"
+		"GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"),
+	Data = pipeline_recv(Socket, <<>>),
+	Reqs = binary:split(Data, << "\r\n\r\nhttp_handler" >>, [global, trim]),
+	5 = length(Reqs),
+	pipeline_check(Reqs).
+
+pipeline_check([]) ->
+	ok;
+pipeline_check([Req|Tail]) ->
+	<< "HTTP/1.1 200", _Rest/bits >> = Req,
+	pipeline_check(Tail).
+
+pipeline_recv(Socket, SoFar) ->
+	case gen_tcp:recv(Socket, 0, 6000) of
+		{ok, Data} ->
+			pipeline_recv(Socket, << SoFar/binary, Data/binary >>);
+		{error, closed} ->
+			ok = gen_tcp:close(Socket),
+			SoFar
+	end.
 
 raw_req(Packet, Config) ->
 	{port, Port} = lists:keyfind(port, 1, Config),
