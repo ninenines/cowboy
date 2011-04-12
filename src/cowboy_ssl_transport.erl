@@ -13,7 +13,7 @@
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 -module(cowboy_ssl_transport).
--export([name/0, listen/1, accept/1, recv/3, send/2, setopts/2,
+-export([name/0, messages/0, listen/1, accept/1, recv/3, send/2, setopts/2,
 	controlling_process/2, peername/1, close/1]). %% API.
 
 -include("include/types.hrl").
@@ -22,6 +22,9 @@
 
 -spec name() -> ssl.
 name() -> ssl.
+
+-spec messages() -> {ssl, ssl_closed, ssl_error}.
+messages() -> {ssl, ssl_closed, ssl_error}.
 
 -spec listen([{port, Port::port_number()} | {certfile, CertPath::string()}
 	| {keyfile, KeyPath::string()} | {password, Password::string()}])
