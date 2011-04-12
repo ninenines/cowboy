@@ -142,8 +142,8 @@ header({http_error, _String}, _Req, State) ->
 handler_init(Req, State=#state{
 		transport=Transport, handler={Handler, Opts}}) ->
 	case catch Handler:init({Transport:name(), http}, Req, Opts) of
-		{ok, Req, HandlerState} ->
-			handler_loop(HandlerState, Req, State);
+		{ok, Req2, HandlerState} ->
+			handler_loop(HandlerState, Req2, State);
 		%% @todo {upgrade, transport, Module}
 		{upgrade, protocol, Module} ->
 			Module:upgrade(Handler, Opts, Req);
