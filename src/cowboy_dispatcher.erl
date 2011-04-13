@@ -166,6 +166,7 @@ match_test_() ->
 			{ok, match_any_subdomain_users, [], []}},
 		{["www", "dev-extend", "eu"], ["users", "42", "mails"],
 			{ok, match_any, [], []}},
+		{["www", "dev-extend", "eu"], [], {ok, match_any, [], []}},
 		{["www", "any", "dev-extend", "eu"], ["not_users", "42", "mails"],
 			{error, notfound, path}},
 		{["dev-extend", "eu"], [], {ok, match_extend, [], []}},
