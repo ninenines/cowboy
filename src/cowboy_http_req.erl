@@ -174,15 +174,18 @@ body_qs(Req) ->
 
 -spec reply(Code::http_status(), Headers::http_headers(),
 	Body::iolist(), Req::#http_req{}) -> {ok, Req::#http_req{}}.
-%% @todo Don't be naive about the headers!
 reply(Code, Headers, Body, Req=#http_req{socket=Socket,
 		transport=Transport, connection=Connection,
 		resp_state=waiting}) ->
 	StatusLine = ["HTTP/1.1 ", status(Code), "\r\n"],
-	BaseHeaders = ["Connection: ", atom_to_connection(Connection),
-		"\r\nContent-Length: ", integer_to_list(iolist_size(Body)), "\r\n"],
-	Transport:send(Socket,
-		[StatusLine, BaseHeaders, Headers, "\r\n", Body]),
+	DefaultHeaders = [
+		{"Connection", atom_to_connection(Connection)},
+		{"Content-Length", integer_to_list(iolist_size(Body))}
+	],
+	Headers2 = lists:keysort(1, Headers),
+	Headers3 = lists:ukeymerge(1, Headers2, DefaultHeaders),
+	Headers4 = [[Key, ": ", Value, "\r\n"] || {Key, Value} <- Headers3],
+	Transport:send(Socket, [StatusLine, Headers4, "\r\n", Body]),
 	{ok, Req#http_req{resp_state=done}}.
 
 %% Internal.

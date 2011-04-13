@@ -18,7 +18,7 @@
 
 -export([all/0, groups/0, init_per_suite/1, end_per_suite/1,
 	init_per_group/2, end_per_group/2]). %% ct.
--export([pipeline/1, raw/1]). %% http.
+-export([headers_dupe/1, pipeline/1, raw/1]). %% http.
 -export([http_200/1, http_404/1]). %% http and https.
 
 %% ct.
@@ -28,7 +28,7 @@ all() ->
 
 groups() ->
 	BaseTests = [http_200, http_404],
-	[{http, [], [pipeline, raw] ++ BaseTests},
+	[{http, [], [headers_dupe, pipeline, raw] ++ BaseTests},
 	{https, [], BaseTests}].
 
 init_per_suite(Config) ->
@@ -76,13 +76,28 @@ end_per_group(https, _Config) ->
 
 init_http_dispatch() ->
 	[
-		{["localhost"], [{[], http_handler, []}]}
+		{["localhost"], [
+			{["headers", "dupe"], http_handler,
+				[{headers, [{"Connection", "close"}]}]},
+			{[], http_handler, []}
+		]}
 	].
 
 init_https_dispatch() ->
 	init_http_dispatch().
 
 %% http.
+
+headers_dupe(Config) ->
+	{port, Port} = lists:keyfind(port, 1, Config),
+	{ok, Socket} = gen_tcp:connect("localhost", Port,
+		[binary, {active, false}, {packet, raw}]),
+	ok = gen_tcp:send(Socket,
+		"GET /headers/dupe HTTP/1.1\r\nHost: localhost\r\nConnection: keep-alive\r\n\r\n"),
+	{ok, Data} = gen_tcp:recv(Socket, 0, 6000),
+	{_Start, _Length} = binary:match(Data, <<"Connection: close">>),
+	nomatch = binary:match(Data, <<"Connection: keep-alive">>),
+	ok = gen_tcp:close(Socket).
 
 pipeline(Config) ->
 	{port, Port} = lists:keyfind(port, 1, Config),
