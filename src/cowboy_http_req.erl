@@ -173,7 +173,7 @@ body_qs(Req) ->
 %% Response API.
 
 -spec reply(Code::http_status(), Headers::http_headers(),
-	Body::iolist(), Req::#http_req{}) -> {ok, Req::#http_req{}}.
+	Body::iodata(), Req::#http_req{}) -> {ok, Req::#http_req{}}.
 reply(Code, Headers, Body, Req=#http_req{socket=Socket,
 		transport=Transport, connection=Connection,
 		resp_state=waiting}) ->
