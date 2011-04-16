@@ -13,7 +13,7 @@
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 -module(cowboy_tcp_transport).
--export([name/0, messages/0, listen/1, accept/1, recv/3, send/2, setopts/2,
+-export([name/0, messages/0, listen/1, accept/2, recv/3, send/2, setopts/2,
 	controlling_process/2, peername/1, close/1]). %% API.
 
 -include("include/types.hrl").
@@ -33,10 +33,10 @@ listen(Opts) ->
 	gen_tcp:listen(Port, [binary, {active, false},
 		{packet, raw}, {reuseaddr, true}]).
 
--spec accept(LSocket::socket())
+-spec accept(LSocket::socket(), Timeout::timeout())
 	-> {ok, Socket::socket()} | {error, Reason::closed | timeout | posix()}.
-accept(LSocket) ->
-	gen_tcp:accept(LSocket).
+accept(LSocket, Timeout) ->
+	gen_tcp:accept(LSocket, Timeout).
 
 -spec recv(Socket::socket(), Length::integer(), Timeout::timeout())
 	-> {ok, Packet::term()} | {error, Reason::closed | posix()}.

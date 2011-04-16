@@ -32,11 +32,13 @@ start_link(LSocket, Transport, Protocol, Opts, ReqsSup) ->
 -spec acceptor(LSocket::socket(), Transport::module(),
 	Protocol::module(), Opts::term(), ReqsSup::pid()) -> no_return().
 acceptor(LSocket, Transport, Protocol, Opts, ReqsSup) ->
-	case Transport:accept(LSocket) of
+	case Transport:accept(LSocket, 2000) of
 		{ok, CSocket} ->
 			{ok, Pid} = supervisor:start_child(ReqsSup,
 				[CSocket, Transport, Protocol, Opts]),
 			Transport:controlling_process(CSocket, Pid);
+		{error, timeout} ->
+			ignore;
 		{error, _Reason} ->
 			%% @todo Probably do something here. If the socket was closed,
 			%%       we may want to try and listen again on the port?

@@ -13,7 +13,7 @@
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 -module(cowboy_ssl_transport).
--export([name/0, messages/0, listen/1, accept/1, recv/3, send/2, setopts/2,
+-export([name/0, messages/0, listen/1, accept/2, recv/3, send/2, setopts/2,
 	controlling_process/2, peername/1, close/1]). %% API.
 
 -include("include/types.hrl").
@@ -38,12 +38,12 @@ listen(Opts) ->
 		{packet, raw}, {reuseaddr, true},
 		{certfile, CertFile}, {keyfile, KeyFile}, {password, Password}]).
 
--spec accept(LSocket::sslsocket())
+-spec accept(LSocket::sslsocket(), Timeout::timeout())
 	-> {ok, Socket::sslsocket()} | {error, Reason::closed | timeout | posix()}.
-accept(LSocket) ->
-	case ssl:transport_accept(LSocket) of
+accept(LSocket, Timeout) ->
+	case ssl:transport_accept(LSocket, Timeout) of
 		{ok, CSocket} ->
-			ssl_accept(CSocket);
+			ssl_accept(CSocket, Timeout);
 		{error, Reason} ->
 			{error, Reason}
 	end.
@@ -79,10 +79,10 @@ close(Socket) ->
 
 %% Internal.
 
--spec ssl_accept(CSocket::sslsocket())
+-spec ssl_accept(CSocket::sslsocket(), Timeout::timeout())
 	-> {ok, Socket::sslsocket()} | {error, Reason::closed | timeout | posix()}.
-ssl_accept(CSocket) ->
-	case ssl:ssl_accept(CSocket) of
+ssl_accept(CSocket, Timeout) ->
+	case ssl:ssl_accept(CSocket, Timeout) of
 		ok ->
 			{ok, CSocket};
 		{error, Reason} ->
