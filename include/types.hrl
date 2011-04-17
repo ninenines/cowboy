@@ -16,7 +16,6 @@
 	{takeover, Node::node()} | {failover, Node::node()}.
 
 -type posix() :: atom().
--opaque sslsocket() :: term().
 -type port_number() :: 0..65535.
 
 -type bindings() :: list({Key::atom(), Value::string()}).

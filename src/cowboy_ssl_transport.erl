@@ -16,6 +16,8 @@
 -export([name/0, messages/0, listen/1, accept/2, recv/3, send/2, setopts/2,
 	controlling_process/2, peername/1, close/1]). %% API.
 
+-opaque sslsocket() :: term().
+
 -include("include/types.hrl").
 
 %% API.
