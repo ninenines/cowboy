@@ -18,7 +18,7 @@
 
 -export([all/0, groups/0, init_per_suite/1, end_per_suite/1,
 	init_per_group/2, end_per_group/2]). %% ct.
--export([headers_dupe/1, pipeline/1, raw/1]). %% http.
+-export([headers_dupe/1, nc_rand/1, pipeline/1, raw/1]). %% http.
 -export([http_200/1, http_404/1, websocket/1]). %% http and https.
 
 %% ct.
@@ -28,7 +28,7 @@ all() ->
 
 groups() ->
 	BaseTests = [http_200, http_404],
-	[{http, [], [headers_dupe, pipeline, raw, websocket] ++ BaseTests},
+	[{http, [], [headers_dupe, nc_rand, pipeline, raw, websocket] ++ BaseTests},
 	{https, [], BaseTests}].
 
 init_per_suite(Config) ->
@@ -99,6 +99,25 @@ headers_dupe(Config) ->
 	{_Start, _Length} = binary:match(Data, <<"Connection: close">>),
 	nomatch = binary:match(Data, <<"Connection: keep-alive">>),
 	ok = gen_tcp:close(Socket).
+
+nc_rand(Config) ->
+	Cat = os:find_executable("cat"),
+	Nc = os:find_executable("nc"),
+	case {Cat, Nc} of
+		{false, _} ->
+			{skip, {notfound, cat}};
+		{_, false} ->
+			{skip, {notfound, nc}};
+		_Good ->
+			%% Throw garbage at the server then check if it's still up.
+			{port, Port} = lists:keyfind(port, 1, Config),
+			[nc_rand_run(Port) || _N <- lists:seq(1, 100)],
+			Packet = "GET / HTTP/1.0\r\nHost: localhost\r\n\r\n",
+			{Packet, 200} = raw_req(Packet, Config)
+	end.
+
+nc_rand_run(Port) ->
+	os:cmd("cat /dev/urandom | nc localhost " ++ integer_to_list(Port)).
 
 pipeline(Config) ->
 	{port, Port} = lists:keyfind(port, 1, Config),
