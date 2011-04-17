@@ -20,7 +20,7 @@
 
 %% API.
 
--spec start_link(LSocket::socket(), Transport::module(),
+-spec start_link(LSocket::inet:socket(), Transport::module(),
 	Protocol::module(), Opts::term(), ReqsSup::pid()) -> {ok, Pid::pid()}.
 start_link(LSocket, Transport, Protocol, Opts, ReqsSup) ->
 	Pid = spawn_link(?MODULE, acceptor,
@@ -29,7 +29,7 @@ start_link(LSocket, Transport, Protocol, Opts, ReqsSup) ->
 
 %% Internal.
 
--spec acceptor(LSocket::socket(), Transport::module(),
+-spec acceptor(LSocket::inet:socket(), Transport::module(),
 	Protocol::module(), Opts::term(), ReqsSup::pid()) -> no_return().
 acceptor(LSocket, Transport, Protocol, Opts, ReqsSup) ->
 	case Transport:accept(LSocket, 2000) of

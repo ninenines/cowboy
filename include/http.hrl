@@ -14,7 +14,7 @@
 
 -record(http_req, {
 	%% Transport.
-	socket     = undefined :: undefined | socket(),
+	socket     = undefined :: undefined | inet:socket(),
 	transport  = undefined :: undefined | module(),
 	connection = keepalive :: keepalive | close,
 

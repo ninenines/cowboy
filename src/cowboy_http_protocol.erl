@@ -20,7 +20,7 @@
 -include("include/http.hrl").
 
 -record(state, {
-	socket :: socket(),
+	socket :: inet:socket(),
 	transport :: module(),
 	dispatch :: dispatch(),
 	handler :: {Handler::module(), Opts::term()},
@@ -32,7 +32,7 @@
 
 %% API.
 
--spec start_link(Socket::socket(), Transport::module(), Opts::term())
+-spec start_link(Socket::inet:socket(), Transport::module(), Opts::term())
 	-> {ok, Pid::pid()}.
 start_link(Socket, Transport, Opts) ->
 	Pid = spawn_link(?MODULE, init, [Socket, Transport, Opts]),
@@ -40,7 +40,7 @@ start_link(Socket, Transport, Opts) ->
 
 %% FSM.
 
--spec init(Socket::socket(), Transport::module(), Opts::term()) -> ok.
+-spec init(Socket::inet:socket(), Transport::module(), Opts::term()) -> ok.
 init(Socket, Transport, Opts) ->
 	Dispatch = proplists:get_value(dispatch, Opts, []),
 	MaxEmptyLines = proplists:get_value(max_empty_lines, Opts, 5),

@@ -26,7 +26,7 @@
 start_link() ->
 	supervisor:start_link(?MODULE, []).
 
--spec start_request(Socket::socket(), Transport::module(),
+-spec start_request(Socket::inet:socket(), Transport::module(),
 	Protocol::module(), Opts::term()) -> {ok, Pid::pid()}.
 start_request(Socket, Transport, Protocol, Opts) ->
 	Protocol:start_link(Socket, Transport, Opts).
