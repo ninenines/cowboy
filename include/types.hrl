@@ -18,10 +18,6 @@
 -type posix() :: atom().
 -opaque socket() :: term().
 -opaque sslsocket() :: term().
--type ipv4_address() :: {0..255, 0..255, 0..255, 0..255}.
--type ipv6_address() :: {0..65535, 0..65535, 0..65535, 0..65535,
-						 0..65535, 0..65535, 0..65535, 0..65535}.
--type ip_address() :: ipv4_address() | ipv6_address().
 -type port_number() :: 0..65535.
 
 -type bindings() :: list({Key::atom(), Value::string()}).

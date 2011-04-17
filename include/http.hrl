@@ -21,7 +21,7 @@
 	%% Request.
 	method     = 'GET'     :: http_method(),
 	version    = {1, 1}    :: http_version(),
-	peer       = undefined :: undefined | {Address::ip_address(), Port::port_number()},
+	peer       = undefined :: undefined | {Address::inet:ip_address(), Port::port_number()},
 	host       = undefined :: undefined | path_tokens(),
 	raw_host   = undefined :: undefined | string(),
 	path       = undefined :: undefined | '*' | path_tokens(),

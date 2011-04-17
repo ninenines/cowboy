@@ -59,7 +59,7 @@ controlling_process(Socket, Pid) ->
 	gen_tcp:controlling_process(Socket, Pid).
 
 -spec peername(Socket::socket())
-	-> {ok, {Address::ip_address(), Port::port_number()}} | {error, posix()}.
+	-> {ok, {Address::inet:ip_address(), Port::port_number()}} | {error, posix()}.
 peername(Socket) ->
 	inet:peername(Socket).
 

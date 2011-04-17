@@ -69,7 +69,7 @@ controlling_process(Socket, Pid) ->
 	ssl:controlling_process(Socket, Pid).
 
 -spec peername(Socket::sslsocket())
-	-> {ok, {Address::ip_address(), Port::port_number()}} | {error, posix()}.
+	-> {ok, {Address::inet:ip_address(), Port::port_number()}} | {error, posix()}.
 peername(Socket) ->
 	ssl:peername(Socket).
 

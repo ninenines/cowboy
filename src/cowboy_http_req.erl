@@ -48,7 +48,7 @@ version(Req) ->
 	{Req#http_req.version, Req}.
 
 -spec peer(Req::#http_req{})
-	-> {{Address::ip_address(), Port::port_number()}, Req::#http_req{}}.
+	-> {{Address::inet:ip_address(), Port::port_number()}, Req::#http_req{}}.
 peer(Req=#http_req{socket=Socket, transport=Transport, peer=undefined}) ->
 	{ok, Peer} = Transport:peername(Socket),
 	{Peer, Req#http_req{peer=Peer}};
