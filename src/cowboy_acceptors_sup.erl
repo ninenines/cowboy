@@ -18,8 +18,6 @@
 -export([start_link/6]). %% API.
 -export([init/1]). %% supervisor.
 
--include("include/types.hrl").
-
 %% API.
 
 -spec start_link(NbAcceptors::non_neg_integer(), Transport::module(),

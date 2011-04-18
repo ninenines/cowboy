@@ -24,7 +24,6 @@
 
 -export_type([bindings/0, path_tokens/0, dispatch_rules/0]).
 
--include("include/types.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
 %% API.

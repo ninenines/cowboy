@@ -20,8 +20,6 @@
 -type application_start_type() :: normal |
 	{takeover, Node::node()} | {failover, Node::node()}.
 
--include("include/types.hrl").
-
 %% API.
 
 -spec start(Type::application_start_type(), Args::term()) -> {ok, Pid::pid()}.

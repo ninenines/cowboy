@@ -16,8 +16,6 @@
 -export([start_link/5]). %% API.
 -export([acceptor/5]). %% Internal.
 
--include("include/types.hrl").
-
 %% API.
 
 -spec start_link(LSocket::inet:socket(), Transport::module(),

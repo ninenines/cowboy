@@ -16,7 +16,6 @@
 -export([start_link/3]). %% API.
 -export([init/3, wait_request/1]). %% FSM.
 
--include("include/types.hrl").
 -include("include/http.hrl").
 
 -record(state, {

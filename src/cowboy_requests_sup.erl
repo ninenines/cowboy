@@ -18,8 +18,6 @@
 -export([start_link/0, start_request/4]). %% API.
 -export([init/1]). %% supervisor.
 
--include("include/types.hrl").
-
 %% API.
 
 -spec start_link() -> {ok, Pid::pid()}.

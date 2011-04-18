@@ -33,7 +33,6 @@
 	reply/4
 ]). %% Response API.
 
--include("include/types.hrl").
 -include("include/http.hrl").
 -include_lib("eunit/include/eunit.hrl").
 

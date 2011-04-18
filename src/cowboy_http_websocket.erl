@@ -15,7 +15,6 @@
 -module(cowboy_http_websocket).
 -export([upgrade/3]).
 
--include("include/types.hrl").
 -include("include/http.hrl").
 
 -record(state, {

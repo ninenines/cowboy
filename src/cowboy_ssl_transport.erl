@@ -18,7 +18,6 @@
 
 -opaque sslsocket() :: term().
 
--include("include/types.hrl").
 -include_lib("kernel/include/inet.hrl").
 
 %% API.
