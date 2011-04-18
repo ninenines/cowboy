@@ -12,8 +12,5 @@
 %% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
--type application_start_type() :: normal |
-	{takeover, Node::node()} | {failover, Node::node()}.
-
 -type posix() :: atom().
 -type port_number() :: 0..65535.

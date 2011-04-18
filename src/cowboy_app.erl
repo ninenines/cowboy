@@ -17,6 +17,9 @@
 
 -export([start/2, stop/1]). %% API.
 
+-type application_start_type() :: normal |
+	{takeover, Node::node()} | {failover, Node::node()}.
+
 -include("include/types.hrl").
 
 %% API.
