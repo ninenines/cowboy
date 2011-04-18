@@ -12,6 +12,8 @@
 %% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+-include_lib("kernel/include/inet.hrl").
+
 -type http_method() :: 'OPTIONS' | 'GET' | 'HEAD'
 	| 'POST' | 'PUT' | 'DELETE' | 'TRACE' | string().
 -type http_uri() :: '*' | {absoluteURI, http | https, Host::string(),
@@ -45,7 +47,7 @@
 	%% Request.
 	method     = 'GET'     :: http_method(),
 	version    = {1, 1}    :: http_version(),
-	peer       = undefined :: undefined | {Address::inet:ip_address(), Port::port_number()},
+	peer       = undefined :: undefined | {Address::ip_address(), Port::ip_port()},
 	host       = undefined :: undefined | cowboy_dispatcher:path_tokens(),
 	raw_host   = undefined :: undefined | string(),
 	path       = undefined :: undefined | '*' | cowboy_dispatcher:path_tokens(),

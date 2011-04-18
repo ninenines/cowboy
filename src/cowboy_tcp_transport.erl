@@ -17,6 +17,7 @@
 	controlling_process/2, peername/1, close/1]). %% API.
 
 -include("include/types.hrl").
+-include_lib("kernel/include/inet.hrl").
 
 %% API.
 
@@ -26,7 +27,7 @@ name() -> tcp.
 -spec messages() -> {tcp, tcp_closed, tcp_error}.
 messages() -> {tcp, tcp_closed, tcp_error}.
 
--spec listen([{port, Port::port_number()}])
+-spec listen([{port, Port::ip_port()}])
 	-> {ok, LSocket::inet:socket()} | {error, Reason::atom()}.
 listen(Opts) ->
 	{port, Port} = lists:keyfind(port, 1, Opts),
@@ -60,7 +61,7 @@ controlling_process(Socket, Pid) ->
 	gen_tcp:controlling_process(Socket, Pid).
 
 -spec peername(Socket::inet:socket())
-	-> {ok, {Address::inet:ip_address(), Port::port_number()}} | {error, atom()}.
+	-> {ok, {Address::ip_address(), Port::ip_port()}} | {error, atom()}.
 peername(Socket) ->
 	inet:peername(Socket).
 

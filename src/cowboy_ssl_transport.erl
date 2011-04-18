@@ -19,6 +19,7 @@
 -opaque sslsocket() :: term().
 
 -include("include/types.hrl").
+-include_lib("kernel/include/inet.hrl").
 
 %% API.
 
@@ -28,7 +29,7 @@ name() -> ssl.
 -spec messages() -> {ssl, ssl_closed, ssl_error}.
 messages() -> {ssl, ssl_closed, ssl_error}.
 
--spec listen([{port, Port::port_number()} | {certfile, CertPath::string()}
+-spec listen([{port, Port::ip_port()} | {certfile, CertPath::string()}
 	| {keyfile, KeyPath::string()} | {password, Password::string()}])
 	-> {ok, LSocket::sslsocket()} | {error, Reason::atom()}.
 listen(Opts) ->
@@ -71,7 +72,7 @@ controlling_process(Socket, Pid) ->
 	ssl:controlling_process(Socket, Pid).
 
 -spec peername(Socket::sslsocket())
-	-> {ok, {Address::inet:ip_address(), Port::port_number()}} | {error, atom()}.
+	-> {ok, {Address::ip_address(), Port::ip_port()}} | {error, atom()}.
 peername(Socket) ->
 	ssl:peername(Socket).
 
