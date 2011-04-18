@@ -55,7 +55,7 @@ match(Host, Path, [{HostMatch, PathMatchs}|Tail]) ->
 			match_path(Path, PathMatchs, HostBinds)
 	end.
 
--spec match_path(Path::path_tokens(), list({Path::match(),
+-spec match_path(Path::path_tokens(), list({Path::match_rule(),
 	Handler::module(), Opts::term()}), HostBinds::bindings())
 	-> {ok, Handler::module(), Opts::term(), Binds::bindings()}
 	| {error, notfound, path}.
@@ -75,7 +75,7 @@ match_path(Path, [{PathMatch, Handler, Opts}|Tail], HostBinds) ->
 
 %% Internal.
 
--spec try_match(Type::host | path, List::path_tokens(), Match::match())
+-spec try_match(Type::host | path, List::path_tokens(), Match::match_rule())
 	-> {true, Binds::bindings()} | false.
 try_match(_Type, _List, '_') ->
 	{true, []};
@@ -86,7 +86,7 @@ try_match(host, List, Match) ->
 try_match(path, List, Match) ->
 	list_match(List, Match, []).
 
--spec list_match(List::path_tokens(), Match::match(), Binds::bindings())
+-spec list_match(List::path_tokens(), Match::match_rule(), Binds::bindings())
 	-> {true, Binds::bindings()} | false.
 %% Atom '_' matches anything, continue.
 list_match([_E|Tail], ['_'|TailMatch], Binds) ->
