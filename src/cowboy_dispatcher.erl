@@ -39,7 +39,8 @@ split_path(Path) ->
 			{string:tokens(Path2, "/"), Path2, Qs}
 	end.
 
--spec match(Host::path_tokens(), Path::path_tokens(), Dispatch::dispatch())
+-spec match(Host::path_tokens(), Path::path_tokens(),
+	Dispatch::dispatch_rules())
 	-> {ok, Handler::module(), Opts::term(), Binds::bindings()}
 	| {error, notfound, host} | {error, notfound, path}.
 match(_Host, _Path, []) ->

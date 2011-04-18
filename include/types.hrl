@@ -24,4 +24,4 @@
 
 -type dispatch_rule() :: {Host::match(), list({Path::match(),
 	Handler::module(), Opts::term()})}.
--type dispatch() :: list(dispatch_rule()).
+-type dispatch_rules() :: list(dispatch_rule()).

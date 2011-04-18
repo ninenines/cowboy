@@ -22,7 +22,7 @@
 -record(state, {
 	socket :: inet:socket(),
 	transport :: module(),
-	dispatch :: dispatch(),
+	dispatch :: dispatch_rules(),
 	handler :: {Handler::module(), Opts::term()},
 	req_empty_lines = 0 :: integer(),
 	max_empty_lines :: integer(),
