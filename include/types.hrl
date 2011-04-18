@@ -22,6 +22,6 @@
 -type path_tokens() :: list(nonempty_string()).
 -type match() :: '_' | '*' | list(string() | '_' | atom()).
 
--type dispatch_rules() :: {Host::match(), list({Path::match(),
+-type dispatch_rule() :: {Host::match(), list({Path::match(),
 	Handler::module(), Opts::term()})}.
--type dispatch() :: list(dispatch_rules()).
+-type dispatch() :: list(dispatch_rule()).
