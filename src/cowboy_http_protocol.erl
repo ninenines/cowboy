@@ -22,7 +22,7 @@
 -record(state, {
 	socket :: inet:socket(),
 	transport :: module(),
-	dispatch :: dispatch_rules(),
+	dispatch :: cowboy_dispatcher:dispatch_rules(),
 	handler :: {Handler::module(), Opts::term()},
 	req_empty_lines = 0 :: integer(),
 	max_empty_lines :: integer(),

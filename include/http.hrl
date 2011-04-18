@@ -46,13 +46,13 @@
 	method     = 'GET'     :: http_method(),
 	version    = {1, 1}    :: http_version(),
 	peer       = undefined :: undefined | {Address::inet:ip_address(), Port::port_number()},
-	host       = undefined :: undefined | path_tokens(),
+	host       = undefined :: undefined | cowboy_dispatcher:path_tokens(),
 	raw_host   = undefined :: undefined | string(),
-	path       = undefined :: undefined | '*' | path_tokens(),
+	path       = undefined :: undefined | '*' | cowboy_dispatcher:path_tokens(),
 	raw_path   = undefined :: undefined | string(),
 	qs_vals    = undefined :: undefined | list({Name::string(), Value::string() | true}),
 	raw_qs     = undefined :: undefined | string(),
-	bindings   = undefined :: undefined | bindings(),
+	bindings   = undefined :: undefined | cowboy_dispatcher:bindings(),
 	headers    = []        :: http_headers(),
 %%	cookies    = undefined :: undefined | http_cookies() %% @todo
 

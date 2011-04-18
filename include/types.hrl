@@ -17,11 +17,3 @@
 
 -type posix() :: atom().
 -type port_number() :: 0..65535.
-
--type bindings() :: list({Key::atom(), Value::string()}).
--type path_tokens() :: list(nonempty_string()).
--type match_rule() :: '_' | '*' | list(string() | '_' | atom()).
-
--type dispatch_rule() :: {Host::match_rule(), list({Path::match_rule(),
-	Handler::module(), Opts::term()})}.
--type dispatch_rules() :: list(dispatch_rule()).

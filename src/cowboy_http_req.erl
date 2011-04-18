@@ -55,7 +55,8 @@ peer(Req=#http_req{socket=Socket, transport=Transport, peer=undefined}) ->
 peer(Req) ->
 	{Req#http_req.peer, Req}.
 
--spec host(Req::#http_req{}) -> {Host::path_tokens(), Req::#http_req{}}.
+-spec host(Req::#http_req{})
+	-> {Host::cowboy_dispatcher:path_tokens(), Req::#http_req{}}.
 host(Req) ->
 	{Req#http_req.host, Req}.
 
@@ -63,7 +64,8 @@ host(Req) ->
 raw_host(Req) ->
 	{Req#http_req.raw_host, Req}.
 
--spec path(Req::#http_req{}) -> {Path::path_tokens(), Req::#http_req{}}.
+-spec path(Req::#http_req{})
+	-> {Path::cowboy_dispatcher:path_tokens(), Req::#http_req{}}.
 path(Req) ->
 	{Req#http_req.path, Req}.
 
