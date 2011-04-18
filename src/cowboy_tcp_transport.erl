@@ -27,7 +27,7 @@ name() -> tcp.
 messages() -> {tcp, tcp_closed, tcp_error}.
 
 -spec listen([{port, Port::port_number()}])
-	-> {ok, LSocket::inet:socket()} | {error, Reason::posix()}.
+	-> {ok, LSocket::inet:socket()} | {error, Reason::atom()}.
 listen(Opts) ->
 	{port, Port} = lists:keyfind(port, 1, Opts),
 	gen_tcp:listen(Port, [binary, {active, false},
@@ -35,32 +35,32 @@ listen(Opts) ->
 
 -spec accept(LSocket::inet:socket(), Timeout::timeout())
 	-> {ok, Socket::inet:socket()}
-	| {error, Reason::closed | timeout | posix()}.
+	| {error, Reason::closed | timeout | atom()}.
 accept(LSocket, Timeout) ->
 	gen_tcp:accept(LSocket, Timeout).
 
 -spec recv(Socket::inet:socket(), Length::integer(), Timeout::timeout())
-	-> {ok, Packet::term()} | {error, Reason::closed | posix()}.
+	-> {ok, Packet::term()} | {error, Reason::closed | atom()}.
 recv(Socket, Length, Timeout) ->
 	gen_tcp:recv(Socket, Length, Timeout).
 
 -spec send(Socket::inet:socket(), Packet::iolist())
-	-> ok | {error, Reason::posix()}.
+	-> ok | {error, Reason::atom()}.
 send(Socket, Packet) ->
 	gen_tcp:send(Socket, Packet).
 
 -spec setopts(Socket::inet:socket(), Opts::list(term()))
-	-> ok | {error, Reason::posix()}.
+	-> ok | {error, Reason::atom()}.
 setopts(Socket, Opts) ->
 	inet:setopts(Socket, Opts).
 
 -spec controlling_process(Socket::inet:socket(), Pid::pid())
-	-> ok | {error, Reason::closed | not_owner | posix()}.
+	-> ok | {error, Reason::closed | not_owner | atom()}.
 controlling_process(Socket, Pid) ->
 	gen_tcp:controlling_process(Socket, Pid).
 
 -spec peername(Socket::inet:socket())
-	-> {ok, {Address::inet:ip_address(), Port::port_number()}} | {error, posix()}.
+	-> {ok, {Address::inet:ip_address(), Port::port_number()}} | {error, atom()}.
 peername(Socket) ->
 	inet:peername(Socket).
 

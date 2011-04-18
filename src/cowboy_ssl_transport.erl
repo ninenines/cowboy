@@ -30,7 +30,7 @@ messages() -> {ssl, ssl_closed, ssl_error}.
 
 -spec listen([{port, Port::port_number()} | {certfile, CertPath::string()}
 	| {keyfile, KeyPath::string()} | {password, Password::string()}])
-	-> {ok, LSocket::sslsocket()} | {error, Reason::posix()}.
+	-> {ok, LSocket::sslsocket()} | {error, Reason::atom()}.
 listen(Opts) ->
 	{port, Port} = lists:keyfind(port, 1, Opts),
 	{certfile, CertFile} = lists:keyfind(certfile, 1, Opts),
@@ -41,7 +41,7 @@ listen(Opts) ->
 		{certfile, CertFile}, {keyfile, KeyFile}, {password, Password}]).
 
 -spec accept(LSocket::sslsocket(), Timeout::timeout())
-	-> {ok, Socket::sslsocket()} | {error, Reason::closed | timeout | posix()}.
+	-> {ok, Socket::sslsocket()} | {error, Reason::closed | timeout | atom()}.
 accept(LSocket, Timeout) ->
 	case ssl:transport_accept(LSocket, Timeout) of
 		{ok, CSocket} ->
@@ -51,27 +51,27 @@ accept(LSocket, Timeout) ->
 	end.
 
 -spec recv(Socket::sslsocket(), Length::integer(), Timeout::timeout())
-	-> {ok, Packet::term()} | {error, Reason::closed | posix()}.
+	-> {ok, Packet::term()} | {error, Reason::closed | atom()}.
 recv(Socket, Length, Timeout) ->
 	ssl:recv(Socket, Length, Timeout).
 
 -spec send(Socket::sslsocket(), Packet::iolist())
-	-> ok | {error, Reason::posix()}.
+	-> ok | {error, Reason::atom()}.
 send(Socket, Packet) ->
 	ssl:send(Socket, Packet).
 
 -spec setopts(Socket::sslsocket(), Opts::list(term()))
-	-> ok | {error, Reason::posix()}.
+	-> ok | {error, Reason::atom()}.
 setopts(Socket, Opts) ->
 	ssl:setopts(Socket, Opts).
 
 -spec controlling_process(Socket::sslsocket(), Pid::pid())
-	-> ok | {error, Reason::closed | not_owner | posix()}.
+	-> ok | {error, Reason::closed | not_owner | atom()}.
 controlling_process(Socket, Pid) ->
 	ssl:controlling_process(Socket, Pid).
 
 -spec peername(Socket::sslsocket())
-	-> {ok, {Address::inet:ip_address(), Port::port_number()}} | {error, posix()}.
+	-> {ok, {Address::inet:ip_address(), Port::port_number()}} | {error, atom()}.
 peername(Socket) ->
 	ssl:peername(Socket).
 
@@ -82,7 +82,7 @@ close(Socket) ->
 %% Internal.
 
 -spec ssl_accept(CSocket::sslsocket(), Timeout::timeout())
-	-> {ok, Socket::sslsocket()} | {error, Reason::closed | timeout | posix()}.
+	-> {ok, Socket::sslsocket()} | {error, Reason::closed | timeout | atom()}.
 ssl_accept(CSocket, Timeout) ->
 	case ssl:ssl_accept(CSocket, Timeout) of
 		ok ->
