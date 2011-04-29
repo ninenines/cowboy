@@ -169,7 +169,7 @@ handler_terminate(HandlerState, Req, State=#state{handler={Handler, _Opts}}) ->
 	BodyRes = ensure_body_processed(Req),
 	ensure_response(Req, State),
 	case {HandlerRes, BodyRes, State#state.connection} of
-		{ok, ok, keepalive} -> next_request(State);
+		{ok, ok, keepalive} -> ?MODULE:wait_request(State);
 		_Closed -> terminate(State)
 	end.
 
@@ -209,12 +209,6 @@ error_terminate(Code, State) ->
 terminate(#state{socket=Socket, transport=Transport}) ->
 	Transport:close(Socket),
 	ok.
-
--spec next_request(State::#state{}) -> ok.
-next_request(State=#state{connection=keepalive}) ->
-	?MODULE:wait_request(State);
-next_request(State=#state{connection=close}) ->
-	terminate(State).
 
 %% Internal.
 
