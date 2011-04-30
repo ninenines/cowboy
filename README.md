@@ -26,7 +26,7 @@ we can share ideas and save everyone time.
 Embedding Cowboy
 ----------------
 
-* Add Cowboy as a rebar dependency to your application.
+* Add Cowboy as a rebar or agner dependency to your application.
 * Start Cowboy and add one or more listeners.
 * Write handlers.
 
