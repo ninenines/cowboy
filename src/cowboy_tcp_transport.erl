@@ -30,8 +30,9 @@ messages() -> {tcp, tcp_closed, tcp_error}.
 	-> {ok, LSocket::inet:socket()} | {error, Reason::atom()}.
 listen(Opts) ->
 	{port, Port} = lists:keyfind(port, 1, Opts),
+	Backlog = proplists:get_value(backlog, Opts, 128),
 	gen_tcp:listen(Port, [binary, {active, false},
-		{packet, raw}, {reuseaddr, true}]).
+		{backlog, Backlog}, {packet, raw}, {reuseaddr, true}]).
 
 -spec accept(LSocket::inet:socket(), Timeout::timeout())
 	-> {ok, Socket::inet:socket()}
