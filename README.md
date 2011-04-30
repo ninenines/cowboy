@@ -54,30 +54,34 @@ listener a unique name.
 
 Code speaks more than words:
 
-    application:start(cowboy),
-    Dispatch = [
-        %% {Host, list({Path, Handler, Opts})}
-        {'_', [{'_', my_handler, []}]}
-    ],
-    %% Name, NbAcceptors, Transport, TransOpts, Protocol, ProtoOpts
-    cowboy:start_listener(http, 100,
-        cowboy_tcp_transport, [{port, 8080}],
-        cowboy_http_protocol, [{dispatch, Dispatch}]
-    ).
+``` erlang
+application:start(cowboy),
+Dispatch = [
+    %% {Host, list({Path, Handler, Opts})}
+    {'_', [{'_', my_handler, []}]}
+],
+%% Name, NbAcceptors, Transport, TransOpts, Protocol, ProtoOpts
+cowboy:start_listener(http, 100,
+    cowboy_tcp_transport, [{port, 8080}],
+    cowboy_http_protocol, [{dispatch, Dispatch}]
+).
+```
 
 You must also write the `my_handler` module to process requests. You can
 use one of the predefined handlers or write your own. An hello world HTTP
 handler could be written like this:
 
-    -module(my_handler).
-    -export([init/3, handle/2, terminate/2]).
+``` erlang
+-module(my_handler).
+-export([init/3, handle/2, terminate/2]).
 
-    init({tcp, http}, Req, Opts) ->
-        {ok, Req, undefined}.
+init({tcp, http}, Req, Opts) ->
+    {ok, Req, undefined}.
 
-    handle(Req, State) ->
-        {ok, Req2} = cowboy_http_req:reply(200, [], "Hello World!", Req),
-        {ok, Req2, State}.
+handle(Req, State) ->
+    {ok, Req2} = cowboy_http_req:reply(200, [], "Hello World!", Req),
+    {ok, Req2, State}.
 
-    terminate(Req, State) ->
-        ok.
+terminate(Req, State) ->
+    ok.
+```
