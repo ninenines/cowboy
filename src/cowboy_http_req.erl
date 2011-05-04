@@ -17,7 +17,7 @@
 
 -export([
 	method/1, version/1, peer/1,
-	host/1, raw_host/1,
+	host/1, raw_host/1, port/1,
 	path/1, raw_path/1,
 	qs_val/2, qs_val/3, qs_vals/1, raw_qs/1,
 	binding/2, binding/3, bindings/1,
@@ -62,6 +62,10 @@ host(Req) ->
 -spec raw_host(Req::#http_req{}) -> {RawHost::string(), Req::#http_req{}}.
 raw_host(Req) ->
 	{Req#http_req.raw_host, Req}.
+
+-spec port(Req::#http_req{}) -> {Port::ip_port(), Req::#http_req{}}.
+port(Req) ->
+	{Req#http_req.port, Req}.
 
 -spec path(Req::#http_req{})
 	-> {Path::cowboy_dispatcher:path_tokens(), Req::#http_req{}}.

@@ -50,6 +50,7 @@
 	peer       = undefined :: undefined | {Address::ip_address(), Port::ip_port()},
 	host       = undefined :: undefined | cowboy_dispatcher:path_tokens(),
 	raw_host   = undefined :: undefined | string(),
+	port       = undefined :: undefined | ip_port(),
 	path       = undefined :: undefined | '*' | cowboy_dispatcher:path_tokens(),
 	raw_path   = undefined :: undefined | string(),
 	qs_vals    = undefined :: undefined | list({Name::string(), Value::string() | true}),

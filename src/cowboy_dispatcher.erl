@@ -24,17 +24,20 @@
 
 -export_type([bindings/0, path_tokens/0, dispatch_rules/0]).
 
+-include_lib("kernel/include/inet.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
 %% API.
 
--spec split_host(Host::string()) -> Tokens::path_tokens().
+-spec split_host(Host::string())
+	-> {Tokens::path_tokens(), Host::string(), Port::undefined | ip_port()}.
 split_host(Host) ->
-	Host2 = case string:chr(Host, $:) of
-		0 -> Host;
-		N -> lists:sublist(Host, N - 1)
-	end,
-	string:tokens(Host2, ".").
+	case string:chr(Host, $:) of
+		0 -> {string:tokens(Host, "."), Host, undefined};
+		N ->
+			{Host2, [$:|Port]} = lists:split(N - 1, Host),
+			{string:tokens(Host2, "."), Host2, list_to_integer(Port)}
+	end.
 
 -spec split_path(Path::string())
 	-> {Tokens::path_tokens(), Path::string(), Qs::string()}.
@@ -119,18 +122,37 @@ list_match([], [], Binds) ->
 split_host_test_() ->
 	%% {Host, Result}
 	Tests = [
-		{"", []},
-		{".........", []},
-		{"*", ["*"]},
-		{"cowboy.dev-extend.eu", ["cowboy", "dev-extend", "eu"]},
-		{"dev-extend..eu", ["dev-extend", "eu"]},
-		{"dev-extend.eu", ["dev-extend", "eu"]},
-		{"dev-extend.eu:8080", ["dev-extend", "eu"]},
+		{"", {[], "", undefined}},
+		{".........", {[], ".........", undefined}},
+		{"*", {["*"], "*", undefined}},
+		{"cowboy.dev-extend.eu", {["cowboy", "dev-extend", "eu"],
+			"cowboy.dev-extend.eu", undefined}},
+		{"dev-extend..eu",
+			{["dev-extend", "eu"], "dev-extend..eu", undefined}},
+		{"dev-extend.eu", {["dev-extend", "eu"], "dev-extend.eu", undefined}},
+		{"dev-extend.eu:8080", {["dev-extend", "eu"], "dev-extend.eu", 8080}},
 		{"a.b.c.d.e.f.g.h.i.j.k.l.m.n.o.p.q.r.s.t.u.v.w.x.y.z",
-			["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
-			 "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z"]}
+			{["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
+			  "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z"],
+			 "a.b.c.d.e.f.g.h.i.j.k.l.m.n.o.p.q.r.s.t.u.v.w.x.y.z", undefined}}
 	],
 	[{H, fun() -> R = split_host(H) end} || {H, R} <- Tests].
+
+split_host_fail_test_() ->
+	Tests = [
+		"dev-extend.eu:owns",
+		"dev-extend.eu: owns",
+		"dev-extend.eu:42fun",
+		"dev-extend.eu: 42fun",
+		"dev-extend.eu:42 fun",
+		"dev-extend.eu:fun 42",
+		"dev-extend.eu: 42",
+		":owns",
+		":42 fun"
+	],
+	[{H, fun() -> case catch split_host(H) of
+		{'EXIT', _Reason} -> ok
+	end end} || H <- Tests].
 
 split_path_test_() ->
 	%% {Path, Result, QueryString}

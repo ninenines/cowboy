@@ -81,9 +81,9 @@ upgrade_error(Req=#http_req{socket=Socket, transport=Transport}) ->
 -spec websocket_handshake(State::#state{}, Req::#http_req{},
 	HandlerState::term()) -> ok.
 websocket_handshake(State=#state{origin=Origin, challenge=Challenge},
-		Req=#http_req{transport=Transport, raw_host=Host, raw_path=Path},
-		HandlerState) ->
-	Location = websocket_location(Transport:name(), Host, Path),
+		Req=#http_req{transport=Transport, raw_host=Host, port=Port,
+		raw_path=Path}, HandlerState) ->
+	Location = websocket_location(Transport:name(), Host, Port, Path),
 	{ok, Req2} = cowboy_http_req:reply(
 		"101 WebSocket Protocol Handshake",
 		[{"Connection", "Upgrade"},
@@ -94,12 +94,12 @@ websocket_handshake(State=#state{origin=Origin, challenge=Challenge},
 	handler_loop(State#state{messages=Transport:messages()},
 		Req2, HandlerState, <<>>).
 
--spec websocket_location(TransName::atom(), Host::string(), Path::string())
-	-> string().
-websocket_location(ssl, Host, Path) ->
-	"wss://" ++ Host ++ Path;
-websocket_location(_Any, Host, Path) ->
-	"ws://" ++ Host ++ Path.
+-spec websocket_location(TransName::atom(), Host::string(),
+	Port::ip_port(), Path::string()) -> string().
+websocket_location(ssl, Host, Port, Path) ->
+	"wss://" ++ Host ++ ":" ++ integer_to_list(Port) ++ Path;
+websocket_location(_Any, Host, Port, Path) ->
+	"ws://" ++ Host ++ ":" ++ integer_to_list(Port) ++ Path.
 
 -spec handler_loop(State::#state{}, Req::#http_req{},
 	HandlerState::term(), SoFar::binary()) -> ok.

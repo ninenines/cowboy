@@ -89,8 +89,6 @@ request({http_error, _Any}, State) ->
 	error_terminate(400, State).
 
 -spec wait_header(Req::#http_req{}, State::#state{}) -> ok.
-%% @todo We don't want to wait T at each header...
-%%       We want to wait T total until we reach the body.
 wait_header(Req, State=#state{socket=Socket,
 		transport=Transport, timeout=T}) ->
 	case Transport:recv(Socket, 0, T) of
@@ -101,22 +99,19 @@ wait_header(Req, State=#state{socket=Socket,
 
 -spec header({http_header, I::integer(), Field::http_header(), R::term(),
 	Value::string()} | http_eoh, Req::#http_req{}, State::#state{}) -> ok.
-header({http_header, _I, 'Host', _R, RawHost}, Req=#http_req{path=Path,
-		host=undefined}, State=#state{dispatch=Dispatch}) ->
+header({http_header, _I, 'Host', _R, RawHost}, Req=#http_req{
+		transport=Transport, host=undefined}, State) ->
 	RawHost2 = string_to_lower(RawHost),
-	Host = cowboy_dispatcher:split_host(RawHost2),
-	%% @todo We probably want to filter the Host and Path here to allow
-	%%       things like url rewriting.
-	case cowboy_dispatcher:match(Host, Path, Dispatch) of
-		{ok, Handler, Opts, Binds} ->
-			wait_header(Req#http_req{
-				host=Host, raw_host=RawHost2, bindings=Binds,
-				headers=[{'Host', RawHost2}|Req#http_req.headers]},
-				State#state{handler={Handler, Opts}});
-		{error, notfound, host} ->
-			error_terminate(400, State);
-		{error, notfound, path} ->
-			error_terminate(404, State)
+	case catch cowboy_dispatcher:split_host(RawHost2) of
+		{Host, RawHost3, undefined} ->
+			Port = default_port(Transport:name()),
+			dispatch(Req#http_req{host=Host, raw_host=RawHost3, port=Port,
+				headers=[{'Host', RawHost3}|Req#http_req.headers]}, State);
+		{Host, RawHost3, Port} ->
+			dispatch(Req#http_req{host=Host, raw_host=RawHost3, port=Port,
+				headers=[{'Host', RawHost3}|Req#http_req.headers]}, State);
+		{'EXIT', _Reason} ->
+			error_terminate(400, State)
 	end;
 %% Ignore Host headers if we already have it.
 header({http_header, _I, 'Host', _R, _V}, Req, State) ->
@@ -136,6 +131,21 @@ header(http_eoh, Req, State) ->
 	handler_init(Req, State);
 header({http_error, _String}, _Req, State) ->
 	error_terminate(500, State).
+
+-spec dispatch(Req::#http_req{}, State::#state{}) -> ok.
+dispatch(Req=#http_req{host=Host, path=Path},
+		State=#state{dispatch=Dispatch}) ->
+	%% @todo We probably want to filter the Host and Path here to allow
+	%%       things like url rewriting.
+	case cowboy_dispatcher:match(Host, Path, Dispatch) of
+		{ok, Handler, Opts, Binds} ->
+			wait_header(Req#http_req{bindings=Binds},
+				State#state{handler={Handler, Opts}});
+		{error, notfound, host} ->
+			error_terminate(400, State);
+		{error, notfound, path} ->
+			error_terminate(404, State)
+	end.
 
 -spec handler_init(Req::#http_req{}, State::#state{}) -> ok.
 handler_init(Req, State=#state{
@@ -226,6 +236,10 @@ connection_to_atom(Connection) ->
 		"close" -> close;
 		_Any -> keepalive
 	end.
+
+-spec default_port(TransportName::atom()) -> 80 | 443.
+default_port(ssl) -> 443;
+default_port(_) -> 80.
 
 %% More efficient implementation of string:to_lower.
 %% We are excluding a few characters on purpose.
