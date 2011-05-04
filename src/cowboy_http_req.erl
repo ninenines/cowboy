@@ -136,7 +136,7 @@ header(Name, Req, Default) ->
 	end.
 
 -spec headers(Req::#http_req{})
-	-> {list({Name::atom() | string(), Value::string()}), Req::#http_req{}}.
+	-> {Headers::http_headers(), Req::#http_req{}}.
 headers(Req) ->
 	{Req#http_req.headers, Req}.
 
