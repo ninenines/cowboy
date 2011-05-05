@@ -187,12 +187,15 @@ reply(Code, Headers, Body, Req=#http_req{socket=Socket,
 	StatusLine = <<"HTTP/1.1 ", (status(Code))/binary, "\r\n">>,
 	DefaultHeaders = [
 		{<<"Connection">>, atom_to_connection(Connection)},
-		{<<"Content-Length">>, list_to_binary(integer_to_list(iolist_size(Body)))}
+		{<<"Content-Length">>,
+			list_to_binary(integer_to_list(iolist_size(Body)))}
 	],
-	Headers2 = lists:keysort(1, Headers),
-	Headers3 = lists:ukeymerge(1, Headers2, DefaultHeaders),
-	Headers4 = [<< Key/binary, ": ", Value/binary, "\r\n">> || {Key, Value} <- Headers3],
-	Transport:send(Socket, [StatusLine, Headers4, <<"\r\n">>, Body]),
+	Headers2 = [{header_to_binary(Key), Value} || {Key, Value} <- Headers],
+	Headers3 = lists:keysort(1, Headers2),
+	Headers4 = lists:ukeymerge(1, Headers3, DefaultHeaders),
+	Headers5 = [<< Key/binary, ": ", Value/binary, "\r\n" >>
+		|| {Key, Value} <- Headers4],
+	Transport:send(Socket, [StatusLine, Headers5, <<"\r\n">>, Body]),
 	{ok, Req#http_req{resp_state=done}}.
 
 %% Internal.
@@ -268,6 +271,61 @@ status(506) -> <<"506 Variant Also Negotiates">>;
 status(507) -> <<"507 Insufficient Storage">>;
 status(510) -> <<"510 Not Extended">>;
 status(B) when is_binary(B) -> B.
+
+-spec header_to_binary(http_header()) -> binary().
+header_to_binary('Cache-Control') -> <<"Cache-Control">>;
+header_to_binary('Connection') -> <<"Connection">>;
+header_to_binary('Date') -> <<"Date">>;
+header_to_binary('Pragma') -> <<"Pragma">>;
+header_to_binary('Transfer-Encoding') -> <<"Transfer-Encoding">>;
+header_to_binary('Upgrade') -> <<"Upgrade">>;
+header_to_binary('Via') -> <<"Via">>;
+header_to_binary('Accept') -> <<"Accept">>;
+header_to_binary('Accept-Charset') -> <<"Accept-Charset">>;
+header_to_binary('Accept-Encoding') -> <<"Accept-Encoding">>;
+header_to_binary('Accept-Language') -> <<"Accept-Language">>;
+header_to_binary('Authorization') -> <<"Authorization">>;
+header_to_binary('From') -> <<"From">>;
+header_to_binary('Host') -> <<"Host">>;
+header_to_binary('If-Modified-Since') -> <<"If-Modified-Since">>;
+header_to_binary('If-Match') -> <<"If-Match">>;
+header_to_binary('If-None-Match') -> <<"If-None-Match">>;
+header_to_binary('If-Range') -> <<"If-Range">>;
+header_to_binary('If-Unmodified-Since') -> <<"If-Unmodified-Since">>;
+header_to_binary('Max-Forwards') -> <<"Max-Forwards">>;
+header_to_binary('Proxy-Authorization') -> <<"Proxy-Authorization">>;
+header_to_binary('Range') -> <<"Range">>;
+header_to_binary('Referer') -> <<"Referer">>;
+header_to_binary('User-Agent') -> <<"User-Agent">>;
+header_to_binary('Age') -> <<"Age">>;
+header_to_binary('Location') -> <<"Location">>;
+header_to_binary('Proxy-Authenticate') -> <<"Proxy-Authenticate">>;
+header_to_binary('Public') -> <<"Public">>;
+header_to_binary('Retry-After') -> <<"Retry-After">>;
+header_to_binary('Server') -> <<"Server">>;
+header_to_binary('Vary') -> <<"Vary">>;
+header_to_binary('Warning') -> <<"Warning">>;
+header_to_binary('Www-Authenticate') -> <<"Www-Authenticate">>;
+header_to_binary('Allow') -> <<"Allow">>;
+header_to_binary('Content-Base') -> <<"Content-Base">>;
+header_to_binary('Content-Encoding') -> <<"Content-Encoding">>;
+header_to_binary('Content-Language') -> <<"Content-Language">>;
+header_to_binary('Content-Length') -> <<"Content-Length">>;
+header_to_binary('Content-Location') -> <<"Content-Location">>;
+header_to_binary('Content-Md5') -> <<"Content-Md5">>;
+header_to_binary('Content-Range') -> <<"Content-Range">>;
+header_to_binary('Content-Type') -> <<"Content-Type">>;
+header_to_binary('Etag') -> <<"Etag">>;
+header_to_binary('Expires') -> <<"Expires">>;
+header_to_binary('Last-Modified') -> <<"Last-Modified">>;
+header_to_binary('Accept-Ranges') -> <<"Accept-Ranges">>;
+header_to_binary('Set-Cookie') -> <<"Set-Cookie">>;
+header_to_binary('Set-Cookie2') -> <<"Set-Cookie2">>;
+header_to_binary('X-Forwarded-For') -> <<"X-Forwarded-For">>;
+header_to_binary('Cookie') -> <<"Cookie">>;
+header_to_binary('Keep-Alive') -> <<"Keep-Alive">>;
+header_to_binary('Proxy-Connection') -> <<"Proxy-Connection">>;
+header_to_binary(B) when is_binary(B) -> B.
 
 %% Tests.
 
