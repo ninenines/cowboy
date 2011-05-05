@@ -14,7 +14,7 @@
 
 -module(cowboy_http_protocol).
 -export([start_link/3]). %% API.
--export([init/3, wait_request/1]). %% FSM.
+-export([init/3, parse_request/1]). %% FSM.
 
 -include("include/http.hrl").
 
@@ -26,7 +26,8 @@
 	req_empty_lines = 0 :: integer(),
 	max_empty_lines :: integer(),
 	timeout :: timeout(),
-	connection = keepalive :: keepalive | close
+	connection = keepalive :: keepalive | close,
+	buffer = <<>> :: binary()
 }).
 
 %% API.
@@ -47,11 +48,21 @@ init(Socket, Transport, Opts) ->
 	wait_request(#state{socket=Socket, transport=Transport,
 		dispatch=Dispatch, max_empty_lines=MaxEmptyLines, timeout=Timeout}).
 
+-spec parse_request(State::#state{}) -> ok.
+%% @todo Use decode_packet options to limit length?
+parse_request(State=#state{buffer=Buffer}) ->
+	case erlang:decode_packet(http_bin, Buffer, []) of
+		{ok, Request, Rest} -> request(Request, State#state{buffer=Rest});
+		{more, _Length} -> wait_request(State);
+		{error, _Reason} -> error_response(400, State)
+	end.
+
 -spec wait_request(State::#state{}) -> ok.
-wait_request(State=#state{socket=Socket, transport=Transport, timeout=T}) ->
-	Transport:setopts(Socket, [{packet, http}]),
+wait_request(State=#state{socket=Socket, transport=Transport,
+		timeout=T, buffer=Buffer}) ->
 	case Transport:recv(Socket, 0, T) of
-		{ok, Request} -> request(Request, State);
+		{ok, Data} -> parse_request(State#state{
+			buffer= << Buffer/binary, Data/binary >>});
 		{error, timeout} -> error_terminate(408, State);
 		{error, closed} -> terminate(State)
 	end.
@@ -67,41 +78,50 @@ request({http_request, Method, {abs_path, AbsPath}, Version},
 		State=#state{socket=Socket, transport=Transport}) ->
 	{Path, RawPath, Qs} = cowboy_dispatcher:split_path(AbsPath),
 	ConnAtom = version_to_connection(Version),
-	wait_header(#http_req{socket=Socket, transport=Transport,
+	parse_header(#http_req{socket=Socket, transport=Transport,
 		connection=ConnAtom, method=Method, version=Version,
 		path=Path, raw_path=RawPath, raw_qs=Qs},
 		State#state{connection=ConnAtom});
 request({http_request, Method, '*', Version},
 		State=#state{socket=Socket, transport=Transport}) ->
 	ConnAtom = version_to_connection(Version),
-	wait_header(#http_req{socket=Socket, transport=Transport,
+	parse_header(#http_req{socket=Socket, transport=Transport,
 		connection=ConnAtom, method=Method, version=Version,
-		path='*', raw_path="*", raw_qs=[]},
+		path='*', raw_path= <<"*">>, raw_qs= <<>>},
 		State#state{connection=ConnAtom});
 request({http_request, _Method, _URI, _Version}, State) ->
 	error_terminate(501, State);
-request({http_error, "\r\n"},
+request({http_error, <<"\r\n">>},
 		State=#state{req_empty_lines=N, max_empty_lines=N}) ->
 	error_terminate(400, State);
-request({http_error, "\r\n"}, State=#state{req_empty_lines=N}) ->
-	wait_request(State#state{req_empty_lines=N + 1});
+request({http_error, <<"\r\n">>}, State=#state{req_empty_lines=N}) ->
+	parse_request(State#state{req_empty_lines=N + 1});
 request({http_error, _Any}, State) ->
 	error_terminate(400, State).
 
+-spec parse_header(Req::#http_req{}, State::#state{}) -> ok.
+parse_header(Req, State=#state{buffer=Buffer}) ->
+	case erlang:decode_packet(httph_bin, Buffer, []) of
+		{ok, Header, Rest} -> header(Header, Req, State#state{buffer=Rest});
+		{more, _Length} -> wait_header(Req, State);
+		{error, _Reason} -> error_response(400, State)
+	end.
+
 -spec wait_header(Req::#http_req{}, State::#state{}) -> ok.
 wait_header(Req, State=#state{socket=Socket,
-		transport=Transport, timeout=T}) ->
+		transport=Transport, timeout=T, buffer=Buffer}) ->
 	case Transport:recv(Socket, 0, T) of
-		{ok, Header} -> header(Header, Req, State);
+		{ok, Data} -> parse_header(Req, State#state{
+			buffer= << Buffer/binary, Data/binary >>});
 		{error, timeout} -> error_terminate(408, State);
 		{error, closed} -> terminate(State)
 	end.
 
 -spec header({http_header, I::integer(), Field::http_header(), R::term(),
-	Value::string()} | http_eoh, Req::#http_req{}, State::#state{}) -> ok.
+	Value::binary()} | http_eoh, Req::#http_req{}, State::#state{}) -> ok.
 header({http_header, _I, 'Host', _R, RawHost}, Req=#http_req{
 		transport=Transport, host=undefined}, State) ->
-	RawHost2 = string_to_lower(RawHost),
+	RawHost2 = binary_to_lower(RawHost),
 	case catch cowboy_dispatcher:split_host(RawHost2) of
 		{Host, RawHost3, undefined} ->
 			Port = default_port(Transport:name()),
@@ -115,21 +135,21 @@ header({http_header, _I, 'Host', _R, RawHost}, Req=#http_req{
 	end;
 %% Ignore Host headers if we already have it.
 header({http_header, _I, 'Host', _R, _V}, Req, State) ->
-	wait_header(Req, State);
+	parse_header(Req, State);
 header({http_header, _I, 'Connection', _R, Connection}, Req, State) ->
 	ConnAtom = connection_to_atom(Connection),
-	wait_header(Req#http_req{connection=ConnAtom,
+	parse_header(Req#http_req{connection=ConnAtom,
 		headers=[{'Connection', Connection}|Req#http_req.headers]},
 		State#state{connection=ConnAtom});
 header({http_header, _I, Field, _R, Value}, Req, State) ->
-	wait_header(Req#http_req{headers=[{Field, Value}|Req#http_req.headers]},
+	parse_header(Req#http_req{headers=[{Field, Value}|Req#http_req.headers]},
 		State);
 %% The Host header is required.
 header(http_eoh, #http_req{host=undefined}, State) ->
 	error_terminate(400, State);
-header(http_eoh, Req, State) ->
-	handler_init(Req, State);
-header({http_error, _String}, _Req, State) ->
+header(http_eoh, Req, State=#state{buffer=Buffer}) ->
+	handler_init(Req#http_req{buffer=Buffer}, State#state{buffer= <<>>});
+header({http_error, _Bin}, _Req, State) ->
 	error_terminate(500, State).
 
 -spec dispatch(Req::#http_req{}, State::#state{}) -> ok.
@@ -139,7 +159,7 @@ dispatch(Req=#http_req{host=Host, path=Path},
 	%%       things like url rewriting.
 	case cowboy_dispatcher:match(Host, Path, Dispatch) of
 		{ok, Handler, Opts, Binds} ->
-			wait_header(Req#http_req{bindings=Binds},
+			parse_header(Req#http_req{bindings=Binds},
 				State#state{handler={Handler, Opts}});
 		{error, notfound, host} ->
 			error_terminate(400, State);
@@ -173,14 +193,17 @@ handler_loop(HandlerState, Req, State=#state{handler={Handler, _Opts}}) ->
 
 -spec handler_terminate(HandlerState::term(), Req::#http_req{},
 	State::#state{}) -> ok.
-handler_terminate(HandlerState, Req, State=#state{handler={Handler, _Opts}}) ->
+handler_terminate(HandlerState, Req=#http_req{buffer=Buffer},
+		State=#state{handler={Handler, _Opts}}) ->
 	HandlerRes = (catch Handler:terminate(
 		Req#http_req{resp_state=locked}, HandlerState)),
 	BodyRes = ensure_body_processed(Req),
 	ensure_response(Req, State),
 	case {HandlerRes, BodyRes, State#state.connection} of
-		{ok, ok, keepalive} -> ?MODULE:wait_request(State);
-		_Closed -> terminate(State)
+		{ok, ok, keepalive} ->
+			?MODULE:parse_request(State#state{buffer=Buffer});
+		_Closed ->
+			terminate(State)
 	end.
 
 -spec ensure_body_processed(Req::#http_req{}) -> ok | close.
@@ -226,14 +249,14 @@ terminate(#state{socket=Socket, transport=Transport}) ->
 version_to_connection({1, 1}) -> keepalive;
 version_to_connection(_Any) -> close.
 
--spec connection_to_atom(Connection::string()) -> keepalive | close.
-connection_to_atom("keep-alive") ->
+-spec connection_to_atom(Connection::binary()) -> keepalive | close.
+connection_to_atom(<<"keep-alive">>) ->
 	keepalive;
-connection_to_atom("close") ->
+connection_to_atom(<<"close">>) ->
 	close;
 connection_to_atom(Connection) ->
-	case string_to_lower(Connection) of
-		"close" -> close;
+	case binary_to_lower(Connection) of
+		<<"close">> -> close;
 		_Any -> keepalive
 	end.
 
@@ -241,11 +264,10 @@ connection_to_atom(Connection) ->
 default_port(ssl) -> 443;
 default_port(_) -> 80.
 
-%% More efficient implementation of string:to_lower.
 %% We are excluding a few characters on purpose.
--spec string_to_lower(string()) -> string().
-string_to_lower(L) ->
-	[char_to_lower(C) || C <- L].
+-spec binary_to_lower(binary()) -> binary().
+binary_to_lower(L) ->
+	<< << (char_to_lower(C)) >> || << C >> <= L >>.
 
 %% We gain noticeable speed by matching each value directly.
 -spec char_to_lower(char()) -> char().

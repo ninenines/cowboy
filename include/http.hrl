@@ -15,11 +15,11 @@
 -include_lib("kernel/include/inet.hrl").
 
 -type http_method() :: 'OPTIONS' | 'GET' | 'HEAD'
-	| 'POST' | 'PUT' | 'DELETE' | 'TRACE' | string().
--type http_uri() :: '*' | {absoluteURI, http | https, Host::string(),
-	Port::integer() | undefined, Path::string()}
-	| {scheme, Scheme::string(), string()}
-	| {abs_path, string()} | string().
+	| 'POST' | 'PUT' | 'DELETE' | 'TRACE' | binary().
+-type http_uri() :: '*' | {absoluteURI, http | https, Host::binary(),
+	Port::integer() | undefined, Path::binary()}
+	| {scheme, Scheme::binary(), binary()}
+	| {abs_path, binary()} | binary().
 -type http_version() :: {Major::integer(), Minor::integer()}.
 -type http_header() :: 'Cache-Control' | 'Connection' | 'Date' | 'Pragma'
 	| 'Transfer-Encoding' | 'Upgrade' | 'Via' | 'Accept' | 'Accept-Charset'
@@ -33,10 +33,10 @@
 	| 'Content-Md5' | 'Content-Range' | 'Content-Type' | 'Etag'
 	| 'Expires' | 'Last-Modified' | 'Accept-Ranges' | 'Set-Cookie'
 	| 'Set-Cookie2' | 'X-Forwarded-For' | 'Cookie' | 'Keep-Alive'
-	| 'Proxy-Connection' | string().
--type http_headers() :: list({http_header(), string()}).
+	| 'Proxy-Connection' | binary().
+-type http_headers() :: list({http_header(), binary()}).
 %% -type http_cookies() :: term(). %% @todo
--type http_status() :: non_neg_integer() | string().
+-type http_status() :: non_neg_integer() | binary().
 
 -record(http_req, {
 	%% Transport.
@@ -49,18 +49,20 @@
 	version    = {1, 1}    :: http_version(),
 	peer       = undefined :: undefined | {Address::ip_address(), Port::ip_port()},
 	host       = undefined :: undefined | cowboy_dispatcher:path_tokens(),
-	raw_host   = undefined :: undefined | string(),
+	raw_host   = undefined :: undefined | binary(),
 	port       = undefined :: undefined | ip_port(),
 	path       = undefined :: undefined | '*' | cowboy_dispatcher:path_tokens(),
-	raw_path   = undefined :: undefined | string(),
-	qs_vals    = undefined :: undefined | list({Name::string(), Value::string() | true}),
-	raw_qs     = undefined :: undefined | string(),
+	raw_path   = undefined :: undefined | binary(),
+	qs_vals    = undefined :: undefined
+		| list({Name::binary(), Value::binary() | true}),
+	raw_qs     = undefined :: undefined | binary(),
 	bindings   = undefined :: undefined | cowboy_dispatcher:bindings(),
 	headers    = []        :: http_headers(),
 %%	cookies    = undefined :: undefined | http_cookies() %% @todo
 
 	%% Request body.
 	body_state = waiting   :: waiting | done,
+	buffer     = <<>>      :: binary(),
 
 	%% Response.
 	resp_state = locked    :: locked | waiting | done

@@ -15,9 +15,9 @@
 -module(cowboy_dispatcher).
 -export([split_host/1, split_path/1, match/3]). %% API.
 
--type bindings() :: list({Key::atom(), Value::string()}).
--type path_tokens() :: list(nonempty_string()).
--type match_rule() :: '_' | '*' | list(string() | '_' | atom()).
+-type bindings() :: list({Key::atom(), Value::binary()}).
+-type path_tokens() :: list(binary()).
+-type match_rule() :: '_' | '*' | list(binary() | '_' | atom()).
 -type dispatch_rule() :: {Host::match_rule(), list({Path::match_rule(),
 	Handler::module(), Opts::term()})}.
 -type dispatch_rules() :: list(dispatch_rule()).
@@ -29,25 +29,34 @@
 
 %% API.
 
--spec split_host(Host::string())
-	-> {Tokens::path_tokens(), Host::string(), Port::undefined | ip_port()}.
+-spec split_host(Host::binary())
+	-> {Tokens::path_tokens(), RawHost::binary(), Port::undefined | ip_port()}.
+split_host(<<>>) ->
+	{[], <<>>, undefined};
 split_host(Host) ->
-	case string:chr(Host, $:) of
-		0 -> {string:tokens(Host, "."), Host, undefined};
-		N ->
-			{Host2, [$:|Port]} = lists:split(N - 1, Host),
-			{string:tokens(Host2, "."), Host2, list_to_integer(Port)}
+	case binary:split(Host, <<":">>) of
+		[Host] ->
+			{binary:split(Host, <<".">>, [global, trim]), Host, undefined};
+		[Host2, Port] ->
+			{binary:split(Host2, <<".">>, [global, trim]), Host2,
+				list_to_integer(binary_to_list(Port))}
 	end.
 
--spec split_path(Path::string())
-	-> {Tokens::path_tokens(), Path::string(), Qs::string()}.
+-spec split_path(Path::binary())
+	-> {Tokens::path_tokens(), RawPath::binary(), Qs::binary()}.
 split_path(Path) ->
-	case string:chr(Path, $?) of
-		0 ->
-			{string:tokens(Path, "/"), Path, []};
-		N ->
-			{Path2, [$?|Qs]} = lists:split(N - 1, Path),
-			{string:tokens(Path2, "/"), Path2, Qs}
+	case binary:split(Path, <<"?">>) of
+		[Path] -> {do_split_path(Path, <<"/">>), Path, <<>>};
+		[<<>>, Qs] -> {[], <<>>, Qs};
+		[Path2, Qs] -> {do_split_path(Path2, <<"/">>), Path2, Qs}
+	end.
+
+-spec do_split_path(RawPath::binary(), Separator::binary())
+	-> Tokens::path_tokens().
+do_split_path(RawPath, Separator) ->
+	case binary:split(RawPath, Separator, [global, trim]) of
+		[<<>>|Path] -> Path;
+		Path -> Path
 	end.
 
 -spec match(Host::path_tokens(), Path::path_tokens(),
@@ -122,33 +131,40 @@ list_match([], [], Binds) ->
 split_host_test_() ->
 	%% {Host, Result}
 	Tests = [
-		{"", {[], "", undefined}},
-		{".........", {[], ".........", undefined}},
-		{"*", {["*"], "*", undefined}},
-		{"cowboy.dev-extend.eu", {["cowboy", "dev-extend", "eu"],
-			"cowboy.dev-extend.eu", undefined}},
-		{"dev-extend..eu",
-			{["dev-extend", "eu"], "dev-extend..eu", undefined}},
-		{"dev-extend.eu", {["dev-extend", "eu"], "dev-extend.eu", undefined}},
-		{"dev-extend.eu:8080", {["dev-extend", "eu"], "dev-extend.eu", 8080}},
-		{"a.b.c.d.e.f.g.h.i.j.k.l.m.n.o.p.q.r.s.t.u.v.w.x.y.z",
-			{["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
-			  "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z"],
-			 "a.b.c.d.e.f.g.h.i.j.k.l.m.n.o.p.q.r.s.t.u.v.w.x.y.z", undefined}}
+		{<<"">>, {[], <<"">>, undefined}},
+		{<<".........">>, {[], <<".........">>, undefined}},
+		{<<"*">>, {[<<"*">>], <<"*">>, undefined}},
+		{<<"cowboy.dev-extend.eu">>,
+			{[<<"cowboy">>, <<"dev-extend">>, <<"eu">>],
+			 <<"cowboy.dev-extend.eu">>, undefined}},
+		{<<"dev-extend..eu">>,
+			{[<<"dev-extend">>, <<>>, <<"eu">>],
+			 <<"dev-extend..eu">>, undefined}},
+		{<<"dev-extend.eu">>,
+			{[<<"dev-extend">>, <<"eu">>], <<"dev-extend.eu">>, undefined}},
+		{<<"dev-extend.eu:8080">>,
+			{[<<"dev-extend">>, <<"eu">>], <<"dev-extend.eu">>, 8080}},
+		{<<"a.b.c.d.e.f.g.h.i.j.k.l.m.n.o.p.q.r.s.t.u.v.w.x.y.z">>,
+			{[<<"a">>, <<"b">>, <<"c">>, <<"d">>, <<"e">>, <<"f">>, <<"g">>,
+			  <<"h">>, <<"i">>, <<"j">>, <<"k">>, <<"l">>, <<"m">>, <<"n">>,
+			  <<"o">>, <<"p">>, <<"q">>, <<"r">>, <<"s">>, <<"t">>, <<"u">>,
+			  <<"v">>, <<"w">>, <<"x">>, <<"y">>, <<"z">>],
+			 <<"a.b.c.d.e.f.g.h.i.j.k.l.m.n.o.p.q.r.s.t.u.v.w.x.y.z">>,
+			 undefined}}
 	],
 	[{H, fun() -> R = split_host(H) end} || {H, R} <- Tests].
 
 split_host_fail_test_() ->
 	Tests = [
-		"dev-extend.eu:owns",
-		"dev-extend.eu: owns",
-		"dev-extend.eu:42fun",
-		"dev-extend.eu: 42fun",
-		"dev-extend.eu:42 fun",
-		"dev-extend.eu:fun 42",
-		"dev-extend.eu: 42",
-		":owns",
-		":42 fun"
+		<<"dev-extend.eu:owns">>,
+		<<"dev-extend.eu: owns">>,
+		<<"dev-extend.eu:42fun">>,
+		<<"dev-extend.eu: 42fun">>,
+		<<"dev-extend.eu:42 fun">>,
+		<<"dev-extend.eu:fun 42">>,
+		<<"dev-extend.eu: 42">>,
+		<<":owns">>,
+		<<":42 fun">>
 	],
 	[{H, fun() -> case catch split_host(H) of
 		{'EXIT', _Reason} -> ok
@@ -157,58 +173,61 @@ split_host_fail_test_() ->
 split_path_test_() ->
 	%% {Path, Result, QueryString}
 	Tests = [
-		{"?", [], "", ""},
-		{"???", [], "", "??"},
-		{"/", [], "/", ""},
-		{"/users", ["users"], "/users", ""},
-		{"/users?", ["users"], "/users", ""},
-		{"/users?a", ["users"], "/users", "a"},
-		{"/users/42/friends?a=b&c=d&e=notsure?whatever",
-			["users", "42", "friends"],
-			"/users/42/friends", "a=b&c=d&e=notsure?whatever"}
+		{<<"?">>, [], <<"">>, <<"">>},
+		{<<"???">>, [], <<"">>, <<"??">>},
+		{<<"/">>, [], <<"/">>, <<"">>},
+		{<<"/users">>, [<<"users">>], <<"/users">>, <<"">>},
+		{<<"/users?">>, [<<"users">>], <<"/users">>, <<"">>},
+		{<<"/users?a">>, [<<"users">>], <<"/users">>, <<"a">>},
+		{<<"/users/42/friends?a=b&c=d&e=notsure?whatever">>,
+			[<<"users">>, <<"42">>, <<"friends">>],
+			<<"/users/42/friends">>, <<"a=b&c=d&e=notsure?whatever">>}
 	],
-	[{P, fun() -> {R, RawP, Qs} = split_path(P) end} || {P, R, RawP, Qs} <- Tests].
+	[{P, fun() -> {R, RawP, Qs} = split_path(P) end}
+		|| {P, R, RawP, Qs} <- Tests].
 
 match_test_() ->
 	Dispatch = [
-		{["www", '_', "dev-extend", "eu"], [
-			{["users", '_', "mails"], match_any_subdomain_users, []}
+		{[<<"www">>, '_', <<"dev-extend">>, <<"eu">>], [
+			{[<<"users">>, '_', <<"mails">>], match_any_subdomain_users, []}
 		]},
-		{["dev-extend", "eu"], [
-			{["users", id, "friends"], match_extend_users_friends, []},
+		{[<<"dev-extend">>, <<"eu">>], [
+			{[<<"users">>, id, <<"friends">>], match_extend_users_friends, []},
 			{'_', match_extend, []}
 		]},
-		{["dev-extend", var], [
-			{["threads", var], match_duplicate_vars,
+		{[<<"dev-extend">>, var], [
+			{[<<"threads">>, var], match_duplicate_vars,
 				[we, {expect, two}, var, here]}
 		]},
-		{["erlang", ext], [
+		{[<<"erlang">>, ext], [
 			{'_', match_erlang_ext, []}
 		]},
 		{'_', [
-			{["users", id, "friends"], match_users_friends, []},
+			{[<<"users">>, id, <<"friends">>], match_users_friends, []},
 			{'_', match_any, []}
 		]}
 	],
 	%% {Host, Path, Result}
 	Tests = [
-		{["any"], [], {ok, match_any, [], []}},
-		{["www", "any", "dev-extend", "eu"], ["users", "42", "mails"],
+		{[<<"any">>], [], {ok, match_any, [], []}},
+		{[<<"www">>, <<"any">>, <<"dev-extend">>, <<"eu">>],
+			[<<"users">>, <<"42">>, <<"mails">>],
 			{ok, match_any_subdomain_users, [], []}},
-		{["www", "dev-extend", "eu"], ["users", "42", "mails"],
-			{ok, match_any, [], []}},
-		{["www", "dev-extend", "eu"], [], {ok, match_any, [], []}},
-		{["www", "any", "dev-extend", "eu"], ["not_users", "42", "mails"],
-			{error, notfound, path}},
-		{["dev-extend", "eu"], [], {ok, match_extend, [], []}},
-		{["dev-extend", "eu"], ["users", "42", "friends"],
-			{ok, match_extend_users_friends, [], [{id, "42"}]}},
-		{["erlang", "fr"], '_', {ok, match_erlang_ext, [], [{ext, "fr"}]}},
-		{["any"], ["users", "444", "friends"],
-			{ok, match_users_friends, [], [{id, "444"}]}},
-		{["dev-extend", "fr"], ["threads", "987"],
+		{[<<"www">>, <<"dev-extend">>, <<"eu">>],
+			[<<"users">>, <<"42">>, <<"mails">>], {ok, match_any, [], []}},
+		{[<<"www">>, <<"dev-extend">>, <<"eu">>], [], {ok, match_any, [], []}},
+		{[<<"www">>, <<"any">>, <<"dev-extend">>, <<"eu">>],
+			[<<"not_users">>, <<"42">>, <<"mails">>], {error, notfound, path}},
+		{[<<"dev-extend">>, <<"eu">>], [], {ok, match_extend, [], []}},
+		{[<<"dev-extend">>, <<"eu">>], [<<"users">>, <<"42">>, <<"friends">>],
+			{ok, match_extend_users_friends, [], [{id, <<"42">>}]}},
+		{[<<"erlang">>, <<"fr">>], '_',
+			{ok, match_erlang_ext, [], [{ext, <<"fr">>}]}},
+		{[<<"any">>], [<<"users">>, <<"444">>, <<"friends">>],
+			{ok, match_users_friends, [], [{id, <<"444">>}]}},
+		{[<<"dev-extend">>, <<"fr">>], [<<"threads">>, <<"987">>],
 			{ok, match_duplicate_vars, [we, {expect, two}, var, here],
-			[{var, "fr"}, {var, "987"}]}}
+			[{var, <<"fr">>}, {var, <<"987">>}]}}
 	],
 	[{lists:flatten(io_lib:format("~p, ~p", [H, P])), fun() ->
 		R = match(H, P, Dispatch)

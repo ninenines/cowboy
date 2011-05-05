@@ -20,7 +20,7 @@
 -record(state, {
 	handler :: module(),
 	opts :: term(),
-	origin = undefined :: undefined | string(),
+	origin = undefined :: undefined | binary(),
 	challenge = undefined :: undefined | binary(),
 	timeout = infinity :: timeout(),
 	messages = undefined :: undefined | {atom(), atom(), atom()}
@@ -35,28 +35,27 @@ upgrade(Handler, Opts, Req) ->
 
 -spec websocket_upgrade(State::#state{}, Req::#http_req{})
 	-> {ok, State::#state{}, Req::#http_req{}}.
-websocket_upgrade(State, Req=#http_req{socket=Socket, transport=Transport}) ->
-	{"Upgrade", Req2} = cowboy_http_req:header('Connection', Req),
-	{"WebSocket", Req3} = cowboy_http_req:header('Upgrade', Req2),
-	{Origin, Req4} = cowboy_http_req:header("Origin", Req3),
-	{Key1, Req5} = cowboy_http_req:header("Sec-Websocket-Key1", Req4),
-	{Key2, Req6} = cowboy_http_req:header("Sec-Websocket-Key2", Req5),
+websocket_upgrade(State, Req) ->
+	{<<"Upgrade">>, Req2} = cowboy_http_req:header('Connection', Req),
+	{<<"WebSocket">>, Req3} = cowboy_http_req:header('Upgrade', Req2),
+	{Origin, Req4} = cowboy_http_req:header(<<"Origin">>, Req3),
+	{Key1, Req5} = cowboy_http_req:header(<<"Sec-Websocket-Key1">>, Req4),
+	{Key2, Req6} = cowboy_http_req:header(<<"Sec-Websocket-Key2">>, Req5),
 	false = lists:member(undefined, [Origin, Key1, Key2]),
-	Transport:setopts(Socket, [binary]),
 	{ok, Key3, Req7} = cowboy_http_req:body(8, Req6),
 	Challenge = challenge(Key1, Key2, Key3),
 	{ok, State#state{origin=Origin, challenge=Challenge}, Req7}.
 
--spec challenge(Key1::string(), Key2::string(), Key3::binary()) -> binary().
+-spec challenge(Key1::binary(), Key2::binary(), Key3::binary()) -> binary().
 challenge(Key1, Key2, Key3) ->
 	IntKey1 = key_to_integer(Key1),
 	IntKey2 = key_to_integer(Key2),
 	erlang:md5(<< IntKey1:32, IntKey2:32, Key3/binary >>).
 
--spec key_to_integer(Key::string()) -> integer().
+-spec key_to_integer(Key::binary()) -> integer().
 key_to_integer(Key) ->
-	Number = list_to_integer([C || C <- Key, C >= $0, C =< $9]),
-	Spaces = length([C || C <- Key, C =:= 32]),
+	Number = list_to_integer([C || << C >> <= Key, C >= $0, C =< $9]),
+	Spaces = length([C || << C >> <= Key, C =:= 32]),
 	Number div Spaces.
 
 -spec handler_init(State::#state{}, Req::#http_req{}) -> ok.
@@ -85,21 +84,23 @@ websocket_handshake(State=#state{origin=Origin, challenge=Challenge},
 		raw_path=Path}, HandlerState) ->
 	Location = websocket_location(Transport:name(), Host, Port, Path),
 	{ok, Req2} = cowboy_http_req:reply(
-		"101 WebSocket Protocol Handshake",
-		[{"Connection", "Upgrade"},
-		 {"Upgrade", "WebSocket"},
-		 {"Sec-WebSocket-Location", Location},
-		 {"Sec-WebSocket-Origin", Origin}],
+		<<"101 WebSocket Protocol Handshake">>,
+		[{<<"Connection">>, <<"Upgrade">>},
+		 {<<"Upgrade">>, <<"WebSocket">>},
+		 {<<"Sec-WebSocket-Location">>, Location},
+		 {<<"Sec-WebSocket-Origin">>, Origin}],
 		Challenge, Req#http_req{resp_state=waiting}),
 	handler_loop(State#state{messages=Transport:messages()},
 		Req2, HandlerState, <<>>).
 
--spec websocket_location(TransName::atom(), Host::string(),
-	Port::ip_port(), Path::string()) -> string().
+-spec websocket_location(TransportName::atom(), Host::binary(),
+	Port::ip_port(), Path::binary()) -> binary().
 websocket_location(ssl, Host, Port, Path) ->
-	"wss://" ++ Host ++ ":" ++ integer_to_list(Port) ++ Path;
+	<< "wss://", Host/binary, ":",
+		(list_to_binary(integer_to_list(Port)))/binary, Path/binary >>;
 websocket_location(_Any, Host, Port, Path) ->
-	"ws://" ++ Host ++ ":" ++ integer_to_list(Port) ++ Path.
+	<< "ws://", Host/binary, ":",
+		(list_to_binary(integer_to_list(Port)))/binary, Path/binary >>.
 
 -spec handler_loop(State::#state{}, Req::#http_req{},
 	HandlerState::term(), SoFar::binary()) -> ok.

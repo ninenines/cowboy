@@ -76,10 +76,10 @@ end_per_group(https, _Config) ->
 
 init_http_dispatch() ->
 	[
-		{["localhost"], [
-			{["websocket"], websocket_handler, []},
-			{["headers", "dupe"], http_handler,
-				[{headers, [{"Connection", "close"}]}]},
+		{[<<"localhost">>], [
+			{[<<"websocket">>], websocket_handler, []},
+			{[<<"headers">>, <<"dupe">>], http_handler,
+				[{headers, [{<<"Connection">>, <<"close">>}]}]},
 			{[], http_handler, []}
 		]}
 	].
