@@ -18,7 +18,8 @@
 
 -export([all/0, groups/0, init_per_suite/1, end_per_suite/1,
 	init_per_group/2, end_per_group/2]). %% ct.
--export([headers_dupe/1, nc_rand/1, pipeline/1, raw/1]). %% http.
+-export([headers_dupe/1, headers_huge/1,
+	nc_rand/1, pipeline/1, raw/1]). %% http.
 -export([http_200/1, http_404/1, websocket/1]). %% http and https.
 
 %% ct.
@@ -28,7 +29,8 @@ all() ->
 
 groups() ->
 	BaseTests = [http_200, http_404],
-	[{http, [], [headers_dupe, nc_rand, pipeline, raw, websocket] ++ BaseTests},
+	[{http, [], [headers_dupe, headers_huge,
+		nc_rand, pipeline, raw, websocket] ++ BaseTests},
 	{https, [], BaseTests}].
 
 init_per_suite(Config) ->
@@ -99,6 +101,12 @@ headers_dupe(Config) ->
 	{_Start, _Length} = binary:match(Data, <<"Connection: close">>),
 	nomatch = binary:match(Data, <<"Connection: keep-alive">>),
 	ok = gen_tcp:close(Socket).
+
+headers_huge(Config) ->
+	Cookie = lists:flatten(["whatever_man_biiiiiiiiiiiig_cookie_me_want_77="
+		"Wed Apr 06 2011 10:38:52 GMT-0500 (CDT)" || _N <- lists:seq(1, 1000)]),
+	{_Packet, 200} = raw_req(["GET / HTTP/1.0\r\nHost: localhost\r\n"
+		"Set-Cookie: ", Cookie, "\r\n\r\n"], Config).
 
 nc_rand(Config) ->
 	Cat = os:find_executable("cat"),
