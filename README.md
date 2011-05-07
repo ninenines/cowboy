@@ -63,8 +63,8 @@ The HTTP protocol requires one last thing to continue: dispatching rules.
 Don't worry about it right now though and continue reading, it'll all
 be explained.
 
-You can start and stop listeners by calling cowboy:start_listener and
-cowboy:stop_listener respectively, as demonstrated in the following
+You can start and stop listeners by calling `cowboy:start_listener/6` and
+`cowboy:stop_listener/1` respectively, as demonstrated in the following
 example.
 
 ``` erlang
@@ -85,7 +85,7 @@ start(_Type, _Args) ->
     ).
 
 stop(_State) ->
-	ok.
+    ok.
 ```
 
 This is not enough though, you must also write the my_handler module
@@ -93,7 +93,7 @@ to process the incoming HTTP requests. Of course Cowboy comes with
 predefined handlers for specific tasks but most of the time you'll
 want to write your own handlers for your application.
 
-Following is an example of an "Hello World!" HTTP handler.
+Following is an example of a "Hello World!" HTTP handler.
 
 ``` erlang
 -module(my_handler).
@@ -122,21 +122,21 @@ you define static options for the handler directly in the rules.
 
 To match the hostname and path, Cowboy requires a list of tokens. For
 example, to match the "dev-extend.eu" domain name, you must specify
-[<<"dev-extend">>, <<"eu">>]. Or, to match the "/path/to/my/resource"
-you must use [<<"path">>, <<"to">>, <<"my">>, <<"resource">>]. All the
+`[<<"dev-extend">>, <<"eu">>]`. Or, to match the "/path/to/my/resource"
+you must use `[<<"path">>, <<"to">>, <<"my">>, <<"resource">>]`. All the
 tokens must be given as binary.
 
-You can use the special token '_' (the atom underscore) to indicate that
+You can use the special token `'_'` (the atom underscore) to indicate that
 you accept anything in that position. For example if you have both
 "dev-extend.eu" and "dev-extend.fr" domains, you can use the match spec
-[<<"dev-extend">>, '_'] to match any top level extension.
+`[<<"dev-extend">>, '_']` to match any top level extension.
 
 Any other atom used as a token will bind the value to this atom when
-matching. To follow on our hostnames example, [<<"dev-extend">>, ext]
-would bind the values <<"eu">> and <<"fr">> to the ext atom, that you
+matching. To follow on our hostnames example, `[<<"dev-extend">>, ext]`
+would bind the values `<<"eu">>` and `<<"fr">>` to the ext atom, that you
 can later retrieve in your handler by calling `cowboy_http_req:binding/{2,3}`.
 
-You can also accept any match spec by using the atom '_' directly instead of
+You can also accept any match spec by using the atom `'_'` directly instead of
 a list of tokens. Our hello world example above uses this to forward all
 requests to a single handler.
 
@@ -181,7 +181,7 @@ init({tcp, http}, Req, Opts) ->
     {upgrade, protocol, cowboy_http_websocket}.
 
 handle(Req, State) ->
-	error(foo). %% Will never be called.
+    error(foo). %% Will never be called.
 
 terminate(Req, State) ->
     error(foo). %% Same for that one.
@@ -194,7 +194,7 @@ websocket_handle({timeout, _Ref, Msg}, Req, State) ->
     erlang:start_timer(1000, self(), <<"How' you doin'?">>),
     {reply, Msg, Req, State};
 websocket_handle({websocket, Msg}, Req, State) ->
-    {reply, <<"That's what she said! ", Msg/binary >>, Req, State}.
+    {reply, << "That's what she said! ", Msg/binary >>, Req, State}.
 
 websocket_terminate(_Reason, _Req, _State) ->
     ok.
@@ -219,7 +219,7 @@ Anything you do past this point is up to you!
 
 You should definitely look at the cowboy_http_protocol module for a great
 example of fast requests handling if you need to. Otherwise it's probably
-safe to use {active, once} mode and handle everything as it comes.
+safe to use `{active, once}` mode and handle everything as it comes.
 
 Note that while you technically can run a protocol handler directly as a
 gen_server or a gen_fsm, it's probably not a good idea, as the only call
