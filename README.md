@@ -64,28 +64,21 @@ Don't worry about it right now though and continue reading, it'll all
 be explained.
 
 You can start and stop listeners by calling `cowboy:start_listener/6` and
-`cowboy:stop_listener/1` respectively, as demonstrated in the following
-example.
+`cowboy:stop_listener/1` respectively.
+
+The following example demonstrates the startup of a very simple listener.
 
 ``` erlang
--module(my_app).
--behaviour(application).
--export([start/2, stop/1]).
-
-start(_Type, _Args) ->
-    application:start(cowboy),
-    Dispatch = [
-        %% {Host, list({Path, Handler, Opts})}
-        {'_', [{'_', my_handler, []}]}
-    ],
-    %% Name, NbAcceptors, Transport, TransOpts, Protocol, ProtoOpts
-    cowboy:start_listener(http, 100,
-        cowboy_tcp_transport, [{port, 8080}],
-        cowboy_http_protocol, [{dispatch, Dispatch}]
-    ).
-
-stop(_State) ->
-    ok.
+application:start(cowboy),
+Dispatch = [
+    %% {Host, list({Path, Handler, Opts})}
+    {'_', [{'_', my_handler, []}]}
+],
+%% Name, NbAcceptors, Transport, TransOpts, Protocol, ProtoOpts
+cowboy:start_listener(http, 100,
+    cowboy_tcp_transport, [{port, 8080}],
+    cowboy_http_protocol, [{dispatch, Dispatch}]
+).
 ```
 
 This is not enough though, you must also write the my_handler module
