@@ -30,7 +30,7 @@
 ]). %% Request Body API.
 
 -export([
-	reply/4
+	reply/4, chunked_reply/3, chunk/2
 ]). %% Response API.
 
 -include("include/http.hrl").
@@ -191,6 +191,22 @@ reply(Code, Headers, Body, Req=#http_req{socket=Socket,
 	]),
 	Transport:send(Socket, [Head, Body]),
 	{ok, Req#http_req{resp_state=done}}.
+
+-spec chunked_reply(Code::http_status(), Headers::http_headers(),
+	Req::#http_req{}) -> {ok, Req::#http_req{}}.
+chunked_reply(Code, Headers, Req=#http_req{socket=Socket, transport=Transport,
+		resp_state=waiting}) ->
+	Head = response_head(Code, Headers, [
+		{<<"Connection">>, <<"close">>},
+		{<<"Transfer-Encoding">>, <<"chunked">>}
+	]),
+	Transport:send(Socket, Head),
+	{ok, Req#http_req{resp_state=chunks}}.
+
+-spec chunk(Data::iodata(), Req::#http_req{}) -> ok.
+chunk(Data, #http_req{socket=Socket, transport=Transport, resp_state=chunks}) ->
+	Transport:send(Socket, [integer_to_list(iolist_size(Data), 16),
+		<<"\r\n">>, Data, <<"\r\n">>]).
 
 %% Internal.
 

@@ -65,5 +65,5 @@
 	buffer     = <<>>      :: binary(),
 
 	%% Response.
-	resp_state = locked    :: locked | waiting | done
+	resp_state = locked    :: locked | waiting | chunks | done
 }).

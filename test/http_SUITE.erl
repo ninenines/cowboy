@@ -18,7 +18,7 @@
 
 -export([all/0, groups/0, init_per_suite/1, end_per_suite/1,
 	init_per_group/2, end_per_group/2]). %% ct.
--export([headers_dupe/1, headers_huge/1,
+-export([chunked_response/1, headers_dupe/1, headers_huge/1,
 	nc_rand/1, pipeline/1, raw/1]). %% http.
 -export([http_200/1, http_404/1, websocket/1]). %% http and https.
 
@@ -29,7 +29,7 @@ all() ->
 
 groups() ->
 	BaseTests = [http_200, http_404],
-	[{http, [], [headers_dupe, headers_huge,
+	[{http, [], [chunked_response, headers_dupe, headers_huge,
 		nc_rand, pipeline, raw, websocket] ++ BaseTests},
 	{https, [], BaseTests}].
 
@@ -79,6 +79,7 @@ end_per_group(https, _Config) ->
 init_http_dispatch() ->
 	[
 		{[<<"localhost">>], [
+			{[<<"chunked_response">>], chunked_handler, []},
 			{[<<"websocket">>], websocket_handler, []},
 			{[<<"headers">>, <<"dupe">>], http_handler,
 				[{headers, [{<<"Connection">>, <<"close">>}]}]},
@@ -90,6 +91,10 @@ init_https_dispatch() ->
 	init_http_dispatch().
 
 %% http.
+
+chunked_response(Config) ->
+	{ok, {{"HTTP/1.1", 200, "OK"}, _Headers, "chunked_handler\r\nworks fine!"}} =
+		httpc:request(build_url("/chunked_response", Config)).
 
 headers_dupe(Config) ->
 	{port, Port} = lists:keyfind(port, 1, Config),

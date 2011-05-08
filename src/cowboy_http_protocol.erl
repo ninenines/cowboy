@@ -198,9 +198,9 @@ handler_terminate(HandlerState, Req=#http_req{buffer=Buffer},
 	HandlerRes = (catch Handler:terminate(
 		Req#http_req{resp_state=locked}, HandlerState)),
 	BodyRes = ensure_body_processed(Req),
-	ensure_response(Req, State),
-	case {HandlerRes, BodyRes, State#state.connection} of
-		{ok, ok, keepalive} ->
+	RespRes = ensure_response(Req, State),
+	case {HandlerRes, BodyRes, RespRes, State#state.connection} of
+		{ok, ok, ok, keepalive} ->
 			?MODULE:parse_request(State#state{buffer=Buffer});
 		_Closed ->
 			terminate(State)
@@ -223,7 +223,12 @@ ensure_response(#http_req{resp_state=done}, _State) ->
 %% No response has been sent but everything apparently went fine.
 %% Reply with 204 No Content to indicate this.
 ensure_response(#http_req{resp_state=waiting}, State) ->
-	error_response(204, State).
+	error_response(204, State);
+%% Close the chunked reply.
+ensure_response(#http_req{socket=Socket, transport=Transport,
+		resp_state=chunks}, _State) ->
+	Transport:send(Socket, <<"0\r\n\r\n">>),
+	close.
 
 -spec error_response(Code::http_status(), State::#state{}) -> ok.
 error_response(Code, #state{socket=Socket,
