@@ -184,18 +184,12 @@ body_qs(Req) ->
 reply(Code, Headers, Body, Req=#http_req{socket=Socket,
 		transport=Transport, connection=Connection,
 		resp_state=waiting}) ->
-	StatusLine = <<"HTTP/1.1 ", (status(Code))/binary, "\r\n">>,
-	DefaultHeaders = [
+	Head = response_head(Code, Headers, [
 		{<<"Connection">>, atom_to_connection(Connection)},
 		{<<"Content-Length">>,
 			list_to_binary(integer_to_list(iolist_size(Body)))}
-	],
-	Headers2 = [{header_to_binary(Key), Value} || {Key, Value} <- Headers],
-	Headers3 = lists:keysort(1, Headers2),
-	Headers4 = lists:ukeymerge(1, Headers3, DefaultHeaders),
-	Headers5 = [<< Key/binary, ": ", Value/binary, "\r\n" >>
-		|| {Key, Value} <- Headers4],
-	Transport:send(Socket, [StatusLine, Headers5, <<"\r\n">>, Body]),
+	]),
+	Transport:send(Socket, [Head, Body]),
 	{ok, Req#http_req{resp_state=done}}.
 
 %% Internal.
@@ -209,6 +203,17 @@ parse_qs(Qs) ->
 		[Token] -> {Token, true};
 		[Name, Value] -> {Name, Value}
 	end || Token <- Tokens].
+
+-spec response_head(Code::http_status(), Headers::http_headers(),
+	DefaultHeaders::http_headers()) -> iolist().
+response_head(Code, Headers, DefaultHeaders) ->
+	StatusLine = <<"HTTP/1.1 ", (status(Code))/binary, "\r\n">>,
+	Headers2 = [{header_to_binary(Key), Value} || {Key, Value} <- Headers],
+	Headers3 = lists:keysort(1, Headers2),
+	Headers4 = lists:ukeymerge(1, Headers3, DefaultHeaders),
+	Headers5 = [<< Key/binary, ": ", Value/binary, "\r\n" >>
+		|| {Key, Value} <- Headers4],
+	[StatusLine, Headers5, <<"\r\n">>].
 
 -spec atom_to_connection(Atom::keepalive | close) -> binary().
 atom_to_connection(keepalive) ->
