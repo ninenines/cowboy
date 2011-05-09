@@ -1,4 +1,5 @@
 %% Copyright (c) 2011, Loïc Hoguin <essen@dev-extend.eu>
+%% Copyright (c) 2011, Anthony Ramine <nox@dev-extend.eu>
 %%
 %% Permission to use, copy, modify, and/or distribute this software for any
 %% purpose with or without fee is hereby granted, provided that the above
@@ -97,8 +98,6 @@ match_path(Path, [{PathMatch, Handler, Opts}|Tail], HostBinds) ->
 
 -spec try_match(Type::host | path, List::path_tokens(), Match::match_rule())
 	-> {true, Binds::bindings()} | false.
-try_match(_Type, _List, '_') ->
-	{true, []};
 try_match(_Type, List, Match) when length(List) =/= length(Match) ->
 	false;
 try_match(host, List, Match) ->
