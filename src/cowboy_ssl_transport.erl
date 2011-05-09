@@ -31,7 +31,7 @@ messages() -> {ssl, ssl_closed, ssl_error}.
 	-> {ok, LSocket::ssl:sslsocket()} | {error, Reason::atom()}.
 listen(Opts) ->
 	{port, Port} = lists:keyfind(port, 1, Opts),
-	Backlog = proplists:get_value(backlog, Opts, 128),
+	Backlog = proplists:get_value(backlog, Opts, 1024),
 	{certfile, CertFile} = lists:keyfind(certfile, 1, Opts),
 	{keyfile, KeyFile} = lists:keyfind(keyfile, 1, Opts),
 	{password, Password} = lists:keyfind(password, 1, Opts),

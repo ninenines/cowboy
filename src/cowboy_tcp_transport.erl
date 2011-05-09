@@ -30,7 +30,7 @@ messages() -> {tcp, tcp_closed, tcp_error}.
 	-> {ok, LSocket::inet:socket()} | {error, Reason::atom()}.
 listen(Opts) ->
 	{port, Port} = lists:keyfind(port, 1, Opts),
-	Backlog = proplists:get_value(backlog, Opts, 128),
+	Backlog = proplists:get_value(backlog, Opts, 1024),
 	gen_tcp:listen(Port, [binary, {active, false},
 		{backlog, Backlog}, {packet, raw}, {reuseaddr, true}]).
 
