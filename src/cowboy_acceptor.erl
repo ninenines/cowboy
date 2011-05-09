@@ -13,28 +13,31 @@
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 -module(cowboy_acceptor).
--export([start_link/5]). %% API.
--export([acceptor/5]). %% Internal.
+-export([start_link/6]). %% API.
+-export([acceptor/6]). %% Internal.
 
 %% API.
 
 -spec start_link(LSocket::inet:socket(), Transport::module(),
-	Protocol::module(), Opts::term(), ReqsSup::pid()) -> {ok, Pid::pid()}.
-start_link(LSocket, Transport, Protocol, Opts, ReqsSup) ->
+	Protocol::module(), Opts::term(),
+	MaxConns::non_neg_integer(), ReqsSup::pid()) -> {ok, Pid::pid()}.
+start_link(LSocket, Transport, Protocol, Opts, MaxConns, ReqsSup) ->
 	Pid = spawn_link(?MODULE, acceptor,
-		[LSocket, Transport, Protocol, Opts, ReqsSup]),
+		[LSocket, Transport, Protocol, Opts, MaxConns, ReqsSup]),
 	{ok, Pid}.
 
 %% Internal.
 
 -spec acceptor(LSocket::inet:socket(), Transport::module(),
-	Protocol::module(), Opts::term(), ReqsSup::pid()) -> no_return().
-acceptor(LSocket, Transport, Protocol, Opts, ReqsSup) ->
+	Protocol::module(), Opts::term(),
+	MaxConns::non_neg_integer(), ReqsSup::pid()) -> no_return().
+acceptor(LSocket, Transport, Protocol, Opts, MaxConns, ReqsSup) ->
 	case Transport:accept(LSocket, 2000) of
 		{ok, CSocket} ->
 			{ok, Pid} = supervisor:start_child(ReqsSup,
 				[CSocket, Transport, Protocol, Opts]),
-			Transport:controlling_process(CSocket, Pid);
+			Transport:controlling_process(CSocket, Pid),
+			limit_reqs(MaxConns, ReqsSup);
 		{error, timeout} ->
 			ignore;
 		{error, _Reason} ->
@@ -42,4 +45,13 @@ acceptor(LSocket, Transport, Protocol, Opts, ReqsSup) ->
 			%%       we may want to try and listen again on the port?
 			ignore
 	end,
-	?MODULE:acceptor(LSocket, Transport, Protocol, Opts, ReqsSup).
+	?MODULE:acceptor(LSocket, Transport, Protocol, Opts, MaxConns, ReqsSup).
+
+-spec limit_reqs(MaxConns::non_neg_integer(), ReqsSup::pid()) -> ok.
+limit_reqs(MaxConns, ReqsSup) ->
+	Counts = supervisor:count_children(ReqsSup),
+	Active = lists:keyfind(active, 1, Counts),
+	case Active < MaxConns of
+		true -> ok;
+		false -> timer:sleep(1)
+	end.
