@@ -1,4 +1,5 @@
 %% Copyright (c) 2011, Loïc Hoguin <essen@dev-extend.eu>
+%% Copyright (c) 2011, Anthony Ramine <nox@dev-extend.eu>
 %%
 %% Permission to use, copy, modify, and/or distribute this software for any
 %% purpose with or without fee is hereby granted, provided that the above
@@ -49,9 +50,11 @@
 	version    = {1, 1}    :: http_version(),
 	peer       = undefined :: undefined | {Address::ip_address(), Port::ip_port()},
 	host       = undefined :: undefined | cowboy_dispatcher:path_tokens(),
+	host_info  = undefined :: undefined | cowboy_dispatcher:path_tokens(),
 	raw_host   = undefined :: undefined | binary(),
 	port       = undefined :: undefined | ip_port(),
 	path       = undefined :: undefined | '*' | cowboy_dispatcher:path_tokens(),
+	path_info  = undefined :: undefined | cowboy_dispatcher:path_tokens(),
 	raw_path   = undefined :: undefined | binary(),
 	qs_vals    = undefined :: undefined
 		| list({Name::binary(), Value::binary() | true}),

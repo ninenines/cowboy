@@ -17,8 +17,8 @@
 
 -export([
 	method/1, version/1, peer/1,
-	host/1, raw_host/1, port/1,
-	path/1, raw_path/1,
+	host/1, host_info/1, raw_host/1, port/1,
+	path/1, path_info/1, raw_path/1,
 	qs_val/2, qs_val/3, qs_vals/1, raw_qs/1,
 	binding/2, binding/3, bindings/1,
 	header/2, header/3, headers/1
@@ -59,6 +59,12 @@ peer(Req) ->
 host(Req) ->
 	{Req#http_req.host, Req}.
 
+-spec host_info(Req::#http_req{})
+	-> {HostInfo::cowboy_dispatcher:path_tokens() | undefined,
+		Req::#http_req{}}.
+host_info(Req) ->
+	{Req#http_req.host_info, Req}.
+
 -spec raw_host(Req::#http_req{}) -> {RawHost::binary(), Req::#http_req{}}.
 raw_host(Req) ->
 	{Req#http_req.raw_host, Req}.
@@ -71,6 +77,12 @@ port(Req) ->
 	-> {Path::cowboy_dispatcher:path_tokens(), Req::#http_req{}}.
 path(Req) ->
 	{Req#http_req.path, Req}.
+
+-spec path_info(Req::#http_req{})
+	-> {PathInfo::cowboy_dispatcher:path_tokens() | undefined,
+		Req::#http_req{}}.
+path_info(Req) ->
+	{Req#http_req.path_info, Req}.
 
 -spec raw_path(Req::#http_req{}) -> {RawPath::binary(), Req::#http_req{}}.
 raw_path(Req) ->

@@ -62,51 +62,59 @@ do_split_path(RawPath, Separator) ->
 
 -spec match(Host::path_tokens(), Path::path_tokens(),
 	Dispatch::dispatch_rules())
-	-> {ok, Handler::module(), Opts::term(), Binds::bindings()}
+	-> {ok, Handler::module(), Opts::term(), Binds::bindings(),
+		HostInfo::undefined | path_tokens(),
+		PathInfo::undefined | path_tokens()}
 	| {error, notfound, host} | {error, notfound, path}.
 match(_Host, _Path, []) ->
 	{error, notfound, host};
 match(_Host, Path, [{'_', PathMatchs}|_Tail]) ->
-	match_path(Path, PathMatchs, []);
+	match_path(Path, PathMatchs, [], undefined);
 match(Host, Path, [{HostMatch, PathMatchs}|Tail]) ->
 	case try_match(host, Host, HostMatch) of
 		false ->
 			match(Host, Path, Tail);
-		{true, HostBinds} ->
-			match_path(Path, PathMatchs, HostBinds)
+		{true, HostBinds, undefined} ->
+			match_path(Path, PathMatchs, HostBinds, undefined);
+		{true, HostBinds, HostInfo} ->
+			match_path(Path, PathMatchs, HostBinds, lists:reverse(HostInfo))
 	end.
 
 -spec match_path(Path::path_tokens(), list({Path::match_rule(),
-	Handler::module(), Opts::term()}), HostBinds::bindings())
-	-> {ok, Handler::module(), Opts::term(), Binds::bindings()}
+	Handler::module(), Opts::term()}), HostBinds::bindings(),
+	HostInfo::undefined | path_tokens())
+	-> {ok, Handler::module(), Opts::term(), Binds::bindings(),
+		HostInfo::undefined | path_tokens(),
+		PathInfo::undefined | path_tokens()}
 	| {error, notfound, path}.
-match_path(_Path, [], _HostBinds) ->
+match_path(_Path, [], _HostBinds, _HostInfo) ->
 	{error, notfound, path};
-match_path(_Path, [{'_', Handler, Opts}|_Tail], HostBinds) ->
-	{ok, Handler, Opts, HostBinds};
-match_path('*', [{'*', Handler, Opts}|_Tail], HostBinds) ->
-	{ok, Handler, Opts, HostBinds};
-match_path(Path, [{PathMatch, Handler, Opts}|Tail], HostBinds) ->
+match_path(_Path, [{'_', Handler, Opts}|_Tail], HostBinds, HostInfo) ->
+	{ok, Handler, Opts, HostBinds, HostInfo, undefined};
+match_path('*', [{'*', Handler, Opts}|_Tail], HostBinds, HostInfo) ->
+	{ok, Handler, Opts, HostBinds, HostInfo, undefined};
+match_path(Path, [{PathMatch, Handler, Opts}|Tail], HostBinds, HostInfo) ->
 	case try_match(path, Path, PathMatch) of
 		false ->
-			match_path(Path, Tail, HostBinds);
-		{true, PathBinds} ->
-			{ok, Handler, Opts, HostBinds ++ PathBinds}
+			match_path(Path, Tail, HostBinds, HostInfo);
+		{true, PathBinds, PathInfo} ->
+			{ok, Handler, Opts, HostBinds ++ PathBinds, HostInfo, PathInfo}
 	end.
 
 %% Internal.
 
 -spec try_match(Type::host | path, List::path_tokens(), Match::match_rule())
-	-> {true, Binds::bindings()} | false.
-try_match(_Type, List, Match) when length(List) =/= length(Match) ->
-	false;
+	-> {true, Binds::bindings(), ListInfo::undefined | path_tokens()} | false.
 try_match(host, List, Match) ->
 	list_match(lists:reverse(List), lists:reverse(Match), []);
 try_match(path, List, Match) ->
 	list_match(List, Match, []).
 
 -spec list_match(List::path_tokens(), Match::match_rule(), Binds::bindings())
-	-> {true, Binds::bindings()} | false.
+	-> {true, Binds::bindings(), ListInfo::undefined | path_tokens()} | false.
+%% Atom '...' matches any trailing path, stop right now.
+list_match(List, ['...'], Binds) ->
+	{true, Binds, List};
 %% Atom '_' matches anything, continue.
 list_match([_E|Tail], ['_'|TailMatch], Binds) ->
 	list_match(Tail, TailMatch, Binds);
@@ -116,12 +124,12 @@ list_match([E|Tail], [E|TailMatch], Binds) ->
 %% Bind E to the variable name V and continue.
 list_match([E|Tail], [V|TailMatch], Binds) when is_atom(V) ->
 	list_match(Tail, TailMatch, [{V, E}|Binds]);
-%% Values don't match, stop.
-list_match([_E|_Tail], [_F|_TailMatch], _Binds) ->
-	false;
 %% Match complete.
 list_match([], [], Binds) ->
-	{true, Binds}.
+	{true, Binds, undefined};
+%% Values don't match, stop.
+list_match(_List, _Match, _Binds) ->
+	false.
 
 %% Tests.
 
@@ -227,6 +235,36 @@ match_test_() ->
 		{[<<"dev-extend">>, <<"fr">>], [<<"threads">>, <<"987">>],
 			{ok, match_duplicate_vars, [we, {expect, two}, var, here],
 			[{var, <<"fr">>}, {var, <<"987">>}]}}
+	],
+	[{lists:flatten(io_lib:format("~p, ~p", [H, P])), fun() ->
+		{ok, Handler, Opts, Binds, undefined, undefined} = match(H, P, Dispatch)
+	end} || {H, P, {ok, Handler, Opts, Binds}} <- Tests].
+
+match_info_test_() ->
+	Dispatch = [
+		{[<<"www">>, <<"dev-extend">>, <<"eu">>], [
+			{[<<"pathinfo">>, <<"is">>, <<"next">>, '...'], match_path, []}
+		]},
+		{['...', <<"dev-extend">>, <<"eu">>], [
+			{'_', match_any, []}
+		]}
+	],
+	Tests = [
+		{[<<"dev-extend">>, <<"eu">>], [],
+			{ok, match_any, [], [], [], undefined}},
+		{[<<"bugs">>, <<"dev-extend">>, <<"eu">>], [],
+			{ok, match_any, [], [], [<<"bugs">>], undefined}},
+		{[<<"cowboy">>, <<"bugs">>, <<"dev-extend">>, <<"eu">>], [],
+			{ok, match_any, [], [], [<<"cowboy">>, <<"bugs">>], undefined}},
+		{[<<"www">>, <<"dev-extend">>, <<"eu">>],
+			[<<"pathinfo">>, <<"is">>, <<"next">>],
+			{ok, match_path, [], [], undefined, []}},
+		{[<<"www">>, <<"dev-extend">>, <<"eu">>],
+			[<<"pathinfo">>, <<"is">>, <<"next">>, <<"path_info">>],
+			{ok, match_path, [], [], undefined, [<<"path_info">>]}},
+		{[<<"www">>, <<"dev-extend">>, <<"eu">>],
+			[<<"pathinfo">>, <<"is">>, <<"next">>, <<"foo">>, <<"bar">>],
+			{ok, match_path, [], [], undefined, [<<"foo">>, <<"bar">>]}}
 	],
 	[{lists:flatten(io_lib:format("~p, ~p", [H, P])), fun() ->
 		R = match(H, P, Dispatch)
