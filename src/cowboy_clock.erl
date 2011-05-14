@@ -65,7 +65,7 @@ init([]) ->
 		named_table, {read_concurrency, true}]),
 	T = erlang:universaltime(),
 	B = update_rfc1123(undefined, T, <<>>),
-	{ok, TRef} = timer:send_interval(10, update),
+	{ok, TRef} = timer:send_interval(1000, update),
 	ets:insert(?TABLE, {rfc1123, B}),
 	{ok, #state{universaltime=T, rfc1123=B, tref=TRef}}.
 
