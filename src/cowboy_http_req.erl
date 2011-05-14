@@ -188,7 +188,8 @@ reply(Code, Headers, Body, Req=#http_req{socket=Socket,
 		{<<"Connection">>, atom_to_connection(Connection)},
 		{<<"Content-Length">>,
 			list_to_binary(integer_to_list(iolist_size(Body)))},
-		{<<"Date">>, cowboy_clock:rfc1123()}
+		{<<"Date">>, cowboy_clock:rfc1123()},
+		{<<"Server">>, <<"Cowboy">>}
 	]),
 	Transport:send(Socket, [Head, Body]),
 	{ok, Req#http_req{resp_state=done}}.
@@ -200,7 +201,8 @@ chunked_reply(Code, Headers, Req=#http_req{socket=Socket, transport=Transport,
 	Head = response_head(Code, Headers, [
 		{<<"Connection">>, <<"close">>},
 		{<<"Transfer-Encoding">>, <<"chunked">>},
-		{<<"Date">>, cowboy_clock:rfc1123()}
+		{<<"Date">>, cowboy_clock:rfc1123()},
+		{<<"Server">>, <<"Cowboy">>}
 	]),
 	Transport:send(Socket, Head),
 	{ok, Req#http_req{resp_state=chunks}}.
