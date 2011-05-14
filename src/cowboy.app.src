@@ -16,7 +16,7 @@
 	{description, "Small, fast, modular HTTP server."},
 	{vsn, "0.1.0"},
 	{modules, []},
-	{registered, [cowboy_sup]},
+	{registered, [cowboy_clock, cowboy_sup]},
 	{applications, [
 		kernel,
 		stdlib

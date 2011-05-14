@@ -30,4 +30,6 @@ start_link() ->
 
 -spec init([]) -> term(). %% @todo These specs should be improved.
 init([]) ->
-	{ok, {{one_for_one, 10, 10}, []}}.
+	Procs = [{cowboy_clock, {cowboy_clock, start_link, []},
+		permanent, 5000, worker, dynamic}],
+	{ok, {{one_for_one, 10, 10}, Procs}}.
