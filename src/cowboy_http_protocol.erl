@@ -1,4 +1,5 @@
 %% Copyright (c) 2011, Loïc Hoguin <essen@dev-extend.eu>
+%% Copyright (c) 2011, Anthony Ramine <nox@dev-extend.eu>
 %%
 %% Permission to use, copy, modify, and/or distribute this software for any
 %% purpose with or without fee is hereby granted, provided that the above
@@ -158,8 +159,9 @@ dispatch(Req=#http_req{host=Host, path=Path},
 	%% @todo We probably want to filter the Host and Path here to allow
 	%%       things like url rewriting.
 	case cowboy_dispatcher:match(Host, Path, Dispatch) of
-		{ok, Handler, Opts, Binds} ->
-			parse_header(Req#http_req{bindings=Binds},
+		{ok, Handler, Opts, Binds, HostInfo, PathInfo} ->
+			parse_header(Req#http_req{host_info=HostInfo, path_info=PathInfo,
+				bindings=Binds},
 				State#state{handler={Handler, Opts}});
 		{error, notfound, host} ->
 			error_terminate(400, State);

@@ -124,6 +124,16 @@ you accept anything in that position. For example if you have both
 "dev-extend.eu" and "dev-extend.fr" domains, you can use the match spec
 `[<<"dev-extend">>, '_']` to match any top level extension.
 
+Finally, you can also match multiple leading segments of the domain name and
+multiple trailing segments of the request path using the atom `'...'` (the atom
+ellipsis) respectively as the first host token or the last path token. For
+example, host rule `['...', <<"dev-extend">>, <<"eu">>]` can match both
+"cowboy.bugs.dev-extend.eu" and "dev-extend.eu" and path rule
+`[<<"projects">>, '...']` can math both "/projects" and
+"/projects/cowboy/issues/42". The host leading segments and the path trailing
+segments can later be retrieved through `cowboy_http_req:host_info/1` and
+`cowboy_http_req:path_info/1`.
+
 Any other atom used as a token will bind the value to this atom when
 matching. To follow on our hostnames example, `[<<"dev-extend">>, ext]`
 would bind the values `<<"eu">>` and `<<"fr">>` to the ext atom, that you
