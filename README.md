@@ -18,7 +18,7 @@ Cowboy aims to provide the following advantages:
   PHP or Ruby.
 * No parameterized module. No process dictionary. **Clean** Erlang code.
 
-The server is currently in early development stage. Comments, suggestions are
+The server is currently in early development. Comments and suggestions are
 more than welcome. To contribute, either open bug reports, or fork the project
 and send us pull requests with new or improved functionality. You should
 discuss your plans with us before doing any serious work, though, to avoid
@@ -210,7 +210,7 @@ part entirely.
 Using Cowboy with other protocols
 ---------------------------------
 
-One of the strength of Cowboy is of course that you can use it with any
+One of the strengths of Cowboy is of course that you can use it with any
 protocol you want. The only downside is that if it's not HTTP, you'll
 probably have to write the protocol handler yourself.
 
@@ -221,7 +221,7 @@ handler and Opts is protocol options defined when starting the listener.
 Anything you do past this point is up to you!
 
 You should definitely look at the cowboy_http_protocol module for a great
-example of fast requests handling if you need to. Otherwise it's probably
+example of fast request handling if you need to. Otherwise it's probably
 safe to use `{active, once}` mode and handle everything as it comes.
 
 Note that while you technically can run a protocol handler directly as a
@@ -229,5 +229,5 @@ gen_server or a gen_fsm, it's probably not a good idea, as the only call
 you'll ever receive from Cowboy is the start_link/3 call. On the other
 hand, feel free to write a very basic protocol handler which then forwards
 requests to a gen_server or gen_fsm. By doing so however you must take
-care to supervise their processes as Cowboy only know about the protocol
+care to supervise their processes as Cowboy only knows about the protocol
 handler itself.
