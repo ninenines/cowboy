@@ -12,7 +12,7 @@ clean:
 	rm -f test/*.beam
 	rm -f erl_crash.dump
 
-tests: app eunit ct
+tests: clean app eunit ct
 
 eunit:
 	@$(REBAR) eunit
