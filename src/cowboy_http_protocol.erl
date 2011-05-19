@@ -172,40 +172,59 @@ dispatch(Req=#http_req{host=Host, path=Path},
 -spec handler_init(Req::#http_req{}, State::#state{}) -> ok.
 handler_init(Req, State=#state{
 		transport=Transport, handler={Handler, Opts}}) ->
-	case catch Handler:init({Transport:name(), http}, Req, Opts) of
+	try Handler:init({Transport:name(), http}, Req, Opts) of
 		{ok, Req2, HandlerState} ->
 			handler_loop(HandlerState, Req2, State);
 		%% @todo {upgrade, transport, Module}
 		{upgrade, protocol, Module} ->
-			Module:upgrade(Handler, Opts, Req);
-		{'EXIT', _Reason} ->
-			error_terminate(500, State)
+			Module:upgrade(Handler, Opts, Req)
+	catch Class:Reason ->
+		error_terminate(500, State),
+		error_logger:error_msg(
+			"** Handler ~p terminating in init/3 for the reason ~p:~p~n"
+			"** Options were ~p~n** Request was ~p~n** Stacktrace: ~p~n~n",
+			[Handler, Class, Reason, Opts, Req, erlang:get_stacktrace()])
 	end.
 
 -spec handler_loop(HandlerState::term(), Req::#http_req{},
 	State::#state{}) -> ok.
-handler_loop(HandlerState, Req, State=#state{handler={Handler, _Opts}}) ->
-	case catch Handler:handle(Req#http_req{resp_state=waiting},
-			HandlerState) of
+handler_loop(HandlerState, Req, State=#state{handler={Handler, Opts}}) ->
+	try Handler:handle(Req#http_req{resp_state=waiting}, HandlerState) of
 		{ok, Req2, HandlerState2} ->
-			handler_terminate(HandlerState2, Req2, State);
-		{'EXIT', _Reason} ->
-			terminate(State)
+			handler_terminate(HandlerState2, Req2, State)
+	catch Class:Reason ->
+		terminate(State),
+		error_logger:error_msg(
+			"** Handler ~p terminating in handle/2 for the reason ~p:~p~n"
+			"** Options were ~p~n** Handler state was ~p~n"
+			"** Request was ~p~n** Stacktrace: ~p~n~n",
+			[Handler, Class, Reason, Opts,
+			 HandlerState, Req, erlang:get_stacktrace()])
 	end.
 
 -spec handler_terminate(HandlerState::term(), Req::#http_req{},
 	State::#state{}) -> ok.
 handler_terminate(HandlerState, Req=#http_req{buffer=Buffer},
-		State=#state{handler={Handler, _Opts}}) ->
-	HandlerRes = (catch Handler:terminate(
-		Req#http_req{resp_state=locked}, HandlerState)),
-	BodyRes = ensure_body_processed(Req),
-	RespRes = ensure_response(Req, State),
-	case {HandlerRes, BodyRes, RespRes, State#state.connection} of
-		{ok, ok, ok, keepalive} ->
-			?MODULE:parse_request(State#state{buffer=Buffer});
-		_Closed ->
-			terminate(State)
+		State=#state{handler={Handler, Opts}}) ->
+	try
+		HandlerRes = Handler:terminate(Req#http_req{resp_state=locked},
+			HandlerState),
+		BodyRes = ensure_body_processed(Req),
+		RespRes = ensure_response(Req, State),
+		case {HandlerRes, BodyRes, RespRes, State#state.connection} of
+			{ok, ok, ok, keepalive} ->
+				?MODULE:parse_request(State#state{buffer=Buffer});
+			_Closed ->
+				terminate(State)
+		end
+	catch Class:Reason ->
+		terminate(State),
+		error_logger:error_msg(
+			"** Handler ~p terminating in terminate/2 for the reason ~p:~p~n"
+			"** Options were ~p~n** Handler state was ~p~n"
+			"** Request was ~p~n** Stacktrace: ~p~n~n",
+			[Handler, Class, Reason, Opts,
+			 HandlerState, Req, erlang:get_stacktrace()])
 	end.
 
 -spec ensure_body_processed(Req::#http_req{}) -> ok | close.
