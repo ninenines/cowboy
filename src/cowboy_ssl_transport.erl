@@ -30,6 +30,7 @@ messages() -> {ssl, ssl_closed, ssl_error}.
 	| {keyfile, KeyPath::string()} | {password, Password::string()}])
 	-> {ok, LSocket::ssl:sslsocket()} | {error, Reason::atom()}.
 listen(Opts) ->
+	require([crypto, public_key, ssl]),
 	{port, Port} = lists:keyfind(port, 1, Opts),
 	Backlog = proplists:get_value(backlog, Opts, 1024),
 	{certfile, CertFile} = lists:keyfind(certfile, 1, Opts),
@@ -79,6 +80,16 @@ close(Socket) ->
 	ssl:close(Socket).
 
 %% Internal.
+
+-spec require(Apps::list(module())) -> ok.
+require([]) ->
+	ok;
+require([App|Tail]) ->
+	case application:start(App) of
+		ok -> ok;
+		{error, {already_started, App}} -> ok
+	end,
+	require(Tail).
 
 -spec ssl_accept(CSocket::ssl:sslsocket(), Timeout::timeout())
 	-> {ok, Socket::ssl:sslsocket()} | {error, Reason::closed | timeout | atom()}.
