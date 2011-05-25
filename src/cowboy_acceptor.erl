@@ -18,9 +18,8 @@
 
 %% API.
 
--spec start_link(LSocket::inet:socket(), Transport::module(),
-	Protocol::module(), Opts::term(),
-	MaxConns::non_neg_integer(), ReqsSup::pid()) -> {ok, Pid::pid()}.
+-spec start_link(inet:socket(), module(), module(), any(),
+	non_neg_integer(), pid()) -> {ok, pid()}.
 start_link(LSocket, Transport, Protocol, Opts, MaxConns, ReqsSup) ->
 	Pid = spawn_link(?MODULE, acceptor,
 		[LSocket, Transport, Protocol, Opts, MaxConns, ReqsSup]),
@@ -28,9 +27,8 @@ start_link(LSocket, Transport, Protocol, Opts, MaxConns, ReqsSup) ->
 
 %% Internal.
 
--spec acceptor(LSocket::inet:socket(), Transport::module(),
-	Protocol::module(), Opts::term(),
-	MaxConns::non_neg_integer(), ReqsSup::pid()) -> no_return().
+-spec acceptor(inet:socket(), module(), module(), any(),
+	non_neg_integer(), pid()) -> no_return().
 acceptor(LSocket, Transport, Protocol, Opts, MaxConns, ReqsSup) ->
 	case Transport:accept(LSocket, 2000) of
 		{ok, CSocket} ->
@@ -47,7 +45,7 @@ acceptor(LSocket, Transport, Protocol, Opts, MaxConns, ReqsSup) ->
 	end,
 	?MODULE:acceptor(LSocket, Transport, Protocol, Opts, MaxConns, ReqsSup).
 
--spec limit_reqs(MaxConns::non_neg_integer(), ReqsSup::pid()) -> ok.
+-spec limit_reqs(non_neg_integer(), pid()) -> ok.
 limit_reqs(MaxConns, ReqsSup) ->
 	Counts = supervisor:count_children(ReqsSup),
 	Active = lists:keyfind(active, 1, Counts),

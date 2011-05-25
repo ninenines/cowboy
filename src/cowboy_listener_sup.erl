@@ -20,9 +20,8 @@
 
 %% API.
 
--spec start_link(NbAcceptors::non_neg_integer(), Transport::module(),
-	TransOpts::term(), Protocol::module(), ProtoOpts::term())
-	-> {ok, Pid::pid()}.
+-spec start_link(non_neg_integer(), module(), any(), module(), any())
+	-> {ok, pid()}.
 start_link(NbAcceptors, Transport, TransOpts, Protocol, ProtoOpts) ->
 	{ok, SupPid} = supervisor:start_link(?MODULE, []),
 	{ok, ReqsPid} = supervisor:start_child(SupPid,
@@ -36,7 +35,6 @@ start_link(NbAcceptors, Transport, TransOpts, Protocol, ProtoOpts) ->
 
 %% supervisor.
 
-%% @todo These specs should be improved.
--spec init([]) -> term().
+-spec init([]) -> {ok, {{one_for_one, 0, 1}, []}}.
 init([]) ->
 	{ok, {{one_for_one, 0, 1}, []}}.

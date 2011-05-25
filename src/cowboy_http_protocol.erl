@@ -23,7 +23,7 @@
 	socket :: inet:socket(),
 	transport :: module(),
 	dispatch :: cowboy_dispatcher:dispatch_rules(),
-	handler :: {Handler::module(), Opts::term()},
+	handler :: {module(), any()},
 	req_empty_lines = 0 :: integer(),
 	max_empty_lines :: integer(),
 	timeout :: timeout(),
@@ -33,15 +33,14 @@
 
 %% API.
 
--spec start_link(Socket::inet:socket(), Transport::module(), Opts::term())
-	-> {ok, Pid::pid()}.
+-spec start_link(inet:socket(), module(), any()) -> {ok, pid()}.
 start_link(Socket, Transport, Opts) ->
 	Pid = spawn_link(?MODULE, init, [Socket, Transport, Opts]),
 	{ok, Pid}.
 
 %% FSM.
 
--spec init(Socket::inet:socket(), Transport::module(), Opts::term()) -> ok.
+-spec init(inet:socket(), module(), any()) -> ok.
 init(Socket, Transport, Opts) ->
 	Dispatch = proplists:get_value(dispatch, Opts, []),
 	MaxEmptyLines = proplists:get_value(max_empty_lines, Opts, 5),
@@ -49,7 +48,7 @@ init(Socket, Transport, Opts) ->
 	wait_request(#state{socket=Socket, transport=Transport,
 		dispatch=Dispatch, max_empty_lines=MaxEmptyLines, timeout=Timeout}).
 
--spec parse_request(State::#state{}) -> ok.
+-spec parse_request(#state{}) -> ok.
 %% @todo Use decode_packet options to limit length?
 parse_request(State=#state{buffer=Buffer}) ->
 	case erlang:decode_packet(http_bin, Buffer, []) of
@@ -58,7 +57,7 @@ parse_request(State=#state{buffer=Buffer}) ->
 		{error, _Reason} -> error_response(400, State)
 	end.
 
--spec wait_request(State::#state{}) -> ok.
+-spec wait_request(#state{}) -> ok.
 wait_request(State=#state{socket=Socket, transport=Transport,
 		timeout=T, buffer=Buffer}) ->
 	case Transport:recv(Socket, 0, T) of
@@ -68,8 +67,8 @@ wait_request(State=#state{socket=Socket, transport=Transport,
 		{error, closed} -> terminate(State)
 	end.
 
--spec request({http_request, Method::http_method(), URI::http_uri(),
-	Version::http_version()}, State::#state{}) -> ok.
+-spec request({http_request, http_method(), http_uri(),
+	http_version()}, #state{}) -> ok.
 %% @todo We probably want to handle some things differently between versions.
 request({http_request, _Method, _URI, Version}, State)
 		when Version =/= {1, 0}, Version =/= {1, 1} ->
@@ -100,7 +99,7 @@ request({http_error, <<"\r\n">>}, State=#state{req_empty_lines=N}) ->
 request({http_error, _Any}, State) ->
 	error_terminate(400, State).
 
--spec parse_header(Req::#http_req{}, State::#state{}) -> ok.
+-spec parse_header(#http_req{}, #state{}) -> ok.
 parse_header(Req, State=#state{buffer=Buffer}) ->
 	case erlang:decode_packet(httph_bin, Buffer, []) of
 		{ok, Header, Rest} -> header(Header, Req, State#state{buffer=Rest});
@@ -108,7 +107,7 @@ parse_header(Req, State=#state{buffer=Buffer}) ->
 		{error, _Reason} -> error_response(400, State)
 	end.
 
--spec wait_header(Req::#http_req{}, State::#state{}) -> ok.
+-spec wait_header(#http_req{}, #state{}) -> ok.
 wait_header(Req, State=#state{socket=Socket,
 		transport=Transport, timeout=T, buffer=Buffer}) ->
 	case Transport:recv(Socket, 0, T) of
@@ -118,8 +117,8 @@ wait_header(Req, State=#state{socket=Socket,
 		{error, closed} -> terminate(State)
 	end.
 
--spec header({http_header, I::integer(), Field::http_header(), R::term(),
-	Value::binary()} | http_eoh, Req::#http_req{}, State::#state{}) -> ok.
+-spec header({http_header, integer(), http_header(), any(), binary()}
+	| http_eoh, #http_req{}, #state{}) -> ok.
 header({http_header, _I, 'Host', _R, RawHost}, Req=#http_req{
 		transport=Transport, host=undefined}, State) ->
 	RawHost2 = binary_to_lower(RawHost),
@@ -153,7 +152,7 @@ header(http_eoh, Req, State=#state{buffer=Buffer}) ->
 header({http_error, _Bin}, _Req, State) ->
 	error_terminate(500, State).
 
--spec dispatch(Req::#http_req{}, State::#state{}) -> ok.
+-spec dispatch(#http_req{}, #state{}) -> ok.
 dispatch(Req=#http_req{host=Host, path=Path},
 		State=#state{dispatch=Dispatch}) ->
 	%% @todo We probably want to filter the Host and Path here to allow
@@ -169,7 +168,7 @@ dispatch(Req=#http_req{host=Host, path=Path},
 			error_terminate(404, State)
 	end.
 
--spec handler_init(Req::#http_req{}, State::#state{}) -> ok.
+-spec handler_init(#http_req{}, #state{}) -> ok.
 handler_init(Req, State=#state{
 		transport=Transport, handler={Handler, Opts}}) ->
 	try Handler:init({Transport:name(), http}, Req, Opts) of
@@ -186,8 +185,7 @@ handler_init(Req, State=#state{
 			[Handler, Class, Reason, Opts, Req, erlang:get_stacktrace()])
 	end.
 
--spec handler_loop(HandlerState::term(), Req::#http_req{},
-	State::#state{}) -> ok.
+-spec handler_loop(any(), #http_req{}, #state{}) -> ok.
 handler_loop(HandlerState, Req, State=#state{handler={Handler, Opts}}) ->
 	try Handler:handle(Req#http_req{resp_state=waiting}, HandlerState) of
 		{ok, Req2, HandlerState2} ->
@@ -202,8 +200,7 @@ handler_loop(HandlerState, Req, State=#state{handler={Handler, Opts}}) ->
 			 HandlerState, Req, erlang:get_stacktrace()])
 	end.
 
--spec handler_terminate(HandlerState::term(), Req::#http_req{},
-	State::#state{}) -> ok.
+-spec handler_terminate(any(), #http_req{}, #state{}) -> ok.
 handler_terminate(HandlerState, Req=#http_req{buffer=Buffer},
 		State=#state{handler={Handler, Opts}}) ->
 	try
@@ -227,7 +224,7 @@ handler_terminate(HandlerState, Req=#http_req{buffer=Buffer},
 			 HandlerState, Req, erlang:get_stacktrace()])
 	end.
 
--spec ensure_body_processed(Req::#http_req{}) -> ok | close.
+-spec ensure_body_processed(#http_req{}) -> ok | close.
 ensure_body_processed(#http_req{body_state=done}) ->
 	ok;
 ensure_body_processed(Req=#http_req{body_state=waiting}) ->
@@ -237,7 +234,7 @@ ensure_body_processed(Req=#http_req{body_state=waiting}) ->
 		_Any -> ok
 	end.
 
--spec ensure_response(Req::#http_req{}, State::#state{}) -> ok.
+-spec ensure_response(#http_req{}, #state{}) -> ok.
 %% The handler has already fully replied to the client.
 ensure_response(#http_req{resp_state=done}, _State) ->
 	ok;
@@ -251,7 +248,7 @@ ensure_response(#http_req{socket=Socket, transport=Transport,
 	Transport:send(Socket, <<"0\r\n\r\n">>),
 	close.
 
--spec error_response(Code::http_status(), State::#state{}) -> ok.
+-spec error_response(http_status(), #state{}) -> ok.
 error_response(Code, #state{socket=Socket,
 		transport=Transport, connection=Connection}) ->
 	_ = cowboy_http_req:reply(Code, [], [], #http_req{
@@ -259,23 +256,23 @@ error_response(Code, #state{socket=Socket,
 		connection=Connection, resp_state=waiting}),
 	ok.
 
--spec error_terminate(Code::http_status(), State::#state{}) -> ok.
+-spec error_terminate(http_status(), #state{}) -> ok.
 error_terminate(Code, State) ->
 	error_response(Code, State#state{connection=close}),
 	terminate(State).
 
--spec terminate(State::#state{}) -> ok.
+-spec terminate(#state{}) -> ok.
 terminate(#state{socket=Socket, transport=Transport}) ->
 	Transport:close(Socket),
 	ok.
 
 %% Internal.
 
--spec version_to_connection(Version::http_version()) -> keepalive | close.
+-spec version_to_connection(http_version()) -> keepalive | close.
 version_to_connection({1, 1}) -> keepalive;
 version_to_connection(_Any) -> close.
 
--spec connection_to_atom(Connection::binary()) -> keepalive | close.
+-spec connection_to_atom(binary()) -> keepalive | close.
 connection_to_atom(<<"keep-alive">>) ->
 	keepalive;
 connection_to_atom(<<"close">>) ->
@@ -286,7 +283,7 @@ connection_to_atom(Connection) ->
 		_Any -> keepalive
 	end.
 
--spec default_port(TransportName::atom()) -> 80 | 443.
+-spec default_port(atom()) -> 80 | 443.
 default_port(ssl) -> 443;
 default_port(_) -> 80.
 

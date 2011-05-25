@@ -20,16 +20,15 @@
 
 %% API.
 
--spec start_link(NbAcceptors::non_neg_integer(), Transport::module(),
-	TransOpts::term(), Protocol::module(), ProtoOpts::term(), ReqsPid::pid())
-	-> {ok, Pid::pid()}.
+-spec start_link(non_neg_integer(), module(), any(), module(), any(), pid())
+	-> {ok, pid()}.
 start_link(NbAcceptors, Transport, TransOpts, Protocol, ProtoOpts, ReqsPid) ->
 	supervisor:start_link(?MODULE, [NbAcceptors,
 		Transport, TransOpts, Protocol, ProtoOpts, ReqsPid]).
 
 %% supervisor.
 
--spec init(list(term())) -> term(). %% @todo These specs should be improved.
+-spec init(list()) -> {ok, {{one_for_one, 10, 10}, list()}}.
 init([NbAcceptors, Transport, TransOpts, Protocol, ProtoOpts, ReqsPid]) ->
 	{ok, LSocket} = Transport:listen(TransOpts),
 	MaxConns = proplists:get_value(max_connections, TransOpts, 1024),

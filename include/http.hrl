@@ -13,15 +13,13 @@
 %% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
--include_lib("kernel/include/inet.hrl").
-
 -type http_method() :: 'OPTIONS' | 'GET' | 'HEAD'
 	| 'POST' | 'PUT' | 'DELETE' | 'TRACE' | binary().
 -type http_uri() :: '*' | {absoluteURI, http | https, Host::binary(),
 	Port::integer() | undefined, Path::binary()}
 	| {scheme, Scheme::binary(), binary()}
 	| {abs_path, binary()} | binary().
--type http_version() :: {Major::integer(), Minor::integer()}.
+-type http_version() :: {Major::non_neg_integer(), Minor::non_neg_integer()}.
 -type http_header() :: 'Cache-Control' | 'Connection' | 'Date' | 'Pragma'
 	| 'Transfer-Encoding' | 'Upgrade' | 'Via' | 'Accept' | 'Accept-Charset'
 	| 'Accept-Encoding' | 'Accept-Language' | 'Authorization' | 'From' | 'Host'
@@ -48,16 +46,15 @@
 	%% Request.
 	method     = 'GET'     :: http_method(),
 	version    = {1, 1}    :: http_version(),
-	peer       = undefined :: undefined | {Address::ip_address(), Port::ip_port()},
+	peer       = undefined :: undefined | {inet:ip_address(), inet:ip_port()},
 	host       = undefined :: undefined | cowboy_dispatcher:path_tokens(),
 	host_info  = undefined :: undefined | cowboy_dispatcher:path_tokens(),
 	raw_host   = undefined :: undefined | binary(),
-	port       = undefined :: undefined | ip_port(),
+	port       = undefined :: undefined | inet:ip_port(),
 	path       = undefined :: undefined | '*' | cowboy_dispatcher:path_tokens(),
 	path_info  = undefined :: undefined | cowboy_dispatcher:path_tokens(),
 	raw_path   = undefined :: undefined | binary(),
-	qs_vals    = undefined :: undefined
-		| list({Name::binary(), Value::binary() | true}),
+	qs_vals    = undefined :: undefined | list({binary(), binary() | true}),
 	raw_qs     = undefined :: undefined | binary(),
 	bindings   = undefined :: undefined | cowboy_dispatcher:bindings(),
 	headers    = []        :: http_headers(),

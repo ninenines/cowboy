@@ -22,13 +22,13 @@
 
 %% API.
 
--spec start_link() -> {ok, Pid::pid()}.
+-spec start_link() -> {ok, pid()}.
 start_link() ->
 	supervisor:start_link({local, ?SUPERVISOR}, ?MODULE, []).
 
 %% supervisor.
 
--spec init([]) -> term(). %% @todo These specs should be improved.
+-spec init([]) -> {ok, {{one_for_one, 10, 10}, [{_, _, _, _, _, _}, ...]}}.
 init([]) ->
 	Procs = [{cowboy_clock, {cowboy_clock, start_link, []},
 		permanent, 5000, worker, dynamic}],

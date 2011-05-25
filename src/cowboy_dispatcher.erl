@@ -16,22 +16,21 @@
 -module(cowboy_dispatcher).
 -export([split_host/1, split_path/1, match/3]). %% API.
 
--type bindings() :: list({Key::atom(), Value::binary()}).
+-type bindings() :: list({atom(), binary()}).
 -type path_tokens() :: list(binary()).
 -type match_rule() :: '_' | '*' | list(binary() | '_' | atom()).
--type dispatch_rule() :: {Host::match_rule(), list({Path::match_rule(),
-	Handler::module(), Opts::term()})}.
+-type dispatch_path() :: list({match_rule(), module(), any()}).
+-type dispatch_rule() :: {Host::match_rule(), Path::dispatch_path()}.
 -type dispatch_rules() :: list(dispatch_rule()).
 
 -export_type([bindings/0, path_tokens/0, dispatch_rules/0]).
 
--include_lib("kernel/include/inet.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
 %% API.
 
--spec split_host(Host::binary())
-	-> {Tokens::path_tokens(), RawHost::binary(), Port::undefined | ip_port()}.
+-spec split_host(binary())
+	-> {path_tokens(), binary(), undefined | inet:ip_port()}.
 split_host(<<>>) ->
 	{[], <<>>, undefined};
 split_host(Host) ->
@@ -43,8 +42,7 @@ split_host(Host) ->
 				list_to_integer(binary_to_list(Port))}
 	end.
 
--spec split_path(Path::binary())
-	-> {Tokens::path_tokens(), RawPath::binary(), Qs::binary()}.
+-spec split_path(binary()) -> {path_tokens(), binary(), binary()}.
 split_path(Path) ->
 	case binary:split(Path, <<"?">>) of
 		[Path] -> {do_split_path(Path, <<"/">>), Path, <<>>};
@@ -52,17 +50,15 @@ split_path(Path) ->
 		[Path2, Qs] -> {do_split_path(Path2, <<"/">>), Path2, Qs}
 	end.
 
--spec do_split_path(RawPath::binary(), Separator::binary())
-	-> Tokens::path_tokens().
+-spec do_split_path(binary(), <<_:8>>) -> path_tokens().
 do_split_path(RawPath, Separator) ->
 	case binary:split(RawPath, Separator, [global, trim]) of
 		[<<>>|Path] -> Path;
 		Path -> Path
 	end.
 
--spec match(Host::path_tokens(), Path::path_tokens(),
-	Dispatch::dispatch_rules())
-	-> {ok, Handler::module(), Opts::term(), Binds::bindings(),
+-spec match(Host::path_tokens(), Path::path_tokens(), dispatch_rules())
+	-> {ok, module(), any(), bindings(),
 		HostInfo::undefined | path_tokens(),
 		PathInfo::undefined | path_tokens()}
 	| {error, notfound, host} | {error, notfound, path}.
@@ -80,10 +76,9 @@ match(Host, Path, [{HostMatch, PathMatchs}|Tail]) ->
 			match_path(Path, PathMatchs, HostBinds, lists:reverse(HostInfo))
 	end.
 
--spec match_path(Path::path_tokens(), list({Path::match_rule(),
-	Handler::module(), Opts::term()}), HostBinds::bindings(),
+-spec match_path(path_tokens(), dispatch_path(), bindings(),
 	HostInfo::undefined | path_tokens())
-	-> {ok, Handler::module(), Opts::term(), Binds::bindings(),
+	-> {ok, module(), any(), bindings(),
 		HostInfo::undefined | path_tokens(),
 		PathInfo::undefined | path_tokens()}
 	| {error, notfound, path}.
@@ -103,15 +98,15 @@ match_path(Path, [{PathMatch, Handler, Opts}|Tail], HostBinds, HostInfo) ->
 
 %% Internal.
 
--spec try_match(Type::host | path, List::path_tokens(), Match::match_rule())
-	-> {true, Binds::bindings(), ListInfo::undefined | path_tokens()} | false.
+-spec try_match(host | path, path_tokens(), match_rule())
+	-> {true, bindings(), undefined | path_tokens()} | false.
 try_match(host, List, Match) ->
 	list_match(lists:reverse(List), lists:reverse(Match), []);
 try_match(path, List, Match) ->
 	list_match(List, Match, []).
 
--spec list_match(List::path_tokens(), Match::match_rule(), Binds::bindings())
-	-> {true, Binds::bindings(), ListInfo::undefined | path_tokens()} | false.
+-spec list_match(path_tokens(), match_rule(), bindings())
+	-> {true, bindings(), undefined | path_tokens()} | false.
 %% Atom '...' matches any trailing path, stop right now.
 list_match(List, ['...'], Binds) ->
 	{true, Binds, List};

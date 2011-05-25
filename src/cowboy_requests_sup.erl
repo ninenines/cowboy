@@ -20,18 +20,17 @@
 
 %% API.
 
--spec start_link() -> {ok, Pid::pid()}.
+-spec start_link() -> {ok, pid()}.
 start_link() ->
 	supervisor:start_link(?MODULE, []).
 
--spec start_request(Socket::inet:socket(), Transport::module(),
-	Protocol::module(), Opts::term()) -> {ok, Pid::pid()}.
+-spec start_request(inet:socket(), module(), module(), any()) -> {ok, pid()}.
 start_request(Socket, Transport, Protocol, Opts) ->
 	Protocol:start_link(Socket, Transport, Opts).
 
 %% supervisor.
 
--spec init([]) -> term(). %% @todo These specs should be improved.
+-spec init([]) -> {ok, {{simple_one_for_one, 0, 1}, [{_, _, _, _, _, _}, ...]}}.
 init([]) ->
 	{ok, {{simple_one_for_one, 0, 1}, [{?MODULE, {?MODULE, start_request, []},
 		temporary, brutal_kill, worker, [?MODULE]}]}}.

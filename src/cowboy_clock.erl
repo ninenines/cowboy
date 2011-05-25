@@ -46,7 +46,7 @@
 
 %% API.
 
--spec start_link() -> {ok, Pid::pid()}.
+-spec start_link() -> {ok, pid()}.
 start_link() ->
 	gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
@@ -96,8 +96,7 @@ code_change(_OldVsn, State, _Extra) ->
 
 %% Internal.
 
--spec update_rfc1123(Prev::undefined | datetime(), Now::datetime(),
-	Bin::binary()) -> binary().
+-spec update_rfc1123(undefined | datetime(), datetime(), binary()) -> binary().
 update_rfc1123(Now, Now, Bin) ->
 	Bin;
 update_rfc1123({Date, {H, M, _}}, {Date, {H, M, S}},
@@ -136,7 +135,7 @@ pad_int(X) when X < 10 ->
 pad_int(X) ->
 	list_to_binary(integer_to_list(X)).
 
--spec weekday(daynum()) -> binary().
+-spec weekday(daynum()) -> <<_:24>>.
 weekday(1) -> <<"Mon">>;
 weekday(2) -> <<"Tue">>;
 weekday(3) -> <<"Wed">>;
@@ -145,7 +144,7 @@ weekday(5) -> <<"Fri">>;
 weekday(6) -> <<"Sat">>;
 weekday(7) -> <<"Sun">>.
 
--spec month(month()) -> binary().
+-spec month(month()) -> <<_:24>>.
 month( 1) -> <<"Jan">>;
 month( 2) -> <<"Feb">>;
 month( 3) -> <<"Mar">>;

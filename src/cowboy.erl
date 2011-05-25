@@ -17,9 +17,8 @@
 
 %% API.
 
--spec start_listener(Ref::term(), NbAcceptors::non_neg_integer(),
-	Transport::module(), TransOpts::term(), Protocol::module(),
-	ProtoOpts::term()) -> {ok, Pid::pid()}.
+-spec start_listener(any(), non_neg_integer(), module(), any(), module(), any())
+	-> {ok, pid()}.
 start_listener(Ref, NbAcceptors, Transport, TransOpts, Protocol, ProtoOpts) ->
 	supervisor:start_child(cowboy_sup,
 		{{cowboy_listener_sup, Ref}, {cowboy_listener_sup, start_link, [
@@ -27,7 +26,7 @@ start_listener(Ref, NbAcceptors, Transport, TransOpts, Protocol, ProtoOpts) ->
 		]},
 		permanent, 5000, supervisor, [cowboy_listener_sup]}).
 
--spec stop_listener(Ref::term()) -> ok | {error, not_found}.
+-spec stop_listener(any()) -> ok | {error, not_found}.
 stop_listener(Ref) ->
 	case supervisor:terminate_child(cowboy_sup, {cowboy_listener_sup, Ref}) of
 		ok ->

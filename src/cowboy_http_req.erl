@@ -38,65 +38,59 @@
 
 %% Request API.
 
--spec method(Req::#http_req{}) -> {Method::http_method(), Req::#http_req{}}.
+-spec method(#http_req{}) -> {http_method(), #http_req{}}.
 method(Req) ->
 	{Req#http_req.method, Req}.
 
--spec version(Req::#http_req{}) -> {Version::http_version(), Req::#http_req{}}.
+-spec version(#http_req{}) -> {http_version(), #http_req{}}.
 version(Req) ->
 	{Req#http_req.version, Req}.
 
--spec peer(Req::#http_req{})
-	-> {{Address::ip_address(), Port::ip_port()}, Req::#http_req{}}.
+-spec peer(#http_req{}) -> {{inet:ip_address(), inet:ip_port()}, #http_req{}}.
 peer(Req=#http_req{socket=Socket, transport=Transport, peer=undefined}) ->
 	{ok, Peer} = Transport:peername(Socket),
 	{Peer, Req#http_req{peer=Peer}};
 peer(Req) ->
 	{Req#http_req.peer, Req}.
 
--spec host(Req::#http_req{})
-	-> {Host::cowboy_dispatcher:path_tokens(), Req::#http_req{}}.
+-spec host(#http_req{}) -> {cowboy_dispatcher:path_tokens(), #http_req{}}.
 host(Req) ->
 	{Req#http_req.host, Req}.
 
--spec host_info(Req::#http_req{})
-	-> {HostInfo::cowboy_dispatcher:path_tokens() | undefined,
-		Req::#http_req{}}.
+-spec host_info(#http_req{})
+	-> {cowboy_dispatcher:path_tokens() | undefined, #http_req{}}.
 host_info(Req) ->
 	{Req#http_req.host_info, Req}.
 
--spec raw_host(Req::#http_req{}) -> {RawHost::binary(), Req::#http_req{}}.
+-spec raw_host(#http_req{}) -> {binary(), #http_req{}}.
 raw_host(Req) ->
 	{Req#http_req.raw_host, Req}.
 
--spec port(Req::#http_req{}) -> {Port::ip_port(), Req::#http_req{}}.
+-spec port(#http_req{}) -> {inet:ip_port(), #http_req{}}.
 port(Req) ->
 	{Req#http_req.port, Req}.
 
--spec path(Req::#http_req{})
-	-> {Path::cowboy_dispatcher:path_tokens(), Req::#http_req{}}.
+-spec path(#http_req{}) -> {cowboy_dispatcher:path_tokens(), #http_req{}}.
 path(Req) ->
 	{Req#http_req.path, Req}.
 
--spec path_info(Req::#http_req{})
-	-> {PathInfo::cowboy_dispatcher:path_tokens() | undefined,
-		Req::#http_req{}}.
+-spec path_info(#http_req{})
+	-> {cowboy_dispatcher:path_tokens() | undefined, #http_req{}}.
 path_info(Req) ->
 	{Req#http_req.path_info, Req}.
 
--spec raw_path(Req::#http_req{}) -> {RawPath::binary(), Req::#http_req{}}.
+-spec raw_path(#http_req{}) -> {binary(), #http_req{}}.
 raw_path(Req) ->
 	{Req#http_req.raw_path, Req}.
 
--spec qs_val(Name::binary(), Req::#http_req{})
-	-> {Value::binary() | true | undefined, Req::#http_req{}}.
+-spec qs_val(binary(), #http_req{})
+	-> {binary() | true | undefined, #http_req{}}.
 %% @equiv qs_val(Name, Req) -> qs_val(Name, Req, undefined)
 qs_val(Name, Req) ->
 	qs_val(Name, Req, undefined).
 
--spec qs_val(Name::binary(), Req::#http_req{}, Default)
-	-> {Value::binary() | true | Default, Req::#http_req{}}
-	when Default::term().
+-spec qs_val(binary(), #http_req{}, Default)
+	-> {binary() | true | Default, #http_req{}} when Default::any().
 qs_val(Name, Req=#http_req{raw_qs=RawQs, qs_vals=undefined}, Default) ->
 	QsVals = parse_qs(RawQs),
 	qs_val(Name, Req#http_req{qs_vals=QsVals}, Default);
@@ -106,61 +100,56 @@ qs_val(Name, Req, Default) ->
 		false -> {Default, Req}
 	end.
 
--spec qs_vals(Req::#http_req{})
-	-> {list({Name::binary(), Value::binary() | true}), Req::#http_req{}}.
+-spec qs_vals(#http_req{}) -> {list({binary(), binary() | true}), #http_req{}}.
 qs_vals(Req=#http_req{raw_qs=RawQs, qs_vals=undefined}) ->
 	QsVals = parse_qs(RawQs),
 	qs_vals(Req#http_req{qs_vals=QsVals});
 qs_vals(Req=#http_req{qs_vals=QsVals}) ->
 	{QsVals, Req}.
 
--spec raw_qs(Req::#http_req{}) -> {RawQs::binary(), Req::#http_req{}}.
+-spec raw_qs(#http_req{}) -> {binary(), #http_req{}}.
 raw_qs(Req) ->
 	{Req#http_req.raw_qs, Req}.
 
--spec binding(Name::atom(), Req::#http_req{})
-	-> {Value::binary() | undefined, Req::#http_req{}}.
+-spec binding(atom(), #http_req{}) -> {binary() | undefined, #http_req{}}.
 %% @equiv binding(Name, Req) -> binding(Name, Req, undefined)
 binding(Name, Req) ->
 	binding(Name, Req, undefined).
 
--spec binding(Name::atom(), Req::#http_req{}, Default)
-	-> {Value::binary() | Default, Req::#http_req{}} when Default::term().
+-spec binding(atom(), #http_req{}, Default)
+	-> {binary() | Default, #http_req{}} when Default::any().
 binding(Name, Req, Default) ->
 	case lists:keyfind(Name, 1, Req#http_req.bindings) of
 		{Name, Value} -> {Value, Req};
 		false -> {Default, Req}
 	end.
 
--spec bindings(Req::#http_req{})
-	-> {list({Name::atom(), Value::binary()}), Req::#http_req{}}.
+-spec bindings(#http_req{}) -> {list({atom(), binary()}), #http_req{}}.
 bindings(Req) ->
 	{Req#http_req.bindings, Req}.
 
--spec header(Name::atom() | binary(), Req::#http_req{})
-	-> {Value::binary() | undefined, Req::#http_req{}}.
+-spec header(atom() | binary(), #http_req{})
+	-> {binary() | undefined, #http_req{}}.
 %% @equiv header(Name, Req) -> header(Name, Req, undefined)
 header(Name, Req) ->
 	header(Name, Req, undefined).
 
--spec header(Name::atom() | binary(), Req::#http_req{}, Default)
-	-> {Value::binary() | Default, Req::#http_req{}} when Default::term().
+-spec header(atom() | binary(), #http_req{}, Default)
+	-> {binary() | Default, #http_req{}} when Default::any().
 header(Name, Req, Default) ->
 	case lists:keyfind(Name, 1, Req#http_req.headers) of
 		{Name, Value} -> {Value, Req};
 		false -> {Default, Req}
 	end.
 
--spec headers(Req::#http_req{})
-	-> {Headers::http_headers(), Req::#http_req{}}.
+-spec headers(#http_req{}) -> {http_headers(), #http_req{}}.
 headers(Req) ->
 	{Req#http_req.headers, Req}.
 
 %% Request Body API.
 
 %% @todo We probably want to allow a max length.
--spec body(Req::#http_req{})
-	-> {ok, Body::binary(), Req::#http_req{}} | {error, Reason::atom()}.
+-spec body(#http_req{}) -> {ok, binary(), #http_req{}} | {error, atom()}.
 body(Req) ->
 	{Length, Req2} = cowboy_http_req:header('Content-Length', Req),
 	case Length of
@@ -171,28 +160,28 @@ body(Req) ->
 	end.
 
 %% @todo We probably want to configure the timeout.
--spec body(Length::non_neg_integer(), Req::#http_req{})
-	-> {ok, Body::binary(), Req::#http_req{}} | {error, Reason::atom()}.
+-spec body(non_neg_integer(), #http_req{})
+	-> {ok, binary(), #http_req{}} | {error, atom()}.
 body(Length, Req=#http_req{body_state=waiting, buffer=Buffer})
 		when Length =:= byte_size(Buffer) ->
 	{ok, Buffer, Req#http_req{body_state=done, buffer= <<>>}};
 body(Length, Req=#http_req{socket=Socket, transport=Transport,
 		body_state=waiting, buffer=Buffer}) when Length > byte_size(Buffer) ->
 	case Transport:recv(Socket, Length - byte_size(Buffer), 5000) of
-		{ok, Body} -> {ok, << Buffer/binary, Body/binary >>, Req#http_req{body_state=done, buffer= <<>>}};
+		{ok, Body} -> {ok, << Buffer/binary, Body/binary >>,
+			Req#http_req{body_state=done, buffer= <<>>}};
 		{error, Reason} -> {error, Reason}
 	end.
 
--spec body_qs(Req::#http_req{})
-	-> {list({Name::binary(), Value::binary() | true}), Req::#http_req{}}.
+-spec body_qs(#http_req{}) -> {list({binary(), binary() | true}), #http_req{}}.
 body_qs(Req) ->
 	{ok, Body, Req2} = body(Req),
 	{parse_qs(Body), Req2}.
 
 %% Response API.
 
--spec reply(Code::http_status(), Headers::http_headers(),
-	Body::iodata(), Req::#http_req{}) -> {ok, Req::#http_req{}}.
+-spec reply(http_status(), http_headers(), iodata(), #http_req{})
+	-> {ok, #http_req{}}.
 reply(Code, Headers, Body, Req=#http_req{socket=Socket,
 		transport=Transport, connection=Connection,
 		resp_state=waiting}) ->
@@ -206,8 +195,8 @@ reply(Code, Headers, Body, Req=#http_req{socket=Socket,
 	Transport:send(Socket, [Head, Body]),
 	{ok, Req#http_req{resp_state=done}}.
 
--spec chunked_reply(Code::http_status(), Headers::http_headers(),
-	Req::#http_req{}) -> {ok, Req::#http_req{}}.
+-spec chunked_reply(http_status(), http_headers(), #http_req{})
+	-> {ok, #http_req{}}.
 chunked_reply(Code, Headers, Req=#http_req{socket=Socket, transport=Transport,
 		resp_state=waiting}) ->
 	Head = response_head(Code, Headers, [
@@ -219,14 +208,14 @@ chunked_reply(Code, Headers, Req=#http_req{socket=Socket, transport=Transport,
 	Transport:send(Socket, Head),
 	{ok, Req#http_req{resp_state=chunks}}.
 
--spec chunk(Data::iodata(), Req::#http_req{}) -> ok.
+-spec chunk(iodata(), #http_req{}) -> ok.
 chunk(Data, #http_req{socket=Socket, transport=Transport, resp_state=chunks}) ->
 	Transport:send(Socket, [integer_to_list(iolist_size(Data), 16),
 		<<"\r\n">>, Data, <<"\r\n">>]).
 
 %% Internal.
 
--spec parse_qs(Qs::binary()) -> list({Name::binary(), Value::binary() | true}).
+-spec parse_qs(binary()) -> list({binary(), binary() | true}).
 parse_qs(<<>>) ->
 	[];
 parse_qs(Qs) ->
@@ -236,8 +225,7 @@ parse_qs(Qs) ->
 		[Name, Value] -> {Name, Value}
 	end || Token <- Tokens].
 
--spec response_head(Code::http_status(), Headers::http_headers(),
-	DefaultHeaders::http_headers()) -> iolist().
+-spec response_head(http_status(), http_headers(), http_headers()) -> iolist().
 response_head(Code, Headers, DefaultHeaders) ->
 	StatusLine = <<"HTTP/1.1 ", (status(Code))/binary, "\r\n">>,
 	Headers2 = [{header_to_binary(Key), Value} || {Key, Value} <- Headers],
@@ -247,13 +235,14 @@ response_head(Code, Headers, DefaultHeaders) ->
 		|| {Key, Value} <- Headers4],
 	[StatusLine, Headers5, <<"\r\n">>].
 
--spec atom_to_connection(Atom::keepalive | close) -> binary().
+-spec atom_to_connection(keepalive) -> <<_:80>>;
+						(close) -> <<_:40>>.
 atom_to_connection(keepalive) ->
 	<<"keep-alive">>;
 atom_to_connection(close) ->
 	<<"close">>.
 
--spec status(Code::http_status()) -> binary().
+-spec status(http_status()) -> binary().
 status(100) -> <<"100 Continue">>;
 status(101) -> <<"101 Switching Protocols">>;
 status(102) -> <<"102 Processing">>;
@@ -375,7 +364,8 @@ parse_qs_test_() ->
 		{<<"a=b">>, [{<<"a">>, <<"b">>}]},
 		{<<"aaa=bbb">>, [{<<"aaa">>, <<"bbb">>}]},
 		{<<"a&b">>, [{<<"a">>, true}, {<<"b">>, true}]},
-		{<<"a=b&c&d=e">>, [{<<"a">>, <<"b">>}, {<<"c">>, true}, {<<"d">>, <<"e">>}]},
+		{<<"a=b&c&d=e">>, [{<<"a">>, <<"b">>},
+			{<<"c">>, true}, {<<"d">>, <<"e">>}]},
 		{<<"a=b=c=d=e&f=g">>, [{<<"a">>, <<"b=c=d=e">>}, {<<"f">>, <<"g">>}]}
 	],
 	[{Qs, fun() -> R = parse_qs(Qs) end} || {Qs, R} <- Tests].
