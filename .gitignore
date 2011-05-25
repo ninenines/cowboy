@@ -8,3 +8,6 @@ doc/edoc-info
 ebin
 logs
 test/*.beam
+*.un~
+*~
+\#*\#
