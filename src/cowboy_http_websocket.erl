@@ -60,14 +60,19 @@ key_to_integer(Key) ->
 -spec handler_init(#state{}, #http_req{}) -> ok.
 handler_init(State=#state{handler=Handler, opts=Opts},
 		Req=#http_req{transport=Transport}) ->
-	case catch Handler:websocket_init(Transport:name(), Req, Opts) of
+	try Handler:websocket_init(Transport:name(), Req, Opts) of
 		{ok, Req2, HandlerState} ->
 			websocket_handshake(State, Req2, HandlerState);
 		{ok, Req2, HandlerState, Timeout} ->
 			websocket_handshake(State#state{timeout=Timeout},
-				Req2, HandlerState);
-		{'EXIT', _Reason} ->
-			upgrade_error(Req)
+				Req2, HandlerState)
+	catch Class:Reason ->
+		upgrade_error(Req),
+		error_logger:error_msg(
+			"** Handler ~p terminating in websocket_init/3~n"
+			"   for the reason ~p:~p~n** Options were ~p~n"
+			"** Request was ~p~n** Stacktrace: ~p~n~n",
+			[Handler, Class, Reason, Opts, Req, erlang:get_stacktrace()])
 	end.
 
 -spec upgrade_error(#http_req{}) -> ok.
@@ -145,18 +150,25 @@ websocket_frame(State, Req, HandlerState, _Data, _FrameType) ->
 	websocket_close(State, Req, HandlerState, {error, badframe}).
 
 -spec handler_call(#state{}, #http_req{}, any(), binary(), any(), fun()) -> ok.
-handler_call(State=#state{handler=Handler}, Req, HandlerState,
+handler_call(State=#state{handler=Handler, opts=Opts}, Req, HandlerState,
 		RemainingData, Message, NextState) ->
-	case catch Handler:websocket_handle(Message, Req, HandlerState) of
+	try Handler:websocket_handle(Message, Req, HandlerState) of
 		{ok, Req2, HandlerState2} ->
 			NextState(State, Req2, HandlerState2, RemainingData);
 		{reply, Data, Req2, HandlerState2} ->
 			websocket_send(Data, Req2),
 			NextState(State, Req2, HandlerState2, RemainingData);
 		{shutdown, Req2, HandlerState2} ->
-			websocket_close(State, Req2, HandlerState2, {normal, shutdown});
-		{'EXIT', _Reason} ->
-			websocket_close(State, Req, HandlerState, {error, handler})
+			websocket_close(State, Req2, HandlerState2, {normal, shutdown})
+	catch Class:Reason ->
+		websocket_close(State, Req, HandlerState, {error, handler}),
+		error_logger:error_msg(
+			"** Handler ~p terminating in websocket_handle/3~n"
+			"   for the reason ~p:~p~n** Message was ~p~n"
+			"** Options were ~p~n** Handler state was ~p~n"
+			"** Request was ~p~n** Stacktrace: ~p~n~n",
+			[Handler, Class, Reason, Message, Opts,
+			 HandlerState, Req, erlang:get_stacktrace()])
 	end.
 
 -spec websocket_send(binary(), #http_req{}) -> ok.
@@ -172,5 +184,16 @@ websocket_close(State, Req=#http_req{socket=Socket, transport=Transport},
 
 -spec handler_terminate(#state{}, #http_req{},
 	any(), atom() | {atom(), atom()}) -> ok.
-handler_terminate(#state{handler=Handler}, Req, HandlerState, Reason) ->
-	Handler:websocket_terminate(Reason, Req, HandlerState).
+handler_terminate(#state{handler=Handler, opts=Opts},
+		Req, HandlerState, TerminateReason) ->
+	try
+		Handler:websocket_terminate(TerminateReason, Req, HandlerState)
+	catch Class:Reason ->
+		error_logger:error_msg(
+			"** Handler ~p terminating in websocket_terminate/3~n"
+			"   for the reason ~p:~p~n** Initial reason was ~p~n"
+			"** Options were ~p~n** Handler state was ~p~n"
+			"** Request was ~p~n** Stacktrace: ~p~n~n",
+			[Handler, Class, Reason, TerminateReason, Opts,
+			 HandlerState, Req, erlang:get_stacktrace()])
+	end.
