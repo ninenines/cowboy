@@ -23,8 +23,11 @@
 %% Types.
 -type kv() :: {Name::binary(), Value::binary()}.
 -type kvlist() :: [kv()].
--type int_seconds() :: integer().
--export_type([kv/0, kvlist/0, int_seconds/0]).
+-type cookie_option() :: {max_age, integer()}
+                   | {local_time, {date(), time()}}
+                   | {domain, binary()} | {path, binary()}
+                   | {secure, true | false} | {http_only, true | false}.
+-export_type([kv/0, kvlist/0, cookie_option/0]).
 
 %% -define(QUOTE, $\").
 %% 
@@ -49,7 +52,7 @@
 %% @doc Parse the contents of a Cookie header field, ignoring cookie
 %% attributes, and return a simple property list.
 -spec parse_cookie(binary()) -> kvlist().
-parse_cookie(<<"">>) ->
+parse_cookie(<<>>) ->
     [];
 parse_cookie(Cookie) ->
     parse_cookie(Cookie, []).
@@ -62,10 +65,7 @@ cookie(Key, Value) ->
     cookie(Key, Value, []).
 
 %% @doc Generate a Set-Cookie header field tuple.
--spec cookie(Key::binary(), Value::binary(), Options::[Option]) -> header()
-    where Option = {max_age, int_seconds()} | {local_time, {date(), time()}}
-                   | {domain, binary()} | {path, binary()}
-                   | {secure, true | false} | {http_only, true | false}.
+-spec cookie(Key::binary(), Value::binary(), Options::[cookie_option()]) -> header().
 cookie(Key, Value, Options) ->
     Cookie = [any_to_list(Key), "=", quote(Value), "; Version=1"],
     %% Set-Cookie:
@@ -155,6 +155,7 @@ is_seperator(C) ->
         _ -> false
     end.
 
+%% @doc Check if a binary has an ASCII seperator character.
 has_seperator(<<>>) ->
     false;
 has_seperator(<<C:8, Rest/binary>>) ->
@@ -179,7 +180,6 @@ quote(V0) ->
             V
     end.
 
-%% @doc Perform a function
 %% Return a date in the form of: Wdy, DD-Mon-YYYY HH:MM:SS GMT
 %% See also: rfc2109: 10.1.2
 rfc2109_cookie_expires_date(LocalTime) ->
