@@ -4,38 +4,56 @@
 %% @doc HTTP Cookie parsing and generating (RFC 2109, RFC 2965).
 
 -module(cowboy_cookies).
+
+%% API.
 -export([parse_cookie/1, cookie/3, cookie/2]).
 
--define(QUOTE, $\").
+%% Types.
+-type kv() :: {Name::binary(), Value::binary()}.
+-type kvlist() :: [kv()].
+-type int_seconds() :: integer().
+-export_type([kv/0, kvlist/0, int_seconds/0]).
 
--define(IS_WHITESPACE(C),
-        (C =:= $\s orelse C =:= $\t orelse C =:= $\r orelse C =:= $\n)).
+%% -define(QUOTE, $\").
+%% 
+%% -define(IS_WHITESPACE(C),
+%%         (C =:= $\s orelse C =:= $\t orelse C =:= $\r orelse C =:= $\n)).
+%% 
+%% %% RFC 2616 separators (called tspecials in RFC 2068)
+%% -define(IS_SEPARATOR(C),
+%%         (C < 32 orelse
+%%          C =:= $\s orelse C =:= $\t orelse
+%%          C =:= $( orelse C =:= $) orelse C =:= $< orelse C =:= $> orelse
+%%          C =:= $@ orelse C =:= $, orelse C =:= $; orelse C =:= $: orelse
+%%          C =:= $\\ orelse C =:= $\" orelse C =:= $/ orelse
+%%          C =:= $[ orelse C =:= $] orelse C =:= $? orelse C =:= $= orelse
+%%          C =:= ${ orelse C =:= $})).
 
-%% RFC 2616 separators (called tspecials in RFC 2068)
--define(IS_SEPARATOR(C),
-        (C < 32 orelse
-         C =:= $\s orelse C =:= $\t orelse
-         C =:= $( orelse C =:= $) orelse C =:= $< orelse C =:= $> orelse
-         C =:= $@ orelse C =:= $, orelse C =:= $; orelse C =:= $: orelse
-         C =:= $\\ orelse C =:= $\" orelse C =:= $/ orelse
-         C =:= $[ orelse C =:= $] orelse C =:= $? orelse C =:= $= orelse
-         C =:= ${ orelse C =:= $})).
 
-%% @type proplist() = [{Key::string(), Value::string()}].
-%% @type header() = {Name::string(), Value::string()}.
-%% @type int_seconds() = integer().
+%% ----------------------------------------------------------------------------
+%% API
+%% ----------------------------------------------------------------------------
 
-%% @spec cookie(Key::string(), Value::string()) -> header()
+%% @doc Parse the contents of a Cookie header field, ignoring cookie
+%% attributes, and return a simple property list.
+-spec parse_cookie(binary()) -> kvlist().
+parse_cookie(<<"">>) ->
+    [];
+parse_cookie(Cookie) ->
+    parse_cookie(Cookie, []).
+
+
+
 %% @doc Short-hand for <code>cookie(Key, Value, [])</code>.
+-spec cookie(Key::binary(), Value::binary()) -> header().
 cookie(Key, Value) ->
     cookie(Key, Value, []).
 
-%% @spec cookie(Key::string(), Value::string(), Options::[Option]) -> header()
-%% where Option = {max_age, int_seconds()} | {local_time, {date(), time()}}
-%%                | {domain, string()} | {path, string()}
-%%                | {secure, true | false} | {http_only, true | false}
-%%
 %% @doc Generate a Set-Cookie header field tuple.
+-spec cookie(Key::binary(), Value::binary(), Options::[Option]) -> header()
+    where Option = {max_age, int_seconds()} | {local_time, {date(), time()}}
+                   | {domain, binary()} | {path, binary()}
+                   | {secure, true | false} | {http_only, true | false}.
 cookie(Key, Value, Options) ->
     Cookie = [any_to_list(Key), "=", quote(Value), "; Version=1"],
     %% Set-Cookie:
@@ -95,28 +113,61 @@ cookie(Key, Value, Options) ->
     {"Set-Cookie", lists:flatten(CookieParts)}.
 
 
-%% Every major browser incorrectly handles quoted strings in a
-%% different and (worse) incompatible manner.  Instead of wasting time
-%% writing redundant code for each browser, we restrict cookies to
-%% only contain characters that browsers handle compatibly.
-%%
-%% By replacing the definition of quote with this, we generate
-%% RFC-compliant cookies:
-%%
-%%     quote(V) ->
-%%         Fun = fun(?QUOTE, Acc) -> [$\\, ?QUOTE | Acc];
-%%                  (Ch, Acc) -> [Ch | Acc]
-%%               end,
-%%         [?QUOTE | lists:foldr(Fun, [?QUOTE], V)].
+%% ----------------------------------------------------------------------------
+%% Private
+%% ----------------------------------------------------------------------------
 
-%% Convert to a string and raise an error if quoting is required.
+%% @doc Check if a character is a seperator.
+is_seperator(C) when C < 32 -> true;
+is_seperator(C) ->
+    case C of
+        $\s -> true;
+        $\t -> true;
+        $( -> true;
+        $) -> true;
+        $< -> true;
+        $> -> true;
+        $@ -> true;
+        $, -> true;
+        $; -> true;
+        $: -> true;
+        $\\ -> true;
+        $\" -> true; %% "quote to fix vim highlighting
+        $/ -> true;
+        $[ -> true;
+        $] -> true;
+        $? -> true;
+        $= -> true;
+        ${ -> true;
+        $} -> true;
+        _ -> false
+    end.
+
+has_seperator(<<>>) ->
+    false;
+has_seperator(<<C:8, Rest/binary>>) ->
+    case is_seperator(C) of
+        true ->
+            true;
+        false ->
+            has_seperator(Rest)
+    end.
+
+%% @doc Convert to a binary and raise an error if quoting is required. Quoting
+%% is broken in different ways for different browsers. Its better to simply
+%% avoiding doing it at all.
+%% @end
+-spec quote(term()) -> binary().
 quote(V0) ->
-    V = any_to_list(V0),
-    lists:all(fun(Ch) -> Ch =:= $/ orelse not ?IS_SEPARATOR(Ch) end, V)
-        orelse erlang:error({cookie_quoting_required, V}),
-    V.
+    V = any_to_binary(V0),
+    case has_seperator(V) of
+        true ->
+            erlang:error({cookie_quoting_required, V});
+        false ->
+            V
+    end.
 
-
+%% @doc Perform a function
 %% Return a date in the form of: Wdy, DD-Mon-YYYY HH:MM:SS GMT
 %% See also: rfc2109: 10.1.2
 rfc2109_cookie_expires_date(LocalTime) ->
@@ -136,15 +187,6 @@ add_seconds(Secs, LocalTime) ->
 
 age_to_cookie_date(Age, LocalTime) ->
     rfc2109_cookie_expires_date(add_seconds(Age, LocalTime)).
-
-%% @spec parse_cookie(string()) -> [{K::string(), V::string()}]
-%% @doc Parse the contents of a Cookie header field, ignoring cookie
-%% attributes, and return a simple property list.
-parse_cookie("") ->
-    [];
-parse_cookie(Cookie) ->
-    parse_cookie(Cookie, []).
-
 %% Internal API
 
 parse_cookie([], Acc) ->
@@ -206,28 +248,29 @@ skip_past_separator([$, | Rest]) ->
 skip_past_separator([_ | Rest]) ->
     skip_past_separator(Rest).
 
-any_to_list(V) when is_list(V) ->
+any_to_binary(V) when is_binary(V) ->
     V;
-any_to_list(V) when is_atom(V) ->
-    atom_to_list(V);
-any_to_list(V) when is_binary(V) ->
-    binary_to_list(V);
-any_to_list(V) when is_integer(V) ->
-    integer_to_list(V).
+any_to_binary(V) when is_list(V) ->
+    erlang:list_to_binary(V);
+any_to_binary(V) when is_atom(V) ->
+    erlang:atom_to_binary(V, latin1);
+any_to_binary(V) when is_integer(V) ->
+    <<V>>.
 
-%%
+%% ----------------------------------------------------------------------------
 %% Tests
-%%
+%% ----------------------------------------------------------------------------
+
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 
 quote_test() ->
     %% ?assertError eunit macro is not compatible with coverage module
-    try quote(":wq")
-    catch error:{cookie_quoting_required, ":wq"} -> ok
+    try quote(<<":wq">>)
+    catch error:{cookie_quoting_required, <<":wq">>} -> ok
     end,
     ?assertEqual(
-       "foo",
+       <<"foo">>,
        quote(foo)),
     ok.
 
