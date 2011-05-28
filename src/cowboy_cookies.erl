@@ -1,5 +1,5 @@
 %% Copyright 2007 Mochi Media, Inc.
-%% Copyright (c) 2011, Thomas Burdick <thomas.burdick@gmail.com>
+%% Copyright 2011 Thomas Burdick <thomas.burdick@gmail.com>
 %%
 %% Permission to use, copy, modify, and/or distribute this software for any
 %% purpose with or without fee is hereby granted, provided that the above
@@ -24,26 +24,12 @@
 -type kv() :: {Name::binary(), Value::binary()}.
 -type kvlist() :: [kv()].
 -type cookie_option() :: {max_age, integer()}
-                   | {local_time, {date(), time()}}
+                   | {local_time, {calendar:date(), calendar:time()}}
                    | {domain, binary()} | {path, binary()}
                    | {secure, true | false} | {http_only, true | false}.
 -export_type([kv/0, kvlist/0, cookie_option/0]).
 
-%% -define(QUOTE, $\").
-%% 
-%% -define(IS_WHITESPACE(C),
-%%         (C =:= $\s orelse C =:= $\t orelse C =:= $\r orelse C =:= $\n)).
-%% 
-%% %% RFC 2616 separators (called tspecials in RFC 2068)
-%% -define(IS_SEPARATOR(C),
-%%         (C < 32 orelse
-%%          C =:= $\s orelse C =:= $\t orelse
-%%          C =:= $( orelse C =:= $) orelse C =:= $< orelse C =:= $> orelse
-%%          C =:= $@ orelse C =:= $, orelse C =:= $; orelse C =:= $: orelse
-%%          C =:= $\\ orelse C =:= $\" orelse C =:= $/ orelse
-%%          C =:= $[ orelse C =:= $] orelse C =:= $? orelse C =:= $= orelse
-%%          C =:= ${ orelse C =:= $})).
-
+-define(QUOTE, $\"). %% " Quote, fixes syntax highlighting.
 
 %% ----------------------------------------------------------------------------
 %% API
@@ -60,14 +46,15 @@ parse_cookie(Cookie) ->
 
 
 %% @doc Short-hand for <code>cookie(Key, Value, [])</code>.
--spec cookie(Key::binary(), Value::binary()) -> header().
+-spec cookie(Key::binary(), Value::binary()) -> kvlist().
 cookie(Key, Value) ->
     cookie(Key, Value, []).
 
 %% @doc Generate a Set-Cookie header field tuple.
--spec cookie(Key::binary(), Value::binary(), Options::[cookie_option()]) -> header().
+-spec cookie(Key::binary(), Value::binary(), Options::[cookie_option()]) ->
+    kvlist().
 cookie(Key, Value, Options) ->
-    Cookie = [any_to_list(Key), "=", quote(Value), "; Version=1"],
+    Cookie = [any_to_binary(Key), "=", quote(Value), "; Version=1"],
     %% Set-Cookie:
     %%    Comment, Domain, Max-Age, Path, Secure, Version
     %% Set-Cookie2:
@@ -129,31 +116,35 @@ cookie(Key, Value, Options) ->
 %% Private
 %% ----------------------------------------------------------------------------
 
+%% @doc Check if a character is a white space character.
+is_whitespace($\s) -> true;
+is_whitespace($\t) -> true;
+is_whitespace($\r) -> true;
+is_whitespace($\n) -> true;
+is_whitespace(_) -> false.
+
 %% @doc Check if a character is a seperator.
 is_seperator(C) when C < 32 -> true;
-is_seperator(C) ->
-    case C of
-        $\s -> true;
-        $\t -> true;
-        $( -> true;
-        $) -> true;
-        $< -> true;
-        $> -> true;
-        $@ -> true;
-        $, -> true;
-        $; -> true;
-        $: -> true;
-        $\\ -> true;
-        $\" -> true; %% "quote to fix vim highlighting
-        $/ -> true;
-        $[ -> true;
-        $] -> true;
-        $? -> true;
-        $= -> true;
-        ${ -> true;
-        $} -> true;
-        _ -> false
-    end.
+is_seperator($\s) -> true;
+is_seperator($\t) -> true;
+is_seperator($() -> true;
+is_seperator($)) -> true;
+is_seperator($<) -> true;
+is_seperator($>) -> true;
+is_seperator($@) -> true;
+is_seperator($,) -> true;
+is_seperator($;) -> true;
+is_seperator($:) -> true;
+is_seperator($\\) -> true;
+is_seperator(?QUOTE) -> true;
+is_seperator($/) -> true;
+is_seperator($[) -> true;
+is_seperator($]) -> true;
+is_seperator($?) -> true;
+is_seperator($=) -> true;
+is_seperator(${) -> true;
+is_seperator($}) -> true;
+is_seperator(_) -> false.
 
 %% @doc Check if a binary has an ASCII seperator character.
 has_seperator(<<>>) ->
@@ -188,10 +179,13 @@ rfc2109_cookie_expires_date(LocalTime) ->
             [Gmt]   -> Gmt;
             [_,Gmt] -> Gmt
         end,
-    DayNumber = calendar:day_of_the_week({YYYY,MM,DD}),
-    lists:flatten(
-      io_lib:format("~s, ~2.2.0w-~3.s-~4.4.0w ~2.2.0w:~2.2.0w:~2.2.0w GMT",
-                    [httpd_util:day(DayNumber),DD,httpd_util:month(MM),YYYY,Hour,Min,Sec])).
+    Wday = calendar:day_of_the_week({YYYY,MM,DD}),
+    <<(cowboy_clock:weekday(Wday)), ", ",
+      (cowboy_clock:pad_int(DD))/binary, "-", (cowboy_clock:month(MM)), "-",
+      (list_to_binary(integer_to_list(YYYY))), " ",
+      (cowboy_clock:pad_int(Hour))/binary, $:,
+      (cowbow_clock:pad_int(Min))/binary, $:,
+      (cowboy_clock:pad_int(Sec))/binary, " GMT">>.
 
 add_seconds(Secs, LocalTime) ->
     Greg = calendar:datetime_to_gregorian_seconds(LocalTime),
@@ -199,7 +193,6 @@ add_seconds(Secs, LocalTime) ->
 
 age_to_cookie_date(Age, LocalTime) ->
     rfc2109_cookie_expires_date(add_seconds(Age, LocalTime)).
-%% Internal API
 
 parse_cookie([], Acc) ->
     lists:reverse(Acc);
@@ -220,44 +213,74 @@ read_pair(String) ->
     {Value, Rest1} = read_value(skip_whitespace(Rest)),
     {{Token, Value}, skip_past_separator(Rest1)}.
 
-read_value([$= | Value]) ->
+read_value(<<$=,  Value/binary>>) ->
     Value1 = skip_whitespace(Value),
     case Value1 of
-        [?QUOTE | _] ->
+        <<?QUOTE, _/binary>> ->
             read_quoted(Value1);
         _ ->
             read_token(Value1)
     end;
 read_value(String) ->
-    {"", String}.
+    {<<>>, String}.
 
-read_quoted([?QUOTE | String]) ->
-    read_quoted(String, []).
+read_quoted(<<?QUOTE, String/binary>>) ->
+    read_quoted(String, <<>>).
 
-read_quoted([], Acc) ->
+read_quoted(<<>>, Acc) ->
     {lists:reverse(Acc), []};
-read_quoted([?QUOTE | Rest], Acc) ->
+read_quoted(<<?QUOTE, Rest/binary>>, Acc) ->
     {lists:reverse(Acc), Rest};
 read_quoted([$\\, Any | Rest], Acc) ->
     read_quoted(Rest, [Any | Acc]);
 read_quoted([C | Rest], Acc) ->
     read_quoted(Rest, [C | Acc]).
 
+
+%% @doc Drop characters while a function returns true.
+binary_dropwhile(_F, <<>>) ->
+    <<>>;
+binary_dropwhile(F, String) ->
+    <<C:8, Rest/binary>> = String,
+    case F(C) of
+        true ->
+            binary_dropwhile(F, Rest);
+        false ->
+            String
+    end.
+
+%% @doc Remove leading whitespace.
 skip_whitespace(String) ->
-    F = fun (C) -> ?IS_WHITESPACE(C) end,
-    lists:dropwhile(F, String).
+    binary_dropwhile(fun is_whitespace/1, String).
 
+%% @doc Split a binary when the current character causes F to return true.
+binary_splitwith(_F, Head, <<>>) ->
+    {Head, <<>>};
+binary_splitwith(F, Head, Tail) ->
+    <<C:8, NTail/binary>> = Tail,
+    case F(C) of
+        true ->
+            {Head, NTail};
+        false ->
+            binary_splitwith(F, <<Head, C>>, NTail)
+    end.
+
+%% @doc Split a binary with a function returning true or false on each char.
+binary_splitwith(F, String) ->
+    binary_splitwith(F, String, <<>>).
+
+%% @doc Split the binary when the next seperator is found.
 read_token(String) ->
-    F = fun (C) -> not ?IS_SEPARATOR(C) end,
-    lists:splitwith(F, String).
+    binary_splitwith(fun is_seperator/1, String).
 
-skip_past_separator([]) ->
-    [];
-skip_past_separator([$; | Rest]) ->
+%% @doc Return string after ; or , characters.
+skip_past_separator(<<>>) ->
+    <<>>;
+skip_past_separator(<<$;, Rest/binary>>) ->
     Rest;
-skip_past_separator([$, | Rest]) ->
+skip_past_separator(<<$, , Rest/binary>>) ->
     Rest;
-skip_past_separator([_ | Rest]) ->
+skip_past_separator(<<_:8, Rest/binary>>) ->
     skip_past_separator(Rest).
 
 any_to_binary(V) when is_binary(V) ->
