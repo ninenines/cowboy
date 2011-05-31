@@ -128,8 +128,8 @@ handler_loop(State=#state{messages={OK, Closed, Error}, timeout=Timeout},
 -spec websocket_data(#state{}, #http_req{}, any(), binary()) -> ok.
 websocket_data(State, Req, HandlerState, << 255, 0, _Rest/bits >>) ->
 	websocket_close(State, Req, HandlerState, {normal, closed});
-websocket_data(State, Req, HandlerState, Data) when byte_size(Data) < 3 ->
-	handler_loop(State, Req, HandlerState, Data);
+websocket_data(State, Req, HandlerState, <<>>) ->
+	handler_loop(State, Req, HandlerState, <<>>);
 websocket_data(State, Req, HandlerState, Data) ->
 	websocket_frame(State, Req, HandlerState, Data, binary:first(Data)).
 
