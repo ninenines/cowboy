@@ -33,6 +33,10 @@
 	reply/4, chunked_reply/3, chunk/2
 ]). %% Response API.
 
+-export([
+	compact/1
+]). %% Misc API.
+
 -include("include/http.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
@@ -212,6 +216,14 @@ chunked_reply(Code, Headers, Req=#http_req{socket=Socket, transport=Transport,
 chunk(Data, #http_req{socket=Socket, transport=Transport, resp_state=chunks}) ->
 	Transport:send(Socket, [integer_to_list(iolist_size(Data), 16),
 		<<"\r\n">>, Data, <<"\r\n">>]).
+
+%% Misc API.
+
+-spec compact(#http_req{}) -> #http_req{}.
+compact(Req) ->
+	Req#http_req{host=undefined, host_info=undefined, path=undefined,
+		path_info=undefined, qs_vals=undefined, raw_qs=undefined,
+		bindings=undefined, headers=[]}.
 
 %% Internal.
 
