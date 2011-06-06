@@ -13,7 +13,8 @@
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 -module(cowboy_http_websocket).
--export([upgrade/3]).
+-export([upgrade/3]). %% API.
+-export([handler_loop/4]). %% Internal.
 
 -include("include/http.hrl").
 
@@ -24,7 +25,8 @@
 	challenge = undefined :: undefined | binary(),
 	timeout = infinity :: timeout(),
 	messages = undefined :: undefined | {atom(), atom(), atom()},
-	eop :: tuple()
+	eop :: tuple(),
+	hibernate = false :: boolean()
 }).
 
 -spec upgrade(module(), any(), #http_req{}) -> ok.
@@ -95,7 +97,7 @@ websocket_handshake(State=#state{origin=Origin, challenge=Challenge},
 		 {<<"Sec-WebSocket-Location">>, Location},
 		 {<<"Sec-WebSocket-Origin">>, Origin}],
 		Challenge, Req#http_req{resp_state=waiting}),
-	handler_loop(State#state{messages=Transport:messages()},
+	handler_before_loop(State#state{messages=Transport:messages()},
 		Req2, HandlerState, <<>>).
 
 -spec websocket_location(atom(), binary(), inet:ip_port(), binary())
@@ -107,11 +109,21 @@ websocket_location(_Any, Host, Port, Path) ->
 	<< "ws://", Host/binary, ":",
 		(list_to_binary(integer_to_list(Port)))/binary, Path/binary >>.
 
--spec handler_loop(#state{}, #http_req{}, any(), binary()) -> ok.
-handler_loop(State=#state{messages={OK, Closed, Error}, timeout=Timeout},
+-spec handler_before_loop(#state{}, #http_req{}, any(), binary()) -> ok.
+handler_before_loop(State=#state{hibernate=true},
 		Req=#http_req{socket=Socket, transport=Transport},
 		HandlerState, SoFar) ->
 	Transport:setopts(Socket, [{active, once}]),
+	erlang:hibernate(?MODULE, handler_loop, [State#state{hibernate=false},
+		Req, HandlerState, SoFar]);
+handler_before_loop(State, Req=#http_req{socket=Socket, transport=Transport},
+		HandlerState, SoFar) ->
+	Transport:setopts(Socket, [{active, once}]),
+	handler_loop(State, Req, HandlerState, SoFar).
+
+-spec handler_loop(#state{}, #http_req{}, any(), binary()) -> ok.
+handler_loop(State=#state{messages={OK, Closed, Error}, timeout=Timeout},
+		Req=#http_req{socket=Socket}, HandlerState, SoFar) ->
 	receive
 		{OK, Socket, Data} ->
 			websocket_data(State, Req, HandlerState,
@@ -122,7 +134,7 @@ handler_loop(State=#state{messages={OK, Closed, Error}, timeout=Timeout},
 			handler_terminate(State, Req, HandlerState, {error, Reason});
 		Message ->
 			handler_call(State, Req, HandlerState,
-				SoFar, Message, fun handler_loop/4)
+				SoFar, Message, fun handler_before_loop/4)
 	after Timeout ->
 		websocket_close(State, Req, HandlerState, {normal, timeout})
 	end.
@@ -131,7 +143,7 @@ handler_loop(State=#state{messages={OK, Closed, Error}, timeout=Timeout},
 websocket_data(State, Req, HandlerState, << 255, 0, _Rest/bits >>) ->
 	websocket_close(State, Req, HandlerState, {normal, closed});
 websocket_data(State, Req, HandlerState, <<>>) ->
-	handler_loop(State, Req, HandlerState, <<>>);
+	handler_before_loop(State, Req, HandlerState, <<>>);
 websocket_data(State, Req, HandlerState, Data) ->
 	websocket_frame(State, Req, HandlerState, Data, binary:first(Data)).
 
@@ -146,7 +158,7 @@ websocket_frame(State=#state{eop=EOP}, Req, HandlerState, Data, 0) ->
 				Rest, {websocket, Frame}, fun websocket_data/4);
 		nomatch ->
 			%% @todo We probably should allow limiting frame length.
-			handler_loop(State, Req, HandlerState, Data)
+			handler_before_loop(State, Req, HandlerState, Data)
 	end;
 websocket_frame(State, Req, HandlerState, _Data, _FrameType) ->
 	websocket_close(State, Req, HandlerState, {error, badframe}).
@@ -157,9 +169,16 @@ handler_call(State=#state{handler=Handler, opts=Opts}, Req, HandlerState,
 	try Handler:websocket_handle(Message, Req, HandlerState) of
 		{ok, Req2, HandlerState2} ->
 			NextState(State, Req2, HandlerState2, RemainingData);
+		{ok, Req2, HandlerState2, hibernate} ->
+			NextState(State#state{hibernate=true},
+				Req2, HandlerState2, RemainingData);
 		{reply, Data, Req2, HandlerState2} ->
 			websocket_send(Data, Req2),
 			NextState(State, Req2, HandlerState2, RemainingData);
+		{reply, Data, Req2, HandlerState2, hibernate} ->
+			websocket_send(Data, Req2),
+			NextState(State#state{hibernate=true},
+				Req2, HandlerState2, RemainingData);
 		{shutdown, Req2, HandlerState2} ->
 			websocket_close(State, Req2, HandlerState2, {normal, shutdown})
 	catch Class:Reason ->
