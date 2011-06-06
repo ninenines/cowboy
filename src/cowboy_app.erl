@@ -15,7 +15,7 @@
 -module(cowboy_app).
 -behaviour(application).
 
--export([start/2, stop/1]). %% API.
+-export([start/2, stop/1, profile_output/0]). %% API.
 
 -type application_start_type() :: normal
 	| {takeover, node()} | {failover, node()}.
@@ -24,8 +24,29 @@
 
 -spec start(application_start_type(), any()) -> {ok, pid()}.
 start(_Type, _Args) ->
+	consider_profiling(),
 	cowboy_sup:start_link().
 
 -spec stop(any()) -> ok.
 stop(_State) ->
 	ok.
+
+-spec profile_output() -> ok.
+profile_output() ->
+	eprof:stop_profiling(),
+	eprof:log("procs.profile"),
+	eprof:analyze(procs),
+	eprof:log("total.profile"),
+	eprof:analyze(total).
+
+%% Internal.
+
+-spec consider_profiling() -> profiling | not_profiling.
+consider_profiling() ->
+	case application:get_env(profile) of
+		{ok, true} ->
+			eprof:start(),
+			eprof:start_profiling([self()]);
+		_ ->
+			not_profiling
+	end.
