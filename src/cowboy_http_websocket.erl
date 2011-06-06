@@ -23,12 +23,14 @@
 	origin = undefined :: undefined | binary(),
 	challenge = undefined :: undefined | binary(),
 	timeout = infinity :: timeout(),
-	messages = undefined :: undefined | {atom(), atom(), atom()}
+	messages = undefined :: undefined | {atom(), atom(), atom()},
+	eop :: tuple()
 }).
 
 -spec upgrade(module(), any(), #http_req{}) -> ok.
 upgrade(Handler, Opts, Req) ->
-	case catch websocket_upgrade(#state{handler=Handler, opts=Opts}, Req) of
+	EOP = binary:compile_pattern(<< 255 >>),
+	case catch websocket_upgrade(#state{handler=Handler, opts=Opts, eop=EOP}, Req) of
 		{ok, State, Req2} -> handler_init(State, Req2);
 		{'EXIT', _Reason} -> upgrade_error(Req)
 	end.
@@ -135,8 +137,8 @@ websocket_data(State, Req, HandlerState, Data) ->
 
 %% We do not support any frame type other than 0 yet. Just like the specs.
 -spec websocket_frame(#state{}, #http_req{}, any(), binary(), byte()) -> ok.
-websocket_frame(State, Req, HandlerState, Data, 0) ->
-	case binary:match(Data, << 255 >>) of
+websocket_frame(State=#state{eop=EOP}, Req, HandlerState, Data, 0) ->
+	case binary:match(Data, EOP) of
 		{Pos, 1} ->
 			Pos2 = Pos - 1,
 			<< 0, Frame:Pos2/binary, 255, Rest/bits >> = Data,
