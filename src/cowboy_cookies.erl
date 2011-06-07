@@ -81,8 +81,11 @@ cookie(Key, Value, Options) ->
                           false ->
                               RawAge
                       end,
-                <<"; Expires=", (age_to_cookie_date(Age, When))/binary,
-                 "; Max-Age=", (quote(Age))/binary>>
+                AgeBinary = quote(Age),
+                CookieDate = age_to_cookie_date(Age, When),
+                ?debugFmt("cookie date is ~p, max age is ~p~n", [CookieDate, AgeBinary]),
+                <<"; Expires=", CookieDate/binary,
+                 "; Max-Age=", AgeBinary/binary>>
         end,
     SecurePart =
         case proplists:get_value(secure, Options) of
@@ -178,18 +181,29 @@ quote(V0) ->
 %% Return a date in the form of: Wdy, DD-Mon-YYYY HH:MM:SS GMT
 %% See also: rfc2109: 10.1.2
 rfc2109_cookie_expires_date(LocalTime) ->
+    ?debugFmt("local time ~p~n", [LocalTime]),
     {{YYYY,MM,DD},{Hour,Min,Sec}} =
         case calendar:local_time_to_universal_time_dst(LocalTime) of
             [Gmt]   -> Gmt;
             [_,Gmt] -> Gmt
         end,
+    ?debugHere,
     Wday = calendar:day_of_the_week({YYYY,MM,DD}),
-    <<(cowboy_clock:weekday(Wday)), ", ",
-      (cowboy_clock:pad_int(DD))/binary, "-", (cowboy_clock:month(MM)), "-",
-      (list_to_binary(integer_to_list(YYYY))), " ",
-      (cowboy_clock:pad_int(Hour))/binary, $:,
-      (cowbow_clock:pad_int(Min))/binary, $:,
-      (cowboy_clock:pad_int(Sec))/binary, " GMT">>.
+    ?debugHere,
+    DayBin = cowboy_clock:pad_int(DD),
+    YearBin = list_to_binary(integer_to_list(YYYY)),
+    HourBin = cowboy_clock:pad_int(Hour),
+    MinBin = cowboy_clock:pad_int(Min),
+    SecBin = cowboy_clock:pad_int(Sec),
+    WeekDay = cowboy_clock:weekday(Wday),
+    Month = cowboy_clock:month(MM),
+    ?debugFmt("day ~p, year ~p, hour ~p, minute ~p, second ~p, weekday ~p, month ~p~n", [DayBin, YearBin, HourBin, MinBin, SecBin, WeekDay, Month]),
+    <<WeekDay/binary, ", ",
+      DayBin/binary, "-", Month/binary, "-",
+      YearBin/binary, " ",
+      HourBin/binary, ":",
+      MinBin/binary, ":",
+      SecBin/binary, " GMT">>.
 
 add_seconds(Secs, LocalTime) ->
     Greg = calendar:datetime_to_gregorian_seconds(LocalTime),
@@ -309,7 +323,7 @@ any_to_binary(V) when is_list(V) ->
 any_to_binary(V) when is_atom(V) ->
     erlang:atom_to_binary(V, latin1);
 any_to_binary(V) when is_integer(V) ->
-    <<V>>.
+    list_to_binary(integer_to_list(V)).
 
 %% ----------------------------------------------------------------------------
 %% Tests
@@ -394,6 +408,9 @@ local_time_test() ->
     ?debugHere,
     {<<"Set-Cookie">>, B} = cookie(<<"Customer">>, <<"WILE_E_COYOTE">>,
                                [{max_age, 111}, {secure, true}]),
+   
+    Result = binary:split(B, <<";">>, [global]),
+    ?debugFmt("cookie is ~p, split results ~p~n", [B, Result]),
     ?assertMatch(
        [<<"Customer=WILE_E_COYOTE">>,
         <<" Version=1">>,
