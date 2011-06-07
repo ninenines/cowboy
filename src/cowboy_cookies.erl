@@ -42,7 +42,6 @@
 %% attributes, and return a simple property list.
 -spec parse_cookie(binary()) -> kvlist().
 parse_cookie(<<>>) ->
-    ?debugMsg("parsing an empty cookie, returning empty list~n"),
     [];
 parse_cookie(Cookie) ->
     parse_cookie(Cookie, []).
@@ -83,7 +82,6 @@ cookie(Key, Value, Options) ->
                       end,
                 AgeBinary = quote(Age),
                 CookieDate = age_to_cookie_date(Age, When),
-                ?debugFmt("cookie date is ~p, max age is ~p~n", [CookieDate, AgeBinary]),
                 <<"; Expires=", CookieDate/binary,
                  "; Max-Age=", AgeBinary/binary>>
         end,
@@ -156,7 +154,9 @@ is_seperator(_) -> false.
 %% @doc Check if a binary has an ASCII seperator character.
 has_seperator(<<>>) ->
     false;
-has_seperator(<<C:8, Rest/binary>>) ->
+has_seperator(<<$/, Rest/binary>>) ->
+    has_seperator(Rest);
+has_seperator(<<C, Rest/binary>>) ->
     case is_seperator(C) of
         true ->
             true;
@@ -181,15 +181,12 @@ quote(V0) ->
 %% Return a date in the form of: Wdy, DD-Mon-YYYY HH:MM:SS GMT
 %% See also: rfc2109: 10.1.2
 rfc2109_cookie_expires_date(LocalTime) ->
-    ?debugFmt("local time ~p~n", [LocalTime]),
     {{YYYY,MM,DD},{Hour,Min,Sec}} =
         case calendar:local_time_to_universal_time_dst(LocalTime) of
             [Gmt]   -> Gmt;
             [_,Gmt] -> Gmt
         end,
-    ?debugHere,
     Wday = calendar:day_of_the_week({YYYY,MM,DD}),
-    ?debugHere,
     DayBin = cowboy_clock:pad_int(DD),
     YearBin = list_to_binary(integer_to_list(YYYY)),
     HourBin = cowboy_clock:pad_int(Hour),
@@ -197,9 +194,8 @@ rfc2109_cookie_expires_date(LocalTime) ->
     SecBin = cowboy_clock:pad_int(Sec),
     WeekDay = cowboy_clock:weekday(Wday),
     Month = cowboy_clock:month(MM),
-    ?debugFmt("day ~p, year ~p, hour ~p, minute ~p, second ~p, weekday ~p, month ~p~n", [DayBin, YearBin, HourBin, MinBin, SecBin, WeekDay, Month]),
     <<WeekDay/binary, ", ",
-      DayBin/binary, "-", Month/binary, "-",
+      DayBin/binary, " ", Month/binary, " ",
       YearBin/binary, " ",
       HourBin/binary, ":",
       MinBin/binary, ":",
@@ -213,10 +209,8 @@ age_to_cookie_date(Age, LocalTime) ->
     rfc2109_cookie_expires_date(add_seconds(Age, LocalTime)).
 
 parse_cookie(<<>>, Acc) ->
-    ?debugMsg("cookie finished parsing~n"),
     lists:reverse(Acc);
 parse_cookie(String, Acc) ->
-    ?debugFmt("parsing cookie ~p, acc ~p~n", [String, Acc]),
     {{Token, Value}, Rest} = read_pair(String),
     Acc1 = case Token of
                <<"">> ->
@@ -230,28 +224,21 @@ parse_cookie(String, Acc) ->
 
 read_pair(String) ->
     {Token, Rest} = read_token(skip_whitespace(String)),
-    ?debugFmt("after token ~p the rest of the cookie is ~p~n", [Token, Rest]),
     {Value, Rest1} = read_value(skip_whitespace(Rest)),
-    ?debugFmt("token ~p value is ~p~n", [Token, Value]),
     {{Token, Value}, skip_past_separator(Rest1)}.
 
 read_value(<<"=",  Value/binary>>) ->
-    ?debugMsg("found = in value binary, parsing the token"),
     Value1 = skip_whitespace(Value),
     case Value1 of
         <<?QUOTE, _R/binary>> ->
-            ?debugMsg("found quoted value~n"),
             read_quoted(Value1);
         _ ->
-            ?debugMsg("found unquoted value~n"),
             read_token(Value1)
     end;
 read_value(String) ->
-    ?debugMsg("found empty value~n"),
     {<<"">>, String}.
 
 read_quoted(<<?QUOTE, String/binary>>) ->
-    ?debugMsg("reading quoted cookie~n"),
     read_quoted(String, <<"">>).
 
 read_quoted(<<"">>, Acc) ->
@@ -266,22 +253,18 @@ read_quoted(<<C, Rest/binary>>, Acc) ->
 
 %% @doc Drop characters while a function returns true.
 binary_dropwhile(_F, <<"">>) ->
-    ?debugMsg("nothing but white space found"),
     <<"">>;
 binary_dropwhile(F, String) ->
     <<C, Rest/binary>> = String,
     case F(C) of
         true ->
-            ?debugFmt("dropwhile true checking ~p~n", [C]),
             binary_dropwhile(F, Rest);
         false ->
-            ?debugFmt("dropwhile stopping on ~p resulting in ~p~n", [C, String]),
             String
     end.
 
 %% @doc Remove leading whitespace.
 skip_whitespace(String) ->
-    ?debugFmt("skipping whitespace for string ~p~n", [String]),
     binary_dropwhile(fun is_whitespace/1, String).
 
 %% @doc Split a binary when the current character causes F to return true.
@@ -291,10 +274,8 @@ binary_splitwith(F, Head, Tail) ->
     <<C, NTail/binary>> = Tail,
     case F(C) of
         true ->
-            ?debugFmt("split succeeded, ~p ~p split on ~p~n", [Head, NTail, C]),
             {Head, Tail};
         false ->
-            ?debugFmt("split failed, ~p ~p split on ~p~n", [Head, NTail, C]),
             binary_splitwith(F, <<Head/binary, C>>, NTail)
     end.
 
@@ -333,66 +314,52 @@ any_to_binary(V) when is_integer(V) ->
 
 quote_test() ->
     %% ?assertError eunit macro is not compatible with coverage module
-    ?debugHere,
     try quote(<<":wq">>)
     catch error:{cookie_quoting_required, <<":wq">>} -> ok
     end,
     ?assertEqual(
        <<"foo">>,
        quote(foo)),
-    ?debugHere,
     ok.
 
 parse_cookie_test() ->
     %% RFC example
-    ?debugHere,
     C1 = <<"$Version=\"1\"; Customer=\"WILE_E_COYOTE\"; $Path=\"/acme\";
     Part_Number=\"Rocket_Launcher_0001\"; $Path=\"/acme\";
     Shipping=\"FedEx\"; $Path=\"/acme\"">>,
-    ?debugHere,
     ?assertEqual(
        [{<<"Customer">>,<<"WILE_E_COYOTE">>},
         {<<"Part_Number">>,<<"Rocket_Launcher_0001">>},
         {<<"Shipping">>,<<"FedEx">>}],
        parse_cookie(C1)),
     %% Potential edge cases
-    ?debugHere,
     ?assertEqual(
        [{<<"foo">>, <<"x">>}],
        parse_cookie(<<"foo=\"\\x\"">>)),
-    ?debugHere,
     ?assertEqual(
        [],
        parse_cookie(<<"=">>)),
-    ?debugHere,
     ?assertEqual(
        [{<<"foo">>, <<"">>}, {<<"bar">>, <<"">>}],
        parse_cookie(<<"  foo ; bar  ">>)),
-    ?debugHere,
     ?assertEqual(
        [{<<"foo">>, <<"">>}, {<<"bar">>, <<"">>}],
        parse_cookie(<<"foo=;bar=">>)),
-    ?debugHere,
     ?assertEqual(
        [{<<"foo">>, <<"\";">>}, {<<"bar">>, <<"">>}],
        parse_cookie(<<"foo = \"\\\";\";bar ">>)),
-    ?debugHere,
     ?assertEqual(
        [{<<"foo">>, <<"\";bar">>}],
        parse_cookie(<<"foo=\"\\\";bar">>)),
-    ?debugHere,
     ?assertEqual(
        [],
        parse_cookie(<<"">>)),
-    ?debugHere,
     ?assertEqual(
        [{<<"foo">>, <<"bar">>}, {<<"baz">>, <<"wibble">>}],
        parse_cookie(<<"foo=bar , baz=wibble ">>)),
-    ?debugHere,
     ok.
 
 domain_test() ->
-    ?debugHere,
     ?assertEqual(
        {<<"Set-Cookie">>,
         <<"Customer=WILE_E_COYOTE; "
@@ -401,16 +368,12 @@ domain_test() ->
         "HttpOnly">>},
        cookie(<<"Customer">>, <<"WILE_E_COYOTE">>,
               [{http_only, true}, {domain, <<"acme.com">>}])),
-    ?debugHere,
     ok.
 
 local_time_test() ->
-    ?debugHere,
     {<<"Set-Cookie">>, B} = cookie(<<"Customer">>, <<"WILE_E_COYOTE">>,
                                [{max_age, 111}, {secure, true}]),
    
-    Result = binary:split(B, <<";">>, [global]),
-    ?debugFmt("cookie is ~p, split results ~p~n", [B, Result]),
     ?assertMatch(
        [<<"Customer=WILE_E_COYOTE">>,
         <<" Version=1">>,
@@ -418,19 +381,20 @@ local_time_test() ->
         <<" Max-Age=111">>,
         <<" Secure">>],
        binary:split(B, <<";">>, [global])),
-    ?debugHere,
     ok.
 
 cookie_test() ->
-    ?debugHere,
     C1 = {<<"Set-Cookie">>,
           <<"Customer=WILE_E_COYOTE; "
           "Version=1; "
           "Path=/acme">>},
     C1 = cookie(<<"Customer">>, <<"WILE_E_COYOTE">>, [{path, <<"/acme">>}]),
+
     C1 = cookie(<<"Customer">>, <<"WILE_E_COYOTE">>,
                 [{path, <<"/acme">>}, {badoption, <<"negatory">>}]),
+
     C1 = cookie('Customer', 'WILE_E_COYOTE', [{path, '/acme'}]),
+
     C1 = cookie("Customer", "WILE_E_COYOTE", [{path, "/acme"}]),
 
     {<<"Set-Cookie">>,<<"=NoKey; Version=1">>} = cookie(<<"">>, <<"NoKey">>, []),
@@ -450,7 +414,6 @@ cookie_test() ->
           "Max-Age=86417">>},
     C3 = cookie(<<"Customer">>, <<"WILE_E_COYOTE">>,
                 [{max_age, 86417}, {local_time, LocalTime}]),
-    ?debugHere,
     ok.
 
 -endif.
