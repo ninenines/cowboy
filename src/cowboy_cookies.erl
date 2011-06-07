@@ -42,7 +42,7 @@
 %% attributes, and return a simple property list.
 -spec parse_cookie(binary()) -> kvlist().
 parse_cookie(<<>>) ->
-    ?debugHere,
+    ?debugMsg("parsing an empty cookie, returning empty list~n"),
     [];
 parse_cookie(Cookie) ->
     parse_cookie(Cookie, []).
@@ -199,15 +199,15 @@ age_to_cookie_date(Age, LocalTime) ->
     rfc2109_cookie_expires_date(add_seconds(Age, LocalTime)).
 
 parse_cookie(<<>>, Acc) ->
-    ?debugHere,
-    Acc;
+    ?debugMsg("cookie finished parsing~n"),
+    lists:reverse(Acc);
 parse_cookie(String, Acc) ->
-    ?debugHere,
+    ?debugFmt("parsing cookie ~p, acc ~p~n", [String, Acc]),
     {{Token, Value}, Rest} = read_pair(String),
     Acc1 = case Token of
-               "" ->
+               <<"">> ->
                    Acc;
-               "$" ++ _ ->
+               <<"$", _R/binary>> ->
                    Acc;
                _ ->
                    [{Token, Value} | Acc]
@@ -216,77 +216,90 @@ parse_cookie(String, Acc) ->
 
 read_pair(String) ->
     {Token, Rest} = read_token(skip_whitespace(String)),
+    ?debugFmt("after token ~p the rest of the cookie is ~p~n", [Token, Rest]),
     {Value, Rest1} = read_value(skip_whitespace(Rest)),
+    ?debugFmt("token ~p value is ~p~n", [Token, Value]),
     {{Token, Value}, skip_past_separator(Rest1)}.
 
-read_value(<<$=,  Value/binary>>) ->
+read_value(<<"=",  Value/binary>>) ->
+    ?debugMsg("found = in value binary, parsing the token"),
     Value1 = skip_whitespace(Value),
     case Value1 of
-        <<?QUOTE, _/binary>> ->
+        <<?QUOTE, _R/binary>> ->
+            ?debugMsg("found quoted value~n"),
             read_quoted(Value1);
         _ ->
+            ?debugMsg("found unquoted value~n"),
             read_token(Value1)
     end;
 read_value(String) ->
-    {<<>>, String}.
+    ?debugMsg("found empty value~n"),
+    {<<"">>, String}.
 
 read_quoted(<<?QUOTE, String/binary>>) ->
-    read_quoted(String, <<>>).
+    ?debugMsg("reading quoted cookie~n"),
+    read_quoted(String, <<"">>).
 
-read_quoted(<<>>, Acc) ->
-    {lists:reverse(Acc), []};
+read_quoted(<<"">>, Acc) ->
+    {Acc, <<"">>};
 read_quoted(<<?QUOTE, Rest/binary>>, Acc) ->
-    {lists:reverse(Acc), Rest};
-read_quoted([$\\, Any | Rest], Acc) ->
-    read_quoted(Rest, [Any | Acc]);
-read_quoted([C | Rest], Acc) ->
-    read_quoted(Rest, [C | Acc]).
+    {Acc, Rest};
+read_quoted(<<$\\, Any, Rest/binary>>, Acc) ->
+    read_quoted(Rest, <<Acc/binary, Any>>);
+read_quoted(<<C, Rest/binary>>, Acc) ->
+    read_quoted(Rest, <<Acc/binary, C>>).
 
 
 %% @doc Drop characters while a function returns true.
-binary_dropwhile(_F, <<>>) ->
-    <<>>;
+binary_dropwhile(_F, <<"">>) ->
+    ?debugMsg("nothing but white space found"),
+    <<"">>;
 binary_dropwhile(F, String) ->
-    <<C:8, Rest/binary>> = String,
+    <<C, Rest/binary>> = String,
     case F(C) of
         true ->
+            ?debugFmt("dropwhile true checking ~p~n", [C]),
             binary_dropwhile(F, Rest);
         false ->
+            ?debugFmt("dropwhile stopping on ~p resulting in ~p~n", [C, String]),
             String
     end.
 
 %% @doc Remove leading whitespace.
 skip_whitespace(String) ->
+    ?debugFmt("skipping whitespace for string ~p~n", [String]),
     binary_dropwhile(fun is_whitespace/1, String).
 
 %% @doc Split a binary when the current character causes F to return true.
 binary_splitwith(_F, Head, <<>>) ->
     {Head, <<>>};
 binary_splitwith(F, Head, Tail) ->
-    <<C:8, NTail/binary>> = Tail,
+    <<C, NTail/binary>> = Tail,
     case F(C) of
         true ->
-            {Head, NTail};
+            ?debugFmt("split succeeded, ~p ~p split on ~p~n", [Head, NTail, C]),
+            {Head, Tail};
         false ->
-            binary_splitwith(F, <<Head, C>>, NTail)
+            ?debugFmt("split failed, ~p ~p split on ~p~n", [Head, NTail, C]),
+            binary_splitwith(F, <<Head/binary, C>>, NTail)
     end.
 
 %% @doc Split a binary with a function returning true or false on each char.
 binary_splitwith(F, String) ->
-    binary_splitwith(F, String, <<>>).
+    binary_splitwith(F, <<>>, String). 
 
 %% @doc Split the binary when the next seperator is found.
 read_token(String) ->
     binary_splitwith(fun is_seperator/1, String).
 
 %% @doc Return string after ; or , characters.
-skip_past_separator(<<>>) ->
-    <<>>;
-skip_past_separator(<<$;, Rest/binary>>) ->
+skip_past_separator(<<"">>) ->
+    <<"">>;
+skip_past_separator(<<";", Rest/binary>>) ->
     Rest;
-skip_past_separator(<<$, , Rest/binary>>) ->
+skip_past_separator(<<",", Rest/binary>>) ->
     Rest;
-skip_past_separator(<<_:8, Rest/binary>>) ->
+skip_past_separator(<<_C, Rest/binary>>) ->
     skip_past_separator(Rest).
 
 any_to_binary(V) when is_binary(V) ->
