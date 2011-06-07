@@ -2,3 +2,5 @@
 ebin
 logs
 test/*.beam
+*.un~
+\#*\#
