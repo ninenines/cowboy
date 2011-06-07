@@ -58,7 +58,7 @@ cookie(Key, Value) ->
 -spec cookie(Key::binary(), Value::binary(), Options::[cookie_option()]) ->
     kvlist().
 cookie(Key, Value, Options) ->
-    Cookie = [any_to_binary(Key), "=", quote(Value), "; Version=1"],
+    Cookie = <<(any_to_binary(Key))/binary, "=", (quote(Value))/binary, "; Version=1">>,
     %% Set-Cookie:
     %%    Comment, Domain, Max-Age, Path, Secure, Version
     %% Set-Cookie2:
@@ -67,7 +67,7 @@ cookie(Key, Value, Options) ->
     ExpiresPart =
         case proplists:get_value(max_age, Options) of
             undefined ->
-                "";
+                <<"">>;
             RawAge ->
                 When = case proplists:get_value(local_time, Options) of
                            undefined ->
@@ -81,39 +81,39 @@ cookie(Key, Value, Options) ->
                           false ->
                               RawAge
                       end,
-                ["; Expires=", age_to_cookie_date(Age, When),
-                 "; Max-Age=", quote(Age)]
+                <<"; Expires=", (age_to_cookie_date(Age, When))/binary,
+                 "; Max-Age=", (quote(Age))/binary>>
         end,
     SecurePart =
         case proplists:get_value(secure, Options) of
             true ->
-                "; Secure";
+                <<"; Secure">>;
             _ ->
-                ""
+                <<"">>
         end,
     DomainPart =
         case proplists:get_value(domain, Options) of
             undefined ->
-                "";
+                <<"">>;
             Domain ->
-                ["; Domain=", quote(Domain)]
+                <<"; Domain=", (quote(Domain))/binary>>
         end,
     PathPart =
         case proplists:get_value(path, Options) of
             undefined ->
-                "";
+                <<"">>;
             Path ->
-                ["; Path=", quote(Path)]
+                <<"; Path=", (quote(Path))/binary>>
         end,
     HttpOnlyPart =
         case proplists:get_value(http_only, Options) of
             true ->
-                "; HttpOnly";
+                <<"; HttpOnly">>;
             _ ->
-                ""
+                <<"">>
         end,
-    CookieParts = [Cookie, ExpiresPart, SecurePart, DomainPart, PathPart, HttpOnlyPart],
-    {"Set-Cookie", lists:flatten(CookieParts)}.
+    CookieParts = <<Cookie/binary, ExpiresPart/binary, SecurePart/binary, DomainPart/binary, PathPart/binary, HttpOnlyPart/binary>>,
+    {<<"Set-Cookie">>, CookieParts}.
 
 
 %% ----------------------------------------------------------------------------
