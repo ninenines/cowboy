@@ -31,6 +31,9 @@
 
 -define(QUOTE, $\"). %% " Quote, fixes syntax highlighting.
 
+-include_lib("eunit/include/eunit.hrl").
+
+
 %% ----------------------------------------------------------------------------
 %% API
 %% ----------------------------------------------------------------------------
@@ -39,6 +42,7 @@
 %% attributes, and return a simple property list.
 -spec parse_cookie(binary()) -> kvlist().
 parse_cookie(<<>>) ->
+    ?debugHere,
     [];
 parse_cookie(Cookie) ->
     parse_cookie(Cookie, []).
@@ -194,9 +198,11 @@ add_seconds(Secs, LocalTime) ->
 age_to_cookie_date(Age, LocalTime) ->
     rfc2109_cookie_expires_date(add_seconds(Age, LocalTime)).
 
-parse_cookie([], Acc) ->
-    lists:reverse(Acc);
+parse_cookie(<<>>, Acc) ->
+    ?debugHere,
+    Acc;
 parse_cookie(String, Acc) ->
+    ?debugHere,
     {{Token, Value}, Rest} = read_pair(String),
     Acc1 = case Token of
                "" ->
@@ -297,56 +303,69 @@ any_to_binary(V) when is_integer(V) ->
 %% ----------------------------------------------------------------------------
 
 -ifdef(TEST).
--include_lib("eunit/include/eunit.hrl").
 
 quote_test() ->
     %% ?assertError eunit macro is not compatible with coverage module
+    ?debugHere,
     try quote(<<":wq">>)
     catch error:{cookie_quoting_required, <<":wq">>} -> ok
     end,
     ?assertEqual(
        <<"foo">>,
        quote(foo)),
+    ?debugHere,
     ok.
 
 parse_cookie_test() ->
     %% RFC example
+    ?debugHere,
     C1 = <<"$Version=\"1\"; Customer=\"WILE_E_COYOTE\"; $Path=\"/acme\";
     Part_Number=\"Rocket_Launcher_0001\"; $Path=\"/acme\";
     Shipping=\"FedEx\"; $Path=\"/acme\"">>,
+    ?debugHere,
     ?assertEqual(
        [{<<"Customer">>,<<"WILE_E_COYOTE">>},
         {<<"Part_Number">>,<<"Rocket_Launcher_0001">>},
         {<<"Shipping">>,<<"FedEx">>}],
        parse_cookie(C1)),
     %% Potential edge cases
+    ?debugHere,
     ?assertEqual(
        [{<<"foo">>, <<"x">>}],
        parse_cookie(<<"foo=\"\\x\"">>)),
+    ?debugHere,
     ?assertEqual(
        [],
        parse_cookie(<<"=">>)),
+    ?debugHere,
     ?assertEqual(
        [{<<"foo">>, <<"">>}, {<<"bar">>, <<"">>}],
        parse_cookie(<<"  foo ; bar  ">>)),
+    ?debugHere,
     ?assertEqual(
        [{<<"foo">>, <<"">>}, {<<"bar">>, <<"">>}],
        parse_cookie(<<"foo=;bar=">>)),
+    ?debugHere,
     ?assertEqual(
        [{<<"foo">>, <<"\";">>}, {<<"bar">>, <<"">>}],
        parse_cookie(<<"foo = \"\\\";\";bar ">>)),
+    ?debugHere,
     ?assertEqual(
        [{<<"foo">>, <<"\";bar">>}],
        parse_cookie(<<"foo=\"\\\";bar">>)),
+    ?debugHere,
     ?assertEqual(
        [],
        parse_cookie(<<"">>)),
+    ?debugHere,
     ?assertEqual(
        [{<<"foo">>, <<"bar">>}, {<<"baz">>, <<"wibble">>}],
        parse_cookie(<<"foo=bar , baz=wibble ">>)),
+    ?debugHere,
     ok.
 
 domain_test() ->
+    ?debugHere,
     ?assertEqual(
        {<<"Set-Cookie">>,
         <<"Customer=WILE_E_COYOTE; "
@@ -355,9 +374,11 @@ domain_test() ->
         "HttpOnly">>},
        cookie(<<"Customer">>, <<"WILE_E_COYOTE">>,
               [{http_only, true}, {domain, <<"acme.com">>}])),
+    ?debugHere,
     ok.
 
 local_time_test() ->
+    ?debugHere,
     {<<"Set-Cookie">>, B} = cookie(<<"Customer">>, <<"WILE_E_COYOTE">>,
                                [{max_age, 111}, {secure, true}]),
     ?assertMatch(
@@ -367,9 +388,11 @@ local_time_test() ->
         <<" Max-Age=111">>,
         <<" Secure">>],
        binary:split(B, <<";">>, [global])),
+    ?debugHere,
     ok.
 
 cookie_test() ->
+    ?debugHere,
     C1 = {<<"Set-Cookie">>,
           <<"Customer=WILE_E_COYOTE; "
           "Version=1; "
@@ -397,6 +420,7 @@ cookie_test() ->
           "Max-Age=86417">>},
     C3 = cookie(<<"Customer">>, <<"WILE_E_COYOTE">>,
                 [{max_age, 86417}, {local_time, LocalTime}]),
+    ?debugHere,
     ok.
 
 -endif.
