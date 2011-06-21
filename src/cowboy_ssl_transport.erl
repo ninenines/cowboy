@@ -25,7 +25,8 @@ name() -> ssl.
 messages() -> {ssl, ssl_closed, ssl_error}.
 
 -spec listen([{port, inet:ip_port()} | {certfile, string()}
-	| {keyfile, string()} | {password, string()}])
+	| {keyfile, string()} | {password, string()}
+	| {ip, inet:ip_address()}])
 	-> {ok, ssl:sslsocket()} | {error, atom()}.
 listen(Opts) ->
 	require([crypto, public_key, ssl]),
@@ -34,9 +35,15 @@ listen(Opts) ->
 	{certfile, CertFile} = lists:keyfind(certfile, 1, Opts),
 	{keyfile, KeyFile} = lists:keyfind(keyfile, 1, Opts),
 	{password, Password} = lists:keyfind(password, 1, Opts),
-	ssl:listen(Port, [binary, {active, false},
+	ListenOpts0 = [binary, {active, false},
 		{backlog, Backlog}, {packet, raw}, {reuseaddr, true},
-		{certfile, CertFile}, {keyfile, KeyFile}, {password, Password}]).
+		{certfile, CertFile}, {keyfile, KeyFile}, {password, Password}],
+	ListenOpts =
+		case lists:keyfind(ip, 1, Opts) of
+			false -> ListenOpts0;
+			Ip -> [Ip|ListenOpts0]
+		end,
+	ssl:listen(Port, ListenOpts).
 
 -spec accept(ssl:sslsocket(), timeout())
 	-> {ok, ssl:sslsocket()} | {error, closed | timeout | atom()}.
