@@ -1,3 +1,4 @@
+.cowboy_dialyzer.plt
 .eunit
 ebin
 logs

@@ -1,5 +1,6 @@
 # See LICENSE for licensing information.
 
+DIALYZER = dialyzer
 REBAR = rebar
 
 all: app
@@ -20,5 +21,11 @@ eunit:
 ct:
 	@$(REBAR) ct
 
+build-plt:
+	@$(DIALYZER) --build_plt --output_plt .cowboy_dialyzer.plt \
+		--apps kernel stdlib sasl inets crypto public_key ssl
+
 dialyze:
-	@$(REBAR) dialyze
+	@$(DIALYZER) --src src --plt .cowboy_dialyzer.plt \
+		-Wbehaviours -Werror_handling \
+		-Wrace_conditions -Wunmatched_returns # -Wunderspecs
