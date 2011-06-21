@@ -24,12 +24,19 @@ name() -> tcp.
 -spec messages() -> {tcp, tcp_closed, tcp_error}.
 messages() -> {tcp, tcp_closed, tcp_error}.
 
--spec listen([{port, inet:ip_port()}]) -> {ok, inet:socket()} | {error, atom()}.
+-spec listen([{port, inet:ip_port()} | {ip, inet:ip_address()}])
+	-> {ok, inet:socket()} | {error, atom()}.
 listen(Opts) ->
 	{port, Port} = lists:keyfind(port, 1, Opts),
 	Backlog = proplists:get_value(backlog, Opts, 1024),
-	gen_tcp:listen(Port, [binary, {active, false},
-		{backlog, Backlog}, {packet, raw}, {reuseaddr, true}]).
+	ListenOpts0 = [binary, {active, false},
+		{backlog, Backlog}, {packet, raw}, {reuseaddr, true}],
+	ListenOpts =
+		case lists:keyfind(ip, 1, Opts) of
+			false -> ListenOpts0;
+			Ip -> [Ip|ListenOpts0]
+		end,
+	gen_tcp:listen(Port, ListenOpts).
 
 -spec accept(inet:socket(), timeout())
 	-> {ok, inet:socket()} | {error, closed | timeout | atom()}.
