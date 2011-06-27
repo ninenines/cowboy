@@ -17,6 +17,7 @@
 -export([handler_loop/4]). %% Internal.
 
 -include("include/http.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 -record(state, {
 	handler :: module(),
@@ -102,12 +103,18 @@ websocket_handshake(State=#state{origin=Origin, challenge=Challenge},
 
 -spec websocket_location(atom(), binary(), inet:ip_port(), binary())
 	-> binary().
-websocket_location(ssl, Host, Port, Path) ->
-	<< "wss://", Host/binary, ":",
-		(list_to_binary(integer_to_list(Port)))/binary, Path/binary >>;
-websocket_location(_Any, Host, Port, Path) ->
-	<< "ws://", Host/binary, ":",
-		(list_to_binary(integer_to_list(Port)))/binary, Path/binary >>.
+websocket_location(Protocol, Host, Port, Path) ->
+  << (websocket_location_protocol(Protocol))/binary, "://", Host/binary,
+    (websocket_location_port(ssl, Port))/binary, Path/binary >>.
+
+-spec websocket_location_protocol(atom()) -> binary().
+websocket_location_protocol(ssl) -> <<"wss">>;
+websocket_location_protocol(_)   -> <<"ws">>.
+
+-spec websocket_location_port(atom(), inet:ip_port()) -> binary().
+websocket_location_port(ssl, 443) -> <<"">>;
+websocket_location_port(_, 80)    -> <<"">>;
+websocket_location_port(_, Port)  -> <<":", (list_to_binary(integer_to_list(Port)))/binary>>.
 
 -spec handler_before_loop(#state{}, #http_req{}, any(), binary()) -> ok.
 handler_before_loop(State=#state{hibernate=true},
@@ -218,3 +225,17 @@ handler_terminate(#state{handler=Handler, opts=Opts},
 			[Handler, Class, Reason, TerminateReason, Opts,
 			 HandlerState, Req, erlang:get_stacktrace()])
 	end.
+
+%% eunit
+
+-ifdef(TEST).
+
+websocket_location_test() ->
+  ?assertEqual(<<"ws://localhost/path">>, websocket_location(other, <<"localhost">>, 80, <<"/path">>)),
+  ?assertEqual(<<"ws://localhost:8080/path">>, websocket_location(other, <<"localhost">>, 8080, <<"/path">>)),
+  ?assertEqual(<<"wss://localhost/path">>, websocket_location(ssl, <<"localhost">>, 443, <<"/path">>)),
+  ?assertEqual(<<"wss://localhost:8443/path">>, websocket_location(ssl, <<"localhost">>, 8443, <<"/path">>)),
+  ok.
+
+-endif.
+
