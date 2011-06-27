@@ -15,6 +15,8 @@
 -module(cowboy_http_websocket_handler).
 -export([behaviour_info/1]).
 
+-spec behaviour_info(_) -> undefined | [{websocket_handle, 3}
+	| {websocket_init, 3} | {websocket_terminate, 3}, ...].
 behaviour_info(callbacks) ->
 	[{websocket_init, 3}, {websocket_handle, 3}, {websocket_terminate, 3}];
 behaviour_info(_Other) ->
