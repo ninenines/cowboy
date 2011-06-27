@@ -212,7 +212,7 @@ websocket(Config) ->
 	[Headers, Body] = websocket_headers(erlang:decode_packet(httph, Rest, []), []),
 	{'Connection', "Upgrade"} = lists:keyfind('Connection', 1, Headers),
 	{'Upgrade', "WebSocket"} = lists:keyfind('Upgrade', 1, Headers),
-	{"sec-websocket-location", "ws://localhost:80/websocket"}
+	{"sec-websocket-location", "ws://localhost/websocket"}
 		= lists:keyfind("sec-websocket-location", 1, Headers),
 	{"sec-websocket-origin", "http://localhost"}
 		= lists:keyfind("sec-websocket-origin", 1, Headers),
