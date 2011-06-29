@@ -89,7 +89,7 @@ raw_path(Req) ->
 
 -spec qs_val(binary(), #http_req{})
 	-> {binary() | true | undefined, #http_req{}}.
-%% @equiv qs_val(Name, Req) -> qs_val(Name, Req, undefined)
+%% @equiv qs_val(Name, Req, undefined)
 qs_val(Name, Req) ->
 	qs_val(Name, Req, undefined).
 
@@ -116,7 +116,7 @@ raw_qs(Req) ->
 	{Req#http_req.raw_qs, Req}.
 
 -spec binding(atom(), #http_req{}) -> {binary() | undefined, #http_req{}}.
-%% @equiv binding(Name, Req) -> binding(Name, Req, undefined)
+%% @equiv binding(Name, Req, undefined)
 binding(Name, Req) ->
 	binding(Name, Req, undefined).
 
@@ -134,7 +134,7 @@ bindings(Req) ->
 
 -spec header(atom() | binary(), #http_req{})
 	-> {binary() | undefined, #http_req{}}.
-%% @equiv header(Name, Req) -> header(Name, Req, undefined)
+%% @equiv header(Name, Req, undefined)
 header(Name, Req) ->
 	header(Name, Req, undefined).
 
