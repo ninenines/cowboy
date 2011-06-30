@@ -30,6 +30,7 @@ Quick start
 * Add Cowboy as a rebar or agner dependency to your application.
 * Start Cowboy and add one or more listeners.
 * Write handlers for your application.
+* Check out [examples](https://github.com/extend/cowboy_examples)!
 
 Getting Started
 ---------------
