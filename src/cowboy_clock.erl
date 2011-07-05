@@ -15,7 +15,7 @@
 -module(cowboy_clock).
 -behaviour(gen_server).
 
--export([start_link/0, stop/0, rfc1123/0, month/1, weekday/1, pad_int/1]). %% API.
+-export([start_link/0, stop/0, rfc1123/0, rfc2109/1]). %% API.
 -export([init/1, handle_call/3, handle_cast/2,
 	handle_info/2, terminate/2, code_change/3]). %% gen_server.
 
@@ -57,6 +57,29 @@ stop() ->
 -spec rfc1123() -> binary().
 rfc1123() ->
 	ets:lookup_element(?TABLE, rfc1123, 2).
+
+-spec rfc2109(datetime()) -> binary().
+rfc2109(LocalTime) ->
+	{{YYYY,MM,DD},{Hour,Min,Sec}} =
+	case calendar:local_time_to_universal_time_dst(LocalTime) of
+	    [Gmt]   -> Gmt;
+	    [_,Gmt] -> Gmt
+	end,
+	Wday = calendar:day_of_the_week({YYYY,MM,DD}),
+	DayBin = pad_int(DD),
+	YearBin = list_to_binary(integer_to_list(YYYY)),
+	HourBin = pad_int(Hour),
+	MinBin = pad_int(Min),
+	SecBin = pad_int(Sec),
+	WeekDay = weekday(Wday),
+	Month = month(MM),
+	<<WeekDay/binary, ", ",
+	DayBin/binary, " ", Month/binary, " ",
+	YearBin/binary, " ",
+	HourBin/binary, ":",
+	MinBin/binary, ":",
+	SecBin/binary, " GMT">>.
+
 
 %% gen_server.
 

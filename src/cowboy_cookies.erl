@@ -13,7 +13,7 @@
 %% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-%% @doc HTTP Cookie parsing and generating (RFC 2109, RFC 2965).
+%% @doc HTTP Cookie parsing and generating (RFC 2965).
 
 -module(cowboy_cookies).
 
@@ -46,16 +46,13 @@ parse_cookie(<<>>) ->
 parse_cookie(Cookie) ->
     parse_cookie(Cookie, []).
 
-
-
 %% @doc Short-hand for <code>cookie(Key, Value, [])</code>.
--spec cookie(Key::binary(), Value::binary()) -> kvlist().
+-spec cookie(binary(), binary()) -> kvlist().
 cookie(Key, Value) ->
     cookie(Key, Value, []).
 
 %% @doc Generate a Set-Cookie header field tuple.
--spec cookie(Key::binary(), Value::binary(), Options::[cookie_option()]) ->
-    kvlist().
+-spec cookie(binary(), binary(), [cookie_option()]) -> kvlist().
 cookie(Key, Value, Options) ->
     Cookie = <<(any_to_binary(Key))/binary, "=", (quote(Value))/binary, "; Version=1">>,
     %% Set-Cookie:
@@ -119,6 +116,7 @@ cookie(Key, Value, Options) ->
 %% ----------------------------------------------------------------------------
 
 %% @doc Check if a character is a white space character.
+-spec is_whitespace(char()) -> boolean().
 is_whitespace($\s) -> true;
 is_whitespace($\t) -> true;
 is_whitespace($\r) -> true;
@@ -126,6 +124,7 @@ is_whitespace($\n) -> true;
 is_whitespace(_) -> false.
 
 %% @doc Check if a character is a seperator.
+-spec is_separator(char()) -> boolean().
 is_separator(C) when C < 32 -> true;
 is_separator($\s) -> true;
 is_separator($\t) -> true;
@@ -149,6 +148,7 @@ is_separator($}) -> true;
 is_separator(_) -> false.
 
 %% @doc Check if a binary has an ASCII seperator character.
+-spec has_seperator(binary()) -> boolean().
 has_seperator(<<>>) ->
     false;
 has_seperator(<<$/, Rest/binary>>) ->
@@ -175,36 +175,16 @@ quote(V0) ->
             V
     end.
 
-%% Return a date in the form of: Wdy, DD-Mon-YYYY HH:MM:SS GMT
-%% See also: rfc2109: 10.1.2
-rfc2109_cookie_expires_date(LocalTime) ->
-    {{YYYY,MM,DD},{Hour,Min,Sec}} =
-        case calendar:local_time_to_universal_time_dst(LocalTime) of
-            [Gmt]   -> Gmt;
-            [_,Gmt] -> Gmt
-        end,
-    Wday = calendar:day_of_the_week({YYYY,MM,DD}),
-    DayBin = cowboy_clock:pad_int(DD),
-    YearBin = list_to_binary(integer_to_list(YYYY)),
-    HourBin = cowboy_clock:pad_int(Hour),
-    MinBin = cowboy_clock:pad_int(Min),
-    SecBin = cowboy_clock:pad_int(Sec),
-    WeekDay = cowboy_clock:weekday(Wday),
-    Month = cowboy_clock:month(MM),
-    <<WeekDay/binary, ", ",
-      DayBin/binary, " ", Month/binary, " ",
-      YearBin/binary, " ",
-      HourBin/binary, ":",
-      MinBin/binary, ":",
-      SecBin/binary, " GMT">>.
-
+-spec add_seconds(integer(), cowboy_clock:datetime()) -> cowboy_clock:datetime().
 add_seconds(Secs, LocalTime) ->
     Greg = calendar:datetime_to_gregorian_seconds(LocalTime),
     calendar:gregorian_seconds_to_datetime(Greg + Secs).
 
+-spec age_to_cookie_date(integer(), cowboy_clock:datetime()) -> binary().
 age_to_cookie_date(Age, LocalTime) ->
-    rfc2109_cookie_expires_date(add_seconds(Age, LocalTime)).
+    cowboy_clock:rfc2109(add_seconds(Age, LocalTime)).
 
+-spec parse_cookie(binary(), kvlist()) -> kvlist().
 parse_cookie(<<>>, Acc) ->
     lists:reverse(Acc);
 parse_cookie(String, Acc) ->
@@ -219,11 +199,13 @@ parse_cookie(String, Acc) ->
            end,
     parse_cookie(Rest, Acc1).
 
+-spec read_pair(binary()) -> {binary(), binary(), binary()}.
 read_pair(String) ->
     {Token, Rest} = read_token(skip_whitespace(String)),
     {Value, Rest1} = read_value(skip_whitespace(Rest)),
     {{Token, Value}, skip_past_separator(Rest1)}.
 
+-spec read_value(binary()) -> {binary(), binary()}.
 read_value(<<"=",  Value/binary>>) ->
     Value1 = skip_whitespace(Value),
     case Value1 of
@@ -235,9 +217,11 @@ read_value(<<"=",  Value/binary>>) ->
 read_value(String) ->
     {<<"">>, String}.
 
+-spec read_quoted(binary()) -> {binary(), binary()}.
 read_quoted(<<?QUOTE, String/binary>>) ->
     read_quoted(String, <<"">>).
 
+-spec read_quoted(binary(), binary()) -> {binary(), binary()}.
 read_quoted(<<"">>, Acc) ->
     {Acc, <<"">>};
 read_quoted(<<?QUOTE, Rest/binary>>, Acc) ->
@@ -249,6 +233,7 @@ read_quoted(<<C, Rest/binary>>, Acc) ->
 
 
 %% @doc Drop characters while a function returns true.
+-spec binary_dropwhile(fun((char()) -> boolean()), binary()) -> binary().
 binary_dropwhile(_F, <<"">>) ->
     <<"">>;
 binary_dropwhile(F, String) ->
@@ -261,10 +246,12 @@ binary_dropwhile(F, String) ->
     end.
 
 %% @doc Remove leading whitespace.
+-spec skip_whitespace(binary()) -> binary().
 skip_whitespace(String) ->
     binary_dropwhile(fun is_whitespace/1, String).
 
 %% @doc Split a binary when the current character causes F to return true.
+-spec binary_splitwith(fun((char()) -> boolean()), binary(), binary()) -> {binary(), binary()}.
 binary_splitwith(_F, Head, <<>>) ->
     {Head, <<>>};
 binary_splitwith(F, Head, Tail) ->
@@ -277,14 +264,17 @@ binary_splitwith(F, Head, Tail) ->
     end.
 
 %% @doc Split a binary with a function returning true or false on each char.
+-spec binary_splitwith(fun((char()) -> boolean()), binary()) -> {binary(), binary()}.
 binary_splitwith(F, String) ->
     binary_splitwith(F, <<>>, String). 
 
 %% @doc Split the binary when the next seperator is found.
+-spec read_token(binary()) -> {binary(), binary()}.
 read_token(String) ->
     binary_splitwith(fun is_separator/1, String).
 
 %% @doc Return string after ; or , characters.
+-spec skip_past_separator(binary()) -> binary().
 skip_past_separator(<<"">>) ->
     <<"">>;
 skip_past_separator(<<";", Rest/binary>>) ->
@@ -294,6 +284,7 @@ skip_past_separator(<<",", Rest/binary>>) ->
 skip_past_separator(<<_C, Rest/binary>>) ->
     skip_past_separator(Rest).
 
+-spec any_to_binary(binary() | string() | atom() | integer()) -> binary().
 any_to_binary(V) when is_binary(V) ->
     V;
 any_to_binary(V) when is_list(V) ->
