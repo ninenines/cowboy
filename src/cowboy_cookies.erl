@@ -29,7 +29,7 @@
                    | {secure, true | false} | {http_only, true | false}.
 -export_type([kv/0, kvlist/0, cookie_option/0]).
 
--define(QUOTE, $\"). %% " Quote, fixes syntax highlighting.
+-define(QUOTE, $\").
 
 -include_lib("eunit/include/eunit.hrl").
 
@@ -60,9 +60,6 @@ cookie(Key, Value, Options) ->
     Cookie = <<(any_to_binary(Key))/binary, "=", (quote(Value))/binary, "; Version=1">>,
     %% Set-Cookie:
     %%    Comment, Domain, Max-Age, Path, Secure, Version
-    %% Set-Cookie2:
-    %%    Comment, CommentURL, Discard, Domain, Max-Age, Path, Port, Secure,
-    %%    Version
     ExpiresPart =
         case proplists:get_value(max_age, Options) of
             undefined ->
