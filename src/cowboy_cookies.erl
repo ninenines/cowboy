@@ -129,27 +129,27 @@ is_whitespace($\n) -> true;
 is_whitespace(_) -> false.
 
 %% @doc Check if a character is a seperator.
-is_seperator(C) when C < 32 -> true;
-is_seperator($\s) -> true;
-is_seperator($\t) -> true;
-is_seperator($() -> true;
-is_seperator($)) -> true;
-is_seperator($<) -> true;
-is_seperator($>) -> true;
-is_seperator($@) -> true;
-is_seperator($,) -> true;
-is_seperator($;) -> true;
-is_seperator($:) -> true;
-is_seperator($\\) -> true;
-is_seperator(?QUOTE) -> true;
-is_seperator($/) -> true;
-is_seperator($[) -> true;
-is_seperator($]) -> true;
-is_seperator($?) -> true;
-is_seperator($=) -> true;
-is_seperator(${) -> true;
-is_seperator($}) -> true;
-is_seperator(_) -> false.
+is_separator(C) when C < 32 -> true;
+is_separator($\s) -> true;
+is_separator($\t) -> true;
+is_separator($() -> true;
+is_separator($)) -> true;
+is_separator($<) -> true;
+is_separator($>) -> true;
+is_separator($@) -> true;
+is_separator($,) -> true;
+is_separator($;) -> true;
+is_separator($:) -> true;
+is_separator($\\) -> true;
+is_separator(?QUOTE) -> true;
+is_separator($/) -> true;
+is_separator($[) -> true;
+is_separator($]) -> true;
+is_separator($?) -> true;
+is_separator($=) -> true;
+is_separator(${) -> true;
+is_separator($}) -> true;
+is_separator(_) -> false.
 
 %% @doc Check if a binary has an ASCII seperator character.
 has_seperator(<<>>) ->
@@ -157,7 +157,7 @@ has_seperator(<<>>) ->
 has_seperator(<<$/, Rest/binary>>) ->
     has_seperator(Rest);
 has_seperator(<<C, Rest/binary>>) ->
-    case is_seperator(C) of
+    case is_separator(C) of
         true ->
             true;
         false ->
@@ -285,7 +285,7 @@ binary_splitwith(F, String) ->
 
 %% @doc Split the binary when the next seperator is found.
 read_token(String) ->
-    binary_splitwith(fun is_seperator/1, String).
+    binary_splitwith(fun is_separator/1, String).
 
 %% @doc Return string after ; or , characters.
 skip_past_separator(<<"">>) ->
