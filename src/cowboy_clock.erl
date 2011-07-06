@@ -12,6 +12,12 @@
 %% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+%% @doc Date and time related functions.
+%%
+%% While a gen_server process runs in the background to update
+%% the cache of formatted dates every second, all API calls are
+%% local and directly read from the ETS cache table, providing
+%% fast time and date computations.
 -module(cowboy_clock).
 -behaviour(gen_server).
 
@@ -46,20 +52,26 @@
 
 %% API.
 
+%% @private
 -spec start_link() -> {ok, pid()}.
 start_link() ->
 	gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
+%% @private
 -spec stop() -> stopped.
 stop() ->
 	gen_server:call(?SERVER, stop).
 
+%% @doc Return the current date and time formatted according to RFC-1123.
+%%
+%% This format is used in the <em>'Date'</em> header sent with HTTP responses.
 -spec rfc1123() -> binary().
 rfc1123() ->
 	ets:lookup_element(?TABLE, rfc1123, 2).
 
 %% gen_server.
 
+%% @private
 -spec init([]) -> {ok, #state{}}.
 init([]) ->
 	?TABLE = ets:new(?TABLE, [set, protected,
@@ -70,6 +82,7 @@ init([]) ->
 	ets:insert(?TABLE, {rfc1123, B}),
 	{ok, #state{universaltime=T, rfc1123=B, tref=TRef}}.
 
+%% @private
 -spec handle_call(_, _, State)
 	-> {reply, ignored, State} | {stop, normal, stopped, State}.
 handle_call(stop, _From, State=#state{tref=TRef}) ->
@@ -78,10 +91,12 @@ handle_call(stop, _From, State=#state{tref=TRef}) ->
 handle_call(_Request, _From, State) ->
 	{reply, ignored, State}.
 
+%% @private
 -spec handle_cast(_, State) -> {noreply, State}.
 handle_cast(_Msg, State) ->
 	{noreply, State}.
 
+%% @private
 -spec handle_info(_, State) -> {noreply, State}.
 handle_info(update, #state{universaltime=Prev, rfc1123=B1, tref=TRef}) ->
 	T = erlang:universaltime(),
@@ -91,10 +106,12 @@ handle_info(update, #state{universaltime=Prev, rfc1123=B1, tref=TRef}) ->
 handle_info(_Info, State) ->
 	{noreply, State}.
 
+%% @private
 -spec terminate(_, _) -> ok.
 terminate(_Reason, _State) ->
 	ok.
 
+%% @private
 -spec code_change(_, State, _) -> {ok, State}.
 code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.

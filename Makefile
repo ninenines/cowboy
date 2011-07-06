@@ -29,3 +29,6 @@ dialyze:
 	@$(DIALYZER) --src src --plt .cowboy_dialyzer.plt \
 		-Wbehaviours -Werror_handling \
 		-Wrace_conditions -Wunmatched_returns # -Wunderspecs
+
+docs:
+	@$(REBAR) doc

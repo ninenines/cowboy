@@ -1,5 +1,9 @@
 .cowboy_dialyzer.plt
 .eunit
+doc/*.css
+doc/*.html
+doc/*.png
+doc/edoc-info
 ebin
 logs
 test/*.beam

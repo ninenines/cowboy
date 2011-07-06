@@ -1,0 +1,4 @@
+@author Loïc Hoguin <essen@dev-extend.eu>
+@copyright 2011 Loïc Hoguin
+@version HEAD
+@title Small, fast, modular HTTP server.

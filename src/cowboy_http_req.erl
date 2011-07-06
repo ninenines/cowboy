@@ -13,6 +13,12 @@
 %% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+%% @doc HTTP request manipulation API.
+%%
+%% Almost all functions in this module return a new <em>Req</em> variable.
+%% It should always be used instead of the one used in your function call
+%% because it keeps the state of the request. It also allows Cowboy to do
+%% some lazy evaluation and cache results where possible.
 -module(cowboy_http_req).
 
 -export([
@@ -42,14 +48,17 @@
 
 %% Request API.
 
+%% @doc Return the HTTP method of the request.
 -spec method(#http_req{}) -> {http_method(), #http_req{}}.
 method(Req) ->
 	{Req#http_req.method, Req}.
 
+%% @doc Return the HTTP version used for the request.
 -spec version(#http_req{}) -> {http_version(), #http_req{}}.
 version(Req) ->
 	{Req#http_req.version, Req}.
 
+%% @doc Return the peer address and port number of the remote host.
 -spec peer(#http_req{}) -> {{inet:ip_address(), inet:ip_port()}, #http_req{}}.
 peer(Req=#http_req{socket=Socket, transport=Transport, peer=undefined}) ->
 	{ok, Peer} = Transport:peername(Socket),
@@ -57,42 +66,53 @@ peer(Req=#http_req{socket=Socket, transport=Transport, peer=undefined}) ->
 peer(Req) ->
 	{Req#http_req.peer, Req}.
 
+%% @doc Return the tokens for the hostname requested.
 -spec host(#http_req{}) -> {cowboy_dispatcher:path_tokens(), #http_req{}}.
 host(Req) ->
 	{Req#http_req.host, Req}.
 
+%% @doc Return the extra host information obtained from partially matching
+%% the hostname using <em>'...'</em>.
 -spec host_info(#http_req{})
 	-> {cowboy_dispatcher:path_tokens() | undefined, #http_req{}}.
 host_info(Req) ->
 	{Req#http_req.host_info, Req}.
 
+%% @doc Return the raw host directly taken from the request.
 -spec raw_host(#http_req{}) -> {binary(), #http_req{}}.
 raw_host(Req) ->
 	{Req#http_req.raw_host, Req}.
 
+%% @doc Return the port used for this request.
 -spec port(#http_req{}) -> {inet:ip_port(), #http_req{}}.
 port(Req) ->
 	{Req#http_req.port, Req}.
 
+%% @doc Return the tokens for the path requested.
 -spec path(#http_req{}) -> {cowboy_dispatcher:path_tokens(), #http_req{}}.
 path(Req) ->
 	{Req#http_req.path, Req}.
 
+%% @doc Return the extra path information obtained from partially matching
+%% the patch using <em>'...'</em>.
 -spec path_info(#http_req{})
 	-> {cowboy_dispatcher:path_tokens() | undefined, #http_req{}}.
 path_info(Req) ->
 	{Req#http_req.path_info, Req}.
 
+%% @doc Return the raw path directly taken from the request.
 -spec raw_path(#http_req{}) -> {binary(), #http_req{}}.
 raw_path(Req) ->
 	{Req#http_req.raw_path, Req}.
 
+%% @equiv qs_val(Name, Req, undefined)
 -spec qs_val(binary(), #http_req{})
 	-> {binary() | true | undefined, #http_req{}}.
-%% @equiv qs_val(Name, Req, undefined)
 qs_val(Name, Req) ->
 	qs_val(Name, Req, undefined).
 
+%% @doc Return the query string value for the given key, or a default if
+%% missing.
 -spec qs_val(binary(), #http_req{}, Default)
 	-> {binary() | true | Default, #http_req{}} when Default::any().
 qs_val(Name, Req=#http_req{raw_qs=RawQs, qs_vals=undefined}, Default) ->
@@ -104,6 +124,7 @@ qs_val(Name, Req, Default) ->
 		false -> {Default, Req}
 	end.
 
+%% @doc Return the full list of query string values.
 -spec qs_vals(#http_req{}) -> {list({binary(), binary() | true}), #http_req{}}.
 qs_vals(Req=#http_req{raw_qs=RawQs, qs_vals=undefined}) ->
 	QsVals = parse_qs(RawQs),
@@ -111,15 +132,18 @@ qs_vals(Req=#http_req{raw_qs=RawQs, qs_vals=undefined}) ->
 qs_vals(Req=#http_req{qs_vals=QsVals}) ->
 	{QsVals, Req}.
 
+%% @doc Return the raw query string directly taken from the request.
 -spec raw_qs(#http_req{}) -> {binary(), #http_req{}}.
 raw_qs(Req) ->
 	{Req#http_req.raw_qs, Req}.
 
--spec binding(atom(), #http_req{}) -> {binary() | undefined, #http_req{}}.
 %% @equiv binding(Name, Req, undefined)
+-spec binding(atom(), #http_req{}) -> {binary() | undefined, #http_req{}}.
 binding(Name, Req) ->
 	binding(Name, Req, undefined).
 
+%% @doc Return the binding value for the given key obtained when matching
+%% the host and path against the dispatch list, or a default if missing.
 -spec binding(atom(), #http_req{}, Default)
 	-> {binary() | Default, #http_req{}} when Default::any().
 binding(Name, Req, Default) ->
@@ -128,16 +152,18 @@ binding(Name, Req, Default) ->
 		false -> {Default, Req}
 	end.
 
+%% @doc Return the full list of binding values.
 -spec bindings(#http_req{}) -> {list({atom(), binary()}), #http_req{}}.
 bindings(Req) ->
 	{Req#http_req.bindings, Req}.
 
+%% @equiv header(Name, Req, undefined)
 -spec header(atom() | binary(), #http_req{})
 	-> {binary() | undefined, #http_req{}}.
-%% @equiv header(Name, Req, undefined)
 header(Name, Req) ->
 	header(Name, Req, undefined).
 
+%% @doc Return the header value for the given key, or a default if missing.
 -spec header(atom() | binary(), #http_req{}, Default)
 	-> {binary() | Default, #http_req{}} when Default::any().
 header(Name, Req, Default) ->
@@ -146,12 +172,15 @@ header(Name, Req, Default) ->
 		false -> {Default, Req}
 	end.
 
+%% @doc Return the full list of headers.
 -spec headers(#http_req{}) -> {http_headers(), #http_req{}}.
 headers(Req) ->
 	{Req#http_req.headers, Req}.
 
 %% Request Body API.
 
+%% @doc Return the full body sent with the request, or <em>{error, badarg}</em>
+%% if no <em>Content-Length</em> is available.
 %% @todo We probably want to allow a max length.
 -spec body(#http_req{}) -> {ok, binary(), #http_req{}} | {error, atom()}.
 body(Req) ->
@@ -163,6 +192,11 @@ body(Req) ->
 			body(Length2, Req2)
 	end.
 
+%% @doc Return <em>Length</em> bytes of the request body.
+%%
+%% You probably shouldn't be calling this function directly, as it expects the
+%% <em>Length</em> argument to be the full size of the body, and will consider
+%% the body to be fully read from the socket.
 %% @todo We probably want to configure the timeout.
 -spec body(non_neg_integer(), #http_req{})
 	-> {ok, binary(), #http_req{}} | {error, atom()}.
@@ -177,6 +211,8 @@ body(Length, Req=#http_req{socket=Socket, transport=Transport,
 		{error, Reason} -> {error, Reason}
 	end.
 
+%% @doc Return the full body sent with the reqest, parsed as an
+%% application/x-www-form-urlencoded string. Essentially a POST query string.
 -spec body_qs(#http_req{}) -> {list({binary(), binary() | true}), #http_req{}}.
 body_qs(Req) ->
 	{ok, Body, Req2} = body(Req),
@@ -184,6 +220,7 @@ body_qs(Req) ->
 
 %% Response API.
 
+%% @doc Send a reply to the client.
 -spec reply(http_status(), http_headers(), iodata(), #http_req{})
 	-> {ok, #http_req{}}.
 reply(Code, Headers, Body, Req=#http_req{socket=Socket,
@@ -199,6 +236,8 @@ reply(Code, Headers, Body, Req=#http_req{socket=Socket,
 	Transport:send(Socket, [Head, Body]),
 	{ok, Req#http_req{resp_state=done}}.
 
+%% @doc Initiate the sending of a chunked reply to the client.
+%% @see cowboy_http_req:chunk/2
 -spec chunked_reply(http_status(), http_headers(), #http_req{})
 	-> {ok, #http_req{}}.
 chunked_reply(Code, Headers, Req=#http_req{socket=Socket, transport=Transport,
@@ -212,6 +251,9 @@ chunked_reply(Code, Headers, Req=#http_req{socket=Socket, transport=Transport,
 	Transport:send(Socket, Head),
 	{ok, Req#http_req{resp_state=chunks}}.
 
+%% @doc Send a chunk of data.
+%%
+%% A chunked reply must have been initiated before calling this function.
 -spec chunk(iodata(), #http_req{}) -> ok.
 chunk(Data, #http_req{socket=Socket, transport=Transport, resp_state=chunks}) ->
 	Transport:send(Socket, [integer_to_list(iolist_size(Data), 16),
@@ -219,6 +261,11 @@ chunk(Data, #http_req{socket=Socket, transport=Transport, resp_state=chunks}) ->
 
 %% Misc API.
 
+%% @doc Compact the request data by removing all non-system information.
+%%
+%% This essentially removes the host, path, query string, bindings and headers.
+%% Use it when you really need to save up memory, for example when having
+%% many concurrent long-running connections.
 -spec compact(#http_req{}) -> #http_req{}.
 compact(Req) ->
 	Req#http_req{host=undefined, host_info=undefined, path=undefined,

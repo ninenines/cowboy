@@ -12,7 +12,17 @@
 %% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+%% @doc WebSocket protocol draft hixie-76 implementation.
+%%
+%% Known to work with the following browsers:
+%% <ul>
+%%  <li>Mozilla Firefox 4.0 (disabled by default)</li>
+%%  <li>Google Chrome 6+</li>
+%%  <li>Safari 5.0.1+</li>
+%%  <li>Opera 11.00+ (disabled by default)</li>
+%% </ul>
 -module(cowboy_http_websocket).
+
 -export([upgrade/3]). %% API.
 -export([handler_loop/4]). %% Internal.
 
@@ -30,6 +40,11 @@
 	hibernate = false :: boolean()
 }).
 
+%% @doc Upgrade a HTTP request to the WebSocket protocol.
+%%
+%% You do not need to call this function manually. To upgrade to the WebSocket
+%% protocol, you simply need to return <em>{upgrade, protocol, {@module}}</em>
+%% in your <em>cowboy_http_handler:init/3</em> handler function.
 -spec upgrade(module(), any(), #http_req{}) -> ok.
 upgrade(Handler, Opts, Req) ->
 	EOP = binary:compile_pattern(<< 255 >>),
@@ -128,6 +143,7 @@ handler_before_loop(State, Req=#http_req{socket=Socket, transport=Transport},
 	Transport:setopts(Socket, [{active, once}]),
 	handler_loop(State, Req, HandlerState, SoFar).
 
+%% @private
 -spec handler_loop(#state{}, #http_req{}, any(), binary()) -> ok.
 handler_loop(State=#state{messages={OK, Closed, Error}, timeout=Timeout},
 		Req=#http_req{socket=Socket}, HandlerState, SoFar) ->

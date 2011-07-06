@@ -13,12 +13,14 @@
 %% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+%% @doc Dispatch requests according to a hostname and path.
 -module(cowboy_dispatcher).
+
 -export([split_host/1, split_path/1, match/3]). %% API.
 
 -type bindings() :: list({atom(), binary()}).
 -type path_tokens() :: list(binary()).
--type match_rule() :: '_' | '*' | list(binary() | '_' | atom()).
+-type match_rule() :: '_' | '*' | list(binary() | '_' | '...' | atom()).
 -type dispatch_path() :: list({match_rule(), module(), any()}).
 -type dispatch_rule() :: {Host::match_rule(), Path::dispatch_path()}.
 -type dispatch_rules() :: list(dispatch_rule()).
@@ -29,6 +31,7 @@
 
 %% API.
 
+%% @doc Split a hostname into a list of tokens.
 -spec split_host(binary())
 	-> {path_tokens(), binary(), undefined | inet:ip_port()}.
 split_host(<<>>) ->
@@ -42,6 +45,7 @@ split_host(Host) ->
 				list_to_integer(binary_to_list(Port))}
 	end.
 
+%% @doc Split a path into a list of tokens.
 -spec split_path(binary()) -> {path_tokens(), binary(), binary()}.
 split_path(Path) ->
 	case binary:split(Path, <<"?">>) of
@@ -57,6 +61,33 @@ do_split_path(RawPath, Separator) ->
 		Path -> Path
 	end.
 
+%% @doc Match hostname tokens and path tokens against dispatch rules.
+%%
+%% It is typically used for matching tokens for the hostname and path of
+%% the request against a global dispatch rule for your listener.
+%%
+%% Dispatch rules are a list of <em>{Hostname, PathRules}</em> tuples, with
+%% <em>PathRules</em> being a list of <em>{Path, HandlerMod, HandlerOpts}</em>.
+%%
+%% <em>Hostname</em> and <em>Path</em> are match rules and can be either the
+%% atom <em>'_'</em>, which matches everything for a single token, the atom
+%% <em>'*'</em>, which matches everything for the rest of the tokens, or a
+%% list of tokens. Each token can be either a binary, the atom <em>'_'</em>,
+%% the atom '...' or a named atom. A binary token must match exactly,
+%% <em>'_'</em> matches everything for a single token, <em>'...'</em> matches
+%% everything for the rest of the tokens and a named atom will bind the
+%% corresponding token value and return it.
+%%
+%% The list of hostname tokens is reversed before matching. For example, if
+%% we were to match "www.dev-extend.eu", we would first match "eu", then
+%% "dev-extend", then "www". This means that in the context of hostnames,
+%% the <em>'...'</em> atom matches properly the lower levels of the domain
+%% as would be expected.
+%%
+%% When a result is found, this function will return the handler module and
+%% options found in the dispatch list, a key-value list of bindings and
+%% the tokens that were matched by the <em>'...'</em> atom for both the
+%% hostname and path.
 -spec match(Host::path_tokens(), Path::path_tokens(), dispatch_rules())
 	-> {ok, module(), any(), bindings(),
 		HostInfo::undefined | path_tokens(),

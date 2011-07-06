@@ -12,11 +12,30 @@
 %% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+%% @doc Cowboy API to start and stop listeners.
 -module(cowboy).
--export([start_listener/6, stop_listener/1]). %% API.
 
-%% API.
+-export([start_listener/6, stop_listener/1]).
 
+%% @doc Start a listener for the given transport and protocol.
+%%
+%% A listener is effectively a pool of <em>NbAcceptors</em> acceptors.
+%% Acceptors accept connections on the given <em>Transport</em> and forward
+%% requests to the given <em>Protocol</em> handler. Both transport and protocol
+%% modules can be given options through the <em>TransOpts</em> and the
+%% <em>ProtoOpts</em> arguments. Available options are documented in the
+%% <em>listen</em> transport function and in the protocol module of your choice.
+%%
+%% All acceptor and request processes are supervised by the listener.
+%%
+%% It is recommended to set a large enough number of acceptors to improve
+%% performance. The exact number depends of course on your hardware, on the
+%% protocol used and on the number of expected simultaneous connections.
+%%
+%% Although Cowboy includes a <em>cowboy_http_protocol</em> handler, other
+%% handlers can be created for different protocols like IRC, FTP and more.
+%%
+%% <em>Ref</em> can be used to stop the listener later on.
 -spec start_listener(any(), non_neg_integer(), module(), any(), module(), any())
 	-> {ok, pid()}.
 start_listener(Ref, NbAcceptors, Transport, TransOpts, Protocol, ProtoOpts) ->
@@ -26,6 +45,8 @@ start_listener(Ref, NbAcceptors, Transport, TransOpts, Protocol, ProtoOpts) ->
 		]},
 		permanent, 5000, supervisor, [cowboy_listener_sup]}).
 
+%% @doc Stop a listener identified by <em>Ref</em>.
+%% @todo Currently request processes aren't terminated with the listener.
 -spec stop_listener(any()) -> ok | {error, not_found}.
 stop_listener(Ref) ->
 	case supervisor:terminate_child(cowboy_sup, {cowboy_listener_sup, Ref}) of

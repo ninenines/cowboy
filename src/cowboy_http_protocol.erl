@@ -13,7 +13,24 @@
 %% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+%% @doc HTTP protocol handler.
+%%
+%% The available options are:
+%% <dl>
+%%  <dt>dispatch</dt><dd>The dispatch list for this protocol.</dd>
+%%  <dt>max_empty_lines</dt><dd>Max number of empty lines before a request.
+%%   Defaults to 5.</dd>
+%%  <dt>timeout</dt><dd>Time in milliseconds before an idle keep-alive
+%%   connection is closed. Defaults to 5000 milliseconds.</dd>
+%% </dl>
+%%
+%% Note that there is no need to monitor these processes when using Cowboy as
+%% an application as it already supervises them under the listener supervisor.
+%%
+%% @see cowboy_dispatcher
+%% @see cowboy_http_handler
 -module(cowboy_http_protocol).
+
 -export([start_link/3]). %% API.
 -export([init/3, parse_request/1]). %% FSM.
 
@@ -33,6 +50,7 @@
 
 %% API.
 
+%% @doc Start an HTTP protocol process.
 -spec start_link(inet:socket(), module(), any()) -> {ok, pid()}.
 start_link(Socket, Transport, Opts) ->
 	Pid = spawn_link(?MODULE, init, [Socket, Transport, Opts]),
@@ -40,6 +58,7 @@ start_link(Socket, Transport, Opts) ->
 
 %% FSM.
 
+%% @private
 -spec init(inet:socket(), module(), any()) -> ok.
 init(Socket, Transport, Opts) ->
 	Dispatch = proplists:get_value(dispatch, Opts, []),
@@ -48,6 +67,7 @@ init(Socket, Transport, Opts) ->
 	wait_request(#state{socket=Socket, transport=Transport,
 		dispatch=Dispatch, max_empty_lines=MaxEmptyLines, timeout=Timeout}).
 
+%% @private
 -spec parse_request(#state{}) -> ok.
 %% @todo Use decode_packet options to limit length?
 parse_request(State=#state{buffer=Buffer}) ->
