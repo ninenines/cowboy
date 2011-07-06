@@ -223,25 +223,24 @@ handler_loop(HandlerState, Req, State=#state{handler={Handler, Opts}}) ->
 -spec handler_terminate(any(), #http_req{}, #state{}) -> ok.
 handler_terminate(HandlerState, Req=#http_req{buffer=Buffer},
 		State=#state{handler={Handler, Opts}}) ->
-	try
-		HandlerRes = Handler:terminate(Req#http_req{resp_state=locked},
-			HandlerState),
-		BodyRes = ensure_body_processed(Req),
-		RespRes = ensure_response(Req, State),
-		case {HandlerRes, BodyRes, RespRes, State#state.connection} of
-			{ok, ok, ok, keepalive} ->
-				?MODULE:parse_request(State#state{buffer=Buffer});
-			_Closed ->
-				terminate(State)
-		end
+	HandlerRes = try
+		Handler:terminate(Req#http_req{resp_state=locked}, HandlerState)
 	catch Class:Reason ->
-		terminate(State),
 		error_logger:error_msg(
 			"** Handler ~p terminating in terminate/2 for the reason ~p:~p~n"
 			"** Options were ~p~n** Handler state was ~p~n"
 			"** Request was ~p~n** Stacktrace: ~p~n~n",
 			[Handler, Class, Reason, Opts,
-			 HandlerState, Req, erlang:get_stacktrace()])
+			 HandlerState, Req, erlang:get_stacktrace()]),
+		error
+	end,
+	BodyRes = ensure_body_processed(Req),
+	RespRes = ensure_response(Req, State),
+	case {HandlerRes, BodyRes, RespRes, State#state.connection} of
+		{ok, ok, ok, keepalive} ->
+			?MODULE:parse_request(State#state{buffer=Buffer});
+		_Closed ->
+			terminate(State)
 	end.
 
 -spec ensure_body_processed(#http_req{}) -> ok | close.
