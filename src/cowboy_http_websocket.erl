@@ -205,14 +205,14 @@ handler_call(State=#state{handler=Handler, opts=Opts}, Req, HandlerState,
 		{shutdown, Req2, HandlerState2} ->
 			websocket_close(State, Req2, HandlerState2, {normal, shutdown})
 	catch Class:Reason ->
-		websocket_close(State, Req, HandlerState, {error, handler}),
 		error_logger:error_msg(
 			"** Handler ~p terminating in websocket_handle/3~n"
 			"   for the reason ~p:~p~n** Message was ~p~n"
 			"** Options were ~p~n** Handler state was ~p~n"
 			"** Request was ~p~n** Stacktrace: ~p~n~n",
 			[Handler, Class, Reason, Message, Opts,
-			 HandlerState, Req, erlang:get_stacktrace()])
+			 HandlerState, Req, erlang:get_stacktrace()]),
+		websocket_close(State, Req, HandlerState, {error, handler})
 	end.
 
 -spec websocket_send(binary(), #http_req{}) -> ok.
