@@ -34,7 +34,7 @@
 	| 'Set-Cookie2' | 'X-Forwarded-For' | 'Cookie' | 'Keep-Alive'
 	| 'Proxy-Connection' | binary().
 -type http_headers() :: list({http_header(), binary()}).
-%% -type http_cookies() :: term(). %% @todo
+-type http_cookies() :: list({binary(), binary()}).
 -type http_status() :: non_neg_integer() | binary().
 
 -record(http_req, {
@@ -58,7 +58,7 @@
 	raw_qs     = undefined :: undefined | binary(),
 	bindings   = undefined :: undefined | cowboy_dispatcher:bindings(),
 	headers    = []        :: http_headers(),
-%%	cookies    = undefined :: undefined | http_cookies() %% @todo
+	cookies    = undefined :: undefined | http_cookies(),
 
 	%% Request body.
 	body_state = waiting   :: waiting | done,
