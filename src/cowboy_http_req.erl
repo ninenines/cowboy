@@ -21,8 +21,8 @@
 	path/1, path_info/1, raw_path/1,
 	qs_val/2, qs_val/3, qs_vals/1, raw_qs/1,
 	binding/2, binding/3, bindings/1,
-	header/2, header/3, headers/1
-%%	cookie/2, cookie/3, cookies/1 @todo
+	header/2, header/3, headers/1,
+	cookie/2, cookie/3, cookies/1
 ]). %% Request API.
 
 -export([
@@ -145,6 +145,43 @@ header(Name, Req, Default) ->
 -spec headers(#http_req{}) -> {http_headers(), #http_req{}}.
 headers(Req) ->
 	{Req#http_req.headers, Req}.
+
+%% @equiv cookie(Name, Req, undefined)
+-spec cookie(binary(), #http_req{})
+	-> {binary() | true | undefined, #http_req{}}.
+cookie(Name, Req) ->
+	cookie(Name, Req, undefined).
+
+%% @doc Return the cookie value for the given key, or a default if
+%% missing.
+-spec cookie(binary(), #http_req{}, Default)
+	-> {binary() | true | Default, #http_req{}} when Default::any().
+cookie(Name, Req=#http_req{cookies=undefined}, Default) ->
+	case header('Cookie', Req) of
+		{undefined, Req2} ->
+			{Default, Req2#http_req{cookies=[]}};
+		{RawCookie, Req2} ->
+			Cookies = cowboy_cookies:parse_cookie(RawCookie),
+			cookie(Name, Req2#http_req{cookies=Cookies}, Default)
+	end;
+cookie(Name, Req, Default) ->
+	case lists:keyfind(Name, 1, Req#http_req.cookies) of
+		{Name, Value} -> {Value, Req};
+		false -> {Default, Req}
+	end.
+
+%% @doc Return the full list of cookie values.
+-spec cookies(#http_req{}) -> {list({binary(), binary() | true}), #http_req{}}.
+cookies(Req=#http_req{cookies=undefined}) ->
+	case header('Cookie', Req) of
+		{undefined, Req2} ->
+			{[], Req2#http_req{cookies=[]}};
+		{RawCookie, Req2} ->
+			Cookies = cowboy_cookies:parse_cookie(RawCookie),
+			cookies(Req2#http_req{cookies=Cookies})
+	end;
+cookies(Req=#http_req{cookies=Cookies}) ->
+	{Cookies, Req}.
 
 %% Request Body API.
 
