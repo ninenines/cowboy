@@ -43,17 +43,17 @@
 -spec parse_cookie(binary()) -> kvlist().
 parse_cookie(<<>>) ->
 	[];
-parse_cookie(Cookie) ->
+parse_cookie(Cookie) when is_binary(Cookie) ->
 	parse_cookie(Cookie, []).
 
 %% @doc Short-hand for <code>cookie(Key, Value, [])</code>.
 -spec cookie(binary(), binary()) -> kvlist().
-cookie(Key, Value) ->
+cookie(Key, Value) when is_binary(Key) andalso is_binary(Value) ->
 	cookie(Key, Value, []).
 
 %% @doc Generate a Set-Cookie header field tuple.
 -spec cookie(binary(), binary(), [cookie_option()]) -> kvlist().
-cookie(Key, Value, Options) ->
+cookie(Key, Value, Options) when is_binary(Key) andalso is_binary(Value) andalso is_list(Options) ->
 	Cookie = <<(any_to_binary(Key))/binary, "=", (quote(Value))/binary, "; Version=1">>,
 	%% Set-Cookie:
 	%%    Comment, Domain, Max-Age, Path, Secure, Version

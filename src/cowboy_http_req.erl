@@ -149,14 +149,14 @@ headers(Req) ->
 %% @equiv cookie(Name, Req, undefined)
 -spec cookie(binary(), #http_req{})
 	-> {binary() | true | undefined, #http_req{}}.
-cookie(Name, Req) ->
+cookie(Name, Req) when is_binary(Name) ->
 	cookie(Name, Req, undefined).
 
 %% @doc Return the cookie value for the given key, or a default if
 %% missing.
 -spec cookie(binary(), #http_req{}, Default)
 	-> {binary() | true | Default, #http_req{}} when Default::any().
-cookie(Name, Req=#http_req{cookies=undefined}, Default) ->
+cookie(Name, Req=#http_req{cookies=undefined}, Default) when is_binary(Name) ->
 	case header('Cookie', Req) of
 		{undefined, Req2} ->
 			{Default, Req2#http_req{cookies=[]}};
