@@ -108,14 +108,15 @@ raw_path(Req) ->
 %% @equiv qs_val(Name, Req, undefined)
 -spec qs_val(binary(), #http_req{})
 	-> {binary() | true | undefined, #http_req{}}.
-qs_val(Name, Req) ->
+qs_val(Name, Req) when is_binary(Name) ->
 	qs_val(Name, Req, undefined).
 
 %% @doc Return the query string value for the given key, or a default if
 %% missing.
 -spec qs_val(binary(), #http_req{}, Default)
 	-> {binary() | true | Default, #http_req{}} when Default::any().
-qs_val(Name, Req=#http_req{raw_qs=RawQs, qs_vals=undefined}, Default) ->
+qs_val(Name, Req=#http_req{raw_qs=RawQs, qs_vals=undefined}, Default)
+		when is_binary(Name) ->
 	QsVals = parse_qs(RawQs),
 	qs_val(Name, Req#http_req{qs_vals=QsVals}, Default);
 qs_val(Name, Req, Default) ->
@@ -139,14 +140,14 @@ raw_qs(Req) ->
 
 %% @equiv binding(Name, Req, undefined)
 -spec binding(atom(), #http_req{}) -> {binary() | undefined, #http_req{}}.
-binding(Name, Req) ->
+binding(Name, Req) when is_atom(Name) ->
 	binding(Name, Req, undefined).
 
 %% @doc Return the binding value for the given key obtained when matching
 %% the host and path against the dispatch list, or a default if missing.
 -spec binding(atom(), #http_req{}, Default)
 	-> {binary() | Default, #http_req{}} when Default::any().
-binding(Name, Req, Default) ->
+binding(Name, Req, Default) when is_atom(Name) ->
 	case lists:keyfind(Name, 1, Req#http_req.bindings) of
 		{Name, Value} -> {Value, Req};
 		false -> {Default, Req}
@@ -160,13 +161,13 @@ bindings(Req) ->
 %% @equiv header(Name, Req, undefined)
 -spec header(atom() | binary(), #http_req{})
 	-> {binary() | undefined, #http_req{}}.
-header(Name, Req) ->
+header(Name, Req) when is_atom(Name) orelse is_binary(Name) ->
 	header(Name, Req, undefined).
 
 %% @doc Return the header value for the given key, or a default if missing.
 -spec header(atom() | binary(), #http_req{}, Default)
 	-> {binary() | Default, #http_req{}} when Default::any().
-header(Name, Req, Default) ->
+header(Name, Req, Default) when is_atom(Name) orelse is_binary(Name) ->
 	case lists:keyfind(Name, 1, Req#http_req.headers) of
 		{Name, Value} -> {Value, Req};
 		false -> {Default, Req}
@@ -204,7 +205,8 @@ body(Length, Req=#http_req{body_state=waiting, buffer=Buffer})
 		when Length =:= byte_size(Buffer) ->
 	{ok, Buffer, Req#http_req{body_state=done, buffer= <<>>}};
 body(Length, Req=#http_req{socket=Socket, transport=Transport,
-		body_state=waiting, buffer=Buffer}) when Length > byte_size(Buffer) ->
+		body_state=waiting, buffer=Buffer})
+		when is_integer(Length) andalso Length > byte_size(Buffer) ->
 	case Transport:recv(Socket, Length - byte_size(Buffer), 5000) of
 		{ok, Body} -> {ok, << Buffer/binary, Body/binary >>,
 			Req#http_req{body_state=done, buffer= <<>>}};

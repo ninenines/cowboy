@@ -38,7 +38,9 @@
 %% <em>Ref</em> can be used to stop the listener later on.
 -spec start_listener(any(), non_neg_integer(), module(), any(), module(), any())
 	-> {ok, pid()}.
-start_listener(Ref, NbAcceptors, Transport, TransOpts, Protocol, ProtoOpts) ->
+start_listener(Ref, NbAcceptors, Transport, TransOpts, Protocol, ProtoOpts)
+		when is_integer(NbAcceptors) andalso is_atom(Transport)
+		andalso is_atom(Protocol) ->
 	supervisor:start_child(cowboy_sup,
 		{{cowboy_listener_sup, Ref}, {cowboy_listener_sup, start_link, [
 			NbAcceptors, Transport, TransOpts, Protocol, ProtoOpts
