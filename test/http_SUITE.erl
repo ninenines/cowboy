@@ -179,6 +179,7 @@ raw(Config) ->
 		{"Garbage\r\n\r\n", 400},
 		{"\r\n\r\n\r\n\r\n\r\n\r\n", 400},
 		{"GET / HTTP/1.1\r\nHost: dev-extend.eu\r\n\r\n", 400},
+		{"GET / HTTP/1.0\r\n\r\n", 400},
 		{"", 408},
 		{"\r\n", 408},
 		{"\r\n\r\n", 408},
