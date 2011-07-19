@@ -157,7 +157,7 @@ handler_loop(State=#state{messages={OK, Closed, Error}, timeout=Timeout},
 			handler_terminate(State, Req, HandlerState, {error, Reason});
 		Message ->
 			handler_call(State, Req, HandlerState,
-				SoFar, Message, fun handler_before_loop/4)
+				SoFar, websocket_info, Message, fun handler_before_loop/4)
 	after Timeout ->
 		websocket_close(State, Req, HandlerState, {normal, timeout})
 	end.
@@ -178,7 +178,7 @@ websocket_frame(State=#state{eop=EOP}, Req, HandlerState, Data, 0) ->
 			Pos2 = Pos - 1,
 			<< 0, Frame:Pos2/binary, 255, Rest/bits >> = Data,
 			handler_call(State, Req, HandlerState,
-				Rest, {websocket, Frame}, fun websocket_data/4);
+				Rest, websocket_handle, Frame, fun websocket_data/4);
 		nomatch ->
 			%% @todo We probably should allow limiting frame length.
 			handler_before_loop(State, Req, HandlerState, Data)
@@ -186,10 +186,11 @@ websocket_frame(State=#state{eop=EOP}, Req, HandlerState, Data, 0) ->
 websocket_frame(State, Req, HandlerState, _Data, _FrameType) ->
 	websocket_close(State, Req, HandlerState, {error, badframe}).
 
--spec handler_call(#state{}, #http_req{}, any(), binary(), any(), fun()) -> ok.
+-spec handler_call(#state{}, #http_req{}, any(), binary(),
+	atom(), any(), fun()) -> ok.
 handler_call(State=#state{handler=Handler, opts=Opts}, Req, HandlerState,
-		RemainingData, Message, NextState) ->
-	try Handler:websocket_handle(Message, Req, HandlerState) of
+		RemainingData, Callback, Message, NextState) ->
+	try Handler:Callback(Message, Req, HandlerState) of
 		{ok, Req2, HandlerState2} ->
 			NextState(State, Req2, HandlerState2, RemainingData);
 		{ok, Req2, HandlerState2, hibernate} ->
@@ -242,16 +243,19 @@ handler_terminate(#state{handler=Handler, opts=Opts},
 			 HandlerState, Req, erlang:get_stacktrace()])
 	end.
 
-%% eunit
+%% Tests.
 
 -ifdef(TEST).
 
 websocket_location_test() ->
-  ?assertEqual(<<"ws://localhost/path">>, websocket_location(other, <<"localhost">>, 80, <<"/path">>)),
-  ?assertEqual(<<"ws://localhost:8080/path">>, websocket_location(other, <<"localhost">>, 8080, <<"/path">>)),
-  ?assertEqual(<<"wss://localhost/path">>, websocket_location(ssl, <<"localhost">>, 443, <<"/path">>)),
-  ?assertEqual(<<"wss://localhost:8443/path">>, websocket_location(ssl, <<"localhost">>, 8443, <<"/path">>)),
-  ok.
+	?assertEqual(<<"ws://localhost/path">>,
+		websocket_location(other, <<"localhost">>, 80, <<"/path">>)),
+	?assertEqual(<<"ws://localhost:8080/path">>,
+		websocket_location(other, <<"localhost">>, 8080, <<"/path">>)),
+	?assertEqual(<<"wss://localhost/path">>,
+		websocket_location(ssl, <<"localhost">>, 443, <<"/path">>)),
+	?assertEqual(<<"wss://localhost:8443/path">>,
+		websocket_location(ssl, <<"localhost">>, 8443, <<"/path">>)),
+	ok.
 
 -endif.
-
