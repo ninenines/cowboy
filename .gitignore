@@ -1,5 +1,6 @@
 .cowboy_dialyzer.plt
 .eunit
+deps
 doc/*.css
 doc/*.html
 doc/*.png

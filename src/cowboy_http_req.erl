@@ -282,8 +282,8 @@ parse_qs(<<>>) ->
 parse_qs(Qs) ->
 	Tokens = binary:split(Qs, <<"&">>, [global, trim]),
 	[case binary:split(Token, <<"=">>) of
-		[Token] -> {Token, true};
-		[Name, Value] -> {Name, Value}
+		[Token] -> {quoted:from_url(Token), true};
+		[Name, Value] -> {quoted:from_url(Name), quoted:from_url(Value)}
 	end || Token <- Tokens].
 
 -spec response_head(http_status(), http_headers(), http_headers()) -> iolist().
@@ -427,7 +427,8 @@ parse_qs_test_() ->
 		{<<"a&b">>, [{<<"a">>, true}, {<<"b">>, true}]},
 		{<<"a=b&c&d=e">>, [{<<"a">>, <<"b">>},
 			{<<"c">>, true}, {<<"d">>, <<"e">>}]},
-		{<<"a=b=c=d=e&f=g">>, [{<<"a">>, <<"b=c=d=e">>}, {<<"f">>, <<"g">>}]}
+		{<<"a=b=c=d=e&f=g">>, [{<<"a">>, <<"b=c=d=e">>}, {<<"f">>, <<"g">>}]},
+		{<<"a+b=c+d">>, [{<<"a b">>, <<"c d">>}]}
 	],
 	[{Qs, fun() -> R = parse_qs(Qs) end} || {Qs, R} <- Tests].
 

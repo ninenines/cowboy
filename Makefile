@@ -5,8 +5,11 @@ REBAR = rebar
 
 all: app
 
-app:
+app: deps
 	@$(REBAR) compile
+
+deps:
+	@$(REBAR) get-deps
 
 clean:
 	@$(REBAR) clean
