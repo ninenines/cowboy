@@ -56,10 +56,11 @@ split_path(Path) ->
 
 -spec do_split_path(binary(), <<_:8>>) -> path_tokens().
 do_split_path(RawPath, Separator) ->
-	case binary:split(RawPath, Separator, [global, trim]) of
+	EncodedPath = case binary:split(RawPath, Separator, [global, trim]) of
 		[<<>>|Path] -> Path;
 		Path -> Path
-	end.
+	end,
+	[quoted:from_url(Token) || Token <- EncodedPath].
 
 %% @doc Match hostname tokens and path tokens against dispatch rules.
 %%
@@ -214,7 +215,10 @@ split_path_test_() ->
 		{<<"/users?a">>, [<<"users">>], <<"/users">>, <<"a">>},
 		{<<"/users/42/friends?a=b&c=d&e=notsure?whatever">>,
 			[<<"users">>, <<"42">>, <<"friends">>],
-			<<"/users/42/friends">>, <<"a=b&c=d&e=notsure?whatever">>}
+			<<"/users/42/friends">>, <<"a=b&c=d&e=notsure?whatever">>},
+		{<<"/users/a+b/c%21d?e+f=g+h">>,
+			[<<"users">>, <<"a b">>, <<"c!d">>],
+			<<"/users/a+b/c%21d">>, <<"e+f=g+h">>}
 	],
 	[{P, fun() -> {R, RawP, Qs} = split_path(P) end}
 		|| {P, R, RawP, Qs} <- Tests].
