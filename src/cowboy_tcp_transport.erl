@@ -45,13 +45,15 @@ messages() -> {tcp, tcp_closed, tcp_error}.
 %% </dl>
 %%
 %% @see gen_tcp:listen/2
--spec listen([{port, inet:ip_port()} | {ip, inet:ip_address()}])
+-spec listen([{port, inet:ip_port()} | {ip, inet:ip_address()} |
+              {packet, raw | 0 | 1 | 2 | 4 | asn1 | line}])
 	-> {ok, inet:socket()} | {error, atom()}.
 listen(Opts) ->
 	{port, Port} = lists:keyfind(port, 1, Opts),
-	Backlog = proplists:get_value(backlog, Opts, 1024),
+ 	Backlog = proplists:get_value(backlog, Opts, 1024),
+ 	Packet = proplists:get_value(packet, Opts, raw),
 	ListenOpts0 = [binary, {active, false},
-		{backlog, Backlog}, {packet, raw}, {reuseaddr, true}],
+		{backlog, Backlog}, {packet, Packet}, {reuseaddr, true}],
 	ListenOpts =
 		case lists:keyfind(ip, 1, Opts) of
 			false -> ListenOpts0;
