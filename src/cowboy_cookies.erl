@@ -42,15 +42,17 @@ parse_cookie(<<>>) ->
 parse_cookie(Cookie) when is_binary(Cookie) ->
 	parse_cookie(Cookie, []).
 
-%% @doc Short-hand for <code>cookie(Key, Value, [])</code>.
--spec cookie(binary(), binary()) -> kvlist().
+%% @equiv cookie(Key, Value, [])
+-spec cookie(binary(), binary()) -> kv().
 cookie(Key, Value) when is_binary(Key) andalso is_binary(Value) ->
 	cookie(Key, Value, []).
 
 %% @doc Generate a Set-Cookie header field tuple.
--spec cookie(binary(), binary(), [cookie_option()]) -> kvlist().
-cookie(Key, Value, Options) when is_binary(Key) andalso is_binary(Value) andalso is_list(Options) ->
-	Cookie = <<(any_to_binary(Key))/binary, "=", (quote(Value))/binary, "; Version=1">>,
+-spec cookie(binary(), binary(), [cookie_option()]) -> kv().
+cookie(Key, Value, Options) when is_binary(Key)
+		andalso is_binary(Value) andalso is_list(Options) ->
+	Cookie = <<(any_to_binary(Key))/binary, "=",
+		(quote(Value))/binary, "; Version=1">>,
 	%% Set-Cookie:
 	%%    Comment, Domain, Max-Age, Path, Secure, Version
 	ExpiresPart =
@@ -103,7 +105,8 @@ cookie(Key, Value, Options) when is_binary(Key) andalso is_binary(Value) andalso
 			_ ->
 				<<"">>
 		end,
-	CookieParts = <<Cookie/binary, ExpiresPart/binary, SecurePart/binary, DomainPart/binary, PathPart/binary, HttpOnlyPart/binary>>,
+	CookieParts = <<Cookie/binary, ExpiresPart/binary, SecurePart/binary,
+		DomainPart/binary, PathPart/binary, HttpOnlyPart/binary>>,
 	{<<"Set-Cookie">>, CookieParts}.
 
 %% Internal.
@@ -168,7 +171,8 @@ quote(V0) ->
 			V
 	end.
 
--spec add_seconds(integer(), cowboy_clock:datetime()) -> cowboy_clock:datetime().
+-spec add_seconds(integer(), cowboy_clock:datetime())
+	-> cowboy_clock:datetime().
 add_seconds(Secs, LocalTime) ->
 	Greg = calendar:datetime_to_gregorian_seconds(LocalTime),
 	calendar:gregorian_seconds_to_datetime(Greg + Secs).
@@ -192,7 +196,7 @@ parse_cookie(String, Acc) ->
 		end,
 	parse_cookie(Rest, Acc1).
 
--spec read_pair(binary()) -> {binary(), binary(), binary()}.
+-spec read_pair(binary()) -> {{binary(), binary()}, binary()}.
 read_pair(String) ->
 	{Token, Rest} = read_token(skip_whitespace(String)),
 	{Value, Rest1} = read_value(skip_whitespace(Rest)),
@@ -243,7 +247,8 @@ skip_whitespace(String) ->
 	binary_dropwhile(fun is_whitespace/1, String).
 
 %% @doc Split a binary when the current character causes F to return true.
--spec binary_splitwith(fun((char()) -> boolean()), binary(), binary()) -> {binary(), binary()}.
+-spec binary_splitwith(fun((char()) -> boolean()), binary(), binary())
+	-> {binary(), binary()}.
 binary_splitwith(_F, Head, <<>>) ->
 	{Head, <<>>};
 binary_splitwith(F, Head, Tail) ->
@@ -256,7 +261,8 @@ binary_splitwith(F, Head, Tail) ->
 	end.
 
 %% @doc Split a binary with a function returning true or false on each char.
--spec binary_splitwith(fun((char()) -> boolean()), binary()) -> {binary(), binary()}.
+-spec binary_splitwith(fun((char()) -> boolean()), binary())
+	-> {binary(), binary()}.
 binary_splitwith(F, String) ->
 	binary_splitwith(F, <<>>, String).
 
@@ -292,7 +298,7 @@ any_to_binary(V) when is_integer(V) ->
 
 quote_test() ->
 	%% ?assertError eunit macro is not compatible with coverage module
-	try quote(<<":wq">>)
+	_ = try quote(<<":wq">>)
 	catch error:{cookie_quoting_required, <<":wq">>} -> ok
 	end,
 	?assertEqual(<<"foo">>,quote(foo)),
@@ -359,6 +365,7 @@ local_time_test() ->
 	binary:split(B, <<";">>, [global])),
 	ok.
 
+-spec cookie_test() -> no_return(). %% Not actually true, just a bad option.
 cookie_test() ->
 	C1 = {<<"Set-Cookie">>,
 		<<"Customer=WILE_E_COYOTE; "
@@ -369,13 +376,12 @@ cookie_test() ->
 	C1 = cookie(<<"Customer">>, <<"WILE_E_COYOTE">>,
 				[{path, <<"/acme">>}, {badoption, <<"negatory">>}]),
 
-	C1 = cookie('Customer', 'WILE_E_COYOTE', [{path, '/acme'}]),
-
-	C1 = cookie("Customer", "WILE_E_COYOTE", [{path, "/acme"}]),
-
-	{<<"Set-Cookie">>,<<"=NoKey; Version=1">>} = cookie(<<"">>, <<"NoKey">>, []),
-	{<<"Set-Cookie">>,<<"=NoKey; Version=1">>} = cookie(<<"">>, <<"NoKey">>),
-	LocalTime = calendar:universal_time_to_local_time({{2007, 5, 15}, {13, 45, 33}}),
+	{<<"Set-Cookie">>,<<"=NoKey; Version=1">>}
+		= cookie(<<"">>, <<"NoKey">>, []),
+	{<<"Set-Cookie">>,<<"=NoKey; Version=1">>}
+		= cookie(<<"">>, <<"NoKey">>),
+	LocalTime = calendar:universal_time_to_local_time(
+		{{2007, 5, 15}, {13, 45, 33}}),
 	C2 = {<<"Set-Cookie">>,
 		<<"Customer=WILE_E_COYOTE; "
 		"Version=1; "
