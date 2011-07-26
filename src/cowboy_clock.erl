@@ -69,6 +69,10 @@ stop() ->
 rfc1123() ->
 	ets:lookup_element(?TABLE, rfc1123, 2).
 
+%% @doc Return the current date and time formatted according to RFC-2109.
+%%
+%% This format is used in the <em>'Set-Cookie'</em> header sent with
+%% HTTP responses.
 -spec rfc2109(datetime()) -> binary().
 rfc2109(LocalTime) ->
 	{{YYYY,MM,DD},{Hour,Min,Sec}} =
@@ -90,7 +94,6 @@ rfc2109(LocalTime) ->
 	HourBin/binary, ":",
 	MinBin/binary, ":",
 	SecBin/binary, " GMT">>.
-
 
 %% gen_server.
 

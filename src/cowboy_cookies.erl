@@ -17,8 +17,7 @@
 
 -module(cowboy_cookies).
 
-%% API.
--export([parse_cookie/1, cookie/3, cookie/2]).
+-export([parse_cookie/1, cookie/3, cookie/2]). %% API.
 
 %% Types.
 -type kv() :: {Name::binary(), Value::binary()}.
@@ -33,10 +32,7 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
-
-%% ----------------------------------------------------------------------------
-%% API
-%% ----------------------------------------------------------------------------
+%% API.
 
 %% @doc Parse the contents of a Cookie header field, ignoring cookie
 %% attributes, and return a simple property list.
@@ -110,10 +106,7 @@ cookie(Key, Value, Options) when is_binary(Key) andalso is_binary(Value) andalso
 	CookieParts = <<Cookie/binary, ExpiresPart/binary, SecurePart/binary, DomainPart/binary, PathPart/binary, HttpOnlyPart/binary>>,
 	{<<"Set-Cookie">>, CookieParts}.
 
-
-%% ----------------------------------------------------------------------------
-%% Private
-%% ----------------------------------------------------------------------------
+%% Internal.
 
 %% @doc Check if a character is a white space character.
 -spec is_whitespace(char()) -> boolean().
@@ -231,7 +224,6 @@ read_quoted(<<$\\, Any, Rest/binary>>, Acc) ->
 read_quoted(<<C, Rest/binary>>, Acc) ->
 	read_quoted(Rest, <<Acc/binary, C>>).
 
-
 %% @doc Drop characters while a function returns true.
 -spec binary_dropwhile(fun((char()) -> boolean()), binary()) -> binary().
 binary_dropwhile(_F, <<"">>) ->
@@ -294,9 +286,7 @@ any_to_binary(V) when is_atom(V) ->
 any_to_binary(V) when is_integer(V) ->
 	list_to_binary(integer_to_list(V)).
 
-%% ----------------------------------------------------------------------------
-%% Tests
-%% ----------------------------------------------------------------------------
+%% Tests.
 
 -ifdef(TEST).
 
