@@ -19,7 +19,7 @@ clean:
 tests: clean app eunit ct
 
 eunit:
-	@$(REBAR) eunit
+	@$(REBAR) eunit skip_deps=true
 
 ct:
 	@$(REBAR) ct
