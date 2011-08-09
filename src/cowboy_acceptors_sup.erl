@@ -16,25 +16,28 @@
 -module(cowboy_acceptors_sup).
 -behaviour(supervisor).
 
--export([start_link/6]). %% API.
+-export([start_link/7]). %% API.
 -export([init/1]). %% supervisor.
 
 %% API.
 
--spec start_link(non_neg_integer(), module(), any(), module(), any(), pid())
-	-> {ok, pid()}.
-start_link(NbAcceptors, Transport, TransOpts, Protocol, ProtoOpts, ReqsPid) ->
-	supervisor:start_link(?MODULE, [NbAcceptors,
-		Transport, TransOpts, Protocol, ProtoOpts, ReqsPid]).
+-spec start_link(non_neg_integer(), module(), any(),
+	module(), any(), pid(), pid()) -> {ok, pid()}.
+start_link(NbAcceptors, Transport, TransOpts,
+		Protocol, ProtoOpts, ListenerPid, ReqsPid) ->
+	supervisor:start_link(?MODULE, [NbAcceptors, Transport, TransOpts,
+		Protocol, ProtoOpts, ListenerPid, ReqsPid]).
 
 %% supervisor.
 
 -spec init(list()) -> {ok, {{one_for_one, 10, 10}, list()}}.
-init([NbAcceptors, Transport, TransOpts, Protocol, ProtoOpts, ReqsPid]) ->
+init([NbAcceptors, Transport, TransOpts,
+		Protocol, ProtoOpts, ListenerPid, ReqsPid]) ->
 	{ok, LSocket} = Transport:listen(TransOpts),
 	MaxConns = proplists:get_value(max_connections, TransOpts, 1024),
 	Procs = [{{acceptor, self(), N}, {cowboy_acceptor, start_link, [
-				LSocket, Transport, Protocol, ProtoOpts, MaxConns, ReqsPid
+				LSocket, Transport, Protocol, ProtoOpts,
+				MaxConns, ListenerPid, ReqsPid
 			]}, permanent, brutal_kill, worker, dynamic}
 		|| N <- lists:seq(1, NbAcceptors)],
 	{ok, {{one_for_one, 10, 10}, Procs}}.

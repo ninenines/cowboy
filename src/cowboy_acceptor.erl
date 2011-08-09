@@ -15,29 +15,32 @@
 %% @private
 -module(cowboy_acceptor).
 
--export([start_link/6]). %% API.
--export([acceptor/6]). %% Internal.
+-export([start_link/7]). %% API.
+-export([acceptor/7]). %% Internal.
 
 %% API.
 
 -spec start_link(inet:socket(), module(), module(), any(),
-	non_neg_integer(), pid()) -> {ok, pid()}.
-start_link(LSocket, Transport, Protocol, Opts, MaxConns, ReqsSup) ->
+	non_neg_integer(), pid(), pid()) -> {ok, pid()}.
+start_link(LSocket, Transport, Protocol, Opts,
+		MaxConns, ListenerPid, ReqsSup) ->
 	Pid = spawn_link(?MODULE, acceptor,
-		[LSocket, Transport, Protocol, Opts, MaxConns, ReqsSup]),
+		[LSocket, Transport, Protocol, Opts, MaxConns, ListenerPid, ReqsSup]),
 	{ok, Pid}.
 
 %% Internal.
 
 -spec acceptor(inet:socket(), module(), module(), any(),
-	non_neg_integer(), pid()) -> no_return().
-acceptor(LSocket, Transport, Protocol, Opts, MaxConns, ReqsSup) ->
+	non_neg_integer(), pid(), pid()) -> no_return().
+acceptor(LSocket, Transport, Protocol, Opts, MaxConns, ListenerPid, ReqsSup) ->
 	case Transport:accept(LSocket, 2000) of
 		{ok, CSocket} ->
 			{ok, Pid} = supervisor:start_child(ReqsSup,
 				[CSocket, Transport, Protocol, Opts]),
 			Transport:controlling_process(CSocket, Pid),
-			limit_reqs(MaxConns, ReqsSup);
+			{ok, NbConns} = cowboy_listener:add_connection(ListenerPid,
+				default, Pid),
+			limit_reqs(ListenerPid, NbConns, MaxConns);
 		{error, timeout} ->
 			ignore;
 		{error, _Reason} ->
@@ -45,13 +48,11 @@ acceptor(LSocket, Transport, Protocol, Opts, MaxConns, ReqsSup) ->
 			%%       we may want to try and listen again on the port?
 			ignore
 	end,
-	?MODULE:acceptor(LSocket, Transport, Protocol, Opts, MaxConns, ReqsSup).
+	?MODULE:acceptor(LSocket, Transport, Protocol, Opts,
+		MaxConns, ListenerPid, ReqsSup).
 
--spec limit_reqs(non_neg_integer(), pid()) -> ok.
-limit_reqs(MaxConns, ReqsSup) ->
-	Counts = supervisor:count_children(ReqsSup),
-	Active = lists:keyfind(active, 1, Counts),
-	case Active < MaxConns of
-		true -> ok;
-		false -> timer:sleep(1)
-	end.
+-spec limit_reqs(pid(), non_neg_integer(), non_neg_integer()) -> ok.
+limit_reqs(_ListenerPid, NbConns, MaxConns) when NbConns =< MaxConns ->
+	ok;
+limit_reqs(ListenerPid, _NbConns, MaxConns) ->
+	cowboy_listener:wait(ListenerPid, default, MaxConns).

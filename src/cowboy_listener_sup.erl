@@ -25,17 +25,21 @@
 	-> {ok, pid()}.
 start_link(NbAcceptors, Transport, TransOpts, Protocol, ProtoOpts) ->
 	{ok, SupPid} = supervisor:start_link(?MODULE, []),
+	{ok, ListenerPid} = supervisor:start_child(SupPid,
+		{cowboy_listener, {cowboy_listener, start_link, []},
+		 permanent, 5000, worker, dynamic}),
 	{ok, ReqsPid} = supervisor:start_child(SupPid,
 		{cowboy_requests_sup, {cowboy_requests_sup, start_link, []},
 		 permanent, 5000, supervisor, [cowboy_requests_sup]}),
 	{ok, _PoolPid} = supervisor:start_child(SupPid,
 		{cowboy_acceptors_sup, {cowboy_acceptors_sup, start_link, [
-			NbAcceptors, Transport, TransOpts, Protocol, ProtoOpts, ReqsPid
+			NbAcceptors, Transport, TransOpts,
+			Protocol, ProtoOpts, ListenerPid, ReqsPid
 		]}, permanent, 5000, supervisor, [cowboy_acceptors_sup]}),
 	{ok, SupPid}.
 
 %% supervisor.
 
--spec init([]) -> {ok, {{one_for_one, 0, 1}, []}}.
+-spec init([]) -> {ok, {{one_for_all, 10, 10}, []}}.
 init([]) ->
-	{ok, {{one_for_one, 0, 1}, []}}.
+	{ok, {{one_for_all, 10, 10}, []}}.

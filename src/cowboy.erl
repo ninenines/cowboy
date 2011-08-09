@@ -32,6 +32,11 @@
 %% performance. The exact number depends of course on your hardware, on the
 %% protocol used and on the number of expected simultaneous connections.
 %%
+%% The <em>Transport</em> option <em>max_connections</em> allows you to define
+%% the maximum number of simultaneous connections for this listener. It defaults
+%% to 1024. See <em>cowboy_listener</em> for more details on limiting the number
+%% of connections.
+%%
 %% Although Cowboy includes a <em>cowboy_http_protocol</em> handler, other
 %% handlers can be created for different protocols like IRC, FTP and more.
 %%
