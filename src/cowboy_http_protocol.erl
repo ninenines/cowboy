@@ -31,12 +31,13 @@
 %% @see cowboy_http_handler
 -module(cowboy_http_protocol).
 
--export([start_link/3]). %% API.
--export([init/3, parse_request/1]). %% FSM.
+-export([start_link/4]). %% API.
+-export([init/4, parse_request/1]). %% FSM.
 
 -include("include/http.hrl").
 
 -record(state, {
+	listener :: pid(),
 	socket :: inet:socket(),
 	transport :: module(),
 	dispatch :: cowboy_dispatcher:dispatch_rules(),
@@ -51,20 +52,21 @@
 %% API.
 
 %% @doc Start an HTTP protocol process.
--spec start_link(inet:socket(), module(), any()) -> {ok, pid()}.
-start_link(Socket, Transport, Opts) ->
-	Pid = spawn_link(?MODULE, init, [Socket, Transport, Opts]),
+-spec start_link(pid(), inet:socket(), module(), any()) -> {ok, pid()}.
+start_link(ListenerPid, Socket, Transport, Opts) ->
+	Pid = spawn_link(?MODULE, init, [ListenerPid, Socket, Transport, Opts]),
 	{ok, Pid}.
 
 %% FSM.
 
 %% @private
--spec init(inet:socket(), module(), any()) -> ok.
-init(Socket, Transport, Opts) ->
+-spec init(pid(), inet:socket(), module(), any()) -> ok.
+init(ListenerPid, Socket, Transport, Opts) ->
 	Dispatch = proplists:get_value(dispatch, Opts, []),
 	MaxEmptyLines = proplists:get_value(max_empty_lines, Opts, 5),
 	Timeout = proplists:get_value(timeout, Opts, 5000),
-	wait_request(#state{socket=Socket, transport=Transport,
+	receive shoot -> ok end,
+	wait_request(#state{listener=ListenerPid, socket=Socket, transport=Transport,
 		dispatch=Dispatch, max_empty_lines=MaxEmptyLines, timeout=Timeout}).
 
 %% @private
@@ -189,14 +191,14 @@ dispatch(Req=#http_req{host=Host, path=Path},
 	end.
 
 -spec handler_init(#http_req{}, #state{}) -> ok.
-handler_init(Req, State=#state{
+handler_init(Req, State=#state{listener=ListenerPid,
 		transport=Transport, handler={Handler, Opts}}) ->
 	try Handler:init({Transport:name(), http}, Req, Opts) of
 		{ok, Req2, HandlerState} ->
 			handler_loop(HandlerState, Req2, State);
 		%% @todo {upgrade, transport, Module}
 		{upgrade, protocol, Module} ->
-			Module:upgrade(Handler, Opts, Req)
+			Module:upgrade(ListenerPid, Handler, Opts, Req)
 	catch Class:Reason ->
 		error_terminate(500, State),
 		error_logger:error_msg(

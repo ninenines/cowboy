@@ -23,7 +23,7 @@
 %% </ul>
 -module(cowboy_http_websocket).
 
--export([upgrade/3]). %% API.
+-export([upgrade/4]). %% API.
 -export([handler_loop/4]). %% Internal.
 
 -include("include/http.hrl").
@@ -45,8 +45,9 @@
 %% You do not need to call this function manually. To upgrade to the WebSocket
 %% protocol, you simply need to return <em>{upgrade, protocol, {@module}}</em>
 %% in your <em>cowboy_http_handler:init/3</em> handler function.
--spec upgrade(module(), any(), #http_req{}) -> ok.
-upgrade(Handler, Opts, Req) ->
+-spec upgrade(pid(), module(), any(), #http_req{}) -> ok.
+upgrade(ListenerPid, Handler, Opts, Req) ->
+	cowboy_listener:move_connection(ListenerPid, websocket, self()),
 	EOP = binary:compile_pattern(<< 255 >>),
 	case catch websocket_upgrade(#state{handler=Handler, opts=Opts, eop=EOP}, Req) of
 		{ok, State, Req2} -> handler_init(State, Req2);

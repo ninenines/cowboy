@@ -36,10 +36,11 @@ acceptor(LSocket, Transport, Protocol, Opts, MaxConns, ListenerPid, ReqsSup) ->
 	case Transport:accept(LSocket, 2000) of
 		{ok, CSocket} ->
 			{ok, Pid} = supervisor:start_child(ReqsSup,
-				[CSocket, Transport, Protocol, Opts]),
+				[ListenerPid, CSocket, Transport, Protocol, Opts]),
 			Transport:controlling_process(CSocket, Pid),
 			{ok, NbConns} = cowboy_listener:add_connection(ListenerPid,
 				default, Pid),
+			Pid ! shoot,
 			limit_reqs(ListenerPid, NbConns, MaxConns);
 		{error, timeout} ->
 			ignore;

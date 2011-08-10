@@ -16,7 +16,7 @@
 -module(cowboy_requests_sup).
 -behaviour(supervisor).
 
--export([start_link/0, start_request/4]). %% API.
+-export([start_link/0, start_request/5]). %% API.
 -export([init/1]). %% supervisor.
 
 %% API.
@@ -25,9 +25,10 @@
 start_link() ->
 	supervisor:start_link(?MODULE, []).
 
--spec start_request(inet:socket(), module(), module(), any()) -> {ok, pid()}.
-start_request(Socket, Transport, Protocol, Opts) ->
-	Protocol:start_link(Socket, Transport, Opts).
+-spec start_request(pid(), inet:socket(), module(), module(), any())
+	-> {ok, pid()}.
+start_request(ListenerPid, Socket, Transport, Protocol, Opts) ->
+	Protocol:start_link(ListenerPid, Socket, Transport, Opts).
 
 %% supervisor.
 

@@ -219,11 +219,15 @@ One of the strengths of Cowboy is of course that you can use it with any
 protocol you want. The only downside is that if it's not HTTP, you'll
 probably have to write the protocol handler yourself.
 
-The only exported function a protocol handler needs is the start_link/3
-function, with arguments Socket, Transport and Opts. Socket is of course
-the client socket; Transport is the module name of the chosen transport
+The only exported function a protocol handler needs is the start_link/4
+function, with arguments ListenerPid, Socket, Transport and Opts. ListenerPid
+is the pid to the listener's gen_server, managing the connections. Socket is of
+course the client socket; Transport is the module name of the chosen transport
 handler and Opts is protocol options defined when starting the listener.
-Anything you do past this point is up to you!
+
+After initializing your protocol, it is recommended to wait to receive a message
+containing the atom 'shoot', as it will ensure Cowboy has been able to fully
+initialize the socket. Anything you do past this point is up to you!
 
 You should definitely look at the cowboy_http_protocol module for a great
 example of fast request handling if you need to. Otherwise it's probably
@@ -231,7 +235,7 @@ safe to use `{active, once}` mode and handle everything as it comes.
 
 Note that while you technically can run a protocol handler directly as a
 gen_server or a gen_fsm, it's probably not a good idea, as the only call
-you'll ever receive from Cowboy is the start_link/3 call. On the other
+you'll ever receive from Cowboy is the start_link/4 call. On the other
 hand, feel free to write a very basic protocol handler which then forwards
 requests to a gen_server or gen_fsm. By doing so however you must take
 care to supervise their processes as Cowboy only knows about the protocol
