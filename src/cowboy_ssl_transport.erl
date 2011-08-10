@@ -46,6 +46,8 @@ messages() -> {ssl, ssl_closed, ssl_error}.
 %%   Defaults to 1024.</dd>
 %%  <dt>ip</dt><dd>Interface to listen on. Listen on all interfaces
 %%   by default.</dd>
+%%  <dt>packet</dt><dd>Defines the type of packets to use for a socket.
+%%   Valid values: raw, 0, 1, 2, 4.
 %%  <dt>certfile</dt><dd>Mandatory. Path to a file containing the user's
 %%   certificate.</dd>
 %%  <dt>keyfile</dt><dd>Mandatory. Path to the file containing the user's
@@ -64,11 +66,12 @@ listen(Opts) ->
 	require([crypto, public_key, ssl]),
 	{port, Port} = lists:keyfind(port, 1, Opts),
 	Backlog = proplists:get_value(backlog, Opts, 1024),
+  PacketType = proplists:get_value(packet, Opts, raw),
 	{certfile, CertFile} = lists:keyfind(certfile, 1, Opts),
 	{keyfile, KeyFile} = lists:keyfind(keyfile, 1, Opts),
 	{password, Password} = lists:keyfind(password, 1, Opts),
 	ListenOpts0 = [binary, {active, false},
-		{backlog, Backlog}, {packet, raw}, {reuseaddr, true},
+		{backlog, Backlog}, {packet, PacketType}, {reuseaddr, true},
 		{certfile, CertFile}, {keyfile, KeyFile}, {password, Password}],
 	ListenOpts =
 		case lists:keyfind(ip, 1, Opts) of

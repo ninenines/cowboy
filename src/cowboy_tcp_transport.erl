@@ -42,6 +42,8 @@ messages() -> {tcp, tcp_closed, tcp_error}.
 %%   Defaults to 1024.</dd>
 %%  <dt>ip</dt><dd>Interface to listen on. Listen on all interfaces
 %%   by default.</dd>
+%%  <dt>packet</dt><dd>Defines the type of packets to use for a socket.
+%%   Valid values: raw, 0, 1, 2, 4.
 %% </dl>
 %%
 %% @see gen_tcp:listen/2
@@ -50,8 +52,9 @@ messages() -> {tcp, tcp_closed, tcp_error}.
 listen(Opts) ->
 	{port, Port} = lists:keyfind(port, 1, Opts),
 	Backlog = proplists:get_value(backlog, Opts, 1024),
+  PacketType = proplists:get_value(packet, Opts, raw),
 	ListenOpts0 = [binary, {active, false},
-		{backlog, Backlog}, {packet, raw}, {reuseaddr, true}],
+		{backlog, Backlog}, {packet, PacketType}, {reuseaddr, true}],
 	ListenOpts =
 		case lists:keyfind(ip, 1, Opts) of
 			false -> ListenOpts0;
