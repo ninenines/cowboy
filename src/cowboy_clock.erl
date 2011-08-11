@@ -38,6 +38,7 @@
 -type time() :: {hour(), minute(), second()}.
 
 -type datetime() :: {date(), time()}.
+-export_type([date/0, time/0, datetime/0]).
 
 -record(state, {
 	universaltime = undefined :: undefined | datetime(),

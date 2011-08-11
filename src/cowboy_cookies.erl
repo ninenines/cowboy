@@ -23,7 +23,7 @@
 -type kv() :: {Name::binary(), Value::binary()}.
 -type kvlist() :: [kv()].
 -type cookie_option() :: {max_age, integer()}
-				| {local_time, {calendar:date(), calendar:time()}}
+				| {local_time, {cowboy_clock:date(), cowboy_clock:time()}}
 				| {domain, binary()} | {path, binary()}
 				| {secure, true | false} | {http_only, true | false}.
 -export_type([kv/0, kvlist/0, cookie_option/0]).
