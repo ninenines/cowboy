@@ -229,6 +229,11 @@ After initializing your protocol, it is recommended to wait to receive a message
 containing the atom 'shoot', as it will ensure Cowboy has been able to fully
 initialize the socket. Anything you do past this point is up to you!
 
+If you need to change some socket options, like enabling raw mode for example,
+you can call the <em>Transport:setopts/2</em> function. It is the protocol's
+responsability to manage the socket usage, there should be no need for an user
+to specify that kind of options while starting a listener.
+
 You should definitely look at the cowboy_http_protocol module for a great
 example of fast request handling if you need to. Otherwise it's probably
 safe to use `{active, once}` mode and handle everything as it comes.
