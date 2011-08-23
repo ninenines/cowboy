@@ -20,12 +20,14 @@ websocket_init(_TransportName, Req, _Opts) ->
 	erlang:start_timer(1000, self(), <<"websocket_init">>),
 	{ok, Req, undefined}.
 
-websocket_handle(Data, Req, State) ->
-	{reply, Data, Req, State}.
+websocket_handle({text, Data}, Req, State) ->
+	{reply, {text, Data}, Req, State};
+websocket_handle(_Frame, Req, State) ->
+	{ok, Req, State}.
 
 websocket_info({timeout, _Ref, Msg}, Req, State) ->
 	erlang:start_timer(1000, self(), <<"websocket_handle">>),
-	{reply, Msg, Req, State};
+	{reply, {text, Msg}, Req, State};
 websocket_info(_Info, Req, State) ->
 	{ok, Req, State}.
 

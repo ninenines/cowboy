@@ -12,14 +12,28 @@
 %% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-%% @doc WebSocket protocol draft hixie-76 implementation.
+%% @doc WebSocket protocol implementation.
 %%
-%% Known to work with the following browsers:
+%% Supports the protocol version 0 (hixie-76), version 7 (hybi-7)
+%% and version 8 (hybi-8, hybi-9 and hybi-10).
+%%
+%% Version 0 is supported by the following browsers:
 %% <ul>
-%%  <li>Mozilla Firefox 4.0 (disabled by default)</li>
-%%  <li>Google Chrome 6+</li>
+%%  <li>Firefox 4-5 (disabled by default)</li>
+%%  <li>Chrome 6-13</li>
 %%  <li>Safari 5.0.1+</li>
 %%  <li>Opera 11.00+ (disabled by default)</li>
+%% </ul>
+%%
+%% Version 7 is supported by the following browser:
+%% <ul>
+%%  <li>Firefox 6</li>
+%% </ul>
+%%
+%% Version 8 is supported by the following browsers:
+%% <ul>
+%%  <li>Firefox 7</li>
+%%  <li>Chrome 14+</li>
 %% </ul>
 -module(cowboy_http_websocket).
 
@@ -29,15 +43,19 @@
 -include("include/http.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
+-type opcode() :: 0 | 1 | 2 | 8 | 9 | 10.
+-type mask_key() :: 0..16#ffffffff.
+
 -record(state, {
+	version :: 0 | 7 | 8,
 	handler :: module(),
 	opts :: any(),
-	origin = undefined :: undefined | binary(),
 	challenge = undefined :: undefined | binary(),
 	timeout = infinity :: timeout(),
 	messages = undefined :: undefined | {atom(), atom(), atom()},
-	eop :: tuple(),
-	hibernate = false :: boolean()
+	hibernate = false :: boolean(),
+	eop :: undefined | tuple(), %% hixie-76 specific.
+	origin = undefined :: undefined | binary() %% hixie-76 specific.
 }).
 
 %% @doc Upgrade a HTTP request to the WebSocket protocol.
@@ -48,35 +66,49 @@
 -spec upgrade(pid(), module(), any(), #http_req{}) -> ok.
 upgrade(ListenerPid, Handler, Opts, Req) ->
 	cowboy_listener:move_connection(ListenerPid, websocket, self()),
-	EOP = binary:compile_pattern(<< 255 >>),
-	case catch websocket_upgrade(#state{handler=Handler, opts=Opts, eop=EOP}, Req) of
+	case catch websocket_upgrade(#state{handler=Handler, opts=Opts}, Req) of
 		{ok, State, Req2} -> handler_init(State, Req2);
 		{'EXIT', _Reason} -> upgrade_error(Req)
 	end.
 
+%% @todo We need a function to properly parse headers according to their ABNF,
+%%       instead of having ugly code like this case here.
 -spec websocket_upgrade(#state{}, #http_req{}) -> {ok, #state{}, #http_req{}}.
 websocket_upgrade(State, Req) ->
-	{<<"Upgrade">>, Req2} = cowboy_http_req:header('Connection', Req),
-	{<<"WebSocket">>, Req3} = cowboy_http_req:header('Upgrade', Req2),
-	{Origin, Req4} = cowboy_http_req:header(<<"Origin">>, Req3),
-	{Key1, Req5} = cowboy_http_req:header(<<"Sec-Websocket-Key1">>, Req4),
-	{Key2, Req6} = cowboy_http_req:header(<<"Sec-Websocket-Key2">>, Req5),
+	case cowboy_http_req:header('Connection', Req) of
+		{<<"Upgrade">>, Req2} -> ok;
+		{<<"keep-alive, Upgrade">>, Req2} -> ok %% @todo Temp. For Firefox 6.
+	end,
+	{Version, Req3} = cowboy_http_req:header(<<"Sec-Websocket-Version">>, Req2),
+	websocket_upgrade(Version, State, Req3).
+
+%% @todo Handle the Sec-Websocket-Protocol header.
+-spec websocket_upgrade(undefined | <<_:8>>, #state{}, #http_req{})
+	-> {ok, #state{}, #http_req{}}.
+%% No version given. Assuming hixie-76 draft.
+%% @todo Check Origin?
+websocket_upgrade(undefined, State, Req) ->
+	{<<"WebSocket">>, Req2} = cowboy_http_req:header('Upgrade', Req),
+	{Origin, Req3} = cowboy_http_req:header(<<"Origin">>, Req2),
+	{Key1, Req4} = cowboy_http_req:header(<<"Sec-Websocket-Key1">>, Req3),
+	{Key2, Req5} = cowboy_http_req:header(<<"Sec-Websocket-Key2">>, Req4),
 	false = lists:member(undefined, [Origin, Key1, Key2]),
-	{ok, Key3, Req7} = cowboy_http_req:body(8, Req6),
-	Challenge = challenge(Key1, Key2, Key3),
-	{ok, State#state{origin=Origin, challenge=Challenge}, Req7}.
-
--spec challenge(binary(), binary(), binary()) -> binary().
-challenge(Key1, Key2, Key3) ->
-	IntKey1 = key_to_integer(Key1),
-	IntKey2 = key_to_integer(Key2),
-	erlang:md5(<< IntKey1:32, IntKey2:32, Key3/binary >>).
-
--spec key_to_integer(binary()) -> integer().
-key_to_integer(Key) ->
-	Number = list_to_integer([C || << C >> <= Key, C >= $0, C =< $9]),
-	Spaces = length([C || << C >> <= Key, C =:= 32]),
-	Number div Spaces.
+	{ok, Key3, Req6} = cowboy_http_req:body(8, Req5),
+	Challenge = hixie76_challenge(Key1, Key2, Key3),
+	EOP = binary:compile_pattern(<< 255 >>),
+	{ok, State#state{version=0, origin=Origin, challenge=Challenge,
+		eop=EOP}, Req6};
+%% Versions 7 and 8. Implementation follows the hybi 7 through 10 drafts.
+%% @todo We don't need Origin?
+websocket_upgrade(<< Version >>, State, Req)
+		when Version =:= $7; Version =:= $8 ->
+	{<<"websocket">>, Req2} = cowboy_http_req:header('Upgrade', Req),
+	{Origin, Req3} = cowboy_http_req:header(<<"Sec-Websocket-Origin">>, Req2),
+	{Key, Req4} = cowboy_http_req:header(<<"Sec-Websocket-Key">>, Req3),
+	false = lists:member(undefined, [Origin, Key]),
+	Challenge = hybi_challenge(Key),
+	{ok, State#state{version=Version - $0, origin=Origin,
+		challenge=Challenge}, Req4}.
 
 -spec handler_init(#state{}, #http_req{}) -> ok.
 handler_init(State=#state{handler=Handler, opts=Opts},
@@ -103,34 +135,29 @@ upgrade_error(Req=#http_req{socket=Socket, transport=Transport}) ->
 	Transport:close(Socket).
 
 -spec websocket_handshake(#state{}, #http_req{}, any()) -> ok.
-websocket_handshake(State=#state{origin=Origin, challenge=Challenge},
-		Req=#http_req{transport=Transport, raw_host=Host, port=Port,
-		raw_path=Path}, HandlerState) ->
-	Location = websocket_location(Transport:name(), Host, Port, Path),
+websocket_handshake(State=#state{version=0, origin=Origin,
+		challenge=Challenge}, Req=#http_req{transport=Transport,
+		raw_host=Host, port=Port, raw_path=Path}, HandlerState) ->
+	Location = hixie76_location(Transport:name(), Host, Port, Path),
 	{ok, Req2} = cowboy_http_req:reply(
 		<<"101 WebSocket Protocol Handshake">>,
 		[{<<"Connection">>, <<"Upgrade">>},
 		 {<<"Upgrade">>, <<"WebSocket">>},
-		 {<<"Sec-WebSocket-Location">>, Location},
-		 {<<"Sec-WebSocket-Origin">>, Origin}],
+		 {<<"Sec-Websocket-Location">>, Location},
+		 {<<"Sec-Websocket-Origin">>, Origin}],
 		Challenge, Req#http_req{resp_state=waiting}),
 	handler_before_loop(State#state{messages=Transport:messages()},
+		Req2, HandlerState, <<>>);
+websocket_handshake(State=#state{challenge=Challenge},
+		Req=#http_req{transport=Transport}, HandlerState) ->
+	{ok, Req2} = cowboy_http_req:reply(
+		<<"101 Switching Protocols">>,
+		[{<<"Connection">>, <<"Upgrade">>},
+		 {<<"Upgrade">>, <<"websocket">>},
+		 {<<"Sec-Websocket-Accept">>, Challenge}],
+		[], Req#http_req{resp_state=waiting}),
+	handler_before_loop(State#state{messages=Transport:messages()},
 		Req2, HandlerState, <<>>).
-
--spec websocket_location(atom(), binary(), inet:ip_port(), binary())
-	-> binary().
-websocket_location(Protocol, Host, Port, Path) ->
-  << (websocket_location_protocol(Protocol))/binary, "://", Host/binary,
-    (websocket_location_port(ssl, Port))/binary, Path/binary >>.
-
--spec websocket_location_protocol(atom()) -> binary().
-websocket_location_protocol(ssl) -> <<"wss">>;
-websocket_location_protocol(_)   -> <<"ws">>.
-
--spec websocket_location_port(atom(), inet:ip_port()) -> binary().
-websocket_location_port(ssl, 443) -> <<"">>;
-websocket_location_port(_, 80)    -> <<"">>;
-websocket_location_port(_, Port)  -> <<":", (list_to_binary(integer_to_list(Port)))/binary>>.
 
 -spec handler_before_loop(#state{}, #http_req{}, any(), binary()) -> ok.
 handler_before_loop(State=#state{hibernate=true},
@@ -164,28 +191,117 @@ handler_loop(State=#state{messages={OK, Closed, Error}, timeout=Timeout},
 	end.
 
 -spec websocket_data(#state{}, #http_req{}, any(), binary()) -> ok.
-websocket_data(State, Req, HandlerState, << 255, 0, _Rest/bits >>) ->
-	websocket_close(State, Req, HandlerState, {normal, closed});
+%% No more data.
 websocket_data(State, Req, HandlerState, <<>>) ->
 	handler_before_loop(State, Req, HandlerState, <<>>);
-websocket_data(State, Req, HandlerState, Data) ->
-	websocket_frame(State, Req, HandlerState, Data, binary:first(Data)).
-
-%% We do not support any frame type other than 0 yet. Just like the specs.
--spec websocket_frame(#state{}, #http_req{}, any(), binary(), byte()) -> ok.
-websocket_frame(State=#state{eop=EOP}, Req, HandlerState, Data, 0) ->
+%% hixie-76 close frame.
+websocket_data(State=#state{version=0}, Req, HandlerState,
+		<< 255, 0, _Rest/bits >>) ->
+	websocket_close(State, Req, HandlerState, {normal, closed});
+%% hixie-76 data frame. We only support the frame type 0, same as the specs.
+websocket_data(State=#state{version=0, eop=EOP}, Req, HandlerState,
+		Data = << 0, _/bits >>) ->
 	case binary:match(Data, EOP) of
 		{Pos, 1} ->
 			Pos2 = Pos - 1,
-			<< 0, Frame:Pos2/binary, 255, Rest/bits >> = Data,
+			<< 0, Payload:Pos2/binary, 255, Rest/bits >> = Data,
 			handler_call(State, Req, HandlerState,
-				Rest, websocket_handle, Frame, fun websocket_data/4);
+				Rest, websocket_handle, {text, Payload}, fun websocket_data/4);
 		nomatch ->
 			%% @todo We probably should allow limiting frame length.
 			handler_before_loop(State, Req, HandlerState, Data)
 	end;
-websocket_frame(State, Req, HandlerState, _Data, _FrameType) ->
+%% hybi data frame.
+%% @todo Handle Fin.
+websocket_data(State=#state{version=Version}, Req, HandlerState, Data)
+		when Version =/= 0 ->
+	<< 1:1, 0:3, Opcode:4, Mask:1, PayloadLen:7, Rest/bits >> = Data,
+	{PayloadLen2, Rest2} = case PayloadLen of
+		126 -> << L:16, R/bits >> = Rest, {L, R};
+		127 -> << 0:1, L:63, R/bits >> = Rest, {L, R};
+		PayloadLen -> {PayloadLen, Rest}
+	end,
+	case {Mask, PayloadLen2} of
+		{0, 0} ->
+			websocket_dispatch(State, Req, HandlerState, Rest2, Opcode, <<>>);
+		{1, N} when N + 4 < byte_size(Rest2) ->
+			%% @todo We probably should allow limiting frame length.
+			handler_before_loop(State, Req, HandlerState, Data);
+		{1, _N} ->
+			<< MaskKey:32, Payload:PayloadLen2/binary, Rest3/bits >> = Rest2,
+			websocket_unmask(State, Req, HandlerState, Rest3,
+				Opcode, Payload, MaskKey)
+	end;
+%% Something was wrong with the frame. Close the connection.
+websocket_data(State, Req, HandlerState, _Bad) ->
 	websocket_close(State, Req, HandlerState, {error, badframe}).
+
+%% hybi unmasking.
+-spec websocket_unmask(#state{}, #http_req{}, any(), binary(),
+	opcode(), binary(), mask_key()) -> ok.
+websocket_unmask(State, Req, HandlerState, RemainingData,
+		Opcode, Payload, MaskKey) ->
+	websocket_unmask(State, Req, HandlerState, RemainingData,
+		Opcode, Payload, MaskKey, <<>>).
+
+-spec websocket_unmask(#state{}, #http_req{}, any(), binary(),
+	opcode(), binary(), mask_key(), binary()) -> ok.
+websocket_unmask(State, Req, HandlerState, RemainingData,
+		Opcode, << O:32, Rest/bits >>, MaskKey, Acc) ->
+	T = O bxor MaskKey,
+	websocket_unmask(State, Req, HandlerState, RemainingData,
+		Opcode, Rest, MaskKey, << Acc/binary, T:32 >>);
+websocket_unmask(State, Req, HandlerState, RemainingData,
+		Opcode, << O:24 >>, MaskKey, Acc) ->
+	<< MaskKey2:24, _:8 >> = << MaskKey:32 >>,
+	T = O bxor MaskKey2,
+	websocket_dispatch(State, Req, HandlerState, RemainingData,
+		Opcode, << Acc/binary, T:24 >>);
+websocket_unmask(State, Req, HandlerState, RemainingData,
+		Opcode, << O:16 >>, MaskKey, Acc) ->
+	<< MaskKey2:16, _:16 >> = << MaskKey:32 >>,
+	T = O bxor MaskKey2,
+	websocket_dispatch(State, Req, HandlerState, RemainingData,
+		Opcode, << Acc/binary, T:16 >>);
+websocket_unmask(State, Req, HandlerState, RemainingData,
+		Opcode, << O:8 >>, MaskKey, Acc) ->
+	<< MaskKey2:8, _:24 >> = << MaskKey:32 >>,
+	T = O bxor MaskKey2,
+	websocket_dispatch(State, Req, HandlerState, RemainingData,
+		Opcode, << Acc/binary, T:8 >>);
+websocket_unmask(State, Req, HandlerState, RemainingData,
+		Opcode, <<>>, _MaskKey, Acc) ->
+	websocket_dispatch(State, Req, HandlerState, RemainingData,
+		Opcode, Acc).
+
+%% hybi dispatching.
+-spec websocket_dispatch(#state{}, #http_req{}, any(), binary(),
+	opcode(), binary()) -> ok.
+%% @todo Fragmentation.
+%~ websocket_dispatch(State, Req, HandlerState, RemainingData, 0, Payload) ->
+%% Text frame.
+websocket_dispatch(State, Req, HandlerState, RemainingData, 1, Payload) ->
+	handler_call(State, Req, HandlerState, RemainingData,
+		websocket_handle, {text, Payload}, fun websocket_data/4);
+%% Binary frame.
+websocket_dispatch(State, Req, HandlerState, RemainingData, 2, Payload) ->
+	handler_call(State, Req, HandlerState, RemainingData,
+		websocket_handle, {binary, Payload}, fun websocket_data/4);
+%% Close control frame.
+%% @todo Handle the optional Payload.
+websocket_dispatch(State, Req, HandlerState, _RemainingData, 8, _Payload) ->
+	websocket_close(State, Req, HandlerState, {normal, closed});
+%% Ping control frame. Send a pong back and forward the ping to the handler.
+websocket_dispatch(State, Req=#http_req{socket=Socket, transport=Transport},
+		HandlerState, RemainingData, 9, Payload) ->
+	Len = hybi_payload_length(byte_size(Payload)),
+	Transport:send(Socket, << 1:1, 0:3, 10:4, 0:1, Len/bits, Payload/binary >>),
+	handler_call(State, Req, HandlerState, RemainingData,
+		websocket_handle, {ping, Payload}, fun websocket_data/4);
+%% Pong control frame.
+websocket_dispatch(State, Req, HandlerState, RemainingData, 10, Payload) ->
+	handler_call(State, Req, HandlerState, RemainingData,
+		websocket_handle, {pong, Payload}, fun websocket_data/4).
 
 -spec handler_call(#state{}, #http_req{}, any(), binary(),
 	atom(), any(), fun()) -> ok.
@@ -197,11 +313,11 @@ handler_call(State=#state{handler=Handler, opts=Opts}, Req, HandlerState,
 		{ok, Req2, HandlerState2, hibernate} ->
 			NextState(State#state{hibernate=true},
 				Req2, HandlerState2, RemainingData);
-		{reply, Data, Req2, HandlerState2} ->
-			websocket_send(Data, Req2),
+		{reply, Payload, Req2, HandlerState2} ->
+			websocket_send(Payload, State, Req2),
 			NextState(State, Req2, HandlerState2, RemainingData);
-		{reply, Data, Req2, HandlerState2, hibernate} ->
-			websocket_send(Data, Req2),
+		{reply, Payload, Req2, HandlerState2, hibernate} ->
+			websocket_send(Payload, State, Req2),
 			NextState(State#state{hibernate=true},
 				Req2, HandlerState2, RemainingData);
 		{shutdown, Req2, HandlerState2} ->
@@ -217,14 +333,36 @@ handler_call(State=#state{handler=Handler, opts=Opts}, Req, HandlerState,
 		websocket_close(State, Req, HandlerState, {error, handler})
 	end.
 
--spec websocket_send(binary(), #http_req{}) -> ok.
-websocket_send(Data, #http_req{socket=Socket, transport=Transport}) ->
-	Transport:send(Socket, << 0, Data/binary, 255 >>).
+-spec websocket_send(binary(), #state{}, #http_req{}) -> ok | ignore.
+%% hixie-76 text frame.
+websocket_send({text, Payload}, #state{version=0},
+		#http_req{socket=Socket, transport=Transport}) ->
+	Transport:send(Socket, << 0, Payload/binary, 255 >>);
+%% Ignore all unknown frame types for compatibility with hixie 76.
+websocket_send(_Any, #state{version=0}, _Req) ->
+	ignore;
+websocket_send({Type, Payload}, _State,
+		#http_req{socket=Socket, transport=Transport}) ->
+	Opcode = case Type of
+		text -> 1;
+		binary -> 2;
+		ping -> 9;
+		pong -> 10
+	end,
+	Len = hybi_payload_length(byte_size(Payload)),
+	Transport:send(Socket, << 1:1, 0:3, Opcode:4,
+		0:1, Len/bits, Payload/binary >>).
 
 -spec websocket_close(#state{}, #http_req{}, any(), {atom(), atom()}) -> ok.
-websocket_close(State, Req=#http_req{socket=Socket, transport=Transport},
-		HandlerState, Reason) ->
+websocket_close(State=#state{version=0}, Req=#http_req{socket=Socket,
+		transport=Transport}, HandlerState, Reason) ->
 	Transport:send(Socket, << 255, 0 >>),
+	Transport:close(Socket),
+	handler_terminate(State, Req, HandlerState, Reason);
+%% @todo Send a Payload? Using Reason is usually good but we're quite careless.
+websocket_close(State, Req=#http_req{socket=Socket,
+		transport=Transport}, HandlerState, Reason) ->
+	Transport:send(Socket, << 1:1, 0:3, 8:4, 0:8 >>),
 	Transport:close(Socket),
 	handler_terminate(State, Req, HandlerState, Reason).
 
@@ -244,19 +382,67 @@ handler_terminate(#state{handler=Handler, opts=Opts},
 			 HandlerState, Req, erlang:get_stacktrace()])
 	end.
 
+%% hixie-76 specific.
+
+-spec hixie76_challenge(binary(), binary(), binary()) -> binary().
+hixie76_challenge(Key1, Key2, Key3) ->
+	IntKey1 = hixie76_key_to_integer(Key1),
+	IntKey2 = hixie76_key_to_integer(Key2),
+	erlang:md5(<< IntKey1:32, IntKey2:32, Key3/binary >>).
+
+-spec hixie76_key_to_integer(binary()) -> integer().
+hixie76_key_to_integer(Key) ->
+	Number = list_to_integer([C || << C >> <= Key, C >= $0, C =< $9]),
+	Spaces = length([C || << C >> <= Key, C =:= 32]),
+	Number div Spaces.
+
+-spec hixie76_location(atom(), binary(), inet:ip_port(), binary())
+	-> binary().
+hixie76_location(Protocol, Host, Port, Path) ->
+	<< (hixie76_location_protocol(Protocol))/binary, "://", Host/binary,
+		(hixie76_location_port(ssl, Port))/binary, Path/binary >>.
+
+-spec hixie76_location_protocol(atom()) -> binary().
+hixie76_location_protocol(ssl) -> <<"wss">>;
+hixie76_location_protocol(_)   -> <<"ws">>.
+
+-spec hixie76_location_port(atom(), inet:ip_port()) -> binary().
+hixie76_location_port(ssl, 443) ->
+	<<"">>;
+hixie76_location_port(_, 80) ->
+	<<"">>;
+hixie76_location_port(_, Port) ->
+	<<":", (list_to_binary(integer_to_list(Port)))/binary>>.
+
+%% hybi specific.
+
+-spec hybi_challenge(binary()) -> binary().
+hybi_challenge(Key) ->
+	Bin = << Key/binary, "258EAFA5-E914-47DA-95CA-C5AB0DC85B11" >>,
+	base64:encode(crypto:sha(Bin)).
+
+-spec hybi_payload_length(0..16#7fffffffffffffff)
+	-> << _:7 >> | << _:23 >> | << _:71 >>.
+hybi_payload_length(N) ->
+	case N of
+		N when N =< 125 -> << N:7 >>;
+		N when N =< 16#ffff -> << 126:7, N:16 >>;
+		N when N =< 16#7fffffffffffffff -> << 127:7, N:64 >>
+	end.
+
 %% Tests.
 
 -ifdef(TEST).
 
-websocket_location_test() ->
+hixie76_location_test() ->
 	?assertEqual(<<"ws://localhost/path">>,
-		websocket_location(other, <<"localhost">>, 80, <<"/path">>)),
+		hixie76_location(other, <<"localhost">>, 80, <<"/path">>)),
 	?assertEqual(<<"ws://localhost:8080/path">>,
-		websocket_location(other, <<"localhost">>, 8080, <<"/path">>)),
+		hixie76_location(other, <<"localhost">>, 8080, <<"/path">>)),
 	?assertEqual(<<"wss://localhost/path">>,
-		websocket_location(ssl, <<"localhost">>, 443, <<"/path">>)),
+		hixie76_location(ssl, <<"localhost">>, 443, <<"/path">>)),
 	?assertEqual(<<"wss://localhost:8443/path">>,
-		websocket_location(ssl, <<"localhost">>, 8443, <<"/path">>)),
+		hixie76_location(ssl, <<"localhost">>, 8443, <<"/path">>)),
 	ok.
 
 -endif.

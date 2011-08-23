@@ -195,12 +195,14 @@ websocket_init(TransportName, Req, _Opts) ->
     erlang:start_timer(1000, self(), <<"Hello!">>),
     {ok, Req, undefined_state}.
 
-websocket_handle(Msg, Req, State) ->
-    {reply, << "That's what she said! ", Msg/binary >>, Req, State}.
+websocket_handle({text, Msg}, Req, State) ->
+    {reply, {text, << "That's what she said! ", Msg/binary >>}, Req, State};
+websocket_handle(_Data, Req, State) ->
+    {ok, Req, State}.
 
 websocket_info({timeout, _Ref, Msg}, Req, State) ->
     erlang:start_timer(1000, self(), <<"How' you doin'?">>),
-    {reply, Msg, Req, State};
+    {reply, {text, Msg}, Req, State};
 websocket_info(_Info, Req, State) ->
     {ok, Req, State}.
 
@@ -211,6 +213,12 @@ websocket_terminate(_Reason, _Req, _State) ->
 Of course you can have an HTTP handler doing both HTTP and Websocket
 handling, but for the sake of this example we're ignoring the HTTP
 part entirely.
+
+As the Websocket protocol is still a draft the API is subject to change
+regularly when support to the most recent drafts gets added. Features may
+be added, changed or removed before the protocol gets finalized. Cowboy
+tries to implement all drafts transparently and give a single interface to
+handle them all, however.
 
 Using Cowboy with other protocols
 ---------------------------------

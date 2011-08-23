@@ -19,8 +19,8 @@
 -export([all/0, groups/0, init_per_suite/1, end_per_suite/1,
 	init_per_group/2, end_per_group/2]). %% ct.
 -export([chunked_response/1, headers_dupe/1, headers_huge/1,
-	nc_rand/1, pipeline/1, raw/1]). %% http.
--export([http_200/1, http_404/1, websocket/1]). %% http and https.
+	nc_rand/1, pipeline/1, raw/1, ws0/1, ws8/1]). %% http.
+-export([http_200/1, http_404/1]). %% http and https.
 
 %% ct.
 
@@ -30,7 +30,7 @@ all() ->
 groups() ->
 	BaseTests = [http_200, http_404],
 	[{http, [], [chunked_response, headers_dupe, headers_huge,
-		nc_rand, pipeline, raw, websocket] ++ BaseTests},
+		nc_rand, pipeline, raw, ws0, ws8] ++ BaseTests},
 	{https, [], BaseTests}].
 
 init_per_suite(Config) ->
@@ -193,7 +193,7 @@ raw(Config) ->
 	[{Packet, StatusCode} = raw_req(Packet, Config)
 		|| {Packet, StatusCode} <- Tests].
 
-websocket(Config) ->
+ws0(Config) ->
 	{port, Port} = lists:keyfind(port, 1, Config),
 	{ok, Socket} = gen_tcp:connect("localhost", Port,
 		[binary, {active, false}, {packet, raw}]),
@@ -209,7 +209,8 @@ websocket(Config) ->
 	{ok, Handshake} = gen_tcp:recv(Socket, 0, 6000),
 	{ok, {http_response, {1, 1}, 101, "WebSocket Protocol Handshake"}, Rest}
 		= erlang:decode_packet(http, Handshake, []),
-	[Headers, Body] = websocket_headers(erlang:decode_packet(httph, Rest, []), []),
+	[Headers, Body] = websocket_headers(
+		erlang:decode_packet(httph, Rest, []), []),
 	{'Connection', "Upgrade"} = lists:keyfind('Connection', 1, Headers),
 	{'Upgrade', "WebSocket"} = lists:keyfind('Upgrade', 1, Headers),
 	{"sec-websocket-location", "ws://localhost/websocket"}
@@ -225,6 +226,47 @@ websocket(Config) ->
 	{ok, << 0, "websocket_handle", 255 >>} = gen_tcp:recv(Socket, 0, 6000),
 	ok = gen_tcp:send(Socket, << 255, 0 >>),
 	{ok, << 255, 0 >>} = gen_tcp:recv(Socket, 0, 6000),
+	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
+	ok.
+
+ws8(Config) ->
+	{port, Port} = lists:keyfind(port, 1, Config),
+	{ok, Socket} = gen_tcp:connect("localhost", Port,
+		[binary, {active, false}, {packet, raw}]),
+	ok = gen_tcp:send(Socket, [
+		"GET /websocket HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Connection: Upgrade\r\n"
+		"Upgrade: websocket\r\n"
+		"Sec-WebSocket-Origin: http://localhost\r\n"
+		"Sec-WebSocket-Version: 8\r\n"
+		"Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n"
+		"\r\n"]),
+	{ok, Handshake} = gen_tcp:recv(Socket, 0, 6000),
+	{ok, {http_response, {1, 1}, 101, "Switching Protocols"}, Rest}
+		= erlang:decode_packet(http, Handshake, []),
+	[Headers, <<>>] = websocket_headers(
+		erlang:decode_packet(httph, Rest, []), []),
+	{'Connection', "Upgrade"} = lists:keyfind('Connection', 1, Headers),
+	{'Upgrade', "websocket"} = lists:keyfind('Upgrade', 1, Headers),
+	{"sec-websocket-accept", "s3pPLMBiTxaQ9kYGzzhZRbK+xOo="}
+		= lists:keyfind("sec-websocket-accept", 1, Headers),
+	ok = gen_tcp:send(Socket, << 16#81, 16#85, 16#37, 16#fa, 16#21, 16#3d,
+		16#7f, 16#9f, 16#4d, 16#51, 16#58 >>),
+	{ok, << 1:1, 0:3, 1:4, 0:1, 5:7, "Hello" >>}
+		= gen_tcp:recv(Socket, 0, 6000),
+	{ok, << 1:1, 0:3, 1:4, 0:1, 14:7, "websocket_init" >>}
+		= gen_tcp:recv(Socket, 0, 6000),
+	{ok, << 1:1, 0:3, 1:4, 0:1, 16:7, "websocket_handle" >>}
+		= gen_tcp:recv(Socket, 0, 6000),
+	{ok, << 1:1, 0:3, 1:4, 0:1, 16:7, "websocket_handle" >>}
+		= gen_tcp:recv(Socket, 0, 6000),
+	{ok, << 1:1, 0:3, 1:4, 0:1, 16:7, "websocket_handle" >>}
+		= gen_tcp:recv(Socket, 0, 6000),
+	ok = gen_tcp:send(Socket, << 1:1, 0:3, 9:4, 0:8 >>), %% ping
+	{ok, << 1:1, 0:3, 10:4, 0:8 >>} = gen_tcp:recv(Socket, 0, 6000), %% pong
+	ok = gen_tcp:send(Socket, << 1:1, 0:3, 8:4, 0:8 >>), %% close
+	{ok, << 1:1, 0:3, 8:4, 0:8 >>} = gen_tcp:recv(Socket, 0, 6000),
 	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
 	ok.
 
