@@ -35,6 +35,7 @@
 -export([init/4, parse_request/1]). %% FSM.
 
 -include("include/http.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 -record(state, {
 	listener :: pid(),
@@ -164,7 +165,8 @@ header({http_header, _I, 'Connection', _R, Connection}, Req, State) ->
 		headers=[{'Connection', Connection}|Req#http_req.headers]},
 		State#state{connection=ConnAtom});
 header({http_header, _I, Field, _R, Value}, Req, State) ->
-	parse_header(Req#http_req{headers=[{Field, Value}|Req#http_req.headers]},
+	Field2 = format_header(Field),
+	parse_header(Req#http_req{headers=[{Field2, Value}|Req#http_req.headers]},
 		State);
 %% The Host header is required.
 header(http_eoh, #http_req{host=undefined}, State) ->
@@ -297,6 +299,7 @@ terminate(#state{socket=Socket, transport=Transport}) ->
 version_to_connection({1, 1}) -> keepalive;
 version_to_connection(_Any) -> close.
 
+%% @todo Connection can take more than one value.
 -spec connection_to_atom(binary()) -> keepalive | close.
 connection_to_atom(<<"keep-alive">>) ->
 	keepalive;
@@ -311,6 +314,28 @@ connection_to_atom(Connection) ->
 -spec default_port(atom()) -> 80 | 443.
 default_port(ssl) -> 443;
 default_port(_) -> 80.
+
+%% @todo While 32 should be enough for everybody, we should probably make
+%%       this configurable or something.
+-spec format_header(atom()) -> atom(); (binary()) -> binary().
+format_header(Field) when is_atom(Field) ->
+	Field;
+format_header(Field) when byte_size(Field) =< 20; byte_size(Field) > 32 ->
+	Field;
+format_header(Field) ->
+	format_header(Field, true, <<>>).
+
+-spec format_header(binary(), boolean(), binary()) -> binary().
+format_header(<<>>, _Any, Acc) ->
+	Acc;
+%% Replicate a bug in OTP for compatibility reasons when there's a - right
+%% after another. Proper use should always be 'true' instead of 'not Bool'.
+format_header(<< $-, Rest/bits >>, Bool, Acc) ->
+	format_header(Rest, not Bool, << Acc/binary, $- >>);
+format_header(<< C, Rest/bits >>, true, Acc) ->
+	format_header(Rest, false, << Acc/binary, (char_to_upper(C)) >>);
+format_header(<< C, Rest/bits >>, false, Acc) ->
+	format_header(Rest, false, << Acc/binary, (char_to_lower(C)) >>).
 
 %% We are excluding a few characters on purpose.
 -spec binary_to_lower(binary()) -> binary().
@@ -346,3 +371,52 @@ char_to_lower($X) -> $x;
 char_to_lower($Y) -> $y;
 char_to_lower($Z) -> $z;
 char_to_lower(Ch) -> Ch.
+
+-spec char_to_upper(char()) -> char().
+char_to_upper($a) -> $A;
+char_to_upper($b) -> $B;
+char_to_upper($c) -> $C;
+char_to_upper($d) -> $D;
+char_to_upper($e) -> $E;
+char_to_upper($f) -> $F;
+char_to_upper($g) -> $G;
+char_to_upper($h) -> $H;
+char_to_upper($i) -> $I;
+char_to_upper($j) -> $J;
+char_to_upper($k) -> $K;
+char_to_upper($l) -> $L;
+char_to_upper($m) -> $M;
+char_to_upper($n) -> $N;
+char_to_upper($o) -> $O;
+char_to_upper($p) -> $P;
+char_to_upper($q) -> $Q;
+char_to_upper($r) -> $R;
+char_to_upper($s) -> $S;
+char_to_upper($t) -> $T;
+char_to_upper($u) -> $U;
+char_to_upper($v) -> $V;
+char_to_upper($w) -> $W;
+char_to_upper($x) -> $X;
+char_to_upper($y) -> $Y;
+char_to_upper($z) -> $Z;
+char_to_upper(Ch) -> Ch.
+
+%% Tests.
+
+-ifdef(TEST).
+
+format_header_test_() ->
+	%% {Header, Result}
+	Tests = [
+		{<<"Sec-Websocket-Version">>, <<"Sec-Websocket-Version">>},
+		{<<"Sec-WebSocket-Version">>, <<"Sec-Websocket-Version">>},
+		{<<"sec-websocket-version">>, <<"Sec-Websocket-Version">>},
+		{<<"SEC-WEBSOCKET-VERSION">>, <<"Sec-Websocket-Version">>},
+		%% These last tests ensures we're formatting headers exactly like OTP.
+		%% Even though it's dumb, it's better for compatibility reasons.
+		{<<"Sec-WebSocket--Version">>, <<"Sec-Websocket--version">>},
+		{<<"Sec-WebSocket---Version">>, <<"Sec-Websocket---Version">>}
+	],
+	[{H, fun() -> R = format_header(H) end} || {H, R} <- Tests].
+
+-endif.
