@@ -264,7 +264,7 @@ body_qs(Req) ->
 	-> {ok, #http_req{}}.
 reply(Code, Headers, Body, Req=#http_req{socket=Socket,
 		transport=Transport, connection=Connection,
-		resp_state=waiting}) ->
+		method=Method, resp_state=waiting}) ->
 	Head = response_head(Code, Headers, [
 		{<<"Connection">>, atom_to_connection(Connection)},
 		{<<"Content-Length">>,
@@ -272,13 +272,24 @@ reply(Code, Headers, Body, Req=#http_req{socket=Socket,
 		{<<"Date">>, cowboy_clock:rfc1123()},
 		{<<"Server">>, <<"Cowboy">>}
 	]),
-	Transport:send(Socket, [Head, Body]),
+	case Method of
+		'HEAD' -> Transport:send(Socket, Head);
+		_ -> Transport:send(Socket, [Head, Body])
+	end,
 	{ok, Req#http_req{resp_state=done}}.
 
 %% @doc Initiate the sending of a chunked reply to the client.
 %% @see cowboy_http_req:chunk/2
 -spec chunked_reply(http_status(), http_headers(), #http_req{})
 	-> {ok, #http_req{}}.
+chunked_reply(Code, Headers, Req=#http_req{socket=Socket, transport=Transport,
+		method='HEAD', resp_state=waiting}) ->
+	Head = response_head(Code, Headers, [
+		{<<"Date">>, cowboy_clock:rfc1123()},
+		{<<"Server">>, <<"Cowboy">>}
+	]),
+	Transport:send(Socket, Head),
+	{ok, Req#http_req{resp_state=done}};
 chunked_reply(Code, Headers, Req=#http_req{socket=Socket, transport=Transport,
 		resp_state=waiting}) ->
 	Head = response_head(Code, Headers, [
@@ -294,6 +305,8 @@ chunked_reply(Code, Headers, Req=#http_req{socket=Socket, transport=Transport,
 %%
 %% A chunked reply must have been initiated before calling this function.
 -spec chunk(iodata(), #http_req{}) -> ok.
+chunk(_Data, #http_req{socket=_Socket, transport=_Transport, method='HEAD'}) ->
+	ok;
 chunk(Data, #http_req{socket=Socket, transport=Transport, resp_state=chunks}) ->
 	Transport:send(Socket, [integer_to_list(iolist_size(Data), 16),
 		<<"\r\n">>, Data, <<"\r\n">>]).
