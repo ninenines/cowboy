@@ -19,7 +19,7 @@
 -export([all/0, groups/0, init_per_suite/1, end_per_suite/1,
 	init_per_group/2, end_per_group/2]). %% ct.
 -export([chunked_response/1, headers_dupe/1, headers_huge/1,
-	nc_rand/1, pipeline/1, raw/1, ws0/1, ws8/1]). %% http.
+	keepalive_nl/1, nc_rand/1, pipeline/1, raw/1, ws0/1, ws8/1]). %% http.
 -export([http_200/1, http_404/1]). %% http and https.
 
 %% ct.
@@ -30,7 +30,7 @@ all() ->
 groups() ->
 	BaseTests = [http_200, http_404],
 	[{http, [], [chunked_response, headers_dupe, headers_huge,
-		nc_rand, pipeline, raw, ws0, ws8] ++ BaseTests},
+		keepalive_nl, nc_rand, pipeline, raw, ws0, ws8] ++ BaseTests},
 	{https, [], BaseTests}].
 
 init_per_suite(Config) ->
@@ -112,6 +112,24 @@ headers_huge(Config) ->
 		"Wed Apr 06 2011 10:38:52 GMT-0500 (CDT)" || _N <- lists:seq(1, 1000)]),
 	{_Packet, 200} = raw_req(["GET / HTTP/1.0\r\nHost: localhost\r\n"
 		"Set-Cookie: ", Cookie, "\r\n\r\n"], Config).
+
+keepalive_nl(Config) ->
+	{port, Port} = lists:keyfind(port, 1, Config),
+	{ok, Socket} = gen_tcp:connect("localhost", Port,
+		[binary, {active, false}, {packet, raw}]),
+	ok = keepalive_nl_loop(Socket, 100),
+	ok = gen_tcp:close(Socket).
+
+keepalive_nl_loop(_Socket, 0) ->
+	ok;
+keepalive_nl_loop(Socket, N) ->
+	ok = gen_tcp:send(Socket, "GET / HTTP/1.1\r\n"
+		"Host: localhost\r\nConnection: keep-alive\r\n\r\n"),
+	{ok, Data} = gen_tcp:recv(Socket, 0, 6000),
+	{0, 12} = binary:match(Data, <<"HTTP/1.1 200">>),
+	nomatch = binary:match(Data, <<"Connection: close">>),
+	ok = gen_tcp:send(Socket, "\r\n"), %% extra nl
+	keepalive_nl_loop(Socket, N - 1).
 
 nc_rand(Config) ->
 	Cat = os:find_executable("cat"),

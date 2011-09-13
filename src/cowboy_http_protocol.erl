@@ -246,7 +246,8 @@ next_request(HandlerState, Req=#http_req{buffer=Buffer}, State) ->
 	RespRes = ensure_response(Req, State),
 	case {HandlerRes, BodyRes, RespRes, State#state.connection} of
 		{ok, ok, ok, keepalive} ->
-			?MODULE:parse_request(State#state{buffer=Buffer});
+			?MODULE:parse_request(State#state{
+				buffer=Buffer, req_empty_lines=0});
 		_Closed ->
 			terminate(State)
 	end.
