@@ -168,9 +168,11 @@ header({http_header, _I, Field, _R, Value}, Req, State) ->
 	Field2 = format_header(Field),
 	parse_header(Req#http_req{headers=[{Field2, Value}|Req#http_req.headers]},
 		State);
-%% The Host header is required.
-header(http_eoh, #http_req{host=undefined}, State) ->
+%% The Host header is required in HTTP/1.1, optional in 1.0.
+header(http_eoh, #http_req{host=undefined, version={1,1}}, State) ->
 	error_terminate(400, State);
+header(http_eoh, #http_req{host=undefined, version={1,0}}=Req, State) ->
+    header({http_header, undefined, 'Host', undefined, <<>>}, Req, State);
 header(http_eoh, Req, State=#state{buffer=Buffer}) ->
 	handler_init(Req#http_req{buffer=Buffer}, State#state{buffer= <<>>});
 header({http_error, _Bin}, _Req, State) ->
