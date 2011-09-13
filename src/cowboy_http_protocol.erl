@@ -148,10 +148,12 @@ header({http_header, _I, 'Host', _R, RawHost}, Req=#http_req{
 	case catch cowboy_dispatcher:split_host(RawHost2) of
 		{Host, RawHost3, undefined} ->
 			Port = default_port(Transport:name()),
-			dispatch(Req#http_req{host=Host, raw_host=RawHost3, port=Port,
+			dispatch(fun parse_header/2, Req#http_req{
+				host=Host, raw_host=RawHost3, port=Port,
 				headers=[{'Host', RawHost3}|Req#http_req.headers]}, State);
 		{Host, RawHost3, Port} ->
-			dispatch(Req#http_req{host=Host, raw_host=RawHost3, port=Port,
+			dispatch(fun parse_header/2, Req#http_req{
+				host=Host, raw_host=RawHost3, port=Port,
 				headers=[{'Host', RawHost3}|Req#http_req.headers]}, State);
 		{'EXIT', _Reason} ->
 			error_terminate(400, State)
@@ -168,24 +170,30 @@ header({http_header, _I, Field, _R, Value}, Req, State) ->
 	Field2 = format_header(Field),
 	parse_header(Req#http_req{headers=[{Field2, Value}|Req#http_req.headers]},
 		State);
-%% The Host header is required.
-header(http_eoh, #http_req{host=undefined}, State) ->
+%% The Host header is required in HTTP/1.1.
+header(http_eoh, #http_req{version={1, 1}, host=undefined}, State) ->
 	error_terminate(400, State);
+%% It is however optional in HTTP/1.0.
+header(http_eoh, Req=#http_req{version={1, 0}, transport=Transport,
+		host=undefined}, State=#state{buffer=Buffer}) ->
+	Port = default_port(Transport:name()),
+	dispatch(fun handler_init/2, Req#http_req{host=[], raw_host= <<>>,
+		port=Port, buffer=Buffer}, State#state{buffer= <<>>});
 header(http_eoh, Req, State=#state{buffer=Buffer}) ->
 	handler_init(Req#http_req{buffer=Buffer}, State#state{buffer= <<>>});
 header({http_error, _Bin}, _Req, State) ->
 	error_terminate(500, State).
 
--spec dispatch(#http_req{}, #state{}) -> ok.
-dispatch(Req=#http_req{host=Host, path=Path},
+-spec dispatch(fun((#http_req{}, #state{}) -> ok),
+	#http_req{}, #state{}) -> ok.
+dispatch(Next, Req=#http_req{host=Host, path=Path},
 		State=#state{dispatch=Dispatch}) ->
 	%% @todo We probably want to filter the Host and Path here to allow
 	%%       things like url rewriting.
 	case cowboy_dispatcher:match(Host, Path, Dispatch) of
 		{ok, Handler, Opts, Binds, HostInfo, PathInfo} ->
-			parse_header(Req#http_req{host_info=HostInfo, path_info=PathInfo,
-				bindings=Binds},
-				State#state{handler={Handler, Opts}});
+			Next(Req#http_req{host_info=HostInfo, path_info=PathInfo,
+				bindings=Binds}, State#state{handler={Handler, Opts}});
 		{error, notfound, host} ->
 			error_terminate(400, State);
 		{error, notfound, path} ->

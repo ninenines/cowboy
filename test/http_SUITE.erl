@@ -21,17 +21,18 @@
 -export([chunked_response/1, headers_dupe/1, headers_huge/1,
 	keepalive_nl/1, nc_rand/1, pipeline/1, raw/1, ws0/1, ws8/1]). %% http.
 -export([http_200/1, http_404/1]). %% http and https.
+-export([http_10_hostless/1]). %% misc.
 
 %% ct.
 
 all() ->
-	[{group, http}, {group, https}].
+	[{group, http}, {group, https}, {group, misc}].
 
 groups() ->
 	BaseTests = [http_200, http_404],
 	[{http, [], [chunked_response, headers_dupe, headers_huge,
 		keepalive_nl, nc_rand, pipeline, raw, ws0, ws8] ++ BaseTests},
-	{https, [], BaseTests}].
+	{https, [], BaseTests}, {misc, [], [http_10_hostless]}].
 
 init_per_suite(Config) ->
 	application:start(inets),
@@ -62,16 +63,24 @@ init_per_group(https, Config) ->
 			{keyfile, DataDir ++ "key.pem"}, {password, "cowboy"}],
 		cowboy_http_protocol, [{dispatch, init_https_dispatch()}]
 	),
-	[{scheme, "https"}, {port, Port}|Config].
+	[{scheme, "https"}, {port, Port}|Config];
+init_per_group(misc, Config) ->
+	Port = 33082,
+	cowboy:start_listener(misc, 100,
+		cowboy_tcp_transport, [{port, Port}],
+		cowboy_http_protocol, [{dispatch, [{'_', [
+			{[], http_handler, []}
+	]}]}]),
+	[{port, Port}|Config].
 
-end_per_group(http, _Config) ->
-	cowboy:stop_listener(http),
-	ok;
 end_per_group(https, _Config) ->
 	cowboy:stop_listener(https),
 	application:stop(ssl),
 	application:stop(public_key),
 	application:stop(crypto),
+	ok;
+end_per_group(Listener, _Config) ->
+	cowboy:stop_listener(Listener),
 	ok.
 
 %% Dispatch configuration.
@@ -309,3 +318,9 @@ http_200(Config) ->
 http_404(Config) ->
 	{ok, {{"HTTP/1.1", 404, "Not Found"}, _Headers, _Body}} =
 		httpc:request(build_url("/not/found", Config)).
+
+%% misc.
+
+http_10_hostless(Config) ->
+	Packet = "GET / HTTP/1.0\r\n\r\n",
+	{Packet, 200} = raw_req(Packet, Config).
