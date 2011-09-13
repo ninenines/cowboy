@@ -3,6 +3,9 @@ Cowboy
 
 Cowboy is a small, fast and modular HTTP server written in Erlang.
 
+Cowboy is also a socket acceptor pool, able to accept connections
+for any kind of TCP protocol.
+
 Goals
 -----
 
