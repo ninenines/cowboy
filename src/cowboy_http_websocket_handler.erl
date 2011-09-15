@@ -29,8 +29,7 @@
 %% here.
 %%
 %% <em>websocket_handle/3</em> receives the data from the socket. It can reply
-%% something, do nothing or close the connection. You can choose to hibernate
-%% the process by returning <em>hibernate</em> to save memory and CPU.
+%% something, do nothing or close the connection.
 %%
 %% <em>websocket_info/3</em> receives messages sent to the process. It has
 %% the same reply format as <em>websocket_handle/3</em> described above. Note
@@ -41,6 +40,11 @@
 %% <em>websocket_terminate/3</em> is meant for cleaning up. It also receives
 %% the request and the state previously defined, along with a reason for
 %% termination.
+%%
+%% All of <em>websocket_init/3</em>, <em>websocket_handle/3</em> and
+%% <em>websocket_info/3</em> can decide to hibernate the process by adding
+%% an extra element to the returned tuple, containing the atom
+%% <em>hibernate</em>. Doing so helps save memory and improve CPU usage.
 -module(cowboy_http_websocket_handler).
 
 -export([behaviour_info/1]).

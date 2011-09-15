@@ -116,9 +116,15 @@ handler_init(State=#state{handler=Handler, opts=Opts},
 	try Handler:websocket_init(Transport:name(), Req, Opts) of
 		{ok, Req2, HandlerState} ->
 			websocket_handshake(State, Req2, HandlerState);
+		{ok, Req2, HandlerState, hibernate} ->
+			websocket_handshake(State#state{hibernate=true},
+				Req2, HandlerState);
 		{ok, Req2, HandlerState, Timeout} ->
 			websocket_handshake(State#state{timeout=Timeout},
-				Req2, HandlerState)
+				Req2, HandlerState);
+		{ok, Req2, HandlerState, Timeout, hibernate} ->
+			websocket_handshake(State#state{timeout=Timeout,
+				hibernate=true}, Req2, HandlerState)
 	catch Class:Reason ->
 		upgrade_error(Req),
 		error_logger:error_msg(
