@@ -52,6 +52,7 @@
 	opts :: any(),
 	challenge = undefined :: undefined | binary(),
 	timeout = infinity :: timeout(),
+	timeout_ref = undefined :: undefined | reference(),
 	messages = undefined :: undefined | {atom(), atom(), atom()},
 	hibernate = false :: boolean(),
 	eop :: undefined | tuple(), %% hixie-76 specific.
@@ -170,16 +171,28 @@ handler_before_loop(State=#state{hibernate=true},
 		Req=#http_req{socket=Socket, transport=Transport},
 		HandlerState, SoFar) ->
 	Transport:setopts(Socket, [{active, once}]),
-	erlang:hibernate(?MODULE, handler_loop, [State#state{hibernate=false},
+	State2 = handler_loop_timeout(State),
+	erlang:hibernate(?MODULE, handler_loop, [State2#state{hibernate=false},
 		Req, HandlerState, SoFar]);
 handler_before_loop(State, Req=#http_req{socket=Socket, transport=Transport},
 		HandlerState, SoFar) ->
 	Transport:setopts(Socket, [{active, once}]),
-	handler_loop(State, Req, HandlerState, SoFar).
+	State2 = handler_loop_timeout(State),
+	handler_loop(State2, Req, HandlerState, SoFar).
+
+-spec handler_loop_timeout(#state{}) -> #state{}.
+handler_loop_timeout(State=#state{timeout=infinity}) ->
+	State#state{timeout_ref=undefined};
+handler_loop_timeout(State=#state{timeout=Timeout, timeout_ref=PrevRef}) ->
+	_ = case PrevRef of undefined -> ignore; PrevRef ->
+		erlang:cancel_timer(PrevRef) end,
+	TRef = make_ref(),
+	erlang:send_after(Timeout, self(), {?MODULE, timeout, TRef}),
+	State#state{timeout_ref=TRef}.
 
 %% @private
 -spec handler_loop(#state{}, #http_req{}, any(), binary()) -> ok.
-handler_loop(State=#state{messages={OK, Closed, Error}, timeout=Timeout},
+handler_loop(State=#state{messages={OK, Closed, Error}, timeout_ref=TRef},
 		Req=#http_req{socket=Socket}, HandlerState, SoFar) ->
 	receive
 		{OK, Socket, Data} ->
@@ -189,11 +202,13 @@ handler_loop(State=#state{messages={OK, Closed, Error}, timeout=Timeout},
 			handler_terminate(State, Req, HandlerState, {error, closed});
 		{Error, Socket, Reason} ->
 			handler_terminate(State, Req, HandlerState, {error, Reason});
+		{?MODULE, timeout, TRef} ->
+			websocket_close(State, Req, HandlerState, {normal, timeout});
+		{?MODULE, timeout, OlderTRef} when is_reference(OlderTRef) ->
+			handler_loop(State, Req, HandlerState, SoFar);
 		Message ->
 			handler_call(State, Req, HandlerState,
 				SoFar, websocket_info, Message, fun handler_before_loop/4)
-	after Timeout ->
-		websocket_close(State, Req, HandlerState, {normal, timeout})
 	end.
 
 -spec websocket_data(#state{}, #http_req{}, any(), binary()) -> ok.
