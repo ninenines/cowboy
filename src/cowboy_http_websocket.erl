@@ -144,8 +144,8 @@ upgrade_error(Req=#http_req{socket=Socket, transport=Transport}) ->
 -spec websocket_handshake(#state{}, #http_req{}, any()) -> ok.
 websocket_handshake(State=#state{version=0, origin=Origin,
 		challenge=Challenge}, Req=#http_req{transport=Transport,
-		raw_host=Host, port=Port, raw_path=Path}, HandlerState) ->
-	Location = hixie76_location(Transport:name(), Host, Port, Path),
+		raw_host=Host, port=Port, raw_path=Path, raw_qs=QS}, HandlerState) ->
+	Location = hixie76_location(Transport:name(), Host, Port, Path, QS),
 	{ok, Req2} = cowboy_http_req:reply(
 		<<"101 WebSocket Protocol Handshake">>,
 		[{<<"Connection">>, <<"Upgrade">>},
@@ -417,11 +417,17 @@ hixie76_key_to_integer(Key) ->
 	Spaces = length([C || << C >> <= Key, C =:= 32]),
 	Number div Spaces.
 
--spec hixie76_location(atom(), binary(), inet:ip_port(), binary())
+-spec hixie76_location(atom(), binary(), inet:ip_port(), binary(), binary())
 	-> binary().
-hixie76_location(Protocol, Host, Port, Path) ->
-	<< (hixie76_location_protocol(Protocol))/binary, "://", Host/binary,
-		(hixie76_location_port(ssl, Port))/binary, Path/binary >>.
+hixie76_location(Protocol, Host, Port, Path, QS) ->
+    case QS of
+        <<"">> ->
+            << (hixie76_location_protocol(Protocol))/binary, "://", Host/binary,
+               (hixie76_location_port(ssl, Port))/binary, Path/binary>>;
+        _ ->
+            << (hixie76_location_protocol(Protocol))/binary, "://", Host/binary,
+               (hixie76_location_port(ssl, Port))/binary, Path/binary, "?", QS/binary >>
+    end.
 
 -spec hixie76_location_protocol(atom()) -> binary().
 hixie76_location_protocol(ssl) -> <<"wss">>;
@@ -457,13 +463,13 @@ hybi_payload_length(N) ->
 
 hixie76_location_test() ->
 	?assertEqual(<<"ws://localhost/path">>,
-		hixie76_location(other, <<"localhost">>, 80, <<"/path">>)),
+		hixie76_location(other, <<"localhost">>, 80, <<"/path">>, <<"">>)),
 	?assertEqual(<<"ws://localhost:8080/path">>,
-		hixie76_location(other, <<"localhost">>, 8080, <<"/path">>)),
+		hixie76_location(other, <<"localhost">>, 8080, <<"/path">>, <<"">>)),
 	?assertEqual(<<"wss://localhost/path">>,
-		hixie76_location(ssl, <<"localhost">>, 443, <<"/path">>)),
+		hixie76_location(ssl, <<"localhost">>, 443, <<"/path">>, <<"">>)),
 	?assertEqual(<<"wss://localhost:8443/path">>,
-		hixie76_location(ssl, <<"localhost">>, 8443, <<"/path">>)),
+		hixie76_location(ssl, <<"localhost">>, 8443, <<"/path">>, <<"">>)),
 	ok.
 
 -endif.
