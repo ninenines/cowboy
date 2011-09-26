@@ -421,7 +421,7 @@ hixie76_key_to_integer(Key) ->
 	-> binary().
 hixie76_location(Protocol, Host, Port, Path, QS) ->
     case QS of
-        <<"">> ->
+        <<>> ->
             << (hixie76_location_protocol(Protocol))/binary, "://", Host/binary,
                (hixie76_location_port(ssl, Port))/binary, Path/binary>>;
         _ ->
@@ -435,9 +435,9 @@ hixie76_location_protocol(_)   -> <<"ws">>.
 
 -spec hixie76_location_port(atom(), inet:ip_port()) -> binary().
 hixie76_location_port(ssl, 443) ->
-	<<"">>;
+	<<>>;
 hixie76_location_port(_, 80) ->
-	<<"">>;
+	<<>>;
 hixie76_location_port(_, Port) ->
 	<<":", (list_to_binary(integer_to_list(Port)))/binary>>.
 
@@ -463,13 +463,13 @@ hybi_payload_length(N) ->
 
 hixie76_location_test() ->
 	?assertEqual(<<"ws://localhost/path">>,
-		hixie76_location(other, <<"localhost">>, 80, <<"/path">>, <<"">>)),
+		hixie76_location(other, <<"localhost">>, 80, <<"/path">>, <<>>)),
 	?assertEqual(<<"ws://localhost:8080/path">>,
-		hixie76_location(other, <<"localhost">>, 8080, <<"/path">>, <<"">>)),
+		hixie76_location(other, <<"localhost">>, 8080, <<"/path">>, <<>>)),
 	?assertEqual(<<"wss://localhost/path">>,
-		hixie76_location(ssl, <<"localhost">>, 443, <<"/path">>, <<"">>)),
+		hixie76_location(ssl, <<"localhost">>, 443, <<"/path">>, <<>>)),
 	?assertEqual(<<"wss://localhost:8443/path">>,
-		hixie76_location(ssl, <<"localhost">>, 8443, <<"/path">>, <<"">>)),
+		hixie76_location(ssl, <<"localhost">>, 8443, <<"/path">>, <<>>)),
 	ok.
 
 -endif.
