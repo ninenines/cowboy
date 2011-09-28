@@ -212,8 +212,10 @@ handler_init(Req, State=#state{listener=ListenerPid,
 	catch Class:Reason ->
 		error_terminate(500, State),
 		error_logger:error_msg(
-			"** Handler ~p terminating in init/3 for the reason ~p:~p~n"
-			"** Options were ~p~n** Request was ~p~n** Stacktrace: ~p~n~n",
+			"** Handler ~p terminating in init/3~n"
+			"   for the reason ~p:~p~n"
+			"** Options were ~p~n"
+			"** Request was ~p~n** Stacktrace: ~p~n~n",
 			[Handler, Class, Reason, Opts, Req, erlang:get_stacktrace()])
 	end.
 
@@ -224,7 +226,8 @@ handler_loop(HandlerState, Req, State=#state{handler={Handler, Opts}}) ->
 			next_request(HandlerState2, Req2, State)
 	catch Class:Reason ->
 		error_logger:error_msg(
-			"** Handler ~p terminating in handle/2 for the reason ~p:~p~n"
+			"** Handler ~p terminating in handle/2~n"
+			"   for the reason ~p:~p~n"
 			"** Options were ~p~n** Handler state was ~p~n"
 			"** Request was ~p~n** Stacktrace: ~p~n~n",
 			[Handler, Class, Reason, Opts,
@@ -239,7 +242,8 @@ handler_terminate(HandlerState, Req, #state{handler={Handler, Opts}}) ->
 		Handler:terminate(Req#http_req{resp_state=locked}, HandlerState)
 	catch Class:Reason ->
 		error_logger:error_msg(
-			"** Handler ~p terminating in terminate/2 for the reason ~p:~p~n"
+			"** Handler ~p terminating in terminate/2~n"
+			"   for the reason ~p:~p~n"
 			"** Options were ~p~n** Handler state was ~p~n"
 			"** Request was ~p~n** Stacktrace: ~p~n~n",
 			[Handler, Class, Reason, Opts,
