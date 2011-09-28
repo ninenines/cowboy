@@ -218,9 +218,11 @@ split_path_test_() ->
 			<<"/users/42/friends">>, <<"a=b&c=d&e=notsure?whatever">>},
 		{<<"/users/a+b/c%21d?e+f=g+h">>,
 			[<<"users">>, <<"a b">>, <<"c!d">>],
-			<<"/users/a+b/c%21d">>, <<"e+f=g+h">>}
+			<<"/users/a+b/c%21d">>, <<"e+f=g+h">>},
+		{<<"/%2e%2e%2ftest">>,
+			[<<"..">>, <<"test">>], <<"/../test">>, <<"">>}
 	],
-	[{P, fun() -> {R, RawP, Qs} = split_path(P) end}
+	[{P, ?_assertEqual({R, RawP, Qs}, split_path(P))}
 		|| {P, R, RawP, Qs} <- Tests].
 
 match_test_() ->
