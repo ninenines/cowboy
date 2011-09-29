@@ -30,6 +30,7 @@
 %% @see cowboy_dispatcher
 %% @see cowboy_http_handler
 -module(cowboy_http_protocol).
+-behaviour(cowboy_protocol).
 
 -export([start_link/4]). %% API.
 -export([init/4, parse_request/1]). %% FSM.
