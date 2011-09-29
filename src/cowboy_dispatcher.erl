@@ -45,7 +45,11 @@ split_host(Host) ->
 				list_to_integer(binary_to_list(Port))}
 	end.
 
-%% @doc Split a path into a list of tokens.
+%% @doc Split a path into a list of path segments.
+%%
+%% Follwing RFC2396, this function may return path segments containing any
+%% character, including <em>/</em> if, and only if, a <em>/</em> was escaped
+%% and part of a path segment.
 -spec split_path(binary()) -> {path_tokens(), binary(), binary()}.
 split_path(Path) ->
 	case binary:split(Path, <<"?">>) of
