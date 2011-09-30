@@ -466,10 +466,14 @@ hixie76_location_test() ->
 		hixie76_location(other, <<"localhost">>, 80, <<"/path">>, <<>>)),
 	?assertEqual(<<"ws://localhost:8080/path">>,
 		hixie76_location(other, <<"localhost">>, 8080, <<"/path">>, <<>>)),
+	?assertEqual(<<"ws://localhost:8080/path?dummy=2785">>,
+		hixie76_location(other, <<"localhost">>, 8080, <<"/path">>, <<"dummy=2785">>)),
 	?assertEqual(<<"wss://localhost/path">>,
 		hixie76_location(ssl, <<"localhost">>, 443, <<"/path">>, <<>>)),
 	?assertEqual(<<"wss://localhost:8443/path">>,
 		hixie76_location(ssl, <<"localhost">>, 8443, <<"/path">>, <<>>)),
+	?assertEqual(<<"wss://localhost:8443/path?dummy=2785">>,
+		hixie76_location(ssl, <<"localhost">>, 8443, <<"/path">>, <<"dummy=2785">>)),
 	ok.
 
 -endif.
