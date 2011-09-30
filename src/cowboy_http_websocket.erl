@@ -232,20 +232,26 @@ websocket_data(State=#state{version=0, eop=EOP}, Req, HandlerState,
 			%% @todo We probably should allow limiting frame length.
 			handler_before_loop(State, Req, HandlerState, Data)
 	end;
+%% incomplete hybi data frame.
+websocket_data(State=#state{version=Version}, Req, HandlerState, Data)
+		when Version =/= 0, byte_size(Data) =:= 1 ->
+	handler_before_loop(State, Req, HandlerState, Data);
 %% hybi data frame.
 %% @todo Handle Fin.
 websocket_data(State=#state{version=Version}, Req, HandlerState, Data)
 		when Version =/= 0 ->
 	<< 1:1, 0:3, Opcode:4, Mask:1, PayloadLen:7, Rest/bits >> = Data,
-	{PayloadLen2, Rest2} = case PayloadLen of
-		126 -> << L:16, R/bits >> = Rest, {L, R};
-		127 -> << 0:1, L:63, R/bits >> = Rest, {L, R};
-		PayloadLen -> {PayloadLen, Rest}
+	{PayloadLen2, Rest2} = case {PayloadLen, Rest} of
+		{126, << L:16, R/bits >>}  -> {L, R};
+		{126, Rest} -> {undefined, Rest};
+		{127, << 0:1, L:63, R/bits >>} -> {L, R};
+		{127, Rest} -> {undefined, Rest};
+		{PayloadLen, Rest} -> {PayloadLen, Rest}
 	end,
 	case {Mask, PayloadLen2} of
 		{0, 0} ->
 			websocket_dispatch(State, Req, HandlerState, Rest2, Opcode, <<>>);
-		{1, N} when N + 4 < byte_size(Rest2) ->
+		{1, N} when N + 4 > byte_size(Rest2); N =:= undefined ->
 			%% @todo We probably should allow limiting frame length.
 			handler_before_loop(State, Req, HandlerState, Data);
 		{1, _N} ->
