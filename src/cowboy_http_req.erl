@@ -67,14 +67,14 @@ peer(Req) ->
 	{Req#http_req.peer, Req}.
 
 %% @doc Return the tokens for the hostname requested.
--spec host(#http_req{}) -> {cowboy_dispatcher:path_tokens(), #http_req{}}.
+-spec host(#http_req{}) -> {cowboy_dispatcher:tokens(), #http_req{}}.
 host(Req) ->
 	{Req#http_req.host, Req}.
 
 %% @doc Return the extra host information obtained from partially matching
 %% the hostname using <em>'...'</em>.
 -spec host_info(#http_req{})
-	-> {cowboy_dispatcher:path_tokens() | undefined, #http_req{}}.
+	-> {cowboy_dispatcher:tokens() | undefined, #http_req{}}.
 host_info(Req) ->
 	{Req#http_req.host_info, Req}.
 
@@ -93,14 +93,14 @@ port(Req) ->
 %% Following RFC2396, this function may return path segments containing any
 %% character, including <em>/</em> if, and only if, a <em>/</em> was escaped
 %% and part of a path segment in the path requested.
--spec path(#http_req{}) -> {cowboy_dispatcher:path_tokens(), #http_req{}}.
+-spec path(#http_req{}) -> {cowboy_dispatcher:tokens(), #http_req{}}.
 path(Req) ->
 	{Req#http_req.path, Req}.
 
 %% @doc Return the extra path information obtained from partially matching
 %% the patch using <em>'...'</em>.
 -spec path_info(#http_req{})
-	-> {cowboy_dispatcher:path_tokens() | undefined, #http_req{}}.
+	-> {cowboy_dispatcher:tokens() | undefined, #http_req{}}.
 path_info(Req) ->
 	{Req#http_req.path_info, Req}.
 
