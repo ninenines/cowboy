@@ -88,7 +88,11 @@ raw_host(Req) ->
 port(Req) ->
 	{Req#http_req.port, Req}.
 
-%% @doc Return the tokens for the path requested.
+%% @doc Return the path segments for the path requested.
+%%
+%% Following RFC2396, this function may return path segments containing any
+%% character, including <em>/</em> if, and only if, a <em>/</em> was escaped
+%% and part of a path segment in the path requested.
 -spec path(#http_req{}) -> {cowboy_dispatcher:path_tokens(), #http_req{}}.
 path(Req) ->
 	{Req#http_req.path, Req}.
