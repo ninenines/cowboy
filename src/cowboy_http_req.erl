@@ -346,7 +346,7 @@ response_head(Code, Headers, DefaultHeaders) ->
 	Headers2 = [{header_to_binary(Key), Value} || {Key, Value} <- Headers],
 	Headers3 = lists:keysort(1, Headers2),
 	Headers4 = lists:ukeymerge(1, Headers3, DefaultHeaders),
-	Headers5 = [<< Key/binary, ": ", Value/binary, "\r\n" >>
+	Headers5 = [[Key, <<": ">>, Value, <<"\r\n">>]
 		|| {Key, Value} <- Headers4],
 	[StatusLine, Headers5, <<"\r\n">>].
 
