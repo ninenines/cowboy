@@ -358,7 +358,7 @@ handler_call(State=#state{handler=Handler, opts=Opts}, Req, HandlerState,
 %% hixie-76 text frame.
 websocket_send({text, Payload}, #state{version=0},
 		#http_req{socket=Socket, transport=Transport}) ->
-	Transport:send(Socket, << 0, Payload/binary, 255 >>);
+	Transport:send(Socket, [0, Payload, 255]);
 %% Ignore all unknown frame types for compatibility with hixie 76.
 websocket_send(_Any, #state{version=0}, _Req) ->
 	ignore;
@@ -370,9 +370,9 @@ websocket_send({Type, Payload}, _State,
 		ping -> 9;
 		pong -> 10
 	end,
-	Len = hybi_payload_length(byte_size(Payload)),
-	Transport:send(Socket, << 1:1, 0:3, Opcode:4,
-		0:1, Len/bits, Payload/binary >>).
+	Len = hybi_payload_length(iolist_size(Payload)),
+	Transport:send(Socket, [<< 1:1, 0:3, Opcode:4, 0:1, Len/bits >>,
+		Payload]).
 
 -spec websocket_close(#state{}, #http_req{}, any(), {atom(), atom()}) -> ok.
 websocket_close(State=#state{version=0}, Req=#http_req{socket=Socket,

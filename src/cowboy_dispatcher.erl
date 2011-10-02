@@ -19,13 +19,13 @@
 -export([split_host/1, split_path/1, match/3]). %% API.
 
 -type bindings() :: list({atom(), binary()}).
--type path_tokens() :: list(binary()).
+-type tokens() :: list(binary()).
 -type match_rule() :: '_' | '*' | list(binary() | '_' | '...' | atom()).
 -type dispatch_path() :: list({match_rule(), module(), any()}).
 -type dispatch_rule() :: {Host::match_rule(), Path::dispatch_path()}.
 -type dispatch_rules() :: list(dispatch_rule()).
 
--export_type([bindings/0, path_tokens/0, dispatch_rules/0]).
+-export_type([bindings/0, tokens/0, dispatch_rules/0]).
 
 -include_lib("eunit/include/eunit.hrl").
 
@@ -33,7 +33,7 @@
 
 %% @doc Split a hostname into a list of tokens.
 -spec split_host(binary())
-	-> {path_tokens(), binary(), undefined | inet:ip_port()}.
+	-> {tokens(), binary(), undefined | inet:ip_port()}.
 split_host(<<>>) ->
 	{[], <<>>, undefined};
 split_host(Host) ->
@@ -45,8 +45,12 @@ split_host(Host) ->
 				list_to_integer(binary_to_list(Port))}
 	end.
 
-%% @doc Split a path into a list of tokens.
--spec split_path(binary()) -> {path_tokens(), binary(), binary()}.
+%% @doc Split a path into a list of path segments.
+%%
+%% Following RFC2396, this function may return path segments containing any
+%% character, including <em>/</em> if, and only if, a <em>/</em> was escaped
+%% and part of a path segment.
+-spec split_path(binary()) -> {tokens(), binary(), binary()}.
 split_path(Path) ->
 	case binary:split(Path, <<"?">>) of
 		[Path] -> {do_split_path(Path, <<"/">>), Path, <<>>};
@@ -54,7 +58,7 @@ split_path(Path) ->
 		[Path2, Qs] -> {do_split_path(Path2, <<"/">>), Path2, Qs}
 	end.
 
--spec do_split_path(binary(), <<_:8>>) -> path_tokens().
+-spec do_split_path(binary(), <<_:8>>) -> tokens().
 do_split_path(RawPath, Separator) ->
 	EncodedPath = case binary:split(RawPath, Separator, [global, trim]) of
 		[<<>>|Path] -> Path;
@@ -89,10 +93,10 @@ do_split_path(RawPath, Separator) ->
 %% options found in the dispatch list, a key-value list of bindings and
 %% the tokens that were matched by the <em>'...'</em> atom for both the
 %% hostname and path.
--spec match(Host::path_tokens(), Path::path_tokens(), dispatch_rules())
+-spec match(Host::tokens(), Path::tokens(), dispatch_rules())
 	-> {ok, module(), any(), bindings(),
-		HostInfo::undefined | path_tokens(),
-		PathInfo::undefined | path_tokens()}
+		HostInfo::undefined | tokens(),
+		PathInfo::undefined | tokens()}
 	| {error, notfound, host} | {error, notfound, path}.
 match(_Host, _Path, []) ->
 	{error, notfound, host};
@@ -108,11 +112,11 @@ match(Host, Path, [{HostMatch, PathMatchs}|Tail]) ->
 			match_path(Path, PathMatchs, HostBinds, lists:reverse(HostInfo))
 	end.
 
--spec match_path(path_tokens(), dispatch_path(), bindings(),
-	HostInfo::undefined | path_tokens())
+-spec match_path(tokens(), dispatch_path(), bindings(),
+	HostInfo::undefined | tokens())
 	-> {ok, module(), any(), bindings(),
-		HostInfo::undefined | path_tokens(),
-		PathInfo::undefined | path_tokens()}
+		HostInfo::undefined | tokens(),
+		PathInfo::undefined | tokens()}
 	| {error, notfound, path}.
 match_path(_Path, [], _HostBinds, _HostInfo) ->
 	{error, notfound, path};
@@ -130,15 +134,15 @@ match_path(Path, [{PathMatch, Handler, Opts}|Tail], HostBinds, HostInfo) ->
 
 %% Internal.
 
--spec try_match(host | path, path_tokens(), match_rule())
-	-> {true, bindings(), undefined | path_tokens()} | false.
+-spec try_match(host | path, tokens(), match_rule())
+	-> {true, bindings(), undefined | tokens()} | false.
 try_match(host, List, Match) ->
 	list_match(lists:reverse(List), lists:reverse(Match), []);
 try_match(path, List, Match) ->
 	list_match(List, Match, []).
 
--spec list_match(path_tokens(), match_rule(), bindings())
-	-> {true, bindings(), undefined | path_tokens()} | false.
+-spec list_match(tokens(), match_rule(), bindings())
+	-> {true, bindings(), undefined | tokens()} | false.
 %% Atom '...' matches any trailing path, stop right now.
 list_match(List, ['...'], Binds) ->
 	{true, Binds, List};
