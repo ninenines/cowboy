@@ -419,12 +419,15 @@ hixie76_key_to_integer(Key) ->
 
 -spec hixie76_location(atom(), binary(), inet:ip_port(), binary(), binary())
 	-> binary().
-hixie76_location(Protocol, Host, Port, Path, <<>>) ->
-    << (hixie76_location_protocol(Protocol))/binary, "://", Host/binary,
-       (hixie76_location_port(ssl, Port))/binary, Path/binary>>;
 hixie76_location(Protocol, Host, Port, Path, QS) ->
-    << (hixie76_location_protocol(Protocol))/binary, "://", Host/binary,
-       (hixie76_location_port(ssl, Port))/binary, Path/binary, "?", QS/binary >>.
+    case QS of
+        <<>> ->
+            << (hixie76_location_protocol(Protocol))/binary, "://", Host/binary,
+               (hixie76_location_port(ssl, Port))/binary, Path/binary>>;
+        _ ->
+            << (hixie76_location_protocol(Protocol))/binary, "://", Host/binary,
+               (hixie76_location_port(ssl, Port))/binary, Path/binary, "?", QS/binary >>
+    end.
 
 -spec hixie76_location_protocol(atom()) -> binary().
 hixie76_location_protocol(ssl) -> <<"wss">>;

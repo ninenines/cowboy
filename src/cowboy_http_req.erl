@@ -32,7 +32,7 @@
 ]). %% Request API.
 
 -export([
-	body/1, body/2, body_qs/1
+	body_length/1, body/1, body/2, body_qs/1
 ]). %% Request Body API.
 
 -export([
@@ -220,6 +220,18 @@ cookies(Req=#http_req{cookies=Cookies}) ->
 	{Cookies, Req}.
 
 %% Request Body API.
+
+%% @doc Return the length of body sent with the request, or <em>{error, badarg}</em>
+%% if no <em>Content-Length</em> is available.
+-spec body_length(#http_req{}) -> {ok, non_neg_integer(), #http_req{}} | {error, atom()}.
+body_length(Req) ->
+	{Length, Req2} = cowboy_http_req:header('Content-Length', Req),
+	case Length of
+		undefined -> {error, badarg};
+		_Any ->
+			Length2 = list_to_integer(binary_to_list(Length)),
+            {ok, Length2, Req2}
+	end.
 
 %% @doc Return the full body sent with the request, or <em>{error, badarg}</em>
 %% if no <em>Content-Length</em> is available.
