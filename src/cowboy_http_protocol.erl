@@ -78,7 +78,7 @@ parse_request(State=#state{buffer=Buffer}) ->
 	case erlang:decode_packet(http_bin, Buffer, []) of
 		{ok, Request, Rest} -> request(Request, State#state{buffer=Rest});
 		{more, _Length} -> wait_request(State);
-		{error, _Reason} -> error_response(400, State)
+		{error, _Reason} -> error_terminate(400, State)
 	end.
 
 -spec wait_request(#state{}) -> ok.
@@ -127,7 +127,7 @@ parse_header(Req, State=#state{buffer=Buffer}) ->
 	case erlang:decode_packet(httph_bin, Buffer, []) of
 		{ok, Header, Rest} -> header(Header, Req, State#state{buffer=Rest});
 		{more, _Length} -> wait_header(Req, State);
-		{error, _Reason} -> error_response(400, State)
+		{error, _Reason} -> error_terminate(400, State)
 	end.
 
 -spec wait_header(#http_req{}, #state{}) -> ok.
@@ -255,7 +255,7 @@ handler_terminate(HandlerState, Req, #state{handler={Handler, Opts}}) ->
 next_request(HandlerState, Req=#http_req{buffer=Buffer}, State) ->
 	HandlerRes = handler_terminate(HandlerState, Req, State),
 	BodyRes = ensure_body_processed(Req),
-	RespRes = ensure_response(Req, State),
+	RespRes = ensure_response(Req),
 	case {HandlerRes, BodyRes, RespRes, State#state.connection} of
 		{ok, ok, ok, keepalive} ->
 			?MODULE:parse_request(State#state{
@@ -274,31 +274,26 @@ ensure_body_processed(Req=#http_req{body_state=waiting}) ->
 		_Any -> ok
 	end.
 
--spec ensure_response(#http_req{}, #state{}) -> ok.
+-spec ensure_response(#http_req{}) -> ok.
 %% The handler has already fully replied to the client.
-ensure_response(#http_req{resp_state=done}, _State) ->
+ensure_response(#http_req{resp_state=done}) ->
 	ok;
 %% No response has been sent but everything apparently went fine.
 %% Reply with 204 No Content to indicate this.
-ensure_response(#http_req{resp_state=waiting}, State) ->
-	error_response(204, State);
+ensure_response(Req=#http_req{resp_state=waiting}) ->
+	_ = cowboy_http_req:reply(204, [], [], Req),
+	ok;
 %% Close the chunked reply.
 ensure_response(#http_req{socket=Socket, transport=Transport,
-		resp_state=chunks}, _State) ->
+		resp_state=chunks}) ->
 	Transport:send(Socket, <<"0\r\n\r\n">>),
 	close.
 
--spec error_response(http_status(), #state{}) -> ok.
-error_response(Code, #state{socket=Socket,
-		transport=Transport, connection=Connection}) ->
+-spec error_terminate(http_status(), #state{}) -> ok.
+error_terminate(Code, State=#state{socket=Socket, transport=Transport}) ->
 	_ = cowboy_http_req:reply(Code, [], [], #http_req{
 		socket=Socket, transport=Transport,
-		connection=Connection, resp_state=waiting}),
-	ok.
-
--spec error_terminate(http_status(), #state{}) -> ok.
-error_terminate(Code, State) ->
-	error_response(Code, State#state{connection=close}),
+		connection=close, resp_state=waiting}),
 	terminate(State).
 
 -spec terminate(#state{}) -> ok.
