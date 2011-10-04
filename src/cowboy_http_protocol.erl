@@ -87,8 +87,7 @@ wait_request(State=#state{socket=Socket, transport=Transport,
 	case Transport:recv(Socket, 0, T) of
 		{ok, Data} -> parse_request(State#state{
 			buffer= << Buffer/binary, Data/binary >>});
-		{error, timeout} -> error_terminate(408, State);
-		{error, closed} -> terminate(State)
+		{error, _Reason} -> terminate(State)
 	end.
 
 -spec request({http_request, http_method(), http_uri(),

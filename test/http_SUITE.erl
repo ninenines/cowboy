@@ -197,10 +197,14 @@ raw_req(Packet, Config) ->
 	{ok, Socket} = gen_tcp:connect("localhost", Port,
 		[binary, {active, false}, {packet, raw}]),
 	ok = gen_tcp:send(Socket, Packet),
-	{ok, << "HTTP/1.1 ", Str:24/bits, _Rest/bits >>}
-		= gen_tcp:recv(Socket, 0, 6000),
+	Res = case gen_tcp:recv(Socket, 0, 6000) of
+		{ok, << "HTTP/1.1 ", Str:24/bits, _Rest/bits >>} ->
+			list_to_integer(binary_to_list(Str));
+		{error, Reason} ->
+			Reason
+	end,
 	gen_tcp:close(Socket),
-	{Packet, list_to_integer(binary_to_list(Str))}.
+	{Packet, Res}.
 
 raw(Config) ->
 	Tests = [
@@ -209,10 +213,10 @@ raw(Config) ->
 		{"Garbage\r\n\r\n", 400},
 		{"\r\n\r\n\r\n\r\n\r\n\r\n", 400},
 		{"GET / HTTP/1.1\r\nHost: dev-extend.eu\r\n\r\n", 400},
-		{"", 408},
-		{"\r\n", 408},
-		{"\r\n\r\n", 408},
-		{"GET / HTTP/1.1", 408},
+		{"", closed},
+		{"\r\n", closed},
+		{"\r\n\r\n", closed},
+		{"GET / HTTP/1.1", closed},
 		{"GET / HTTP/1.1\r\n", 408},
 		{"GET / HTTP/1.1\r\nHost: localhost", 408},
 		{"GET / HTTP/1.1\r\nHost: localhost\r\n", 408},
