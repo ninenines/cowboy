@@ -20,7 +20,7 @@
 %%  <dt>dispatch</dt><dd>The dispatch list for this protocol.</dd>
 %%  <dt>max_empty_lines</dt><dd>Max number of empty lines before a request.
 %%   Defaults to 5.</dd>
-%%  <dt>timeout</dt><dd>Time in milliseconds before an idle keep-alive
+%%  <dt>timeout</dt><dd>Time in milliseconds before an idle
 %%   connection is closed. Defaults to 5000 milliseconds.</dd>
 %% </dl>
 %%
