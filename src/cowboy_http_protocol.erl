@@ -47,7 +47,6 @@
 	req_empty_lines = 0 :: integer(),
 	max_empty_lines :: integer(),
 	timeout :: timeout(),
-	connection = keepalive :: keepalive | close,
 	buffer = <<>> :: binary()
 }).
 
@@ -103,15 +102,13 @@ request({http_request, Method, {abs_path, AbsPath}, Version},
 	ConnAtom = version_to_connection(Version),
 	parse_header(#http_req{socket=Socket, transport=Transport,
 		connection=ConnAtom, method=Method, version=Version,
-		path=Path, raw_path=RawPath, raw_qs=Qs},
-		State#state{connection=ConnAtom});
+		path=Path, raw_path=RawPath, raw_qs=Qs}, State);
 request({http_request, Method, '*', Version},
 		State=#state{socket=Socket, transport=Transport}) ->
 	ConnAtom = version_to_connection(Version),
 	parse_header(#http_req{socket=Socket, transport=Transport,
 		connection=ConnAtom, method=Method, version=Version,
-		path='*', raw_path= <<"*">>, raw_qs= <<>>},
-		State#state{connection=ConnAtom});
+		path='*', raw_path= <<"*">>, raw_qs= <<>>}, State);
 request({http_request, _Method, _URI, _Version}, State) ->
 	error_terminate(501, State);
 request({http_error, <<"\r\n">>},
@@ -164,8 +161,7 @@ header({http_header, _I, 'Host', _R, _V}, Req, State) ->
 header({http_header, _I, 'Connection', _R, Connection}, Req, State) ->
 	ConnAtom = connection_to_atom(Connection),
 	parse_header(Req#http_req{connection=ConnAtom,
-		headers=[{'Connection', Connection}|Req#http_req.headers]},
-		State#state{connection=ConnAtom});
+		headers=[{'Connection', Connection}|Req#http_req.headers]}, State);
 header({http_header, _I, Field, _R, Value}, Req, State) ->
 	Field2 = format_header(Field),
 	parse_header(Req#http_req{headers=[{Field2, Value}|Req#http_req.headers]},
@@ -252,11 +248,12 @@ handler_terminate(HandlerState, Req, #state{handler={Handler, Opts}}) ->
 	end.
 
 -spec next_request(any(), #http_req{}, #state{}) -> ok.
-next_request(HandlerState, Req=#http_req{buffer=Buffer}, State) ->
+next_request(HandlerState, Req=#http_req{connection=Conn, buffer=Buffer},
+		State) ->
 	HandlerRes = handler_terminate(HandlerState, Req, State),
 	BodyRes = ensure_body_processed(Req),
 	RespRes = ensure_response(Req),
-	case {HandlerRes, BodyRes, RespRes, State#state.connection} of
+	case {HandlerRes, BodyRes, RespRes, Conn} of
 		{ok, ok, ok, keepalive} ->
 			?MODULE:parse_request(State#state{
 				buffer=Buffer, req_empty_lines=0});
