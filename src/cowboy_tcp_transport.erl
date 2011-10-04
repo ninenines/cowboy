@@ -48,9 +48,10 @@ messages() -> {tcp, tcp_closed, tcp_error}.
 -spec listen([{port, inet:ip_port()} | {ip, inet:ip_address()}])
 	-> {ok, inet:socket()} | {error, atom()}.
 listen(Opts) ->
-	{port, Port} = lists:keyfind(port, 1, Opts),
+	{port,Port} = lists:keyfind(port, 1, Opts),
 	Backlog = proplists:get_value(backlog, Opts, 1024),
-	ListenOpts0 = [binary, {active, false},
+    Active  = proplists:get_value(active,  Opts, false),
+	ListenOpts0 = [binary, {active, Active},
 		{backlog, Backlog}, {packet, raw}, {reuseaddr, true}],
 	ListenOpts =
 		case lists:keyfind(ip, 1, Opts) of
