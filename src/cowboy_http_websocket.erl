@@ -420,19 +420,21 @@ hixie76_key_to_integer(Key) ->
 	-> binary().
 hixie76_location(Protocol, Host, Port, Path, <<>>) ->
     << (hixie76_location_protocol(Protocol))/binary, "://", Host/binary,
-       (hixie76_location_port(ssl, Port))/binary, Path/binary>>;
+       (hixie76_location_port(Protocol, Port))/binary, Path/binary>>;
 hixie76_location(Protocol, Host, Port, Path, QS) ->
     << (hixie76_location_protocol(Protocol))/binary, "://", Host/binary,
-       (hixie76_location_port(ssl, Port))/binary, Path/binary, "?", QS/binary >>.
+       (hixie76_location_port(Protocol, Port))/binary, Path/binary, "?", QS/binary >>.
 
 -spec hixie76_location_protocol(atom()) -> binary().
 hixie76_location_protocol(ssl) -> <<"wss">>;
 hixie76_location_protocol(_)   -> <<"ws">>.
 
+%% @todo We should add a secure/0 function to transports
+%% instead of relying on their name.
 -spec hixie76_location_port(atom(), inet:ip_port()) -> binary().
 hixie76_location_port(ssl, 443) ->
 	<<>>;
-hixie76_location_port(_, 80) ->
+hixie76_location_port(tcp, 80) ->
 	<<>>;
 hixie76_location_port(_, Port) ->
 	<<":", (list_to_binary(integer_to_list(Port)))/binary>>.
@@ -459,11 +461,13 @@ hybi_payload_length(N) ->
 
 hixie76_location_test() ->
 	?assertEqual(<<"ws://localhost/path">>,
-		hixie76_location(other, <<"localhost">>, 80, <<"/path">>, <<>>)),
+		hixie76_location(tcp, <<"localhost">>, 80, <<"/path">>, <<>>)),
+	?assertEqual(<<"ws://localhost:443/path">>,
+		hixie76_location(tcp, <<"localhost">>, 443, <<"/path">>, <<>>)),
 	?assertEqual(<<"ws://localhost:8080/path">>,
-		hixie76_location(other, <<"localhost">>, 8080, <<"/path">>, <<>>)),
+		hixie76_location(tcp, <<"localhost">>, 8080, <<"/path">>, <<>>)),
 	?assertEqual(<<"ws://localhost:8080/path?dummy=2785">>,
-		hixie76_location(other, <<"localhost">>, 8080, <<"/path">>, <<"dummy=2785">>)),
+		hixie76_location(tcp, <<"localhost">>, 8080, <<"/path">>, <<"dummy=2785">>)),
 	?assertEqual(<<"wss://localhost/path">>,
 		hixie76_location(ssl, <<"localhost">>, 443, <<"/path">>, <<>>)),
 	?assertEqual(<<"wss://localhost:8443/path">>,
