@@ -336,14 +336,6 @@ reply(Code, Headers, Body, Req=#http_req{socket=Socket,
 -spec chunked_reply(http_status(), http_headers(), #http_req{})
 	-> {ok, #http_req{}}.
 chunked_reply(Code, Headers, Req=#http_req{socket=Socket, transport=Transport,
-		method='HEAD', resp_state=waiting}) ->
-	Head = response_head(Code, Headers, [
-		{<<"Date">>, cowboy_clock:rfc1123()},
-		{<<"Server">>, <<"Cowboy">>}
-	]),
-	Transport:send(Socket, Head),
-	{ok, Req#http_req{resp_state=done}};
-chunked_reply(Code, Headers, Req=#http_req{socket=Socket, transport=Transport,
 		resp_state=waiting}) ->
 	Head = response_head(Code, Headers, [
 		{<<"Connection">>, <<"close">>},

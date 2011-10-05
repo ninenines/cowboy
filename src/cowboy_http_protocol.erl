@@ -284,6 +284,8 @@ ensure_response(Req=#http_req{resp_state=waiting}) ->
 	_ = cowboy_http_req:reply(204, [], [], Req),
 	ok;
 %% Close the chunked reply.
+ensure_response(#http_req{method='HEAD', resp_state=chunks}) ->
+	close;
 ensure_response(#http_req{socket=Socket, transport=Transport,
 		resp_state=chunks}) ->
 	Transport:send(Socket, <<"0\r\n\r\n">>),
