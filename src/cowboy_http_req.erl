@@ -28,6 +28,7 @@
 	qs_val/2, qs_val/3, qs_vals/1, raw_qs/1,
 	binding/2, binding/3, bindings/1,
 	header/2, header/3, headers/1,
+	parse_header/2, parse_header/3,
 	cookie/2, cookie/3, cookies/1
 ]). %% Request API.
 
@@ -181,6 +182,54 @@ header(Name, Req, Default) when is_atom(Name) orelse is_binary(Name) ->
 -spec headers(#http_req{}) -> {http_headers(), #http_req{}}.
 headers(Req) ->
 	{Req#http_req.headers, Req}.
+
+%% @doc Semantically parse headers.
+%%
+%% When the value isn't found, a proper default value for the type
+%% returned is used as a return value.
+%% @see parse_header/3
+-spec parse_header(http_header(), #http_req{})
+	-> {tokens, [binary()], #http_req{}}
+	 | {undefined, binary(), #http_req{}}
+	 | {error, badarg}.
+parse_header('Connection', Req) ->
+	parse_header('Connection', Req, []);
+parse_header(Name, Req) ->
+	parse_header(Name, Req, undefined).
+
+%% @doc Semantically parse headers.
+%%
+%% When the header is known, a named tuple is returned containing
+%% {Type, P, Req} with Type being the type of value found in P.
+%% For example, the header 'Connection' is a list of tokens, therefore
+%% the value returned will be a list of binary values and Type will be
+%% 'tokens'.
+%%
+%% When the header is known but not found, the tuple {Type, Default, Req}
+%% is returned instead.
+%%
+%% When the header is unknown, the value is returned directly as an
+%% 'undefined' tagged tuple.
+-spec parse_header(http_header(), #http_req{}, any())
+	-> {tokens, [binary()], #http_req{}}
+	 | {undefined, binary(), #http_req{}}
+	 | {error, badarg}.
+parse_header(Name, Req=#http_req{p_headers=PHeaders}, Default)
+		when Name =:= 'Connection' ->
+	case header(Name, Req) of
+		{undefined, Req2} -> {tokens, Default, Req2};
+		{Value, Req2} ->
+			case cowboy_http:parse_tokens_list(Value) of
+				{error, badarg} ->
+					{error, badarg};
+				P ->
+					{tokens, P, Req2#http_req{
+						p_headers=[{Name, P}|PHeaders]}}
+			end
+	end;
+parse_header(Name, Req, Default) ->
+	{Value, Req2} = header(Name, Req, Default),
+	{undefined, Value, Req2}.
 
 %% @equiv cookie(Name, Req, undefined)
 -spec cookie(binary(), #http_req{})

@@ -76,10 +76,9 @@ upgrade(ListenerPid, Handler, Opts, Req) ->
 %%       instead of having ugly code like this case here.
 -spec websocket_upgrade(#state{}, #http_req{}) -> {ok, #state{}, #http_req{}}.
 websocket_upgrade(State, Req) ->
-	case cowboy_http_req:header('Connection', Req) of
-		{<<"Upgrade">>, Req2} -> ok;
-		{<<"keep-alive, Upgrade">>, Req2} -> ok %% @todo Temp. For Firefox 6.
-	end,
+	{tokens, ConnTokens, Req2}
+		= cowboy_http_req:parse_header('Connection', Req),
+	true = lists:member(<<"Upgrade">>, ConnTokens),
 	{Version, Req3} = cowboy_http_req:header(<<"Sec-Websocket-Version">>, Req2),
 	websocket_upgrade(Version, State, Req3).
 

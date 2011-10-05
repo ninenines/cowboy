@@ -58,6 +58,7 @@
 	raw_qs     = undefined :: undefined | binary(),
 	bindings   = undefined :: undefined | cowboy_dispatcher:bindings(),
 	headers    = []        :: http_headers(),
+	p_headers  = []        :: [any()], %% @todo Improve those specs.
 	cookies    = undefined :: undefined | http_cookies(),
 
 	%% Request body.

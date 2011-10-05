@@ -158,10 +158,13 @@ header({http_header, _I, 'Host', _R, RawHost}, Req=#http_req{
 %% Ignore Host headers if we already have it.
 header({http_header, _I, 'Host', _R, _V}, Req, State) ->
 	parse_header(Req, State);
-header({http_header, _I, 'Connection', _R, Connection}, Req, State) ->
-	ConnAtom = connection_to_atom(Connection),
-	parse_header(Req#http_req{connection=ConnAtom,
-		headers=[{'Connection', Connection}|Req#http_req.headers]}, State);
+header({http_header, _I, 'Connection', _R, Connection},
+		Req=#http_req{headers=Headers}, State) ->
+	Req2 = Req#http_req{headers=[{'Connection', Connection}|Headers]},
+	{tokens, ConnTokens, Req3}
+		= cowboy_http_req:parse_header('Connection', Req2),
+	ConnAtom = cowboy_http:connection_to_atom(ConnTokens),
+	parse_header(Req3#http_req{connection=ConnAtom}, State);
 header({http_header, _I, Field, _R, Value}, Req, State) ->
 	Field2 = format_header(Field),
 	parse_header(Req#http_req{headers=[{Field2, Value}|Req#http_req.headers]},
@@ -303,18 +306,6 @@ terminate(#state{socket=Socket, transport=Transport}) ->
 -spec version_to_connection(http_version()) -> keepalive | close.
 version_to_connection({1, 1}) -> keepalive;
 version_to_connection(_Any) -> close.
-
-%% @todo Connection can take more than one value.
--spec connection_to_atom(binary()) -> keepalive | close.
-connection_to_atom(<<"keep-alive">>) ->
-	keepalive;
-connection_to_atom(<<"close">>) ->
-	close;
-connection_to_atom(Connection) ->
-	case cowboy_bstr:to_lower(Connection) of
-		<<"close">> -> close;
-		_Any -> keepalive
-	end.
 
 -spec default_port(atom()) -> 80 | 443.
 default_port(ssl) -> 443;
