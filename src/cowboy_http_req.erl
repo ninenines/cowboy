@@ -366,7 +366,7 @@ chunk(Data, #http_req{socket=Socket, transport=Transport, resp_state=chunks}) ->
 -spec compact(#http_req{}) -> #http_req{}.
 compact(Req) ->
 	Req#http_req{host=undefined, host_info=undefined, path=undefined,
-		path_info=undefined, qs_vals=undefined, raw_qs=undefined,
+		path_info=undefined, qs_vals=undefined,
 		bindings=undefined, headers=[]}.
 
 %% Internal.
