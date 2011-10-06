@@ -318,6 +318,7 @@ body_qs(Req) ->
 reply(Code, Headers, Body, Req=#http_req{socket=Socket,
 		transport=Transport, connection=Connection,
 		method=Method, resp_state=waiting}) ->
+	RespConn = response_connection(Headers, Connection),
 	Head = response_head(Code, Headers, [
 		{<<"Connection">>, atom_to_connection(Connection)},
 		{<<"Content-Length">>,
@@ -329,22 +330,23 @@ reply(Code, Headers, Body, Req=#http_req{socket=Socket,
 		'HEAD' -> Transport:send(Socket, Head);
 		_ -> Transport:send(Socket, [Head, Body])
 	end,
-	{ok, Req#http_req{resp_state=done}}.
+	{ok, Req#http_req{connection=RespConn, resp_state=done}}.
 
 %% @doc Initiate the sending of a chunked reply to the client.
 %% @see cowboy_http_req:chunk/2
 -spec chunked_reply(http_status(), http_headers(), #http_req{})
 	-> {ok, #http_req{}}.
 chunked_reply(Code, Headers, Req=#http_req{socket=Socket, transport=Transport,
-		resp_state=waiting}) ->
+		connection=Connection, resp_state=waiting}) ->
+	RespConn = response_connection(Headers, Connection),
 	Head = response_head(Code, Headers, [
-		{<<"Connection">>, <<"close">>},
+		{<<"Connection">>, atom_to_connection(Connection)},
 		{<<"Transfer-Encoding">>, <<"chunked">>},
 		{<<"Date">>, cowboy_clock:rfc1123()},
 		{<<"Server">>, <<"Cowboy">>}
 	]),
 	Transport:send(Socket, Head),
-	{ok, Req#http_req{resp_state=chunks}}.
+	{ok, Req#http_req{connection=RespConn, resp_state=chunks}}.
 
 %% @doc Send a chunk of data.
 %%
@@ -380,6 +382,26 @@ parse_qs(Qs) ->
 		[Token] -> {quoted:from_url(Token), true};
 		[Name, Value] -> {quoted:from_url(Name), quoted:from_url(Value)}
 	end || Token <- Tokens].
+
+-spec response_connection(http_headers(), keepalive | close)
+	-> keepalive | close.
+response_connection([], Connection) ->
+	Connection;
+response_connection([{Name, Value}|Tail], Connection) ->
+	case Name of
+		'Connection' -> response_connection_parse(Value);
+		Name ->
+			Name2 = cowboy_bstr:to_lower(Name),
+			case Name2 of
+				<<"connection">> -> response_connection_parse(Value);
+				_Any -> response_connection(Tail, Connection)
+			end
+	end.
+
+-spec response_connection_parse(binary()) -> keepalive | close.
+response_connection_parse(ReplyConn) ->
+	Tokens = cowboy_http:parse_tokens_list(ReplyConn),
+	cowboy_http:connection_to_atom(Tokens).
 
 -spec response_head(http_status(), http_headers(), http_headers()) -> iolist().
 response_head(Code, Headers, DefaultHeaders) ->

@@ -117,7 +117,7 @@ headers_dupe(Config) ->
 	{ok, Data} = gen_tcp:recv(Socket, 0, 6000),
 	{_Start, _Length} = binary:match(Data, <<"Connection: close">>),
 	nomatch = binary:match(Data, <<"Connection: keep-alive">>),
-	ok = gen_tcp:close(Socket).
+	{error, closed} = gen_tcp:recv(Socket, 0, 1000).
 
 headers_huge(Config) ->
 	Cookie = lists:flatten(["whatever_man_biiiiiiiiiiiig_cookie_me_want_77="
