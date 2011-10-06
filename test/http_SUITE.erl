@@ -95,6 +95,7 @@ init_http_dispatch() ->
 			{[<<"chunked_response">>], chunked_handler, []},
 			{[<<"websocket">>], websocket_handler, []},
 			{[<<"ws_timeout_hibernate">>], ws_timeout_hibernate_handler, []},
+			{[<<"init_shutdown">>], http_handler_init_shutdown, []},
 			{[<<"headers">>, <<"dupe">>], http_handler,
 				[{headers, [{<<"Connection">>, <<"close">>}]}]},
 			{[], http_handler, []}
@@ -224,7 +225,8 @@ raw(Config) ->
 		{"GET / HTTP/1.1\r\nHost: localhost\r\n", 408},
 		{"GET / HTTP/1.1\r\nHost: localhost\r\n\r", 408},
 		{"GET http://localhost/ HTTP/1.1\r\n\r\n", 501},
-		{"GET / HTTP/1.2\r\nHost: localhost\r\n\r\n", 505}
+		{"GET / HTTP/1.2\r\nHost: localhost\r\n\r\n", 505},
+		{"GET /init_shutdown HTTP/1.1\r\nHost: localhost\r\n\r\n", 666}
 	],
 	[{Packet, StatusCode} = raw_req(Packet, Config)
 		|| {Packet, StatusCode} <- Tests].

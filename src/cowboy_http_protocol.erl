@@ -205,6 +205,8 @@ handler_init(Req, State=#state{listener=ListenerPid,
 	try Handler:init({Transport:name(), http}, Req, Opts) of
 		{ok, Req2, HandlerState} ->
 			handler_loop(HandlerState, Req2, State);
+		{shutdown, Req2, HandlerState} ->
+			handler_terminate(HandlerState, Req2, State);
 		%% @todo {upgrade, transport, Module}
 		{upgrade, protocol, Module} ->
 			Module:upgrade(ListenerPid, Handler, Opts, Req)
@@ -220,7 +222,7 @@ handler_init(Req, State=#state{listener=ListenerPid,
 
 -spec handler_loop(any(), #http_req{}, #state{}) -> ok.
 handler_loop(HandlerState, Req, State=#state{handler={Handler, Opts}}) ->
-	try Handler:handle(Req#http_req{resp_state=waiting}, HandlerState) of
+	try Handler:handle(Req, HandlerState) of
 		{ok, Req2, HandlerState2} ->
 			next_request(HandlerState2, Req2, State)
 	catch Class:Reason ->
