@@ -34,4 +34,4 @@ dialyze:
 		-Wrace_conditions -Wunmatched_returns # -Wunderspecs
 
 docs:
-	@$(REBAR) doc
+	@$(REBAR) doc skip_deps=true

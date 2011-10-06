@@ -76,10 +76,9 @@ upgrade(ListenerPid, Handler, Opts, Req) ->
 %%       instead of having ugly code like this case here.
 -spec websocket_upgrade(#state{}, #http_req{}) -> {ok, #state{}, #http_req{}}.
 websocket_upgrade(State, Req) ->
-	case cowboy_http_req:header('Connection', Req) of
-		{<<"Upgrade">>, Req2} -> ok;
-		{<<"keep-alive, Upgrade">>, Req2} -> ok %% @todo Temp. For Firefox 6.
-	end,
+	{tokens, ConnTokens, Req2}
+		= cowboy_http_req:parse_header('Connection', Req),
+	true = lists:member(<<"Upgrade">>, ConnTokens),
 	{Version, Req3} = cowboy_http_req:header(<<"Sec-Websocket-Version">>, Req2),
 	websocket_upgrade(Version, State, Req3).
 
@@ -232,20 +231,26 @@ websocket_data(State=#state{version=0, eop=EOP}, Req, HandlerState,
 			%% @todo We probably should allow limiting frame length.
 			handler_before_loop(State, Req, HandlerState, Data)
 	end;
+%% incomplete hybi data frame.
+websocket_data(State=#state{version=Version}, Req, HandlerState, Data)
+		when Version =/= 0, byte_size(Data) =:= 1 ->
+	handler_before_loop(State, Req, HandlerState, Data);
 %% hybi data frame.
 %% @todo Handle Fin.
 websocket_data(State=#state{version=Version}, Req, HandlerState, Data)
 		when Version =/= 0 ->
 	<< 1:1, 0:3, Opcode:4, Mask:1, PayloadLen:7, Rest/bits >> = Data,
-	{PayloadLen2, Rest2} = case PayloadLen of
-		126 -> << L:16, R/bits >> = Rest, {L, R};
-		127 -> << 0:1, L:63, R/bits >> = Rest, {L, R};
-		PayloadLen -> {PayloadLen, Rest}
+	{PayloadLen2, Rest2} = case {PayloadLen, Rest} of
+		{126, << L:16, R/bits >>}  -> {L, R};
+		{126, Rest} -> {undefined, Rest};
+		{127, << 0:1, L:63, R/bits >>} -> {L, R};
+		{127, Rest} -> {undefined, Rest};
+		{PayloadLen, Rest} -> {PayloadLen, Rest}
 	end,
 	case {Mask, PayloadLen2} of
 		{0, 0} ->
 			websocket_dispatch(State, Req, HandlerState, Rest2, Opcode, <<>>);
-		{1, N} when N + 4 < byte_size(Rest2) ->
+		{1, N} when N + 4 > byte_size(Rest2); N =:= undefined ->
 			%% @todo We probably should allow limiting frame length.
 			handler_before_loop(State, Req, HandlerState, Data);
 		{1, _N} ->
@@ -419,24 +424,23 @@ hixie76_key_to_integer(Key) ->
 
 -spec hixie76_location(atom(), binary(), inet:ip_port(), binary(), binary())
 	-> binary().
+hixie76_location(Protocol, Host, Port, Path, <<>>) ->
+    << (hixie76_location_protocol(Protocol))/binary, "://", Host/binary,
+       (hixie76_location_port(Protocol, Port))/binary, Path/binary>>;
 hixie76_location(Protocol, Host, Port, Path, QS) ->
-    case QS of
-        <<>> ->
-            << (hixie76_location_protocol(Protocol))/binary, "://", Host/binary,
-               (hixie76_location_port(ssl, Port))/binary, Path/binary>>;
-        _ ->
-            << (hixie76_location_protocol(Protocol))/binary, "://", Host/binary,
-               (hixie76_location_port(ssl, Port))/binary, Path/binary, "?", QS/binary >>
-    end.
+    << (hixie76_location_protocol(Protocol))/binary, "://", Host/binary,
+       (hixie76_location_port(Protocol, Port))/binary, Path/binary, "?", QS/binary >>.
 
 -spec hixie76_location_protocol(atom()) -> binary().
 hixie76_location_protocol(ssl) -> <<"wss">>;
 hixie76_location_protocol(_)   -> <<"ws">>.
 
+%% @todo We should add a secure/0 function to transports
+%% instead of relying on their name.
 -spec hixie76_location_port(atom(), inet:ip_port()) -> binary().
 hixie76_location_port(ssl, 443) ->
 	<<>>;
-hixie76_location_port(_, 80) ->
+hixie76_location_port(tcp, 80) ->
 	<<>>;
 hixie76_location_port(_, Port) ->
 	<<":", (list_to_binary(integer_to_list(Port)))/binary>>.
@@ -463,11 +467,13 @@ hybi_payload_length(N) ->
 
 hixie76_location_test() ->
 	?assertEqual(<<"ws://localhost/path">>,
-		hixie76_location(other, <<"localhost">>, 80, <<"/path">>, <<>>)),
+		hixie76_location(tcp, <<"localhost">>, 80, <<"/path">>, <<>>)),
+	?assertEqual(<<"ws://localhost:443/path">>,
+		hixie76_location(tcp, <<"localhost">>, 443, <<"/path">>, <<>>)),
 	?assertEqual(<<"ws://localhost:8080/path">>,
-		hixie76_location(other, <<"localhost">>, 8080, <<"/path">>, <<>>)),
+		hixie76_location(tcp, <<"localhost">>, 8080, <<"/path">>, <<>>)),
 	?assertEqual(<<"ws://localhost:8080/path?dummy=2785">>,
-		hixie76_location(other, <<"localhost">>, 8080, <<"/path">>, <<"dummy=2785">>)),
+		hixie76_location(tcp, <<"localhost">>, 8080, <<"/path">>, <<"dummy=2785">>)),
 	?assertEqual(<<"wss://localhost/path">>,
 		hixie76_location(ssl, <<"localhost">>, 443, <<"/path">>, <<>>)),
 	?assertEqual(<<"wss://localhost:8443/path">>,

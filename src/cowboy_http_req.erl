@@ -28,6 +28,7 @@
 	qs_val/2, qs_val/3, qs_vals/1, raw_qs/1,
 	binding/2, binding/3, bindings/1,
 	header/2, header/3, headers/1,
+	parse_header/2, parse_header/3,
 	cookie/2, cookie/3, cookies/1
 ]). %% Request API.
 
@@ -182,6 +183,54 @@ header(Name, Req, Default) when is_atom(Name) orelse is_binary(Name) ->
 headers(Req) ->
 	{Req#http_req.headers, Req}.
 
+%% @doc Semantically parse headers.
+%%
+%% When the value isn't found, a proper default value for the type
+%% returned is used as a return value.
+%% @see parse_header/3
+-spec parse_header(http_header(), #http_req{})
+	-> {tokens, [binary()], #http_req{}}
+	 | {undefined, binary(), #http_req{}}
+	 | {error, badarg}.
+parse_header('Connection', Req) ->
+	parse_header('Connection', Req, []);
+parse_header(Name, Req) ->
+	parse_header(Name, Req, undefined).
+
+%% @doc Semantically parse headers.
+%%
+%% When the header is known, a named tuple is returned containing
+%% {Type, P, Req} with Type being the type of value found in P.
+%% For example, the header 'Connection' is a list of tokens, therefore
+%% the value returned will be a list of binary values and Type will be
+%% 'tokens'.
+%%
+%% When the header is known but not found, the tuple {Type, Default, Req}
+%% is returned instead.
+%%
+%% When the header is unknown, the value is returned directly as an
+%% 'undefined' tagged tuple.
+-spec parse_header(http_header(), #http_req{}, any())
+	-> {tokens, [binary()], #http_req{}}
+	 | {undefined, binary(), #http_req{}}
+	 | {error, badarg}.
+parse_header(Name, Req=#http_req{p_headers=PHeaders}, Default)
+		when Name =:= 'Connection' ->
+	case header(Name, Req) of
+		{undefined, Req2} -> {tokens, Default, Req2};
+		{Value, Req2} ->
+			case cowboy_http:parse_tokens_list(Value) of
+				{error, badarg} ->
+					{error, badarg};
+				P ->
+					{tokens, P, Req2#http_req{
+						p_headers=[{Name, P}|PHeaders]}}
+			end
+	end;
+parse_header(Name, Req, Default) ->
+	{Value, Req2} = header(Name, Req, Default),
+	{undefined, Value, Req2}.
+
 %% @equiv cookie(Name, Req, undefined)
 -spec cookie(binary(), #http_req{})
 	-> {binary() | true | undefined, #http_req{}}.
@@ -281,6 +330,7 @@ body_qs(Req) ->
 reply(Code, Headers, Body, Req=#http_req{socket=Socket,
 		transport=Transport, connection=Connection,
 		method=Method, resp_state=waiting}) ->
+	RespConn = response_connection(Headers, Connection),
 	Head = response_head(Code, Headers, [
 		{<<"Connection">>, atom_to_connection(Connection)},
 		{<<"Content-Length">>,
@@ -292,30 +342,23 @@ reply(Code, Headers, Body, Req=#http_req{socket=Socket,
 		'HEAD' -> Transport:send(Socket, Head);
 		_ -> Transport:send(Socket, [Head, Body])
 	end,
-	{ok, Req#http_req{resp_state=done}}.
+	{ok, Req#http_req{connection=RespConn, resp_state=done}}.
 
 %% @doc Initiate the sending of a chunked reply to the client.
 %% @see cowboy_http_req:chunk/2
 -spec chunked_reply(http_status(), http_headers(), #http_req{})
 	-> {ok, #http_req{}}.
 chunked_reply(Code, Headers, Req=#http_req{socket=Socket, transport=Transport,
-		method='HEAD', resp_state=waiting}) ->
+		connection=Connection, resp_state=waiting}) ->
+	RespConn = response_connection(Headers, Connection),
 	Head = response_head(Code, Headers, [
-		{<<"Date">>, cowboy_clock:rfc1123()},
-		{<<"Server">>, <<"Cowboy">>}
-	]),
-	Transport:send(Socket, Head),
-	{ok, Req#http_req{resp_state=done}};
-chunked_reply(Code, Headers, Req=#http_req{socket=Socket, transport=Transport,
-		resp_state=waiting}) ->
-	Head = response_head(Code, Headers, [
-		{<<"Connection">>, <<"close">>},
+		{<<"Connection">>, atom_to_connection(Connection)},
 		{<<"Transfer-Encoding">>, <<"chunked">>},
 		{<<"Date">>, cowboy_clock:rfc1123()},
 		{<<"Server">>, <<"Cowboy">>}
 	]),
 	Transport:send(Socket, Head),
-	{ok, Req#http_req{resp_state=chunks}}.
+	{ok, Req#http_req{connection=RespConn, resp_state=chunks}}.
 
 %% @doc Send a chunk of data.
 %%
@@ -337,7 +380,7 @@ chunk(Data, #http_req{socket=Socket, transport=Transport, resp_state=chunks}) ->
 -spec compact(#http_req{}) -> #http_req{}.
 compact(Req) ->
 	Req#http_req{host=undefined, host_info=undefined, path=undefined,
-		path_info=undefined, qs_vals=undefined, raw_qs=undefined,
+		path_info=undefined, qs_vals=undefined,
 		bindings=undefined, headers=[]}.
 
 %% Internal.
@@ -351,6 +394,26 @@ parse_qs(Qs) ->
 		[Token] -> {quoted:from_url(Token), true};
 		[Name, Value] -> {quoted:from_url(Name), quoted:from_url(Value)}
 	end || Token <- Tokens].
+
+-spec response_connection(http_headers(), keepalive | close)
+	-> keepalive | close.
+response_connection([], Connection) ->
+	Connection;
+response_connection([{Name, Value}|Tail], Connection) ->
+	case Name of
+		'Connection' -> response_connection_parse(Value);
+		Name ->
+			Name2 = cowboy_bstr:to_lower(Name),
+			case Name2 of
+				<<"connection">> -> response_connection_parse(Value);
+				_Any -> response_connection(Tail, Connection)
+			end
+	end.
+
+-spec response_connection_parse(binary()) -> keepalive | close.
+response_connection_parse(ReplyConn) ->
+	Tokens = cowboy_http:parse_tokens_list(ReplyConn),
+	cowboy_http:connection_to_atom(Tokens).
 
 -spec response_head(http_status(), http_headers(), http_headers()) -> iolist().
 response_head(Code, Headers, DefaultHeaders) ->

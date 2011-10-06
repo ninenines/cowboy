@@ -20,7 +20,7 @@
 %%  <dt>dispatch</dt><dd>The dispatch list for this protocol.</dd>
 %%  <dt>max_empty_lines</dt><dd>Max number of empty lines before a request.
 %%   Defaults to 5.</dd>
-%%  <dt>timeout</dt><dd>Time in milliseconds before an idle keep-alive
+%%  <dt>timeout</dt><dd>Time in milliseconds before an idle
 %%   connection is closed. Defaults to 5000 milliseconds.</dd>
 %% </dl>
 %%
@@ -47,7 +47,6 @@
 	req_empty_lines = 0 :: integer(),
 	max_empty_lines :: integer(),
 	timeout :: timeout(),
-	connection = keepalive :: keepalive | close,
 	buffer = <<>> :: binary()
 }).
 
@@ -78,7 +77,7 @@ parse_request(State=#state{buffer=Buffer}) ->
 	case erlang:decode_packet(http_bin, Buffer, []) of
 		{ok, Request, Rest} -> request(Request, State#state{buffer=Rest});
 		{more, _Length} -> wait_request(State);
-		{error, _Reason} -> error_response(400, State)
+		{error, _Reason} -> error_terminate(400, State)
 	end.
 
 -spec wait_request(#state{}) -> ok.
@@ -87,8 +86,7 @@ wait_request(State=#state{socket=Socket, transport=Transport,
 	case Transport:recv(Socket, 0, T) of
 		{ok, Data} -> parse_request(State#state{
 			buffer= << Buffer/binary, Data/binary >>});
-		{error, timeout} -> error_terminate(408, State);
-		{error, closed} -> terminate(State)
+		{error, _Reason} -> terminate(State)
 	end.
 
 -spec request({http_request, http_method(), http_uri(),
@@ -104,15 +102,13 @@ request({http_request, Method, {abs_path, AbsPath}, Version},
 	ConnAtom = version_to_connection(Version),
 	parse_header(#http_req{socket=Socket, transport=Transport,
 		connection=ConnAtom, method=Method, version=Version,
-		path=Path, raw_path=RawPath, raw_qs=Qs},
-		State#state{connection=ConnAtom});
+		path=Path, raw_path=RawPath, raw_qs=Qs}, State);
 request({http_request, Method, '*', Version},
 		State=#state{socket=Socket, transport=Transport}) ->
 	ConnAtom = version_to_connection(Version),
 	parse_header(#http_req{socket=Socket, transport=Transport,
 		connection=ConnAtom, method=Method, version=Version,
-		path='*', raw_path= <<"*">>, raw_qs= <<>>},
-		State#state{connection=ConnAtom});
+		path='*', raw_path= <<"*">>, raw_qs= <<>>}, State);
 request({http_request, _Method, _URI, _Version}, State) ->
 	error_terminate(501, State);
 request({http_error, <<"\r\n">>},
@@ -128,7 +124,7 @@ parse_header(Req, State=#state{buffer=Buffer}) ->
 	case erlang:decode_packet(httph_bin, Buffer, []) of
 		{ok, Header, Rest} -> header(Header, Req, State#state{buffer=Rest});
 		{more, _Length} -> wait_header(Req, State);
-		{error, _Reason} -> error_response(400, State)
+		{error, _Reason} -> error_terminate(400, State)
 	end.
 
 -spec wait_header(#http_req{}, #state{}) -> ok.
@@ -145,7 +141,7 @@ wait_header(Req, State=#state{socket=Socket,
 	| http_eoh, #http_req{}, #state{}) -> ok.
 header({http_header, _I, 'Host', _R, RawHost}, Req=#http_req{
 		transport=Transport, host=undefined}, State) ->
-	RawHost2 = binary_to_lower(RawHost),
+	RawHost2 = cowboy_bstr:to_lower(RawHost),
 	case catch cowboy_dispatcher:split_host(RawHost2) of
 		{Host, RawHost3, undefined} ->
 			Port = default_port(Transport:name()),
@@ -162,11 +158,13 @@ header({http_header, _I, 'Host', _R, RawHost}, Req=#http_req{
 %% Ignore Host headers if we already have it.
 header({http_header, _I, 'Host', _R, _V}, Req, State) ->
 	parse_header(Req, State);
-header({http_header, _I, 'Connection', _R, Connection}, Req, State) ->
-	ConnAtom = connection_to_atom(Connection),
-	parse_header(Req#http_req{connection=ConnAtom,
-		headers=[{'Connection', Connection}|Req#http_req.headers]},
-		State#state{connection=ConnAtom});
+header({http_header, _I, 'Connection', _R, Connection},
+		Req=#http_req{headers=Headers}, State) ->
+	Req2 = Req#http_req{headers=[{'Connection', Connection}|Headers]},
+	{tokens, ConnTokens, Req3}
+		= cowboy_http_req:parse_header('Connection', Req2),
+	ConnAtom = cowboy_http:connection_to_atom(ConnTokens),
+	parse_header(Req3#http_req{connection=ConnAtom}, State);
 header({http_header, _I, Field, _R, Value}, Req, State) ->
 	Field2 = format_header(Field),
 	parse_header(Req#http_req{headers=[{Field2, Value}|Req#http_req.headers]},
@@ -207,6 +205,8 @@ handler_init(Req, State=#state{listener=ListenerPid,
 	try Handler:init({Transport:name(), http}, Req, Opts) of
 		{ok, Req2, HandlerState} ->
 			handler_loop(HandlerState, Req2, State);
+		{shutdown, Req2, HandlerState} ->
+			handler_terminate(HandlerState, Req2, State);
 		%% @todo {upgrade, transport, Module}
 		{upgrade, protocol, Module} ->
 			Module:upgrade(ListenerPid, Handler, Opts, Req)
@@ -222,7 +222,7 @@ handler_init(Req, State=#state{listener=ListenerPid,
 
 -spec handler_loop(any(), #http_req{}, #state{}) -> ok.
 handler_loop(HandlerState, Req, State=#state{handler={Handler, Opts}}) ->
-	try Handler:handle(Req#http_req{resp_state=waiting}, HandlerState) of
+	try Handler:handle(Req, HandlerState) of
 		{ok, Req2, HandlerState2} ->
 			next_request(HandlerState2, Req2, State)
 	catch Class:Reason ->
@@ -253,11 +253,12 @@ handler_terminate(HandlerState, Req, #state{handler={Handler, Opts}}) ->
 	end.
 
 -spec next_request(any(), #http_req{}, #state{}) -> ok.
-next_request(HandlerState, Req=#http_req{buffer=Buffer}, State) ->
+next_request(HandlerState, Req=#http_req{connection=Conn, buffer=Buffer},
+		State) ->
 	HandlerRes = handler_terminate(HandlerState, Req, State),
 	BodyRes = ensure_body_processed(Req),
-	RespRes = ensure_response(Req, State),
-	case {HandlerRes, BodyRes, RespRes, State#state.connection} of
+	RespRes = ensure_response(Req),
+	case {HandlerRes, BodyRes, RespRes, Conn} of
 		{ok, ok, ok, keepalive} ->
 			?MODULE:parse_request(State#state{
 				buffer=Buffer, req_empty_lines=0});
@@ -275,31 +276,28 @@ ensure_body_processed(Req=#http_req{body_state=waiting}) ->
 		_Any -> ok
 	end.
 
--spec ensure_response(#http_req{}, #state{}) -> ok.
+-spec ensure_response(#http_req{}) -> ok.
 %% The handler has already fully replied to the client.
-ensure_response(#http_req{resp_state=done}, _State) ->
+ensure_response(#http_req{resp_state=done}) ->
 	ok;
 %% No response has been sent but everything apparently went fine.
 %% Reply with 204 No Content to indicate this.
-ensure_response(#http_req{resp_state=waiting}, State) ->
-	error_response(204, State);
+ensure_response(Req=#http_req{resp_state=waiting}) ->
+	_ = cowboy_http_req:reply(204, [], [], Req),
+	ok;
 %% Close the chunked reply.
+ensure_response(#http_req{method='HEAD', resp_state=chunks}) ->
+	close;
 ensure_response(#http_req{socket=Socket, transport=Transport,
-		resp_state=chunks}, _State) ->
+		resp_state=chunks}) ->
 	Transport:send(Socket, <<"0\r\n\r\n">>),
 	close.
 
--spec error_response(http_status(), #state{}) -> ok.
-error_response(Code, #state{socket=Socket,
-		transport=Transport, connection=Connection}) ->
+-spec error_terminate(http_status(), #state{}) -> ok.
+error_terminate(Code, State=#state{socket=Socket, transport=Transport}) ->
 	_ = cowboy_http_req:reply(Code, [], [], #http_req{
 		socket=Socket, transport=Transport,
-		connection=Connection, resp_state=waiting}),
-	ok.
-
--spec error_terminate(http_status(), #state{}) -> ok.
-error_terminate(Code, State) ->
-	error_response(Code, State#state{connection=close}),
+		connection=close, resp_state=waiting}),
 	terminate(State).
 
 -spec terminate(#state{}) -> ok.
@@ -312,18 +310,6 @@ terminate(#state{socket=Socket, transport=Transport}) ->
 -spec version_to_connection(http_version()) -> keepalive | close.
 version_to_connection({1, 1}) -> keepalive;
 version_to_connection(_Any) -> close.
-
-%% @todo Connection can take more than one value.
--spec connection_to_atom(binary()) -> keepalive | close.
-connection_to_atom(<<"keep-alive">>) ->
-	keepalive;
-connection_to_atom(<<"close">>) ->
-	close;
-connection_to_atom(Connection) ->
-	case binary_to_lower(Connection) of
-		<<"close">> -> close;
-		_Any -> keepalive
-	end.
 
 -spec default_port(atom()) -> 80 | 443.
 default_port(ssl) -> 443;
@@ -347,73 +333,9 @@ format_header(<<>>, _Any, Acc) ->
 format_header(<< $-, Rest/bits >>, Bool, Acc) ->
 	format_header(Rest, not Bool, << Acc/binary, $- >>);
 format_header(<< C, Rest/bits >>, true, Acc) ->
-	format_header(Rest, false, << Acc/binary, (char_to_upper(C)) >>);
+	format_header(Rest, false, << Acc/binary, (cowboy_bstr:char_to_upper(C)) >>);
 format_header(<< C, Rest/bits >>, false, Acc) ->
-	format_header(Rest, false, << Acc/binary, (char_to_lower(C)) >>).
-
-%% We are excluding a few characters on purpose.
--spec binary_to_lower(binary()) -> binary().
-binary_to_lower(L) ->
-	<< << (char_to_lower(C)) >> || << C >> <= L >>.
-
-%% We gain noticeable speed by matching each value directly.
--spec char_to_lower(char()) -> char().
-char_to_lower($A) -> $a;
-char_to_lower($B) -> $b;
-char_to_lower($C) -> $c;
-char_to_lower($D) -> $d;
-char_to_lower($E) -> $e;
-char_to_lower($F) -> $f;
-char_to_lower($G) -> $g;
-char_to_lower($H) -> $h;
-char_to_lower($I) -> $i;
-char_to_lower($J) -> $j;
-char_to_lower($K) -> $k;
-char_to_lower($L) -> $l;
-char_to_lower($M) -> $m;
-char_to_lower($N) -> $n;
-char_to_lower($O) -> $o;
-char_to_lower($P) -> $p;
-char_to_lower($Q) -> $q;
-char_to_lower($R) -> $r;
-char_to_lower($S) -> $s;
-char_to_lower($T) -> $t;
-char_to_lower($U) -> $u;
-char_to_lower($V) -> $v;
-char_to_lower($W) -> $w;
-char_to_lower($X) -> $x;
-char_to_lower($Y) -> $y;
-char_to_lower($Z) -> $z;
-char_to_lower(Ch) -> Ch.
-
--spec char_to_upper(char()) -> char().
-char_to_upper($a) -> $A;
-char_to_upper($b) -> $B;
-char_to_upper($c) -> $C;
-char_to_upper($d) -> $D;
-char_to_upper($e) -> $E;
-char_to_upper($f) -> $F;
-char_to_upper($g) -> $G;
-char_to_upper($h) -> $H;
-char_to_upper($i) -> $I;
-char_to_upper($j) -> $J;
-char_to_upper($k) -> $K;
-char_to_upper($l) -> $L;
-char_to_upper($m) -> $M;
-char_to_upper($n) -> $N;
-char_to_upper($o) -> $O;
-char_to_upper($p) -> $P;
-char_to_upper($q) -> $Q;
-char_to_upper($r) -> $R;
-char_to_upper($s) -> $S;
-char_to_upper($t) -> $T;
-char_to_upper($u) -> $U;
-char_to_upper($v) -> $V;
-char_to_upper($w) -> $W;
-char_to_upper($x) -> $X;
-char_to_upper($y) -> $Y;
-char_to_upper($z) -> $Z;
-char_to_upper(Ch) -> Ch.
+	format_header(Rest, false, << Acc/binary, (cowboy_bstr:char_to_lower(C)) >>).
 
 %% Tests.
 
