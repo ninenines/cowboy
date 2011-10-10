@@ -97,6 +97,7 @@ init_http_dispatch() ->
 			{[<<"ws_timeout_hibernate">>], ws_timeout_hibernate_handler, []},
 			{[<<"ws_init_shutdown">>], websocket_handler_init_shutdown, []},
 			{[<<"init_shutdown">>], http_handler_init_shutdown, []},
+			{[<<"long_polling">>], http_handler_long_polling, []},
 			{[<<"headers">>, <<"dupe">>], http_handler,
 				[{headers, [{<<"Connection">>, <<"close">>}]}]},
 			{[], http_handler, []}
@@ -227,7 +228,8 @@ raw(Config) ->
 		{"GET / HTTP/1.1\r\nHost: localhost\r\n\r", 408},
 		{"GET http://localhost/ HTTP/1.1\r\n\r\n", 501},
 		{"GET / HTTP/1.2\r\nHost: localhost\r\n\r\n", 505},
-		{"GET /init_shutdown HTTP/1.1\r\nHost: localhost\r\n\r\n", 666}
+		{"GET /init_shutdown HTTP/1.1\r\nHost: localhost\r\n\r\n", 666},
+		{"GET /long_polling HTTP/1.1\r\nHost: localhost\r\n\r\n", 102}
 	],
 	[{Packet, StatusCode} = raw_req(Packet, Config)
 		|| {Packet, StatusCode} <- Tests].

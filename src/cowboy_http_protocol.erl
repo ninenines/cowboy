@@ -33,7 +33,7 @@
 -behaviour(cowboy_protocol).
 
 -export([start_link/4]). %% API.
--export([init/4, parse_request/1]). %% FSM.
+-export([init/4, parse_request/1, handler_loop/3]). %% FSM.
 
 -include("include/http.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -47,7 +47,10 @@
 	req_empty_lines = 0 :: integer(),
 	max_empty_lines :: integer(),
 	timeout :: timeout(),
-	buffer = <<>> :: binary()
+	buffer = <<>> :: binary(),
+	hibernate = false :: boolean(),
+	loop_timeout = infinity :: timeout(),
+	loop_timeout_ref :: undefined | reference()
 }).
 
 %% API.
@@ -204,7 +207,18 @@ handler_init(Req, State=#state{listener=ListenerPid,
 		transport=Transport, handler={Handler, Opts}}) ->
 	try Handler:init({Transport:name(), http}, Req, Opts) of
 		{ok, Req2, HandlerState} ->
-			handler_loop(HandlerState, Req2, State);
+			handler_handle(HandlerState, Req2, State);
+		{loop, Req, HandlerState} ->
+			handler_before_loop(HandlerState, Req, State);
+		{loop, Req, HandlerState, hibernate} ->
+			handler_before_loop(HandlerState, Req,
+				State#state{hibernate=true});
+		{loop, Req, HandlerState, Timeout} ->
+			handler_before_loop(HandlerState, Req,
+				State#state{loop_timeout=Timeout});
+		{loop, Req, HandlerState, Timeout, hibernate} ->
+			handler_before_loop(HandlerState, Req,
+				State#state{hibernate=true, loop_timeout=Timeout});
 		{shutdown, Req2, HandlerState} ->
 			handler_terminate(HandlerState, Req2, State);
 		%% @todo {upgrade, transport, Module}
@@ -220,8 +234,8 @@ handler_init(Req, State=#state{listener=ListenerPid,
 			[Handler, Class, Reason, Opts, Req, erlang:get_stacktrace()])
 	end.
 
--spec handler_loop(any(), #http_req{}, #state{}) -> ok.
-handler_loop(HandlerState, Req, State=#state{handler={Handler, Opts}}) ->
+-spec handler_handle(any(), #http_req{}, #state{}) -> ok.
+handler_handle(HandlerState, Req, State=#state{handler={Handler, Opts}}) ->
 	try Handler:handle(Req, HandlerState) of
 		{ok, Req2, HandlerState2} ->
 			next_request(HandlerState2, Req2, State)
@@ -237,7 +251,61 @@ handler_loop(HandlerState, Req, State=#state{handler={Handler, Opts}}) ->
 		terminate(State)
 	end.
 
--spec handler_terminate(any(), #http_req{}, #state{}) -> ok | error.
+%% We don't listen for Transport closes because that would force us
+%% to receive data and buffer it indefinitely.
+-spec handler_before_loop(any(), #http_req{}, #state{}) -> ok.
+handler_before_loop(HandlerState, Req, State=#state{hibernate=true}) ->
+	State2 = handler_loop_timeout(State),
+	erlang:hibernate(?MODULE, handler_loop, [HandlerState, Req, State2]);
+handler_before_loop(HandlerState, Req, State) ->
+	State2 = handler_loop_timeout(State),
+	handler_loop(HandlerState, Req, State2).
+
+%% Almost the same code can be found in cowboy_http_websocket.
+-spec handler_loop_timeout(#state{}) -> #state{}.
+handler_loop_timeout(State=#state{loop_timeout=infinity}) ->
+	State#state{loop_timeout_ref=undefined};
+handler_loop_timeout(State=#state{loop_timeout=Timeout,
+		loop_timeout_ref=PrevRef}) ->
+	_ = case PrevRef of undefined -> ignore; PrevRef ->
+		erlang:cancel_timer(PrevRef) end,
+	TRef = make_ref(),
+	erlang:send_after(Timeout, self(), {?MODULE, timeout, TRef}),
+	State#state{loop_timeout_ref=TRef}.
+
+-spec handler_loop(any(), #http_req{}, #state{}) -> ok.
+handler_loop(HandlerState, Req, State=#state{loop_timeout_ref=TRef}) ->
+	receive
+		{?MODULE, timeout, TRef} ->
+			next_request(HandlerState, Req, State);
+		{?MODULE, timeout, OlderTRef} when is_reference(OlderTRef) ->
+			handler_loop(HandlerState, Req, State);
+		Message ->
+			handler_call(HandlerState, Req, State, Message)
+	end.
+
+-spec handler_call(any(), #http_req{}, #state{}, any()) -> ok.
+handler_call(HandlerState, Req, State=#state{handler={Handler, Opts}},
+		Message) ->
+	try Handler:info(Message, Req, HandlerState) of
+		{ok, Req2, HandlerState2} ->
+			next_request(HandlerState2, Req2, State);
+		{loop, Req2, HandlerState2} ->
+			handler_before_loop(HandlerState2, Req2, State);
+		{loop, Req2, HandlerState2, hibernate} ->
+			handler_before_loop(HandlerState2, Req2,
+				State#state{hibernate=true})
+	catch Class:Reason ->
+		error_logger:error_msg(
+			"** Handler ~p terminating in info/3~n"
+			"   for the reason ~p:~p~n"
+			"** Options were ~p~n** Handler state was ~p~n"
+			"** Request was ~p~n** Stacktrace: ~p~n~n",
+			[Handler, Class, Reason, Opts,
+			 HandlerState, Req, erlang:get_stacktrace()])
+	end.
+
+-spec handler_terminate(any(), #http_req{}, #state{}) -> ok.
 handler_terminate(HandlerState, Req, #state{handler={Handler, Opts}}) ->
 	try
 		Handler:terminate(Req#http_req{resp_state=locked}, HandlerState)
@@ -248,8 +316,7 @@ handler_terminate(HandlerState, Req, #state{handler={Handler, Opts}}) ->
 			"** Options were ~p~n** Handler state was ~p~n"
 			"** Request was ~p~n** Stacktrace: ~p~n~n",
 			[Handler, Class, Reason, Opts,
-			 HandlerState, Req, erlang:get_stacktrace()]),
-		error
+			 HandlerState, Req, erlang:get_stacktrace()])
 	end.
 
 -spec next_request(any(), #http_req{}, #state{}) -> ok.
