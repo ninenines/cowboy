@@ -402,6 +402,7 @@ response_connection([], Connection) ->
 response_connection([{Name, Value}|Tail], Connection) ->
 	case Name of
 		'Connection' -> response_connection_parse(Value);
+		Name when is_atom(Name) -> response_connection(Tail, Connection);
 		Name ->
 			Name2 = cowboy_bstr:to_lower(Name),
 			case Name2 of
