@@ -64,7 +64,7 @@
 %% You do not need to call this function manually. To upgrade to the WebSocket
 %% protocol, you simply need to return <em>{upgrade, protocol, {@module}}</em>
 %% in your <em>cowboy_http_handler:init/3</em> handler function.
--spec upgrade(pid(), module(), any(), #http_req{}) -> ok.
+-spec upgrade(pid(), module(), any(), #http_req{}) -> ok | none().
 upgrade(ListenerPid, Handler, Opts, Req) ->
 	cowboy_listener:move_connection(ListenerPid, websocket, self()),
 	case catch websocket_upgrade(#state{handler=Handler, opts=Opts}, Req) of
@@ -110,7 +110,7 @@ websocket_upgrade(<< Version >>, State, Req)
 	{ok, State#state{version=Version - $0, origin=Origin,
 		challenge=Challenge}, Req4}.
 
--spec handler_init(#state{}, #http_req{}) -> ok.
+-spec handler_init(#state{}, #http_req{}) -> ok | none().
 handler_init(State=#state{handler=Handler, opts=Opts},
 		Req=#http_req{transport=Transport}) ->
 	try Handler:websocket_init(Transport:name(), Req, Opts) of
@@ -160,7 +160,7 @@ upgrade_denied(Req=#http_req{socket=Socket, transport=Transport,
 upgrade_terminate(#http_req{socket=Socket, transport=Transport}) ->
 	Transport:close(Socket).
 
--spec websocket_handshake(#state{}, #http_req{}, any()) -> ok.
+-spec websocket_handshake(#state{}, #http_req{}, any()) -> ok | none().
 websocket_handshake(State=#state{version=0, origin=Origin,
 		challenge=Challenge}, Req=#http_req{transport=Transport,
 		raw_host=Host, port=Port, raw_path=Path, raw_qs=QS}, HandlerState) ->
@@ -185,7 +185,7 @@ websocket_handshake(State=#state{challenge=Challenge},
 	handler_before_loop(State#state{messages=Transport:messages()},
 		Req2, HandlerState, <<>>).
 
--spec handler_before_loop(#state{}, #http_req{}, any(), binary()) -> ok.
+-spec handler_before_loop(#state{}, #http_req{}, any(), binary()) -> ok | none().
 handler_before_loop(State=#state{hibernate=true},
 		Req=#http_req{socket=Socket, transport=Transport},
 		HandlerState, SoFar) ->
@@ -210,7 +210,7 @@ handler_loop_timeout(State=#state{timeout=Timeout, timeout_ref=PrevRef}) ->
 	State#state{timeout_ref=TRef}.
 
 %% @private
--spec handler_loop(#state{}, #http_req{}, any(), binary()) -> ok.
+-spec handler_loop(#state{}, #http_req{}, any(), binary()) -> ok | none().
 handler_loop(State=#state{messages={OK, Closed, Error}, timeout_ref=TRef},
 		Req=#http_req{socket=Socket}, HandlerState, SoFar) ->
 	receive
@@ -230,7 +230,7 @@ handler_loop(State=#state{messages={OK, Closed, Error}, timeout_ref=TRef},
 				SoFar, websocket_info, Message, fun handler_before_loop/4)
 	end.
 
--spec websocket_data(#state{}, #http_req{}, any(), binary()) -> ok.
+-spec websocket_data(#state{}, #http_req{}, any(), binary()) -> ok | none().
 %% No more data.
 websocket_data(State, Req, HandlerState, <<>>) ->
 	handler_before_loop(State, Req, HandlerState, <<>>);
@@ -284,14 +284,14 @@ websocket_data(State, Req, HandlerState, _Bad) ->
 
 %% hybi unmasking.
 -spec websocket_unmask(#state{}, #http_req{}, any(), binary(),
-	opcode(), binary(), mask_key()) -> ok.
+	opcode(), binary(), mask_key()) -> ok | none().
 websocket_unmask(State, Req, HandlerState, RemainingData,
 		Opcode, Payload, MaskKey) ->
 	websocket_unmask(State, Req, HandlerState, RemainingData,
 		Opcode, Payload, MaskKey, <<>>).
 
 -spec websocket_unmask(#state{}, #http_req{}, any(), binary(),
-	opcode(), binary(), mask_key(), binary()) -> ok.
+	opcode(), binary(), mask_key(), binary()) -> ok | none().
 websocket_unmask(State, Req, HandlerState, RemainingData,
 		Opcode, << O:32, Rest/bits >>, MaskKey, Acc) ->
 	T = O bxor MaskKey,
@@ -322,7 +322,7 @@ websocket_unmask(State, Req, HandlerState, RemainingData,
 
 %% hybi dispatching.
 -spec websocket_dispatch(#state{}, #http_req{}, any(), binary(),
-	opcode(), binary()) -> ok.
+	opcode(), binary()) -> ok | none().
 %% @todo Fragmentation.
 %~ websocket_dispatch(State, Req, HandlerState, RemainingData, 0, Payload) ->
 %% Text frame.
@@ -350,7 +350,7 @@ websocket_dispatch(State, Req, HandlerState, RemainingData, 10, Payload) ->
 		websocket_handle, {pong, Payload}, fun websocket_data/4).
 
 -spec handler_call(#state{}, #http_req{}, any(), binary(),
-	atom(), any(), fun()) -> ok.
+	atom(), any(), fun()) -> ok | none().
 handler_call(State=#state{handler=Handler, opts=Opts}, Req, HandlerState,
 		RemainingData, Callback, Message, NextState) ->
 	try Handler:Callback(Message, Req, HandlerState) of
