@@ -208,16 +208,16 @@ handler_init(Req, State=#state{listener=ListenerPid,
 	try Handler:init({Transport:name(), http}, Req, Opts) of
 		{ok, Req2, HandlerState} ->
 			handler_handle(HandlerState, Req2, State);
-		{loop, Req, HandlerState} ->
-			handler_before_loop(HandlerState, Req, State);
-		{loop, Req, HandlerState, hibernate} ->
-			handler_before_loop(HandlerState, Req,
+		{loop, Req2, HandlerState} ->
+			handler_before_loop(HandlerState, Req2, State);
+		{loop, Req2, HandlerState, hibernate} ->
+			handler_before_loop(HandlerState, Req2,
 				State#state{hibernate=true});
-		{loop, Req, HandlerState, Timeout} ->
-			handler_before_loop(HandlerState, Req,
+		{loop, Req2, HandlerState, Timeout} ->
+			handler_before_loop(HandlerState, Req2,
 				State#state{loop_timeout=Timeout});
-		{loop, Req, HandlerState, Timeout, hibernate} ->
-			handler_before_loop(HandlerState, Req,
+		{loop, Req2, HandlerState, Timeout, hibernate} ->
+			handler_before_loop(HandlerState, Req2,
 				State#state{hibernate=true, loop_timeout=Timeout});
 		{shutdown, Req2, HandlerState} ->
 			handler_terminate(HandlerState, Req2, State);
