@@ -37,7 +37,8 @@
 ]). %% Request Body API.
 
 -export([
-	reply/4, chunked_reply/3, chunk/2
+	reply/2, reply/3, reply/4,
+	chunked_reply/2, chunked_reply/3, chunk/2
 ]). %% Response API.
 
 -export([
@@ -312,6 +313,16 @@ body_qs(Req) ->
 
 %% Response API.
 
+%% @equiv reply(Status, [], [], Req)
+-spec reply(http_status(), #http_req{}) -> {ok, #http_req{}}.
+reply(Status, Req) ->
+	reply(Status, [], [], Req).
+
+%% @equiv reply(Status, Headers, [], Req)
+-spec reply(http_status(), http_headers(), #http_req{}) -> {ok, #http_req{}}.
+reply(Status, Headers, Req) ->
+	reply(Status, Headers, [], Req).
+
 %% @doc Send a reply to the client.
 -spec reply(http_status(), http_headers(), iodata(), #http_req{})
 	-> {ok, #http_req{}}.
@@ -331,6 +342,11 @@ reply(Status, Headers, Body, Req=#http_req{socket=Socket,
 		_ -> Transport:send(Socket, [Head, Body])
 	end,
 	{ok, Req#http_req{connection=RespConn, resp_state=done}}.
+
+%% @equiv chunked_reply(Status, [], Req)
+-spec chunked_reply(http_status(), #http_req{}) -> {ok, #http_req{}}.
+chunked_reply(Status, Req) ->
+	chunked_reply(Status, [], Req).
 
 %% @doc Initiate the sending of a chunked reply to the client.
 %% @see cowboy_http_req:chunk/2

@@ -6,7 +6,7 @@
 
 init({_Transport, http}, Req, _Opts) ->
 	Req2 = cowboy_http_req:reply(<<"666 Init Shutdown Testing">>,
-		[{'Connection', <<"close">>}], [], Req),
+		[{'Connection', <<"close">>}], Req),
 	{shutdown, Req2, undefined}.
 
 handle(Req, State) ->
