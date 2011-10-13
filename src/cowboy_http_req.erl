@@ -315,11 +315,11 @@ body_qs(Req) ->
 %% @doc Send a reply to the client.
 -spec reply(http_status(), http_headers(), iodata(), #http_req{})
 	-> {ok, #http_req{}}.
-reply(Code, Headers, Body, Req=#http_req{socket=Socket,
+reply(Status, Headers, Body, Req=#http_req{socket=Socket,
 		transport=Transport, connection=Connection,
 		method=Method, resp_state=waiting}) ->
 	RespConn = response_connection(Headers, Connection),
-	Head = response_head(Code, Headers, [
+	Head = response_head(Status, Headers, [
 		{<<"Connection">>, atom_to_connection(Connection)},
 		{<<"Content-Length">>,
 			list_to_binary(integer_to_list(iolist_size(Body)))},
@@ -336,10 +336,10 @@ reply(Code, Headers, Body, Req=#http_req{socket=Socket,
 %% @see cowboy_http_req:chunk/2
 -spec chunked_reply(http_status(), http_headers(), #http_req{})
 	-> {ok, #http_req{}}.
-chunked_reply(Code, Headers, Req=#http_req{socket=Socket, transport=Transport,
+chunked_reply(Status, Headers, Req=#http_req{socket=Socket, transport=Transport,
 		connection=Connection, resp_state=waiting}) ->
 	RespConn = response_connection(Headers, Connection),
-	Head = response_head(Code, Headers, [
+	Head = response_head(Status, Headers, [
 		{<<"Connection">>, atom_to_connection(Connection)},
 		{<<"Transfer-Encoding">>, <<"chunked">>},
 		{<<"Date">>, cowboy_clock:rfc1123()},
@@ -405,8 +405,8 @@ response_connection_parse(ReplyConn) ->
 	cowboy_http:connection_to_atom(Tokens).
 
 -spec response_head(http_status(), http_headers(), http_headers()) -> iolist().
-response_head(Code, Headers, DefaultHeaders) ->
-	StatusLine = <<"HTTP/1.1 ", (status(Code))/binary, "\r\n">>,
+response_head(Status, Headers, DefaultHeaders) ->
+	StatusLine = <<"HTTP/1.1 ", (status(Status))/binary, "\r\n">>,
 	Headers2 = [{header_to_binary(Key), Value} || {Key, Value} <- Headers],
 	Headers3 = lists:keysort(1, Headers2),
 	Headers4 = lists:ukeymerge(1, Headers3, DefaultHeaders),
