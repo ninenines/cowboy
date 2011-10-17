@@ -220,7 +220,7 @@ parse_header(Name, Req=#http_req{p_headers=PHeaders}, Default)
 	case header(Name, Req) of
 		{undefined, Req2} -> {tokens, Default, Req2};
 		{Value, Req2} ->
-			case cowboy_http:parse_tokens_list(Value) of
+			case cowboy_http:nonempty_list(Value, fun cowboy_http:token/2) of
 				{error, badarg} ->
 					{error, badarg};
 				P ->
@@ -417,7 +417,7 @@ response_connection([{Name, Value}|Tail], Connection) ->
 
 -spec response_connection_parse(binary()) -> keepalive | close.
 response_connection_parse(ReplyConn) ->
-	Tokens = cowboy_http:parse_tokens_list(ReplyConn),
+	Tokens = cowboy_http:nonempty_list(ReplyConn, fun cowboy_http:token/2),
 	cowboy_http:connection_to_atom(Tokens).
 
 -spec response_head(http_status(), http_headers(), http_headers()) -> iolist().
