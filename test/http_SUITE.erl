@@ -243,11 +243,15 @@ raw(Config) ->
 	[{Packet, StatusCode} = raw_req(Packet, Config)
 		|| {Packet, StatusCode} <- Tests].
 
+%% This test makes sure the code works even if we wait for a reply
+%% before sending the third challenge key in the GET body.
+%%
+%% This ensures that Cowboy will work fine with proxies on hixie.
 ws0(Config) ->
 	{port, Port} = lists:keyfind(port, 1, Config),
 	{ok, Socket} = gen_tcp:connect("localhost", Port,
 		[binary, {active, false}, {packet, raw}]),
-	ok = gen_tcp:send(Socket, [
+	ok = gen_tcp:send(Socket,
 		"GET /websocket HTTP/1.1\r\n"
 		"Host: localhost\r\n"
 		"Connection: Upgrade\r\n"
@@ -255,11 +259,11 @@ ws0(Config) ->
 		"Origin: http://localhost\r\n"
 		"Sec-Websocket-Key1: Y\" 4 1Lj!957b8@0H756!i\r\n"
 		"Sec-Websocket-Key2: 1711 M;4\\74  80<6\r\n"
-		"\r\n", <<15,245,8,18,2,204,133,33>>]),
+		"\r\n"),
 	{ok, Handshake} = gen_tcp:recv(Socket, 0, 6000),
 	{ok, {http_response, {1, 1}, 101, "WebSocket Protocol Handshake"}, Rest}
 		= erlang:decode_packet(http, Handshake, []),
-	[Headers, Body] = websocket_headers(
+	[Headers, <<>>] = websocket_headers(
 		erlang:decode_packet(httph, Rest, []), []),
 	{'Connection', "Upgrade"} = lists:keyfind('Connection', 1, Headers),
 	{'Upgrade', "WebSocket"} = lists:keyfind('Upgrade', 1, Headers),
@@ -267,6 +271,8 @@ ws0(Config) ->
 		= lists:keyfind("sec-websocket-location", 1, Headers),
 	{"sec-websocket-origin", "http://localhost"}
 		= lists:keyfind("sec-websocket-origin", 1, Headers),
+	ok = gen_tcp:send(Socket, <<15,245,8,18,2,204,133,33>>),
+	{ok, Body} = gen_tcp:recv(Socket, 0, 6000),
 	<<169,244,191,103,146,33,149,59,74,104,67,5,99,118,171,236>> = Body,
 	ok = gen_tcp:send(Socket, << 0, "client_msg", 255 >>),
 	{ok, << 0, "client_msg", 255 >>} = gen_tcp:recv(Socket, 0, 6000),
