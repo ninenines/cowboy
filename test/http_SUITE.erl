@@ -19,7 +19,7 @@
 -export([all/0, groups/0, init_per_suite/1, end_per_suite/1,
 	init_per_group/2, end_per_group/2]). %% ct.
 -export([chunked_response/1, headers_dupe/1, headers_huge/1,
-	keepalive_nl/1, nc_rand/1, pipeline/1, raw/1,
+	keepalive_nl/1, nc_rand/1, nc_zero/1, pipeline/1, raw/1,
 	ws0/1, ws8/1, ws8_single_bytes/1, ws8_init_shutdown/1,
 	ws_timeout_hibernate/1]). %% http.
 -export([http_200/1, http_404/1]). %% http and https.
@@ -33,7 +33,7 @@ all() ->
 groups() ->
 	BaseTests = [http_200, http_404],
 	[{http, [], [chunked_response, headers_dupe, headers_huge,
-		keepalive_nl, nc_rand, pipeline, raw,
+		keepalive_nl, nc_rand, nc_zero, pipeline, raw,
 		ws0, ws8, ws8_single_bytes, ws8_init_shutdown,
 		ws_timeout_hibernate] ++ BaseTests},
 	{https, [], BaseTests}, {misc, [], [http_10_hostless]}].
@@ -126,7 +126,7 @@ headers_dupe(Config) ->
 
 headers_huge(Config) ->
 	Cookie = lists:flatten(["whatever_man_biiiiiiiiiiiig_cookie_me_want_77="
-		"Wed Apr 06 2011 10:38:52 GMT-0500 (CDT)" || _N <- lists:seq(1, 1000)]),
+		"Wed Apr 06 2011 10:38:52 GMT-0500 (CDT)" || _N <- lists:seq(1, 40)]),
 	{_Packet, 200} = raw_req(["GET / HTTP/1.0\r\nHost: localhost\r\n"
 		"Set-Cookie: ", Cookie, "\r\n\r\n"], Config).
 
@@ -149,6 +149,12 @@ keepalive_nl_loop(Socket, N) ->
 	keepalive_nl_loop(Socket, N - 1).
 
 nc_rand(Config) ->
+	nc_reqs(Config, "/dev/urandom").
+
+nc_zero(Config) ->
+	nc_reqs(Config, "/dev/zero").
+
+nc_reqs(Config, Input) ->
 	Cat = os:find_executable("cat"),
 	Nc = os:find_executable("nc"),
 	case {Cat, Nc} of
@@ -159,13 +165,13 @@ nc_rand(Config) ->
 		_Good ->
 			%% Throw garbage at the server then check if it's still up.
 			{port, Port} = lists:keyfind(port, 1, Config),
-			[nc_rand_run(Port) || _N <- lists:seq(1, 100)],
+			[nc_run_req(Port, Input) || _N <- lists:seq(1, 100)],
 			Packet = "GET / HTTP/1.0\r\nHost: localhost\r\n\r\n",
 			{Packet, 200} = raw_req(Packet, Config)
 	end.
 
-nc_rand_run(Port) ->
-	os:cmd("cat /dev/urandom | nc localhost " ++ integer_to_list(Port)).
+nc_run_req(Port, Input) ->
+	os:cmd("cat " ++ Input ++ " | nc localhost " ++ integer_to_list(Port)).
 
 pipeline(Config) ->
 	{port, Port} = lists:keyfind(port, 1, Config),
@@ -212,6 +218,7 @@ raw_req(Packet, Config) ->
 	{Packet, Res}.
 
 raw(Config) ->
+	Huge = [$0 || _N <- lists:seq(1, 5000)],
 	Tests = [
 		{"\r\n\r\n\r\n\r\n\r\nGET / HTTP/1.1\r\nHost: localhost\r\n\r\n", 200},
 		{"\n", 400},
@@ -229,7 +236,9 @@ raw(Config) ->
 		{"GET http://localhost/ HTTP/1.1\r\n\r\n", 501},
 		{"GET / HTTP/1.2\r\nHost: localhost\r\n\r\n", 505},
 		{"GET /init_shutdown HTTP/1.1\r\nHost: localhost\r\n\r\n", 666},
-		{"GET /long_polling HTTP/1.1\r\nHost: localhost\r\n\r\n", 102}
+		{"GET /long_polling HTTP/1.1\r\nHost: localhost\r\n\r\n", 102},
+		{Huge, 413},
+		{"GET / HTTP/1.1\r\n" ++ Huge, 413}
 	],
 	[{Packet, StatusCode} = raw_req(Packet, Config)
 		|| {Packet, StatusCode} <- Tests].

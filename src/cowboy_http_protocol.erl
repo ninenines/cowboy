@@ -46,6 +46,7 @@
 	handler :: {module(), any()},
 	req_empty_lines = 0 :: integer(),
 	max_empty_lines :: integer(),
+	max_line_length :: integer(),
 	timeout :: timeout(),
 	buffer = <<>> :: binary(),
 	hibernate = false :: boolean(),
@@ -68,17 +69,22 @@ start_link(ListenerPid, Socket, Transport, Opts) ->
 init(ListenerPid, Socket, Transport, Opts) ->
 	Dispatch = proplists:get_value(dispatch, Opts, []),
 	MaxEmptyLines = proplists:get_value(max_empty_lines, Opts, 5),
+	MaxLineLength = proplists:get_value(max_line_length, Opts, 4096),
 	Timeout = proplists:get_value(timeout, Opts, 5000),
 	receive shoot -> ok end,
 	wait_request(#state{listener=ListenerPid, socket=Socket, transport=Transport,
-		dispatch=Dispatch, max_empty_lines=MaxEmptyLines, timeout=Timeout}).
+		dispatch=Dispatch, max_empty_lines=MaxEmptyLines,
+		max_line_length=MaxLineLength, timeout=Timeout}).
 
 %% @private
 -spec parse_request(#state{}) -> ok | none().
-%% @todo Use decode_packet options to limit length?
-parse_request(State=#state{buffer=Buffer}) ->
+%% We limit the length of the Request-line to MaxLength to avoid endlessly
+%% reading from the socket and eventually crashing.
+parse_request(State=#state{buffer=Buffer, max_line_length=MaxLength}) ->
 	case erlang:decode_packet(http_bin, Buffer, []) of
 		{ok, Request, Rest} -> request(Request, State#state{buffer=Rest});
+		{more, _Length} when byte_size(Buffer) > MaxLength ->
+			error_terminate(413, State);
 		{more, _Length} -> wait_request(State);
 		{error, _Reason} -> error_terminate(400, State)
 	end.
@@ -123,9 +129,11 @@ request({http_error, _Any}, State) ->
 	error_terminate(400, State).
 
 -spec parse_header(#http_req{}, #state{}) -> ok | none().
-parse_header(Req, State=#state{buffer=Buffer}) ->
+parse_header(Req, State=#state{buffer=Buffer, max_line_length=MaxLength}) ->
 	case erlang:decode_packet(httph_bin, Buffer, []) of
 		{ok, Header, Rest} -> header(Header, Req, State#state{buffer=Rest});
+		{more, _Length} when byte_size(Buffer) > MaxLength ->
+			error_terminate(413, State);
 		{more, _Length} -> wait_header(Req, State);
 		{error, _Reason} -> error_terminate(400, State)
 	end.
