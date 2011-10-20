@@ -74,13 +74,16 @@ upgrade(ListenerPid, Handler, Opts, Req) ->
 
 %% @todo We need a function to properly parse headers according to their ABNF,
 %%       instead of having ugly code like this case here.
+%% @todo Upgrade is a list of products and should be parsed as such.
 -spec websocket_upgrade(#state{}, #http_req{}) -> {ok, #state{}, #http_req{}}.
 websocket_upgrade(State, Req) ->
 	{tokens, ConnTokens, Req2}
 		= cowboy_http_req:parse_header('Connection', Req),
 	true = lists:member(<<"Upgrade">>, ConnTokens),
-	{Version, Req3} = cowboy_http_req:header(<<"Sec-Websocket-Version">>, Req2),
-	websocket_upgrade(Version, State, Req3).
+	{WS, Req3} = cowboy_http_req:header('Upgrade', Req2),
+	<<"websocket">> = cowboy_bstr:to_lower(WS),
+	{Version, Req4} = cowboy_http_req:header(<<"Sec-Websocket-Version">>, Req3),
+	websocket_upgrade(Version, State, Req4).
 
 %% @todo Handle the Sec-Websocket-Protocol header.
 -spec websocket_upgrade(undefined | <<_:8>>, #state{}, #http_req{})
@@ -93,25 +96,23 @@ websocket_upgrade(State, Req) ->
 %% key only in websocket_handshake/3.
 %% @todo Check Origin?
 websocket_upgrade(undefined, State, Req) ->
-	{<<"WebSocket">>, Req2} = cowboy_http_req:header('Upgrade', Req),
-	{Origin, Req3} = cowboy_http_req:header(<<"Origin">>, Req2),
-	{Key1, Req4} = cowboy_http_req:header(<<"Sec-Websocket-Key1">>, Req3),
-	{Key2, Req5} = cowboy_http_req:header(<<"Sec-Websocket-Key2">>, Req4),
+	{Origin, Req2} = cowboy_http_req:header(<<"Origin">>, Req),
+	{Key1, Req3} = cowboy_http_req:header(<<"Sec-Websocket-Key1">>, Req2),
+	{Key2, Req4} = cowboy_http_req:header(<<"Sec-Websocket-Key2">>, Req3),
 	false = lists:member(undefined, [Origin, Key1, Key2]),
 	EOP = binary:compile_pattern(<< 255 >>),
 	{ok, State#state{version=0, origin=Origin, challenge={Key1, Key2},
-		eop=EOP}, Req5};
+		eop=EOP}, Req4};
 %% Versions 7 and 8. Implementation follows the hybi 7 through 10 drafts.
 %% @todo We don't need Origin?
 websocket_upgrade(<< Version >>, State, Req)
 		when Version =:= $7; Version =:= $8 ->
-	{<<"websocket">>, Req2} = cowboy_http_req:header('Upgrade', Req),
-	{Origin, Req3} = cowboy_http_req:header(<<"Sec-Websocket-Origin">>, Req2),
-	{Key, Req4} = cowboy_http_req:header(<<"Sec-Websocket-Key">>, Req3),
+	{Origin, Req2} = cowboy_http_req:header(<<"Sec-Websocket-Origin">>, Req),
+	{Key, Req3} = cowboy_http_req:header(<<"Sec-Websocket-Key">>, Req2),
 	false = lists:member(undefined, [Origin, Key]),
 	Challenge = hybi_challenge(Key),
 	{ok, State#state{version=Version - $0, origin=Origin,
-		challenge=Challenge}, Req4}.
+		challenge=Challenge}, Req3}.
 
 -spec handler_init(#state{}, #http_req{}) -> ok | none().
 handler_init(State=#state{handler=Handler, opts=Opts},
