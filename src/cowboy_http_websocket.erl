@@ -170,13 +170,12 @@ websocket_handshake(State=#state{version=0, origin=Origin,
 		transport=Transport, raw_host=Host, port=Port,
 		raw_path=Path, raw_qs=QS}, HandlerState) ->
 	Location = hixie76_location(Transport:name(), Host, Port, Path, QS),
-	{ok, Req2} = cowboy_http_req:reply(
+	{ok, Req2} = cowboy_http_req:upgrade_reply(
 		<<"101 WebSocket Protocol Handshake">>,
-		[{<<"Connection">>, <<"Upgrade">>},
-		 {<<"Upgrade">>, <<"WebSocket">>},
+		[{<<"Upgrade">>, <<"WebSocket">>},
 		 {<<"Sec-Websocket-Location">>, Location},
 		 {<<"Sec-Websocket-Origin">>, Origin}],
-		[], Req#http_req{resp_state=waiting}),
+		Req#http_req{resp_state=waiting}),
 	%% We replied with a proper response. Proxies should be happy enough,
 	%% we can now read the 8 last bytes of the challenge keys and send
 	%% the challenge response directly to the socket.
@@ -187,12 +186,11 @@ websocket_handshake(State=#state{version=0, origin=Origin,
 		Req3, HandlerState, <<>>);
 websocket_handshake(State=#state{challenge=Challenge},
 		Req=#http_req{transport=Transport}, HandlerState) ->
-	{ok, Req2} = cowboy_http_req:reply(
-		<<"101 Switching Protocols">>,
-		[{<<"Connection">>, <<"Upgrade">>},
-		 {<<"Upgrade">>, <<"websocket">>},
+	{ok, Req2} = cowboy_http_req:upgrade_reply(
+		101,
+		[{<<"Upgrade">>, <<"websocket">>},
 		 {<<"Sec-Websocket-Accept">>, Challenge}],
-		[], Req#http_req{resp_state=waiting}),
+		Req#http_req{resp_state=waiting}),
 	handler_before_loop(State#state{messages=Transport:messages()},
 		Req2, HandlerState, <<>>).
 

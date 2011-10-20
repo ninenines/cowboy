@@ -38,7 +38,8 @@
 
 -export([
 	reply/2, reply/3, reply/4,
-	chunked_reply/2, chunked_reply/3, chunk/2
+	chunked_reply/2, chunked_reply/3, chunk/2,
+	upgrade_reply/3
 ]). %% Response API.
 
 -export([
@@ -373,6 +374,17 @@ chunk(_Data, #http_req{socket=_Socket, transport=_Transport, method='HEAD'}) ->
 chunk(Data, #http_req{socket=Socket, transport=Transport, resp_state=chunks}) ->
 	Transport:send(Socket, [integer_to_list(iolist_size(Data), 16),
 		<<"\r\n">>, Data, <<"\r\n">>]).
+
+%% @doc Send an upgrade reply.
+-spec upgrade_reply(http_status(), http_headers(), #http_req{})
+	-> {ok, #http_req{}}.
+upgrade_reply(Status, Headers, Req=#http_req{socket=Socket, transport=Transport,
+		resp_state=waiting}) ->
+	Head = response_head(Status, Headers, [
+		{<<"Connection">>, <<"Upgrade">>}
+	]),
+	Transport:send(Socket, Head),
+	{ok, Req#http_req{resp_state=done}}.
 
 %% Misc API.
 
