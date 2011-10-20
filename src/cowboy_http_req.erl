@@ -221,7 +221,7 @@ parse_header(Name, Req=#http_req{p_headers=PHeaders}, Default)
 	case header(Name, Req) of
 		{undefined, Req2} -> {tokens, Default, Req2};
 		{Value, Req2} ->
-			case cowboy_http:nonempty_list(Value, fun cowboy_http:token/2) of
+			case cowboy_http:nonempty_list(Value, fun cowboy_http:token_ci/2) of
 				{error, badarg} ->
 					{error, badarg};
 				P ->

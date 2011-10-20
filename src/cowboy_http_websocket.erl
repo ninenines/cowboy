@@ -79,7 +79,7 @@ upgrade(ListenerPid, Handler, Opts, Req) ->
 websocket_upgrade(State, Req) ->
 	{tokens, ConnTokens, Req2}
 		= cowboy_http_req:parse_header('Connection', Req),
-	true = lists:member(<<"Upgrade">>, ConnTokens),
+	true = lists:member(<<"upgrade">>, ConnTokens),
 	{WS, Req3} = cowboy_http_req:header('Upgrade', Req2),
 	<<"websocket">> = cowboy_bstr:to_lower(WS),
 	{Version, Req4} = cowboy_http_req:header(<<"Sec-Websocket-Version">>, Req3),

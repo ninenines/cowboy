@@ -16,7 +16,7 @@
 -module(cowboy_http).
 
 %% Parsing.
--export([list/2, nonempty_list/2, token/2]).
+-export([list/2, nonempty_list/2, token/2, token_ci/2]).
 
 %% Interpretation.
 -export([connection_to_atom/1]).
@@ -73,31 +73,47 @@ list_separator(<< C, Rest/bits >>, Fun)
 list_separator(_Data, _Fun) ->
 	{error, badarg}.
 
+%% @doc Parse a case-insensitive token.
+%%
+%% Changes all characters to lowercase.
+-spec token_ci(binary(), fun()) -> any().
+token_ci(Data, Fun) ->
+	token(Data, Fun, ci).
+
 %% @doc Parse a token.
 -spec token(binary(), fun()) -> any().
-token(<< C, Rest/bits >>, Fun)
-		when C =:= $\s; C =:= $\t ->
-	token(Rest, Fun);
 token(Data, Fun) ->
-	token(Data, Fun, <<>>).
+	token(Data, Fun, cs).
 
--spec token(binary(), fun(), binary()) -> any().
-token(<<>>, Fun, Acc) ->
+-spec token(binary(), fun(), ci | cs) -> any().
+token(<< C, Rest/bits >>, Fun, Case)
+		when C =:= $\s; C =:= $\t ->
+	token(Rest, Fun, Case);
+token(Data, Fun, Case) ->
+	token(Data, Fun, Case, <<>>).
+
+-spec token(binary(), fun(), ci | cs, binary()) -> any().
+token(<<>>, Fun, _Case, Acc) ->
 	Fun(<<>>, Acc);
-token(Data = << C, _Rest/bits >>, Fun, Acc)
+token(Data = << C, _Rest/bits >>, Fun, _Case, Acc)
 		when C =:= $(; C =:= $); C =:= $<; C =:= $>; C =:= $@;
 			 C =:= $,; C =:= $;; C =:= $:; C =:= $\\; C =:= $";
 			 C =:= $/; C =:= $[; C =:= $]; C =:= $?; C =:= $=;
 			 C =:= ${; C =:= $}; C =:= $\s; C =:= $\t;
 			 C < 32; C =:= 127 ->
 	Fun(Data, Acc);
-token(<< C, Rest/bits >>, Fun, Acc) ->
-	token(Rest, Fun, << Acc/binary, C >>).
+token(<< C, Rest/bits >>, Fun, Case = ci, Acc) ->
+	C2 = cowboy_bstr:char_to_lower(C),
+	token(Rest, Fun, Case, << Acc/binary, C2 >>);
+token(<< C, Rest/bits >>, Fun, Case, Acc) ->
+	token(Rest, Fun, Case, << Acc/binary, C >>).
 
 %% Interpretation.
 
 %% @doc Walk through a tokens list and return whether
 %% the connection is keepalive or closed.
+%%
+%% The connection token is expected to be lower-case.
 -spec connection_to_atom([binary()]) -> keepalive | close.
 connection_to_atom([]) ->
 	keepalive;
@@ -105,12 +121,8 @@ connection_to_atom([<<"keep-alive">>|_Tail]) ->
 	keepalive;
 connection_to_atom([<<"close">>|_Tail]) ->
 	close;
-connection_to_atom([Connection|Tail]) ->
-	case cowboy_bstr:to_lower(Connection) of
-		<<"close">> -> close;
-		<<"keep-alive">> -> keepalive;
-		_Any -> connection_to_atom(Tail)
-	end.
+connection_to_atom([_Any|Tail]) ->
+	connection_to_atom(Tail).
 
 %% Tests.
 
@@ -136,9 +148,8 @@ connection_to_atom_test_() ->
 	%% {Tokens, Result}
 	Tests = [
 		{[<<"close">>], close},
-		{[<<"ClOsE">>], close},
-		{[<<"Keep-Alive">>], keepalive},
-		{[<<"Keep-Alive">>, <<"Upgrade">>], keepalive}
+		{[<<"keep-alive">>], keepalive},
+		{[<<"keep-alive">>, <<"upgrade">>], keepalive}
 	],
 	[{lists:flatten(io_lib:format("~p", [T])),
 		fun() -> R = connection_to_atom(T) end} || {T, R} <- Tests].
