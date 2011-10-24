@@ -86,6 +86,7 @@ websocket_upgrade(State, Req) ->
 	websocket_upgrade(Version, State, Req4).
 
 %% @todo Handle the Sec-Websocket-Protocol header.
+%% @todo Reply a proper error, don't die, if a required header is undefined.
 -spec websocket_upgrade(undefined | <<_:8>>, #state{}, #http_req{})
 	-> {ok, #state{}, #http_req{}}.
 %% No version given. Assuming hixie-76 draft.
@@ -94,7 +95,6 @@ websocket_upgrade(State, Req) ->
 %% third part of the challenge key, because proxies will wait for
 %% a reply before sending it. Therefore we calculate the challenge
 %% key only in websocket_handshake/3.
-%% @todo Check Origin?
 websocket_upgrade(undefined, State, Req) ->
 	{Origin, Req2} = cowboy_http_req:header(<<"Origin">>, Req),
 	{Key1, Req3} = cowboy_http_req:header(<<"Sec-Websocket-Key1">>, Req2),
@@ -104,15 +104,12 @@ websocket_upgrade(undefined, State, Req) ->
 	{ok, State#state{version=0, origin=Origin, challenge={Key1, Key2},
 		eop=EOP}, Req4};
 %% Versions 7 and 8. Implementation follows the hybi 7 through 10 drafts.
-%% @todo We don't need Origin?
 websocket_upgrade(<< Version >>, State, Req)
 		when Version =:= $7; Version =:= $8 ->
-	{Origin, Req2} = cowboy_http_req:header(<<"Sec-Websocket-Origin">>, Req),
-	{Key, Req3} = cowboy_http_req:header(<<"Sec-Websocket-Key">>, Req2),
-	false = lists:member(undefined, [Origin, Key]),
+	{Key, Req2} = cowboy_http_req:header(<<"Sec-Websocket-Key">>, Req),
+	false = Key =:= undefined,
 	Challenge = hybi_challenge(Key),
-	{ok, State#state{version=Version - $0, origin=Origin,
-		challenge=Challenge}, Req3}.
+	{ok, State#state{version=Version - $0, challenge=Challenge}, Req2}.
 
 -spec handler_init(#state{}, #http_req{}) -> ok | none().
 handler_init(State=#state{handler=Handler, opts=Opts},
