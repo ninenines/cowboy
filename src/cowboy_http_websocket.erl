@@ -103,13 +103,15 @@ websocket_upgrade(undefined, State, Req) ->
 	EOP = binary:compile_pattern(<< 255 >>),
 	{ok, State#state{version=0, origin=Origin, challenge={Key1, Key2},
 		eop=EOP}, Req4};
-%% Versions 7 and 8. Implementation follows the hybi 7 through 10 drafts.
-websocket_upgrade(<< Version >>, State, Req)
-		when Version =:= $7; Version =:= $8 ->
+%% Versions 7 and 8. Implementation follows the hybi 7 through 17 drafts.
+websocket_upgrade(Version, State, Req)
+		when Version =:= <<"7">>; Version =:= <<"8">>;
+			Version =:= <<"13">> ->
 	{Key, Req2} = cowboy_http_req:header(<<"Sec-Websocket-Key">>, Req),
 	false = Key =:= undefined,
 	Challenge = hybi_challenge(Key),
-	{ok, State#state{version=Version - $0, challenge=Challenge}, Req2}.
+	IntVersion = list_to_integer(binary_to_list(Version)),
+	{ok, State#state{version=IntVersion, challenge=Challenge}, Req2}.
 
 -spec handler_init(#state{}, #http_req{}) -> ok | none().
 handler_init(State=#state{handler=Handler, opts=Opts},
