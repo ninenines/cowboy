@@ -44,53 +44,44 @@ list(Data, Fun) ->
 	end.
 
 -spec list(binary(), fun(), [binary()]) -> [any()] | {error, badarg}.
-list(<<>>, _Fun, Acc) ->
-	Acc;
 %% From the RFC:
 %% <blockquote>Wherever this construct is used, null elements are allowed,
 %% but do not contribute to the count of elements present.
 %% That is, "(element), , (element) " is permitted, but counts
 %% as only two elements. Therefore, where at least one element is required,
 %% at least one non-null element MUST be present.</blockquote>
-list(<< $,, Rest/bits >>, Fun, Acc) ->
-	list(Rest, Fun, Acc);
 list(Data, Fun, Acc) ->
-	Fun(Data,
-		fun (R, <<>>) -> list_separator(R,
-				fun (D) -> list(D, Fun, Acc) end);
-			(R, I) -> list_separator(R,
-				fun (D) -> list(D, Fun, [I|Acc]) end)
+	whitespace(Data,
+		fun (<<>>) -> Acc;
+			(<< $,, Rest/bits >>) -> list(Rest, Fun, Acc);
+			(Rest) -> Fun(Rest,
+				fun (D, I) -> whitespace(D,
+						fun (<<>>) -> [I|Acc];
+							(<< $,, R/bits >>) -> list(R, Fun, [I|Acc]);
+							(_Any) -> {error, badarg}
+						end)
+				end)
 		end).
 
--spec list_separator(binary(), fun()) -> any().
-list_separator(<<>>, Fun) ->
-	Fun(<<>>);
-list_separator(<< $,, Rest/bits >>, Fun) ->
-	Fun(Rest);
-list_separator(<< C, Rest/bits >>, Fun)
+%% @doc Skip whitespace.
+-spec whitespace(binary(), fun()) -> any().
+whitespace(<< C, Rest/bits >>, Fun)
 		when C =:= $\s; C =:= $\t ->
-	list_separator(Rest, Fun);
-list_separator(_Data, _Fun) ->
-	{error, badarg}.
+	whitespace(Rest, Fun);
+whitespace(Data, Fun) ->
+	Fun(Data).
 
 %% @doc Parse a case-insensitive token.
 %%
 %% Changes all characters to lowercase.
 -spec token_ci(binary(), fun()) -> any().
 token_ci(Data, Fun) ->
-	token(Data, Fun, ci).
+	token(Data, Fun, ci, <<>>).
 
 %% @doc Parse a token.
 -spec token(binary(), fun()) -> any().
 token(Data, Fun) ->
-	token(Data, Fun, cs).
-
--spec token(binary(), fun(), ci | cs) -> any().
-token(<< C, Rest/bits >>, Fun, Case)
-		when C =:= $\s; C =:= $\t ->
-	token(Rest, Fun, Case);
-token(Data, Fun, Case) ->
-	token(Data, Fun, Case, <<>>).
+	token(Data, Fun, cs, <<>>).
 
 -spec token(binary(), fun(), ci | cs, binary()) -> any().
 token(<<>>, Fun, _Case, Acc) ->
