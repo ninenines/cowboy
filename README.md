@@ -133,7 +133,7 @@ multiple trailing segments of the request path using the atom `'...'` (the atom
 ellipsis) respectively as the first host token or the last path token. For
 example, host rule `['...', <<"dev-extend">>, <<"eu">>]` can match both
 "cowboy.bugs.dev-extend.eu" and "dev-extend.eu" and path rule
-`[<<"projects">>, '...']` can math both "/projects" and
+`[<<"projects">>, '...']` can match both "/projects" and
 "/projects/cowboy/issues/42". The host leading segments and the path trailing
 segments can later be retrieved through `cowboy_http_req:host_info/1` and
 `cowboy_http_req:path_info/1`.
