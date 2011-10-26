@@ -16,7 +16,8 @@
 -module(cowboy_http).
 
 %% Parsing.
--export([list/2, nonempty_list/2, token/2, token_ci/2]).
+-export([list/2, nonempty_list/2,
+	media_range/2, token/2, token_ci/2, quoted_string/2]).
 
 %% Interpretation.
 -export([connection_to_atom/1]).
@@ -63,6 +64,144 @@ list(Data, Fun, Acc) ->
 				end)
 		end).
 
+%% @doc Parse a media range.
+-spec media_range(binary(), fun()) -> any().
+media_range(Data, Fun) ->
+	whitespace(Data,
+		fun (<<>>) -> {error, badarg};
+			(Rest) -> media_range_type(Rest, Fun)
+		end).
+
+-spec media_range_type(binary(), fun()) -> any().
+media_range_type(Data, Fun) ->
+	token_ci(Data,
+		fun (_Rest, <<>>) -> {error, badarg};
+			(Rest, Type) -> whitespace(Rest,
+				fun (<< $/, Rest2/bits >>) -> whitespace(Rest2,
+						fun (<<>>) -> {error, badarg};
+							(Rest3) -> media_range_subtype(Rest3, Fun, Type)
+						end);
+					(_Rest2) -> {error, badarg}
+				end)
+		end).
+
+-spec media_range_subtype(binary(), fun(), binary()) -> any().
+media_range_subtype(Data, Fun, Type) ->
+	token_ci(Data,
+		fun (_Rest, <<>>) -> {error, badarg};
+			(Rest, SubType) -> media_range_params(Rest, Fun, Type, SubType, [])
+		end).
+
+-spec media_range_params(binary(), fun(), binary(), binary(),
+	[{binary(), binary()}]) -> any().
+media_range_params(Data, Fun, Type, SubType, Acc) ->
+	whitespace(Data,
+		fun (<< $;, Rest/bits >>) ->
+				whitespace(Rest,
+					fun (Rest2) ->
+						media_range_param_attr(Rest2, Fun, Type, SubType, Acc)
+					end);
+			(Rest) -> Fun(Rest, {{Type, SubType, lists:reverse(Acc)}, 1000, []})
+		end).
+
+-spec media_range_param_attr(binary(), fun(), binary(), binary(),
+	[{binary(), binary()}]) -> any().
+media_range_param_attr(Data, Fun, Type, SubType, Acc) ->
+	token_ci(Data,
+		fun (_Rest, <<>>) -> {error, badarg};
+			(Rest, Attr) ->
+				whitespace(Rest,
+					fun (<< $=, Rest2/bits >>) ->
+							whitespace(Rest2,
+								fun (<<>>) -> {error, badarg};
+									(Rest3) ->
+										media_range_param_value(Rest3, Fun,
+											Type, SubType, Acc, Attr)
+								end);
+						(_Rest2) ->
+							{error, badarg}
+					end)
+		end).
+
+-spec media_range_param_value(binary(), fun(), binary(), binary(),
+	[{binary(), binary()}], binary()) -> any().
+media_range_param_value(Data, Fun, Type, SubType, Acc, <<"q">>) ->
+	quality(Data,
+		fun (Rest, Quality) ->
+			accept_ext(Rest, Fun, Type, SubType, Acc, Quality, [])
+		end);
+media_range_param_value(Data = << $", _/bits >>, Fun,
+		Type, SubType, Acc, Attr) ->
+	quoted_string(Data,
+		fun (Rest, Value) ->
+			media_range_params(Rest, Fun,
+				Type, SubType, [{Attr, Value}|Acc])
+		end);
+media_range_param_value(Data, Fun, Type, SubType, Acc, Attr) ->
+	token(Data,
+		fun (_Rest, <<>>) -> {error, badarg};
+			(Rest, Value) ->
+				media_range_params(Rest, Fun,
+					Type, SubType, [{Attr, Value}|Acc])
+		end).
+
+-spec accept_ext(binary(), fun(), binary(), binary(),
+	[{binary(), binary()}], 0..1000,
+	[{binary(), binary()} | binary()]) -> any().
+accept_ext(Data, Fun, Type, SubType, Params, Quality, Acc) ->
+	whitespace(Data,
+		fun (<< $;, Rest/bits >>) ->
+				whitespace(Rest,
+					fun (Rest2) ->
+						accept_ext_attr(Rest2, Fun,
+							Type, SubType, Params, Quality, Acc)
+					end);
+			(Rest) ->
+				Fun(Rest, {{Type, SubType, lists:reverse(Params)},
+					Quality, lists:reverse(Acc)})
+		end).
+
+-spec accept_ext_attr(binary(), fun(), binary(), binary(),
+	[{binary(), binary()}], 0..1000,
+	[{binary(), binary()} | binary()]) -> any().
+accept_ext_attr(Data, Fun, Type, SubType, Params, Quality, Acc) ->
+	token_ci(Data,
+		fun (_Rest, <<>>) -> {error, badarg};
+			(Rest, Attr) ->
+				whitespace(Rest,
+					fun (<< $=, Rest2/bits >>) ->
+							whitespace(Rest2,
+								fun (<<>>) -> {error, badarg};
+									(Rest3) ->
+										accept_ext_value(Rest3, Fun,
+											Type, SubType, Params,
+											Quality, Acc, Attr)
+								end);
+						(Rest2) ->
+							accept_ext(Rest2, Fun,
+								Type, SubType, Params,
+								Quality, [Attr|Acc])
+					end)
+		end).
+
+-spec accept_ext_value(binary(), fun(), binary(), binary(),
+	[{binary(), binary()}], 0..1000,
+	[{binary(), binary()} | binary()], binary()) -> any().
+accept_ext_value(Data = << $", _/bits >>, Fun,
+		Type, SubType, Params, Quality, Acc, Attr) ->
+	quoted_string(Data,
+		fun (Rest, Value) ->
+				accept_ext(Rest, Fun,
+					Type, SubType, Params, Quality, [{Attr, Value}|Acc])
+		end);
+accept_ext_value(Data, Fun, Type, SubType, Params, Quality, Acc, Attr) ->
+	token(Data,
+		fun (_Rest, <<>>) -> {error, badarg};
+			(Rest, Value) ->
+				accept_ext(Rest, Fun,
+					Type, SubType, Params, Quality, [{Attr, Value}|Acc])
+		end).
+
 %% @doc Skip whitespace.
 -spec whitespace(binary(), fun()) -> any().
 whitespace(<< C, Rest/bits >>, Fun)
@@ -99,6 +238,48 @@ token(<< C, Rest/bits >>, Fun, Case = ci, Acc) ->
 token(<< C, Rest/bits >>, Fun, Case, Acc) ->
 	token(Rest, Fun, Case, << Acc/binary, C >>).
 
+%% @doc Parse a quoted string.
+-spec quoted_string(binary(), fun()) -> any().
+quoted_string(<< $", Rest/bits >>, Fun) ->
+	quoted_string(Rest, Fun, <<>>).
+
+-spec quoted_string(binary(), fun(), binary()) -> any().
+quoted_string(<<>>, _Fun, _Acc) ->
+	{error, badarg};
+quoted_string(<< $", Rest/bits >>, Fun, Acc) ->
+	Fun(Rest, Acc);
+quoted_string(<< $\\, C, Rest/bits >>, Fun, Acc) ->
+	quoted_string(Rest, Fun, << Acc/binary, C >>);
+quoted_string(<< C, Rest/bits >>, Fun, Acc) ->
+	quoted_string(Rest, Fun, << Acc/binary, C >>).
+
+%% @doc Parse a quality value.
+-spec quality(binary(), fun()) -> any().
+quality(<< $0, $., Rest/bits >>, Fun) ->
+	quality(Rest, Fun, 0, 100);
+quality(<< $0, Rest/bits >>, Fun) ->
+	Fun(Rest, 0);
+quality(<< $1, $., $0, $0, $0, Rest/bits >>, Fun) ->
+	Fun(Rest, 1000);
+quality(<< $1, $., $0, $0, Rest/bits >>, Fun) ->
+	Fun(Rest, 1000);
+quality(<< $1, $., $0, Rest/bits >>, Fun) ->
+	Fun(Rest, 1000);
+quality(<< $1, Rest/bits >>, Fun) ->
+	Fun(Rest, 1000);
+quality(_Data, _Fun) ->
+	{error, badarg}.
+
+-spec quality(binary(), fun(), integer(), 1 | 10 | 100) -> any().
+quality(Data, Fun, Q, 0) ->
+	Fun(Data, Q);
+quality(<< C, Rest/bits >>, Fun, Q, M)
+		when C =:= $0; C =:= $1; C =:= $2; C =:= $3; C =:= $4;
+			 C =:= $5; C =:= $6; C =:= $7; C =:= $8; C =:= $9 ->
+	quality(Rest, Fun, Q + (C - $0) * M, M div 10);
+quality(Data, Fun, Q, _M) ->
+	Fun(Data, Q).
+
 %% Interpretation.
 
 %% @doc Walk through a tokens list and return whether
@@ -134,6 +315,44 @@ nonempty_token_list_test_() ->
 		{<<"keep-alive, upgrade">>, [<<"keep-alive">>, <<"upgrade">>]}
 	],
 	[{V, fun() -> R = nonempty_list(V, fun token/2) end} || {V, R} <- Tests].
+
+media_range_list_test_() ->
+	%% {Tokens, Result}
+	Tests = [
+		{<<"audio/*; q=0.2, audio/basic">>, [
+			{{<<"audio">>, <<"*">>, []}, 200, []},
+			{{<<"audio">>, <<"basic">>, []}, 1000, []}
+		]},
+		{<<"text/plain; q=0.5, text/html, "
+		   "text/x-dvi; q=0.8, text/x-c">>, [
+		   {{<<"text">>, <<"plain">>, []}, 500, []},
+		   {{<<"text">>, <<"html">>, []}, 1000, []},
+		   {{<<"text">>, <<"x-dvi">>, []}, 800, []},
+		   {{<<"text">>, <<"x-c">>, []}, 1000, []}
+		]},
+		{<<"text/*, text/html, text/html;level=1, */*">>, [
+			{{<<"text">>, <<"*">>, []}, 1000, []},
+			{{<<"text">>, <<"html">>, []}, 1000, []},
+			{{<<"text">>, <<"html">>, [{<<"level">>, <<"1">>}]}, 1000, []},
+			{{<<"*">>, <<"*">>, []}, 1000, []}
+		]},
+		{<<"text/*;q=0.3, text/html;q=0.7, text/html;level=1, "
+		   "text/html;level=2;q=0.4, */*;q=0.5">>, [
+		   {{<<"text">>, <<"*">>, []}, 300, []},
+		   {{<<"text">>, <<"html">>, []}, 700, []},
+		   {{<<"text">>, <<"html">>, [{<<"level">>, <<"1">>}]}, 1000, []},
+		   {{<<"text">>, <<"html">>, [{<<"level">>, <<"2">>}]}, 400, []},
+		   {{<<"*">>, <<"*">>, []}, 500, []}
+		]},
+		{<<"text/html;level=1;quoted=\"hi hi hi\";"
+		   "q=0.123;standalone;complex=gits, text/plain">>, [
+			{{<<"text">>, <<"html">>,
+				[{<<"level">>, <<"1">>}, {<<"quoted">>, <<"hi hi hi">>}]}, 123,
+				[<<"standalone">>, {<<"complex">>, <<"gits">>}]},
+			{{<<"text">>, <<"plain">>, []}, 1000, []}
+		]}
+	],
+	[{V, fun() -> R = list(V, fun media_range/2) end} || {V, R} <- Tests].
 
 connection_to_atom_test_() ->
 	%% {Tokens, Result}

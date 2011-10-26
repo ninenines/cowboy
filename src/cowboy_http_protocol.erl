@@ -172,7 +172,7 @@ header({http_header, _I, 'Host', _R, _V}, Req, State) ->
 header({http_header, _I, 'Connection', _R, Connection},
 		Req=#http_req{headers=Headers}, State) ->
 	Req2 = Req#http_req{headers=[{'Connection', Connection}|Headers]},
-	{tokens, ConnTokens, Req3}
+	{ConnTokens, Req3}
 		= cowboy_http_req:parse_header('Connection', Req2),
 	ConnAtom = cowboy_http:connection_to_atom(ConnTokens),
 	parse_header(Req3#http_req{connection=ConnAtom}, State);

@@ -77,7 +77,7 @@ upgrade(ListenerPid, Handler, Opts, Req) ->
 %% @todo Upgrade is a list of products and should be parsed as such.
 -spec websocket_upgrade(#state{}, #http_req{}) -> {ok, #state{}, #http_req{}}.
 websocket_upgrade(State, Req) ->
-	{tokens, ConnTokens, Req2}
+	{ConnTokens, Req2}
 		= cowboy_http_req:parse_header('Connection', Req),
 	true = lists:member(<<"upgrade">>, ConnTokens),
 	{WS, Req3} = cowboy_http_req:header('Upgrade', Req2),

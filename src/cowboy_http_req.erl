@@ -191,47 +191,50 @@ headers(Req) ->
 %% returned is used as a return value.
 %% @see parse_header/3
 -spec parse_header(http_header(), #http_req{})
-	-> {tokens, [binary()], #http_req{}}
-	 | {undefined, binary(), #http_req{}}
-	 | {error, badarg}.
-parse_header('Connection', Req) ->
-	parse_header('Connection', Req, []);
-parse_header(Name, Req) ->
-	parse_header(Name, Req, undefined).
+	-> {any(), #http_req{}} | {error, badarg}.
+parse_header(Name, Req=#http_req{p_headers=PHeaders}) ->
+	case lists:keyfind(Name, 1, PHeaders) of
+		false -> parse_header(Name, Req, parse_header_default(Name));
+		{Name, Value} -> {Value, Req}
+	end.
+
+%% @doc Default values for semantic header parsing.
+-spec parse_header_default(http_header()) -> any().
+parse_header_default('Accept') -> [];
+parse_header_default('Connection') -> [];
+parse_header_default(_Name) -> undefined.
 
 %% @doc Semantically parse headers.
 %%
-%% When the header is known, a named tuple is returned containing
-%% {Type, P, Req} with Type being the type of value found in P.
-%% For example, the header 'Connection' is a list of tokens, therefore
-%% the value returned will be a list of binary values and Type will be
-%% 'tokens'.
-%%
-%% When the header is known but not found, the tuple {Type, Default, Req}
-%% is returned instead.
-%%
-%% When the header is unknown, the value is returned directly as an
-%% 'undefined' tagged tuple.
+%% When the header is unknown, the value is returned directly without parsing.
 -spec parse_header(http_header(), #http_req{}, any())
-	-> {tokens, [binary()], #http_req{}}
-	 | {undefined, binary(), #http_req{}}
-	 | {error, badarg}.
-parse_header(Name, Req=#http_req{p_headers=PHeaders}, Default)
-		when Name =:= 'Connection' ->
-	case header(Name, Req) of
-		{undefined, Req2} -> {tokens, Default, Req2};
-		{Value, Req2} ->
-			case cowboy_http:nonempty_list(Value, fun cowboy_http:token_ci/2) of
-				{error, badarg} ->
-					{error, badarg};
-				P ->
-					{tokens, P, Req2#http_req{
-						p_headers=[{Name, P}|PHeaders]}}
-			end
-	end;
+	-> {any(), #http_req{}} | {error, badarg}.
+parse_header(Name, Req, Default) when Name =:= 'Accept' ->
+	parse_header(Name, Req, Default,
+		fun (Value) ->
+			cowboy_http:list(Value, fun cowboy_http:media_range/2)
+		end);
+parse_header(Name, Req, Default) when Name =:= 'Connection' ->
+	parse_header(Name, Req, Default,
+		fun (Value) ->
+			cowboy_http:nonempty_list(Value, fun cowboy_http:token_ci/2)
+		end);
 parse_header(Name, Req, Default) ->
 	{Value, Req2} = header(Name, Req, Default),
 	{undefined, Value, Req2}.
+
+parse_header(Name, Req=#http_req{p_headers=PHeaders}, Default, Fun) ->
+	case header(Name, Req) of
+		{undefined, Req2} ->
+			{Default, Req2#http_req{p_headers=[{Name, Default}|PHeaders]}};
+		{Value, Req2} ->
+			case Fun(Value) of
+				{error, badarg} ->
+					{error, badarg};
+				P ->
+					{P, Req2#http_req{p_headers=[{Name, P}|PHeaders]}}
+			end
+	end.
 
 %% @equiv cookie(Name, Req, undefined)
 -spec cookie(binary(), #http_req{})
