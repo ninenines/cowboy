@@ -67,13 +67,6 @@ list(Data, Fun, Acc) ->
 %% @doc Parse a media range.
 -spec media_range(binary(), fun()) -> any().
 media_range(Data, Fun) ->
-	whitespace(Data,
-		fun (<<>>) -> {error, badarg};
-			(Rest) -> media_range_type(Rest, Fun)
-		end).
-
--spec media_range_type(binary(), fun()) -> any().
-media_range_type(Data, Fun) ->
 	token_ci(Data,
 		fun (_Rest, <<>>) -> {error, badarg};
 			(Rest, Type) -> whitespace(Rest,
