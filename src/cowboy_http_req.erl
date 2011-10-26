@@ -201,6 +201,7 @@ parse_header(Name, Req=#http_req{p_headers=PHeaders}) ->
 %% @doc Default values for semantic header parsing.
 -spec parse_header_default(http_header()) -> any().
 parse_header_default('Accept') -> [];
+parse_header_default('Accept-Charset') -> [];
 parse_header_default('Accept-Encoding') -> [];
 parse_header_default('Connection') -> [];
 parse_header_default(_Name) -> undefined.
@@ -214,6 +215,11 @@ parse_header(Name, Req, Default) when Name =:= 'Accept' ->
 	parse_header(Name, Req, Default,
 		fun (Value) ->
 			cowboy_http:list(Value, fun cowboy_http:media_range/2)
+		end);
+parse_header(Name, Req, Default) when Name =:= 'Accept-Charset' ->
+	parse_header(Name, Req, Default,
+		fun (Value) ->
+			cowboy_http:nonempty_list(Value, fun cowboy_http:charset/2)
 		end);
 parse_header(Name, Req, Default) when Name =:= 'Accept-Encoding' ->
 	parse_header(Name, Req, Default,

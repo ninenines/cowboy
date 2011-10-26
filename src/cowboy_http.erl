@@ -17,7 +17,8 @@
 
 %% Parsing.
 -export([list/2, nonempty_list/2,
-	media_range/2, token/2, token_ci/2, quoted_string/2]).
+	media_range/2, charset/2,
+	token/2, token_ci/2, quoted_string/2]).
 
 %% Interpretation.
 -export([connection_to_atom/1]).
@@ -195,6 +196,42 @@ accept_ext_value(Data, Fun, Type, SubType, Params, Quality, Acc, Attr) ->
 					Type, SubType, Params, Quality, [{Attr, Value}|Acc])
 		end).
 
+%% @doc Parse a charset, followed by an optional quality value.
+-spec charset(binary(), fun()) -> any().
+charset(Data, Fun) ->
+	token_ci(Data,
+		fun (_Rest, <<>>) -> {error, badarg};
+			(Rest, Charset) ->
+				whitespace(Rest,
+					fun (<< $;, Rest2/bits >>) ->
+						whitespace(Rest2,
+							fun (Rest3) ->
+								qparam(Rest3,
+									fun (Rest4, Quality) ->
+										Fun(Rest4, {Charset, Quality})
+									end)
+							end);
+						(Rest2) ->
+							Fun(Rest2, {Charset, 1000})
+					end)
+		end).
+
+%% Parse a quality parameter string (for example q=0.500).
+-spec qparam(binary(), fun()) -> any().
+qparam(<< $q, Rest/bits >>, Fun) ->
+	whitespace(Rest,
+		fun (<< $=, Rest2/bits >>) ->
+				whitespace(Rest2,
+					fun (Rest3) ->
+						qvalue(Rest3,
+							fun (Rest4, Quality) ->
+								Fun(Rest4, Quality)
+							end)
+					end);
+			(_Rest2) ->
+				{error, badarg}
+		end).
+
 %% @doc Skip whitespace.
 -spec whitespace(binary(), fun()) -> any().
 whitespace(<< C, Rest/bits >>, Fun)
@@ -292,6 +329,17 @@ connection_to_atom([_Any|Tail]) ->
 %% Tests.
 
 -ifdef(TEST).
+
+nonempty_charset_list_test_() ->
+	%% {Value, Result}
+	Tests = [
+		{<<>>, {error, badarg}},
+		{<<"iso-8859-5, unicode-1-1;q=0.8">>, [
+			{<<"iso-8859-5">>, 1000},
+			{<<"unicode-1-1">>, 800}
+		]}
+	],
+	[{V, fun() -> R = nonempty_list(V, fun charset/2) end} || {V, R} <- Tests].
 
 nonempty_token_list_test_() ->
 	%% {Value, Result}
