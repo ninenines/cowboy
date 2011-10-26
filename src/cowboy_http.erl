@@ -119,7 +119,7 @@ media_range_param_attr(Data, Fun, Type, SubType, Acc) ->
 -spec media_range_param_value(binary(), fun(), binary(), binary(),
 	[{binary(), binary()}], binary()) -> any().
 media_range_param_value(Data, Fun, Type, SubType, Acc, <<"q">>) ->
-	quality(Data,
+	qvalue(Data,
 		fun (Rest, Quality) ->
 			accept_ext(Rest, Fun, Type, SubType, Acc, Quality, [])
 		end);
@@ -247,30 +247,30 @@ quoted_string(<< C, Rest/bits >>, Fun, Acc) ->
 	quoted_string(Rest, Fun, << Acc/binary, C >>).
 
 %% @doc Parse a quality value.
--spec quality(binary(), fun()) -> any().
-quality(<< $0, $., Rest/bits >>, Fun) ->
-	quality(Rest, Fun, 0, 100);
-quality(<< $0, Rest/bits >>, Fun) ->
+-spec qvalue(binary(), fun()) -> any().
+qvalue(<< $0, $., Rest/bits >>, Fun) ->
+	qvalue(Rest, Fun, 0, 100);
+qvalue(<< $0, Rest/bits >>, Fun) ->
 	Fun(Rest, 0);
-quality(<< $1, $., $0, $0, $0, Rest/bits >>, Fun) ->
+qvalue(<< $1, $., $0, $0, $0, Rest/bits >>, Fun) ->
 	Fun(Rest, 1000);
-quality(<< $1, $., $0, $0, Rest/bits >>, Fun) ->
+qvalue(<< $1, $., $0, $0, Rest/bits >>, Fun) ->
 	Fun(Rest, 1000);
-quality(<< $1, $., $0, Rest/bits >>, Fun) ->
+qvalue(<< $1, $., $0, Rest/bits >>, Fun) ->
 	Fun(Rest, 1000);
-quality(<< $1, Rest/bits >>, Fun) ->
+qvalue(<< $1, Rest/bits >>, Fun) ->
 	Fun(Rest, 1000);
-quality(_Data, _Fun) ->
+qvalue(_Data, _Fun) ->
 	{error, badarg}.
 
--spec quality(binary(), fun(), integer(), 1 | 10 | 100) -> any().
-quality(Data, Fun, Q, 0) ->
+-spec qvalue(binary(), fun(), integer(), 1 | 10 | 100) -> any().
+qvalue(Data, Fun, Q, 0) ->
 	Fun(Data, Q);
-quality(<< C, Rest/bits >>, Fun, Q, M)
+qvalue(<< C, Rest/bits >>, Fun, Q, M)
 		when C =:= $0; C =:= $1; C =:= $2; C =:= $3; C =:= $4;
 			 C =:= $5; C =:= $6; C =:= $7; C =:= $8; C =:= $9 ->
-	quality(Rest, Fun, Q + (C - $0) * M, M div 10);
-quality(Data, Fun, Q, _M) ->
+	qvalue(Rest, Fun, Q + (C - $0) * M, M div 10);
+qvalue(Data, Fun, Q, _M) ->
 	Fun(Data, Q).
 
 %% Interpretation.
