@@ -383,7 +383,7 @@ chunked_reply(Status, Headers, Req=#http_req{socket=Socket, transport=Transport,
 %% @doc Send a chunk of data.
 %%
 %% A chunked reply must have been initiated before calling this function.
--spec chunk(iodata(), #http_req{}) -> ok.
+-spec chunk(iodata(), #http_req{}) -> ok | {error, atom()}.
 chunk(_Data, #http_req{socket=_Socket, transport=_Transport, method='HEAD'}) ->
 	ok;
 chunk(Data, #http_req{socket=Socket, transport=Transport, resp_state=chunks}) ->
