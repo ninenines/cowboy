@@ -47,7 +47,7 @@
 -type mask_key() :: 0..16#ffffffff.
 
 -record(state, {
-	version :: 0 | 7 | 8,
+	version :: 0 | 7 | 8 | 13,
 	handler :: module(),
 	opts :: any(),
 	challenge = undefined :: undefined | binary() | {binary(), binary()},
