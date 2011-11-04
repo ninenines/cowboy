@@ -231,6 +231,11 @@ parse_header(Name, Req, Default) when Name =:= 'Connection' ->
 		fun (Value) ->
 			cowboy_http:nonempty_list(Value, fun cowboy_http:token_ci/2)
 		end);
+parse_header(Name, Req, Default) when Name =:= 'Content-Length' ->
+	parse_header(Name, Req, Default,
+		fun (Value) ->
+			cowboy_http:digits(Value)
+		end);
 parse_header(Name, Req, Default) ->
 	{Value, Req2} = header(Name, Req, Default),
 	{undefined, Value, Req2}.
@@ -292,12 +297,12 @@ cookies(Req=#http_req{cookies=Cookies}) ->
 %% @todo We probably want to allow a max length.
 -spec body(#http_req{}) -> {ok, binary(), #http_req{}} | {error, atom()}.
 body(Req) ->
-	{Length, Req2} = cowboy_http_req:header('Content-Length', Req),
+	{Length, Req2} = cowboy_http_req:parse_header('Content-Length', Req),
 	case Length of
 		undefined -> {error, badarg};
+		{error, badarg} -> {error, badarg};
 		_Any ->
-			Length2 = list_to_integer(binary_to_list(Length)),
-			body(Length2, Req2)
+			body(Length, Req2)
 	end.
 
 %% @doc Return <em>Length</em> bytes of the request body.
