@@ -70,20 +70,11 @@ list(Data, Fun, Acc) ->
 media_range(Data, Fun) ->
 	token_ci(Data,
 		fun (_Rest, <<>>) -> {error, badarg};
-			(Rest, Type) -> whitespace(Rest,
-				fun (<< $/, Rest2/bits >>) -> whitespace(Rest2,
-						fun (<<>>) -> {error, badarg};
-							(Rest3) -> media_range_subtype(Rest3, Fun, Type)
-						end);
-					(_Rest2) -> {error, badarg}
+			(<< $/, Rest/bits >>, Type) -> token_ci(Rest,
+				fun (_Rest2, <<>>) -> {error, badarg};
+					(Rest2, SubType) ->
+						media_range_params(Rest2, Fun, Type, SubType, [])
 				end)
-		end).
-
--spec media_range_subtype(binary(), fun(), binary()) -> any().
-media_range_subtype(Data, Fun, Type) ->
-	token_ci(Data,
-		fun (_Rest, <<>>) -> {error, badarg};
-			(Rest, SubType) -> media_range_params(Rest, Fun, Type, SubType, [])
 		end).
 
 -spec media_range_params(binary(), fun(), binary(), binary(),
@@ -103,18 +94,8 @@ media_range_params(Data, Fun, Type, SubType, Acc) ->
 media_range_param_attr(Data, Fun, Type, SubType, Acc) ->
 	token_ci(Data,
 		fun (_Rest, <<>>) -> {error, badarg};
-			(Rest, Attr) ->
-				whitespace(Rest,
-					fun (<< $=, Rest2/bits >>) ->
-							whitespace(Rest2,
-								fun (<<>>) -> {error, badarg};
-									(Rest3) ->
-										media_range_param_value(Rest3, Fun,
-											Type, SubType, Acc, Attr)
-								end);
-						(_Rest2) ->
-							{error, badarg}
-					end)
+			(<< $=, Rest/bits >>, Attr) ->
+				media_range_param_value(Rest, Fun, Type, SubType, Acc, Attr)
 		end).
 
 -spec media_range_param_value(binary(), fun(), binary(), binary(),
@@ -161,21 +142,12 @@ accept_ext(Data, Fun, Type, SubType, Params, Quality, Acc) ->
 accept_ext_attr(Data, Fun, Type, SubType, Params, Quality, Acc) ->
 	token_ci(Data,
 		fun (_Rest, <<>>) -> {error, badarg};
+			(<< $=, Rest/bits >>, Attr) ->
+				accept_ext_value(Rest, Fun, Type, SubType, Params,
+					Quality, Acc, Attr);
 			(Rest, Attr) ->
-				whitespace(Rest,
-					fun (<< $=, Rest2/bits >>) ->
-							whitespace(Rest2,
-								fun (<<>>) -> {error, badarg};
-									(Rest3) ->
-										accept_ext_value(Rest3, Fun,
-											Type, SubType, Params,
-											Quality, Acc, Attr)
-								end);
-						(Rest2) ->
-							accept_ext(Rest2, Fun,
-								Type, SubType, Params,
-								Quality, [Attr|Acc])
-					end)
+				accept_ext(Rest, Fun, Type, SubType, Params,
+					Quality, [Attr|Acc])
 		end).
 
 -spec accept_ext_value(binary(), fun(), binary(), binary(),
@@ -219,19 +191,8 @@ conneg(Data, Fun) ->
 
 %% Parse a quality parameter string (for example q=0.500).
 -spec qparam(binary(), fun()) -> any().
-qparam(<< $q, Rest/bits >>, Fun) ->
-	whitespace(Rest,
-		fun (<< $=, Rest2/bits >>) ->
-				whitespace(Rest2,
-					fun (Rest3) ->
-						qvalue(Rest3,
-							fun (Rest4, Quality) ->
-								Fun(Rest4, Quality)
-							end)
-					end);
-			(_Rest2) ->
-				{error, badarg}
-		end).
+qparam(<< Q, $=, Data/bits >>, Fun) when Q =:= $q; Q =:= $Q ->
+	qvalue(Data, Fun).
 
 %% @doc Skip whitespace.
 -spec whitespace(binary(), fun()) -> any().
