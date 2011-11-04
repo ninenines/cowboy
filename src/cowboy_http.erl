@@ -1,4 +1,5 @@
 %% Copyright (c) 2011, Loïc Hoguin <essen@dev-extend.eu>
+%% Copyright (c) 2011, Anthony Ramine <nox@dev-extend.eu>
 %%
 %% Permission to use, copy, modify, and/or distribute this software for any
 %% purpose with or without fee is hereby granted, provided that the above
@@ -106,19 +107,11 @@ media_range_param_value(Data, Fun, Type, SubType, Acc, <<"q">>) ->
 		fun (Rest, Quality) ->
 			accept_ext(Rest, Fun, Type, SubType, Acc, Quality, [])
 		end);
-media_range_param_value(Data = << $", _/bits >>, Fun,
-		Type, SubType, Acc, Attr) ->
-	quoted_string(Data,
+media_range_param_value(Data, Fun, Type, SubType, Acc, Attr) ->
+	word(Data,
 		fun (Rest, Value) ->
 			media_range_params(Rest, Fun,
 				Type, SubType, [{Attr, Value}|Acc])
-		end);
-media_range_param_value(Data, Fun, Type, SubType, Acc, Attr) ->
-	token(Data,
-		fun (_Rest, <<>>) -> {error, badarg};
-			(Rest, Value) ->
-				media_range_params(Rest, Fun,
-					Type, SubType, [{Attr, Value}|Acc])
 		end).
 
 -spec accept_ext(binary(), fun(), binary(), binary(),
@@ -154,17 +147,9 @@ accept_ext_attr(Data, Fun, Type, SubType, Params, Quality, Acc) ->
 -spec accept_ext_value(binary(), fun(), binary(), binary(),
 	[{binary(), binary()}], 0..1000,
 	[{binary(), binary()} | binary()], binary()) -> any().
-accept_ext_value(Data = << $", _/bits >>, Fun,
-		Type, SubType, Params, Quality, Acc, Attr) ->
-	quoted_string(Data,
-		fun (Rest, Value) ->
-				accept_ext(Rest, Fun,
-					Type, SubType, Params, Quality, [{Attr, Value}|Acc])
-		end);
 accept_ext_value(Data, Fun, Type, SubType, Params, Quality, Acc, Attr) ->
-	token(Data,
-		fun (_Rest, <<>>) -> {error, badarg};
-			(Rest, Value) ->
+	word(Data,
+		fun (Rest, Value) ->
 				accept_ext(Rest, Fun,
 					Type, SubType, Params, Quality, [{Attr, Value}|Acc])
 		end).
@@ -542,6 +527,16 @@ alpha(<< C, Rest/bits >>, Fun, Acc)
 	alpha(Rest, Fun, << Acc/binary, C2 >>);
 alpha(Data, Fun, Acc) ->
 	Fun(Data, Acc).
+
+%% @doc Parse either a token or a quoted string.
+-spec word(binary(), fun()) -> any().
+word(Data = << $", _/bits >>, Fun) ->
+	quoted_string(Data, Fun);
+word(Data, Fun) ->
+	token(Data,
+		fun (_Rest, <<>>) -> {error, badarg};
+			(Rest, Token) -> Fun(Rest, Token)
+		end).
 
 %% @doc Parse a case-insensitive token.
 %%
