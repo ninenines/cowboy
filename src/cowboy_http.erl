@@ -17,7 +17,7 @@
 -module(cowboy_http).
 
 %% Parsing.
--export([list/2, nonempty_list/2,
+-export([list/2, nonempty_list/2, content_type/1,
 	media_range/2, conneg/2, language_range/2, entity_tag_match/1,
 	http_date/1, rfc1123_date/1, rfc850_date/1, asctime_date/1,
 	digits/1, token/2, token_ci/2, quoted_string/2]).
@@ -65,6 +65,41 @@ list(Data, Fun, Acc) ->
 							(_Any) -> {error, badarg}
 						end)
 				end)
+		end).
+
+%% @doc Parse a content type.
+-spec content_type(binary()) -> any().
+content_type(Data) ->
+	media_type(Data,
+		fun (Rest, Type, SubType) ->
+				content_type_params(Rest,
+					fun (Params) -> {Type, SubType, Params} end, [])
+		end).
+
+-spec content_type_params(binary(), fun(), list({binary(), binary()}))
+	-> any().
+content_type_params(Data, Fun, Acc) ->
+	whitespace(Data,
+		fun (<< $;, Rest/bits >>) -> content_type_param(Rest, Fun, Acc);
+			(<<>>) -> Fun(lists:reverse(Acc));
+			(_Rest) -> {error, badarg}
+		end).
+
+-spec content_type_param(binary(), fun(), list({binary(), binary()}))
+	-> any().
+content_type_param(Data, Fun, Acc) ->
+	whitespace(Data,
+		fun (Rest) ->
+				token_ci(Rest,
+					fun (_Rest2, <<>>) -> {error, badarg};
+						(<< $=, Rest2/bits >>, Attr) ->
+							word(Rest2,
+								fun (Rest3, Value) ->
+										content_type_params(Rest3, Fun,
+											[{Attr, Value}|Acc])
+								end);
+						(_Rest2, _Attr) -> {error, badarg}
+					end)
 		end).
 
 %% @doc Parse a media range.
@@ -772,6 +807,23 @@ connection_to_atom_test_() ->
 	],
 	[{lists:flatten(io_lib:format("~p", [T])),
 		fun() -> R = connection_to_atom(T) end} || {T, R} <- Tests].
+
+content_type_test_() ->
+	%% {ContentType, Result}
+	Tests = [
+		{<<"text/plain; charset=iso-8859-4">>,
+			{<<"text">>, <<"plain">>, [{<<"charset">>, <<"iso-8859-4">>}]}},
+		{<<"multipart/form-data  \t;Boundary=\"MultipartIsUgly\"">>,
+			{<<"multipart">>, <<"form-data">>, [
+				{<<"boundary">>, <<"MultipartIsUgly">>}
+			]}},
+		{<<"foo/bar; one=FirstParam; two=SecondParam">>,
+			{<<"foo">>, <<"bar">>, [
+				{<<"one">>, <<"FirstParam">>},
+				{<<"two">>, <<"SecondParam">>}
+			]}}
+	],
+	[{V, fun () -> R = content_type(V) end} || {V, R} <- Tests].
 
 digits_test_() ->
 	%% {Digits, Result}
