@@ -70,13 +70,9 @@ list(Data, Fun, Acc) ->
 %% @doc Parse a media range.
 -spec media_range(binary(), fun()) -> any().
 media_range(Data, Fun) ->
-	token_ci(Data,
-		fun (_Rest, <<>>) -> {error, badarg};
-			(<< $/, Rest/bits >>, Type) -> token_ci(Rest,
-				fun (_Rest2, <<>>) -> {error, badarg};
-					(Rest2, SubType) ->
-						media_range_params(Rest2, Fun, Type, SubType, [])
-				end)
+	media_type(Data,
+		fun (Rest, Type, SubType) ->
+			media_range_params(Rest, Fun, Type, SubType, [])
 		end).
 
 -spec media_range_params(binary(), fun(), binary(), binary(),
@@ -222,6 +218,19 @@ maybe_qparam(Data, Fun) ->
 -spec qparam(binary(), fun()) -> any().
 qparam(<< Q, $=, Data/bits >>, Fun) when Q =:= $q; Q =:= $Q ->
 	qvalue(Data, Fun).
+
+%% @doc Parse a media type.
+-spec media_type(binary(), fun()) -> any().
+media_type(Data, Fun) ->
+	token_ci(Data,
+		fun (_Rest, <<>>) -> {error, badarg};
+			(<< $/, Rest/bits >>, Type) ->
+				token_ci(Rest,
+					fun (_Rest2, <<>>) -> {error, badarg};
+						(Rest2, SubType) -> Fun(Rest2, Type, SubType)
+					end);
+			(_Rest, _Type) -> {error, badarg}
+		end).
 
 %% @doc Parse either a token or a quoted string.
 -spec word(binary(), fun()) -> any().
