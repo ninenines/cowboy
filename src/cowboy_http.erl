@@ -17,7 +17,7 @@
 
 %% Parsing.
 -export([list/2, nonempty_list/2,
-	media_range/2, charset/2,
+	media_range/2, charset/2, digits/1,
 	token/2, token_ci/2, quoted_string/2]).
 
 %% Interpretation.
@@ -27,6 +27,11 @@
 -include_lib("eunit/include/eunit.hrl").
 
 %% Parsing.
+
+%% Use only as a guard.
+-define(IS_DIGIT(C),
+	C =:= $0; C =:= $1; C =:= $2; C =:= $3; C =:= $4;
+	C =:= $5; C =:= $6; C =:= $7; C =:= $8; C =:= $9).
 
 %% @doc Parse a non-empty list of the given type.
 -spec nonempty_list(binary(), fun()) -> [any(), ...] | {error, badarg}.
@@ -240,6 +245,31 @@ whitespace(<< C, Rest/bits >>, Fun)
 whitespace(Data, Fun) ->
 	Fun(Data).
 
+%% @doc Parse a list of digits as a non negative integer.
+-spec digits(binary()) -> non_neg_integer() | {error, badarg}.
+digits(Data) ->
+	digits(Data,
+		fun (Rest, I) ->
+			whitespace(Rest,
+				fun (<<>>) ->
+						I;
+					(_Rest2) ->
+						{error, badarg}
+				end)
+		end).
+
+-spec digits(binary(), fun()) -> any().
+digits(<< C, Rest/bits >>, Fun) when ?IS_DIGIT(C) ->
+	digits(Rest, Fun, C - $0);
+digits(_Data, _Fun) ->
+	{error, badarg}.
+
+-spec digits(binary(), fun(), non_neg_integer()) -> any().
+digits(<< C, Rest/bits >>, Fun, Acc) when ?IS_DIGIT(C) ->
+	digits(Rest, Fun, Acc * 10 + (C - $0));
+digits(Data, Fun, Acc) ->
+	Fun(Data, Acc).
+
 %% @doc Parse a case-insensitive token.
 %%
 %% Changes all characters to lowercase.
@@ -303,9 +333,7 @@ qvalue(_Data, _Fun) ->
 -spec qvalue(binary(), fun(), integer(), 1 | 10 | 100) -> any().
 qvalue(Data, Fun, Q, 0) ->
 	Fun(Data, Q);
-qvalue(<< C, Rest/bits >>, Fun, Q, M)
-		when C =:= $0; C =:= $1; C =:= $2; C =:= $3; C =:= $4;
-			 C =:= $5; C =:= $6; C =:= $7; C =:= $8; C =:= $9 ->
+qvalue(<< C, Rest/bits >>, Fun, Q, M) when ?IS_DIGIT(C) ->
 	qvalue(Rest, Fun, Q + (C - $0) * M, M div 10);
 qvalue(Data, Fun, Q, _M) ->
 	Fun(Data, Q).
@@ -404,5 +432,14 @@ connection_to_atom_test_() ->
 	],
 	[{lists:flatten(io_lib:format("~p", [T])),
 		fun() -> R = connection_to_atom(T) end} || {T, R} <- Tests].
+
+digits_test_() ->
+	%% {Digits, Result}
+	Tests = [
+		{<<"42    ">>, 42},
+		{<<"69\t">>, 69},
+		{<<"1337">>, 1337}
+	],
+	[{V, fun() -> R = digits(V) end} || {V, R} <- Tests].
 
 -endif.
