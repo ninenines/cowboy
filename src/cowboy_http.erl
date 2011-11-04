@@ -20,7 +20,7 @@
 -export([list/2, nonempty_list/2,
 	media_range/2, conneg/2, language_range/2,
 	http_date/1, rfc1123_date/1, rfc850_date/1, asctime_date/1,
-	content_type/1,
+	content_type/1, content_disposition/1,
 	digits/1, token/2, token_ci/2, quoted_string/2]).
 
 %% Interpretation.
@@ -226,6 +226,16 @@ content_type(Data) ->
 	media_type(Data,
 		fun (Rest, Type, SubType) ->
 				params(Rest, fun (Params) -> {Type, SubType, Params} end)
+		end).
+
+%% @doc Parse a content disposition.
+%% @todo Parse the MIME header instead of the HTTP one.
+-spec content_disposition(binary()) -> any().
+content_disposition(Data) ->
+	token_ci(Data,
+		fun (_Rest, <<>>) -> {error, badarg};
+			(Rest, Disposition) ->
+				params(Rest, fun (Params) -> {Disposition, Params} end)
 		end).
 
 %% @doc Parse a media type.
@@ -790,6 +800,16 @@ content_type_test_() ->
 			]}}
 	],
 	[{V, fun () -> R = content_type(V) end} || {V, R} <- Tests].
+
+content_disposition_test_() ->
+	%% {Disposition, Result}
+	Tests = [
+		{<<"form-data; name=id">>, {<<"form-data">>, [{<<"name">>, <<"id">>}]}},
+		{<<"inline">>, {<<"inline">>, []}},
+		{<<"attachment; \tfilename=brackets-slides.pdf">>,
+			{<<"attachment">>, [{<<"filename">>, <<"brackets-slides.pdf">>}]}}
+	],
+	[{V, fun () -> R = content_disposition(V) end} || {V, R} <- Tests].
 
 digits_test_() ->
 	%% {Digits, Result}
