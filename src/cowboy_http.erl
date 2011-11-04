@@ -70,13 +70,9 @@ list(Data, Fun, Acc) ->
 %% @doc Parse a media range.
 -spec media_range(binary(), fun()) -> any().
 media_range(Data, Fun) ->
-	token_ci(Data,
-		fun (_Rest, <<>>) -> {error, badarg};
-			(<< $/, Rest/bits >>, Type) -> token_ci(Rest,
-				fun (_Rest2, <<>>) -> {error, badarg};
-					(Rest2, SubType) ->
-						media_range_params(Rest2, Fun, Type, SubType, [])
-				end)
+	media_type(Data,
+		fun (Rest, Type, SubType) ->
+			media_range_params(Rest, Fun, Type, SubType, [])
 		end).
 
 -spec media_range_params(binary(), fun(), binary(), binary(),
@@ -112,6 +108,19 @@ media_range_param_value(Data, Fun, Type, SubType, Acc, Attr) ->
 		fun (Rest, Value) ->
 			media_range_params(Rest, Fun,
 				Type, SubType, [{Attr, Value}|Acc])
+		end).
+
+%% @doc Parse a media type.
+-spec media_type(binary(), fun()) -> any().
+media_type(Data, Fun) ->
+	token_ci(Data,
+		fun (_Rest, <<>>) -> {error, badarg};
+			(<< $/, Rest/bits >>, Type) ->
+				token_ci(Rest,
+					fun (_Rest2, <<>>) -> {error, badarg};
+						(Rest2, SubType) -> Fun(Rest2, Type, SubType)
+					end);
+			(_Rest, _Type) -> {error, badarg}
 		end).
 
 -spec accept_ext(binary(), fun(), binary(), binary(),
