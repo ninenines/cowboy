@@ -17,7 +17,7 @@
 
 %% Parsing.
 -export([list/2, nonempty_list/2,
-	media_range/2, charset/2,
+	media_range/2, conneg/2,
 	token/2, token_ci/2, quoted_string/2]).
 
 %% Interpretation.
@@ -196,23 +196,24 @@ accept_ext_value(Data, Fun, Type, SubType, Params, Quality, Acc, Attr) ->
 					Type, SubType, Params, Quality, [{Attr, Value}|Acc])
 		end).
 
-%% @doc Parse a charset, followed by an optional quality value.
--spec charset(binary(), fun()) -> any().
-charset(Data, Fun) ->
+%% @doc Parse a conneg header (Accept-Charset, Accept-Encoding),
+%% followed by an optional quality value.
+-spec conneg(binary(), fun()) -> any().
+conneg(Data, Fun) ->
 	token_ci(Data,
 		fun (_Rest, <<>>) -> {error, badarg};
-			(Rest, Charset) ->
+			(Rest, Conneg) ->
 				whitespace(Rest,
 					fun (<< $;, Rest2/bits >>) ->
 						whitespace(Rest2,
 							fun (Rest3) ->
 								qparam(Rest3,
 									fun (Rest4, Quality) ->
-										Fun(Rest4, {Charset, Quality})
+										Fun(Rest4, {Conneg, Quality})
 									end)
 							end);
 						(Rest2) ->
-							Fun(Rest2, {Charset, 1000})
+							Fun(Rest2, {Conneg, 1000})
 					end)
 		end).
 
@@ -339,7 +340,7 @@ nonempty_charset_list_test_() ->
 			{<<"unicode-1-1">>, 800}
 		]}
 	],
-	[{V, fun() -> R = nonempty_list(V, fun charset/2) end} || {V, R} <- Tests].
+	[{V, fun() -> R = nonempty_list(V, fun conneg/2) end} || {V, R} <- Tests].
 
 nonempty_token_list_test_() ->
 	%% {Value, Result}

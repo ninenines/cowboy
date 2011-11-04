@@ -219,12 +219,12 @@ parse_header(Name, Req, Default) when Name =:= 'Accept' ->
 parse_header(Name, Req, Default) when Name =:= 'Accept-Charset' ->
 	parse_header(Name, Req, Default,
 		fun (Value) ->
-			cowboy_http:nonempty_list(Value, fun cowboy_http:charset/2)
+			cowboy_http:nonempty_list(Value, fun cowboy_http:conneg/2)
 		end);
 parse_header(Name, Req, Default) when Name =:= 'Accept-Encoding' ->
 	parse_header(Name, Req, Default,
 		fun (Value) ->
-			cowboy_http:list(Value, fun cowboy_http:token_ci/2)
+			cowboy_http:list(Value, fun cowboy_http:conneg/2)
 		end);
 parse_header(Name, Req, Default) when Name =:= 'Connection' ->
 	parse_header(Name, Req, Default,
