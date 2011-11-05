@@ -236,6 +236,12 @@ parse_header(Name, Req, Default) when Name =:= 'Content-Length' ->
 		fun (Value) ->
 			cowboy_http:digits(Value)
 		end);
+parse_header(Name, Req, Default)
+		when Name =:= 'If-Modified-Since'; Name =:= 'If-Unmodified-Since' ->
+	parse_header(Name, Req, Default,
+		fun (Value) ->
+			cowboy_http:http_date(Value)
+		end);
 parse_header(Name, Req, Default) ->
 	{Value, Req2} = header(Name, Req, Default),
 	{undefined, Value, Req2}.
