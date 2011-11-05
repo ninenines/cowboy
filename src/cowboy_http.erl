@@ -29,11 +29,6 @@
 
 %% Parsing.
 
-%% Use only as a guard.
--define(IS_DIGIT(C),
-	C =:= $0; C =:= $1; C =:= $2; C =:= $3; C =:= $4;
-	C =:= $5; C =:= $6; C =:= $7; C =:= $8; C =:= $9).
-
 %% @doc Parse a non-empty list of the given type.
 -spec nonempty_list(binary(), fun()) -> [any(), ...] | {error, badarg}.
 nonempty_list(Data, Fun) ->
@@ -450,13 +445,15 @@ digits(Data) ->
 		end).
 
 -spec digits(binary(), fun()) -> any().
-digits(<< C, Rest/bits >>, Fun) when ?IS_DIGIT(C) ->
+digits(<< C, Rest/bits >>, Fun)
+		when C >= $0, C =< $9 ->
 	digits(Rest, Fun, C - $0);
 digits(_Data, _Fun) ->
 	{error, badarg}.
 
 -spec digits(binary(), fun(), non_neg_integer()) -> any().
-digits(<< C, Rest/bits >>, Fun, Acc) when ?IS_DIGIT(C) ->
+digits(<< C, Rest/bits >>, Fun, Acc)
+		when C >= $0, C =< $9 ->
 	digits(Rest, Fun, Acc * 10 + (C - $0));
 digits(Data, Fun, Acc) ->
 	Fun(Data, Acc).
@@ -524,7 +521,8 @@ qvalue(_Data, _Fun) ->
 -spec qvalue(binary(), fun(), integer(), 1 | 10 | 100) -> any().
 qvalue(Data, Fun, Q, 0) ->
 	Fun(Data, Q);
-qvalue(<< C, Rest/bits >>, Fun, Q, M) when ?IS_DIGIT(C) ->
+qvalue(<< C, Rest/bits >>, Fun, Q, M)
+		when C >= $0, C =< $9 ->
 	qvalue(Rest, Fun, Q + (C - $0) * M, M div 10);
 qvalue(Data, Fun, Q, _M) ->
 	Fun(Data, Q).
