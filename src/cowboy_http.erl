@@ -17,9 +17,9 @@
 
 %% Parsing.
 -export([list/2, nonempty_list/2,
-	media_range/2, conneg/2, digits/1,
+	media_range/2, conneg/2, language_range/2,
 	http_date/1, rfc1123_date/1, rfc850_date/1, asctime_date/1,
-	token/2, token_ci/2, quoted_string/2]).
+	digits/1, token/2, token_ci/2, quoted_string/2]).
 
 %% Interpretation.
 -export([connection_to_atom/1]).
@@ -176,18 +176,61 @@ conneg(Data, Fun) ->
 	token_ci(Data,
 		fun (_Rest, <<>>) -> {error, badarg};
 			(Rest, Conneg) ->
-				whitespace(Rest,
-					fun (<< $;, Rest2/bits >>) ->
-						whitespace(Rest2,
-							fun (Rest3) ->
-								qparam(Rest3,
-									fun (Rest4, Quality) ->
-										Fun(Rest4, {Conneg, Quality})
-									end)
-							end);
-						(Rest2) ->
-							Fun(Rest2, {Conneg, 1000})
+				maybe_qparam(Rest,
+					fun (Rest2, Quality) ->
+						Fun(Rest2, {Conneg, Quality})
 					end)
+		end).
+
+%% @doc Parse a language range, followed by an optional quality value.
+-spec language_range(binary(), fun()) -> any().
+language_range(<< $*, Rest/bits >>, Fun) ->
+	language_range_ret(Rest, Fun, '*');
+language_range(Data, Fun) ->
+	language_tag(Data,
+		fun (Rest, LanguageTag) ->
+				language_range_ret(Rest, Fun, LanguageTag)
+		end).
+
+-spec language_range_ret(binary(), fun(), '*' | {binary(), binary()}) -> any().
+language_range_ret(Data, Fun, LanguageTag) ->
+	maybe_qparam(Data,
+		fun (Rest, Quality) ->
+				Fun(Rest, {LanguageTag, Quality})
+		end).
+
+-spec language_tag(binary(), fun()) -> any().
+language_tag(Data, Fun) ->
+	alpha(Data,
+		fun (_Rest, Tag) when byte_size(Tag) =:= 0; byte_size(Tag) > 8 ->
+				{error, badarg};
+			(<< $-, Rest/bits >>, Tag) ->
+				language_subtag(Rest, Fun, Tag, []);
+			(Rest, Tag) ->
+				Fun(Rest, {Tag, []})
+		end).
+
+-spec language_subtag(binary(), fun(), binary(), [binary()]) -> any().
+language_subtag(Data, Fun, Tag, Acc) ->
+	alpha(Data,
+		fun (_Rest, SubTag) when byte_size(SubTag) =:= 0;
+				byte_size(SubTag) > 8 -> {error, badarg};
+			(<< $-, Rest/bits >>, SubTag) ->
+				language_subtag(Rest, Fun, Tag, [SubTag|Acc]);
+			(Rest, SubTag) ->
+				Fun(Rest, {Tag, lists:reverse([SubTag|Acc])})
+		end).
+
+-spec maybe_qparam(binary(), fun()) -> any().
+maybe_qparam(Data, Fun) ->
+	whitespace(Data,
+		fun (<< $;, Rest/bits >>) ->
+			whitespace(Rest,
+				fun (Rest2) ->
+					qparam(Rest2, Fun)
+				end);
+			(Rest) ->
+				Fun(Rest, 1000)
 		end).
 
 %% @doc Parse a quality parameter string (for example q=0.500).
@@ -458,6 +501,24 @@ digits(<< C, Rest/bits >>, Fun, Acc)
 digits(Data, Fun, Acc) ->
 	Fun(Data, Acc).
 
+%% @doc Parse a list of case-insensitive alpha characters.
+%%
+%% Changes all characters to lowercase.
+-spec alpha(binary(), fun()) -> any().
+alpha(Data, Fun) ->
+	alpha(Data, Fun, <<>>).
+
+-spec alpha(binary(), fun(), binary()) -> any().
+alpha(<<>>, Fun, Acc) ->
+	Fun(<<>>, Acc);
+alpha(<< C, Rest/bits >>, Fun, Acc)
+		when C >= $a andalso C =< $z;
+			 C >= $A andalso C =< $Z ->
+	C2 = cowboy_bstr:char_to_lower(C),
+	alpha(Rest, Fun, << Acc/binary, C2 >>);
+alpha(Data, Fun, Acc) ->
+	Fun(Data, Acc).
+
 %% @doc Parse a case-insensitive token.
 %%
 %% Changes all characters to lowercase.
@@ -558,6 +619,25 @@ nonempty_charset_list_test_() ->
 		]}
 	],
 	[{V, fun() -> R = nonempty_list(V, fun conneg/2) end} || {V, R} <- Tests].
+
+nonempty_language_range_list_test_() ->
+	%% {Value, Result}
+	Tests = [
+		{<<"da, en-gb;q=0.8, en;q=0.7">>, [
+			{{<<"da">>, []}, 1000},
+			{{<<"en">>, [<<"gb">>]}, 800},
+			{{<<"en">>, []}, 700}
+		]},
+		{<<"en, en-US, en-cockney, i-cherokee, x-pig-latin">>, [
+			{{<<"en">>, []}, 1000},
+			{{<<"en">>, [<<"us">>]}, 1000},
+			{{<<"en">>, [<<"cockney">>]}, 1000},
+			{{<<"i">>, [<<"cherokee">>]}, 1000},
+			{{<<"x">>, [<<"pig">>, <<"latin">>]}, 1000}
+		]}
+	],
+	[{V, fun() -> R = nonempty_list(V, fun language_range/2) end}
+		|| {V, R} <- Tests].
 
 nonempty_token_list_test_() ->
 	%% {Value, Result}
