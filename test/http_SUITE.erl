@@ -1,4 +1,5 @@
 %% Copyright (c) 2011, Loïc Hoguin <essen@dev-extend.eu>
+%% Copyright (c) 2011, Anthony Ramine <nox@dev-extend.eu>
 %%
 %% Permission to use, copy, modify, and/or distribute this software for any
 %% purpose with or without fee is hereby granted, provided that the above
@@ -19,7 +20,7 @@
 -export([all/0, groups/0, init_per_suite/1, end_per_suite/1,
 	init_per_group/2, end_per_group/2]). %% ct.
 -export([chunked_response/1, headers_dupe/1, headers_huge/1,
-	keepalive_nl/1, nc_rand/1, nc_zero/1, pipeline/1, raw/1,
+	keepalive_nl/1, multipart/1, nc_rand/1, nc_zero/1, pipeline/1, raw/1,
 	ws0/1, ws8/1, ws8_single_bytes/1, ws8_init_shutdown/1,
 	ws13/1, ws_timeout_hibernate/1]). %% http.
 -export([http_200/1, http_404/1]). %% http and https.
@@ -35,7 +36,7 @@ groups() ->
 	[{http, [], [chunked_response, headers_dupe, headers_huge,
 		keepalive_nl, nc_rand, nc_zero, pipeline, raw,
 		ws0, ws8, ws8_single_bytes, ws8_init_shutdown, ws13,
-		ws_timeout_hibernate] ++ BaseTests},
+		ws_timeout_hibernate, multipart] ++ BaseTests},
 	{https, [], BaseTests}, {misc, [], [http_10_hostless]}].
 
 init_per_suite(Config) ->
@@ -100,6 +101,7 @@ init_http_dispatch() ->
 			{[<<"long_polling">>], http_handler_long_polling, []},
 			{[<<"headers">>, <<"dupe">>], http_handler,
 				[{headers, [{<<"Connection">>, <<"close">>}]}]},
+			{[<<"multipart">>], http_handler_multipart, []},
 			{[], http_handler, []}
 		]}
 	].
@@ -147,6 +149,24 @@ keepalive_nl_loop(Socket, N) ->
 	nomatch = binary:match(Data, <<"Connection: close">>),
 	ok = gen_tcp:send(Socket, "\r\n"), %% extra nl
 	keepalive_nl_loop(Socket, N - 1).
+
+multipart(Config) ->
+	Url = build_url("/multipart", Config),
+	Body = <<
+		"This is a preamble."
+		"\r\n--OHai\r\nX-Name:answer\r\n\r\n42"
+		"\r\n--OHai\r\nServer:Cowboy\r\n\r\nIt rocks!\r\n"
+		"\r\n--OHai--"
+		"This is an epiloque."
+	>>,
+	Request = {Url, [], "multipart/x-makes-no-sense; boundary=OHai", Body},
+	{ok, {{"HTTP/1.1", 200, "OK"}, _Headers, Response}} =
+		httpc:request(post, Request, [], [{body_format, binary}]),
+	Parts = binary_to_term(Response),
+	Parts = [
+		{[{<<"X-Name">>, <<"answer">>}], <<"42">>},
+		{[{'Server', <<"Cowboy">>}], <<"It rocks!\r\n">>}
+	].
 
 nc_rand(Config) ->
 	nc_reqs(Config, "/dev/urandom").
