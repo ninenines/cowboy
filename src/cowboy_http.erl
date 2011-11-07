@@ -17,10 +17,10 @@
 -module(cowboy_http).
 
 %% Parsing.
--export([list/2, nonempty_list/2, content_type/1,
+-export([list/2, nonempty_list/2, content_type/1, content_type_params/3,
 	media_range/2, conneg/2, language_range/2, entity_tag_match/1,
 	http_date/1, rfc1123_date/1, rfc850_date/1, asctime_date/1,
-	digits/1, token/2, token_ci/2, quoted_string/2]).
+	whitespace/2, digits/1, token/2, token_ci/2, quoted_string/2]).
 
 %% Interpretation.
 -export([connection_to_atom/1]).
