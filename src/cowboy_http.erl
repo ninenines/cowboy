@@ -17,7 +17,7 @@
 
 %% Parsing.
 -export([list/2, nonempty_list/2,
-	media_range/2, conneg/2, language_range/2,
+	media_range/2, conneg/2, language_range/2, entity_tag_match/1,
 	http_date/1, rfc1123_date/1, rfc850_date/1, asctime_date/1,
 	digits/1, token/2, token_ci/2, quoted_string/2]).
 
@@ -237,6 +237,30 @@ maybe_qparam(Data, Fun) ->
 -spec qparam(binary(), fun()) -> any().
 qparam(<< Q, $=, Data/bits >>, Fun) when Q =:= $q; Q =:= $Q ->
 	qvalue(Data, Fun).
+
+%% @doc Parse either a list of entity tags or a "*".
+-spec entity_tag_match(binary()) -> any().
+entity_tag_match(<< $*, Rest/bits >>) ->
+	whitespace(Rest,
+		fun (<<>>) -> '*';
+			(_Any) -> {error, badarg}
+		end);
+entity_tag_match(Data) ->
+	nonempty_list(Data, fun entity_tag/2).
+
+%% @doc Parse an entity-tag.
+-spec entity_tag(binary(), fun()) -> any().
+entity_tag(<< "W/", Rest/bits >>, Fun) ->
+	opaque_tag(Rest, Fun, weak);
+entity_tag(Data, Fun) ->
+	opaque_tag(Data, Fun, strong).
+
+-spec opaque_tag(binary(), fun(), weak | strong) -> any().
+opaque_tag(Data, Fun, Strength) ->
+	quoted_string(Data,
+		fun (_Rest, <<>>) -> {error, badarg};
+			(Rest, OpaqueTag) -> Fun(Rest, {Strength, OpaqueTag})
+		end).
 
 %% @doc Parse an HTTP date (RFC1123, RFC850 or asctime date).
 %% @end
@@ -692,6 +716,18 @@ media_range_list_test_() ->
 		]}
 	],
 	[{V, fun() -> R = list(V, fun media_range/2) end} || {V, R} <- Tests].
+
+entity_tag_match_test_() ->
+	%% {Tokens, Result}
+	Tests = [
+		{<<"\"xyzzy\"">>, [{strong, <<"xyzzy">>}]},
+		{<<"\"xyzzy\", W/\"r2d2xxxx\", \"c3piozzzz\"">>,
+			[{strong, <<"xyzzy">>},
+			 {weak, <<"r2d2xxxx">>},
+			 {strong, <<"c3piozzzz">>}]},
+		{<<"*">>, '*'}
+	],
+	[{V, fun() -> R = entity_tag_match(V) end} || {V, R} <- Tests].
 
 http_date_test_() ->
 	%% {Tokens, Result}

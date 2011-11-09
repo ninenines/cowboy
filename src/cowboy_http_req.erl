@@ -205,6 +205,8 @@ parse_header_default('Accept-Charset') -> [];
 parse_header_default('Accept-Encoding') -> [];
 parse_header_default('Accept-Language') -> [];
 parse_header_default('Connection') -> [];
+parse_header_default('If-Match') -> '*';
+parse_header_default('If-None-Match') -> '*';
 parse_header_default(_Name) -> undefined.
 
 %% @doc Semantically parse headers.
@@ -241,6 +243,12 @@ parse_header(Name, Req, Default) when Name =:= 'Content-Length' ->
 	parse_header(Name, Req, Default,
 		fun (Value) ->
 			cowboy_http:digits(Value)
+		end);
+parse_header(Name, Req, Default)
+		when Name =:= 'If-Match'; Name =:= 'If-None-Match' ->
+	parse_header(Name, Req, Default,
+		fun (Value) ->
+			cowboy_http:entity_tag_match(Value)
 		end);
 parse_header(Name, Req, Default)
 		when Name =:= 'If-Modified-Since'; Name =:= 'If-Unmodified-Since' ->
