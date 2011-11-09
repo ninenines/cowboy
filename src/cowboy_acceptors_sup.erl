@@ -38,6 +38,6 @@ init([NbAcceptors, Transport, TransOpts,
 	Procs = [{{acceptor, self(), N}, {cowboy_acceptor, start_link, [
 				LSocket, Transport, Protocol, ProtoOpts,
 				MaxConns, ListenerPid, ReqsPid
-			]}, permanent, brutal_kill, worker, dynamic}
+      ]}, permanent, brutal_kill, worker, []}
 		|| N <- lists:seq(1, NbAcceptors)],
 	{ok, {{one_for_one, 10, 10}, Procs}}.

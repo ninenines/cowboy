@@ -30,9 +30,15 @@
 %% API.
 
 %% @private
+%%
+%% We set the process priority to high because cowboy_listener is the central
+%% gen_server in Cowboy and is used to manage all the incoming connections.
+%% Setting the process priority to high ensures the connection-related code
+%% will always be executed when a connection needs it, allowing Cowboy to
+%% scale far beyond what it would with a normal priority.
 -spec start_link() -> {ok, pid()}.
 start_link() ->
-	gen_server:start_link(?MODULE, [], []).
+	gen_server:start_link(?MODULE, [], [{spawn_opt, [{priority, high}]}]).
 
 %% @private
 -spec stop(pid()) -> stopped.
