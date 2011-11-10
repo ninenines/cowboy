@@ -1,4 +1,5 @@
 %% Copyright (c) 2011, Loïc Hoguin <essen@dev-extend.eu>
+%% Copyright (c) 2011, Anthony Ramine <nox@dev-extend.eu>
 %%
 %% Permission to use, copy, modify, and/or distribute this software for any
 %% purpose with or without fee is hereby granted, provided that the above
@@ -16,7 +17,7 @@
 -module(cowboy_http).
 
 %% Parsing.
--export([list/2, nonempty_list/2,
+-export([list/2, nonempty_list/2, content_type/1,
 	media_range/2, conneg/2, language_range/2, entity_tag_match/1,
 	http_date/1, rfc1123_date/1, rfc850_date/1, asctime_date/1,
 	digits/1, token/2, token_ci/2, quoted_string/2]).
@@ -66,16 +67,47 @@ list(Data, Fun, Acc) ->
 				end)
 		end).
 
+%% @doc Parse a content type.
+-spec content_type(binary()) -> any().
+content_type(Data) ->
+	media_type(Data,
+		fun (Rest, Type, SubType) ->
+				content_type_params(Rest,
+					fun (Params) -> {Type, SubType, Params} end, [])
+		end).
+
+-spec content_type_params(binary(), fun(), list({binary(), binary()}))
+	-> any().
+content_type_params(Data, Fun, Acc) ->
+	whitespace(Data,
+		fun (<< $;, Rest/bits >>) -> content_type_param(Rest, Fun, Acc);
+			(<<>>) -> Fun(lists:reverse(Acc));
+			(_Rest) -> {error, badarg}
+		end).
+
+-spec content_type_param(binary(), fun(), list({binary(), binary()}))
+	-> any().
+content_type_param(Data, Fun, Acc) ->
+	whitespace(Data,
+		fun (Rest) ->
+				token_ci(Rest,
+					fun (_Rest2, <<>>) -> {error, badarg};
+						(<< $=, Rest2/bits >>, Attr) ->
+							word(Rest2,
+								fun (Rest3, Value) ->
+										content_type_params(Rest3, Fun,
+											[{Attr, Value}|Acc])
+								end);
+						(_Rest2, _Attr) -> {error, badarg}
+					end)
+		end).
+
 %% @doc Parse a media range.
 -spec media_range(binary(), fun()) -> any().
 media_range(Data, Fun) ->
-	token_ci(Data,
-		fun (_Rest, <<>>) -> {error, badarg};
-			(<< $/, Rest/bits >>, Type) -> token_ci(Rest,
-				fun (_Rest2, <<>>) -> {error, badarg};
-					(Rest2, SubType) ->
-						media_range_params(Rest2, Fun, Type, SubType, [])
-				end)
+	media_type(Data,
+		fun (Rest, Type, SubType) ->
+			media_range_params(Rest, Fun, Type, SubType, [])
 		end).
 
 -spec media_range_params(binary(), fun(), binary(), binary(),
@@ -106,19 +138,24 @@ media_range_param_value(Data, Fun, Type, SubType, Acc, <<"q">>) ->
 		fun (Rest, Quality) ->
 			accept_ext(Rest, Fun, Type, SubType, Acc, Quality, [])
 		end);
-media_range_param_value(Data = << $", _/bits >>, Fun,
-		Type, SubType, Acc, Attr) ->
-	quoted_string(Data,
+media_range_param_value(Data, Fun, Type, SubType, Acc, Attr) ->
+	word(Data,
 		fun (Rest, Value) ->
 			media_range_params(Rest, Fun,
 				Type, SubType, [{Attr, Value}|Acc])
-		end);
-media_range_param_value(Data, Fun, Type, SubType, Acc, Attr) ->
-	token(Data,
+		end).
+
+%% @doc Parse a media type.
+-spec media_type(binary(), fun()) -> any().
+media_type(Data, Fun) ->
+	token_ci(Data,
 		fun (_Rest, <<>>) -> {error, badarg};
-			(Rest, Value) ->
-				media_range_params(Rest, Fun,
-					Type, SubType, [{Attr, Value}|Acc])
+			(<< $/, Rest/bits >>, Type) ->
+				token_ci(Rest,
+					fun (_Rest2, <<>>) -> {error, badarg};
+						(Rest2, SubType) -> Fun(Rest2, Type, SubType)
+					end);
+			(_Rest, _Type) -> {error, badarg}
 		end).
 
 -spec accept_ext(binary(), fun(), binary(), binary(),
@@ -154,17 +191,9 @@ accept_ext_attr(Data, Fun, Type, SubType, Params, Quality, Acc) ->
 -spec accept_ext_value(binary(), fun(), binary(), binary(),
 	[{binary(), binary()}], 0..1000,
 	[{binary(), binary()} | binary()], binary()) -> any().
-accept_ext_value(Data = << $", _/bits >>, Fun,
-		Type, SubType, Params, Quality, Acc, Attr) ->
-	quoted_string(Data,
-		fun (Rest, Value) ->
-				accept_ext(Rest, Fun,
-					Type, SubType, Params, Quality, [{Attr, Value}|Acc])
-		end);
 accept_ext_value(Data, Fun, Type, SubType, Params, Quality, Acc, Attr) ->
-	token(Data,
-		fun (_Rest, <<>>) -> {error, badarg};
-			(Rest, Value) ->
+	word(Data,
+		fun (Rest, Value) ->
 				accept_ext(Rest, Fun,
 					Type, SubType, Params, Quality, [{Attr, Value}|Acc])
 		end).
@@ -543,6 +572,16 @@ alpha(<< C, Rest/bits >>, Fun, Acc)
 alpha(Data, Fun, Acc) ->
 	Fun(Data, Acc).
 
+%% @doc Parse either a token or a quoted string.
+-spec word(binary(), fun()) -> any().
+word(Data = << $", _/bits >>, Fun) ->
+	quoted_string(Data, Fun);
+word(Data, Fun) ->
+	token(Data,
+		fun (_Rest, <<>>) -> {error, badarg};
+			(Rest, Token) -> Fun(Rest, Token)
+		end).
+
 %% @doc Parse a case-insensitive token.
 %%
 %% Changes all characters to lowercase.
@@ -768,6 +807,23 @@ connection_to_atom_test_() ->
 	],
 	[{lists:flatten(io_lib:format("~p", [T])),
 		fun() -> R = connection_to_atom(T) end} || {T, R} <- Tests].
+
+content_type_test_() ->
+	%% {ContentType, Result}
+	Tests = [
+		{<<"text/plain; charset=iso-8859-4">>,
+			{<<"text">>, <<"plain">>, [{<<"charset">>, <<"iso-8859-4">>}]}},
+		{<<"multipart/form-data  \t;Boundary=\"MultipartIsUgly\"">>,
+			{<<"multipart">>, <<"form-data">>, [
+				{<<"boundary">>, <<"MultipartIsUgly">>}
+			]}},
+		{<<"foo/bar; one=FirstParam; two=SecondParam">>,
+			{<<"foo">>, <<"bar">>, [
+				{<<"one">>, <<"FirstParam">>},
+				{<<"two">>, <<"SecondParam">>}
+			]}}
+	],
+	[{V, fun () -> R = content_type(V) end} || {V, R} <- Tests].
 
 digits_test_() ->
 	%% {Digits, Result}
