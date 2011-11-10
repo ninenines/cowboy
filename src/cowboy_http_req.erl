@@ -244,6 +244,11 @@ parse_header(Name, Req, Default) when Name =:= 'Content-Length' ->
 		fun (Value) ->
 			cowboy_http:digits(Value)
 		end);
+parse_header(Name, Req, Default) when Name =:= 'Content-Type' ->
+	parse_header(Name, Req, Default,
+		fun (Value) ->
+			cowboy_http:content_type(Value)
+		end);
 parse_header(Name, Req, Default)
 		when Name =:= 'If-Match'; Name =:= 'If-None-Match' ->
 	parse_header(Name, Req, Default,
