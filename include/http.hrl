@@ -37,6 +37,13 @@
 -type http_cookies() :: list({binary(), binary()}).
 -type http_status() :: non_neg_integer() | binary().
 
+%% @todo Improve this type.
+-type multipart_data() ::
+	{headers, http_headers()} |
+	{data, binary()} |
+	end_of_part |
+	eof.
+
 -record(http_req, {
 	%% Transport.
 	socket     = undefined :: undefined | inet:socket(),
@@ -62,7 +69,8 @@
 	cookies    = undefined :: undefined | http_cookies(),
 
 	%% Request body.
-	body_state = waiting   :: waiting | done,
+	body_state = waiting   :: waiting | done |
+							  {multipart, non_neg_integer(), fun()},
 	buffer     = <<>>      :: binary(),
 
 	%% Response.
