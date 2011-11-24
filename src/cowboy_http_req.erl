@@ -200,10 +200,10 @@ parse_header(Name, Req=#http_req{p_headers=PHeaders}) ->
 
 %% @doc Default values for semantic header parsing.
 -spec parse_header_default(http_header()) -> any().
-parse_header_default('Accept') -> [];
-parse_header_default('Accept-Charset') -> [];
-parse_header_default('Accept-Encoding') -> [];
-parse_header_default('Accept-Language') -> [];
+parse_header_default('Accept') -> undefined;
+parse_header_default('Accept-Charset') -> undefined;
+parse_header_default('Accept-Encoding') -> undefined;
+parse_header_default('Accept-Language') -> undefined;
 parse_header_default('Connection') -> [];
 parse_header_default('If-Match') -> '*';
 parse_header_default('If-None-Match') -> '*';
