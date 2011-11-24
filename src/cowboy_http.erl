@@ -221,7 +221,7 @@ language_range(Data, Fun) ->
 				language_range_ret(Rest, Fun, LanguageTag)
 		end).
 
--spec language_range_ret(binary(), fun(), '*' | {binary(), binary()}) -> any().
+-spec language_range_ret(binary(), fun(), '*' | {binary(), [binary()]}) -> any().
 language_range_ret(Data, Fun, LanguageTag) ->
 	maybe_qparam(Data,
 		fun (Rest, Quality) ->
