@@ -21,7 +21,8 @@
 -export([chunked_response/1, headers_dupe/1, headers_huge/1,
 	keepalive_nl/1, nc_rand/1, nc_zero/1, pipeline/1, raw/1,
 	ws0/1, ws8/1, ws8_single_bytes/1, ws8_init_shutdown/1,
-	ws13/1, ws_timeout_hibernate/1]). %% http.
+	ws13/1, ws_timeout_hibernate/1, set_resp_header/1,
+	set_resp_overwrite/1, set_resp_body/1]). %% http.
 -export([http_200/1, http_404/1]). %% http and https.
 -export([http_10_hostless/1]). %% misc.
 
@@ -35,7 +36,8 @@ groups() ->
 	[{http, [], [chunked_response, headers_dupe, headers_huge,
 		keepalive_nl, nc_rand, nc_zero, pipeline, raw,
 		ws0, ws8, ws8_single_bytes, ws8_init_shutdown, ws13,
-		ws_timeout_hibernate] ++ BaseTests},
+		ws_timeout_hibernate, set_resp_header,
+		set_resp_overwrite, set_resp_body] ++ BaseTests},
 	{https, [], BaseTests}, {misc, [], [http_10_hostless]}].
 
 init_per_suite(Config) ->
@@ -100,6 +102,12 @@ init_http_dispatch() ->
 			{[<<"long_polling">>], http_handler_long_polling, []},
 			{[<<"headers">>, <<"dupe">>], http_handler,
 				[{headers, [{<<"Connection">>, <<"close">>}]}]},
+			{[<<"set_resp">>, <<"header">>], http_handler_set_resp,
+				[{headers, [{<<"Vary">>, <<"Accept">>}]}]},
+			{[<<"set_resp">>, <<"overwrite">>], http_handler_set_resp,
+				[{headers, [{<<"Server">>, <<"DesireDrive/1.0">>}]}]},
+			{[<<"set_resp">>, <<"body">>], http_handler_set_resp,
+				[{body, <<"A flameless dance does not equal a cycle">>}]},
 			{[], http_handler, []}
 		]}
 	].
@@ -478,6 +486,34 @@ websocket_headers({ok, {http_header, _I, Key, _R, Value}, Rest}, Acc) ->
 	F = fun(S) when is_atom(S) -> S; (S) -> string:to_lower(S) end,
 	websocket_headers(erlang:decode_packet(httph, Rest, []),
 		[{F(Key), Value}|Acc]).
+
+set_resp_header(Config) ->
+	{port, Port} = lists:keyfind(port, 1, Config),
+	{ok, Socket} = gen_tcp:connect("localhost", Port,
+		[binary, {active, false}, {packet, raw}]),
+	ok = gen_tcp:send(Socket, "GET /set_resp/header HTTP/1.1\r\n"
+		"Host: localhost\r\nConnection: close\r\n\r\n"),
+	{ok, Data} = gen_tcp:recv(Socket, 0, 6000),
+	{_Start, _Length} = binary:match(Data, <<"Vary: Accept">>).
+
+set_resp_overwrite(Config) ->
+	{port, Port} = lists:keyfind(port, 1, Config),
+	{ok, Socket} = gen_tcp:connect("localhost", Port,
+		[binary, {active, false}, {packet, raw}]),
+	ok = gen_tcp:send(Socket, "GET /set_resp/overwrite HTTP/1.1\r\n"
+		"Host: localhost\r\nConnection: close\r\n\r\n"),
+	{ok, Data} = gen_tcp:recv(Socket, 0, 6000),
+	{_Start, _Length} = binary:match(Data, <<"Server: DesireDrive/1.0">>).
+
+set_resp_body(Config) ->
+	{port, Port} = lists:keyfind(port, 1, Config),
+	{ok, Socket} = gen_tcp:connect("localhost", Port,
+		[binary, {active, false}, {packet, raw}]),
+	ok = gen_tcp:send(Socket, "GET /set_resp/body HTTP/1.1\r\n"
+		"Host: localhost\r\nConnection: close\r\n\r\n"),
+	{ok, Data} = gen_tcp:recv(Socket, 0, 6000),
+	{_Start, _Length} = binary:match(Data, <<"\r\n\r\n"
+		"A flameless dance does not equal a cycle">>).
 
 %% http and https.
 

@@ -37,6 +37,8 @@
 ]). %% Request Body API.
 
 -export([
+	set_resp_header/3, set_resp_body/2,
+	has_resp_header/2, has_resp_body/1,
 	reply/2, reply/3, reply/4,
 	chunked_reply/2, chunked_reply/3, chunk/2,
 	upgrade_reply/3
@@ -360,24 +362,50 @@ body_qs(Req) ->
 
 %% Response API.
 
+%% @doc Add a header to the response.
+-spec set_resp_header(http_header(), binary(), #http_req{})
+	-> {ok, #http_req{}}.
+set_resp_header(Name, Value, Req=#http_req{resp_headers=RespHeaders}) ->
+	NameBin = header_to_binary(Name),
+	{ok, Req#http_req{resp_headers=[{NameBin, Value}|RespHeaders]}}.
+
+%% @doc Add a body to the response.
+%%
+%% The body set here is ignored if the response is later sent using
+%% anything other than reply/2 or reply/3.
+-spec set_resp_body(binary(), #http_req{}) -> {ok, #http_req{}}.
+set_resp_body(Body, Req) ->
+	{ok, Req#http_req{resp_body=Body}}.
+
+%% @doc Return whether the given header has been set for the response.
+-spec has_resp_header(http_header(), #http_req{}) -> boolean().
+has_resp_header(Name, #http_req{resp_headers=RespHeaders}) ->
+	NameBin = header_to_binary(Name),
+	lists:keymember(NameBin, 1, RespHeaders).
+
+%% @doc Return whether a body has been set for the response.
+-spec has_resp_body(#http_req{}) -> boolean().
+has_resp_body(#http_req{resp_body=RespBody}) ->
+	byte_size(RespBody) > 0.
+
 %% @equiv reply(Status, [], [], Req)
 -spec reply(http_status(), #http_req{}) -> {ok, #http_req{}}.
-reply(Status, Req) ->
-	reply(Status, [], [], Req).
+reply(Status, Req=#http_req{resp_body=Body}) ->
+	reply(Status, [], Body, Req).
 
 %% @equiv reply(Status, Headers, [], Req)
 -spec reply(http_status(), http_headers(), #http_req{}) -> {ok, #http_req{}}.
-reply(Status, Headers, Req) ->
-	reply(Status, Headers, [], Req).
+reply(Status, Headers, Req=#http_req{resp_body=Body}) ->
+	reply(Status, Headers, Body, Req).
 
 %% @doc Send a reply to the client.
 -spec reply(http_status(), http_headers(), iodata(), #http_req{})
 	-> {ok, #http_req{}}.
 reply(Status, Headers, Body, Req=#http_req{socket=Socket,
 		transport=Transport, connection=Connection,
-		method=Method, resp_state=waiting}) ->
+		method=Method, resp_state=waiting, resp_headers=RespHeaders}) ->
 	RespConn = response_connection(Headers, Connection),
-	Head = response_head(Status, Headers, [
+	Head = response_head(Status, Headers, RespHeaders, [
 		{<<"Connection">>, atom_to_connection(Connection)},
 		{<<"Content-Length">>,
 			list_to_binary(integer_to_list(iolist_size(Body)))},
@@ -388,7 +416,8 @@ reply(Status, Headers, Body, Req=#http_req{socket=Socket,
 		'HEAD' -> Transport:send(Socket, Head);
 		_ -> Transport:send(Socket, [Head, Body])
 	end,
-	{ok, Req#http_req{connection=RespConn, resp_state=done}}.
+	{ok, Req#http_req{connection=RespConn, resp_state=done,
+		resp_headers=[], resp_body= <<>>}}.
 
 %% @equiv chunked_reply(Status, [], Req)
 -spec chunked_reply(http_status(), #http_req{}) -> {ok, #http_req{}}.
@@ -400,16 +429,17 @@ chunked_reply(Status, Req) ->
 -spec chunked_reply(http_status(), http_headers(), #http_req{})
 	-> {ok, #http_req{}}.
 chunked_reply(Status, Headers, Req=#http_req{socket=Socket, transport=Transport,
-		connection=Connection, resp_state=waiting}) ->
+		connection=Connection, resp_state=waiting, resp_headers=RespHeaders}) ->
 	RespConn = response_connection(Headers, Connection),
-	Head = response_head(Status, Headers, [
+	Head = response_head(Status, Headers, RespHeaders, [
 		{<<"Connection">>, atom_to_connection(Connection)},
 		{<<"Transfer-Encoding">>, <<"chunked">>},
 		{<<"Date">>, cowboy_clock:rfc1123()},
 		{<<"Server">>, <<"Cowboy">>}
 	]),
 	Transport:send(Socket, Head),
-	{ok, Req#http_req{connection=RespConn, resp_state=chunks}}.
+	{ok, Req#http_req{connection=RespConn, resp_state=chunks,
+		resp_headers=[], resp_body= <<>>}}.
 
 %% @doc Send a chunk of data.
 %%
@@ -425,12 +455,12 @@ chunk(Data, #http_req{socket=Socket, transport=Transport, resp_state=chunks}) ->
 -spec upgrade_reply(http_status(), http_headers(), #http_req{})
 	-> {ok, #http_req{}}.
 upgrade_reply(Status, Headers, Req=#http_req{socket=Socket, transport=Transport,
-		resp_state=waiting}) ->
-	Head = response_head(Status, Headers, [
+		resp_state=waiting, resp_headers=RespHeaders}) ->
+	Head = response_head(Status, Headers, RespHeaders, [
 		{<<"Connection">>, <<"Upgrade">>}
 	]),
 	Transport:send(Socket, Head),
-	{ok, Req#http_req{resp_state=done}}.
+	{ok, Req#http_req{resp_state=done, resp_headers=[], resp_body= <<>>}}.
 
 %% Misc API.
 
@@ -478,15 +508,27 @@ response_connection_parse(ReplyConn) ->
 	Tokens = cowboy_http:nonempty_list(ReplyConn, fun cowboy_http:token/2),
 	cowboy_http:connection_to_atom(Tokens).
 
--spec response_head(http_status(), http_headers(), http_headers()) -> iolist().
-response_head(Status, Headers, DefaultHeaders) ->
+-spec response_head(http_status(), http_headers(), http_headers(),
+	http_headers()) -> iolist().
+response_head(Status, Headers, RespHeaders, DefaultHeaders) ->
 	StatusLine = <<"HTTP/1.1 ", (status(Status))/binary, "\r\n">>,
 	Headers2 = [{header_to_binary(Key), Value} || {Key, Value} <- Headers],
-	Headers3 = lists:keysort(1, Headers2),
-	Headers4 = lists:ukeymerge(1, Headers3, DefaultHeaders),
-	Headers5 = [[Key, <<": ">>, Value, <<"\r\n">>]
-		|| {Key, Value} <- Headers4],
-	[StatusLine, Headers5, <<"\r\n">>].
+	Headers3 = merge_headers(
+		merge_headers(Headers2, RespHeaders),
+		DefaultHeaders),
+	Headers4 = [[Key, <<": ">>, Value, <<"\r\n">>]
+		|| {Key, Value} <- Headers3],
+	[StatusLine, Headers4, <<"\r\n">>].
+
+-spec merge_headers(http_headers(), http_headers()) -> http_headers().
+merge_headers(Headers, []) ->
+	Headers;
+merge_headers(Headers, [{Name, Value}|Tail]) ->
+	Headers2 = case lists:keymember(Name, 1, Headers) of
+		true -> Headers;
+		false -> Headers ++ [{Name, Value}]
+	end,
+	merge_headers(Headers2, Tail).
 
 -spec atom_to_connection(keepalive) -> <<_:80>>;
 						(close) -> <<_:40>>.

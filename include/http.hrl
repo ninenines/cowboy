@@ -66,5 +66,7 @@
 	buffer     = <<>>      :: binary(),
 
 	%% Response.
-	resp_state = waiting   :: locked | waiting | chunks | done
+	resp_state = waiting   :: locked | waiting | chunks | done,
+	resp_headers = []      :: http_headers(),
+	resp_body  = <<>>      :: binary()
 }).
