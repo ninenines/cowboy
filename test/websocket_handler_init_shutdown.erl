@@ -17,7 +17,7 @@ terminate(_Req, _State) ->
 	exit(badarg).
 
 websocket_init(_TransportName, Req, _Opts) ->
-	Req2 = cowboy_http_req:reply(403, Req),
+	{ok, Req2} = cowboy_http_req:reply(403, Req),
 	{shutdown, Req2}.
 
 websocket_handle(_Frame, _Req, _State) ->
