@@ -403,8 +403,8 @@ http_date_ret(Data, DateTime = {Date, _Time}) ->
 %% We never use it, pretty much just checks the wkday is right.
 -spec wkday(binary(), fun()) -> any().
 wkday(<< WkDay:3/binary, Rest/bits >>, Fun)
-		when WkDay =:= <<"Mon">>; WkDay =:= "Tue"; WkDay =:= "Wed";
-			 WkDay =:= <<"Thu">>; WkDay =:= "Fri"; WkDay =:= "Sat";
+		when WkDay =:= <<"Mon">>; WkDay =:= <<"Tue">>; WkDay =:= <<"Wed">>;
+			 WkDay =:= <<"Thu">>; WkDay =:= <<"Fri">>; WkDay =:= <<"Sat">>;
 			 WkDay =:= <<"Sun">> ->
 	Fun(Rest, WkDay);
 wkday(_Any, _Fun) ->
