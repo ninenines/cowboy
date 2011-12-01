@@ -236,7 +236,7 @@ language_tag(Data, Fun) ->
 			(<< $-, Rest/bits >>, Tag) ->
 				language_subtag(Rest, Fun, Tag, []);
 			(Rest, Tag) ->
-				Fun(Rest, {Tag, []})
+				Fun(Rest, Tag)
 		end).
 
 -spec language_subtag(binary(), fun(), binary(), [binary()]) -> any().
@@ -247,7 +247,9 @@ language_subtag(Data, Fun, Tag, Acc) ->
 			(<< $-, Rest/bits >>, SubTag) ->
 				language_subtag(Rest, Fun, Tag, [SubTag|Acc]);
 			(Rest, SubTag) ->
-				Fun(Rest, {Tag, lists:reverse([SubTag|Acc])})
+				%% Rebuild the full tag now that we know it's correct
+				Sub = << << $-, S/binary >> || S <- lists:reverse([SubTag|Acc]) >>,
+				Fun(Rest, << Tag/binary, Sub/binary >>)
 		end).
 
 -spec maybe_qparam(binary(), fun()) -> any().
@@ -687,16 +689,16 @@ nonempty_language_range_list_test_() ->
 	%% {Value, Result}
 	Tests = [
 		{<<"da, en-gb;q=0.8, en;q=0.7">>, [
-			{{<<"da">>, []}, 1000},
-			{{<<"en">>, [<<"gb">>]}, 800},
-			{{<<"en">>, []}, 700}
+			{<<"da">>, 1000},
+			{<<"en-gb">>, 800},
+			{<<"en">>, 700}
 		]},
 		{<<"en, en-US, en-cockney, i-cherokee, x-pig-latin">>, [
-			{{<<"en">>, []}, 1000},
-			{{<<"en">>, [<<"us">>]}, 1000},
-			{{<<"en">>, [<<"cockney">>]}, 1000},
-			{{<<"i">>, [<<"cherokee">>]}, 1000},
-			{{<<"x">>, [<<"pig">>, <<"latin">>]}, 1000}
+			{<<"en">>, 1000},
+			{<<"en-us">>, 1000},
+			{<<"en-cockney">>, 1000},
+			{<<"i-cherokee">>, 1000},
+			{<<"x-pig-latin">>, 1000}
 		]}
 	],
 	[{V, fun() -> R = nonempty_list(V, fun language_range/2) end}
