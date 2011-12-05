@@ -33,7 +33,7 @@
 	| 'Expires' | 'Last-Modified' | 'Accept-Ranges' | 'Set-Cookie'
 	| 'Set-Cookie2' | 'X-Forwarded-For' | 'Cookie' | 'Keep-Alive'
 	| 'Proxy-Connection' | binary().
--type http_headers() :: list({http_header(), binary()}).
+-type http_headers() :: list({http_header(), iodata()}).
 -type http_cookies() :: list({binary(), binary()}).
 -type http_status() :: non_neg_integer() | binary().
 

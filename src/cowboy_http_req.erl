@@ -363,7 +363,7 @@ body_qs(Req) ->
 %% Response API.
 
 %% @doc Add a header to the response.
--spec set_resp_header(http_header(), binary(), #http_req{})
+-spec set_resp_header(http_header(), iodata(), #http_req{})
 	-> {ok, #http_req{}}.
 set_resp_header(Name, Value, Req=#http_req{resp_headers=RespHeaders}) ->
 	NameBin = header_to_binary(Name),
@@ -373,7 +373,7 @@ set_resp_header(Name, Value, Req=#http_req{resp_headers=RespHeaders}) ->
 %%
 %% The body set here is ignored if the response is later sent using
 %% anything other than reply/2 or reply/3.
--spec set_resp_body(binary(), #http_req{}) -> {ok, #http_req{}}.
+-spec set_resp_body(iodata(), #http_req{}) -> {ok, #http_req{}}.
 set_resp_body(Body, Req) ->
 	{ok, Req#http_req{resp_body=Body}}.
 
