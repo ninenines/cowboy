@@ -107,6 +107,14 @@ handle(Req, State) ->
 terminate(Req, State) ->
     ok.
 ```
+**Note**: versions prior to `0.4.0` used the
+[quoted](https://github.com/klaar/quoted.erl) library instead of the built in
+`cowboy_http:urldecode/2` function. If you want to retain this you must add it
+as a dependency to your application and add the following cowboy_http_protocol
+option:
+
+    {urldecode, {fun quoted:from_url/2, quoted:make([])}}
+
 
 Continue reading to learn how to dispatch rules and handle requests.
 

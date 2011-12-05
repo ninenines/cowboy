@@ -16,7 +16,7 @@
 %% @doc Dispatch requests according to a hostname and path.
 -module(cowboy_dispatcher).
 
--export([split_host/1, split_path/1, match/3]). %% API.
+-export([split_host/1, split_path/2, match/3]). %% API.
 
 -type bindings() :: list({atom(), binary()}).
 -type tokens() :: list(binary()).
@@ -50,21 +50,22 @@ split_host(Host) ->
 %% Following RFC2396, this function may return path segments containing any
 %% character, including <em>/</em> if, and only if, a <em>/</em> was escaped
 %% and part of a path segment.
--spec split_path(binary()) -> {tokens(), binary(), binary()}.
-split_path(Path) ->
+-spec split_path(binary(), fun((binary()) -> binary())) ->
+		{tokens(), binary(), binary()}.
+split_path(Path, URLDec) ->
 	case binary:split(Path, <<"?">>) of
-		[Path] -> {do_split_path(Path, <<"/">>), Path, <<>>};
+		[Path] -> {do_split_path(Path, <<"/">>, URLDec), Path, <<>>};
 		[<<>>, Qs] -> {[], <<>>, Qs};
-		[Path2, Qs] -> {do_split_path(Path2, <<"/">>), Path2, Qs}
+		[Path2, Qs] -> {do_split_path(Path2, <<"/">>, URLDec), Path2, Qs}
 	end.
 
--spec do_split_path(binary(), <<_:8>>) -> tokens().
-do_split_path(RawPath, Separator) ->
+-spec do_split_path(binary(), <<_:8>>, fun((binary()) -> binary())) -> tokens().
+do_split_path(RawPath, Separator, URLDec) ->
 	EncodedPath = case binary:split(RawPath, Separator, [global, trim]) of
 		[<<>>|Path] -> Path;
 		Path -> Path
 	end,
-	[quoted:from_url(Token) || Token <- EncodedPath].
+	[URLDec(Token) || Token <- EncodedPath].
 
 %% @doc Match hostname tokens and path tokens against dispatch rules.
 %%
@@ -224,7 +225,8 @@ split_path_test_() ->
 			[<<"users">>, <<"a b">>, <<"c!d">>],
 			<<"/users/a+b/c%21d">>, <<"e+f=g+h">>}
 	],
-	[{P, fun() -> {R, RawP, Qs} = split_path(P) end}
+	URLDecode = fun(Bin) -> cowboy_http:urldecode(Bin, crash) end,
+	[{P, fun() -> {R, RawP, Qs} = split_path(P, URLDecode) end}
 		|| {P, R, RawP, Qs} <- Tests].
 
 match_test_() ->
