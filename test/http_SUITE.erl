@@ -25,11 +25,12 @@
 	set_resp_overwrite/1, set_resp_body/1]). %% http.
 -export([http_200/1, http_404/1]). %% http and https.
 -export([http_10_hostless/1]). %% misc.
+-export([rest_simple/1]). %% rest.
 
 %% ct.
 
 all() ->
-	[{group, http}, {group, https}, {group, misc}].
+	[{group, http}, {group, https}, {group, misc}, {group, rest}].
 
 groups() ->
 	BaseTests = [http_200, http_404],
@@ -38,7 +39,9 @@ groups() ->
 		ws0, ws8, ws8_single_bytes, ws8_init_shutdown, ws13,
 		ws_timeout_hibernate, set_resp_header,
 		set_resp_overwrite, set_resp_body] ++ BaseTests},
-	{https, [], BaseTests}, {misc, [], [http_10_hostless]}].
+	{https, [], BaseTests},
+	{misc, [], [http_10_hostless]},
+	{rest, [], [rest_simple]}].
 
 init_per_suite(Config) ->
 	application:start(inets),
@@ -76,6 +79,14 @@ init_per_group(misc, Config) ->
 		cowboy_tcp_transport, [{port, Port}],
 		cowboy_http_protocol, [{dispatch, [{'_', [
 			{[], http_handler, []}
+	]}]}]),
+	[{port, Port}|Config];
+init_per_group(rest, Config) ->
+	Port = 33083,
+	cowboy:start_listener(reset, 100,
+		cowboy_tcp_transport, [{port, Port}],
+		cowboy_http_protocol, [{dispatch, [{'_', [
+			{[<<"simple">>], rest_simple_resource, []}
 	]}]}]),
 	[{port, Port}|Config].
 
@@ -534,4 +545,10 @@ http_404(Config) ->
 
 http_10_hostless(Config) ->
 	Packet = "GET / HTTP/1.0\r\n\r\n",
+	{Packet, 200} = raw_req(Packet, Config).
+
+%% rest.
+
+rest_simple(Config) ->
+	Packet = "GET /simple HTTP/1.1\r\nHost: localhost\r\n\r\n",
 	{Packet, 200} = raw_req(Packet, Config).
