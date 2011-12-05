@@ -207,8 +207,8 @@ parse_header_default('Accept-Charset') -> undefined;
 parse_header_default('Accept-Encoding') -> undefined;
 parse_header_default('Accept-Language') -> undefined;
 parse_header_default('Connection') -> [];
-parse_header_default('If-Match') -> '*';
-parse_header_default('If-None-Match') -> '*';
+parse_header_default('If-Match') -> undefined;
+parse_header_default('If-None-Match') -> undefined;
 parse_header_default(_Name) -> undefined.
 
 %% @doc Semantically parse headers.
