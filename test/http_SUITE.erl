@@ -22,7 +22,7 @@
 	keepalive_nl/1, nc_rand/1, nc_zero/1, pipeline/1, raw/1,
 	ws0/1, ws8/1, ws8_single_bytes/1, ws8_init_shutdown/1,
 	ws13/1, ws_timeout_hibernate/1, set_resp_header/1,
-	set_resp_overwrite/1, set_resp_body/1]). %% http.
+	set_resp_overwrite/1, set_resp_body/1, response_as_req/1]). %% http.
 -export([http_200/1, http_404/1]). %% http and https.
 -export([http_10_hostless/1]). %% misc.
 -export([rest_simple/1]). %% rest.
@@ -37,8 +37,8 @@ groups() ->
 	[{http, [], [chunked_response, headers_dupe, headers_huge,
 		keepalive_nl, nc_rand, nc_zero, pipeline, raw,
 		ws0, ws8, ws8_single_bytes, ws8_init_shutdown, ws13,
-		ws_timeout_hibernate, set_resp_header,
-		set_resp_overwrite, set_resp_body] ++ BaseTests},
+		ws_timeout_hibernate, set_resp_header, set_resp_overwrite,
+		set_resp_body, response_as_req] ++ BaseTests},
 	{https, [], BaseTests},
 	{misc, [], [http_10_hostless]},
 	{rest, [], [rest_simple]}].
@@ -525,6 +525,27 @@ set_resp_body(Config) ->
 	{ok, Data} = gen_tcp:recv(Socket, 0, 6000),
 	{_Start, _Length} = binary:match(Data, <<"\r\n\r\n"
 		"A flameless dance does not equal a cycle">>).
+
+response_as_req(Config) ->
+	Packet =
+"HTTP/1.0 302 Found
+Location: http://www.google.co.il/
+Cache-Control: private
+Content-Type: text/html; charset=UTF-8
+Set-Cookie: PREF=ID=568f67013d4a7afa:FF=0:TM=1323014101:LM=1323014101:S=XqctDWC65MzKT0zC; expires=Tue, 03-Dec-2013 15:55:01 GMT; path=/; domain=.google.com
+Date: Sun, 04 Dec 2011 15:55:01 GMT
+Server: gws
+Content-Length: 221
+X-XSS-Protection: 1; mode=block
+X-Frame-Options: SAMEORIGIN
+
+<HTML><HEAD><meta http-equiv=\"content-type\" content=\"text/html;charset=utf-8\">
+<TITLE>302 Moved</TITLE></HEAD><BODY>
+<H1>302 Moved</H1>
+The document has moved
+<A HREF=\"http://www.google.co.il/\">here</A>.
+</BODY></HTML>",
+	{Packet, 400} = raw_req(Packet, Config).
 
 %% http and https.
 

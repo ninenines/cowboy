@@ -125,7 +125,7 @@ request({http_error, <<"\r\n">>},
 	error_terminate(400, State);
 request({http_error, <<"\r\n">>}, State=#state{req_empty_lines=N}) ->
 	parse_request(State#state{req_empty_lines=N + 1});
-request({http_error, _Any}, State) ->
+request(_Any, State) ->
 	error_terminate(400, State).
 
 -spec parse_header(#http_req{}, #state{}) -> ok | none().
