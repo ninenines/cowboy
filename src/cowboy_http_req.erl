@@ -341,12 +341,11 @@ body(Req) ->
 -spec body(non_neg_integer(), #http_req{})
 	-> {ok, binary(), #http_req{}} | {error, atom()}.
 body(Length, Req=#http_req{body_state=waiting, buffer=Buffer})
-		when Length =< byte_size(Buffer) ->
+		when is_integer(Length) andalso Length =< byte_size(Buffer) ->
 	<< Body:Length/binary, Rest/bits >> = Buffer,
 	{ok, Body, Req#http_req{body_state=done, buffer=Rest}};
 body(Length, Req=#http_req{socket=Socket, transport=Transport,
-		body_state=waiting, buffer=Buffer})
-		when is_integer(Length) andalso Length > byte_size(Buffer) ->
+		body_state=waiting, buffer=Buffer}) ->
 	case Transport:recv(Socket, Length - byte_size(Buffer), 5000) of
 		{ok, Body} -> {ok, << Buffer/binary, Body/binary >>,
 			Req#http_req{body_state=done, buffer= <<>>}};
