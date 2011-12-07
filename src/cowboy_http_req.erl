@@ -124,9 +124,9 @@ qs_val(Name, Req) when is_binary(Name) ->
 %% missing.
 -spec qs_val(binary(), #http_req{}, Default)
 	-> {binary() | true | Default, #http_req{}} when Default::any().
-qs_val(Name, Req=#http_req{raw_qs=RawQs, qs_vals=undefined}, Default)
-		when is_binary(Name) ->
-	QsVals = parse_qs(RawQs),
+qs_val(Name, Req=#http_req{raw_qs=RawQs, qs_vals=undefined,
+		urldecode={URLDecFun, URLDecArg}}, Default) when is_binary(Name) ->
+	QsVals = parse_qs(RawQs, fun(Bin) -> URLDecFun(Bin, URLDecArg) end),
 	qs_val(Name, Req#http_req{qs_vals=QsVals}, Default);
 qs_val(Name, Req, Default) ->
 	case lists:keyfind(Name, 1, Req#http_req.qs_vals) of
@@ -136,8 +136,9 @@ qs_val(Name, Req, Default) ->
 
 %% @doc Return the full list of query string values.
 -spec qs_vals(#http_req{}) -> {list({binary(), binary() | true}), #http_req{}}.
-qs_vals(Req=#http_req{raw_qs=RawQs, qs_vals=undefined}) ->
-	QsVals = parse_qs(RawQs),
+qs_vals(Req=#http_req{raw_qs=RawQs, qs_vals=undefined,
+		urldecode={URLDecFun, URLDecArg}}) ->
+	QsVals = parse_qs(RawQs, fun(Bin) -> URLDecFun(Bin, URLDecArg) end),
 	qs_vals(Req#http_req{qs_vals=QsVals});
 qs_vals(Req=#http_req{qs_vals=QsVals}) ->
 	{QsVals, Req}.
@@ -355,9 +356,9 @@ body(Length, Req=#http_req{socket=Socket, transport=Transport,
 %% @doc Return the full body sent with the reqest, parsed as an
 %% application/x-www-form-urlencoded string. Essentially a POST query string.
 -spec body_qs(#http_req{}) -> {list({binary(), binary() | true}), #http_req{}}.
-body_qs(Req) ->
+body_qs(Req=#http_req{urldecode={URLDecFun, URLDecArg}}) ->
 	{ok, Body, Req2} = body(Req),
-	{parse_qs(Body), Req2}.
+	{parse_qs(Body, fun(Bin) -> URLDecFun(Bin, URLDecArg) end), Req2}.
 
 %% Response API.
 
@@ -483,14 +484,15 @@ compact(Req) ->
 
 %% Internal.
 
--spec parse_qs(binary()) -> list({binary(), binary() | true}).
-parse_qs(<<>>) ->
+-spec parse_qs(binary(), fun((binary()) -> binary())) ->
+		list({binary(), binary() | true}).
+parse_qs(<<>>, _URLDecode) ->
 	[];
-parse_qs(Qs) ->
+parse_qs(Qs, URLDecode) ->
 	Tokens = binary:split(Qs, <<"&">>, [global, trim]),
 	[case binary:split(Token, <<"=">>) of
-		[Token] -> {quoted:from_url(Token), true};
-		[Name, Value] -> {quoted:from_url(Name), quoted:from_url(Value)}
+		[Token] -> {URLDecode(Token), true};
+		[Name, Value] -> {URLDecode(Name), URLDecode(Value)}
 	end || Token <- Tokens].
 
 -spec response_connection(http_headers(), keepalive | close)
@@ -670,6 +672,7 @@ parse_qs_test_() ->
 		{<<"a=b=c=d=e&f=g">>, [{<<"a">>, <<"b=c=d=e">>}, {<<"f">>, <<"g">>}]},
 		{<<"a+b=c+d">>, [{<<"a b">>, <<"c d">>}]}
 	],
-	[{Qs, fun() -> R = parse_qs(Qs) end} || {Qs, R} <- Tests].
+	URLDecode = fun cowboy_http:urldecode/1,
+	[{Qs, fun() -> R = parse_qs(Qs, URLDecode) end} || {Qs, R} <- Tests].
 
 -endif.

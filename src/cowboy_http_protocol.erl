@@ -22,6 +22,9 @@
 %%   Defaults to 5.</dd>
 %%  <dt>timeout</dt><dd>Time in milliseconds before an idle
 %%   connection is closed. Defaults to 5000 milliseconds.</dd>
+%%  <dt>urldecode</dt><dd>Function and options argument to use when decoding
+%%   URL encoded strings. Defaults to `{fun cowboy_http:urldecode/2, crash}'.
+%%   </dd>
 %% </dl>
 %%
 %% Note that there is no need to monitor these processes when using Cowboy as
@@ -44,6 +47,7 @@
 	transport :: module(),
 	dispatch :: cowboy_dispatcher:dispatch_rules(),
 	handler :: {module(), any()},
+	urldecode :: {fun((binary(), T) -> binary()), T},
 	req_empty_lines = 0 :: integer(),
 	max_empty_lines :: integer(),
 	max_line_length :: integer(),
@@ -71,10 +75,12 @@ init(ListenerPid, Socket, Transport, Opts) ->
 	MaxEmptyLines = proplists:get_value(max_empty_lines, Opts, 5),
 	MaxLineLength = proplists:get_value(max_line_length, Opts, 4096),
 	Timeout = proplists:get_value(timeout, Opts, 5000),
+	URLDecDefault = {fun cowboy_http:urldecode/2, crash},
+	URLDec = proplists:get_value(urldecode, Opts, URLDecDefault),
 	receive shoot -> ok end,
 	wait_request(#state{listener=ListenerPid, socket=Socket, transport=Transport,
 		dispatch=Dispatch, max_empty_lines=MaxEmptyLines,
-		max_line_length=MaxLineLength, timeout=Timeout}).
+		max_line_length=MaxLineLength, timeout=Timeout, urldecode=URLDec}).
 
 %% @private
 -spec parse_request(#state{}) -> ok | none().
@@ -106,18 +112,20 @@ request({http_request, _Method, _URI, Version}, State)
 	error_terminate(505, State);
 %% @todo We need to cleanup the URI properly.
 request({http_request, Method, {abs_path, AbsPath}, Version},
-		State=#state{socket=Socket, transport=Transport}) ->
-	{Path, RawPath, Qs} = cowboy_dispatcher:split_path(AbsPath),
+		State=#state{socket=Socket, transport=Transport,
+		urldecode={URLDecFun, URLDecArg}=URLDec}) ->
+	URLDecode = fun(Bin) -> URLDecFun(Bin, URLDecArg) end,
+	{Path, RawPath, Qs} = cowboy_dispatcher:split_path(AbsPath, URLDecode),
 	ConnAtom = version_to_connection(Version),
 	parse_header(#http_req{socket=Socket, transport=Transport,
 		connection=ConnAtom, method=Method, version=Version,
-		path=Path, raw_path=RawPath, raw_qs=Qs}, State);
+		path=Path, raw_path=RawPath, raw_qs=Qs, urldecode=URLDec}, State);
 request({http_request, Method, '*', Version},
-		State=#state{socket=Socket, transport=Transport}) ->
+		State=#state{socket=Socket, transport=Transport, urldecode=URLDec}) ->
 	ConnAtom = version_to_connection(Version),
 	parse_header(#http_req{socket=Socket, transport=Transport,
 		connection=ConnAtom, method=Method, version=Version,
-		path='*', raw_path= <<"*">>, raw_qs= <<>>}, State);
+		path='*', raw_path= <<"*">>, raw_qs= <<>>, urldecode=URLDec}, State);
 request({http_request, _Method, _URI, _Version}, State) ->
 	error_terminate(501, State);
 request({http_error, <<"\r\n">>},

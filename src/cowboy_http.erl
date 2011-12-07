@@ -23,7 +23,7 @@
 	digits/1, token/2, token_ci/2, quoted_string/2]).
 
 %% Interpretation.
--export([connection_to_atom/1]).
+-export([connection_to_atom/1, urldecode/1, urldecode/2]).
 
 -include("include/http.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -670,6 +670,46 @@ connection_to_atom([<<"close">>|_Tail]) ->
 connection_to_atom([_Any|Tail]) ->
 	connection_to_atom(Tail).
 
+%% @doc Decode a URL encoded binary.
+%% @equiv urldecode(Bin, crash)
+-spec urldecode(binary()) -> binary().
+urldecode(Bin) when is_binary(Bin) ->
+	urldecode(Bin, <<>>, crash).
+
+%% @doc Decode a URL encoded binary.
+%% The second argument specifies how to handle percent characters that are not
+%% followed by two valid hex characters. Use `skip' to ignore such errors,
+%% if `crash' is used the function will fail with the reason `badarg'.
+-spec urldecode(binary(), crash | skip) -> binary().
+urldecode(Bin, OnError) when is_binary(Bin) ->
+	urldecode(Bin, <<>>, OnError).
+
+-spec urldecode(binary(), binary(), crash | skip) -> binary().
+urldecode(<<$%, H, L, Rest/binary>>, Acc, OnError) ->
+	G = unhex(H),
+	M = unhex(L),
+	if	G =:= error; M =:= error ->
+		case OnError of skip -> ok; crash -> erlang:error(badarg) end,
+		urldecode(<<H, L, Rest/binary>>, <<Acc/binary, $%>>, OnError);
+		true ->
+		urldecode(Rest, <<Acc/binary, (G bsl 4 bor M)>>, OnError)
+	end;
+urldecode(<<$%, Rest/binary>>, Acc, OnError) ->
+	case OnError of skip -> ok; crash -> erlang:error(badarg) end,
+	urldecode(Rest, <<Acc/binary, $%>>, OnError);
+urldecode(<<$+, Rest/binary>>, Acc, OnError) ->
+	urldecode(Rest, <<Acc/binary, $ >>, OnError);
+urldecode(<<C, Rest/binary>>, Acc, OnError) ->
+	urldecode(Rest, <<Acc/binary, C>>, OnError);
+urldecode(<<>>, Acc, _OnError) ->
+	Acc.
+
+-spec unhex(byte()) -> byte() | error.
+unhex(C) when C >= $0, C =< $9 -> C - $0;
+unhex(C) when C >= $A, C =< $F -> C - $A + 10;
+unhex(C) when C >= $a, C =< $f -> C - $a + 10;
+unhex(_) -> error.
+
 %% Tests.
 
 -ifdef(TEST).
@@ -835,5 +875,14 @@ digits_test_() ->
 		{<<"1337">>, 1337}
 	],
 	[{V, fun() -> R = digits(V) end} || {V, R} <- Tests].
+
+urldecode_test_() ->
+	Tests = [
+		{<<" ">>, <<"%20">>},
+		{<<" ">>, <<"+">>},
+		{<<0>>, <<"%00">>},
+		{<<255>>, <<"%fF">>}
+	],
+	[{I, ?_assertEqual(E, urldecode(I))} || {E, I} <- Tests].
 
 -endif.
