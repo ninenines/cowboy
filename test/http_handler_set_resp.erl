@@ -13,7 +13,9 @@ init({_Transport, http}, Req, Opts) ->
 	{ok, Req3} = cowboy_http_req:set_resp_body(Body, Req2),
 	{ok, Req4} = cowboy_http_req:set_resp_header(
 		<<"X-Cowboy-Test">>, <<"ok">>, Req3),
-	{ok, Req4, undefined}.
+	{ok, Req5} = cowboy_http_req:set_resp_cookie(
+		<<"cake">>, <<"lie">>, [], Req4),
+	{ok, Req5, undefined}.
 
 handle(Req, State) ->
 	case cowboy_http_req:has_resp_header(<<"X-Cowboy-Test">>, Req) of

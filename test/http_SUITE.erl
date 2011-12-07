@@ -505,7 +505,8 @@ set_resp_header(Config) ->
 	ok = gen_tcp:send(Socket, "GET /set_resp/header HTTP/1.1\r\n"
 		"Host: localhost\r\nConnection: close\r\n\r\n"),
 	{ok, Data} = gen_tcp:recv(Socket, 0, 6000),
-	{_Start, _Length} = binary:match(Data, <<"Vary: Accept">>).
+	{_, _} = binary:match(Data, <<"Vary: Accept">>),
+	{_, _} = binary:match(Data, <<"Set-Cookie: ">>).
 
 set_resp_overwrite(Config) ->
 	{port, Port} = lists:keyfind(port, 1, Config),

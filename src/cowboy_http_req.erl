@@ -37,7 +37,7 @@
 ]). %% Request Body API.
 
 -export([
-	set_resp_header/3, set_resp_body/2,
+	set_resp_cookie/4, set_resp_header/3, set_resp_body/2,
 	has_resp_header/2, has_resp_body/1,
 	reply/2, reply/3, reply/4,
 	chunked_reply/2, chunked_reply/3, chunk/2,
@@ -360,6 +360,13 @@ body_qs(Req) ->
 	{parse_qs(Body), Req2}.
 
 %% Response API.
+
+%% @doc Add a cookie header to the response.
+-spec set_resp_cookie(binary(), binary(), [cowboy_cookies:cookie_option()],
+	#http_req{}) -> {ok, #http_req{}}.
+set_resp_cookie(Name, Value, Options, Req) ->
+	{HeaderName, HeaderValue} = cowboy_cookies:cookie(Name, Value, Options),
+	set_resp_header(HeaderName, HeaderValue, Req).
 
 %% @doc Add a header to the response.
 -spec set_resp_header(http_header(), iodata(), #http_req{})
