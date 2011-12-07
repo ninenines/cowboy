@@ -60,7 +60,7 @@ split_path(Path) ->
 
 -spec do_split_path(binary(), <<_:8>>) -> tokens().
 do_split_path(RawPath, Separator) ->
-	EncodedPath = case binary:split(RawPath, Separator, [global, trim]) of
+	EncodedPath = case binary:split(RawPath, Separator, [global]) of
 		[<<>>|Path] -> Path;
 		Path -> Path
 	end,
