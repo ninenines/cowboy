@@ -81,8 +81,12 @@ service_available(Req, State) ->
 
 known_methods(Req=#http_req{method=Method}, State) ->
 	case call(Req, State, known_methods) of
-		no_call ->
+		no_call when Method =:= 'HEAD'; Method =:= 'GET'; Method =:= 'POST';
+					Method =:= 'PUT'; Method =:= 'DELETE'; Method =:= 'TRACE';
+					Method =:= 'CONNECT'; Method =:= 'OPTIONS' ->
 			next(Req, State, fun uri_too_long/2);
+		no_call ->
+			next(Req, State, 501);
 		{List, Req2, HandlerState2} ->
 			State2 = State#state{handler_state=HandlerState2},
 			case lists:member(Method, List) of
@@ -96,8 +100,10 @@ uri_too_long(Req, State) ->
 
 allowed_methods(Req=#http_req{method=Method}, State) ->
 	case call(Req, State, allowed_methods) of
-		no_call ->
+		no_call when Method =:= 'HEAD'; Method =:= 'GET' ->
 			next(Req, State, fun malformed_request/2);
+		no_call ->
+			method_not_allowed(Req, State, ['GET', 'HEAD']);
 		{List, Req2, HandlerState2} ->
 			State2 = State#state{handler_state=HandlerState2},
 			case lists:member(Method, List) of
