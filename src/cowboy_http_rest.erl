@@ -79,6 +79,7 @@ upgrade(_ListenerPid, Handler, Opts, Req) ->
 service_available(Req, State) ->
 	expect(Req, State, service_available, true, fun known_methods/2, 503).
 
+%% known_methods/2 should return a list of atoms or binary methods.
 known_methods(Req=#http_req{method=Method}, State) ->
 	case call(Req, State, known_methods) of
 		no_call when Method =:= 'HEAD'; Method =:= 'GET'; Method =:= 'POST';
@@ -98,6 +99,7 @@ known_methods(Req=#http_req{method=Method}, State) ->
 uri_too_long(Req, State) ->
 	expect(Req, State, uri_too_long, false, fun allowed_methods/2, 414).
 
+%% allowed_methods/2 should return a list of atoms or binary methods.
 allowed_methods(Req=#http_req{method=Method}, State) ->
 	case call(Req, State, allowed_methods) of
 		no_call when Method =:= 'HEAD'; Method =:= 'GET' ->
@@ -121,13 +123,16 @@ method_not_allowed_build([], []) ->
 	<<>>;
 method_not_allowed_build([], [_Ignore|Acc]) ->
 	lists:reverse(Acc);
-method_not_allowed_build([Method|Tail], Acc) ->
+method_not_allowed_build([Method|Tail], Acc) when is_atom(Method) ->
 	Method2 = list_to_binary(atom_to_list(Method)),
-	method_not_allowed_build(Tail, [<<", ">>, Method2|Acc]).
+	method_not_allowed_build(Tail, [<<", ">>, Method2|Acc]);
+method_not_allowed_build([Method|Tail], Acc) ->
+	method_not_allowed_build(Tail, [<<", ">>, Method|Acc]).
 
 malformed_request(Req, State) ->
 	expect(Req, State, malformed_request, false, fun is_authorized/2, 400).
 
+%% is_authorized/2 should return true or {false, WwwAuthenticateHeader}.
 is_authorized(Req, State) ->
 	case call(Req, State, is_authorized) of
 		no_call ->
@@ -154,14 +159,23 @@ known_content_type(Req, State) ->
 valid_entity_length(Req, State) ->
 	expect(Req, State, valid_entity_length, true, fun options/2, 413).
 
+%% If you need to add additional headers to the response at this point,
+%% you should do it directly in the options/2 call using set_resp_headers.
 options(Req=#http_req{method='OPTIONS'}, State) ->
 	{ok, Req2, HandlerState2} = call(Req, State, options),
 	respond(Req2, State#state{handler_state=HandlerState2}, 200);
 options(Req, State) ->
 	content_types_provided(Req, State).
 
-%% The content_types_provided function MUST be defined in the resource
-%% from this point onward.
+%% content_types_provided/2 should return a list of content types and their
+%% associated callback function as a tuple: {{Type, SubType, Params}, Fun}.
+%% Type and SubType are the media type as binary. Params is a list of
+%% Key/Value tuple, with Key and Value a binary. Fun is the name of the
+%% callback that will be used to return the content of the response. It is
+%% given as an atom.
+%%
+%% An example of such return value would be:
+%%    {{<<"text">>, <<"html">>, []}, to_html}
 content_types_provided(Req, State) ->
 	case call(Req, State, content_types_provided) of
 		no_call ->
@@ -232,6 +246,9 @@ match_media_type(Req, State, Accept,
 match_media_type(Req, State, Accept, [_Any|Tail], MediaType) ->
 	match_media_type(Req, State, Accept, Tail, MediaType).
 
+%% languages_provided should return a list of binary values indicating
+%% which languages are accepted by the resource.
+%%
 %% @todo I suppose we should also ask the resource if it wants to
 %% set a language itself or if it wants it to be automatically chosen.
 languages_provided(Req, State) ->
@@ -293,6 +310,8 @@ set_language(Req, State=#state{language_a=Language}) ->
 		<<"Content-Language">>, Language, Req),
 	charsets_provided(Req2, State).
 
+%% charsets_provided should return a list of binary values indicating
+%% which charsets are accepted by the resource.
 charsets_provided(Req, State) ->
 	case call(Req, State, charsets_provided) of
 		no_call ->
@@ -370,6 +389,11 @@ encodings_provided(Req, State) ->
 not_acceptable(Req, State) ->
 	respond(Req, State, 406).
 
+%% variances/2 should return a list of headers that will be added
+%% to the Vary response header. The Accept, Accept-Language,
+%% Accept-Charset and Accept-Encoding headers do not need to be
+%% specified.
+%%
 %% @todo Do Accept-Encoding too when we handle it.
 %% @todo Does the order matter?
 variances(Req, State=#state{content_types_p=CTP,
@@ -526,6 +550,8 @@ is_put_to_missing_resource(Req=#http_req{method='PUT'}, State) ->
 is_put_to_missing_resource(Req, State) ->
 	previously_existed(Req, State).
 
+%% moved_permanently/2 should return either false or {true, Location}
+%% with Location the full new URI of the resource.
 moved_permanently(Req, State, OnFalse) ->
 	case call(Req, State, moved_permanently) of
 		{{true, Location}, Req2, HandlerState2} ->
@@ -543,6 +569,8 @@ previously_existed(Req, State) ->
 		fun (R, S) -> is_post_to_missing_resource(R, S, 404) end,
 		fun (R, S) -> moved_permanently(R, S, fun moved_temporarily/2) end).
 
+%% moved_temporarily/2 should return either false or {true, Location}
+%% with Location the full new URI of the resource.
 moved_temporarily(Req, State) ->
 	case call(Req, State, moved_temporarily) of
 		{{true, Location}, Req2, HandlerState2} ->
@@ -572,15 +600,20 @@ method(Req=#http_req{method='PUT'}, State) ->
 method(Req, State) ->
 	set_resp_body(Req, State).
 
+%% delete_resource/2 should start deleting the resource and return.
 delete_resource(Req, State) ->
 	expect(Req, State, delete_resource, true, fun delete_completed/2, 500).
 
+%% delete_completed/2 indicates whether the resource has been deleted yet.
 delete_completed(Req, State) ->
 	expect(Req, State, delete_completed, true, fun has_resp_body/2, 202).
 
+%% post_is_create/2 indicates whether the POST method can create new resources.
 post_is_create(Req, State) ->
 	expect(Req, State, post_is_create, false, fun process_post/2, fun create_path/2).
 
+%% When the POST method can create new resources, create_path/2 will be called
+%% and is expected to return the full URI of the new resource.
 create_path(Req, State) ->
 	case call(Req, State, create_path) of
 		{Location, Req2, HandlerState} ->
@@ -590,6 +623,7 @@ create_path(Req, State) ->
 			put_resource(Req3, State2, 303)
 	end.
 
+%% @todo process_post/2 isn't fully implemented yet.
 process_post(Req, State) ->
 	case call(Req, State, process_post) of
 		{ok, _Req2, HandlerState} ->
@@ -603,6 +637,11 @@ is_conflict(Req, State) ->
 put_resource(Req, State) ->
 	put_resource(Req, State, fun is_new_resource/2).
 
+%% content_types_accepted should return a list of media types and their
+%% associated callback functions in the same format as content_types_provided.
+%%
+%% The callback will then be called and is expected to process the content
+%% pushed to the resource in the request body.
 put_resource(Req, State, OnTrue) ->
 	case call(Req, State, content_types_accepted) of
 		no_call ->
@@ -626,6 +665,9 @@ choose_content_type(Req, State, OnTrue, ContentType,
 choose_content_type(Req, State, OnTrue, ContentType, [_Any|Tail]) ->
 	choose_content_type(Req, State, OnTrue, ContentType, Tail).
 
+%% Whether we created a new resource, either through PUT or POST.
+%% This is easily testable because we would have set the Location
+%% header by this point if we did so.
 is_new_resource(Req, State) ->
 	case cowboy_http_req:has_resp_header(<<"Location">>, Req) of
 		true -> respond(Req, State, 201);
@@ -638,6 +680,11 @@ has_resp_body(Req, State) ->
 		false -> respond(Req, State, 204)
 	end.
 
+%% Set the response headers and call the callback found using
+%% content_types_provided/2 to obtain the request body and add
+%% it to the response.
+%%
+%% @todo We should give the chosen language and charset to the callback.
 set_resp_body(Req=#http_req{method=Method},
 		State=#state{content_type_a={_Type, Fun}})
 		when Method =:= 'GET'; Method =:= 'HEAD' ->
