@@ -623,12 +623,11 @@ create_path(Req, State) ->
 			put_resource(Req3, State2, 303)
 	end.
 
-%% @todo process_post/2 isn't fully implemented yet.
 process_post(Req, State) ->
 	case call(Req, State, process_post) of
-		{ok, _Req2, HandlerState} ->
-			_ = _State2 = State#state{handler_state=HandlerState},
-			todo %% @todo ???
+		{ok, Req2, HandlerState} ->
+			State2 = State#state{handler_state=HandlerState},
+			next(Req2, State2, 201)
 	end.
 
 is_conflict(Req, State) ->
