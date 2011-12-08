@@ -22,7 +22,7 @@
 -module(cowboy_http_req).
 
 -export([
-	method/1, version/1, peer/1,
+	method/1, version/1, peer/1, peer_addr/1,
 	host/1, host_info/1, raw_host/1, port/1,
 	path/1, path_info/1, raw_path/1,
 	qs_val/2, qs_val/3, qs_vals/1, raw_qs/1,
@@ -70,6 +70,29 @@ peer(Req=#http_req{socket=Socket, transport=Transport, peer=undefined}) ->
 	{Peer, Req#http_req{peer=Peer}};
 peer(Req) ->
 	{Req#http_req.peer, Req}.
+
+%% @doc Returns the peer address calculated from headers.
+-spec peer_addr(#http_req{}) -> {inet:ip_address(), #http_req{}}.
+peer_addr(Req = #http_req{}) ->
+	{RealIp, Req1} = header(<<"X-Real-Ip">>, Req),
+	{ForwardedForRaw, Req2} = header(<<"X-Forwarded-For">>, Req1),
+	{{PeerIp, _PeerPort}, Req3} = peer(Req2),
+	ForwardedFor = case ForwardedForRaw of
+		undefined ->
+			undefined;
+		ForwardedForRaw ->
+			case re:run(ForwardedForRaw, "^(?<first_ip>[^\\,]+)",
+					[{capture, [first_ip], binary}]) of
+				{match, [FirstIp]} -> FirstIp;
+				_Any -> undefined
+			end
+	end,
+	{ok, PeerAddr} = if
+		is_binary(RealIp) -> inet_parse:address(RealIp);
+		is_binary(ForwardedFor) -> inet_parse:address(ForwardedFor);
+		true -> {ok, PeerIp}
+	end,
+	{PeerAddr, Req3}.
 
 %% @doc Return the tokens for the hostname requested.
 -spec host(#http_req{}) -> {cowboy_dispatcher:tokens(), #http_req{}}.
