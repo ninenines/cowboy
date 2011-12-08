@@ -53,7 +53,7 @@
 %% You do not need to call this function manually. To upgrade to the REST
 %% protocol, you simply need to return <em>{upgrade, protocol, {@module}}</em>
 %% in your <em>cowboy_http_handler:init/3</em> handler function.
--spec upgrade(pid(), module(), any(), #http_req{}) -> ok.
+-spec upgrade(pid(), module(), any(), #http_req{}) -> {ok, #http_req{}}.
 upgrade(_ListenerPid, Handler, Opts, Req) ->
 	try
 		case erlang:function_exported(Handler, rest_init, 2) of
@@ -753,6 +753,8 @@ respond(Req, State, StatusCode) ->
 
 terminate(Req, #state{handler=Handler, handler_state=HandlerState}) ->
 	case erlang:function_exported(Handler, rest_terminate, 2) of
-		true -> ok = Handler:rest_terminate(Req, HandlerState);
+		true -> ok = Handler:rest_terminate(
+			Req#http_req{resp_state=locked}, HandlerState);
 		false -> ok
-	end.
+	end,
+	{ok, Req}.

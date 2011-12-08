@@ -219,8 +219,8 @@ dispatch(Next, Req=#http_req{host=Host, path=Path},
 	end.
 
 -spec handler_init(#http_req{}, #state{}) -> ok | none().
-handler_init(Req, State=#state{listener=ListenerPid,
-		transport=Transport, handler={Handler, Opts}}) ->
+handler_init(Req, State=#state{transport=Transport,
+		handler={Handler, Opts}}) ->
 	try Handler:init({Transport:name(), http}, Req, Opts) of
 		{ok, Req2, HandlerState} ->
 			handler_handle(HandlerState, Req2, State);
@@ -239,7 +239,7 @@ handler_init(Req, State=#state{listener=ListenerPid,
 			handler_terminate(HandlerState, Req2, State);
 		%% @todo {upgrade, transport, Module}
 		{upgrade, protocol, Module} ->
-			Module:upgrade(ListenerPid, Handler, Opts, Req)
+			upgrade_protocol(Req, State, Module)
 	catch Class:Reason ->
 		error_terminate(500, State),
 		error_logger:error_msg(
@@ -250,11 +250,19 @@ handler_init(Req, State=#state{listener=ListenerPid,
 			[Handler, Class, Reason, Opts, Req, erlang:get_stacktrace()])
 	end.
 
+-spec upgrade_protocol(#http_req{}, #state{}, atom()) -> ok | none().
+upgrade_protocol(Req, State=#state{listener=ListenerPid,
+		handler={Handler, Opts}}, Module) ->
+	case Module:upgrade(ListenerPid, Handler, Opts, Req) of
+		{UpgradeRes, Req2} -> next_request(Req2, State, UpgradeRes);
+		_Any -> terminate(State)
+	end.
+
 -spec handler_handle(any(), #http_req{}, #state{}) -> ok | none().
 handler_handle(HandlerState, Req, State=#state{handler={Handler, Opts}}) ->
 	try Handler:handle(Req, HandlerState) of
 		{ok, Req2, HandlerState2} ->
-			next_request(HandlerState2, Req2, State)
+			terminate_request(HandlerState2, Req2, State)
 	catch Class:Reason ->
 		error_logger:error_msg(
 			"** Handler ~p terminating in handle/2~n"
@@ -294,7 +302,7 @@ handler_loop_timeout(State=#state{loop_timeout=Timeout,
 handler_loop(HandlerState, Req, State=#state{loop_timeout_ref=TRef}) ->
 	receive
 		{?MODULE, timeout, TRef} ->
-			next_request(HandlerState, Req, State);
+			terminate_request(HandlerState, Req, State);
 		{?MODULE, timeout, OlderTRef} when is_reference(OlderTRef) ->
 			handler_loop(HandlerState, Req, State);
 		Message ->
@@ -306,7 +314,7 @@ handler_call(HandlerState, Req, State=#state{handler={Handler, Opts}},
 		Message) ->
 	try Handler:info(Message, Req, HandlerState) of
 		{ok, Req2, HandlerState2} ->
-			next_request(HandlerState2, Req2, State);
+			terminate_request(HandlerState2, Req2, State);
 		{loop, Req2, HandlerState2} ->
 			handler_before_loop(HandlerState2, Req2, State);
 		{loop, Req2, HandlerState2, hibernate} ->
@@ -336,10 +344,14 @@ handler_terminate(HandlerState, Req, #state{handler={Handler, Opts}}) ->
 			 HandlerState, Req, erlang:get_stacktrace()])
 	end.
 
--spec next_request(any(), #http_req{}, #state{}) -> ok | none().
-next_request(HandlerState, Req=#http_req{connection=Conn, buffer=Buffer},
-		State) ->
+-spec terminate_request(any(), #http_req{}, #state{}) -> ok | none().
+terminate_request(HandlerState, Req, State) ->
 	HandlerRes = handler_terminate(HandlerState, Req, State),
+	next_request(Req, State, HandlerRes).
+
+-spec next_request(#http_req{}, #state{}, any()) -> ok | none().
+next_request(Req=#http_req{connection=Conn, buffer=Buffer},
+		State, HandlerRes) ->
 	BodyRes = ensure_body_processed(Req),
 	RespRes = ensure_response(Req),
 	case {HandlerRes, BodyRes, RespRes, Conn} of

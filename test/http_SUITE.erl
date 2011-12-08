@@ -25,7 +25,7 @@
 	set_resp_overwrite/1, set_resp_body/1, response_as_req/1]). %% http.
 -export([http_200/1, http_404/1]). %% http and https.
 -export([http_10_hostless/1]). %% misc.
--export([rest_simple/1]). %% rest.
+-export([rest_simple/1, rest_keepalive/1]). %% rest.
 
 %% ct.
 
@@ -41,7 +41,7 @@ groups() ->
 		set_resp_body, response_as_req] ++ BaseTests},
 	{https, [], BaseTests},
 	{misc, [], [http_10_hostless]},
-	{rest, [], [rest_simple]}].
+	{rest, [], [rest_simple, rest_keepalive]}].
 
 init_per_suite(Config) ->
 	application:start(inets),
@@ -299,7 +299,12 @@ ws0(Config) ->
 	{ok, << 0, "websocket_handle", 255 >>} = gen_tcp:recv(Socket, 0, 6000),
 	{ok, << 0, "websocket_handle", 255 >>} = gen_tcp:recv(Socket, 0, 6000),
 	{ok, << 0, "websocket_handle", 255 >>} = gen_tcp:recv(Socket, 0, 6000),
-	ok = gen_tcp:send(Socket, << 255, 0 >>),
+	%% We try to send another HTTP request to make sure
+	%% the server closed the request.
+	ok = gen_tcp:send(Socket, [
+		<< 255, 0 >>, %% Close websocket command.
+		"GET / HTTP/1.1\r\nHost: localhost\r\n\r\n" %% Server should ignore it.
+	]),
 	{ok, << 255, 0 >>} = gen_tcp:recv(Socket, 0, 6000),
 	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
 	ok.
@@ -574,3 +579,20 @@ http_10_hostless(Config) ->
 rest_simple(Config) ->
 	Packet = "GET /simple HTTP/1.1\r\nHost: localhost\r\n\r\n",
 	{Packet, 200} = raw_req(Packet, Config).
+
+rest_keepalive(Config) ->
+	{port, Port} = lists:keyfind(port, 1, Config),
+	{ok, Socket} = gen_tcp:connect("localhost", Port,
+		[binary, {active, false}, {packet, raw}]),
+	ok = rest_keepalive_loop(Socket, 100),
+	ok = gen_tcp:close(Socket).
+
+rest_keepalive_loop(_Socket, 0) ->
+	ok;
+rest_keepalive_loop(Socket, N) ->
+	ok = gen_tcp:send(Socket, "GET /simple HTTP/1.1\r\n"
+		"Host: localhost\r\nConnection: keep-alive\r\n\r\n"),
+	{ok, Data} = gen_tcp:recv(Socket, 0, 6000),
+	{0, 12} = binary:match(Data, <<"HTTP/1.1 200">>),
+	nomatch = binary:match(Data, <<"Connection: close">>),
+	rest_keepalive_loop(Socket, N - 1).
