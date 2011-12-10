@@ -183,10 +183,7 @@ content_types_provided(Req, State) ->
 		{[], Req2, HandlerState} ->
 			not_acceptable(Req2, State#state{handler_state=HandlerState});
 		{CTP, Req2, HandlerState} ->
-		    CTP2 = try lists:map(fun normalize_content_types_provided/1, CTP)
-		        catch error:nomatch ->
-		            not_acceptable(Req2, State#state{handler_state=HandlerState})
-		        end,
+		    CTP2 = lists:map(fun normalize_content_types_provided/1, CTP)
 			State2 = State#state{handler_state=HandlerState, content_types_p=CTP2},
 			{Accept, Req3} = cowboy_http_req:parse_header('Accept', Req2),
 			case Accept of
@@ -199,8 +196,7 @@ content_types_provided(Req, State) ->
 	end.
 
 normalize_content_types_provided({Mime, Handler}) when is_binary(Mime) ->
-    [Type, SubType] = binary:split(Mime, <<"/">>),
-    {{Type, SubType, []}, Handler};
+    {cowboy_http:content_type(Mime), Handler};
 normalize_content_types_provided(Else) -> Else.
     
 prioritize_accept(Accept) ->
