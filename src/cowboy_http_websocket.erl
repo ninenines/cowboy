@@ -244,11 +244,11 @@ websocket_data(State, Req, HandlerState, <<>>) ->
 	handler_before_loop(State, Req, HandlerState, <<>>);
 %% hixie-76 close frame.
 websocket_data(State=#state{version=0}, Req, HandlerState,
-		<< 255, 0, _Rest/bits >>) ->
+		<< 255, 0, _Rest/binary >>) ->
 	websocket_close(State, Req, HandlerState, {normal, closed});
 %% hixie-76 data frame. We only support the frame type 0, same as the specs.
 websocket_data(State=#state{version=0, eop=EOP}, Req, HandlerState,
-		Data = << 0, _/bits >>) ->
+		Data = << 0, _/binary >>) ->
 	case binary:match(Data, EOP) of
 		{Pos, 1} ->
 			Pos2 = Pos - 1,
