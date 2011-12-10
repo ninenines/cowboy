@@ -180,21 +180,29 @@ content_types_provided(Req, State) ->
 	case call(Req, State, content_types_provided) of
 		no_call ->
 			not_acceptable(Req, State);
-		{[], Req2, HandlerState2} ->
-			not_acceptable(Req2, State#state{handler_state=HandlerState2});
-		{CTP, Req2, HandlerState2} ->
-			State2 = State#state{handler_state=HandlerState2, content_types_p=CTP},
+		{[], Req2, HandlerState} ->
+			not_acceptable(Req2, State#state{handler_state=HandlerState});
+		{CTP, Req2, HandlerState} ->
+		    CTP2 = try lists:map(fun normalize_content_types_provided/1, CTP)
+		        catch error:nomatch ->
+		            not_acceptable(Req2, State#state{handler_state=HandlerState})
+		        end,
+			State2 = State#state{handler_state=HandlerState, content_types_p=CTP2},
 			{Accept, Req3} = cowboy_http_req:parse_header('Accept', Req2),
 			case Accept of
 				undefined ->
-					languages_provided(Req3,
-						State2#state{content_type_a=hd(CTP)});
+					languages_provided(Req3, State2#state{content_type_a=hd(CTP2)});
 				Accept ->
 					Accept2 = prioritize_accept(Accept),
 					choose_media_type(Req3, State2, Accept2)
 			end
 	end.
 
+normalize_content_types_provided({Mime, Handler}) when is_binary(Mime) ->
+    [Type, SubType] = binary:split(Mime, <<"/">>),
+    {{Type, SubType, []}, Handler};
+normalize_content_types_provided(Else) -> Else.
+    
 prioritize_accept(Accept) ->
 	lists:sort(
 		fun ({MediaTypeA, Quality, _AcceptParamsA},
