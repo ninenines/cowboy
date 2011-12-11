@@ -398,20 +398,20 @@ not_acceptable(Req, State) ->
 %% @todo Does the order matter?
 variances(Req, State=#state{content_types_p=CTP,
 		languages_p=LP, charsets_p=CP}) ->
-	Variances = case length(CTP) of
-		0 -> [];
-		1 -> [];
-		_NCT -> [<<"Accept">>]
+	Variances = case CTP of
+		[] -> [];
+		[_] -> [];
+		[_|_] -> [<<"Accept">>]
 	end,
-	Variances2 = case length(LP) of
-		0 -> Variances;
-		1 -> Variances;
-		_NL -> [<<"Accept-Language">>|Variances]
+	Variances2 = case LP of
+		[] -> Variances;
+		[_] -> Variances;
+		[_|_] -> [<<"Accept-Language">>|Variances]
 	end,
-	Variances3 = case length(CP) of
-		0 -> Variances2;
-		1 -> Variances2;
-		_NC -> [<<"Accept-Charset">>|Variances2]
+	Variances3 = case CP of
+		[] -> Variances2;
+		[_] -> Variances2;
+		[_|_] -> [<<"Accept-Charset">>|Variances2]
 	end,
 	{Variances4, Req3, State2} = case call(Req, State, variances) of
 		no_call ->
@@ -420,12 +420,12 @@ variances(Req, State=#state{content_types_p=CTP,
 			{Variances3 ++ HandlerVariances, Req2,
 				State#state{handler_state=HandlerState}}
 	end,
-	case lists:flatten([[<<", ">>, V] || V <- Variances4]) of
+	case [[<<", ">>, V] || V <- Variances4] of
 		[] ->
 			resource_exists(Req3, State2);
-		[<<", ">>, Variances5] ->
+		[[<<", ">>, H]|Variances5] ->
 			{ok, Req4} = cowboy_http_req:set_resp_header(
-				<<"Variances">>, Variances5, Req3),
+				<<"Variances">>, [H|Variances5], Req3),
 			resource_exists(Req4, State2)
 	end.
 
