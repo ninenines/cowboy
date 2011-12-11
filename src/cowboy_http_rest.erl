@@ -183,7 +183,7 @@ content_types_provided(Req, State) ->
 		{[], Req2, HandlerState} ->
 			not_acceptable(Req2, State#state{handler_state=HandlerState});
 		{CTP, Req2, HandlerState} ->
-		    CTP2 = lists:map(fun normalize_content_types_provided/1, CTP)
+		    CTP2 = lists:map(fun normalize_content_types_provided/1, CTP),
 			State2 = State#state{handler_state=HandlerState, content_types_p=CTP2},
 			{Accept, Req3} = cowboy_http_req:parse_header('Accept', Req2),
 			case Accept of
