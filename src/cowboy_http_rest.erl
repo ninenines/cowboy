@@ -234,9 +234,12 @@ choose_media_type(Req, State=#state{content_types_p=CTP},
 match_media_type(Req, State, Accept, [], _MediaType) ->
 	choose_media_type(Req, State, Accept);
 match_media_type(Req, State, Accept,
-			[Provided = {{Type, SubType_P, Params_P}, _Fun}|Tail],
-			MediaType = {{Type, SubType_A, Params_A}, _Quality, _AcceptParams})
-		when SubType_P =:= SubType_A; SubType_A =:= <<"*">> ->
+			[Provided = {{Type_P, SubType_P, Params_P}, _Fun}|Tail],
+			MediaType = {{Type_A, SubType_A, Params_A}, _Quality, _AcceptParams})
+		when (Type_A =:= <<"*">>  orelse
+		      Type_P =:= Type_A) andalso
+		     (SubType_A =:= <<"*">> orelse 
+		      SubType_P =:= SubType_A) ->
 	case lists:sort(Params_P) =:= lists:sort(Params_A) of
 		true ->
 			languages_provided(Req, State#state{content_type_a=Provided});
