@@ -23,7 +23,8 @@
 	digits/1, token/2, token_ci/2, quoted_string/2]).
 
 %% Interpretation.
--export([connection_to_atom/1, urldecode/1, urldecode/2]).
+-export([connection_to_atom/1, urldecode/1, urldecode/2, urlencode/1,
+	urlencode/2]).
 
 -include("include/http.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -710,6 +711,51 @@ unhex(C) when C >= $A, C =< $F -> C - $A + 10;
 unhex(C) when C >= $a, C =< $f -> C - $a + 10;
 unhex(_) -> error.
 
+
+%% @doc URL encode a string binary.
+%% @equiv urlencode(Bin, [])
+-spec urlencode(binary()) -> binary().
+urlencode(Bin) ->
+	urlencode(Bin, []).
+
+%% @doc URL encode a string binary.
+%% The `noplus' option disables the default behaviour of quoting space
+%% characters, `\s', as `+'. The `upper' option overrides the default behaviour
+%% of writing hex numbers using lowecase letters to using uppercase letters
+%% instead.
+-spec urlencode(binary(), [noplus|upper]) -> binary().
+urlencode(Bin, Opts) ->
+	Plus = not proplists:get_value(noplus, Opts, false),
+	Upper = proplists:get_value(upper, Opts, false),
+	urlencode(Bin, <<>>, Plus, Upper).
+
+-spec urlencode(binary(), binary(), boolean(), boolean()) -> binary().
+urlencode(<<C, Rest/binary>>, Acc, P=Plus, U=Upper) ->
+	if	C >= $0, C =< $9 -> urlencode(Rest, <<Acc/binary, C>>, P, U);
+		C >= $A, C =< $Z -> urlencode(Rest, <<Acc/binary, C>>, P, U);
+		C >= $a, C =< $z -> urlencode(Rest, <<Acc/binary, C>>, P, U);
+		C =:= $.; C =:= $-; C =:= $~; C =:= $_ ->
+		urlencode(Rest, <<Acc/binary, C>>, P, U);
+		C =:= $ , Plus ->
+		urlencode(Rest, <<Acc/binary, $+>>, P, U);
+		true ->
+		H = C band 16#F0 bsr 4, L = C band 16#0F,
+		H1 = if Upper -> tohexu(H); true -> tohexl(H) end,
+		L1 = if Upper -> tohexu(L); true -> tohexl(L) end,
+		urlencode(Rest, <<Acc/binary, $%, H1, L1>>, P, U)
+	end;
+urlencode(<<>>, Acc, _Plus, _Upper) ->
+	Acc.
+
+-spec tohexu(byte()) -> byte().
+tohexu(C) when C < 10 -> $0 + C;
+tohexu(C) when C < 17 -> $A + C - 10.
+
+-spec tohexl(byte()) -> byte().
+tohexl(C) when C < 10 -> $0 + C;
+tohexl(C) when C < 17 -> $a + C - 10.
+
+
 %% Tests.
 
 -ifdef(TEST).
@@ -877,12 +923,27 @@ digits_test_() ->
 	[{V, fun() -> R = digits(V) end} || {V, R} <- Tests].
 
 urldecode_test_() ->
-	Tests = [
-		{<<" ">>, <<"%20">>},
-		{<<" ">>, <<"+">>},
-		{<<0>>, <<"%00">>},
-		{<<255>>, <<"%fF">>}
-	],
-	[{I, ?_assertEqual(E, urldecode(I))} || {E, I} <- Tests].
+	U = fun urldecode/2,
+	[?_assertEqual(<<" ">>, U(<<"%20">>, crash)),
+	 ?_assertEqual(<<" ">>, U(<<"+">>, crash)),
+	 ?_assertEqual(<<0>>, U(<<"%00">>, crash)),
+	 ?_assertEqual(<<255>>, U(<<"%fF">>, crash)),
+	 ?_assertEqual(<<"123">>, U(<<"123">>, crash)),
+	 ?_assertEqual(<<"%i5">>, U(<<"%i5">>, skip)),
+	 ?_assertEqual(<<"%5">>, U(<<"%5">>, skip)),
+	 ?_assertError(badarg, U(<<"%i5">>, crash)),
+	 ?_assertError(badarg, U(<<"%5">>, crash))
+	].
+
+urlencode_test_() ->
+	U = fun urlencode/2,
+	[?_assertEqual(<<"%ff%00">>, U(<<255,0>>, [])),
+	 ?_assertEqual(<<"%FF%00">>, U(<<255,0>>, [upper])),
+	 ?_assertEqual(<<"+">>, U(<<" ">>, [])),
+	 ?_assertEqual(<<"%20">>, U(<<" ">>, [noplus])),
+	 ?_assertEqual(<<"aBc">>, U(<<"aBc">>, [])),
+	 ?_assertEqual(<<".-~_">>, U(<<".-~_">>, [])),
+	 ?_assertEqual(<<"%ff+">>, urlencode(<<255, " ">>))
+	].
 
 -endif.
