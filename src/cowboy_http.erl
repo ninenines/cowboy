@@ -58,11 +58,11 @@ list(Data, Fun) ->
 list(Data, Fun, Acc) ->
 	whitespace(Data,
 		fun (<<>>) -> Acc;
-			(<< $,, Rest/bits >>) -> list(Rest, Fun, Acc);
+			(<< $,, Rest/binary >>) -> list(Rest, Fun, Acc);
 			(Rest) -> Fun(Rest,
 				fun (D, I) -> whitespace(D,
 						fun (<<>>) -> [I|Acc];
-							(<< $,, R/bits >>) -> list(R, Fun, [I|Acc]);
+							(<< $,, R/binary >>) -> list(R, Fun, [I|Acc]);
 							(_Any) -> {error, badarg}
 						end)
 				end)
@@ -81,7 +81,7 @@ content_type(Data) ->
 	-> any().
 content_type_params(Data, Fun, Acc) ->
 	whitespace(Data,
-		fun (<< $;, Rest/bits >>) -> content_type_param(Rest, Fun, Acc);
+		fun (<< $;, Rest/binary >>) -> content_type_param(Rest, Fun, Acc);
 			(<<>>) -> Fun(lists:reverse(Acc));
 			(_Rest) -> {error, badarg}
 		end).
@@ -93,7 +93,7 @@ content_type_param(Data, Fun, Acc) ->
 		fun (Rest) ->
 				token_ci(Rest,
 					fun (_Rest2, <<>>) -> {error, badarg};
-						(<< $=, Rest2/bits >>, Attr) ->
+						(<< $=, Rest2/binary >>, Attr) ->
 							word(Rest2,
 								fun (Rest3, Value) ->
 										content_type_params(Rest3, Fun,
@@ -115,7 +115,7 @@ media_range(Data, Fun) ->
 	[{binary(), binary()}]) -> any().
 media_range_params(Data, Fun, Type, SubType, Acc) ->
 	whitespace(Data,
-		fun (<< $;, Rest/bits >>) ->
+		fun (<< $;, Rest/binary >>) ->
 				whitespace(Rest,
 					fun (Rest2) ->
 						media_range_param_attr(Rest2, Fun, Type, SubType, Acc)
@@ -128,7 +128,7 @@ media_range_params(Data, Fun, Type, SubType, Acc) ->
 media_range_param_attr(Data, Fun, Type, SubType, Acc) ->
 	token_ci(Data,
 		fun (_Rest, <<>>) -> {error, badarg};
-			(<< $=, Rest/bits >>, Attr) ->
+			(<< $=, Rest/binary >>, Attr) ->
 				media_range_param_value(Rest, Fun, Type, SubType, Acc, Attr)
 		end).
 
@@ -151,7 +151,7 @@ media_range_param_value(Data, Fun, Type, SubType, Acc, Attr) ->
 media_type(Data, Fun) ->
 	token_ci(Data,
 		fun (_Rest, <<>>) -> {error, badarg};
-			(<< $/, Rest/bits >>, Type) ->
+			(<< $/, Rest/binary >>, Type) ->
 				token_ci(Rest,
 					fun (_Rest2, <<>>) -> {error, badarg};
 						(Rest2, SubType) -> Fun(Rest2, Type, SubType)
@@ -164,7 +164,7 @@ media_type(Data, Fun) ->
 	[{binary(), binary()} | binary()]) -> any().
 accept_ext(Data, Fun, Type, SubType, Params, Quality, Acc) ->
 	whitespace(Data,
-		fun (<< $;, Rest/bits >>) ->
+		fun (<< $;, Rest/binary >>) ->
 				whitespace(Rest,
 					fun (Rest2) ->
 						accept_ext_attr(Rest2, Fun,
@@ -181,7 +181,7 @@ accept_ext(Data, Fun, Type, SubType, Params, Quality, Acc) ->
 accept_ext_attr(Data, Fun, Type, SubType, Params, Quality, Acc) ->
 	token_ci(Data,
 		fun (_Rest, <<>>) -> {error, badarg};
-			(<< $=, Rest/bits >>, Attr) ->
+			(<< $=, Rest/binary >>, Attr) ->
 				accept_ext_value(Rest, Fun, Type, SubType, Params,
 					Quality, Acc, Attr);
 			(Rest, Attr) ->
@@ -214,7 +214,7 @@ conneg(Data, Fun) ->
 
 %% @doc Parse a language range, followed by an optional quality value.
 -spec language_range(binary(), fun()) -> any().
-language_range(<< $*, Rest/bits >>, Fun) ->
+language_range(<< $*, Rest/binary >>, Fun) ->
 	language_range_ret(Rest, Fun, '*');
 language_range(Data, Fun) ->
 	language_tag(Data,
@@ -234,7 +234,7 @@ language_tag(Data, Fun) ->
 	alpha(Data,
 		fun (_Rest, Tag) when byte_size(Tag) =:= 0; byte_size(Tag) > 8 ->
 				{error, badarg};
-			(<< $-, Rest/bits >>, Tag) ->
+			(<< $-, Rest/binary >>, Tag) ->
 				language_subtag(Rest, Fun, Tag, []);
 			(Rest, Tag) ->
 				Fun(Rest, Tag)
@@ -245,7 +245,7 @@ language_subtag(Data, Fun, Tag, Acc) ->
 	alpha(Data,
 		fun (_Rest, SubTag) when byte_size(SubTag) =:= 0;
 				byte_size(SubTag) > 8 -> {error, badarg};
-			(<< $-, Rest/bits >>, SubTag) ->
+			(<< $-, Rest/binary >>, SubTag) ->
 				language_subtag(Rest, Fun, Tag, [SubTag|Acc]);
 			(Rest, SubTag) ->
 				%% Rebuild the full tag now that we know it's correct
@@ -256,7 +256,7 @@ language_subtag(Data, Fun, Tag, Acc) ->
 -spec maybe_qparam(binary(), fun()) -> any().
 maybe_qparam(Data, Fun) ->
 	whitespace(Data,
-		fun (<< $;, Rest/bits >>) ->
+		fun (<< $;, Rest/binary >>) ->
 			whitespace(Rest,
 				fun (Rest2) ->
 					qparam(Rest2, Fun)
@@ -267,12 +267,12 @@ maybe_qparam(Data, Fun) ->
 
 %% @doc Parse a quality parameter string (for example q=0.500).
 -spec qparam(binary(), fun()) -> any().
-qparam(<< Q, $=, Data/bits >>, Fun) when Q =:= $q; Q =:= $Q ->
+qparam(<< Q, $=, Data/binary >>, Fun) when Q =:= $q; Q =:= $Q ->
 	qvalue(Data, Fun).
 
 %% @doc Parse either a list of entity tags or a "*".
 -spec entity_tag_match(binary()) -> any().
-entity_tag_match(<< $*, Rest/bits >>) ->
+entity_tag_match(<< $*, Rest/binary >>) ->
 	whitespace(Rest,
 		fun (<<>>) -> '*';
 			(_Any) -> {error, badarg}
@@ -282,7 +282,7 @@ entity_tag_match(Data) ->
 
 %% @doc Parse an entity-tag.
 -spec entity_tag(binary(), fun()) -> any().
-entity_tag(<< "W/", Rest/bits >>, Fun) ->
+entity_tag(<< "W/", Rest/binary >>, Fun) ->
 	opaque_tag(Rest, Fun, weak);
 entity_tag(Data, Fun) ->
 	opaque_tag(Data, Fun, strong).
@@ -323,11 +323,11 @@ http_date(Data) ->
 -spec rfc1123_date(binary()) -> any().
 rfc1123_date(Data) ->
 	wkday(Data,
-		fun (<< ", ", Rest/bits >>, _WkDay) ->
+		fun (<< ", ", Rest/binary >>, _WkDay) ->
 				date1(Rest,
-					fun (<< " ", Rest2/bits >>, Date) ->
+					fun (<< " ", Rest2/binary >>, Date) ->
 							time(Rest2,
-								fun (<< " GMT", Rest3/bits >>, Time) ->
+								fun (<< " GMT", Rest3/binary >>, Time) ->
 										http_date_ret(Rest3, {Date, Time});
 									(_Any, _Time) ->
 										{error, badarg}
@@ -347,11 +347,11 @@ rfc1123_date(Data) ->
 %% in the past (this helps solve the "year 2000" problem).
 rfc850_date(Data) ->
 	weekday(Data,
-		fun (<< ", ", Rest/bits >>, _WeekDay) ->
+		fun (<< ", ", Rest/binary >>, _WeekDay) ->
 				date2(Rest,
-					fun (<< " ", Rest2/bits >>, Date) ->
+					fun (<< " ", Rest2/binary >>, Date) ->
 							time(Rest2,
-								fun (<< " GMT", Rest3/bits >>, Time) ->
+								fun (<< " GMT", Rest3/binary >>, Time) ->
 										http_date_ret(Rest3, {Date, Time});
 									(_Any, _Time) ->
 										{error, badarg}
@@ -367,11 +367,11 @@ rfc850_date(Data) ->
 -spec asctime_date(binary()) -> any().
 asctime_date(Data) ->
 	wkday(Data,
-		fun (<< " ", Rest/bits >>, _WkDay) ->
+		fun (<< " ", Rest/binary >>, _WkDay) ->
 				date3(Rest,
-					fun (<< " ", Rest2/bits >>, PartialDate) ->
+					fun (<< " ", Rest2/binary >>, PartialDate) ->
 							time(Rest2,
-								fun (<< " ", Rest3/bits >>, Time) ->
+								fun (<< " ", Rest3/binary >>, Time) ->
 										asctime_year(Rest3,
 											PartialDate, Time);
 									(_Any, _Time) ->
@@ -385,7 +385,7 @@ asctime_date(Data) ->
 		end).
 
 -spec asctime_year(binary(), tuple(), tuple()) -> any().
-asctime_year(<< Y1, Y2, Y3, Y4, Rest/bits >>, {Month, Day}, Time)
+asctime_year(<< Y1, Y2, Y3, Y4, Rest/binary >>, {Month, Day}, Time)
 		when Y1 >= $0, Y1 =< $9, Y2 >= $0, Y2 =< $9,
 			 Y3 >= $0, Y3 =< $9, Y4 >= $0, Y4 =< $9 ->
 	Year = (Y1 - $0) * 1000 + (Y2 - $0) * 100 + (Y3 - $0) * 10 + (Y4 - $0),
@@ -405,7 +405,7 @@ http_date_ret(Data, DateTime = {Date, _Time}) ->
 
 %% We never use it, pretty much just checks the wkday is right.
 -spec wkday(binary(), fun()) -> any().
-wkday(<< WkDay:3/binary, Rest/bits >>, Fun)
+wkday(<< WkDay:3/binary, Rest/binary >>, Fun)
 		when WkDay =:= <<"Mon">>; WkDay =:= <<"Tue">>; WkDay =:= <<"Wed">>;
 			 WkDay =:= <<"Thu">>; WkDay =:= <<"Fri">>; WkDay =:= <<"Sat">>;
 			 WkDay =:= <<"Sun">> ->
@@ -433,7 +433,7 @@ weekday(_Any, _Fun) ->
 	{error, badarg}.
 
 -spec date1(binary(), fun()) -> any().
-date1(<< D1, D2, " ", M:3/binary, " ", Y1, Y2, Y3, Y4, Rest/bits >>, Fun)
+date1(<< D1, D2, " ", M:3/binary, " ", Y1, Y2, Y3, Y4, Rest/binary >>, Fun)
 		when D1 >= $0, D1 =< $9, D2 >= $0, D2 =< $9,
 			 Y1 >= $0, Y1 =< $9, Y2 >= $0, Y2 =< $9,
 			 Y3 >= $0, Y3 =< $9, Y4 >= $0, Y4 =< $9 ->
@@ -451,7 +451,7 @@ date1(_Data, _Fun) ->
 	{error, badarg}.
 
 -spec date2(binary(), fun()) -> any().
-date2(<< D1, D2, "-", M:3/binary, "-", Y1, Y2, Rest/bits >>, Fun)
+date2(<< D1, D2, "-", M:3/binary, "-", Y1, Y2, Rest/binary >>, Fun)
 		when D1 >= $0, D1 =< $9, D2 >= $0, D2 =< $9,
 			 Y1 >= $0, Y1 =< $9, Y2 >= $0, Y2 =< $9 ->
 	case month(M) of
@@ -473,7 +473,7 @@ date2(_Data, _Fun) ->
 	{error, badarg}.
 
 -spec date3(binary(), fun()) -> any().
-date3(<< M:3/binary, " ", D1, D2, Rest/bits >>, Fun)
+date3(<< M:3/binary, " ", D1, D2, Rest/binary >>, Fun)
 		when (D1 >= $0 andalso D1 =< $3) orelse D1 =:= $\s,
 			 D2 >= $0, D2 =< $9 ->
 	case month(M) of
@@ -505,7 +505,7 @@ month(<<"Dec">>) -> 12;
 month(_Any) -> {error, badarg}.
 
 -spec time(binary(), fun()) -> any().
-time(<< H1, H2, ":", M1, M2, ":", S1, S2, Rest/bits >>, Fun)
+time(<< H1, H2, ":", M1, M2, ":", S1, S2, Rest/binary >>, Fun)
 		when H1 >= $0, H1 =< $2, H2 >= $0, H2 =< $9,
 			 M1 >= $0, M1 =< $5, M2 >= $0, M2 =< $9,
 			 S1 >= $0, S1 =< $5, S2 >= $0, S2 =< $9 ->
@@ -524,7 +524,7 @@ time(<< H1, H2, ":", M1, M2, ":", S1, S2, Rest/bits >>, Fun)
 
 %% @doc Skip whitespace.
 -spec whitespace(binary(), fun()) -> any().
-whitespace(<< C, Rest/bits >>, Fun)
+whitespace(<< C, Rest/binary >>, Fun)
 		when C =:= $\s; C =:= $\t ->
 	whitespace(Rest, Fun);
 whitespace(Data, Fun) ->
@@ -544,14 +544,14 @@ digits(Data) ->
 		end).
 
 -spec digits(binary(), fun()) -> any().
-digits(<< C, Rest/bits >>, Fun)
+digits(<< C, Rest/binary >>, Fun)
 		when C >= $0, C =< $9 ->
 	digits(Rest, Fun, C - $0);
 digits(_Data, _Fun) ->
 	{error, badarg}.
 
 -spec digits(binary(), fun(), non_neg_integer()) -> any().
-digits(<< C, Rest/bits >>, Fun, Acc)
+digits(<< C, Rest/binary >>, Fun, Acc)
 		when C >= $0, C =< $9 ->
 	digits(Rest, Fun, Acc * 10 + (C - $0));
 digits(Data, Fun, Acc) ->
@@ -567,7 +567,7 @@ alpha(Data, Fun) ->
 -spec alpha(binary(), fun(), binary()) -> any().
 alpha(<<>>, Fun, Acc) ->
 	Fun(<<>>, Acc);
-alpha(<< C, Rest/bits >>, Fun, Acc)
+alpha(<< C, Rest/binary >>, Fun, Acc)
 		when C >= $a andalso C =< $z;
 			 C >= $A andalso C =< $Z ->
 	C2 = cowboy_bstr:char_to_lower(C),
@@ -577,7 +577,7 @@ alpha(Data, Fun, Acc) ->
 
 %% @doc Parse either a token or a quoted string.
 -spec word(binary(), fun()) -> any().
-word(Data = << $", _/bits >>, Fun) ->
+word(Data = << $", _/binary >>, Fun) ->
 	quoted_string(Data, Fun);
 word(Data, Fun) ->
 	token(Data,
@@ -600,47 +600,47 @@ token(Data, Fun) ->
 -spec token(binary(), fun(), ci | cs, binary()) -> any().
 token(<<>>, Fun, _Case, Acc) ->
 	Fun(<<>>, Acc);
-token(Data = << C, _Rest/bits >>, Fun, _Case, Acc)
+token(Data = << C, _Rest/binary >>, Fun, _Case, Acc)
 		when C =:= $(; C =:= $); C =:= $<; C =:= $>; C =:= $@;
 			 C =:= $,; C =:= $;; C =:= $:; C =:= $\\; C =:= $";
 			 C =:= $/; C =:= $[; C =:= $]; C =:= $?; C =:= $=;
 			 C =:= ${; C =:= $}; C =:= $\s; C =:= $\t;
 			 C < 32; C =:= 127 ->
 	Fun(Data, Acc);
-token(<< C, Rest/bits >>, Fun, Case = ci, Acc) ->
+token(<< C, Rest/binary >>, Fun, Case = ci, Acc) ->
 	C2 = cowboy_bstr:char_to_lower(C),
 	token(Rest, Fun, Case, << Acc/binary, C2 >>);
-token(<< C, Rest/bits >>, Fun, Case, Acc) ->
+token(<< C, Rest/binary >>, Fun, Case, Acc) ->
 	token(Rest, Fun, Case, << Acc/binary, C >>).
 
 %% @doc Parse a quoted string.
 -spec quoted_string(binary(), fun()) -> any().
-quoted_string(<< $", Rest/bits >>, Fun) ->
+quoted_string(<< $", Rest/binary >>, Fun) ->
 	quoted_string(Rest, Fun, <<>>).
 
 -spec quoted_string(binary(), fun(), binary()) -> any().
 quoted_string(<<>>, _Fun, _Acc) ->
 	{error, badarg};
-quoted_string(<< $", Rest/bits >>, Fun, Acc) ->
+quoted_string(<< $", Rest/binary >>, Fun, Acc) ->
 	Fun(Rest, Acc);
-quoted_string(<< $\\, C, Rest/bits >>, Fun, Acc) ->
+quoted_string(<< $\\, C, Rest/binary >>, Fun, Acc) ->
 	quoted_string(Rest, Fun, << Acc/binary, C >>);
-quoted_string(<< C, Rest/bits >>, Fun, Acc) ->
+quoted_string(<< C, Rest/binary >>, Fun, Acc) ->
 	quoted_string(Rest, Fun, << Acc/binary, C >>).
 
 %% @doc Parse a quality value.
 -spec qvalue(binary(), fun()) -> any().
-qvalue(<< $0, $., Rest/bits >>, Fun) ->
+qvalue(<< $0, $., Rest/binary >>, Fun) ->
 	qvalue(Rest, Fun, 0, 100);
-qvalue(<< $0, Rest/bits >>, Fun) ->
+qvalue(<< $0, Rest/binary >>, Fun) ->
 	Fun(Rest, 0);
-qvalue(<< $1, $., $0, $0, $0, Rest/bits >>, Fun) ->
+qvalue(<< $1, $., $0, $0, $0, Rest/binary >>, Fun) ->
 	Fun(Rest, 1000);
-qvalue(<< $1, $., $0, $0, Rest/bits >>, Fun) ->
+qvalue(<< $1, $., $0, $0, Rest/binary >>, Fun) ->
 	Fun(Rest, 1000);
-qvalue(<< $1, $., $0, Rest/bits >>, Fun) ->
+qvalue(<< $1, $., $0, Rest/binary >>, Fun) ->
 	Fun(Rest, 1000);
-qvalue(<< $1, Rest/bits >>, Fun) ->
+qvalue(<< $1, Rest/binary >>, Fun) ->
 	Fun(Rest, 1000);
 qvalue(_Data, _Fun) ->
 	{error, badarg}.
@@ -648,7 +648,7 @@ qvalue(_Data, _Fun) ->
 -spec qvalue(binary(), fun(), integer(), 1 | 10 | 100) -> any().
 qvalue(Data, Fun, Q, 0) ->
 	Fun(Data, Q);
-qvalue(<< C, Rest/bits >>, Fun, Q, M)
+qvalue(<< C, Rest/binary >>, Fun, Q, M)
 		when C >= $0, C =< $9 ->
 	qvalue(Rest, Fun, Q + (C - $0) * M, M div 10);
 qvalue(Data, Fun, Q, _M) ->
