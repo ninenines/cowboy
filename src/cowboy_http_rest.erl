@@ -176,24 +176,38 @@ options(Req, State) ->
 %%
 %% An example of such return value would be:
 %%    {{<<"text">>, <<"html">>, []}, to_html}
+%%
+%% Note that it is also possible to return a binary content type that will
+%% then be parsed by Cowboy. However note that while this may make your
+%% resources a little more readable, this is a lot less efficient. An example
+%% of such a return value would be:
+%%    {<<"text/html">>, to_html}
 content_types_provided(Req, State) ->
 	case call(Req, State, content_types_provided) of
 		no_call ->
 			not_acceptable(Req, State);
-		{[], Req2, HandlerState2} ->
-			not_acceptable(Req2, State#state{handler_state=HandlerState2});
-		{CTP, Req2, HandlerState2} ->
-			State2 = State#state{handler_state=HandlerState2, content_types_p=CTP},
+		{[], Req2, HandlerState} ->
+			not_acceptable(Req2, State#state{handler_state=HandlerState});
+		{CTP, Req2, HandlerState} ->
+		    CTP2 = [normalize_content_types_provided(P) || P <- CTP],
+			State2 = State#state{
+				handler_state=HandlerState, content_types_p=CTP2},
 			{Accept, Req3} = cowboy_http_req:parse_header('Accept', Req2),
 			case Accept of
 				undefined ->
 					languages_provided(Req3,
-						State2#state{content_type_a=hd(CTP)});
+						State2#state{content_type_a=hd(CTP2)});
 				Accept ->
 					Accept2 = prioritize_accept(Accept),
 					choose_media_type(Req3, State2, Accept2)
 			end
 	end.
+
+normalize_content_types_provided({ContentType, Handler})
+		when is_binary(ContentType) ->
+    {cowboy_http:content_type(ContentType), Handler};
+normalize_content_types_provided(Provided) ->
+	Provided.
 
 prioritize_accept(Accept) ->
 	lists:sort(
