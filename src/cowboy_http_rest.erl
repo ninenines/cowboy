@@ -247,18 +247,26 @@ choose_media_type(Req, State=#state{content_types_p=CTP},
 
 match_media_type(Req, State, Accept, [], _MediaType) ->
 	choose_media_type(Req, State, Accept);
+match_media_type(Req, State, Accept, CTP,
+		MediaType = {{<<"*">>, <<"*">>, _Params_A}, _QA, _APA}) ->
+	match_media_type_params(Req, State, Accept, CTP, MediaType);
 match_media_type(Req, State, Accept,
-			[Provided = {{Type, SubType_P, Params_P}, _Fun}|Tail],
-			MediaType = {{Type, SubType_A, Params_A}, _Quality, _AcceptParams})
+			CTP = [{{Type, SubType_P, _PP}, _Fun}|_Tail],
+			MediaType = {{Type, SubType_A, _PA}, _QA, _APA})
 		when SubType_P =:= SubType_A; SubType_A =:= <<"*">> ->
+	match_media_type_params(Req, State, Accept, CTP, MediaType);
+match_media_type(Req, State, Accept, [_Any|Tail], MediaType) ->
+	match_media_type(Req, State, Accept, Tail, MediaType).
+
+match_media_type_params(Req, State, Accept,
+		[Provided = {{_TP, _STP, Params_P}, _Fun}|Tail],
+		MediaType = {{_TA, _STA, Params_A}, _QA, _APA}) ->
 	case lists:sort(Params_P) =:= lists:sort(Params_A) of
 		true ->
 			languages_provided(Req, State#state{content_type_a=Provided});
 		false ->
 			match_media_type(Req, State, Accept, Tail, MediaType)
-	end;
-match_media_type(Req, State, Accept, [_Any|Tail], MediaType) ->
-	match_media_type(Req, State, Accept, Tail, MediaType).
+	end.
 
 %% languages_provided should return a list of binary values indicating
 %% which languages are accepted by the resource.
