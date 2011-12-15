@@ -46,7 +46,7 @@ profile_output() ->
 consider_profiling() ->
 	case application:get_env(profile) of
 		{ok, true} ->
-			eprof:start(),
+			{ok, _Pid} = eprof:start(),
 			eprof:start_profiling([self()]);
 		_ ->
 			not_profiling
