@@ -199,8 +199,8 @@ header(http_eoh, Req=#http_req{version={1, 0}, transport=Transport,
 		port=Port, buffer=Buffer}, State#state{buffer= <<>>});
 header(http_eoh, Req, State=#state{buffer=Buffer}) ->
 	handler_init(Req#http_req{buffer=Buffer}, State#state{buffer= <<>>});
-header({http_error, _Bin}, _Req, State) ->
-	error_terminate(500, State).
+header(_Any, _Req, State) ->
+	error_terminate(400, State).
 
 -spec dispatch(fun((#http_req{}, #state{}) -> ok),
 	#http_req{}, #state{}) -> ok | none().
