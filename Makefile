@@ -22,7 +22,7 @@ eunit:
 	@$(REBAR) eunit skip_deps=true
 
 ct:
-	@$(REBAR) ct
+	@$(REBAR) ct skip_deps=true
 
 build-plt:
 	@$(DIALYZER) --build_plt --output_plt .cowboy_dialyzer.plt \
