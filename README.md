@@ -244,9 +244,10 @@ is the pid to the listener's gen_server, managing the connections. Socket is of
 course the client socket; Transport is the module name of the chosen transport
 handler and Opts is protocol options defined when starting the listener.
 
-After initializing your protocol, it is recommended to wait to receive a message
-containing the atom 'shoot', as it will ensure Cowboy has been able to fully
-initialize the socket. Anything you do past this point is up to you!
+After initializing your protocol, it is recommended to call the
+function cowboy:accept_ack/1 with the ListenerPid as argument,
+as it will ensure Cowboy has been able to fully initialize the socket.
+Anything you do past this point is up to you!
 
 If you need to change some socket options, like enabling raw mode for example,
 you can call the <em>Transport:setopts/2</em> function. It is the protocol's

@@ -77,7 +77,7 @@ init(ListenerPid, Socket, Transport, Opts) ->
 	Timeout = proplists:get_value(timeout, Opts, 5000),
 	URLDecDefault = {fun cowboy_http:urldecode/2, crash},
 	URLDec = proplists:get_value(urldecode, Opts, URLDecDefault),
-	receive shoot -> ok end,
+	ok = cowboy:accept_ack(ListenerPid),
 	wait_request(#state{listener=ListenerPid, socket=Socket, transport=Transport,
 		dispatch=Dispatch, max_empty_lines=MaxEmptyLines,
 		max_line_length=MaxLineLength, timeout=Timeout, urldecode=URLDec}).

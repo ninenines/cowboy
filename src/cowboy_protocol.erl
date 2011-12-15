@@ -24,9 +24,9 @@
 %% starting the listener. The <em>start_link/4</em> function must follow
 %% the supervisor start function specification.
 %%
-%% After initializing your protocol, it is recommended to wait to
-%% receive a message containing the atom 'shoot', as it will ensure
-%% Cowboy has been able to fully initialize the socket.
+%% After initializing your protocol, it is recommended to call the
+%% function cowboy:accept_ack/1 with the ListenerPid as argument,
+%% as it will ensure Cowboy has been able to fully initialize the socket.
 %% Anything you do past this point is up to you!
 %%
 %% If you need to change some socket options, like enabling raw mode

@@ -40,7 +40,7 @@ acceptor(LSocket, Transport, Protocol, Opts, MaxConns, ListenerPid, ReqsSup) ->
 			Transport:controlling_process(CSocket, Pid),
 			{ok, NbConns} = cowboy_listener:add_connection(ListenerPid,
 				default, Pid),
-			Pid ! shoot,
+			Pid ! {shoot, ListenerPid},
 			limit_reqs(ListenerPid, NbConns, MaxConns);
 		{error, timeout} ->
 			ignore;

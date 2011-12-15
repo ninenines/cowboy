@@ -15,7 +15,7 @@
 %% @doc Cowboy API to start and stop listeners.
 -module(cowboy).
 
--export([start_listener/6, stop_listener/1, child_spec/6]).
+-export([start_listener/6, stop_listener/1, child_spec/6, accept_ack/1]).
 
 %% @doc Start a listener for the given transport and protocol.
 %%
@@ -61,6 +61,7 @@ stop_listener(Ref) ->
 	end.
 
 %% @doc Return a child spec suitable for embedding.
+%%
 %% When you want to embed cowboy in another application, you can use this
 %% function to create a <em>ChildSpec</em> suitable for use in a supervisor.
 %% The parameters are the same as in <em>start_listener/6</em> but rather
@@ -74,3 +75,11 @@ child_spec(Ref, NbAcceptors, Transport, TransOpts, Protocol, ProtoOpts)
 	{{cowboy_listener_sup, Ref}, {cowboy_listener_sup, start_link, [
 		NbAcceptors, Transport, TransOpts, Protocol, ProtoOpts
 	]}, permanent, 5000, supervisor, [cowboy_listener_sup]}.
+
+%% @doc Acknowledge the accepted connection.
+%%
+%% Effectively used to make sure the socket control has been given to
+%% the protocol process before starting to use it.
+-spec accept_ack(pid()) -> ok.
+accept_ack(ListenerPid) ->
+	receive {shoot, ListenerPid} -> ok end.
