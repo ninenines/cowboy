@@ -29,8 +29,7 @@ build-plt:
 		--apps kernel stdlib sasl inets crypto public_key ssl
 
 dialyze:
-	@$(DIALYZER) --src src --plt .cowboy_dialyzer.plt \
-		-Wbehaviours -Werror_handling \
+	@$(DIALYZER) --src src --plt .cowboy_dialyzer.plt -Werror_handling \
 		-Wrace_conditions -Wunmatched_returns # -Wunderspecs
 
 docs:
