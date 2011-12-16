@@ -29,7 +29,6 @@ start_link() ->
 
 %% supervisor.
 
--spec init([]) -> {ok, {{one_for_one, 10, 10}, [{_, _, _, _, _, _}, ...]}}.
 init([]) ->
 	Procs = [{cowboy_clock, {cowboy_clock, start_link, []},
 		permanent, 5000, worker, [cowboy_clock]}],

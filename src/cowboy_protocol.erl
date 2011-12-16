@@ -50,12 +50,5 @@
 %% handler itself.
 -module(cowboy_protocol).
 
--export([behaviour_info/1]).
-
-%% @private
--spec behaviour_info(_)
-	-> undefined | [{start_link, 4}, ...].
-behaviour_info(callbacks) ->
-	[{start_link, 4}];
-behaviour_info(_Other) ->
-	undefined.
+-callback start_link(ListenerPid::pid(), Socket::inet:socket(),
+                     Transport::module(), Opts::any()) -> {ok, pid()}.

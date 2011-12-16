@@ -30,7 +30,6 @@ start_link(NbAcceptors, Transport, TransOpts,
 
 %% supervisor.
 
--spec init(list()) -> {ok, {{one_for_one, 10, 10}, list()}}.
 init([NbAcceptors, Transport, TransOpts,
 		Protocol, ProtoOpts, ListenerPid, ReqsPid]) ->
 	{ok, LSocket} = Transport:listen(TransOpts),
