@@ -43,6 +43,42 @@
 -include("include/http.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
+-type payload() :: {binary | text | ping | pong, binary()}.
+
+-callback websocket_init(Transport::module(), Req::#http_req{}, Opts::term()) ->
+	{ok, NewReq::#http_req{}, HandlerState::term()} |
+	{ok, NewReq::#http_req{}, HandlerState::term(), hibernate} |
+	{ok, NewReq::#http_req{}, HandlerState::term(),
+		Timeout::non_neg_integer()} |
+	{ok, NewReq::#http_req{}, HandlerState::term(),
+		Timeout::non_neg_integer(), hibernate} |
+	{shutdown, NewReq::#http_req{}}.
+
+-callback websocket_handle(InputMessage::payload(), Req::#http_req{},
+                           HandlerState::term()) ->
+	{ok, NewReq::#http_req{}, NewHandlerState::term()} |
+	{ok, NewReq::#http_req{}, NewHandlerState::term(), hibernate} |
+	{reply, OutputMessage::payload(), NewReq::#http_req{},
+		NewHandlerState::term()} |
+	{reply, OutputMessage::payload(), NewReq::#http_req{},
+		NewHandlerState::term(), hibernate} |
+	{shutdown, NewReq::#http_req{}, NewHandlerState::term()}.
+
+-callback websocket_info(Message::term(), Req::#http_req{},
+                         HandlerState::term()) ->
+	{ok, NewReq::#http_req{}, NewHandlerState::term()} |
+	{ok, NewReq::#http_req{}, NewHandlerState::term(), hibernate} |
+	{reply, OutputMessage::payload(), NewReq::#http_req{},
+		NewHandlerState::term()} |
+	{reply, OutputMessage::payload(), NewReq::#http_req{},
+		NewHandlerState::term(), hibernate} |
+	{shutdown, NewReq::#http_req{}, NewHandlerState::term()}.
+
+-callback websocket_terminate(Reason::term(), Req::#http_req{},
+                              HandlerState::term()) -> term().
+
+
+
 -type opcode() :: 0 | 1 | 2 | 8 | 9 | 10.
 -type mask_key() :: 0..16#ffffffff.
 

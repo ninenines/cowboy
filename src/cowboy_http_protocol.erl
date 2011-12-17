@@ -30,6 +30,13 @@
 %% Note that there is no need to monitor these processes when using Cowboy as
 %% an application as it already supervises them under the listener supervisor.
 %%
+%% Only modules making use of the standard HTTP interface should contain the
+%% `-behaviour(cowboy_http_protocol)' attribute. Modules that immidiately
+%% upgrade to the REST or Websockets protocols only need to implement the
+%% `init/3' callback in order to perform a protocol upgrade. The `handle/2' and
+%% `terminate/2' callbacks can be left out because they will not be called
+%% after a protocol upgrade has been initiated.
+%%
 %% @see cowboy_dispatcher
 %% @see cowboy_http_handler
 -module(cowboy_http_protocol).
@@ -40,6 +47,22 @@
 
 -include("include/http.hrl").
 -include_lib("eunit/include/eunit.hrl").
+
+-callback init({Transport::module(), http}, Req::#http_req{}, Opts::term()) ->
+	{ok, NewReq::#http_req{}, HandlerState::term()} |
+	{loop, NewReq::#http_req{}, HandlerState::term()} |
+	{loop, NewReq::#http_req{}, HandlerState::term(), hibernate} |
+	{loop, NewReq::#http_req{}, HandlerState::term(),
+		Timeout::non_neg_integer()} |
+	{loop, NewReq::#http_req{}, HandlerState::term(),
+		Timeout::non_neg_integer(), hibernate} |
+	{shutdown, NewReq::#http_req{}, HandlerState::term()} |
+	{upgrade, protocol, Module::module()}.
+
+-callback handle(Req::#http_req{}, HandlerState::term()) ->
+	{ok, Req2::#http_req{}, NewHandlerState::term()}.
+
+-callback terminate(Req::#http_req{}, HandlerState::term()) -> term().
 
 -record(state, {
 	listener :: pid(),

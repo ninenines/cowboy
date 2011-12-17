@@ -83,14 +83,11 @@ wait(ServerPid, Pool, MaxConns) ->
 %% gen_server.
 
 %% @private
--spec init([]) -> {ok, #state{}}.
 init([]) ->
 	ReqsTablePid = ets:new(requests_table, [set, private]),
 	{ok, #state{reqs_table=ReqsTablePid}}.
 
 %% @private
--spec handle_call(_, _, State)
-	-> {reply, ignored, State} | {stop, normal, stopped, State}.
 handle_call({add_connection, Pool, ConnPid}, _From, State=#state{
 		req_pools=Pools, reqs_table=ReqsTable}) ->
 	MonitorRef = erlang:monitor(process, ConnPid),
@@ -117,7 +114,6 @@ handle_call(_Request, _From, State) ->
 	{reply, ignored, State}.
 
 %% @private
--spec handle_cast(_, State) -> {noreply, State}.
 handle_cast({move_connection, DestPool, ConnPid}, State=#state{
 		req_pools=Pools, reqs_table=ReqsTable}) ->
 	{MonitorRef, SrcPool} = ets:lookup_element(ReqsTable, ConnPid, 2),
@@ -137,7 +133,6 @@ handle_cast(_Msg, State) ->
 	{noreply, State}.
 
 %% @private
--spec handle_info(_, State) -> {noreply, State}.
 handle_info({'DOWN', _Ref, process, Pid, _Info}, State) ->
 	State2 = remove_pid(Pid, State),
 	{noreply, State2};
@@ -145,12 +140,10 @@ handle_info(_Info, State) ->
 	{noreply, State}.
 
 %% @private
--spec terminate(_, _) -> ok.
 terminate(_Reason, _State) ->
 	ok.
 
 %% @private
--spec code_change(_, State, _) -> {ok, State}.
 code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
 
