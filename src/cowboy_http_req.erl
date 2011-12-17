@@ -416,7 +416,7 @@ has_resp_header(Name, #http_req{resp_headers=RespHeaders}) ->
 %% @doc Return whether a body has been set for the response.
 -spec has_resp_body(#http_req{}) -> boolean().
 has_resp_body(#http_req{resp_body=RespBody}) ->
-	byte_size(RespBody) > 0.
+	iolist_size(RespBody) > 0.
 
 %% @equiv reply(Status, [], [], Req)
 -spec reply(http_status(), #http_req{}) -> {ok, #http_req{}}.
