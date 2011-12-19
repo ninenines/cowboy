@@ -638,15 +638,35 @@ post_is_create(Req, State) ->
 	expect(Req, State, post_is_create, false, fun process_post/2, fun create_path/2).
 
 %% When the POST method can create new resources, create_path/2 will be called
-%% and is expected to return the full URI of the new resource.
-create_path(Req, State) ->
+%% and is expected to return the full path to the new resource
+%% (including the leading /).
+create_path(Req=#http_req{meta=Meta}, State) ->
 	case call(Req, State, create_path) of
-		{Location, Req2, HandlerState} ->
+		{Path, Req2, HandlerState} ->
+			Location = create_path_location(Req2, Path),
 			State2 = State#state{handler_state=HandlerState},
 			{ok, Req3} = cowboy_http_req:set_resp_header(
 				<<"Location">>, Location, Req2),
-			put_resource(Req3, State2, 303)
+			put_resource(Req3#http_req{meta=[{put_path, Path}|Meta]},
+				State2, 303)
 	end.
+
+create_path_location(#http_req{transport=Transport, raw_host=Host,
+		port=Port}, Path) ->
+	TransportName = Transport:name(),
+	<< (create_path_location_protocol(TransportName))/binary, "://",
+		Host/binary, (create_path_location_port(TransportName, Port))/binary,
+		Path/binary >>.
+
+create_path_location_protocol(ssl) -> <<"https">>;
+create_path_location_protocol(_) -> <<"http">>.
+
+create_path_location_port(ssl, 443) ->
+	<<>>;
+create_path_location_port(tcp, 80) ->
+	<<>>;
+create_path_location_port(_, Port) ->
+	<<":", (list_to_binary(integer_to_list(Port)))/binary>>.
 
 process_post(Req, State) ->
 	case call(Req, State, process_post) of
@@ -658,14 +678,18 @@ process_post(Req, State) ->
 is_conflict(Req, State) ->
 	expect(Req, State, is_conflict, false, fun put_resource/2, 409).
 
-put_resource(Req, State) ->
-	put_resource(Req, State, fun is_new_resource/2).
+put_resource(Req=#http_req{raw_path=RawPath, meta=Meta}, State) ->
+	Req2 = Req#http_req{meta=[{put_path, RawPath}|Meta]},
+	put_resource(Req2, State, fun is_new_resource/2).
 
 %% content_types_accepted should return a list of media types and their
 %% associated callback functions in the same format as content_types_provided.
 %%
 %% The callback will then be called and is expected to process the content
-%% pushed to the resource in the request body.
+%% pushed to the resource in the request body. The path to the new resource
+%% may be different from the request path, and is stored as request metadata.
+%% It is always defined past this point. It can be retrieved as demonstrated:
+%%     {PutPath, Req2} = cowboy_http_req:meta(put_path, Req)
 put_resource(Req, State, OnTrue) ->
 	case call(Req, State, content_types_accepted) of
 		no_call ->
