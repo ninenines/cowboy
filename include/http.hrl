@@ -60,6 +60,7 @@
 	headers    = []        :: http_headers(),
 	p_headers  = []        :: [any()], %% @todo Improve those specs.
 	cookies    = undefined :: undefined | http_cookies(),
+	meta       = []        :: [{atom(), any()}],
 
 	%% Request body.
 	body_state = waiting   :: waiting | done,

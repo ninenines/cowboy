@@ -30,9 +30,9 @@
 %%  <li>Firefox 6</li>
 %% </ul>
 %%
-%% Version 8 is supported by the following browsers:
+%% Version 8+ is supported by the following browsers:
 %% <ul>
-%%  <li>Firefox 7</li>
+%%  <li>Firefox 7+</li>
 %%  <li>Chrome 14+</li>
 %% </ul>
 -module(cowboy_http_websocket).
@@ -95,23 +95,24 @@ websocket_upgrade(State, Req) ->
 %% third part of the challenge key, because proxies will wait for
 %% a reply before sending it. Therefore we calculate the challenge
 %% key only in websocket_handshake/3.
-websocket_upgrade(undefined, State, Req) ->
+websocket_upgrade(undefined, State, Req=#http_req{meta=Meta}) ->
 	{Origin, Req2} = cowboy_http_req:header(<<"Origin">>, Req),
 	{Key1, Req3} = cowboy_http_req:header(<<"Sec-Websocket-Key1">>, Req2),
 	{Key2, Req4} = cowboy_http_req:header(<<"Sec-Websocket-Key2">>, Req3),
 	false = lists:member(undefined, [Origin, Key1, Key2]),
 	EOP = binary:compile_pattern(<< 255 >>),
 	{ok, State#state{version=0, origin=Origin, challenge={Key1, Key2},
-		eop=EOP}, Req4};
+		eop=EOP}, Req4#http_req{meta=[{websocket_version, 0}|Meta]}};
 %% Versions 7 and 8. Implementation follows the hybi 7 through 17 drafts.
-websocket_upgrade(Version, State, Req)
+websocket_upgrade(Version, State, Req=#http_req{meta=Meta})
 		when Version =:= <<"7">>; Version =:= <<"8">>;
 			Version =:= <<"13">> ->
 	{Key, Req2} = cowboy_http_req:header(<<"Sec-Websocket-Key">>, Req),
 	false = Key =:= undefined,
 	Challenge = hybi_challenge(Key),
 	IntVersion = list_to_integer(binary_to_list(Version)),
-	{ok, State#state{version=IntVersion, challenge=Challenge}, Req2}.
+	{ok, State#state{version=IntVersion, challenge=Challenge},
+		Req2#http_req{meta=[{websocket_version, IntVersion}|Meta]}}.
 
 -spec handler_init(#state{}, #http_req{}) -> closed | none().
 handler_init(State=#state{handler=Handler, opts=Opts},

@@ -182,7 +182,7 @@ options(Req, State) ->
 %% resources a little more readable, this is a lot less efficient. An example
 %% of such a return value would be:
 %%    {<<"text/html">>, to_html}
-content_types_provided(Req, State) ->
+content_types_provided(Req=#http_req{meta=Meta}, State) ->
 	case call(Req, State, content_types_provided) of
 		no_call ->
 			not_acceptable(Req, State);
@@ -195,8 +195,10 @@ content_types_provided(Req, State) ->
 			{Accept, Req3} = cowboy_http_req:parse_header('Accept', Req2),
 			case Accept of
 				undefined ->
-					languages_provided(Req3,
-						State2#state{content_type_a=hd(CTP2)});
+					{PMT, _Fun} = HeadCTP = hd(CTP2),
+					languages_provided(
+						Req3#http_req{meta=[{media_type, PMT}|Meta]},
+						State2#state{content_type_a=HeadCTP});
 				Accept ->
 					Accept2 = prioritize_accept(Accept),
 					choose_media_type(Req3, State2, Accept2)
@@ -258,12 +260,13 @@ match_media_type(Req, State, Accept,
 match_media_type(Req, State, Accept, [_Any|Tail], MediaType) ->
 	match_media_type(Req, State, Accept, Tail, MediaType).
 
-match_media_type_params(Req, State, Accept,
-		[Provided = {{_TP, _STP, Params_P}, _Fun}|Tail],
+match_media_type_params(Req=#http_req{meta=Meta}, State, Accept,
+		[Provided = {PMT = {_TP, _STP, Params_P}, _Fun}|Tail],
 		MediaType = {{_TA, _STA, Params_A}, _QA, _APA}) ->
 	case lists:sort(Params_P) =:= lists:sort(Params_A) of
 		true ->
-			languages_provided(Req, State#state{content_type_a=Provided});
+			languages_provided(Req#http_req{meta=[{media_type, PMT}|Meta]},
+				State#state{content_type_a=Provided});
 		false ->
 			match_media_type(Req, State, Accept, Tail, MediaType)
 	end.
@@ -327,10 +330,10 @@ match_language(Req, State, Accept, [Provided|Tail],
 			match_language(Req, State, Accept, Tail, Language)
 	end.
 
-set_language(Req, State=#state{language_a=Language}) ->
+set_language(Req=#http_req{meta=Meta}, State=#state{language_a=Language}) ->
 	{ok, Req2} = cowboy_http_req:set_resp_header(
 		<<"Content-Language">>, Language, Req),
-	charsets_provided(Req2, State).
+	charsets_provided(Req2#http_req{meta=[{language, Language}|Meta]}, State).
 
 %% charsets_provided should return a list of binary values indicating
 %% which charsets are accepted by the resource.
@@ -382,7 +385,7 @@ match_charset(Req, State, _Accept, [Provided|_Tail],
 match_charset(Req, State, Accept, [_Provided|Tail], Charset) ->
 	match_charset(Req, State, Accept, Tail, Charset).
 
-set_content_type(Req, State=#state{
+set_content_type(Req=#http_req{meta=Meta}, State=#state{
 		content_type_a={{Type, SubType, Params}, _Fun},
 		charset_a=Charset}) ->
 	ParamsBin = set_content_type_build_params(Params, []),
@@ -393,7 +396,7 @@ set_content_type(Req, State=#state{
 	end,
 	{ok, Req2} = cowboy_http_req:set_resp_header(
 		<<"Content-Type">>, ContentType2, Req),
-	encodings_provided(Req2, State).
+	encodings_provided(Req2#http_req{meta=[{charset, Charset}|Meta]}, State).
 
 set_content_type_build_params([], []) ->
 	<<>>;

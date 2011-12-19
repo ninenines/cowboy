@@ -29,7 +29,8 @@
 	binding/2, binding/3, bindings/1,
 	header/2, header/3, headers/1,
 	parse_header/2, parse_header/3,
-	cookie/2, cookie/3, cookies/1
+	cookie/2, cookie/3, cookies/1,
+	meta/2, meta/3
 ]). %% Request API.
 
 -export([
@@ -340,6 +341,23 @@ cookies(Req=#http_req{cookies=undefined}) ->
 	end;
 cookies(Req=#http_req{cookies=Cookies}) ->
 	{Cookies, Req}.
+
+%% @equiv meta(Name, Req, undefined)
+-spec meta(atom(), #http_req{}) -> {any() | undefined, #http_req{}}.
+meta(Name, Req) ->
+	meta(Name, Req, undefined).
+
+%% @doc Return metadata information about the request.
+%%
+%% Metadata information varies from one protocol to another. Websockets
+%% would define the protocol version here, while REST would use it to
+%% indicate which media type, language and charset were retained.
+-spec meta(atom(), #http_req{}, any()) -> {any(), #http_req{}}.
+meta(Name, Req, Default) ->
+	case lists:keyfind(Name, 1, Req#http_req.meta) of
+		{Name, Value} -> {Value, Req};
+		false -> {Default, Req}
+	end.
 
 %% Request Body API.
 
