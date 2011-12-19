@@ -503,7 +503,8 @@ upgrade_reply(Status, Headers, Req=#http_req{socket=Socket, transport=Transport,
 compact(Req) ->
 	Req#http_req{host=undefined, host_info=undefined, path=undefined,
 		path_info=undefined, qs_vals=undefined,
-		bindings=undefined, headers=[]}.
+		bindings=undefined, headers=[],
+		p_headers=[], cookies=[]}.
 
 %% Internal.
 
