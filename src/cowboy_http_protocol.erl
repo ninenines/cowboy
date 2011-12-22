@@ -50,6 +50,8 @@
 	urldecode :: {fun((binary(), T) -> binary()), T},
 	req_empty_lines = 0 :: integer(),
 	max_empty_lines :: integer(),
+	req_keepalive = 1 :: integer(),
+	max_keepalive :: integer(),
 	max_line_length :: integer(),
 	timeout :: timeout(),
 	buffer = <<>> :: binary(),
@@ -73,6 +75,7 @@ start_link(ListenerPid, Socket, Transport, Opts) ->
 init(ListenerPid, Socket, Transport, Opts) ->
 	Dispatch = proplists:get_value(dispatch, Opts, []),
 	MaxEmptyLines = proplists:get_value(max_empty_lines, Opts, 5),
+	MaxKeepalive = proplists:get_value(max_keepalive, Opts, infinity),
 	MaxLineLength = proplists:get_value(max_line_length, Opts, 4096),
 	Timeout = proplists:get_value(timeout, Opts, 5000),
 	URLDecDefault = {fun cowboy_http:urldecode/2, crash},
@@ -80,7 +83,8 @@ init(ListenerPid, Socket, Transport, Opts) ->
 	ok = cowboy:accept_ack(ListenerPid),
 	wait_request(#state{listener=ListenerPid, socket=Socket, transport=Transport,
 		dispatch=Dispatch, max_empty_lines=MaxEmptyLines,
-		max_line_length=MaxLineLength, timeout=Timeout, urldecode=URLDec}).
+		max_keepalive=MaxKeepalive, max_line_length=MaxLineLength,
+		timeout=Timeout, urldecode=URLDec}).
 
 %% @private
 -spec parse_request(#state{}) -> ok | none().
@@ -351,13 +355,15 @@ terminate_request(HandlerState, Req, State) ->
 
 -spec next_request(#http_req{}, #state{}, any()) -> ok | none().
 next_request(Req=#http_req{connection=Conn, buffer=Buffer},
-		State, HandlerRes) ->
+		State=#state{req_keepalive=Keepalive, max_keepalive=MaxKeepalive},
+		HandlerRes) ->
 	BodyRes = ensure_body_processed(Req),
 	RespRes = ensure_response(Req),
 	case {HandlerRes, BodyRes, RespRes, Conn} of
-		{ok, ok, ok, keepalive} ->
+		{ok, ok, ok, keepalive} when Keepalive < MaxKeepalive ->
 			?MODULE:parse_request(State#state{
-				buffer=Buffer, req_empty_lines=0});
+				buffer=Buffer, req_empty_lines=0,
+				req_keepalive=Keepalive + 1});
 		_Closed ->
 			terminate(State)
 	end.

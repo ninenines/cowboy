@@ -19,9 +19,9 @@
 -export([all/0, groups/0, init_per_suite/1, end_per_suite/1,
 	init_per_group/2, end_per_group/2]). %% ct.
 -export([chunked_response/1, headers_dupe/1, headers_huge/1,
-	keepalive_nl/1, nc_rand/1, nc_zero/1, pipeline/1, raw/1,
-	set_resp_header/1, set_resp_overwrite/1, set_resp_body/1,
-	response_as_req/1]). %% http.
+	keepalive_nl/1, max_keepalive/1, nc_rand/1, nc_zero/1,
+	pipeline/1, raw/1, set_resp_header/1, set_resp_overwrite/1,
+	set_resp_body/1, response_as_req/1]). %% http.
 -export([http_200/1, http_404/1]). %% http and https.
 -export([http_10_hostless/1]). %% misc.
 -export([rest_simple/1, rest_keepalive/1]). %% rest.
@@ -34,7 +34,7 @@ all() ->
 groups() ->
 	BaseTests = [http_200, http_404],
 	[{http, [], [chunked_response, headers_dupe, headers_huge,
-		keepalive_nl, nc_rand, nc_zero, pipeline, raw,
+		keepalive_nl, max_keepalive, nc_rand, nc_zero, pipeline, raw,
 		set_resp_header, set_resp_overwrite,
 		set_resp_body, response_as_req] ++ BaseTests},
 	{https, [], BaseTests},
@@ -55,7 +55,8 @@ init_per_group(http, Config) ->
 	Port = 33080,
 	cowboy:start_listener(http, 100,
 		cowboy_tcp_transport, [{port, Port}],
-		cowboy_http_protocol, [{dispatch, init_http_dispatch()}]
+		cowboy_http_protocol, [{max_keepalive, 50},
+			{dispatch, init_http_dispatch()}]
 	),
 	[{scheme, "http"}, {port, Port}|Config];
 init_per_group(https, Config) ->
@@ -148,7 +149,7 @@ keepalive_nl(Config) ->
 	{port, Port} = lists:keyfind(port, 1, Config),
 	{ok, Socket} = gen_tcp:connect("localhost", Port,
 		[binary, {active, false}, {packet, raw}]),
-	ok = keepalive_nl_loop(Socket, 100),
+	ok = keepalive_nl_loop(Socket, 10),
 	ok = gen_tcp:close(Socket).
 
 keepalive_nl_loop(_Socket, 0) ->
@@ -160,6 +161,26 @@ keepalive_nl_loop(Socket, N) ->
 	{0, 12} = binary:match(Data, <<"HTTP/1.1 200">>),
 	nomatch = binary:match(Data, <<"Connection: close">>),
 	ok = gen_tcp:send(Socket, "\r\n"), %% extra nl
+	keepalive_nl_loop(Socket, N - 1).
+
+max_keepalive(Config) ->
+	{port, Port} = lists:keyfind(port, 1, Config),
+	{ok, Socket} = gen_tcp:connect("localhost", Port,
+		[binary, {active, false}, {packet, raw}]),
+	ok = max_keepalive_loop(Socket, 50),
+	{error, closed} = gen_tcp:recv(Socket, 0, 1000).
+
+max_keepalive_loop(_Socket, 0) ->
+	ok;
+max_keepalive_loop(Socket, N) ->
+	ok = gen_tcp:send(Socket, "GET / HTTP/1.1\r\n"
+		"Host: localhost\r\nConnection: keep-alive\r\n\r\n"),
+	{ok, Data} = gen_tcp:recv(Socket, 0, 6000),
+	{0, 12} = binary:match(Data, <<"HTTP/1.1 200">>),
+	case N of
+		1 -> {_, _} = binary:match(Data, <<"Connection: close">>);
+		N -> nomatch = binary:match(Data, <<"Connection: close">>)
+	end,
 	keepalive_nl_loop(Socket, N - 1).
 
 nc_rand(Config) ->
