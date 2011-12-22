@@ -731,8 +731,6 @@ has_resp_body(Req, State) ->
 %% Set the response headers and call the callback found using
 %% content_types_provided/2 to obtain the request body and add
 %% it to the response.
-%%
-%% @todo We should give the chosen language and charset to the callback.
 set_resp_body(Req=#http_req{method=Method},
 		State=#state{content_type_a={_Type, Fun}})
 		when Method =:= 'GET'; Method =:= 'HEAD' ->

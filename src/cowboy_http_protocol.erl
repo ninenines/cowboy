@@ -110,11 +110,9 @@ wait_request(State=#state{socket=Socket, transport=Transport,
 
 -spec request({http_request, http_method(), http_uri(),
 	http_version()}, #state{}) -> ok | none().
-%% @todo We probably want to handle some things differently between versions.
 request({http_request, _Method, _URI, Version}, State)
 		when Version =/= {1, 0}, Version =/= {1, 1} ->
 	error_terminate(505, State);
-%% @todo We need to cleanup the URI properly.
 request({http_request, Method, {abs_path, AbsPath}, Version},
 		State=#state{socket=Socket, transport=Transport,
 		urldecode={URLDecFun, URLDecArg}=URLDec}) ->
@@ -210,8 +208,10 @@ header(_Any, _Req, State) ->
 	#http_req{}, #state{}) -> ok | none().
 dispatch(Next, Req=#http_req{host=Host, path=Path},
 		State=#state{dispatch=Dispatch}) ->
-	%% @todo We probably want to filter the Host and Path here to allow
-	%%       things like url rewriting.
+	%% @todo We should allow a configurable chain of handlers here to
+	%%       allow things like url rewriting, site-wide authentication,
+	%%       optional dispatching, and more. It would default to what
+	%%       we are doing so far.
 	case cowboy_dispatcher:match(Host, Path, Dispatch) of
 		{ok, Handler, Opts, Binds, HostInfo, PathInfo} ->
 			Next(Req#http_req{host_info=HostInfo, path_info=PathInfo,
