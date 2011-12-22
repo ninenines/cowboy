@@ -72,16 +72,13 @@ upgrade(ListenerPid, Handler, Opts, Req) ->
 		{'EXIT', _Reason} -> upgrade_error(Req)
 	end.
 
-%% @todo We need a function to properly parse headers according to their ABNF,
-%%       instead of having ugly code like this case here.
-%% @todo Upgrade is a list of products and should be parsed as such.
 -spec websocket_upgrade(#state{}, #http_req{}) -> {ok, #state{}, #http_req{}}.
 websocket_upgrade(State, Req) ->
 	{ConnTokens, Req2}
 		= cowboy_http_req:parse_header('Connection', Req),
 	true = lists:member(<<"upgrade">>, ConnTokens),
-	{WS, Req3} = cowboy_http_req:header('Upgrade', Req2),
-	<<"websocket">> = cowboy_bstr:to_lower(WS),
+	%% @todo Should probably send a 426 if the Upgrade header is missing.
+	{[<<"websocket">>], Req3} = cowboy_http_req:parse_header('Upgrade', Req2),
 	{Version, Req4} = cowboy_http_req:header(<<"Sec-Websocket-Version">>, Req3),
 	websocket_upgrade(Version, State, Req4).
 

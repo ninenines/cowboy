@@ -227,13 +227,7 @@ parse_header(Name, Req=#http_req{p_headers=PHeaders}) ->
 
 %% @doc Default values for semantic header parsing.
 -spec parse_header_default(http_header()) -> any().
-parse_header_default('Accept') -> undefined;
-parse_header_default('Accept-Charset') -> undefined;
-parse_header_default('Accept-Encoding') -> undefined;
-parse_header_default('Accept-Language') -> undefined;
 parse_header_default('Connection') -> [];
-parse_header_default('If-Match') -> undefined;
-parse_header_default('If-None-Match') -> undefined;
 parse_header_default(_Name) -> undefined.
 
 %% @doc Semantically parse headers.
@@ -287,6 +281,11 @@ parse_header(Name, Req, Default)
 	parse_header(Name, Req, Default,
 		fun (Value) ->
 			cowboy_http:http_date(Value)
+		end);
+parse_header(Name, Req, Default) when Name =:= 'Upgrade' ->
+	parse_header(Name, Req, Default,
+		fun (Value) ->
+			cowboy_http:nonempty_list(Value, fun cowboy_http:token_ci/2)
 		end);
 parse_header(Name, Req, Default) ->
 	{Value, Req2} = header(Name, Req, Default),
