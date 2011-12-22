@@ -281,10 +281,20 @@ ws13(Config) ->
 	{'Upgrade', "websocket"} = lists:keyfind('Upgrade', 1, Headers),
 	{"sec-websocket-accept", "s3pPLMBiTxaQ9kYGzzhZRbK+xOo="}
 		= lists:keyfind("sec-websocket-accept", 1, Headers),
+	%% text
 	ok = gen_tcp:send(Socket, << 16#81, 16#85, 16#37, 16#fa, 16#21, 16#3d,
 		16#7f, 16#9f, 16#4d, 16#51, 16#58 >>),
 	{ok, << 1:1, 0:3, 1:4, 0:1, 5:7, "Hello" >>}
 		= gen_tcp:recv(Socket, 0, 6000),
+	%% binary (empty)
+	ok = gen_tcp:send(Socket, << 1:1, 0:3, 2:4, 0:8 >>),
+	{ok, << 1:1, 0:3, 2:4, 0:8 >>} = gen_tcp:recv(Socket, 0, 6000),
+	%% binary
+	ok = gen_tcp:send(Socket, << 16#82, 16#85, 16#37, 16#fa, 16#21, 16#3d,
+		16#7f, 16#9f, 16#4d, 16#51, 16#58 >>),
+	{ok, << 1:1, 0:3, 2:4, 0:1, 5:7, "Hello" >>}
+		= gen_tcp:recv(Socket, 0, 6000),
+	%% Receives.
 	{ok, << 1:1, 0:3, 1:4, 0:1, 14:7, "websocket_init" >>}
 		= gen_tcp:recv(Socket, 0, 6000),
 	{ok, << 1:1, 0:3, 1:4, 0:1, 16:7, "websocket_handle" >>}

@@ -23,6 +23,8 @@ websocket_init(_TransportName, Req, _Opts) ->
 
 websocket_handle({text, Data}, Req, State) ->
 	{reply, {text, Data}, Req, State};
+websocket_handle({binary, Data}, Req, State) ->
+	{reply, {binary, Data}, Req, State};
 websocket_handle(_Frame, Req, State) ->
 	{ok, Req, State}.
 
