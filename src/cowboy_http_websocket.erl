@@ -269,27 +269,43 @@ websocket_data(State=#state{version=Version}, Req, HandlerState, Data)
 websocket_data(State=#state{version=Version}, Req, HandlerState, Data)
 		when Version =/= 0 ->
 	<< 1:1, 0:3, Opcode:4, Mask:1, PayloadLen:7, Rest/bits >> = Data,
-	{PayloadLen2, Rest2} = case {PayloadLen, Rest} of
-		{126, << L:16, R/bits >>}  -> {L, R};
-		{126, Rest} -> {undefined, Rest};
-		{127, << 0:1, L:63, R/bits >>} -> {L, R};
-		{127, Rest} -> {undefined, Rest};
-		{PayloadLen, Rest} -> {PayloadLen, Rest}
-	end,
-	case {Mask, PayloadLen2} of
-		{0, 0} ->
-			websocket_dispatch(State, Req, HandlerState, Rest2, Opcode, <<>>);
-		{1, N} when N + 4 > byte_size(Rest2); N =:= undefined ->
-			%% @todo We probably should allow limiting frame length.
-			handler_before_loop(State, Req, HandlerState, Data);
-		{1, _N} ->
-			<< MaskKey:32, Payload:PayloadLen2/binary, Rest3/bits >> = Rest2,
-			websocket_unmask(State, Req, HandlerState, Rest3,
-				Opcode, Payload, MaskKey)
+	case {PayloadLen, Rest} of
+		{126, _} when Opcode >= 8 -> websocket_close(
+			State, Req, HandlerState, {error, protocol});
+		{127, _} when Opcode >= 8 -> websocket_close(
+			State, Req, HandlerState, {error, protocol});
+		{126, << L:16, R/bits >>}  -> websocket_before_unmask(
+			State, Req, HandlerState, Data, R, Opcode, Mask, L);
+		{126, Rest} -> websocket_before_unmask(
+			State, Req, HandlerState, Data, Rest, Opcode, Mask, undefined);
+		{127, << 0:1, L:63, R/bits >>} -> websocket_before_unmask(
+			State, Req, HandlerState, Data, R, Opcode, Mask, L);
+		{127, Rest} -> websocket_before_unmask(
+			State, Req, HandlerState, Data, Rest, Opcode, Mask, undefined);
+		{PayloadLen, Rest} -> websocket_before_unmask(
+			State, Req, HandlerState, Data, Rest, Opcode, Mask, PayloadLen)
 	end;
 %% Something was wrong with the frame. Close the connection.
 websocket_data(State, Req, HandlerState, _Bad) ->
 	websocket_close(State, Req, HandlerState, {error, badframe}).
+
+%% hybi routing depending on whether unmasking is needed.
+-spec websocket_before_unmask(#state{}, #http_req{}, any(), binary(),
+	binary(), opcode(), 0 | 1, non_neg_integer() | undefined)
+	-> closed | none().
+websocket_before_unmask(State, Req, HandlerState, Data,
+		Rest, Opcode, Mask, PayloadLen) ->
+	case {Mask, PayloadLen} of
+		{0, 0} ->
+			websocket_dispatch(State, Req, HandlerState, Rest, Opcode, <<>>);
+		{1, N} when N + 4 > byte_size(Rest); N =:= undefined ->
+			%% @todo We probably should allow limiting frame length.
+			handler_before_loop(State, Req, HandlerState, Data);
+		{1, _N} ->
+			<< MaskKey:32, Payload:PayloadLen/binary, Rest2/bits >> = Rest,
+			websocket_unmask(State, Req, HandlerState, Rest2,
+				Opcode, Payload, MaskKey)
+	end.
 
 %% hybi unmasking.
 -spec websocket_unmask(#state{}, #http_req{}, any(), binary(),
