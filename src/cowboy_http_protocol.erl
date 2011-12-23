@@ -276,7 +276,7 @@ handler_handle(HandlerState, Req, State=#state{handler={Handler, Opts}}) ->
 			[Handler, Class, Reason, Opts,
 			 HandlerState, Req, erlang:get_stacktrace()]),
 		handler_terminate(HandlerState, Req, State),
-		terminate(State)
+		error_terminate(500, State)
 	end.
 
 %% We don't listen for Transport closes because that would force us
