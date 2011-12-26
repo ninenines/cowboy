@@ -53,7 +53,11 @@ CHANGELOG
 
     More specifically, /bits was replaced by /binary.
 
-*   Rename the type cowboy_dispatcher:path_tokens/0 to :tokens/0
+*   Rename the type cowboy_dispatcher:path_tokens/0 to tokens/0
+
+*   Remove the cowboy_clock:date/0, time/0 and datetime/0 types
+
+    The calendar module exports those same types properly since R14B04.
 
 *   Add cacertfile configuration option to cowboy_ssl_transport
 

@@ -42,8 +42,8 @@
 
 	%% Cached resource calls.
 	etag :: undefined | no_call | binary(),
-	last_modified :: undefined | no_call | cowboy_clock:datetime(),
-	expires :: undefined | no_call | cowboy_clock:datetime()
+	last_modified :: undefined | no_call | calendar:datetime(),
+	expires :: undefined | no_call | calendar:datetime()
 }).
 
 -include("include/http.hrl").

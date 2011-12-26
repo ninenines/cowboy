@@ -25,23 +25,8 @@
 -export([init/1, handle_call/3, handle_cast/2,
 	handle_info/2, terminate/2, code_change/3]). %% gen_server.
 
-%% @todo Use calendar types whenever they get exported.
--type year()   :: non_neg_integer().
--type month()  :: 1..12.
--type day()    :: 1..31.
--type hour()   :: 0..23.
--type minute() :: 0..59.
--type second() :: 0..59.
--type daynum() :: 1..7.
-
--type date() :: {year(), month(), day()}.
--type time() :: {hour(), minute(), second()}.
-
--type datetime() :: {date(), time()}.
--export_type([date/0, time/0, datetime/0]).
-
 -record(state, {
-	universaltime = undefined :: undefined | datetime(),
+	universaltime = undefined :: undefined | calendar:datetime(),
 	rfc1123 = <<>> :: binary(),
 	tref = undefined :: undefined | timer:tref()
 }).
@@ -74,7 +59,7 @@ rfc1123() ->
 %%
 %% This format is used in the <em>'Set-Cookie'</em> header sent with
 %% HTTP responses.
--spec rfc2109(datetime()) -> binary().
+-spec rfc2109(calendar:datetime()) -> binary().
 rfc2109(LocalTime) ->
 	{{YYYY,MM,DD},{Hour,Min,Sec}} =
 	case calendar:local_time_to_universal_time_dst(LocalTime) of
@@ -145,7 +130,8 @@ code_change(_OldVsn, State, _Extra) ->
 
 %% Internal.
 
--spec update_rfc1123(binary(), undefined | datetime(), datetime()) -> binary().
+-spec update_rfc1123(binary(), undefined | calendar:datetime(),
+	calendar:datetime()) -> binary().
 update_rfc1123(Bin, Now, Now) ->
 	Bin;
 update_rfc1123(<< Keep:23/binary, _/bits >>,
@@ -184,7 +170,7 @@ pad_int(X) when X < 10 ->
 pad_int(X) ->
 	list_to_binary(integer_to_list(X)).
 
--spec weekday(daynum()) -> <<_:24>>.
+-spec weekday(1..7) -> <<_:24>>.
 weekday(1) -> <<"Mon">>;
 weekday(2) -> <<"Tue">>;
 weekday(3) -> <<"Wed">>;
@@ -193,7 +179,7 @@ weekday(5) -> <<"Fri">>;
 weekday(6) -> <<"Sat">>;
 weekday(7) -> <<"Sun">>.
 
--spec month(month()) -> <<_:24>>.
+-spec month(1..12) -> <<_:24>>.
 month( 1) -> <<"Jan">>;
 month( 2) -> <<"Feb">>;
 month( 3) -> <<"Mar">>;

@@ -23,7 +23,7 @@
 -type kv() :: {Name::binary(), Value::binary()}.
 -type kvlist() :: [kv()].
 -type cookie_option() :: {max_age, integer()}
-				| {local_time, {cowboy_clock:date(), cowboy_clock:time()}}
+				| {local_time, calendar:datetime()}
 				| {domain, binary()} | {path, binary()}
 				| {secure, true | false} | {http_only, true | false}.
 -export_type([kv/0, kvlist/0, cookie_option/0]).
@@ -171,13 +171,12 @@ quote(V0) ->
 			V
 	end.
 
--spec add_seconds(integer(), cowboy_clock:datetime())
-	-> cowboy_clock:datetime().
+-spec add_seconds(integer(), calendar:datetime()) -> calendar:datetime().
 add_seconds(Secs, LocalTime) ->
 	Greg = calendar:datetime_to_gregorian_seconds(LocalTime),
 	calendar:gregorian_seconds_to_datetime(Greg + Secs).
 
--spec age_to_cookie_date(integer(), cowboy_clock:datetime()) -> binary().
+-spec age_to_cookie_date(integer(), calendar:datetime()) -> binary().
 age_to_cookie_date(Age, LocalTime) ->
 	cowboy_clock:rfc2109(add_seconds(Age, LocalTime)).
 
