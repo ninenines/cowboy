@@ -203,6 +203,7 @@ header(Name, Req) when is_atom(Name) orelse is_binary(Name) ->
 	-> {binary() | Default, #http_req{}} when Default::any().
 header(Name, Req, Default) when is_atom(Name) orelse is_binary(Name) ->
 	case lists:keyfind(Name, 1, Req#http_req.headers) of
+		{Name, <<>>} -> {Default, Req};
 		{Name, Value} -> {Value, Req};
 		false -> {Default, Req}
 	end.
