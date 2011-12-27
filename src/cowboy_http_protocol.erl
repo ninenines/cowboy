@@ -376,7 +376,10 @@ ensure_body_processed(Req=#http_req{body_state=waiting}) ->
 		{error, badarg} -> ok; %% No body.
 		{error, _Reason} -> close;
 		_Any -> ok
-	end.
+	end;
+ensure_body_processed(Req=#http_req{body_state={multipart, _, _}}) ->
+	{ok, Req2} = cowboy_http_req:multipart_skip(Req),
+	ensure_body_processed(Req2).
 
 -spec ensure_response(#http_req{}) -> ok.
 %% The handler has already fully replied to the client.

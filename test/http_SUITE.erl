@@ -1,4 +1,5 @@
 %% Copyright (c) 2011, Loïc Hoguin <essen@dev-extend.eu>
+%% Copyright (c) 2011, Anthony Ramine <nox@dev-extend.eu>
 %%
 %% Permission to use, copy, modify, and/or distribute this software for any
 %% purpose with or without fee is hereby granted, provided that the above
@@ -19,7 +20,7 @@
 -export([all/0, groups/0, init_per_suite/1, end_per_suite/1,
 	init_per_group/2, end_per_group/2]). %% ct.
 -export([chunked_response/1, headers_dupe/1, headers_huge/1,
-	keepalive_nl/1, max_keepalive/1, nc_rand/1, nc_zero/1,
+	keepalive_nl/1, multipart/1, max_keepalive/1, nc_rand/1, nc_zero/1,
 	pipeline/1, raw/1, set_resp_header/1, set_resp_overwrite/1,
 	set_resp_body/1, response_as_req/1]). %% http.
 -export([http_200/1, http_404/1]). %% http and https.
@@ -115,6 +116,7 @@ init_http_dispatch() ->
 				[{headers, [{<<"Server">>, <<"DesireDrive/1.0">>}]}]},
 			{[<<"set_resp">>, <<"body">>], http_handler_set_resp,
 				[{body, <<"A flameless dance does not equal a cycle">>}]},
+			{[<<"multipart">>], http_handler_multipart, []},
 			{[], http_handler, []}
 		]}
 	].
@@ -182,6 +184,24 @@ max_keepalive_loop(Socket, N) ->
 		N -> nomatch = binary:match(Data, <<"Connection: close">>)
 	end,
 	keepalive_nl_loop(Socket, N - 1).
+
+multipart(Config) ->
+	Url = build_url("/multipart", Config),
+	Body = <<
+		"This is a preamble."
+		"\r\n--OHai\r\nX-Name:answer\r\n\r\n42"
+		"\r\n--OHai\r\nServer:Cowboy\r\n\r\nIt rocks!\r\n"
+		"\r\n--OHai--"
+		"This is an epiloque."
+	>>,
+	Request = {Url, [], "multipart/x-makes-no-sense; boundary=OHai", Body},
+	{ok, {{"HTTP/1.1", 200, "OK"}, _Headers, Response}} =
+		httpc:request(post, Request, [], [{body_format, binary}]),
+	Parts = binary_to_term(Response),
+	Parts = [
+		{[{<<"X-Name">>, <<"answer">>}], <<"42">>},
+		{[{'Server', <<"Cowboy">>}], <<"It rocks!\r\n">>}
+	].
 
 nc_rand(Config) ->
 	nc_reqs(Config, "/dev/urandom").
