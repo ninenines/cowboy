@@ -46,7 +46,7 @@
 ]). %% Response API.
 
 -export([
-	compact/1
+	compact/1, transport/1
 ]). %% Misc API.
 
 -include("include/http.hrl").
@@ -522,6 +522,18 @@ compact(Req) ->
 		path_info=undefined, qs_vals=undefined,
 		bindings=undefined, headers=[],
 		p_headers=[], cookies=[]}.
+
+%% @doc Return the transport module and socket associated with a request.
+%%
+%% This exposes the same socket interface used internally by the HTTP protocol
+%% implementation to developers that needs low level access to the socket.
+%%
+%% It is preferred to use this in conjuction with the stream function support
+%% in `set_resp_body/2' if this is used to write a response body directly to
+%% the socket. This ensures that the response headers are set correctly.
+-spec transport(#http_req{}) -> {ok, module(), inet:socket()}.
+transport(#http_req{transport=Transport, socket=Socket}) ->
+	{ok, Transport, Socket}.
 
 %% Internal.
 
