@@ -36,6 +36,8 @@
 -type http_headers() :: list({http_header(), iodata()}).
 -type http_cookies() :: list({binary(), binary()}).
 -type http_status() :: non_neg_integer() | binary().
+-type http_resp_body() :: iodata() | {non_neg_integer(),
+		fun(() -> {sent, non_neg_integer()})}.
 
 -record(http_req, {
 	%% Transport.
@@ -69,7 +71,7 @@
 	%% Response.
 	resp_state = waiting   :: locked | waiting | chunks | done,
 	resp_headers = []      :: http_headers(),
-	resp_body  = <<>>      :: iodata(),
+	resp_body  = <<>>      :: http_resp_body(),
 
 	%% Functions.
 	urldecode :: {fun((binary(), T) -> binary()), T}

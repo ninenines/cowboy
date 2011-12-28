@@ -21,7 +21,7 @@
 -export([chunked_response/1, headers_dupe/1, headers_huge/1,
 	keepalive_nl/1, max_keepalive/1, nc_rand/1, nc_zero/1,
 	pipeline/1, raw/1, set_resp_header/1, set_resp_overwrite/1,
-	set_resp_body/1, response_as_req/1]). %% http.
+	set_resp_body/1, stream_body_set_resp/1, response_as_req/1]). %% http.
 -export([http_200/1, http_404/1]). %% http and https.
 -export([http_10_hostless/1]). %% misc.
 -export([rest_simple/1, rest_keepalive/1]). %% rest.
@@ -36,7 +36,7 @@ groups() ->
 	[{http, [], [chunked_response, headers_dupe, headers_huge,
 		keepalive_nl, max_keepalive, nc_rand, nc_zero, pipeline, raw,
 		set_resp_header, set_resp_overwrite,
-		set_resp_body, response_as_req] ++ BaseTests},
+		set_resp_body, response_as_req, stream_body_set_resp] ++ BaseTests},
 	{https, [], BaseTests},
 	{misc, [], [http_10_hostless]},
 	{rest, [], [rest_simple, rest_keepalive]}].
@@ -115,6 +115,8 @@ init_http_dispatch() ->
 				[{headers, [{<<"Server">>, <<"DesireDrive/1.0">>}]}]},
 			{[<<"set_resp">>, <<"body">>], http_handler_set_resp,
 				[{body, <<"A flameless dance does not equal a cycle">>}]},
+			{[<<"stream_body">>, <<"set_resp">>], http_handler_stream_body,
+				[{reply, set_resp}, {body, <<"stream_body_set_resp">>}]},
 			{[], http_handler, []}
 		]}
 	].
@@ -327,6 +329,16 @@ The document has moved
 <A HREF=\"http://www.google.co.il/\">here</A>.
 </BODY></HTML>",
 	{Packet, 400} = raw_req(Packet, Config).
+
+stream_body_set_resp(Config) ->
+	{port, Port} = lists:keyfind(port, 1, Config),
+	{ok, Socket} = gen_tcp:connect("localhost", Port,
+		[binary, {active, false}, {packet, raw}]),
+	ok = gen_tcp:send(Socket, "GET /stream_body/set_resp HTTP/1.1\r\n"
+		"Host: localhost\r\nConnection: close\r\n\r\n"),
+	{ok, Data} = gen_tcp:recv(Socket, 0, 6000),
+	{_Start, _Length} = binary:match(Data, <<"stream_body_set_resp">>).
+
 
 %% http and https.
 

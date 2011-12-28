@@ -39,7 +39,7 @@
 
 -export([
 	set_resp_cookie/4, set_resp_header/3, set_resp_body/2,
-	has_resp_header/2, has_resp_body/1,
+	set_resp_body_fun/3, has_resp_header/2, has_resp_body/1,
 	reply/2, reply/3, reply/4,
 	chunked_reply/2, chunked_reply/3, chunk/2,
 	upgrade_reply/3
@@ -419,10 +419,32 @@ set_resp_header(Name, Value, Req=#http_req{resp_headers=RespHeaders}) ->
 %% @doc Add a body to the response.
 %%
 %% The body set here is ignored if the response is later sent using
-%% anything other than reply/2 or reply/3.
+%% anything other than reply/2 or reply/3. The response body is expected
+%% to be a binary or an iolist.
 -spec set_resp_body(iodata(), #http_req{}) -> {ok, #http_req{}}.
 set_resp_body(Body, Req) ->
 	{ok, Req#http_req{resp_body=Body}}.
+
+
+%% @doc Add a body function to the response.
+%%
+%% The response body may also be set to a content-length - stream-function pair.
+%% If the response body is of this type normal response headers will be sent.
+%% After the response headers has been sent the body function is applied.
+%% The body function is expected to write the response body directly to the
+%% socket using the transport module.
+%%
+%% If the body function crashes while writing the response body or writes fewer
+%% bytes than declared the behaviour is undefined. The body set here is ignored
+%% if the response is later sent using anything other than `reply/2' or
+%% `reply/3'.
+%%
+%% @see cowboy_http_req:transport/1.
+-spec set_resp_body_fun(non_neg_integer(), fun(() -> {sent, non_neg_integer()}),
+		#http_req{}) -> {ok, #http_req{}}.
+set_resp_body_fun(StreamLen, StreamFun, Req) ->
+	{ok, Req#http_req{resp_body={StreamLen, StreamFun}}}.
+
 
 %% @doc Return whether the given header has been set for the response.
 -spec has_resp_header(http_header(), #http_req{}) -> boolean().
@@ -432,6 +454,8 @@ has_resp_header(Name, #http_req{resp_headers=RespHeaders}) ->
 
 %% @doc Return whether a body has been set for the response.
 -spec has_resp_body(#http_req{}) -> boolean().
+has_resp_body(#http_req{resp_body={Length, _}}) ->
+	Length > 0;
 has_resp_body(#http_req{resp_body=RespBody}) ->
 	iolist_size(RespBody) > 0.
 
@@ -452,16 +476,17 @@ reply(Status, Headers, Body, Req=#http_req{socket=Socket,
 		transport=Transport, connection=Connection,
 		method=Method, resp_state=waiting, resp_headers=RespHeaders}) ->
 	RespConn = response_connection(Headers, Connection),
+	ContentLen = case Body of {CL, _} -> CL; _ -> iolist_size(Body) end,
 	Head = response_head(Status, Headers, RespHeaders, [
 		{<<"Connection">>, atom_to_connection(Connection)},
-		{<<"Content-Length">>,
-			list_to_binary(integer_to_list(iolist_size(Body)))},
+		{<<"Content-Length">>, integer_to_list(ContentLen)},
 		{<<"Date">>, cowboy_clock:rfc1123()},
 		{<<"Server">>, <<"Cowboy">>}
 	]),
-	case Method of
-		'HEAD' -> Transport:send(Socket, Head);
-		_ -> Transport:send(Socket, [Head, Body])
+	case {Method, Body} of
+		{'HEAD', _} -> Transport:send(Socket, Head);
+		{_, {_, StreamFun}} -> Transport:send(Socket, Head), StreamFun();
+		{_, _} -> Transport:send(Socket, [Head, Body])
 	end,
 	{ok, Req#http_req{connection=RespConn, resp_state=done,
 		resp_headers=[], resp_body= <<>>}}.
