@@ -357,8 +357,8 @@ terminate_request(HandlerState, Req, State) ->
 next_request(Req=#http_req{connection=Conn, buffer=Buffer},
 		State=#state{req_keepalive=Keepalive, max_keepalive=MaxKeepalive},
 		HandlerRes) ->
-	BodyRes = ensure_body_processed(Req),
 	RespRes = ensure_response(Req),
+	BodyRes = ensure_body_processed(Req),
 	case {HandlerRes, BodyRes, RespRes, Conn} of
 		{ok, ok, ok, keepalive} when Keepalive < MaxKeepalive ->
 			?MODULE:parse_request(State#state{
