@@ -473,7 +473,7 @@ reply(Status, Headers, Req=#http_req{resp_body=Body}) ->
 -spec reply(http_status(), http_headers(), iodata(), #http_req{})
 	-> {ok, #http_req{}}.
 reply(Status, Headers, Body, Req=#http_req{socket=Socket,
-		transport=Transport, connection=Connection,
+		transport=Transport, connection=Connection, pid=ReqPid,
 		method=Method, resp_state=waiting, resp_headers=RespHeaders}) ->
 	RespConn = response_connection(Headers, Connection),
 	ContentLen = case Body of {CL, _} -> CL; _ -> iolist_size(Body) end,
@@ -488,6 +488,7 @@ reply(Status, Headers, Body, Req=#http_req{socket=Socket,
 		{_, {_, StreamFun}} -> Transport:send(Socket, Head), StreamFun();
 		{_, _} -> Transport:send(Socket, [Head, Body])
 	end,
+	ReqPid ! {?MODULE, resp_sent},
 	{ok, Req#http_req{connection=RespConn, resp_state=done,
 		resp_headers=[], resp_body= <<>>}}.
 
@@ -500,8 +501,9 @@ chunked_reply(Status, Req) ->
 %% @see cowboy_http_req:chunk/2
 -spec chunked_reply(http_status(), http_headers(), #http_req{})
 	-> {ok, #http_req{}}.
-chunked_reply(Status, Headers, Req=#http_req{socket=Socket, transport=Transport,
-		connection=Connection, resp_state=waiting, resp_headers=RespHeaders}) ->
+chunked_reply(Status, Headers, Req=#http_req{socket=Socket,
+		transport=Transport, connection=Connection, pid=ReqPid,
+		resp_state=waiting, resp_headers=RespHeaders}) ->
 	RespConn = response_connection(Headers, Connection),
 	Head = response_head(Status, Headers, RespHeaders, [
 		{<<"Connection">>, atom_to_connection(Connection)},
@@ -510,6 +512,7 @@ chunked_reply(Status, Headers, Req=#http_req{socket=Socket, transport=Transport,
 		{<<"Server">>, <<"Cowboy">>}
 	]),
 	Transport:send(Socket, Head),
+	ReqPid ! {?MODULE, resp_sent},
 	{ok, Req#http_req{connection=RespConn, resp_state=chunks,
 		resp_headers=[], resp_body= <<>>}}.
 
@@ -524,14 +527,16 @@ chunk(Data, #http_req{socket=Socket, transport=Transport, resp_state=chunks}) ->
 		<<"\r\n">>, Data, <<"\r\n">>]).
 
 %% @doc Send an upgrade reply.
+%% @private
 -spec upgrade_reply(http_status(), http_headers(), #http_req{})
 	-> {ok, #http_req{}}.
 upgrade_reply(Status, Headers, Req=#http_req{socket=Socket, transport=Transport,
-		resp_state=waiting, resp_headers=RespHeaders}) ->
+		pid=ReqPid, resp_state=waiting, resp_headers=RespHeaders}) ->
 	Head = response_head(Status, Headers, RespHeaders, [
 		{<<"Connection">>, <<"Upgrade">>}
 	]),
 	Transport:send(Socket, Head),
+	ReqPid ! {?MODULE, resp_sent},
 	{ok, Req#http_req{resp_state=done, resp_headers=[], resp_body= <<>>}}.
 
 %% Misc API.

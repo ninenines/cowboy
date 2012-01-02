@@ -120,13 +120,13 @@ request({http_request, Method, {abs_path, AbsPath}, Version},
 	{Path, RawPath, Qs} = cowboy_dispatcher:split_path(AbsPath, URLDecode),
 	ConnAtom = version_to_connection(Version),
 	parse_header(#http_req{socket=Socket, transport=Transport,
-		connection=ConnAtom, method=Method, version=Version,
+		connection=ConnAtom, pid=self(), method=Method, version=Version,
 		path=Path, raw_path=RawPath, raw_qs=Qs, urldecode=URLDec}, State);
 request({http_request, Method, '*', Version},
 		State=#state{socket=Socket, transport=Transport, urldecode=URLDec}) ->
 	ConnAtom = version_to_connection(Version),
 	parse_header(#http_req{socket=Socket, transport=Transport,
-		connection=ConnAtom, method=Method, version=Version,
+		connection=ConnAtom, pid=self(), method=Method, version=Version,
 		path='*', raw_path= <<"*">>, raw_qs= <<>>, urldecode=URLDec}, State);
 request({http_request, _Method, _URI, _Version}, State) ->
 	error_terminate(501, State);
@@ -276,7 +276,7 @@ handler_handle(HandlerState, Req, State=#state{handler={Handler, Opts}}) ->
 			[Handler, Class, Reason, Opts,
 			 HandlerState, Req, erlang:get_stacktrace()]),
 		handler_terminate(HandlerState, Req, State),
-		terminate(State)
+		error_terminate(500, State)
 	end.
 
 %% We don't listen for Transport closes because that would force us
@@ -331,7 +331,9 @@ handler_call(HandlerState, Req, State=#state{handler={Handler, Opts}},
 			"** Options were ~p~n** Handler state was ~p~n"
 			"** Request was ~p~n** Stacktrace: ~p~n~n",
 			[Handler, Class, Reason, Opts,
-			 HandlerState, Req, erlang:get_stacktrace()])
+			 HandlerState, Req, erlang:get_stacktrace()]),
+		handler_terminate(HandlerState, Req, State),
+		error_terminate(500, State)
 	end.
 
 -spec handler_terminate(any(), #http_req{}, #state{}) -> ok.
@@ -359,6 +361,8 @@ next_request(Req=#http_req{connection=Conn, buffer=Buffer},
 		HandlerRes) ->
 	RespRes = ensure_response(Req),
 	BodyRes = ensure_body_processed(Req),
+	%% Flush the resp_sent message before moving on.
+	receive {cowboy_http_req, resp_sent} -> ok after 0 -> ok end,
 	case {HandlerRes, BodyRes, RespRes, Conn} of
 		{ok, ok, ok, keepalive} when Keepalive < MaxKeepalive ->
 			?MODULE:parse_request(State#state{
@@ -395,11 +399,17 @@ ensure_response(#http_req{socket=Socket, transport=Transport,
 	Transport:send(Socket, <<"0\r\n\r\n">>),
 	close.
 
+%% Only send an error reply if there is no resp_sent message.
 -spec error_terminate(http_status(), #state{}) -> ok.
 error_terminate(Code, State=#state{socket=Socket, transport=Transport}) ->
-	_ = cowboy_http_req:reply(Code, [], [], #http_req{
-		socket=Socket, transport=Transport,
-		connection=close, resp_state=waiting}),
+	receive
+		{cowboy_http_req, resp_sent} -> ok
+	after 0 ->
+		_ = cowboy_http_req:reply(Code, #http_req{
+			socket=Socket, transport=Transport,
+			connection=close, pid=self(), resp_state=waiting}),
+		ok
+	end,
 	terminate(State).
 
 -spec terminate(#state{}) -> ok.

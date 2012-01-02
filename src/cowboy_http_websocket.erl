@@ -169,6 +169,8 @@ websocket_handshake(State=#state{version=0, origin=Origin,
 		 {<<"Sec-Websocket-Location">>, Location},
 		 {<<"Sec-Websocket-Origin">>, Origin}],
 		Req#http_req{resp_state=waiting}),
+	%% Flush the resp_sent message before moving on.
+	receive {cowboy_http_req, resp_sent} -> ok after 0 -> ok end,
 	%% We replied with a proper response. Proxies should be happy enough,
 	%% we can now read the 8 last bytes of the challenge keys and send
 	%% the challenge response directly to the socket.
@@ -188,6 +190,8 @@ websocket_handshake(State=#state{challenge=Challenge},
 		[{<<"Upgrade">>, <<"websocket">>},
 		 {<<"Sec-Websocket-Accept">>, Challenge}],
 		Req#http_req{resp_state=waiting}),
+	%% Flush the resp_sent message before moving on.
+	receive {cowboy_http_req, resp_sent} -> ok after 0 -> ok end,
 	handler_before_loop(State#state{messages=Transport:messages()},
 		Req2, HandlerState, <<>>).
 

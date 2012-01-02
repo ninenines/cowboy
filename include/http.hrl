@@ -46,6 +46,7 @@
 	connection = keepalive :: keepalive | close,
 
 	%% Request.
+	pid        = undefined :: pid(),
 	method     = 'GET'     :: http_method(),
 	version    = {1, 1}    :: http_version(),
 	peer       = undefined :: undefined | {inet:ip_address(), inet:ip_port()},
