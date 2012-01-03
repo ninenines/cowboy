@@ -748,7 +748,12 @@ set_resp_body(Req=#http_req{method=Method},
 	case call(Req5, State4, Fun) of
 		{Body, Req6, HandlerState} ->
 			State5 = State4#state{handler_state=HandlerState},
-			{ok, Req7} = cowboy_http_req:set_resp_body(Body, Req6),
+			{ok, Req7} = case Body of
+				{stream, Len, Fun1} ->
+					cowboy_http_req:set_resp_body_fun(Len, Fun1, Req6);
+				_Contents ->
+					cowboy_http_req:set_resp_body(Body, Req6)
+			end,
 			multiple_choices(Req7, State5)
 	end;
 set_resp_body(Req, State) ->
