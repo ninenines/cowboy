@@ -276,7 +276,13 @@ handler_handle(HandlerState, Req, State=#state{handler={Handler, Opts}}) ->
 			[Handler, Class, Reason, Opts,
 			 HandlerState, Req, erlang:get_stacktrace()]),
 		handler_terminate(HandlerState, Req, State),
-		terminate(State)
+		%% if send_oct is > 0, Handler has started sending response, terminate
+		%% without writing an error reply to socket, otherwise terminate with
+		%% error response 500
+		case inet:getstat(State#state.socket, [send_oct]) of
+		    {ok, [{send_oct, 0}]} -> error_terminate(500, State)
+		    ; _ -> terminate(State)
+		end
 	end.
 
 %% We don't listen for Transport closes because that would force us
