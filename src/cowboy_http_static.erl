@@ -20,6 +20,12 @@
 %% used for small or temporary environments where it is not preferrable to set
 %% up a second server just to serve files.
 %%
+%% If this handler is used the Erlang node running the cowboy application must
+%% be configured to use an async thread pool. This is configured by adding the
+%% `+A $POOL_SIZE' argument to the `erl' command used to start the node. See
+%% <a href="http://erlang.org/pipermail/erlang-bugs/2012-January/002720.html">
+%% this reply</a> from the OTP team to erlang-bugs
+%%
 %% == Base configuration ==
 %%
 %% The handler must be configured with a request path prefix to serve files
