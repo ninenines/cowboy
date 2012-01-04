@@ -89,8 +89,8 @@ peer_addr(Req = #http_req{}) ->
 			end
 	end,
 	{ok, PeerAddr} = if
-		is_binary(RealIp) -> inet_parse:address(RealIp);
-		is_binary(ForwardedFor) -> inet_parse:address(ForwardedFor);
+		is_binary(RealIp) -> inet_parse:address(binary_to_list(RealIp));
+		is_binary(ForwardedFor) -> inet_parse:address(binary_to_list(ForwardedFor));
 		true -> {ok, PeerIp}
 	end,
 	{PeerAddr, Req3}.
