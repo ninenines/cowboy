@@ -102,9 +102,11 @@ end_per_group(https, Config) ->
 	application:stop(crypto),
 	end_static_dir(Config),
 	ok;
-end_per_group(Listener, Config) ->
+end_per_group(http, Config) ->
+	cowboy:stop_listener(http),
+	end_static_dir(Config);
+end_per_group(Listener, _Config) ->
 	cowboy:stop_listener(Listener),
-	end_static_dir(Config),
 	ok.
 
 %% Dispatch configuration.
