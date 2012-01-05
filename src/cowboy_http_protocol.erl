@@ -100,6 +100,20 @@ parse_request(State=#state{buffer=Buffer, max_line_length=MaxLength}) ->
 	end.
 
 -spec wait_request(#state{}) -> ok | none().
+wait_request(State=#state{socket=Socket, timeout=T, transport=gen_http}) ->
+  gen_http:active_once(Socket),
+  receive
+    {http, Socket, Method, AbsPath, Keepalive, Version, Headers} -> 
+      handle_http_request(State, Method, AbsPath, Keepalive, Version, Headers);
+    {http_closed, Socket} ->
+      terminate(State);
+    {http_error, Socket, _Error} ->
+      terminate(State)
+  after
+    T -> terminate(State)    
+  end;
+  
+
 wait_request(State=#state{socket=Socket, transport=Transport,
 		timeout=T, buffer=Buffer}) ->
 	case Transport:recv(Socket, 0, T) of
@@ -107,6 +121,36 @@ wait_request(State=#state{socket=Socket, transport=Transport,
 			buffer= << Buffer/binary, Data/binary >>});
 		{error, _Reason} -> terminate(State)
 	end.
+
+handle_http_request(#state{socket = Socket, transport=Transport, urldecode={URLDecFun, URLDecArg}=URLDec} = State, 
+               Method, AbsPath, Keepalive, Version, Headers) ->
+  URLDecode = fun(Bin) -> URLDecFun(Bin, URLDecArg) end,
+	{Path, RawPath, Qs} = cowboy_dispatcher:split_path(AbsPath, URLDecode),
+	Request0 = #http_req{socket=Socket, transport=Transport,
+		connection=Keepalive, method=Method, version=Version,
+		path=Path, raw_path=RawPath, raw_qs=Qs, urldecode=URLDec},
+	handle_http_headers(Headers, [], Request0, State).
+	
+
+
+handle_http_headers([], Headers, #http_req{} = Req, #state{} = State) ->
+  dispatch(fun handler_init/2, Req#http_req{headers = lists:reverse(Headers)}, State);
+
+handle_http_headers([{'Host', RawHost}|Headers], Acc, #http_req{} = Req, #state{} = State) ->
+	RawHost2 = cowboy_bstr:to_lower(RawHost),
+	case catch cowboy_dispatcher:split_host(RawHost2) of
+		{Host, RawHost3, undefined} ->
+			Port = 80,
+			handle_http_headers(Headers, [{'Host',RawHost3}|Acc], Req#http_req{host=Host, raw_host=RawHost3, port=Port}, State);
+		{Host, RawHost3, Port} ->
+			handle_http_headers(Headers, [{'Host',RawHost3}|Acc], Req#http_req{host=Host, raw_host=RawHost3, port=Port}, State);
+		{'EXIT', _Reason} ->
+      error_terminate(400, State)
+	end;
+
+handle_http_headers([Header|Headers], Acc, Req, State) -> 
+  handle_http_headers(Headers, [Header|Acc], Req, State).
+
 
 -spec request({http_request, http_method(), http_uri(),
 	http_version()}, #state{}) -> ok | none().
