@@ -65,13 +65,25 @@
 %% The mimetypes must be of a type that the `cowboy_http_rest' protocol can
 %% handle.
 %%
+%% The <a href="https://github.com/spawngrid/mimetypes">spawngrid/mimetypes</a>
+%% application, or an arbitrary function accepting the path to the file being
+%% served, can also be used to generate the list of content types for a static
+%% file resource. The function used must accept an additional argument after
+%% the file path argument.
+%%
 %% ==== Example ====
 %% ```
+%% %% Use a static list of content types.
 %% {[<<"static">>, '...'], cowboy_http_static,
 %%     [{directory, {priv_dir, cowboy, []}},
 %%      {mimetypes, [
 %%          {<<".css">>, [<<"text/css">>]},
 %%          {<<".js">>, [<<"application/javascript">>]}]}]}
+%%
+%% %% Use the default database in the mimetypes application.
+%% {[<<"static">>, '...', cowboy_http_static,
+%%     [{directory, {priv_dir, cowboy, []}},
+%%      {mimetypes, {fun mimetypes:path_to_mimes/2, default}}]]}
 %% '''
 -module(cowboy_http_static).
 
