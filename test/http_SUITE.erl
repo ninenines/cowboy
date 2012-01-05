@@ -22,8 +22,10 @@
 -export([chunked_response/1, headers_dupe/1, headers_huge/1,
 	keepalive_nl/1, multipart/1, max_keepalive/1, nc_rand/1, nc_zero/1,
 	pipeline/1, raw/1, set_resp_header/1, set_resp_overwrite/1,
-	set_resp_body/1, response_as_req/1]). %% http.
--export([http_200/1, http_404/1]). %% http and https.
+	set_resp_body/1, stream_body_set_resp/1, response_as_req/1,
+	static_mimetypes_function/1]). %% http.
+-export([http_200/1, http_404/1, file_200/1, file_403/1,
+	dir_403/1, file_404/1, file_400/1]). %% http and https.
 -export([http_10_hostless/1]). %% misc.
 -export([rest_simple/1, rest_keepalive/1]). %% rest.
 
@@ -33,11 +35,13 @@ all() ->
 	[{group, http}, {group, https}, {group, misc}, {group, rest}].
 
 groups() ->
-	BaseTests = [http_200, http_404],
+	BaseTests = [http_200, http_404, file_200, file_403, dir_403, file_404,
+		file_400],
 	[{http, [], [chunked_response, headers_dupe, headers_huge,
 		keepalive_nl, max_keepalive, nc_rand, nc_zero, pipeline, raw,
 		set_resp_header, set_resp_overwrite,
-		set_resp_body, response_as_req] ++ BaseTests},
+		set_resp_body, response_as_req, stream_body_set_resp,
+		static_mimetypes_function] ++ BaseTests},
 	{https, [], BaseTests},
 	{misc, [], [http_10_hostless]},
 	{rest, [], [rest_simple, rest_keepalive]}].
@@ -54,14 +58,16 @@ end_per_suite(_Config) ->
 
 init_per_group(http, Config) ->
 	Port = 33080,
+	Config1 = init_static_dir(Config),
 	cowboy:start_listener(http, 100,
 		cowboy_tcp_transport, [{port, Port}],
 		cowboy_http_protocol, [{max_keepalive, 50},
-			{dispatch, init_http_dispatch()}]
+			{dispatch, init_http_dispatch(Config1)}]
 	),
-	[{scheme, "http"}, {port, Port}|Config];
+	[{scheme, "http"}, {port, Port}|Config1];
 init_per_group(https, Config) ->
 	Port = 33081,
+	Config1 = init_static_dir(Config),
 	application:start(crypto),
 	application:start(public_key),
 	application:start(ssl),
@@ -70,9 +76,9 @@ init_per_group(https, Config) ->
 		cowboy_ssl_transport, [
 			{port, Port}, {certfile, DataDir ++ "cert.pem"},
 			{keyfile, DataDir ++ "key.pem"}, {password, "cowboy"}],
-		cowboy_http_protocol, [{dispatch, init_https_dispatch()}]
+		cowboy_http_protocol, [{dispatch, init_https_dispatch(Config1)}]
 	),
-	[{scheme, "https"}, {port, Port}|Config];
+	[{scheme, "https"}, {port, Port}|Config1];
 init_per_group(misc, Config) ->
 	Port = 33082,
 	cowboy:start_listener(misc, 100,
@@ -90,19 +96,23 @@ init_per_group(rest, Config) ->
 	]}]}]),
 	[{port, Port}|Config].
 
-end_per_group(https, _Config) ->
+end_per_group(https, Config) ->
 	cowboy:stop_listener(https),
 	application:stop(ssl),
 	application:stop(public_key),
 	application:stop(crypto),
+	end_static_dir(Config),
 	ok;
+end_per_group(http, Config) ->
+	cowboy:stop_listener(http),
+	end_static_dir(Config);
 end_per_group(Listener, _Config) ->
 	cowboy:stop_listener(Listener),
 	ok.
 
 %% Dispatch configuration.
 
-init_http_dispatch() ->
+init_http_dispatch(Config) ->
 	[
 		{[<<"localhost">>], [
 			{[<<"chunked_response">>], chunked_handler, []},
@@ -117,12 +127,45 @@ init_http_dispatch() ->
 			{[<<"set_resp">>, <<"body">>], http_handler_set_resp,
 				[{body, <<"A flameless dance does not equal a cycle">>}]},
 			{[<<"multipart">>], http_handler_multipart, []},
+			{[<<"stream_body">>, <<"set_resp">>], http_handler_stream_body,
+				[{reply, set_resp}, {body, <<"stream_body_set_resp">>}]},
+			{[<<"static">>, '...'], cowboy_http_static,
+				[{directory, ?config(static_dir, Config)},
+				 {mimetypes, [{<<".css">>, [<<"text/css">>]}]}]},
+			{[<<"static_mimetypes_function">>, '...'], cowboy_http_static,
+				[{directory, ?config(static_dir, Config)},
+				 {mimetypes, {fun(Path, data) when is_binary(Path) ->
+					[<<"text/html">>] end, data}}]},
 			{[], http_handler, []}
 		]}
 	].
 
-init_https_dispatch() ->
-	init_http_dispatch().
+init_https_dispatch(Config) ->
+	init_http_dispatch(Config).
+
+
+init_static_dir(Config) ->
+	Dir = filename:join(?config(priv_dir, Config), "static"),
+	Level1 = fun(Name) -> filename:join(Dir, Name) end,
+	ok = file:make_dir(Dir),
+	ok = file:write_file(Level1("test_file"), "test_file\n"),
+	ok = file:write_file(Level1("test_file.css"), "test_file.css\n"),
+	ok = file:write_file(Level1("test_noread"), "test_noread\n"),
+	ok = file:change_mode(Level1("test_noread"), 8#0333),
+	ok = file:write_file(Level1("test.html"), "test.html\n"),
+	ok = file:make_dir(Level1("test_dir")),
+	[{static_dir, Dir}|Config].
+
+end_static_dir(Config) ->
+	Dir = ?config(static_dir, Config),
+	Level1 = fun(Name) -> filename:join(Dir, Name) end,
+	ok = file:delete(Level1("test_file")),
+	ok = file:delete(Level1("test_file.css")),
+	ok = file:delete(Level1("test_noread")),
+	ok = file:delete(Level1("test.html")),
+	ok = file:del_dir(Level1("test_dir")),
+	ok = file:del_dir(Dir),
+	Config.
 
 %% http.
 
@@ -348,6 +391,22 @@ The document has moved
 </BODY></HTML>",
 	{Packet, 400} = raw_req(Packet, Config).
 
+stream_body_set_resp(Config) ->
+	{port, Port} = lists:keyfind(port, 1, Config),
+	{ok, Socket} = gen_tcp:connect("localhost", Port,
+		[binary, {active, false}, {packet, raw}]),
+	ok = gen_tcp:send(Socket, "GET /stream_body/set_resp HTTP/1.1\r\n"
+		"Host: localhost\r\nConnection: close\r\n\r\n"),
+	{ok, Data} = gen_tcp:recv(Socket, 0, 6000),
+	{_Start, _Length} = binary:match(Data, <<"stream_body_set_resp">>).
+
+static_mimetypes_function(Config) ->
+	TestURL = build_url("/static_mimetypes_function/test.html", Config),
+	{ok, {{"HTTP/1.1", 200, "OK"}, Headers1, "test.html\n"}} =
+		httpc:request(TestURL),
+	"text/html" = ?config("content-type", Headers1).
+
+
 %% http and https.
 
 build_url(Path, Config) ->
@@ -363,6 +422,36 @@ http_404(Config) ->
 	{ok, {{"HTTP/1.1", 404, "Not Found"}, _Headers, _Body}} =
 		httpc:request(build_url("/not/found", Config)).
 
+file_200(Config) ->
+	{ok, {{"HTTP/1.1", 200, "OK"}, Headers, "test_file\n"}} =
+		httpc:request(build_url("/static/test_file", Config)),
+	"application/octet-stream" = ?config("content-type", Headers),
+
+	{ok, {{"HTTP/1.1", 200, "OK"}, Headers1, "test_file.css\n"}} =
+		httpc:request(build_url("/static/test_file.css", Config)),
+	"text/css" = ?config("content-type", Headers1).
+
+file_403(Config) ->
+	{ok, {{"HTTP/1.1", 403, "Forbidden"}, _Headers, _Body}} =
+		httpc:request(build_url("/static/test_noread", Config)).
+
+dir_403(Config) ->
+	{ok, {{"HTTP/1.1", 403, "Forbidden"}, _Headers, _Body}} =
+		httpc:request(build_url("/static/test_dir", Config)),
+	{ok, {{"HTTP/1.1", 403, "Forbidden"}, _Headers, _Body}} =
+		httpc:request(build_url("/static/test_dir/", Config)).
+
+file_404(Config) ->
+	{ok, {{"HTTP/1.1", 404, "Not Found"}, _Headers, _Body}} =
+		httpc:request(build_url("/static/not_found", Config)).
+
+file_400(Config) ->
+	{ok, {{"HTTP/1.1", 400, "Bad Request"}, _Headers, _Body}} =
+		httpc:request(build_url("/static/%2f", Config)),
+	{ok, {{"HTTP/1.1", 400, "Bad Request"}, _Headers1, _Body1}} =
+		httpc:request(build_url("/static/%2e", Config)),
+	{ok, {{"HTTP/1.1", 400, "Bad Request"}, _Headers2, _Body2}} =
+		httpc:request(build_url("/static/%2e%2e", Config)).
 %% misc.
 
 http_10_hostless(Config) ->
