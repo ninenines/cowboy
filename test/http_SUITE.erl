@@ -23,8 +23,9 @@
 	pipeline/1, raw/1, set_resp_header/1, set_resp_overwrite/1,
 	set_resp_body/1, stream_body_set_resp/1, response_as_req/1,
 	static_mimetypes_function/1]). %% http.
--export([http_200/1, http_404/1, file_200/1, file_403/1,
-	dir_403/1, file_404/1, file_400/1]). %% http and https.
+-export([http_200/1, http_404/1, handler_errors/1,
+	file_200/1, file_403/1, dir_403/1, file_404/1,
+	file_400/1]). %% http and https.
 -export([http_10_hostless/1]). %% misc.
 -export([rest_simple/1, rest_keepalive/1]). %% rest.
 
@@ -34,8 +35,8 @@ all() ->
 	[{group, http}, {group, https}, {group, misc}, {group, rest}].
 
 groups() ->
-	BaseTests = [http_200, http_404, file_200, file_403, dir_403, file_404,
-		file_400],
+	BaseTests = [http_200, http_404, handler_errors,
+		file_200, file_403, dir_403, file_404, file_400],
 	[{http, [], [chunked_response, headers_dupe, headers_huge,
 		keepalive_nl, max_keepalive, nc_rand, nc_zero, pipeline, raw,
 		set_resp_header, set_resp_overwrite,
@@ -134,6 +135,7 @@ init_http_dispatch(Config) ->
 				[{directory, ?config(static_dir, Config)},
 				 {mimetypes, {fun(Path, data) when is_binary(Path) ->
 					[<<"text/html">>] end, data}}]},
+			{[<<"handler_errors">>], http_handler_errors, []},
 			{[], http_handler, []}
 		]}
 	].
@@ -295,6 +297,40 @@ raw_req(Packet, Config) ->
 	gen_tcp:close(Socket),
 	{Packet, Res}.
 
+%% Send a raw request. Return the response code and the full response.
+raw_resp(Request, Config) ->
+   	{port, Port} = lists:keyfind(port, 1, Config),
+	Transport = case ?config(scheme, Config) of
+		"http" -> gen_tcp;
+		"https" -> ssl
+	end,
+	{ok, Socket} = Transport:connect("localhost", Port,
+		[binary, {active, false}, {packet, raw}]),
+	ok = Transport:send(Socket, Request),
+	{StatusCode,  Response} = case recv_loop(Transport, Socket, <<>>) of
+		{ok, << "HTTP/1.1 ", Str:24/bits, _Rest/bits >> = Bin} ->
+			{list_to_integer(binary_to_list(Str)), Bin};
+		{ok, Bin} ->
+			{badresp, Bin};
+		{error, Reason} ->
+			{Reason, <<>>}
+	end,
+	Transport:close(Socket),
+	{Response, StatusCode}.
+
+recv_loop(Transport, Socket, Acc) ->
+	case Transport:recv(Socket, 0, 6000) of
+		{ok, Data} ->
+			recv_loop(Transport, Socket, <<Acc/binary, Data/binary>>);
+		{error, closed} ->
+			ok = Transport:close(Socket),
+			{ok, Acc};
+		{error, Reason} ->
+			{error, Reason}
+	end.
+
+
+
 raw(Config) ->
 	Huge = [$0 || _N <- lists:seq(1, 5000)],
 	Tests = [
@@ -386,6 +422,41 @@ static_mimetypes_function(Config) ->
 		httpc:request(TestURL),
 	"text/html" = ?config("content-type", Headers1).
 
+handler_errors(Config) ->
+	Request = fun(Case) ->
+		raw_resp(["GET /handler_errors?case=", Case, " HTTP/1.1\r\n",
+		 "Host: localhost\r\n\r\n"], Config) end,
+
+	{_Packet1, 500} = Request("init_before_reply"),
+
+	{Packet2, 200} = Request("init_after_reply"),
+	nomatch = binary:match(Packet2, <<"HTTP/1.1 500">>),
+
+	{Packet3, 200} = Request("init_reply_handle_error"),
+	nomatch = binary:match(Packet3, <<"HTTP/1.1 500">>),
+
+	{_Packet4, 500} = Request("handle_before_reply"),
+
+	{Packet5, 200} = Request("handle_after_reply"),
+	nomatch = binary:match(Packet5, <<"HTTP/1.1 500">>),
+
+	{Packet6, 200} = raw_resp([
+		"GET / HTTP/1.1\r\n",
+		"Host: localhost\r\n",
+		"Connection: keep-alive\r\n\r\n",
+		"GET /handler_errors?case=handle_after_reply\r\n",
+		"Host: localhost\r\n\r\n"], Config),
+	nomatch = binary:match(Packet6, <<"HTTP/1.1 500">>),
+
+	{Packet7, 200} = raw_resp([
+		"GET / HTTP/1.1\r\n",
+		"Host: localhost\r\n",
+		"Connection: keep-alive\r\n\r\n",
+		"GET /handler_errors?case=handle_before_reply HTTP/1.1\r\n",
+		"Host: localhost\r\n\r\n"], Config),
+	{{_, _}, _} = {binary:match(Packet7, <<"HTTP/1.1 500">>), Packet7},
+
+	done.
 
 %% http and https.
 
