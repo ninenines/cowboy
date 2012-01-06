@@ -24,6 +24,15 @@ CHANGELOG
     resource documentation and the comments found in cowboy_http_rest,
     which itself should be fairly easy to read and understand.
 
+*   Add cowboy_http_static, an experimental static file handler
+
+    Makes use of the aforementioned REST protocol support to
+    deliver files with proper content type and cache headers.
+
+    Note that this uses the new file:sendfile support when
+    appropriate, which currently requires the VM to be started
+    with the +A option defined, else errors may randomly appear.
+
 *   Add cowboy_bstr module for binary strings related functions
 
 *   Add cowboy_http module for HTTP parsing functions
@@ -83,6 +92,17 @@ CHANGELOG
     These functions allow handlers to set response headers and body
     without having to reply directly.
 
+*   Add set_resp_body_fun/3
+
+    This function allows handlers to stream the body of the response
+    using the given fun. The size of the response must be known beforehand.
+
+*   Add transport/1 to obtain the transport and socket for the request
+
+    This allows handlers to have low-level socket access in those cases
+    where they do need it, like when streaming a response body with
+    set_resp_body_fun/3.
+
 *   Add peer_addr/1
 
     This function tries to guess the real peer IP based on the HTTP
@@ -95,7 +115,7 @@ CHANGELOG
 
 *   Add reply/2 and reply/3 aliases to reply/4
 
-*   Add a cowboy_http_req:upgrade_reply/3 function
+*   Add upgrade_reply/3 for protocol upgrades
 
 ### cowboy_http_protocol
 
@@ -133,6 +153,12 @@ CHANGELOG
 
     Like in OTP, you do need to set timeout and hibernate again when
     returning from info/3 to enable them until the next call.
+
+*   Fix the sending of 500 errors when handlers crash
+
+    Now we send an error response when no response has been sent,
+    and do nothing more than close the connection if anything
+    did get sent.
 
 *   Fix a crash when the server is sent HTTP responses
 
