@@ -408,13 +408,10 @@ The document has moved
 	{Packet, 400} = raw_req(Packet, Config).
 
 stream_body_set_resp(Config) ->
-	{port, Port} = lists:keyfind(port, 1, Config),
-	{ok, Socket} = gen_tcp:connect("localhost", Port,
-		[binary, {active, false}, {packet, raw}]),
-	ok = gen_tcp:send(Socket, "GET /stream_body/set_resp HTTP/1.1\r\n"
-		"Host: localhost\r\nConnection: close\r\n\r\n"),
-	{ok, Data} = gen_tcp:recv(Socket, 0, 6000),
-	{_Start, _Length} = binary:match(Data, <<"stream_body_set_resp">>).
+	{Packet, 200} = raw_resp(
+		"GET /stream_body/set_resp HTTP/1.1\r\n"
+		"Host: localhost\r\nConnection: close\r\n\r\n", Config),
+	{_Start, _Length} = binary:match(Packet, <<"stream_body_set_resp">>).
 
 static_mimetypes_function(Config) ->
 	TestURL = build_url("/static_mimetypes_function/test.html", Config),
