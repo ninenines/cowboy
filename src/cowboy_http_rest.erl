@@ -668,11 +668,16 @@ create_path_location_port(tcp, 80) ->
 create_path_location_port(_, Port) ->
 	<<":", (list_to_binary(integer_to_list(Port)))/binary>>.
 
+%% process_post should return true when the POST body could be processed
+%% and false when it hasn't, in which case a 500 error is sent.
 process_post(Req, State) ->
 	case call(Req, State, process_post) of
-		{ok, Req2, HandlerState} ->
+		{true, Req2, HandlerState} ->
 			State2 = State#state{handler_state=HandlerState},
-			next(Req2, State2, 201)
+			next(Req2, State2, 201);
+		{false, Req2, HandlerState} ->
+			State2 = State#state{handler_state=HandlerState},
+			respond(Req2, State2, 500)
 	end.
 
 is_conflict(Req, State) ->
