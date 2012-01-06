@@ -39,6 +39,13 @@
 -type http_resp_body() :: iodata() | {non_neg_integer(),
 		fun(() -> {sent, non_neg_integer()})}.
 
+%% @todo Improve this type.
+-type multipart_data() ::
+	{headers, http_headers()} |
+	{data, binary()} |
+	end_of_part |
+	eof.
+
 -record(http_req, {
 	%% Transport.
 	socket     = undefined :: undefined | inet:socket(),
@@ -66,7 +73,8 @@
 	meta       = []        :: [{atom(), any()}],
 
 	%% Request body.
-	body_state = waiting   :: waiting | done,
+	body_state = waiting   :: waiting | done |
+							  {multipart, non_neg_integer(), fun()},
 	buffer     = <<>>      :: binary(),
 
 	%% Response.
