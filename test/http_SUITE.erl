@@ -22,7 +22,8 @@
 	keepalive_nl/1, max_keepalive/1, nc_rand/1, nc_zero/1,
 	pipeline/1, raw/1, set_resp_header/1, set_resp_overwrite/1,
 	set_resp_body/1, stream_body_set_resp/1, response_as_req/1,
-	static_mimetypes_function/1]). %% http.
+	static_mimetypes_function/1, static_attribute_etag/1,
+	static_function_etag/1]). %% http.
 -export([http_200/1, http_404/1, handler_errors/1,
 	file_200/1, file_403/1, dir_403/1, file_404/1,
 	file_400/1]). %% http and https.
@@ -41,7 +42,8 @@ groups() ->
 		keepalive_nl, max_keepalive, nc_rand, nc_zero, pipeline, raw,
 		set_resp_header, set_resp_overwrite,
 		set_resp_body, response_as_req, stream_body_set_resp,
-		static_mimetypes_function] ++ BaseTests},
+		static_mimetypes_function, static_attribute_etag,
+		static_function_etag] ++ BaseTests},
 	{https, [], BaseTests},
 	{misc, [], [http_10_hostless]},
 	{rest, [], [rest_simple, rest_keepalive]}].
@@ -136,6 +138,12 @@ init_http_dispatch(Config) ->
 				 {mimetypes, {fun(Path, data) when is_binary(Path) ->
 					[<<"text/html">>] end, data}}]},
 			{[<<"handler_errors">>], http_handler_errors, []},
+			{[<<"static_attribute_etag">>, '...'], cowboy_http_static,
+				[{directory, ?config(static_dir, Config)},
+				 {etag, {attributes, [filepath, filesize, inode, mtime]}}]},
+			{[<<"static_function_etag">>, '...'], cowboy_http_static,
+				[{directory, ?config(static_dir, Config)},
+				 {etag, {fun static_function_etag/2, etag_data}}]},
 			{[], http_handler, []}
 		]}
 	].
@@ -454,6 +462,33 @@ handler_errors(Config) ->
 	{{_, _}, _} = {binary:match(Packet7, <<"HTTP/1.1 500">>), Packet7},
 
 	done.
+
+static_attribute_etag(Config) ->
+	TestURL = build_url("/static_attribute_etag/test.html", Config),
+	{ok, {{"HTTP/1.1", 200, "OK"}, Headers1, "test.html\n"}} =
+		httpc:request(TestURL),
+	false = ?config("etag", Headers1) =:= undefined,
+	{ok, {{"HTTP/1.1", 200, "OK"}, Headers2, "test.html\n"}} =
+		httpc:request(TestURL),
+	true = ?config("etag", Headers1) =:= ?config("etag", Headers2).
+
+static_function_etag(Config) ->
+	TestURL = build_url("/static_function_etag/test.html", Config),
+	{ok, {{"HTTP/1.1", 200, "OK"}, Headers1, "test.html\n"}} =
+		httpc:request(TestURL),
+	false = ?config("etag", Headers1) =:= undefined,
+	{ok, {{"HTTP/1.1", 200, "OK"}, Headers2, "test.html\n"}} =
+		httpc:request(TestURL),
+	true = ?config("etag", Headers1) =:= ?config("etag", Headers2).
+
+static_function_etag(Arguments, etag_data) ->
+	{_, Filepath} = lists:keyfind(filepath, 1, Arguments),
+	{_, _Filesize} = lists:keyfind(filesize, 1, Arguments),
+	{_, _INode} = lists:keyfind(inode, 1, Arguments),
+	{_, _Modified} = lists:keyfind(mtime, 1, Arguments),
+	ChecksumCommand = lists:flatten(io_lib:format("sha1sum ~s", [Filepath])),
+	[Checksum|_] = string:tokens(os:cmd(ChecksumCommand), " "),
+	iolist_to_binary(Checksum).
 
 %% http and https.
 
