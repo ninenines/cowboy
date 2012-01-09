@@ -85,6 +85,53 @@
 %%     [{directory, {priv_dir, cowboy, []}},
 %%      {mimetypes, {fun mimetypes:path_to_mimes/2, default}}]]}
 %% '''
+%%
+%% == ETag Header Function ==
+%%
+%% The default behaviour of the static file handler is to not generate ETag
+%% headers. This is because generating ETag headers based on file metadata
+%% causes different servers in a cluster to generate different ETag values for
+%% the same file unless the metadata is also synced. Generating strong ETags
+%% based on the contents of a file is currently out of scope for this module.
+%%
+%% The default behaviour can be overridden to generate an ETag header based on
+%% a combination of the file path, file size, inode and mtime values. If the
+%% option value is a list of attribute names tagged with `attributes' a hex
+%% encoded CRC32 checksum of the attribute values are used as the ETag header
+%% value.
+%%
+%% If a strong ETag is required a user defined function for generating the
+%% header value can be supplied. The function must accept a proplist of the
+%% file attributes as the first argument and a second argument containing any
+%% additional data that the function requires. The function must return a
+%% `binary()' or `undefined'.
+%%
+%% ====  Examples ====
+%% ```
+%% %% A value of default is equal to not specifying the option.
+%% {[<<"static">>, '...', cowboy_http_static,
+%%     [{directory, {priv_dir, cowboy, []}},
+%%      {etag, default}]]}
+%%
+%% %% Use all avaliable ETag function arguments to generate a header value.
+%% {[<<"static">>, '...', cowboy_http_static,
+%%     [{directory, {priv_dir, cowboy, []}},
+%%      {etag, {attributes, [filepath, filesize, inode, mtime]}}]]}
+%%
+%% %% Use a user defined function to generate a strong ETag header value.
+%% {[<<"static">>, '...', cowboy_http_static,
+%%     [{directory, {priv_dir, cowboy, []}},
+%%      {etag, {fun generate_strong_etag/2, strong_etag_extra}}]]}
+%%
+%% generate_strong_etag(Arguments, strong_etag_extra) ->
+%%     {_, Filepath} = lists:keyfind(filepath, 1, Arguments),
+%%     {_, _Filesize} = lists:keyfind(filesize, 1, Arguments),
+%%     {_, _INode} = lists:keyfind(inode, 1, Arguments),
+%%     {_, _Modified} = lists:keyfind(mtime, 1, Arguments),
+%%     ChecksumCommand = lists:flatten(io_lib:format("sha1sum ~s", [Filepath])),
+%%     [Checksum|_] = string:tokens(os:cmd(ChecksumCommand), " "),
+%%     iolist_to_binary(Checksum).
+%% '''
 -module(cowboy_http_static).
 
 %% include files
@@ -95,8 +142,9 @@
 -export([init/3]).
 
 %% cowboy_http_rest callbacks
--export([rest_init/2, allowed_methods/2, malformed_request/2, resource_exists/2,
-	forbidden/2, last_modified/2, content_types_provided/2, file_contents/2]).
+-export([rest_init/2, allowed_methods/2, malformed_request/2,
+	resource_exists/2, forbidden/2, last_modified/2, generate_etag/2,
+	content_types_provided/2, file_contents/2]).
 
 %% internal
 -export([path_to_mimetypes/2]).
@@ -105,12 +153,15 @@
 -type dirpath() :: string() | binary() | [binary()].
 -type dirspec() :: dirpath() | {priv, atom(), dirpath()}.
 -type mimedef() :: {binary(), binary(), [{binary(), binary()}]}.
+-type etagarg() :: {filepath, binary()} | {mtime, cowboy_clock:datetime()}
+	| {inode, non_neg_integer()} | {filesize, non_neg_integer()}.
 
 %% handler state
 -record(state, {
 	filepath  :: binary() | error,
 	fileinfo  :: {ok, #file_info{}} | {error, _} | error,
-	mimetypes :: {fun((binary(), T) -> [mimedef()]), T} | undefined}).
+	mimetypes :: {fun((binary(), T) -> [mimedef()]), T} | undefined,
+	etag_fun  :: {fun(([etagarg()], T) -> undefined | binary()), T}}).
 
 
 %% @private Upgrade from HTTP handler to REST handler.
@@ -129,14 +180,22 @@ rest_init(Req, Opts) ->
 		[] -> {fun path_to_mimetypes/2, []};
 		[_|_] -> {fun path_to_mimetypes/2, Mimetypes}
 	end,
+	ETagFunction = case proplists:get_value(etag, Opts) of
+		default -> {fun no_etag_function/2, undefined};
+		undefined -> {fun no_etag_function/2, undefined};
+		{attributes, Attrs} -> {fun attr_etag_function/2, Attrs};
+		{_, _}=EtagFunction1 -> EtagFunction1
+	end,
 	{Filepath, Req1} = cowboy_http_req:path_info(Req),
 	State = case check_path(Filepath) of
 		error ->
-			#state{filepath=error, fileinfo=error, mimetypes=undefined};
+			#state{filepath=error, fileinfo=error, mimetypes=undefined,
+				etag_fun=ETagFunction};
 		ok ->
 			Filepath1 = join_paths(Directory1, Filepath),
 			Fileinfo = file:read_file_info(Filepath1),
-			#state{filepath=Filepath1, fileinfo=Fileinfo, mimetypes=Mimetypes1}
+			#state{filepath=Filepath1, fileinfo=Fileinfo, mimetypes=Mimetypes1,
+				etag_fun=ETagFunction}
 	end,
 	{ok, Req1, State}.
 
@@ -184,6 +243,22 @@ forbidden(Req, #state{fileinfo={ok, #file_info{access=Access}}}=State) ->
 		{cowboy_clock:datetime(), #http_req{}, #state{}}.
 last_modified(Req, #state{fileinfo={ok, #file_info{mtime=Modified}}}=State) ->
 	{Modified, Req, State}.
+
+
+%% @private Generate the ETag header value for this file.
+%% The ETag header value is only generated if the resource is a file that
+%% exists in document root.
+-spec generate_etag(#http_req{}, #state{}) ->
+	{undefined | binary(), #http_req{}, #state{}}.
+generate_etag(Req, #state{fileinfo={_, #file_info{type=regular, inode=INode,
+		mtime=Modified, size=Filesize}}, filepath=Filepath,
+		etag_fun={ETagFun, ETagData}}=State) ->
+	ETagArgs = [
+		{filepath, Filepath}, {filesize, Filesize},
+		{inode, INode}, {mtime, Modified}],
+	{ETagFun(ETagArgs, ETagData), Req, State};
+generate_etag(Req, State) ->
+	{undefined, Req, State}.
 
 
 %% @private Return the content type of a file.
@@ -327,6 +402,25 @@ path_to_mimetypes_(Ext, Extensions) ->
 -spec default_mimetype() -> [mimedef()].
 default_mimetype() ->
 	[{<<"application">>, <<"octet-stream">>, []}].
+
+
+%% @private Do not send ETag headers in the default configuration.
+-spec no_etag_function([etagarg()], undefined) -> undefined.
+no_etag_function(_Args, undefined) ->
+	undefined.
+
+%% @private A simple alternative is to send an ETag based on file attributes.
+-type fileattr() :: filepath | filesize | mtime | inode.
+-spec attr_etag_function([etagarg()], [fileattr()]) -> binary().
+attr_etag_function(Args, Attrs) ->
+	attr_etag_function(Args, Attrs, []).
+
+-spec attr_etag_function([etagarg()], [fileattr()], [binary()]) -> binary().
+attr_etag_function(_Args, [], Acc) ->
+	list_to_binary(integer_to_list(erlang:crc32(Acc), 16));
+attr_etag_function(Args, [H|T], Acc) ->
+	{_, Value} = lists:keyfind(H, 1, Args),
+	attr_etag_function(Args, T, [term_to_binary(Value)|Acc]).
 
 
 -ifdef(TEST).
