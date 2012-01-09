@@ -94,7 +94,6 @@ Following is an example of a "Hello World!" HTTP handler.
 
 ``` erlang
 -module(my_handler).
--behaviour(cowboy_http_handler).
 -export([init/3, handle/2, terminate/2]).
 
 init({tcp, http}, Req, Opts) ->
@@ -107,14 +106,46 @@ handle(Req, State) ->
 terminate(Req, State) ->
     ok.
 ```
+
+You can also write handlers that do not reply directly. Instead, such handlers
+will wait for an Erlang message from another process and only reply when
+receiving such message, or timeout if it didn't arrive in time.
+
+This is especially useful for long-polling functionality, as Cowboy will handle
+process hibernation and timeouts properly, preventing mistakes if you were to
+write the code yourself. An handler of that kind can be defined like this:
+
+``` erlang
+-module(my_loop_handler).
+-export([init/3, info/3, terminate/2]).
+
+-define(TIMEOUT, 60000).
+
+init({tcp, http}, Req, Opts) ->
+	{loop, Req, undefined_state, ?TIMEOUT, hibernate}.
+
+info({reply, Body}, Req, State) ->
+	{ok, Req2} = cowboy_http_req:reply(200, [], Body, Req),
+	{ok, Req2, State};
+info(Message, Req, State) ->
+	{loop, Req, State, hibernate}.
+
+terminate(Req, State) ->
+	ok.
+```
+
+It is of course possible to combine both type of handlers together as long as
+you return the proper tuple from init/3.
+
 **Note**: versions prior to `0.4.0` used the
 [quoted](https://github.com/klaar/quoted.erl) library instead of the built in
 `cowboy_http:urldecode/2` function. If you want to retain this you must add it
 as a dependency to your application and add the following cowboy_http_protocol
 option:
 
+``` erlang
     {urldecode, {fun quoted:from_url/2, quoted:make([])}}
-
+```
 
 Continue reading to learn how to dispatch rules and handle requests.
 
@@ -187,20 +218,12 @@ Websocket would look like this:
 
 ``` erlang
 -module(my_ws_handler).
--behaviour(cowboy_http_handler).
--behaviour(cowboy_http_websocket_handler).
--export([init/3, handle/2, terminate/2]).
+-export([init/3]).
 -export([websocket_init/3, websocket_handle/3,
     websocket_info/3, websocket_terminate/3]).
 
 init({tcp, http}, Req, Opts) ->
     {upgrade, protocol, cowboy_http_websocket}.
-
-handle(Req, State) ->
-    error(foo). %% Will never be called.
-
-terminate(Req, State) ->
-    error(foo). %% Same for that one.
 
 websocket_init(TransportName, Req, _Opts) ->
     erlang:start_timer(1000, self(), <<"Hello!">>),
