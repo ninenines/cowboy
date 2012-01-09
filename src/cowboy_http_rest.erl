@@ -711,9 +711,12 @@ choose_content_type(Req, State, _OnTrue, _ContentType, []) ->
 choose_content_type(Req, State, OnTrue, ContentType,
 		[{Accepted, Fun}|_Tail]) when ContentType =:= Accepted ->
 	case call(Req, State, Fun) of
-		{ok, Req2, HandlerState} ->
+		{true, Req2, HandlerState} ->
 			State2 = State#state{handler_state=HandlerState},
-			next(Req2, State2, OnTrue)
+			next(Req2, State2, OnTrue);
+		{false, Req2, HandlerState} ->
+			State2 = State#state{handler_state=HandlerState},
+			respond(Req2, State2, 500)
 	end;
 choose_content_type(Req, State, OnTrue, ContentType, [_Any|Tail]) ->
 	choose_content_type(Req, State, OnTrue, ContentType, Tail).
