@@ -14,7 +14,7 @@
 
 {application, cowboy, [
 	{description, "Small, fast, modular HTTP server."},
-	{vsn, "0.4.0"},
+	{vsn, "0.5.0"},
 	{modules, []},
 	{registered, [cowboy_clock, cowboy_sup]},
 	{applications, [
