@@ -89,8 +89,8 @@ known_methods(Req=#http_req{method=Method}, State) ->
 			next(Req, State, fun uri_too_long/2);
 		no_call ->
 			next(Req, State, 501);
-		{List, Req2, HandlerState2} ->
-			State2 = State#state{handler_state=HandlerState2},
+		{List, Req2, HandlerState} ->
+			State2 = State#state{handler_state=HandlerState},
 			case lists:member(Method, List) of
 				true -> next(Req2, State2, fun uri_too_long/2);
 				false -> next(Req2, State2, 501)
@@ -107,8 +107,8 @@ allowed_methods(Req=#http_req{method=Method}, State) ->
 			next(Req, State, fun malformed_request/2);
 		no_call ->
 			method_not_allowed(Req, State, ['GET', 'HEAD']);
-		{List, Req2, HandlerState2} ->
-			State2 = State#state{handler_state=HandlerState2},
+		{List, Req2, HandlerState} ->
+			State2 = State#state{handler_state=HandlerState},
 			case lists:member(Method, List) of
 				true -> next(Req2, State2, fun malformed_request/2);
 				false -> method_not_allowed(Req2, State2, List)
@@ -138,12 +138,12 @@ is_authorized(Req, State) ->
 	case call(Req, State, is_authorized) of
 		no_call ->
 			forbidden(Req, State);
-		{true, Req2, HandlerState2} ->
-			forbidden(Req2, State#state{handler_state=HandlerState2});
-		{{false, AuthHead}, Req2, HandlerState2} ->
+		{true, Req2, HandlerState} ->
+			forbidden(Req2, State#state{handler_state=HandlerState});
+		{{false, AuthHead}, Req2, HandlerState} ->
 			{ok, Req3} = cowboy_http_req:set_resp_header(
 				<<"Www-Authenticate">>, AuthHead, Req2),
-			respond(Req3, State#state{handler_state=HandlerState2}, 401)
+			respond(Req3, State#state{handler_state=HandlerState}, 401)
 	end.
 
 forbidden(Req, State) ->
@@ -163,8 +163,8 @@ valid_entity_length(Req, State) ->
 %% If you need to add additional headers to the response at this point,
 %% you should do it directly in the options/2 call using set_resp_headers.
 options(Req=#http_req{method='OPTIONS'}, State) ->
-	{ok, Req2, HandlerState2} = call(Req, State, options),
-	respond(Req2, State#state{handler_state=HandlerState2}, 200);
+	{ok, Req2, HandlerState} = call(Req, State, options),
+	respond(Req2, State#state{handler_state=HandlerState}, 200);
 options(Req, State) ->
 	content_types_provided(Req, State).
 
@@ -281,10 +281,10 @@ languages_provided(Req, State) ->
 	case call(Req, State, languages_provided) of
 		no_call ->
 			charsets_provided(Req, State);
-		{[], Req2, HandlerState2} ->
-			not_acceptable(Req2, State#state{handler_state=HandlerState2});
-		{LP, Req2, HandlerState2} ->
-			State2 = State#state{handler_state=HandlerState2, languages_p=LP},
+		{[], Req2, HandlerState} ->
+			not_acceptable(Req2, State#state{handler_state=HandlerState});
+		{LP, Req2, HandlerState} ->
+			State2 = State#state{handler_state=HandlerState, languages_p=LP},
 			{AcceptLanguage, Req3} =
 				cowboy_http_req:parse_header('Accept-Language', Req2),
 			case AcceptLanguage of
@@ -342,10 +342,10 @@ charsets_provided(Req, State) ->
 	case call(Req, State, charsets_provided) of
 		no_call ->
 			set_content_type(Req, State);
-		{[], Req2, HandlerState2} ->
-			not_acceptable(Req2, State#state{handler_state=HandlerState2});
-		{CP, Req2, HandlerState2} ->
-			State2 = State#state{handler_state=HandlerState2, charsets_p=CP},
+		{[], Req2, HandlerState} ->
+			not_acceptable(Req2, State#state{handler_state=HandlerState});
+		{CP, Req2, HandlerState} ->
+			State2 = State#state{handler_state=HandlerState, charsets_p=CP},
 			{AcceptCharset, Req3} =
 				cowboy_http_req:parse_header('Accept-Charset', Req2),
 			case AcceptCharset of
@@ -580,12 +580,12 @@ is_put_to_missing_resource(Req, State) ->
 %% with Location the full new URI of the resource.
 moved_permanently(Req, State, OnFalse) ->
 	case call(Req, State, moved_permanently) of
-		{{true, Location}, Req2, HandlerState2} ->
+		{{true, Location}, Req2, HandlerState} ->
 			{ok, Req3} = cowboy_http_req:set_resp_header(
 				<<"Location">>, Location, Req2),
-			respond(Req3, State#state{handler_state=HandlerState2}, 301);
-		{false, Req2, HandlerState2} ->
-			OnFalse(Req2, State#state{handler_state=HandlerState2});
+			respond(Req3, State#state{handler_state=HandlerState}, 301);
+		{false, Req2, HandlerState} ->
+			OnFalse(Req2, State#state{handler_state=HandlerState});
 		no_call ->
 			OnFalse(Req, State)
 	end.
@@ -599,12 +599,12 @@ previously_existed(Req, State) ->
 %% with Location the full new URI of the resource.
 moved_temporarily(Req, State) ->
 	case call(Req, State, moved_temporarily) of
-		{{true, Location}, Req2, HandlerState2} ->
+		{{true, Location}, Req2, HandlerState} ->
 			{ok, Req3} = cowboy_http_req:set_resp_header(
 				<<"Location">>, Location, Req2),
-			respond(Req3, State#state{handler_state=HandlerState2}, 307);
-		{false, Req2, HandlerState2} ->
-			is_post_to_missing_resource(Req2, State#state{handler_state=HandlerState2}, 410);
+			respond(Req3, State#state{handler_state=HandlerState}, 307);
+		{false, Req2, HandlerState} ->
+			is_post_to_missing_resource(Req2, State#state{handler_state=HandlerState}, 410);
 		no_call ->
 			is_post_to_missing_resource(Req, State, 410)
 	end.
@@ -700,8 +700,8 @@ put_resource(Req, State, OnTrue) ->
 	case call(Req, State, content_types_accepted) of
 		no_call ->
 			respond(Req, State, 415);
-		{CTA, Req2, HandlerState2} ->
-			State2 = State#state{handler_state=HandlerState2},
+		{CTA, Req2, HandlerState} ->
+			State2 = State#state{handler_state=HandlerState},
 			{ContentType, Req3}
 				= cowboy_http_req:parse_header('Content-Type', Req2),
 			choose_content_type(Req3, State2, OnTrue, ContentType, CTA)
@@ -804,8 +804,8 @@ generate_etag(Req, State=#state{etag=undefined}) ->
 	case call(Req, State, generate_etag) of
 		no_call ->
 			{undefined, Req, State#state{etag=no_call}};
-		{Etag, Req2, HandlerState2} ->
-			{Etag, Req2, State#state{handler_state=HandlerState2, etag=Etag}}
+		{Etag, Req2, HandlerState} ->
+			{Etag, Req2, State#state{handler_state=HandlerState, etag=Etag}}
 	end;
 generate_etag(Req, State=#state{etag=Etag}) ->
 	{Etag, Req, State}.
@@ -816,8 +816,8 @@ last_modified(Req, State=#state{last_modified=undefined}) ->
 	case call(Req, State, last_modified) of
 		no_call ->
 			{undefined, Req, State#state{last_modified=no_call}};
-		{LastModified, Req2, HandlerState2} ->
-			{LastModified, Req2, State#state{handler_state=HandlerState2,
+		{LastModified, Req2, HandlerState} ->
+			{LastModified, Req2, State#state{handler_state=HandlerState,
 				last_modified=LastModified}}
 	end;
 last_modified(Req, State=#state{last_modified=LastModified}) ->
@@ -829,8 +829,8 @@ expires(Req, State=#state{expires=undefined}) ->
 	case call(Req, State, expires) of
 		no_call ->
 			{undefined, Req, State#state{expires=no_call}};
-		{Expires, Req2, HandlerState2} ->
-			{Expires, Req2, State#state{handler_state=HandlerState2,
+		{Expires, Req2, HandlerState} ->
+			{Expires, Req2, State#state{handler_state=HandlerState,
 				expires=Expires}}
 	end;
 expires(Req, State=#state{expires=Expires}) ->
@@ -842,10 +842,10 @@ expect(Req, State, Callback, Expected, OnTrue, OnFalse) ->
 	case call(Req, State, Callback) of
 		no_call ->
 			next(Req, State, OnTrue);
-		{Expected, Req2, HandlerState2} ->
-			next(Req2, State#state{handler_state=HandlerState2}, OnTrue);
-		{_Unexpected, Req2, HandlerState2} ->
-			next(Req2, State#state{handler_state=HandlerState2}, OnFalse)
+		{Expected, Req2, HandlerState} ->
+			next(Req2, State#state{handler_state=HandlerState}, OnTrue);
+		{_Unexpected, Req2, HandlerState} ->
+			next(Req2, State#state{handler_state=HandlerState}, OnFalse)
 	end.
 
 call(Req, #state{handler=Handler, handler_state=HandlerState}, Fun) ->
