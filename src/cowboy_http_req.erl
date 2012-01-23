@@ -61,7 +61,7 @@ method(Req) ->
 	{Req#http_req.method, Req}.
 
 %% @doc Return the HTTP version used for the request.
--spec version(#http_req{}) -> {http_version(), #http_req{}}.
+-spec version(#http_req{}) -> {cowboy_http:version(), #http_req{}}.
 version(Req) ->
 	{Req#http_req.version, Req}.
 

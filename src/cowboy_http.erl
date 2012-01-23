@@ -32,8 +32,9 @@
 	Port::integer() | undefined, Path::binary()}
 	| {scheme, Scheme::binary(), binary()}
 	| {abs_path, binary()} | binary().
+-type version() :: {Major::non_neg_integer(), Minor::non_neg_integer()}.
 
--export_type([method/0, uri/0]).
+-export_type([method/0, uri/0, version/0]).
 
 -include("include/http.hrl").
 -include_lib("eunit/include/eunit.hrl").

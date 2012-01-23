@@ -109,7 +109,7 @@ wait_request(State=#state{socket=Socket, transport=Transport,
 	end.
 
 -spec request({http_request, cowboy_http:method(), cowboy_http:uri(),
-	http_version()}, #state{}) -> ok | none().
+	cowboy_http:version()}, #state{}) -> ok | none().
 request({http_request, _Method, _URI, Version}, State)
 		when Version =/= {1, 0}, Version =/= {1, 1} ->
 	error_terminate(505, State);
@@ -422,7 +422,7 @@ terminate(#state{socket=Socket, transport=Transport}) ->
 
 %% Internal.
 
--spec version_to_connection(http_version()) -> keepalive | close.
+-spec version_to_connection(cowboy_http:version()) -> keepalive | close.
 version_to_connection({1, 1}) -> keepalive;
 version_to_connection(_Any) -> close.
 
