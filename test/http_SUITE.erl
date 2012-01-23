@@ -29,7 +29,7 @@
 	file_200/1, file_403/1, dir_403/1, file_404/1,
 	file_400/1]). %% http and https.
 -export([http_10_hostless/1]). %% misc.
--export([rest_simple/1, rest_keepalive/1]). %% rest.
+-export([rest_simple/1, rest_keepalive/1, rest_keepalive_post/1]). %% rest.
 
 %% ct.
 
@@ -47,7 +47,7 @@ groups() ->
 		static_function_etag, multipart] ++ BaseTests},
 	{https, [], BaseTests},
 	{misc, [], [http_10_hostless]},
-	{rest, [], [rest_simple, rest_keepalive]}].
+	{rest, [], [rest_simple, rest_keepalive, rest_keepalive_post]}].
 
 init_per_suite(Config) ->
 	application:start(inets),
@@ -95,7 +95,9 @@ init_per_group(rest, Config) ->
 	cowboy:start_listener(reset, 100,
 		cowboy_tcp_transport, [{port, Port}],
 		cowboy_http_protocol, [{dispatch, [{'_', [
-			{[<<"simple">>], rest_simple_resource, []}
+			{[<<"simple">>], rest_simple_resource, []},
+			{[<<"forbidden_post">>], rest_forbidden_resource, [true]},
+			{[<<"simple_post">>], rest_forbidden_resource, [false]}
 	]}]}]),
 	[{port, Port}|Config].
 
@@ -583,3 +585,34 @@ rest_keepalive_loop(Socket, N) ->
 	{0, 12} = binary:match(Data, <<"HTTP/1.1 200">>),
 	nomatch = binary:match(Data, <<"Connection: close">>),
 	rest_keepalive_loop(Socket, N - 1).
+
+rest_keepalive_post(Config) ->
+	{port, Port} = lists:keyfind(port, 1, Config),
+	{ok, Socket} = gen_tcp:connect("localhost", Port,
+		[binary, {active, false}, {packet, raw}]),
+	ok = rest_keepalive_post_loop(Socket, 10, forbidden_post),
+	ok = gen_tcp:close(Socket).
+
+rest_keepalive_post_loop(_Socket, 0, _) ->
+	ok;
+rest_keepalive_post_loop(Socket, N, simple_post) ->
+	ct:print("simple_post~n"),
+	ok = gen_tcp:send(Socket, "POST /simple_post HTTP/1.1\r\n"
+		"Host: localhost\r\nConnection: keep-alive\r\n"
+		"Content-Length: 5\r\nContent-Type: text/plain\r\n\r\n12345"),
+	{ok, Data} = gen_tcp:recv(Socket, 0, 6000),
+	ct:print("data ~p~n", [Data]),
+	{0, 12} = binary:match(Data, <<"HTTP/1.1 200">>),
+	nomatch = binary:match(Data, <<"Connection: close">>),
+	rest_keepalive_post_loop(Socket, N - 1, forbidden_post);
+rest_keepalive_post_loop(Socket, N, forbidden_post) ->
+	ct:print("forbidden~n"),
+	ok = gen_tcp:send(Socket, "POST /forbidden_post HTTP/1.1\r\n"
+		"Host: localhost\r\nConnection: keep-alive\r\n"
+		"Content-Length: 5\r\nContent-Type: text/plain\r\n\r\n12345"),
+	{ok, Data} = gen_tcp:recv(Socket, 0, 6000),
+	ct:print("data ~p~n", [Data]),
+	{0, 12} = binary:match(Data, <<"HTTP/1.1 403">>),
+	nomatch = binary:match(Data, <<"Connection: close">>),
+	rest_keepalive_post_loop(Socket, N - 1, simple_post).
+
