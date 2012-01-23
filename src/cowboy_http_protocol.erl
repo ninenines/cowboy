@@ -356,11 +356,11 @@ terminate_request(HandlerState, Req, State) ->
 	next_request(Req, State, HandlerRes).
 
 -spec next_request(#http_req{}, #state{}, any()) -> ok | none().
-next_request(Req=#http_req{connection=Conn, buffer=Buffer},
+next_request(Req=#http_req{connection=Conn},
 		State=#state{req_keepalive=Keepalive, max_keepalive=MaxKeepalive},
 		HandlerRes) ->
 	RespRes = ensure_response(Req),
-	BodyRes = ensure_body_processed(Req),
+	{BodyRes, Buffer} = ensure_body_processed(Req),
 	%% Flush the resp_sent message before moving on.
 	receive {cowboy_http_req, resp_sent} -> ok after 0 -> ok end,
 	case {HandlerRes, BodyRes, RespRes, Conn} of
@@ -372,14 +372,14 @@ next_request(Req=#http_req{connection=Conn, buffer=Buffer},
 			terminate(State)
 	end.
 
--spec ensure_body_processed(#http_req{}) -> ok | close.
-ensure_body_processed(#http_req{body_state=done}) ->
-	ok;
+-spec ensure_body_processed(#http_req{}) -> {ok | close, binary()}.
+ensure_body_processed(#http_req{body_state=done, buffer=Buffer}) ->
+	{ok, Buffer};
 ensure_body_processed(Req=#http_req{body_state=waiting}) ->
 	case cowboy_http_req:body(Req) of
-		{error, badarg} -> ok; %% No body.
-		{error, _Reason} -> close;
-		_Any -> ok
+		{error, badarg} -> {ok, Req#http_req.buffer}; %% No body.
+		{error, _Reason} -> {close, <<>>};
+		{ok, _, Req2} -> {ok, Req2#http_req.buffer}
 	end;
 ensure_body_processed(Req=#http_req{body_state={multipart, _, _}}) ->
 	{ok, Req2} = cowboy_http_req:multipart_skip(Req),
