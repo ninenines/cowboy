@@ -29,7 +29,7 @@
 	file_200/1, file_403/1, dir_403/1, file_404/1,
 	file_400/1]). %% http and https.
 -export([http_10_hostless/1]). %% misc.
--export([rest_simple/1, rest_keepalive/1, rest_keepalive_post/1]). %% rest.
+-export([rest_simple/1, rest_keepalive/1, rest_keepalive_post/1, rest_nodelete/1]). %% rest.
 
 %% ct.
 
@@ -47,7 +47,7 @@ groups() ->
 		static_function_etag, multipart] ++ BaseTests},
 	{https, [], BaseTests},
 	{misc, [], [http_10_hostless]},
-	{rest, [], [rest_simple, rest_keepalive, rest_keepalive_post]}].
+	{rest, [], [rest_simple, rest_keepalive, rest_keepalive_post, rest_nodelete]}].
 
 init_per_suite(Config) ->
 	application:start(inets),
@@ -97,7 +97,8 @@ init_per_group(rest, Config) ->
 		cowboy_http_protocol, [{dispatch, [{'_', [
 			{[<<"simple">>], rest_simple_resource, []},
 			{[<<"forbidden_post">>], rest_forbidden_resource, [true]},
-			{[<<"simple_post">>], rest_forbidden_resource, [false]}
+			{[<<"simple_post">>], rest_forbidden_resource, [false]},
+			{[<<"nodelete">>], rest_nodelete_resource, []}
 	]}]}]),
 	[{port, Port}|Config].
 
@@ -611,3 +612,14 @@ rest_keepalive_post_loop(Socket, N, forbidden_post) ->
 	{0, 12} = binary:match(Data, <<"HTTP/1.1 403">>),
 	nomatch = binary:match(Data, <<"Connection: close">>),
 	rest_keepalive_post_loop(Socket, N - 1, simple_post).
+
+rest_nodelete(Config) ->
+	{port, Port} = lists:keyfind(port, 1, Config),
+	{ok, Socket} = gen_tcp:connect("localhost", Port,
+		[binary, {active, false}, {packet, raw}]),
+	Request = "DELETE /nodelete HTTP/1.1\r\nHost: localhost\r\n\r\n",
+	ok = gen_tcp:send(Socket, Request),
+	{ok, Data} = gen_tcp:recv(Socket, 0, 6000),
+    ct:print("response ~p~n", [Data]),
+	{0, 12} = binary:match(Data, <<"HTTP/1.1 500">>),
+	ok = gen_tcp:close(Socket).
