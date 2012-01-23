@@ -108,7 +108,7 @@ wait_request(State=#state{socket=Socket, transport=Transport,
 		{error, _Reason} -> terminate(State)
 	end.
 
--spec request({http_request, http_method(), http_uri(),
+-spec request({http_request, cowboy_http:method(), http_uri(),
 	http_version()}, #state{}) -> ok | none().
 request({http_request, _Method, _URI, Version}, State)
 		when Version =/= {1, 0}, Version =/= {1, 1} ->

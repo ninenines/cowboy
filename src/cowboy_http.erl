@@ -26,6 +26,11 @@
 -export([connection_to_atom/1, urldecode/1, urldecode/2, urlencode/1,
 	urlencode/2]).
 
+-type method() :: 'OPTIONS' | 'GET' | 'HEAD'
+	| 'POST' | 'PUT' | 'DELETE' | 'TRACE' | binary().
+
+-export_type([method/0]).
+
 -include("include/http.hrl").
 -include_lib("eunit/include/eunit.hrl").
 

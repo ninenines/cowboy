@@ -56,7 +56,7 @@
 %% Request API.
 
 %% @doc Return the HTTP method of the request.
--spec method(#http_req{}) -> {http_method(), #http_req{}}.
+-spec method(#http_req{}) -> {cowboy_http:method(), #http_req{}}.
 method(Req) ->
 	{Req#http_req.method, Req}.
 

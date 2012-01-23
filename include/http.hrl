@@ -13,8 +13,6 @@
 %% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
--type http_method() :: 'OPTIONS' | 'GET' | 'HEAD'
-	| 'POST' | 'PUT' | 'DELETE' | 'TRACE' | binary().
 -type http_uri() :: '*' | {absoluteURI, http | https, Host::binary(),
 	Port::integer() | undefined, Path::binary()}
 	| {scheme, Scheme::binary(), binary()}
@@ -47,7 +45,7 @@
 
 	%% Request.
 	pid        = undefined :: pid(),
-	method     = 'GET'     :: http_method(),
+	method     = 'GET'     :: cowboy_http:method(),
 	version    = {1, 1}    :: http_version(),
 	peer       = undefined :: undefined | {inet:ip_address(), inet:ip_port()},
 	host       = undefined :: undefined | cowboy_dispatcher:tokens(),
