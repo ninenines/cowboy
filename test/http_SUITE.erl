@@ -1,4 +1,5 @@
 %% Copyright (c) 2011, Loïc Hoguin <essen@dev-extend.eu>
+%% Copyright (c) 2011, Anthony Ramine <nox@dev-extend.eu>
 %%
 %% Permission to use, copy, modify, and/or distribute this software for any
 %% purpose with or without fee is hereby granted, provided that the above
@@ -23,7 +24,7 @@
 	pipeline/1, raw/1, set_resp_header/1, set_resp_overwrite/1,
 	set_resp_body/1, stream_body_set_resp/1, response_as_req/1,
 	static_mimetypes_function/1, static_attribute_etag/1,
-	static_function_etag/1]). %% http.
+	static_function_etag/1, multipart/1]). %% http.
 -export([http_200/1, http_404/1, handler_errors/1,
 	file_200/1, file_403/1, dir_403/1, file_404/1,
 	file_400/1]). %% http and https.
@@ -43,7 +44,7 @@ groups() ->
 		set_resp_header, set_resp_overwrite,
 		set_resp_body, response_as_req, stream_body_set_resp,
 		static_mimetypes_function, static_attribute_etag,
-		static_function_etag] ++ BaseTests},
+		static_function_etag, multipart] ++ BaseTests},
 	{https, [], BaseTests},
 	{misc, [], [http_10_hostless]},
 	{rest, [], [rest_simple, rest_keepalive]}].
@@ -144,6 +145,7 @@ init_http_dispatch(Config) ->
 			{[<<"static_function_etag">>, '...'], cowboy_http_static,
 				[{directory, ?config(static_dir, Config)},
 				 {etag, {fun static_function_etag/2, etag_data}}]},
+			{[<<"multipart">>], http_handler_multipart, []},
 			{[], http_handler, []}
 		]}
 	].
@@ -235,6 +237,24 @@ max_keepalive_loop(Socket, N) ->
 		N -> nomatch = binary:match(Data, <<"Connection: close">>)
 	end,
 	keepalive_nl_loop(Socket, N - 1).
+
+multipart(Config) ->
+	Url = build_url("/multipart", Config),
+	Body = <<
+		"This is a preamble."
+		"\r\n--OHai\r\nX-Name:answer\r\n\r\n42"
+		"\r\n--OHai\r\nServer:Cowboy\r\n\r\nIt rocks!\r\n"
+		"\r\n--OHai--"
+		"This is an epiloque."
+	>>,
+	Request = {Url, [], "multipart/x-makes-no-sense; boundary=OHai", Body},
+	{ok, {{"HTTP/1.1", 200, "OK"}, _Headers, Response}} =
+		httpc:request(post, Request, [], [{body_format, binary}]),
+	Parts = binary_to_term(Response),
+	Parts = [
+		{[{<<"X-Name">>, <<"answer">>}], <<"42">>},
+		{[{'Server', <<"Cowboy">>}], <<"It rocks!\r\n">>}
+	].
 
 nc_rand(Config) ->
 	nc_reqs(Config, "/dev/urandom").

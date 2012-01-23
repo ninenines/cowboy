@@ -34,7 +34,8 @@
 ]). %% Request API.
 
 -export([
-	body/1, body/2, body_qs/1
+	body/1, body/2, body_qs/1,
+	multipart_data/1, multipart_skip/1
 ]). %% Request Body API.
 
 -export([
@@ -363,6 +364,7 @@ meta(Name, Req, Default) ->
 %% @doc Return the full body sent with the request, or <em>{error, badarg}</em>
 %% if no <em>Content-Length</em> is available.
 %% @todo We probably want to allow a max length.
+%% @todo Add multipart support to this function.
 -spec body(#http_req{}) -> {ok, binary(), #http_req{}} | {error, atom()}.
 body(Req) ->
 	{Length, Req2} = cowboy_http_req:parse_header('Content-Length', Req),
@@ -399,6 +401,71 @@ body(Length, Req=#http_req{socket=Socket, transport=Transport,
 body_qs(Req=#http_req{urldecode={URLDecFun, URLDecArg}}) ->
 	{ok, Body, Req2} = body(Req),
 	{parse_qs(Body, fun(Bin) -> URLDecFun(Bin, URLDecArg) end), Req2}.
+
+%% Multipart Request API.
+
+%% @doc Return data from the multipart parser.
+%%
+%% Use this function for multipart streaming. For each part in the request,
+%% this function returns <em>{headers, Headers}</em> followed by a sequence of
+%% <em>{data, Data}</em> tuples and finally <em>end_of_part</em>. When there
+%% is no part to parse anymore, <em>eof</em> is returned.
+%%
+%% If the request Content-Type is not a multipart one, <em>{error, badarg}</em>
+%% is returned.
+-spec multipart_data(#http_req{})
+		-> {{headers, http_headers()} | {data, binary()} | end_of_part | eof,
+			#http_req{}}.
+multipart_data(Req=#http_req{body_state=waiting}) ->
+	{{<<"multipart">>, _SubType, Params}, Req2} =
+		parse_header('Content-Type', Req),
+	{_, Boundary} = lists:keyfind(<<"boundary">>, 1, Params),
+	{Length, Req3=#http_req{buffer=Buffer}} =
+		parse_header('Content-Length', Req2),
+	multipart_data(Req3, Length, cowboy_multipart:parser(Boundary), Buffer);
+multipart_data(Req=#http_req{body_state={multipart, Length, Cont}}) ->
+	multipart_data(Req, Length, Cont());
+multipart_data(Req=#http_req{body_state=done}) ->
+	{eof, Req}.
+
+multipart_data(Req, Length, Parser, Buffer) when byte_size(Buffer) >= Length ->
+	<< Data:Length/binary, Rest/binary >> = Buffer,
+	multipart_data(Req#http_req{buffer=Rest}, 0, Parser(Data));
+multipart_data(Req, Length, Parser, Buffer) ->
+	NewLength = Length - byte_size(Buffer),
+	multipart_data(Req#http_req{buffer= <<>>}, NewLength, Parser(Buffer)).
+
+multipart_data(Req, Length, {headers, Headers, Cont}) ->
+	{{headers, Headers}, Req#http_req{body_state={multipart, Length, Cont}}};
+multipart_data(Req, Length, {body, Data, Cont}) ->
+	{{body, Data}, Req#http_req{body_state={multipart, Length, Cont}}};
+multipart_data(Req, Length, {end_of_part, Cont}) ->
+	{end_of_part, Req#http_req{body_state={multipart, Length, Cont}}};
+multipart_data(Req, 0, eof) ->
+	{eof, Req#http_req{body_state=done}};
+multipart_data(Req=#http_req{socket=Socket, transport=Transport},
+		Length, eof) ->
+	{ok, _Data} = Transport:recv(Socket, Length, 5000),
+	{eof, Req#http_req{body_state=done}};
+multipart_data(Req=#http_req{socket=Socket, transport=Transport},
+		Length, {more, Parser}) when Length > 0 ->
+	case Transport:recv(Socket, 0, 5000) of
+		{ok, << Data:Length/binary, Buffer/binary >>} ->
+			multipart_data(Req#http_req{buffer=Buffer}, 0, Parser(Data));
+		{ok, Data} ->
+			multipart_data(Req, Length - byte_size(Data), Parser(Data))
+	end.
+
+%% @doc Skip a part returned by the multipart parser.
+%%
+%% This function repeatedly calls <em>multipart_data/1</em> until
+%% <em>end_of_part</em> or <em>eof</em> is parsed.
+multipart_skip(Req) ->
+	case multipart_data(Req) of
+		{end_of_part, Req2} -> {ok, Req2};
+		{eof, Req2} -> {ok, Req2};
+		{_Other, Req2} -> multipart_skip(Req2)
+	end.
 
 %% Response API.
 
