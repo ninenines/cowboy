@@ -209,7 +209,7 @@ header(Name, Req, Default) when is_atom(Name) orelse is_binary(Name) ->
 	end.
 
 %% @doc Return the full list of headers.
--spec headers(#http_req{}) -> {http_headers(), #http_req{}}.
+-spec headers(#http_req{}) -> {cowboy_http:headers(), #http_req{}}.
 headers(Req) ->
 	{Req#http_req.headers, Req}.
 
@@ -218,7 +218,7 @@ headers(Req) ->
 %% When the value isn't found, a proper default value for the type
 %% returned is used as a return value.
 %% @see parse_header/3
--spec parse_header(http_header(), #http_req{})
+-spec parse_header(cowboy_http:header(), #http_req{})
 	-> {any(), #http_req{}} | {error, badarg}.
 parse_header(Name, Req=#http_req{p_headers=PHeaders}) ->
 	case lists:keyfind(Name, 1, PHeaders) of
@@ -227,14 +227,14 @@ parse_header(Name, Req=#http_req{p_headers=PHeaders}) ->
 	end.
 
 %% @doc Default values for semantic header parsing.
--spec parse_header_default(http_header()) -> any().
+-spec parse_header_default(cowboy_http:header()) -> any().
 parse_header_default('Connection') -> [];
 parse_header_default(_Name) -> undefined.
 
 %% @doc Semantically parse headers.
 %%
 %% When the header is unknown, the value is returned directly without parsing.
--spec parse_header(http_header(), #http_req{}, any())
+-spec parse_header(cowboy_http:header(), #http_req{}, any())
 	-> {any(), #http_req{}} | {error, badarg}.
 parse_header(Name, Req, Default) when Name =:= 'Accept' ->
 	parse_header(Name, Req, Default,
@@ -414,7 +414,8 @@ body_qs(Req=#http_req{urldecode={URLDecFun, URLDecArg}}) ->
 %% If the request Content-Type is not a multipart one, <em>{error, badarg}</em>
 %% is returned.
 -spec multipart_data(#http_req{})
-		-> {{headers, http_headers()} | {data, binary()} | end_of_part | eof,
+		-> {{headers, cowboy_http:headers()}
+				| {data, binary()} | end_of_part | eof,
 			#http_req{}}.
 multipart_data(Req=#http_req{body_state=waiting}) ->
 	{{<<"multipart">>, _SubType, Params}, Req2} =
@@ -477,7 +478,7 @@ set_resp_cookie(Name, Value, Options, Req) ->
 	set_resp_header(HeaderName, HeaderValue, Req).
 
 %% @doc Add a header to the response.
--spec set_resp_header(http_header(), iodata(), #http_req{})
+-spec set_resp_header(cowboy_http:header(), iodata(), #http_req{})
 	-> {ok, #http_req{}}.
 set_resp_header(Name, Value, Req=#http_req{resp_headers=RespHeaders}) ->
 	NameBin = header_to_binary(Name),
@@ -514,7 +515,7 @@ set_resp_body_fun(StreamLen, StreamFun, Req) ->
 
 
 %% @doc Return whether the given header has been set for the response.
--spec has_resp_header(http_header(), #http_req{}) -> boolean().
+-spec has_resp_header(cowboy_http:header(), #http_req{}) -> boolean().
 has_resp_header(Name, #http_req{resp_headers=RespHeaders}) ->
 	NameBin = header_to_binary(Name),
 	lists:keymember(NameBin, 1, RespHeaders).
@@ -532,12 +533,13 @@ reply(Status, Req=#http_req{resp_body=Body}) ->
 	reply(Status, [], Body, Req).
 
 %% @equiv reply(Status, Headers, [], Req)
--spec reply(http_status(), http_headers(), #http_req{}) -> {ok, #http_req{}}.
+-spec reply(http_status(), cowboy_http:headers(), #http_req{})
+	-> {ok, #http_req{}}.
 reply(Status, Headers, Req=#http_req{resp_body=Body}) ->
 	reply(Status, Headers, Body, Req).
 
 %% @doc Send a reply to the client.
--spec reply(http_status(), http_headers(), iodata(), #http_req{})
+-spec reply(http_status(), cowboy_http:headers(), iodata(), #http_req{})
 	-> {ok, #http_req{}}.
 reply(Status, Headers, Body, Req=#http_req{socket=Socket,
 		transport=Transport, connection=Connection, pid=ReqPid,
@@ -566,7 +568,7 @@ chunked_reply(Status, Req) ->
 
 %% @doc Initiate the sending of a chunked reply to the client.
 %% @see cowboy_http_req:chunk/2
--spec chunked_reply(http_status(), http_headers(), #http_req{})
+-spec chunked_reply(http_status(), cowboy_http:headers(), #http_req{})
 	-> {ok, #http_req{}}.
 chunked_reply(Status, Headers, Req=#http_req{socket=Socket,
 		transport=Transport, connection=Connection, pid=ReqPid,
@@ -595,7 +597,7 @@ chunk(Data, #http_req{socket=Socket, transport=Transport, resp_state=chunks}) ->
 
 %% @doc Send an upgrade reply.
 %% @private
--spec upgrade_reply(http_status(), http_headers(), #http_req{})
+-spec upgrade_reply(http_status(), cowboy_http:headers(), #http_req{})
 	-> {ok, #http_req{}}.
 upgrade_reply(Status, Headers, Req=#http_req{socket=Socket, transport=Transport,
 		pid=ReqPid, resp_state=waiting, resp_headers=RespHeaders}) ->
@@ -645,7 +647,7 @@ parse_qs(Qs, URLDecode) ->
 		[Name, Value] -> {URLDecode(Name), URLDecode(Value)}
 	end || Token <- Tokens].
 
--spec response_connection(http_headers(), keepalive | close)
+-spec response_connection(cowboy_http:headers(), keepalive | close)
 	-> keepalive | close.
 response_connection([], Connection) ->
 	Connection;
@@ -666,8 +668,8 @@ response_connection_parse(ReplyConn) ->
 	Tokens = cowboy_http:nonempty_list(ReplyConn, fun cowboy_http:token/2),
 	cowboy_http:connection_to_atom(Tokens).
 
--spec response_head(http_status(), http_headers(), http_headers(),
-	http_headers()) -> iolist().
+-spec response_head(http_status(), cowboy_http:headers(),
+	cowboy_http:headers(), cowboy_http:headers()) -> iolist().
 response_head(Status, Headers, RespHeaders, DefaultHeaders) ->
 	StatusLine = <<"HTTP/1.1 ", (status(Status))/binary, "\r\n">>,
 	Headers2 = [{header_to_binary(Key), Value} || {Key, Value} <- Headers],
@@ -678,7 +680,8 @@ response_head(Status, Headers, RespHeaders, DefaultHeaders) ->
 		|| {Key, Value} <- Headers3],
 	[StatusLine, Headers4, <<"\r\n">>].
 
--spec merge_headers(http_headers(), http_headers()) -> http_headers().
+-spec merge_headers(cowboy_http:headers(), cowboy_http:headers())
+	-> cowboy_http:headers().
 merge_headers(Headers, []) ->
 	Headers;
 merge_headers(Headers, [{Name, Value}|Tail]) ->
@@ -751,7 +754,7 @@ status(507) -> <<"507 Insufficient Storage">>;
 status(510) -> <<"510 Not Extended">>;
 status(B) when is_binary(B) -> B.
 
--spec header_to_binary(http_header()) -> binary().
+-spec header_to_binary(cowboy_http:header()) -> binary().
 header_to_binary('Cache-Control') -> <<"Cache-Control">>;
 header_to_binary('Connection') -> <<"Connection">>;
 header_to_binary('Date') -> <<"Date">>;

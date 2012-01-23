@@ -158,7 +158,7 @@ wait_header(Req, State=#state{socket=Socket,
 		{error, closed} -> terminate(State)
 	end.
 
--spec header({http_header, integer(), http_header(), any(), binary()}
+-spec header({http_header, integer(), cowboy_http:header(), any(), binary()}
 	| http_eoh, #http_req{}, #state{}) -> ok | none().
 header({http_header, _I, 'Host', _R, RawHost}, Req=#http_req{
 		transport=Transport, host=undefined}, State) ->

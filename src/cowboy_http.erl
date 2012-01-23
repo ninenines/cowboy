@@ -33,8 +33,22 @@
 	| {scheme, Scheme::binary(), binary()}
 	| {abs_path, binary()} | binary().
 -type version() :: {Major::non_neg_integer(), Minor::non_neg_integer()}.
+-type header() :: 'Cache-Control' | 'Connection' | 'Date' | 'Pragma'
+	| 'Transfer-Encoding' | 'Upgrade' | 'Via' | 'Accept' | 'Accept-Charset'
+	| 'Accept-Encoding' | 'Accept-Language' | 'Authorization' | 'From' | 'Host'
+	| 'If-Modified-Since' | 'If-Match' | 'If-None-Match' | 'If-Range'
+	| 'If-Unmodified-Since' | 'Max-Forwards' | 'Proxy-Authorization' | 'Range'
+	| 'Referer' | 'User-Agent' | 'Age' | 'Location' | 'Proxy-Authenticate'
+	| 'Public' | 'Retry-After' | 'Server' | 'Vary' | 'Warning'
+	| 'Www-Authenticate' | 'Allow' | 'Content-Base' | 'Content-Encoding'
+	| 'Content-Language' | 'Content-Length' | 'Content-Location'
+	| 'Content-Md5' | 'Content-Range' | 'Content-Type' | 'Etag'
+	| 'Expires' | 'Last-Modified' | 'Accept-Ranges' | 'Set-Cookie'
+	| 'Set-Cookie2' | 'X-Forwarded-For' | 'Cookie' | 'Keep-Alive'
+	| 'Proxy-Connection' | binary().
+-type headers() :: [{header(), iodata()}].
 
--export_type([method/0, uri/0, version/0]).
+-export_type([method/0, uri/0, version/0, header/0, headers/0]).
 
 -include("include/http.hrl").
 -include_lib("eunit/include/eunit.hrl").

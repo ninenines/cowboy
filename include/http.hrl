@@ -13,20 +13,6 @@
 %% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
--type http_header() :: 'Cache-Control' | 'Connection' | 'Date' | 'Pragma'
-	| 'Transfer-Encoding' | 'Upgrade' | 'Via' | 'Accept' | 'Accept-Charset'
-	| 'Accept-Encoding' | 'Accept-Language' | 'Authorization' | 'From' | 'Host'
-	| 'If-Modified-Since' | 'If-Match' | 'If-None-Match' | 'If-Range'
-	| 'If-Unmodified-Since' | 'Max-Forwards' | 'Proxy-Authorization' | 'Range'
-	| 'Referer' | 'User-Agent' | 'Age' | 'Location' | 'Proxy-Authenticate'
-	| 'Public' | 'Retry-After' | 'Server' | 'Vary' | 'Warning'
-	| 'Www-Authenticate' | 'Allow' | 'Content-Base' | 'Content-Encoding'
-	| 'Content-Language' | 'Content-Length' | 'Content-Location'
-	| 'Content-Md5' | 'Content-Range' | 'Content-Type' | 'Etag'
-	| 'Expires' | 'Last-Modified' | 'Accept-Ranges' | 'Set-Cookie'
-	| 'Set-Cookie2' | 'X-Forwarded-For' | 'Cookie' | 'Keep-Alive'
-	| 'Proxy-Connection' | binary().
--type http_headers() :: list({http_header(), iodata()}).
 -type http_cookies() :: list({binary(), binary()}).
 -type http_status() :: non_neg_integer() | binary().
 -type http_resp_body() :: iodata() | {non_neg_integer(),
@@ -53,7 +39,7 @@
 	qs_vals    = undefined :: undefined | list({binary(), binary() | true}),
 	raw_qs     = undefined :: undefined | binary(),
 	bindings   = undefined :: undefined | cowboy_dispatcher:bindings(),
-	headers    = []        :: http_headers(),
+	headers    = []        :: cowboy_http:headers(),
 	p_headers  = []        :: [any()], %% @todo Improve those specs.
 	cookies    = undefined :: undefined | http_cookies(),
 	meta       = []        :: [{atom(), any()}],
@@ -65,7 +51,7 @@
 
 	%% Response.
 	resp_state = waiting   :: locked | waiting | chunks | done,
-	resp_headers = []      :: http_headers(),
+	resp_headers = []      :: cowboy_http:headers(),
 	resp_body  = <<>>      :: http_resp_body(),
 
 	%% Functions.
