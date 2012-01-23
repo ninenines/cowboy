@@ -28,8 +28,12 @@
 
 -type method() :: 'OPTIONS' | 'GET' | 'HEAD'
 	| 'POST' | 'PUT' | 'DELETE' | 'TRACE' | binary().
+-type uri() :: '*' | {absoluteURI, http | https, Host::binary(),
+	Port::integer() | undefined, Path::binary()}
+	| {scheme, Scheme::binary(), binary()}
+	| {abs_path, binary()} | binary().
 
--export_type([method/0]).
+-export_type([method/0, uri/0]).
 
 -include("include/http.hrl").
 -include_lib("eunit/include/eunit.hrl").

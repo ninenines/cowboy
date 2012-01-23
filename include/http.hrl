@@ -13,10 +13,6 @@
 %% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
--type http_uri() :: '*' | {absoluteURI, http | https, Host::binary(),
-	Port::integer() | undefined, Path::binary()}
-	| {scheme, Scheme::binary(), binary()}
-	| {abs_path, binary()} | binary().
 -type http_version() :: {Major::non_neg_integer(), Minor::non_neg_integer()}.
 -type http_header() :: 'Cache-Control' | 'Connection' | 'Date' | 'Pragma'
 	| 'Transfer-Encoding' | 'Upgrade' | 'Via' | 'Accept' | 'Accept-Charset'
