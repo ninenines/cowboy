@@ -13,9 +13,6 @@
 %% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
--type http_resp_body() :: iodata() | {non_neg_integer(),
-		fun(() -> {sent, non_neg_integer()})}.
-
 -record(http_req, {
 	%% Transport.
 	socket     = undefined :: undefined | inet:socket(),
@@ -44,13 +41,14 @@
 
 	%% Request body.
 	body_state = waiting   :: waiting | done |
-							  {multipart, non_neg_integer(), fun()},
+								{multipart, non_neg_integer(), fun()},
 	buffer     = <<>>      :: binary(),
 
 	%% Response.
 	resp_state = waiting   :: locked | waiting | chunks | done,
 	resp_headers = []      :: cowboy_http:headers(),
-	resp_body  = <<>>      :: http_resp_body(),
+	resp_body  = <<>>      :: iodata() | {non_neg_integer(),
+								fun(() -> {sent, non_neg_integer()})},
 
 	%% Functions.
 	urldecode :: {fun((binary(), T) -> binary()), T}
