@@ -153,7 +153,7 @@
 -type dirpath() :: string() | binary() | [binary()].
 -type dirspec() :: dirpath() | {priv, atom(), dirpath()}.
 -type mimedef() :: {binary(), binary(), [{binary(), binary()}]}.
--type etagarg() :: {filepath, binary()} | {mtime, cowboy_clock:datetime()}
+-type etagarg() :: {filepath, binary()} | {mtime, calendar:datetime()}
 	| {inode, non_neg_integer()} | {filesize, non_neg_integer()}.
 
 %% handler state
@@ -240,7 +240,7 @@ forbidden(Req, #state{fileinfo={ok, #file_info{access=Access}}}=State) ->
 
 %% @private Read the time a file system system object was last modified.
 -spec last_modified(#http_req{}, #state{}) ->
-		{cowboy_clock:datetime(), #http_req{}, #state{}}.
+		{calendar:datetime(), #http_req{}, #state{}}.
 last_modified(Req, #state{fileinfo={ok, #file_info{mtime=Modified}}}=State) ->
 	{Modified, Req, State}.
 
