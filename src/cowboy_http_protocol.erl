@@ -403,7 +403,7 @@ ensure_response(#http_req{socket=Socket, transport=Transport,
 	close.
 
 %% Only send an error reply if there is no resp_sent message.
--spec error_terminate(http_status(), #state{}) -> ok.
+-spec error_terminate(cowboy_http:status(), #state{}) -> ok.
 error_terminate(Code, State=#state{socket=Socket, transport=Transport}) ->
 	receive
 		{cowboy_http_req, resp_sent} -> ok

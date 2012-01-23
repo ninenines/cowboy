@@ -47,8 +47,9 @@
 	| 'Set-Cookie2' | 'X-Forwarded-For' | 'Cookie' | 'Keep-Alive'
 	| 'Proxy-Connection' | binary().
 -type headers() :: [{header(), iodata()}].
+-type status() :: non_neg_integer() | binary().
 
--export_type([method/0, uri/0, version/0, header/0, headers/0]).
+-export_type([method/0, uri/0, version/0, header/0, headers/0, status/0]).
 
 -include("include/http.hrl").
 -include_lib("eunit/include/eunit.hrl").

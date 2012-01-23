@@ -528,18 +528,18 @@ has_resp_body(#http_req{resp_body=RespBody}) ->
 	iolist_size(RespBody) > 0.
 
 %% @equiv reply(Status, [], [], Req)
--spec reply(http_status(), #http_req{}) -> {ok, #http_req{}}.
+-spec reply(cowboy_http:status(), #http_req{}) -> {ok, #http_req{}}.
 reply(Status, Req=#http_req{resp_body=Body}) ->
 	reply(Status, [], Body, Req).
 
 %% @equiv reply(Status, Headers, [], Req)
--spec reply(http_status(), cowboy_http:headers(), #http_req{})
+-spec reply(cowboy_http:status(), cowboy_http:headers(), #http_req{})
 	-> {ok, #http_req{}}.
 reply(Status, Headers, Req=#http_req{resp_body=Body}) ->
 	reply(Status, Headers, Body, Req).
 
 %% @doc Send a reply to the client.
--spec reply(http_status(), cowboy_http:headers(), iodata(), #http_req{})
+-spec reply(cowboy_http:status(), cowboy_http:headers(), iodata(), #http_req{})
 	-> {ok, #http_req{}}.
 reply(Status, Headers, Body, Req=#http_req{socket=Socket,
 		transport=Transport, connection=Connection, pid=ReqPid,
@@ -562,13 +562,13 @@ reply(Status, Headers, Body, Req=#http_req{socket=Socket,
 		resp_headers=[], resp_body= <<>>}}.
 
 %% @equiv chunked_reply(Status, [], Req)
--spec chunked_reply(http_status(), #http_req{}) -> {ok, #http_req{}}.
+-spec chunked_reply(cowboy_http:status(), #http_req{}) -> {ok, #http_req{}}.
 chunked_reply(Status, Req) ->
 	chunked_reply(Status, [], Req).
 
 %% @doc Initiate the sending of a chunked reply to the client.
 %% @see cowboy_http_req:chunk/2
--spec chunked_reply(http_status(), cowboy_http:headers(), #http_req{})
+-spec chunked_reply(cowboy_http:status(), cowboy_http:headers(), #http_req{})
 	-> {ok, #http_req{}}.
 chunked_reply(Status, Headers, Req=#http_req{socket=Socket,
 		transport=Transport, connection=Connection, pid=ReqPid,
@@ -597,7 +597,7 @@ chunk(Data, #http_req{socket=Socket, transport=Transport, resp_state=chunks}) ->
 
 %% @doc Send an upgrade reply.
 %% @private
--spec upgrade_reply(http_status(), cowboy_http:headers(), #http_req{})
+-spec upgrade_reply(cowboy_http:status(), cowboy_http:headers(), #http_req{})
 	-> {ok, #http_req{}}.
 upgrade_reply(Status, Headers, Req=#http_req{socket=Socket, transport=Transport,
 		pid=ReqPid, resp_state=waiting, resp_headers=RespHeaders}) ->
@@ -668,7 +668,7 @@ response_connection_parse(ReplyConn) ->
 	Tokens = cowboy_http:nonempty_list(ReplyConn, fun cowboy_http:token/2),
 	cowboy_http:connection_to_atom(Tokens).
 
--spec response_head(http_status(), cowboy_http:headers(),
+-spec response_head(cowboy_http:status(), cowboy_http:headers(),
 	cowboy_http:headers(), cowboy_http:headers()) -> iolist().
 response_head(Status, Headers, RespHeaders, DefaultHeaders) ->
 	StatusLine = <<"HTTP/1.1 ", (status(Status))/binary, "\r\n">>,
@@ -698,7 +698,7 @@ atom_to_connection(keepalive) ->
 atom_to_connection(close) ->
 	<<"close">>.
 
--spec status(http_status()) -> binary().
+-spec status(cowboy_http:status()) -> binary().
 status(100) -> <<"100 Continue">>;
 status(101) -> <<"101 Switching Protocols">>;
 status(102) -> <<"102 Processing">>;

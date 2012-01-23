@@ -13,7 +13,6 @@
 %% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
--type http_status() :: non_neg_integer() | binary().
 -type http_resp_body() :: iodata() | {non_neg_integer(),
 		fun(() -> {sent, non_neg_integer()})}.
 
