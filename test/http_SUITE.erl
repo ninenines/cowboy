@@ -620,6 +620,5 @@ rest_nodelete(Config) ->
 	Request = "DELETE /nodelete HTTP/1.1\r\nHost: localhost\r\n\r\n",
 	ok = gen_tcp:send(Socket, Request),
 	{ok, Data} = gen_tcp:recv(Socket, 0, 6000),
-    ct:print("response ~p~n", [Data]),
 	{0, 12} = binary:match(Data, <<"HTTP/1.1 500">>),
 	ok = gen_tcp:close(Socket).
