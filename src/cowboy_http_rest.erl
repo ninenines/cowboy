@@ -648,16 +648,7 @@ method(Req, State) ->
 
 %% delete_resource/2 should start deleting the resource and return.
 delete_resource(Req, State) ->
-	case call(Req, State, delete_resource) of
-		{halt, Req2, HandlerState2} ->
-			terminate(Req2, State#state{handler_state=HandlerState2});
-		{true, Req2, HandlerState2} ->
-			delete_completed(Req2, State#state{handler_state=HandlerState2});
-		{false, Req2, HandlerState2} ->
-			respond(Req2, State#state{handler_state=HandlerState2}, 500);
-		no_call ->
-			respond(Req, State, 500)
-	end.
+	expect(Req, State, delete_resource, false, 500, fun delete_completed/2).
 
 %% delete_completed/2 indicates whether the resource has been deleted yet.
 delete_completed(Req, State) ->
