@@ -648,7 +648,7 @@ method(Req, State) ->
 
 %% delete_resource/2 should start deleting the resource and return.
 delete_resource(Req, State) ->
-	expect(Req, State, delete_resource, true, fun delete_completed/2, 500).
+	expect(Req, State, delete_resource, false, 500, fun delete_completed/2).
 
 %% delete_completed/2 indicates whether the resource has been deleted yet.
 delete_completed(Req, State) ->
