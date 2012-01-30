@@ -15,7 +15,8 @@
 %% @doc Cowboy API to start and stop listeners.
 -module(cowboy).
 
--export([start_listener/6, stop_listener/1, child_spec/6, accept_ack/1]).
+-export([start_listener/6, stop_listener/1, child_spec/6, accept_ack/1,
+	get_protocol_options/1, set_protocol_options/2]).
 
 %% @doc Start a listener for the given transport and protocol.
 %%
@@ -83,3 +84,32 @@ child_spec(Ref, NbAcceptors, Transport, TransOpts, Protocol, ProtoOpts)
 -spec accept_ack(pid()) -> ok.
 accept_ack(ListenerPid) ->
 	receive {shoot, ListenerPid} -> ok end.
+
+%% @doc Return the current protocol options for the given listener.
+-spec get_protocol_options(any()) -> any().
+get_protocol_options(Ref) ->
+	ListenerPid = ref_to_listener_pid(Ref),
+	{ok, ProtoOpts} = cowboy_listener:get_protocol_options(ListenerPid),
+	ProtoOpts.
+
+%% @doc Upgrade the protocol options for the given listener.
+%%
+%% The upgrade takes place at the acceptor level, meaning that only the
+%% newly accepted connections receive the new protocol options. This has
+%% no effect on the currently opened connections.
+-spec set_protocol_options(any(), any()) -> ok.
+set_protocol_options(Ref, ProtoOpts) ->
+	ListenerPid = ref_to_listener_pid(Ref),
+	ok = cowboy_listener:set_protocol_options(ListenerPid, ProtoOpts).
+
+%% Internal.
+
+-spec ref_to_listener_pid(any()) -> pid().
+ref_to_listener_pid(Ref) ->
+	Children = supervisor:which_children(cowboy_sup),
+	{_, ListenerSupPid, _, _} = lists:keyfind(
+		{cowboy_listener_sup, Ref}, 1, Children),
+	ListenerSupChildren = supervisor:which_children(ListenerSupPid),
+	{_, ListenerPid, _, _} = lists:keyfind(
+		cowboy_listener, 1, ListenerSupChildren),
+	ListenerPid.
