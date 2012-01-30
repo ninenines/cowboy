@@ -34,10 +34,9 @@ start_link(NbAcceptors, Transport, TransOpts,
 init([NbAcceptors, Transport, TransOpts,
 		Protocol, ProtoOpts, ListenerPid, ReqsPid]) ->
 	{ok, LSocket} = Transport:listen(TransOpts),
-	MaxConns = proplists:get_value(max_connections, TransOpts, 1024),
 	Procs = [{{acceptor, self(), N}, {cowboy_acceptor, start_link, [
 				LSocket, Transport, Protocol, ProtoOpts,
-				MaxConns, ListenerPid, ReqsPid
+				ListenerPid, ReqsPid
       ]}, permanent, brutal_kill, worker, []}
 		|| N <- lists:seq(1, NbAcceptors)],
 	{ok, {{one_for_one, 10, 10}, Procs}}.

@@ -15,33 +15,31 @@
 %% @private
 -module(cowboy_acceptor).
 
--export([start_link/7]). %% API.
--export([acceptor/7]). %% Internal.
+-export([start_link/6]). %% API.
+-export([acceptor/6]). %% Internal.
 
 %% API.
 
 -spec start_link(inet:socket(), module(), module(), any(),
-	non_neg_integer(), pid(), pid()) -> {ok, pid()}.
+	pid(), pid()) -> {ok, pid()}.
 start_link(LSocket, Transport, Protocol, Opts,
-		MaxConns, ListenerPid, ReqsSup) ->
+		ListenerPid, ReqsSup) ->
 	Pid = spawn_link(?MODULE, acceptor,
-		[LSocket, Transport, Protocol, Opts, MaxConns, ListenerPid, ReqsSup]),
+		[LSocket, Transport, Protocol, Opts, ListenerPid, ReqsSup]),
 	{ok, Pid}.
 
 %% Internal.
 
 -spec acceptor(inet:socket(), module(), module(), any(),
-	non_neg_integer(), pid(), pid()) -> no_return().
-acceptor(LSocket, Transport, Protocol, Opts, MaxConns, ListenerPid, ReqsSup) ->
+	pid(), pid()) -> no_return().
+acceptor(LSocket, Transport, Protocol, Opts, ListenerPid, ReqsSup) ->
 	case Transport:accept(LSocket, 2000) of
 		{ok, CSocket} ->
 			{ok, Pid} = supervisor:start_child(ReqsSup,
 				[ListenerPid, CSocket, Transport, Protocol, Opts]),
 			Transport:controlling_process(CSocket, Pid),
-			{ok, NbConns} = cowboy_listener:add_connection(ListenerPid,
-				default, Pid),
-			Pid ! {shoot, ListenerPid},
-			limit_reqs(ListenerPid, NbConns, MaxConns);
+			ok = cowboy_listener:add_connection(ListenerPid,
+				default, Pid);
 		{error, timeout} ->
 			ignore;
 		{error, _Reason} ->
@@ -50,10 +48,4 @@ acceptor(LSocket, Transport, Protocol, Opts, MaxConns, ListenerPid, ReqsSup) ->
 			ignore
 	end,
 	?MODULE:acceptor(LSocket, Transport, Protocol, Opts,
-		MaxConns, ListenerPid, ReqsSup).
-
--spec limit_reqs(pid(), non_neg_integer(), non_neg_integer()) -> ok.
-limit_reqs(_ListenerPid, NbConns, MaxConns) when NbConns =< MaxConns ->
-	ok;
-limit_reqs(ListenerPid, _NbConns, MaxConns) ->
-	cowboy_listener:wait(ListenerPid, default, MaxConns).
+		ListenerPid, ReqsSup).

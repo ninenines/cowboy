@@ -16,15 +16,16 @@
 -module(cowboy_listener).
 -behaviour(gen_server).
 
--export([start_link/0, stop/1,
-	add_connection/3, move_connection/3, remove_connection/2, wait/3]). %% API.
+-export([start_link/1, stop/1,
+	add_connection/3, move_connection/3, remove_connection/2]). %% API.
 -export([init/1, handle_call/3, handle_cast/2,
 	handle_info/2, terminate/2, code_change/3]). %% gen_server.
 
 -record(state, {
 	req_pools = [] :: [{atom(), non_neg_integer()}],
 	reqs_table :: ets:tid(),
-	queue = [] :: [{pid(), reference()}]
+	queue = [] :: [{pid(), reference()}],
+	max_conns = undefined :: non_neg_integer()
 }).
 
 %% API.
@@ -36,9 +37,10 @@
 %% Setting the process priority to high ensures the connection-related code
 %% will always be executed when a connection needs it, allowing Cowboy to
 %% scale far beyond what it would with a normal priority.
--spec start_link() -> {ok, pid()}.
-start_link() ->
-	gen_server:start_link(?MODULE, [], [{spawn_opt, [{priority, high}]}]).
+-spec start_link(non_neg_integer()) -> {ok, pid()}.
+start_link(MaxConns) ->
+	gen_server:start_link(?MODULE, [MaxConns],
+		[{spawn_opt, [{priority, high}]}]).
 
 %% @private
 -spec stop(pid()) -> stopped.
@@ -50,15 +52,16 @@ stop(ServerPid) ->
 %% Pools of connections are used to restrict the maximum number of connections
 %% depending on their type. By default, Cowboy add all connections to the
 %% pool <em>default</em>. It also checks for the maximum number of connections
-%% in that pool before accepting again.
+%% in that pool before accepting again. This function only returns when there
+%% is free space in the pool.
 %%
 %% When a process managing a connection dies, the process is removed from the
 %% pool. If the socket has been sent to another process, it is up to the
 %% protocol code to inform the listener of the new <em>ConnPid</em> by removing
 %% the previous and adding the new one.
--spec add_connection(pid(), atom(), pid()) -> {ok, non_neg_integer()}.
+-spec add_connection(pid(), atom(), pid()) -> ok.
 add_connection(ServerPid, Pool, ConnPid) ->
-	gen_server:call(ServerPid, {add_connection, Pool, ConnPid}).
+	gen_server:call(ServerPid, {add_connection, Pool, ConnPid}, infinity).
 
 %% @doc Move a connection from one pool to another.
 -spec move_connection(pid(), atom(), pid()) -> ok.
@@ -70,30 +73,22 @@ move_connection(ServerPid, DestPool, ConnPid) ->
 remove_connection(ServerPid, ConnPid) ->
 	gen_server:cast(ServerPid, {remove_connection, ConnPid}).
 
-%% @doc Wait until the number of connections in the given pool gets below
-%% the given threshold.
-%%
-%% This function will not return until the number of connections in the pool
-%% gets below <em>MaxConns</em>. It makes use of <em>gen_server:reply/2</em>
-%% to make the process wait for a reply indefinitely.
--spec wait(pid(), atom(), non_neg_integer()) -> ok.
-wait(ServerPid, Pool, MaxConns) ->
-	gen_server:call(ServerPid, {wait, Pool, MaxConns}, infinity).
-
 %% gen_server.
 
 %% @private
--spec init([]) -> {ok, #state{}}.
-init([]) ->
+-spec init(list()) -> {ok, #state{}}.
+init([MaxConns]) ->
 	ReqsTablePid = ets:new(requests_table, [set, private]),
-	{ok, #state{reqs_table=ReqsTablePid}}.
+	{ok, #state{reqs_table=ReqsTablePid, max_conns=MaxConns}}.
 
 %% @private
 -spec handle_call(_, _, State)
 	-> {reply, ignored, State} | {stop, normal, stopped, State}.
-handle_call({add_connection, Pool, ConnPid}, _From, State=#state{
-		req_pools=Pools, reqs_table=ReqsTable}) ->
+handle_call({add_connection, Pool, ConnPid}, From, State=#state{
+		req_pools=Pools, reqs_table=ReqsTable,
+		queue=Queue, max_conns=MaxConns}) ->
 	MonitorRef = erlang:monitor(process, ConnPid),
+	ConnPid ! {shoot, self()},
 	{NbConnsRet, Pools2} = case lists:keyfind(Pool, 1, Pools) of
 		false ->
 			{1, [{Pool, 1}|Pools]};
@@ -102,14 +97,10 @@ handle_call({add_connection, Pool, ConnPid}, _From, State=#state{
 			{NbConns2, [{Pool, NbConns2}|lists:keydelete(Pool, 1, Pools)]}
 	end,
 	ets:insert(ReqsTable, {ConnPid, {MonitorRef, Pool}}),
-	{reply, {ok, NbConnsRet}, State#state{req_pools=Pools2}};
-handle_call({wait, Pool, MaxConns}, From, State=#state{
-		req_pools=Pools, queue=Queue}) ->
-	case lists:keyfind(Pool, 1, Pools) of
-		{Pool, NbConns} when NbConns > MaxConns ->
-			{noreply, State#state{queue=[From|Queue]}};
-		_Any ->
-			{reply, ok, State}
+	if	NbConnsRet > MaxConns ->
+			{noreply, State#state{req_pools=Pools2, queue=[From|Queue]}};
+		true ->
+			{reply, ok, State#state{req_pools=Pools2}}
 	end;
 handle_call(stop, _From, State) ->
 	{stop, normal, stopped, State};

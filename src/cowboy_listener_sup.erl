@@ -24,9 +24,10 @@
 -spec start_link(non_neg_integer(), module(), any(), module(), any())
 	-> {ok, pid()}.
 start_link(NbAcceptors, Transport, TransOpts, Protocol, ProtoOpts) ->
+	MaxConns = proplists:get_value(max_connections, TransOpts, 1024),
 	{ok, SupPid} = supervisor:start_link(?MODULE, []),
 	{ok, ListenerPid} = supervisor:start_child(SupPid,
-		{cowboy_listener, {cowboy_listener, start_link, []},
+		{cowboy_listener, {cowboy_listener, start_link, [MaxConns]},
 		 permanent, 5000, worker, [cowboy_listener]}),
 	{ok, ReqsPid} = supervisor:start_child(SupPid,
 		{cowboy_requests_sup, {cowboy_requests_sup, start_link, []},
