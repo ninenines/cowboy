@@ -18,11 +18,16 @@ clean:
 
 tests: clean app eunit ct
 
+inttests: clean app eunit intct
+
 eunit:
 	@$(REBAR) eunit skip_deps=true
 
 ct:
-	@$(REBAR) ct skip_deps=true
+	@$(REBAR) ct skip_deps=true suites=http,ws
+
+intct:
+	@$(REBAR) ct skip_deps=true suites=http,ws,autobahn
 
 build-plt:
 	@$(DIALYZER) --build_plt --output_plt .cowboy_dialyzer.plt \
