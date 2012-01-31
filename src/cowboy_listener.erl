@@ -27,7 +27,7 @@
 -record(state, {
 	req_pools = [] :: pools(),
 	reqs_table :: ets:tid(),
-	queue = [] :: [{pid(), reference()}],
+	queue = undefined :: queue(),
 	max_conns = undefined :: non_neg_integer(),
 	proto_opts :: any(),
 	proto_opts_vsn = 1 :: non_neg_integer()
@@ -100,8 +100,9 @@ set_protocol_options(ServerPid, ProtoOpts) ->
 -spec init(list()) -> {ok, #state{}}.
 init([MaxConns, ProtoOpts]) ->
 	ReqsTable = ets:new(requests_table, [set, private]),
+	Queue = queue:new(),
 	{ok, #state{reqs_table=ReqsTable, max_conns=MaxConns,
-		proto_opts=ProtoOpts}}.
+		proto_opts=ProtoOpts, queue=Queue}}.
 
 %% @private
 -spec handle_call(_, _, State)
@@ -115,7 +116,8 @@ handle_call({add_connection, Pool, ConnPid, AccOptsVsn}, From, State=#state{
 	if	AccOptsVsn =/= LisOptsVsn ->
 			{reply, {ugprade, ProtoOpts, LisOptsVsn}, State2};
 		NbConns > MaxConns ->
-			{noreply, State2#state{queue=[From|Queue]}};
+			Queue2 = queue:in(From, Queue),
+			{noreply, State2#state{queue=Queue2}};
 		true ->
 			{reply, ok, State2}
 	end;
@@ -193,18 +195,18 @@ move_pid(ConnPid, DestPool, Pools, ReqsTable) ->
 	[{SrcPool, SrcNbConns - 1}, {DestPool, DestNbConns}|Pools2].
 
 %% @private
--spec remove_pid(pid(), pools(), ets:tid(), [{pid(), reference()}])
-	-> {pools(), [{pid(), reference()}]}.
+-spec remove_pid(pid(), pools(), ets:tid(), queue()) -> {pools(), queue()}.
 remove_pid(Pid, Pools, ReqsTable, Queue) ->
 	{MonitorRef, Pool} = ets:lookup_element(ReqsTable, Pid, 2),
 	erlang:demonitor(MonitorRef, [flush]),
 	{Pool, NbConns} = lists:keyfind(Pool, 1, Pools),
 	Pools2 = [{Pool, NbConns - 1}|lists:keydelete(Pool, 1, Pools)],
 	ets:delete(ReqsTable, Pid),
-	case Queue of
-		[] ->
+	case queue:len(Queue) of
+		0 ->
 			{Pools2, Queue};
-		[Client|Queue2] ->
+		_ ->
+			{{value, Client}, Queue2} = queue:out(Queue),
 			gen_server:reply(Client, ok),
 			{Pools2, Queue2}
 	end.
