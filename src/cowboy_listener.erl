@@ -133,27 +133,21 @@ handle_call(_Request, _From, State) ->
 -spec handle_cast(_, State) -> {noreply, State}.
 handle_cast({move_connection, DestPool, ConnPid}, State=#state{
 		req_pools=Pools, reqs_table=ReqsTable}) ->
-	{MonitorRef, SrcPool} = ets:lookup_element(ReqsTable, ConnPid, 2),
-	ets:insert(ReqsTable, {ConnPid, {MonitorRef, DestPool}}),
-	{SrcPool, SrcNbConns} = lists:keyfind(SrcPool, 1, Pools),
-	DestNbConns = case lists:keyfind(DestPool, 1, Pools) of
-		false -> 1;
-		{DestPool, NbConns} -> NbConns + 1
-	end,
-	Pools2 = lists:keydelete(SrcPool, 1, lists:keydelete(DestPool, 1, Pools)),
-	Pools3 = [{SrcPool, SrcNbConns - 1}, {DestPool, DestNbConns}|Pools2],
-	{noreply, State#state{req_pools=Pools3}};
-handle_cast({remove_connection, ConnPid}, State) ->
-	State2 = remove_pid(ConnPid, State),
-	{noreply, State2};
+	Pools2 = move_pid(ConnPid, DestPool, Pools, ReqsTable),
+	{noreply, State#state{req_pools=Pools2}};
+handle_cast({remove_connection, ConnPid}, State=#state{
+		req_pools=Pools, reqs_table=ReqsTable, queue=Queue}) ->
+	{Pools2, Queue2} = remove_pid(ConnPid, Pools, ReqsTable, Queue),
+	{noreply, State#state{req_pools=Pools2, queue=Queue2}};
 handle_cast(_Msg, State) ->
 	{noreply, State}.
 
 %% @private
 -spec handle_info(_, State) -> {noreply, State}.
-handle_info({'DOWN', _Ref, process, Pid, _Info}, State) ->
-	State2 = remove_pid(Pid, State),
-	{noreply, State2};
+handle_info({'DOWN', _Ref, process, Pid, _Info}, State=#state{
+		req_pools=Pools, reqs_table=ReqsTable, queue=Queue}) ->
+	{Pools2, Queue2} = remove_pid(Pid, Pools, ReqsTable, Queue),
+	{noreply, State#state{req_pools=Pools2, queue=Queue2}};
 handle_info(_Info, State) ->
 	{noreply, State}.
 
@@ -186,9 +180,22 @@ add_pid(ConnPid, Pool, Pools, ReqsTable) ->
 	{NbConnsRet, Pools2}.
 
 %% @private
--spec remove_pid(pid(), State) -> State.
-remove_pid(Pid, State=#state{
-		req_pools=Pools, reqs_table=ReqsTable, queue=Queue}) ->
+-spec move_pid(pid(), atom(), pools(), ets:tid()) -> pools().
+move_pid(ConnPid, DestPool, Pools, ReqsTable) ->
+	{MonitorRef, SrcPool} = ets:lookup_element(ReqsTable, ConnPid, 2),
+	ets:insert(ReqsTable, {ConnPid, {MonitorRef, DestPool}}),
+	{SrcPool, SrcNbConns} = lists:keyfind(SrcPool, 1, Pools),
+	DestNbConns = case lists:keyfind(DestPool, 1, Pools) of
+		false -> 1;
+		{DestPool, NbConns} -> NbConns + 1
+	end,
+	Pools2 = lists:keydelete(SrcPool, 1, lists:keydelete(DestPool, 1, Pools)),
+	[{SrcPool, SrcNbConns - 1}, {DestPool, DestNbConns}|Pools2].
+
+%% @private
+-spec remove_pid(pid(), pools(), ets:tid(), [{pid(), reference()}])
+	-> {pools(), [{pid(), reference()}]}.
+remove_pid(Pid, Pools, ReqsTable, Queue) ->
 	{MonitorRef, Pool} = ets:lookup_element(ReqsTable, Pid, 2),
 	erlang:demonitor(MonitorRef, [flush]),
 	{Pool, NbConns} = lists:keyfind(Pool, 1, Pools),
@@ -196,8 +203,8 @@ remove_pid(Pid, State=#state{
 	ets:delete(ReqsTable, Pid),
 	case Queue of
 		[] ->
-			State#state{req_pools=Pools2};
+			{Pools2, Queue};
 		[Client|Queue2] ->
 			gen_server:reply(Client, ok),
-			State#state{req_pools=Pools2, queue=Queue2}
+			{Pools2, Queue2}
 	end.
