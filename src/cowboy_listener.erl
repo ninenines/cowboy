@@ -202,11 +202,10 @@ remove_pid(Pid, Pools, ReqsTable, Queue) ->
 	{Pool, NbConns} = lists:keyfind(Pool, 1, Pools),
 	Pools2 = [{Pool, NbConns - 1}|lists:keydelete(Pool, 1, Pools)],
 	ets:delete(ReqsTable, Pid),
-	case queue:len(Queue) of
-		0 ->
-			{Pools2, Queue};
-		_ ->
-			{{value, Client}, Queue2} = queue:out(Queue),
+	case queue:out(Queue) of
+		{{value, Client}, Queue2} ->
 			gen_server:reply(Client, ok),
-			{Pools2, Queue2}
+			{Pools2, Queue2};
+		_ ->
+			{Pools2, Queue}
 	end.
