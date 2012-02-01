@@ -114,7 +114,7 @@ handle_call({add_connection, Pool, ConnPid, AccOptsVsn}, From, State=#state{
 	{NbConns, Pools2} = add_pid(ConnPid, Pool, Pools, ReqsTable),
 	State2 = State#state{req_pools=Pools2},
 	if	AccOptsVsn =/= LisOptsVsn ->
-			{reply, {ugprade, ProtoOpts, LisOptsVsn}, State2};
+			{reply, {upgrade, ProtoOpts, LisOptsVsn}, State2};
 		NbConns > MaxConns ->
 			Queue2 = queue:in(From, Queue),
 			{noreply, State2#state{queue=Queue2}};
