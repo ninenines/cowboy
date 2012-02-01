@@ -113,6 +113,10 @@ wait_request(State=#state{socket=Socket, transport=Transport,
 request({http_request, _Method, _URI, Version}, State)
 		when Version =/= {1, 0}, Version =/= {1, 1} ->
 	error_terminate(505, State);
+%% We still receive the original Host header.
+request({http_request, Method, {absoluteURI, _Scheme, _Host, _Port, Path},
+		Version}, State) ->
+	request({http_request, Method, {abs_path, Path}, Version}, State);
 request({http_request, Method, {abs_path, AbsPath}, Version},
 		State=#state{socket=Socket, transport=Transport,
 		urldecode={URLDecFun, URLDecArg}=URLDec}) ->
