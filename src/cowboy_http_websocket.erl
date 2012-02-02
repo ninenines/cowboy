@@ -64,7 +64,7 @@
 %% You do not need to call this function manually. To upgrade to the WebSocket
 %% protocol, you simply need to return <em>{upgrade, protocol, {@module}}</em>
 %% in your <em>cowboy_http_handler:init/3</em> handler function.
--spec upgrade(pid(), module(), any(), #http_req{}) -> closed | none().
+-spec upgrade(pid(), module(), any(), #http_req{}) -> closed.
 upgrade(ListenerPid, Handler, Opts, Req) ->
 	cowboy_listener:move_connection(ListenerPid, websocket, self()),
 	case catch websocket_upgrade(#state{handler=Handler, opts=Opts}, Req) of
@@ -111,7 +111,7 @@ websocket_upgrade(Version, State, Req=#http_req{meta=Meta})
 	{ok, State#state{version=IntVersion, challenge=Challenge},
 		Req2#http_req{meta=[{websocket_version, IntVersion}|Meta]}}.
 
--spec handler_init(#state{}, #http_req{}) -> closed | none().
+-spec handler_init(#state{}, #http_req{}) -> closed.
 handler_init(State=#state{handler=Handler, opts=Opts},
 		Req=#http_req{transport=Transport}) ->
 	try Handler:websocket_init(Transport:name(), Req, Opts) of
@@ -157,7 +157,7 @@ upgrade_denied(#http_req{socket=Socket, transport=Transport,
 	Transport:send(Socket, <<"0\r\n\r\n">>),
 	closed.
 
--spec websocket_handshake(#state{}, #http_req{}, any()) -> closed | none().
+-spec websocket_handshake(#state{}, #http_req{}, any()) -> closed.
 websocket_handshake(State=#state{version=0, origin=Origin,
 		challenge={Key1, Key2}}, Req=#http_req{socket=Socket,
 		transport=Transport, raw_host=Host, port=Port,
@@ -195,14 +195,15 @@ websocket_handshake(State=#state{challenge=Challenge},
 	handler_before_loop(State#state{messages=Transport:messages()},
 		Req2, HandlerState, <<>>).
 
--spec handler_before_loop(#state{}, #http_req{}, any(), binary()) -> closed | none().
+-spec handler_before_loop(#state{}, #http_req{}, any(), binary()) -> closed.
 handler_before_loop(State=#state{hibernate=true},
 		Req=#http_req{socket=Socket, transport=Transport},
 		HandlerState, SoFar) ->
 	Transport:setopts(Socket, [{active, once}]),
 	State2 = handler_loop_timeout(State),
-	erlang:hibernate(?MODULE, handler_loop, [State2#state{hibernate=false},
-		Req, HandlerState, SoFar]);
+	catch erlang:hibernate(?MODULE, handler_loop,
+		[State2#state{hibernate=false}, Req, HandlerState, SoFar]),
+	closed;
 handler_before_loop(State, Req=#http_req{socket=Socket, transport=Transport},
 		HandlerState, SoFar) ->
 	Transport:setopts(Socket, [{active, once}]),
@@ -220,7 +221,7 @@ handler_loop_timeout(State=#state{timeout=Timeout, timeout_ref=PrevRef}) ->
 	State#state{timeout_ref=TRef}.
 
 %% @private
--spec handler_loop(#state{}, #http_req{}, any(), binary()) -> closed | none().
+-spec handler_loop(#state{}, #http_req{}, any(), binary()) -> closed.
 handler_loop(State=#state{messages={OK, Closed, Error}, timeout_ref=TRef},
 		Req=#http_req{socket=Socket}, HandlerState, SoFar) ->
 	receive
@@ -240,7 +241,7 @@ handler_loop(State=#state{messages={OK, Closed, Error}, timeout_ref=TRef},
 				SoFar, websocket_info, Message, fun handler_before_loop/4)
 	end.
 
--spec websocket_data(#state{}, #http_req{}, any(), binary()) -> closed | none().
+-spec websocket_data(#state{}, #http_req{}, any(), binary()) -> closed.
 %% No more data.
 websocket_data(State, Req, HandlerState, <<>>) ->
 	handler_before_loop(State, Req, HandlerState, <<>>);
@@ -292,8 +293,7 @@ websocket_data(State, Req, HandlerState, _Bad) ->
 
 %% hybi routing depending on whether unmasking is needed.
 -spec websocket_before_unmask(#state{}, #http_req{}, any(), binary(),
-	binary(), opcode(), 0 | 1, non_neg_integer() | undefined)
-	-> closed | none().
+	binary(), opcode(), 0 | 1, non_neg_integer() | undefined) -> closed.
 websocket_before_unmask(State, Req, HandlerState, Data,
 		Rest, Opcode, Mask, PayloadLen) ->
 	case {Mask, PayloadLen} of
@@ -310,14 +310,14 @@ websocket_before_unmask(State, Req, HandlerState, Data,
 
 %% hybi unmasking.
 -spec websocket_unmask(#state{}, #http_req{}, any(), binary(),
-	opcode(), binary(), mask_key()) -> closed | none().
+	opcode(), binary(), mask_key()) -> closed.
 websocket_unmask(State, Req, HandlerState, RemainingData,
 		Opcode, Payload, MaskKey) ->
 	websocket_unmask(State, Req, HandlerState, RemainingData,
 		Opcode, Payload, MaskKey, <<>>).
 
 -spec websocket_unmask(#state{}, #http_req{}, any(), binary(),
-	opcode(), binary(), mask_key(), binary()) -> closed | none().
+	opcode(), binary(), mask_key(), binary()) -> closed.
 websocket_unmask(State, Req, HandlerState, RemainingData,
 		Opcode, << O:32, Rest/bits >>, MaskKey, Acc) ->
 	T = O bxor MaskKey,
@@ -348,7 +348,7 @@ websocket_unmask(State, Req, HandlerState, RemainingData,
 
 %% hybi dispatching.
 -spec websocket_dispatch(#state{}, #http_req{}, any(), binary(),
-	opcode(), binary()) -> closed | none().
+	opcode(), binary()) -> closed.
 %% @todo Fragmentation.
 %~ websocket_dispatch(State, Req, HandlerState, RemainingData, 0, Payload) ->
 %% Text frame.
@@ -376,7 +376,7 @@ websocket_dispatch(State, Req, HandlerState, RemainingData, 10, Payload) ->
 		websocket_handle, {pong, Payload}, fun websocket_data/4).
 
 -spec handler_call(#state{}, #http_req{}, any(), binary(),
-	atom(), any(), fun()) -> closed | none().
+	atom(), any(), fun()) -> closed.
 handler_call(State=#state{handler=Handler, opts=Opts}, Req, HandlerState,
 		RemainingData, Callback, Message, NextState) ->
 	try Handler:Callback(Message, Req, HandlerState) of
