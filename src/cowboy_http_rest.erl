@@ -736,7 +736,8 @@ put_resource(Req, State, OnTrue) ->
 choose_content_type(Req, State, _OnTrue, _ContentType, []) ->
 	respond(Req, State, 415);
 choose_content_type(Req, State, OnTrue, ContentType,
-		[{Accepted, Fun}|_Tail]) when ContentType =:= Accepted ->
+		[{Accepted, Fun}|_Tail])
+  when Accepted =:= '*' orelse ContentType =:= Accepted ->
 	case call(Req, State, Fun) of
 		{halt, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
