@@ -699,7 +699,7 @@ process_post(Req, State) ->
 			terminate(Req2, State#state{handler_state=HandlerState});
 		{true, Req2, HandlerState} ->
 			State2 = State#state{handler_state=HandlerState},
-			next(Req2, State2, 201);
+			next(Req2, State2, fun is_new_resource/2);
 		{false, Req2, HandlerState} ->
 			State2 = State#state{handler_state=HandlerState},
 			respond(Req2, State2, 500)
