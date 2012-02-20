@@ -17,7 +17,7 @@
 -behaviour(gen_server).
 
 -export([start_link/2, stop/1,
-	add_connection/4, move_connection/3, remove_connection/2,
+	add_connection/4, move_connection/3, remove_connection/2, check_upgrades/2,
 	get_protocol_options/1, set_protocol_options/2]). %% API.
 -export([init/1, handle_call/3, handle_cast/2,
 	handle_info/2, terminate/2, code_change/3]). %% gen_server.
@@ -84,6 +84,12 @@ move_connection(ServerPid, DestPool, ConnPid) ->
 remove_connection(ServerPid, ConnPid) ->
 	gen_server:cast(ServerPid, {remove_connection, ConnPid}).
 
+%% @doc Return whether a protocol upgrade is required.
+-spec check_upgrades(pid(), non_neg_integer())
+	-> ok | {upgrade, any(), non_neg_integer()}.
+check_upgrades(ServerPid, OptsVsn) ->
+	gen_server:call(ServerPid, {check_upgrades, OptsVsn}).
+
 %% @doc Return the current protocol options.
 -spec get_protocol_options(pid()) -> {ok, any()}.
 get_protocol_options(ServerPid) ->
@@ -120,6 +126,13 @@ handle_call({add_connection, Pool, ConnPid, AccOptsVsn}, From, State=#state{
 			{noreply, State2#state{queue=Queue2}};
 		true ->
 			{reply, ok, State2}
+	end;
+handle_call({check_upgrades, AccOptsVsn}, _From, State=#state{
+		proto_opts=ProtoOpts, proto_opts_vsn=LisOptsVsn}) ->
+	if	AccOptsVsn =/= LisOptsVsn ->
+			{reply, {upgrade, ProtoOpts, LisOptsVsn}, State};
+		true ->
+			{reply, ok, State}
 	end;
 handle_call(get_protocol_options, _From, State=#state{proto_opts=ProtoOpts}) ->
 	{reply, {ok, ProtoOpts}, State};

@@ -41,7 +41,7 @@ acceptor(LSocket, Transport, Protocol, Opts, OptsVsn, ListenerPid, ReqsSup) ->
 			cowboy_listener:add_connection(ListenerPid,
 				default, Pid, OptsVsn);
 		{error, timeout} ->
-			ok;
+			cowboy_listener:check_upgrades(ListenerPid, OptsVsn);
 		{error, _Reason} ->
 			%% @todo Probably do something here. If the socket was closed,
 			%%       we may want to try and listen again on the port?
