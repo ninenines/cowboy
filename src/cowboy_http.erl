@@ -17,8 +17,8 @@
 -module(cowboy_http).
 
 %% Parsing.
--export([list/2, nonempty_list/2, content_type/1, content_type_params/3,
-	media_range/2, conneg/2, language_range/2, entity_tag_match/1,
+-export([list/2, nonempty_list/2, content_type/1, media_range/2, conneg/2,
+	language_range/2, entity_tag_match/1, expectation/2, params/2,
 	http_date/1, rfc1123_date/1, rfc850_date/1, asctime_date/1,
 	whitespace/2, digits/1, token/2, token_ci/2, quoted_string/2]).
 
@@ -98,33 +98,9 @@ list(Data, Fun, Acc) ->
 content_type(Data) ->
 	media_type(Data,
 		fun (Rest, Type, SubType) ->
-				content_type_params(Rest,
-					fun (Params) -> {Type, SubType, Params} end, [])
-		end).
-
--spec content_type_params(binary(), fun(), list({binary(), binary()}))
-	-> any().
-content_type_params(Data, Fun, Acc) ->
-	whitespace(Data,
-		fun (<< $;, Rest/binary >>) -> content_type_param(Rest, Fun, Acc);
-			(<<>>) -> Fun(lists:reverse(Acc));
-			(_Rest) -> {error, badarg}
-		end).
-
--spec content_type_param(binary(), fun(), list({binary(), binary()}))
-	-> any().
-content_type_param(Data, Fun, Acc) ->
-	whitespace(Data,
-		fun (Rest) ->
-				token_ci(Rest,
-					fun (_Rest2, <<>>) -> {error, badarg};
-						(<< $=, Rest2/binary >>, Attr) ->
-							word(Rest2,
-								fun (Rest3, Value) ->
-										content_type_params(Rest3, Fun,
-											[{Attr, Value}|Acc])
-								end);
-						(_Rest2, _Attr) -> {error, badarg}
+				params(Rest,
+					fun (<<>>, Params) -> {Type, SubType, Params};
+						(_Rest2, _) -> {error, badarg}
 					end)
 		end).
 
@@ -317,6 +293,50 @@ opaque_tag(Data, Fun, Strength) ->
 	quoted_string(Data,
 		fun (_Rest, <<>>) -> {error, badarg};
 			(Rest, OpaqueTag) -> Fun(Rest, {Strength, OpaqueTag})
+		end).
+
+%% @doc Parse an expectation.
+-spec expectation(binary(), fun()) -> any().
+expectation(Data, Fun) ->
+	token_ci(Data,
+		fun (_Rest, <<>>) -> {error, badarg};
+			(<< $=, Rest/binary >>, Expectation) ->
+				word(Rest,
+					fun (Rest2, ExtValue) ->
+						params(Rest2, fun (Rest3, ExtParams) ->
+							Fun(Rest3, {Expectation, ExtValue, ExtParams})
+						end)
+					end);
+			(Rest, Expectation) ->
+				Fun(Rest, Expectation)
+		end).
+
+%% @doc Parse a list of parameters (a=b;c=d).
+-spec params(binary(), fun()) -> any().
+params(Data, Fun) ->
+	params(Data, Fun, []).
+
+-spec params(binary(), fun(), [{binary(), binary()}]) -> any().
+params(Data, Fun, Acc) ->
+	whitespace(Data,
+		fun (<< $;, Rest/binary >>) -> param(Rest, Fun, Acc);
+			(Rest) -> Fun(Rest, lists:reverse(Acc))
+		end).
+
+-spec param(binary(), fun(), [{binary(), binary()}]) -> any().
+param(Data, Fun, Acc) ->
+	whitespace(Data,
+		fun (Rest) ->
+				token_ci(Rest,
+					fun (_Rest2, <<>>) -> {error, badarg};
+						(<< $=, Rest2/binary >>, Attr) ->
+							word(Rest2,
+								fun (Rest3, Value) ->
+										params(Rest3, Fun,
+											[{Attr, Value}|Acc])
+								end);
+						(_Rest2, _Attr) -> {error, badarg}
+					end)
 		end).
 
 %% @doc Parse an HTTP date (RFC1123, RFC850 or asctime date).

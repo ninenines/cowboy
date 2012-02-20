@@ -271,6 +271,11 @@ parse_header(Name, Req, Default) when Name =:= 'Content-Type' ->
 		fun (Value) ->
 			cowboy_http:content_type(Value)
 		end);
+parse_header(Name, Req, Default) when Name =:= 'Expect' ->
+	parse_header(Name, Req, Default,
+		fun (Value) ->
+			cowboy_http:nonempty_list(Value, fun cowboy_http:expectation/2)
+		end);
 parse_header(Name, Req, Default)
 		when Name =:= 'If-Match'; Name =:= 'If-None-Match' ->
 	parse_header(Name, Req, Default,

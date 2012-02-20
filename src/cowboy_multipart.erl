@@ -45,8 +45,10 @@ content_disposition(Data) ->
 	cowboy_http:token_ci(Data,
 		fun (_Rest, <<>>) -> {error, badarg};
 			(Rest, Disposition) ->
-				cowboy_http:content_type_params(Rest,
-					fun (Params) -> {Disposition, Params} end, [])
+				cowboy_http:params(Rest,
+					fun (<<>>, Params) -> {Disposition, Params};
+						(_Rest2, _) -> {error, badarg}
+					end)
 		end).
 
 %% Internal.
