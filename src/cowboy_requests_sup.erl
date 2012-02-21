@@ -32,7 +32,13 @@ start_request(ListenerPid, Socket, Transport, Protocol, Opts) ->
 
 %% supervisor.
 
--spec init([]) -> {ok, {{simple_one_for_one, 0, 1}, [{_, _, _, _, _, _}, ...]}}.
+-spec init([]) -> {'ok', {{'simple_one_for_one', 0, 1}, [{
+	any(), {atom() | tuple(), atom(), 'undefined' | [any()]},
+	'permanent' | 'temporary' | 'transient',
+	'brutal_kill' | 'infinity' | non_neg_integer(),
+	'supervisor' | 'worker',
+	'dynamic' | [atom() | tuple()]}]
+}}.
 init([]) ->
 	{ok, {{simple_one_for_one, 0, 1}, [{?MODULE, {?MODULE, start_request, []},
 		temporary, brutal_kill, worker, [?MODULE]}]}}.

@@ -30,7 +30,13 @@ start_link(NbAcceptors, Transport, TransOpts,
 
 %% supervisor.
 
--spec init(list()) -> {ok, {{one_for_one, 10, 10}, list()}}.
+-spec init([any()]) -> {'ok', {{'one_for_one', 10, 10}, [{
+	any(), {atom() | tuple(), atom(), 'undefined' | [any()]},
+	'permanent' | 'temporary' | 'transient',
+	'brutal_kill' | 'infinity' | non_neg_integer(),
+	'supervisor' | 'worker',
+	'dynamic' | [atom() | tuple()]}]
+}}.
 init([NbAcceptors, Transport, TransOpts,
 		Protocol, ProtoOpts, ListenerPid, ReqsPid]) ->
 	{ok, LSocket} = Transport:listen(TransOpts),
