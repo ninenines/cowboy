@@ -56,11 +56,11 @@ cookie(Key, Value, Options) when is_binary(Key)
 	%% Set-Cookie:
 	%%    Comment, Domain, Max-Age, Path, Secure, Version
 	ExpiresPart =
-		case proplists:get_value(max_age, Options) of
+		case cowboy_utilities:get_value(max_age, Options) of
 			undefined ->
 				<<"">>;
 			RawAge ->
-				When = case proplists:get_value(local_time, Options) of
+				When = case cowboy_utilities:get_value(local_time, Options) of
 						undefined ->
 							calendar:local_time();
 						LocalTime ->
@@ -78,28 +78,28 @@ cookie(Key, Value, Options) when is_binary(Key)
 				"; Max-Age=", AgeBinary/binary>>
 		end,
 	SecurePart =
-		case proplists:get_value(secure, Options) of
+		case cowboy_utilities:get_value(secure, Options) of
 			true ->
 				<<"; Secure">>;
 			_ ->
 				<<"">>
 		end,
 	DomainPart =
-		case proplists:get_value(domain, Options) of
+		case cowboy_utilities:get_value(domain, Options) of
 			undefined ->
 				<<"">>;
 			Domain ->
 				<<"; Domain=", (quote(Domain))/binary>>
 		end,
 	PathPart =
-		case proplists:get_value(path, Options) of
+		case cowboy_utilities:get_value(path, Options) of
 			undefined ->
 				<<"">>;
 			Path ->
 				<<"; Path=", (quote(Path))/binary>>
 		end,
 	HttpOnlyPart =
-		case proplists:get_value(http_only, Options) of
+		case cowboy_utilities:get_value(http_only, Options) of
 			true ->
 				<<"; HttpOnly">>;
 			_ ->

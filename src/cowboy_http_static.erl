@@ -172,15 +172,15 @@ init({_Transport, http}, _Req, _Opts) ->
 %% @private Set up initial state of REST handler.
 -spec rest_init(#http_req{}, list()) -> {ok, #http_req{}, #state{}}.
 rest_init(Req, Opts) ->
-	Directory = proplists:get_value(directory, Opts),
+	Directory = cowboy_utilities:get_value(directory, Opts),
 	Directory1 = directory_path(Directory),
-	Mimetypes = proplists:get_value(mimetypes, Opts, []),
+	Mimetypes = cowboy_utilities:get_value(mimetypes, Opts, []),
 	Mimetypes1 = case Mimetypes of
 		{_, _} -> Mimetypes;
 		[] -> {fun path_to_mimetypes/2, []};
 		[_|_] -> {fun path_to_mimetypes/2, Mimetypes}
 	end,
-	ETagFunction = case proplists:get_value(etag, Opts) of
+	ETagFunction = case cowboy_utilities:get_value(etag, Opts) of
 		default -> {fun no_etag_function/2, undefined};
 		undefined -> {fun no_etag_function/2, undefined};
 		{attributes, Attrs} -> {fun attr_etag_function/2, Attrs};
