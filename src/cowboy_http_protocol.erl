@@ -73,13 +73,13 @@ start_link(ListenerPid, Socket, Transport, Opts) ->
 %% @private
 -spec init(pid(), inet:socket(), module(), any()) -> ok.
 init(ListenerPid, Socket, Transport, Opts) ->
-	Dispatch = proplists:get_value(dispatch, Opts, []),
-	MaxEmptyLines = proplists:get_value(max_empty_lines, Opts, 5),
-	MaxKeepalive = proplists:get_value(max_keepalive, Opts, infinity),
-	MaxLineLength = proplists:get_value(max_line_length, Opts, 4096),
-	Timeout = proplists:get_value(timeout, Opts, 5000),
+	Dispatch = cowboy_utilities:get_value(dispatch, Opts, []),
+	MaxEmptyLines = cowboy_utilities:get_value(max_empty_lines, Opts, 5),
+	MaxKeepalive = cowboy_utilities:get_value(max_keepalive, Opts, infinity),
+	MaxLineLength = cowboy_utilities:get_value(max_line_length, Opts, 4096),
+	Timeout = cowboy_utilities:get_value(timeout, Opts, 5000),
 	URLDecDefault = {fun cowboy_http:urldecode/2, crash},
-	URLDec = proplists:get_value(urldecode, Opts, URLDecDefault),
+	URLDec = cowboy_utilities:get_value(urldecode, Opts, URLDecDefault),
 	ok = cowboy:accept_ack(ListenerPid),
 	wait_request(#state{listener=ListenerPid, socket=Socket, transport=Transport,
 		dispatch=Dispatch, max_empty_lines=MaxEmptyLines,
