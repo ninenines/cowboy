@@ -770,8 +770,8 @@ urlencode(Bin) ->
 %% instead.
 -spec urlencode(binary(), [noplus|upper]) -> binary().
 urlencode(Bin, Opts) ->
-	Plus = not proplists:get_value(noplus, Opts, false),
-	Upper = proplists:get_value(upper, Opts, false),
+	Plus = not cowboy_utilities:get_value(noplus, Opts, false),
+	Upper = cowboy_utilities:get_value(upper, Opts, false),
 	urlencode(Bin, <<>>, Plus, Upper).
 
 -spec urlencode(binary(), binary(), boolean(), boolean()) -> binary().

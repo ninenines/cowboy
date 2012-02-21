@@ -49,7 +49,7 @@ messages() -> {tcp, tcp_closed, tcp_error}.
 	-> {ok, inet:socket()} | {error, atom()}.
 listen(Opts) ->
 	{port, Port} = lists:keyfind(port, 1, Opts),
-	Backlog = proplists:get_value(backlog, Opts, 1024),
+	Backlog = cowboy_utilities:get_value(backlog, Opts, 1024),
 	ListenOpts0 = [binary, {active, false},
 		{backlog, Backlog}, {packet, raw}, {reuseaddr, true}],
 	ListenOpts =
