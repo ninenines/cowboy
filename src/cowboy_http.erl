@@ -24,7 +24,7 @@
 
 %% Interpretation.
 -export([connection_to_atom/1, urldecode/1, urldecode/2, urlencode/1,
-	urlencode/2]).
+	urlencode/2, x_www_form_urlencoded/2]).
 
 -type method() :: 'OPTIONS' | 'GET' | 'HEAD'
 	| 'POST' | 'PUT' | 'DELETE' | 'TRACE' | binary().
@@ -800,6 +800,16 @@ tohexu(C) when C < 17 -> $A + C - 10.
 tohexl(C) when C < 10 -> $0 + C;
 tohexl(C) when C < 17 -> $a + C - 10.
 
+-spec x_www_form_urlencoded(binary(), fun((binary()) -> binary())) ->
+		list({binary(), binary() | true}).
+x_www_form_urlencoded(<<>>, _URLDecode) ->
+	[];
+x_www_form_urlencoded(Qs, URLDecode) ->
+	Tokens = binary:split(Qs, <<"&">>, [global, trim]),
+	[case binary:split(Token, <<"=">>) of
+		[Token] -> {URLDecode(Token), true};
+		[Name, Value] -> {URLDecode(Name), URLDecode(Value)}
+	end || Token <- Tokens].
 
 %% Tests.
 
@@ -966,6 +976,22 @@ digits_test_() ->
 		{<<"1337">>, 1337}
 	],
 	[{V, fun() -> R = digits(V) end} || {V, R} <- Tests].
+
+x_www_form_urlencoded_test_() ->
+	%% {Qs, Result}
+	Tests = [
+		{<<"">>, []},
+		{<<"a=b">>, [{<<"a">>, <<"b">>}]},
+		{<<"aaa=bbb">>, [{<<"aaa">>, <<"bbb">>}]},
+		{<<"a&b">>, [{<<"a">>, true}, {<<"b">>, true}]},
+		{<<"a=b&c&d=e">>, [{<<"a">>, <<"b">>},
+			{<<"c">>, true}, {<<"d">>, <<"e">>}]},
+		{<<"a=b=c=d=e&f=g">>, [{<<"a">>, <<"b=c=d=e">>}, {<<"f">>, <<"g">>}]},
+		{<<"a+b=c+d">>, [{<<"a b">>, <<"c d">>}]}
+	],
+	URLDecode = fun urldecode/1,
+	[{Qs, fun() -> R = x_www_form_urlencoded(
+		Qs, URLDecode) end} || {Qs, R} <- Tests].
 
 urldecode_test_() ->
 	U = fun urldecode/2,

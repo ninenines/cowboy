@@ -51,7 +51,6 @@
 ]). %% Misc API.
 
 -include("include/http.hrl").
--include_lib("eunit/include/eunit.hrl").
 
 %% Request API.
 
@@ -151,7 +150,8 @@ qs_val(Name, Req) when is_binary(Name) ->
 	-> {binary() | true | Default, #http_req{}} when Default::any().
 qs_val(Name, Req=#http_req{raw_qs=RawQs, qs_vals=undefined,
 		urldecode={URLDecFun, URLDecArg}}, Default) when is_binary(Name) ->
-	QsVals = parse_qs(RawQs, fun(Bin) -> URLDecFun(Bin, URLDecArg) end),
+	QsVals = cowboy_http:x_www_form_urlencoded(
+		RawQs, fun(Bin) -> URLDecFun(Bin, URLDecArg) end),
 	qs_val(Name, Req#http_req{qs_vals=QsVals}, Default);
 qs_val(Name, Req, Default) ->
 	case lists:keyfind(Name, 1, Req#http_req.qs_vals) of
@@ -163,7 +163,8 @@ qs_val(Name, Req, Default) ->
 -spec qs_vals(#http_req{}) -> {list({binary(), binary() | true}), #http_req{}}.
 qs_vals(Req=#http_req{raw_qs=RawQs, qs_vals=undefined,
 		urldecode={URLDecFun, URLDecArg}}) ->
-	QsVals = parse_qs(RawQs, fun(Bin) -> URLDecFun(Bin, URLDecArg) end),
+	QsVals = cowboy_http:x_www_form_urlencoded(
+		RawQs, fun(Bin) -> URLDecFun(Bin, URLDecArg) end),
 	qs_vals(Req#http_req{qs_vals=QsVals});
 qs_vals(Req=#http_req{qs_vals=QsVals}) ->
 	{QsVals, Req}.
@@ -405,7 +406,8 @@ body(Length, Req=#http_req{socket=Socket, transport=Transport,
 -spec body_qs(#http_req{}) -> {list({binary(), binary() | true}), #http_req{}}.
 body_qs(Req=#http_req{urldecode={URLDecFun, URLDecArg}}) ->
 	{ok, Body, Req2} = body(Req),
-	{parse_qs(Body, fun(Bin) -> URLDecFun(Bin, URLDecArg) end), Req2}.
+	{cowboy_http:x_www_form_urlencoded(
+		Body, fun(Bin) -> URLDecFun(Bin, URLDecArg) end), Req2}.
 
 %% Multipart Request API.
 
@@ -641,17 +643,6 @@ transport(#http_req{transport=Transport, socket=Socket}) ->
 
 %% Internal.
 
--spec parse_qs(binary(), fun((binary()) -> binary())) ->
-		list({binary(), binary() | true}).
-parse_qs(<<>>, _URLDecode) ->
-	[];
-parse_qs(Qs, URLDecode) ->
-	Tokens = binary:split(Qs, <<"&">>, [global, trim]),
-	[case binary:split(Token, <<"=">>) of
-		[Token] -> {URLDecode(Token), true};
-		[Name, Value] -> {URLDecode(Name), URLDecode(Value)}
-	end || Token <- Tokens].
-
 -spec response_connection(cowboy_http:headers(), keepalive | close)
 	-> keepalive | close.
 response_connection([], Connection) ->
@@ -813,24 +804,3 @@ header_to_binary('Cookie') -> <<"Cookie">>;
 header_to_binary('Keep-Alive') -> <<"Keep-Alive">>;
 header_to_binary('Proxy-Connection') -> <<"Proxy-Connection">>;
 header_to_binary(B) when is_binary(B) -> B.
-
-%% Tests.
-
--ifdef(TEST).
-
-parse_qs_test_() ->
-	%% {Qs, Result}
-	Tests = [
-		{<<"">>, []},
-		{<<"a=b">>, [{<<"a">>, <<"b">>}]},
-		{<<"aaa=bbb">>, [{<<"aaa">>, <<"bbb">>}]},
-		{<<"a&b">>, [{<<"a">>, true}, {<<"b">>, true}]},
-		{<<"a=b&c&d=e">>, [{<<"a">>, <<"b">>},
-			{<<"c">>, true}, {<<"d">>, <<"e">>}]},
-		{<<"a=b=c=d=e&f=g">>, [{<<"a">>, <<"b=c=d=e">>}, {<<"f">>, <<"g">>}]},
-		{<<"a+b=c+d">>, [{<<"a b">>, <<"c d">>}]}
-	],
-	URLDecode = fun cowboy_http:urldecode/1,
-	[{Qs, fun() -> R = parse_qs(Qs, URLDecode) end} || {Qs, R} <- Tests].
-
--endif.
