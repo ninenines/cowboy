@@ -29,7 +29,13 @@ start_link() ->
 
 %% supervisor.
 
--spec init([]) -> {ok, {{one_for_one, 10, 10}, [{_, _, _, _, _, _}, ...]}}.
+-spec init([]) -> {'ok', {{'one_for_one', 10, 10}, [{
+	any(), {atom() | tuple(), atom(), 'undefined' | [any()]},
+	'permanent' | 'temporary' | 'transient',
+	'brutal_kill' | 'infinity' | non_neg_integer(),
+	'supervisor' | 'worker',
+	'dynamic' | [atom() | tuple()]}]
+}}.
 init([]) ->
 	Procs = [{cowboy_clock, {cowboy_clock, start_link, []},
 		permanent, 5000, worker, [cowboy_clock]}],
