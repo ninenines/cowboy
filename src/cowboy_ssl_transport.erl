@@ -58,7 +58,6 @@ messages() -> {ssl, ssl_closed, ssl_error}.
 %% </dl>
 %%
 %% @see ssl:listen/2
-%% @todo The password option shouldn't be mandatory.
 -spec listen([{port, inet:ip_port()} | {certfile, string()}
 	| {keyfile, string()} | {password, string()}
 	| {cacertfile, string()} | {ip, inet:ip_address()}])
