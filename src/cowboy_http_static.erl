@@ -249,14 +249,14 @@ last_modified(Req, #state{fileinfo={ok, #file_info{mtime=Modified}}}=State) ->
 %% The ETag header value is only generated if the resource is a file that
 %% exists in document root.
 -spec generate_etag(#http_req{}, #state{}) ->
-	{undefined | binary(), #http_req{}, #state{}}.
+	{undefined | {strong, binary()}, #http_req{}, #state{}}.
 generate_etag(Req, #state{fileinfo={_, #file_info{type=regular, inode=INode,
 		mtime=Modified, size=Filesize}}, filepath=Filepath,
 		etag_fun={ETagFun, ETagData}}=State) ->
 	ETagArgs = [
 		{filepath, Filepath}, {filesize, Filesize},
 		{inode, INode}, {mtime, Modified}],
-	{ETagFun(ETagArgs, ETagData), Req, State};
+	{{strong, ETagFun(ETagArgs, ETagData)}, Req, State};
 generate_etag(Req, State) ->
 	{undefined, Req, State}.
 
