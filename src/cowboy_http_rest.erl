@@ -89,6 +89,8 @@ known_methods(Req=#http_req{method=Method}, State) ->
 			next(Req, State, fun uri_too_long/2);
 		no_call ->
 			next(Req, State, 501);
+        {{halt, StatusCode}, Req2, HandlerState} ->
+            respond(Req2, State#state{handler_state=HandlerState}, StatusCode);
 		{halt, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
 		{List, Req2, HandlerState} ->
@@ -109,6 +111,8 @@ allowed_methods(Req=#http_req{method=Method}, State) ->
 			next(Req, State, fun malformed_request/2);
 		no_call ->
 			method_not_allowed(Req, State, ['GET', 'HEAD']);
+        {{halt, StatusCode}, Req2, HandlerState} ->
+            respond(Req2, State#state{handler_state=HandlerState}, StatusCode);
 		{halt, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
 		{List, Req2, HandlerState} ->
@@ -142,6 +146,8 @@ is_authorized(Req, State) ->
 	case call(Req, State, is_authorized) of
 		no_call ->
 			forbidden(Req, State);
+        {{halt, StatusCode}, Req2, HandlerState} ->
+            respond(Req2, State#state{handler_state=HandlerState}, StatusCode);
 		{halt, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
 		{true, Req2, HandlerState} ->
@@ -170,6 +176,8 @@ valid_entity_length(Req, State) ->
 %% you should do it directly in the options/2 call using set_resp_headers.
 options(Req=#http_req{method='OPTIONS'}, State) ->
 	case call(Req, State, options) of
+        {{halt, StatusCode}, Req2, HandlerState} ->
+            respond(Req2, State#state{handler_state=HandlerState}, StatusCode);
 		{halt, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
 		{ok, Req2, HandlerState} ->
@@ -197,6 +205,8 @@ content_types_provided(Req=#http_req{meta=Meta}, State) ->
 	case call(Req, State, content_types_provided) of
 		no_call ->
 			not_acceptable(Req, State);
+        {{halt, StatusCode}, Req2, HandlerState} ->
+            respond(Req2, State#state{handler_state=HandlerState}, StatusCode);
 		{halt, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
 		{[], Req2, HandlerState} ->
@@ -293,6 +303,8 @@ languages_provided(Req, State) ->
 	case call(Req, State, languages_provided) of
 		no_call ->
 			charsets_provided(Req, State);
+        {{halt, StatusCode}, Req2, HandlerState} ->
+            respond(Req2, State#state{handler_state=HandlerState}, StatusCode);
 		{halt, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
 		{[], Req2, HandlerState} ->
@@ -356,6 +368,8 @@ charsets_provided(Req, State) ->
 	case call(Req, State, charsets_provided) of
 		no_call ->
 			set_content_type(Req, State);
+        {{halt, StatusCode}, Req2, HandlerState} ->
+            respond(Req2, State#state{handler_state=HandlerState}, StatusCode);
 		{halt, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
 		{[], Req2, HandlerState} ->
@@ -602,6 +616,8 @@ moved_permanently(Req, State, OnFalse) ->
 			respond(Req3, State#state{handler_state=HandlerState}, 301);
 		{false, Req2, HandlerState} ->
 			OnFalse(Req2, State#state{handler_state=HandlerState});
+        {{halt, StatusCode}, Req2, HandlerState} ->
+            respond(Req2, State#state{handler_state=HandlerState}, StatusCode);
 		{halt, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
 		no_call ->
@@ -623,6 +639,8 @@ moved_temporarily(Req, State) ->
 			respond(Req3, State#state{handler_state=HandlerState}, 307);
 		{false, Req2, HandlerState} ->
 			is_post_to_missing_resource(Req2, State#state{handler_state=HandlerState}, 410);
+        {{halt, StatusCode}, Req2, HandlerState} ->
+            respond(Req2, State#state{handler_state=HandlerState}, StatusCode);
 		{halt, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
 		no_call ->
@@ -663,6 +681,8 @@ post_is_create(Req, State) ->
 %% (including the leading /).
 create_path(Req=#http_req{meta=Meta}, State) ->
 	case call(Req, State, create_path) of
+        {{halt, StatusCode}, Req2, HandlerState} ->
+            respond(Req2, State#state{handler_state=HandlerState}, StatusCode);
 		{halt, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
 		{Path, Req2, HandlerState} ->
@@ -695,6 +715,8 @@ create_path_location_port(_, Port) ->
 %% and false when it hasn't, in which case a 500 error is sent.
 process_post(Req, State) ->
 	case call(Req, State, process_post) of
+        {{halt, StatusCode}, Req2, HandlerState} ->
+            respond(Req2, State#state{handler_state=HandlerState}, StatusCode);
 		{halt, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
 		{true, Req2, HandlerState} ->
@@ -724,6 +746,8 @@ put_resource(Req, State, OnTrue) ->
 	case call(Req, State, content_types_accepted) of
 		no_call ->
 			respond(Req, State, 415);
+        {{halt, StatusCode}, Req2, HandlerState} ->
+            respond(Req2, State#state{handler_state=HandlerState}, StatusCode);
 		{halt, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
 		{CTA, Req2, HandlerState} ->
@@ -738,6 +762,8 @@ choose_content_type(Req, State, _OnTrue, _ContentType, []) ->
 choose_content_type(Req, State, OnTrue, ContentType,
 		[{Accepted, Fun}|_Tail]) when ContentType =:= Accepted ->
 	case call(Req, State, Fun) of
+        {{halt, StatusCode}, Req2, HandlerState} ->
+            respond(Req2, State#state{handler_state=HandlerState}, StatusCode);
 		{halt, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
 		{true, Req2, HandlerState} ->
@@ -783,6 +809,8 @@ set_resp_body(Req=#http_req{method=Method},
 	end,
 	{Req5, State4} = set_resp_expires(Req4, State3),
 	case call(Req5, State4, Fun) of
+        {{halt, StatusCode}, Req2, HandlerState} ->
+            respond(Req5, State#state{handler_state=HandlerState}, StatusCode);
 		{halt, Req6, HandlerState} ->
 			terminate(Req6, State4#state{handler_state=HandlerState});
 		{Body, Req6, HandlerState} ->
@@ -834,6 +862,8 @@ generate_etag(Req, State=#state{etag=undefined}) ->
 	case call(Req, State, generate_etag) of
 		no_call ->
 			{undefined, Req, State#state{etag=no_call}};
+        {{halt, StatusCode}, Req2, HandlerState} ->
+            respond(Req2, State#state{handler_state=HandlerState}, StatusCode);
 		{Etag, Req2, HandlerState} ->
 			{Etag, Req2, State#state{handler_state=HandlerState, etag=Etag}}
 	end;
@@ -846,6 +876,8 @@ last_modified(Req, State=#state{last_modified=undefined}) ->
 	case call(Req, State, last_modified) of
 		no_call ->
 			{undefined, Req, State#state{last_modified=no_call}};
+        {{halt, StatusCode}, Req2, HandlerState} ->
+            respond(Req2, State#state{handler_state=HandlerState}, StatusCode);
 		{LastModified, Req2, HandlerState} ->
 			{LastModified, Req2, State#state{handler_state=HandlerState,
 				last_modified=LastModified}}
@@ -859,6 +891,8 @@ expires(Req, State=#state{expires=undefined}) ->
 	case call(Req, State, expires) of
 		no_call ->
 			{undefined, Req, State#state{expires=no_call}};
+        {{halt, StatusCode}, Req2, HandlerState} ->
+            respond(Req2, State#state{handler_state=HandlerState}, StatusCode);
 		{Expires, Req2, HandlerState} ->
 			{Expires, Req2, State#state{handler_state=HandlerState,
 				expires=Expires}}
@@ -872,6 +906,8 @@ expect(Req, State, Callback, Expected, OnTrue, OnFalse) ->
 	case call(Req, State, Callback) of
 		no_call ->
 			next(Req, State, OnTrue);
+        {{halt, StatusCode}, Req2, HandlerState} ->
+            respond(Req2, State#state{handler_state=HandlerState}, StatusCode);
 		{halt, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
 		{Expected, Req2, HandlerState} ->
