@@ -46,7 +46,7 @@
 	expires :: undefined | no_call | calendar:datetime()
 }).
 
--include("include/http.hrl").
+-include("http.hrl").
 
 %% @doc Upgrade a HTTP request to the REST protocol.
 %%

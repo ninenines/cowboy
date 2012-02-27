@@ -51,7 +51,6 @@
 
 -export_type([method/0, uri/0, version/0, header/0, headers/0, status/0]).
 
--include("include/http.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
 %% Parsing.

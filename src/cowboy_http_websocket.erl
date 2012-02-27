@@ -40,7 +40,7 @@
 -export([upgrade/4]). %% API.
 -export([handler_loop/4]). %% Internal.
 
--include("include/http.hrl").
+-include("http.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
 -type opcode() :: 0 | 1 | 2 | 8 | 9 | 10.

@@ -38,7 +38,7 @@
 -export([start_link/4]). %% API.
 -export([init/4, parse_request/1, handler_loop/3]). %% FSM.
 
--include("include/http.hrl").
+-include("http.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
 -record(state, {

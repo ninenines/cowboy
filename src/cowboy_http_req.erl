@@ -50,7 +50,7 @@
 	compact/1, transport/1
 ]). %% Misc API.
 
--include("include/http.hrl").
+-include("http.hrl").
 
 %% Request API.
 
