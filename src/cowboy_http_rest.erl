@@ -809,10 +809,16 @@ set_resp_etag(Req, State) ->
 		undefined ->
 			{Req2, State2};
 		Etag ->
+			EtagStr = encode_etag(Etag),
 			{ok, Req3} = cowboy_http_req:set_resp_header(
-				<<"Etag">>, Etag, Req2),
+				<<"Etag">>, EtagStr, Req2),
 			{Req3, State2}
 	end.
+
+encode_etag({strong, Etag}) ->
+	<<$", Etag/binary, $">>;
+encode_etag({weak, Etag}) ->
+	<<"W/", $", Etag/binary, $">>.
 
 set_resp_expires(Req, State) ->
 	{Expires, Req2, State2} = expires(Req, State),
