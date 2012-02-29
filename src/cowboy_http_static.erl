@@ -96,15 +96,16 @@
 %%
 %% The default behaviour can be overridden to generate an ETag header based on
 %% a combination of the file path, file size, inode and mtime values. If the
-%% option value is a list of attribute names tagged with `attributes' a hex
-%% encoded CRC32 checksum of the attribute values are used as the ETag header
-%% value.
+%% option value is a non-empty list of attribute names tagged with `attributes'
+%% a hex encoded checksum of each attribute specified is included in the value
+%% of the the ETag header. If the list of attribute names is empty no ETag
+%% header is generated.
 %%
 %% If a strong ETag is required a user defined function for generating the
 %% header value can be supplied. The function must accept a proplist of the
 %% file attributes as the first argument and a second argument containing any
-%% additional data that the function requires. The function must return a
-%% `binary()' or `undefined'.
+%% additional data that the function requires. The function must return a term
+%% of the type `{weak | strong, binary()}' or `undefined'.
 %%
 %% ====  Examples ====
 %% ```
@@ -130,7 +131,7 @@
 %%     {_, _Modified} = lists:keyfind(mtime, 1, Arguments),
 %%     ChecksumCommand = lists:flatten(io_lib:format("sha1sum ~s", [Filepath])),
 %%     [Checksum|_] = string:tokens(os:cmd(ChecksumCommand), " "),
-%%     iolist_to_binary(Checksum).
+%%     {strong, iolist_to_binary(Checksum)}.
 %% '''
 -module(cowboy_http_static).
 
@@ -161,7 +162,8 @@
 	filepath  :: binary() | error,
 	fileinfo  :: {ok, #file_info{}} | {error, _} | error,
 	mimetypes :: {fun((binary(), T) -> [mimedef()]), T} | undefined,
-	etag_fun  :: {fun(([etagarg()], T) -> undefined | binary()), T}}).
+	etag_fun  :: {fun(([etagarg()], T) ->
+		undefined | {strong | weak, binary()}), T}}).
 
 
 %% @private Upgrade from HTTP handler to REST handler.
@@ -183,8 +185,9 @@ rest_init(Req, Opts) ->
 	ETagFunction = case proplists:get_value(etag, Opts) of
 		default -> {fun no_etag_function/2, undefined};
 		undefined -> {fun no_etag_function/2, undefined};
+		{attributes, []} -> {fun no_etag_function/2, undefined};
 		{attributes, Attrs} -> {fun attr_etag_function/2, Attrs};
-		{_, _}=EtagFunction1 -> EtagFunction1
+		{_, _}=ETagFunction1 -> ETagFunction1
 	end,
 	{Filepath, Req1} = cowboy_http_req:path_info(Req),
 	State = case check_path(Filepath) of
@@ -411,16 +414,13 @@ no_etag_function(_Args, undefined) ->
 
 %% @private A simple alternative is to send an ETag based on file attributes.
 -type fileattr() :: filepath | filesize | mtime | inode.
--spec attr_etag_function([etagarg()], [fileattr()]) -> binary().
+-spec attr_etag_function([etagarg()], [fileattr()]) -> {strong, binary()}.
 attr_etag_function(Args, Attrs) ->
-	attr_etag_function(Args, Attrs, []).
-
--spec attr_etag_function([etagarg()], [fileattr()], [binary()]) -> binary().
-attr_etag_function(_Args, [], Acc) ->
-	list_to_binary(integer_to_list(erlang:crc32(Acc), 16));
-attr_etag_function(Args, [H|T], Acc) ->
-	{_, Value} = lists:keyfind(H, 1, Args),
-	attr_etag_function(Args, T, [term_to_binary(Value)|Acc]).
+	[[_|H]|T] = [begin
+		{_,Pair} = {_,{_,_}} = {Attr,lists:keyfind(Attr, 1, Args)},
+		[$-|integer_to_list(erlang:phash2(Pair, 1 bsl 32), 16)]
+	end || Attr <- Attrs],
+	{strong, list_to_binary([H|T])}.
 
 
 -ifdef(TEST).

@@ -29,7 +29,8 @@
 	file_200/1, file_403/1, dir_403/1, file_404/1,
 	file_400/1]). %% http and https.
 -export([http_10_hostless/1]). %% misc.
--export([rest_simple/1, rest_keepalive/1, rest_keepalive_post/1, rest_nodelete/1]). %% rest.
+-export([rest_simple/1, rest_keepalive/1, rest_keepalive_post/1,
+	rest_nodelete/1, rest_resource_etags/1]). %% rest.
 
 %% ct.
 
@@ -47,7 +48,8 @@ groups() ->
 		static_function_etag, multipart] ++ BaseTests},
 	{https, [], BaseTests},
 	{misc, [], [http_10_hostless]},
-	{rest, [], [rest_simple, rest_keepalive, rest_keepalive_post, rest_nodelete]}].
+	{rest, [], [rest_simple, rest_keepalive, rest_keepalive_post,
+		rest_nodelete, rest_resource_etags]}].
 
 init_per_suite(Config) ->
 	application:start(inets),
@@ -75,7 +77,7 @@ init_per_group(https, Config) ->
 	application:start(public_key),
 	application:start(ssl),
 	DataDir = ?config(data_dir, Config),
-	cowboy:start_listener(https, 100,
+	{ok,_} = cowboy:start_listener(https, 100,
 		cowboy_ssl_transport, [
 			{port, Port}, {certfile, DataDir ++ "cert.pem"},
 			{keyfile, DataDir ++ "key.pem"}, {password, "cowboy"}],
@@ -84,7 +86,7 @@ init_per_group(https, Config) ->
 	[{scheme, "https"}, {port, Port}|Config1];
 init_per_group(misc, Config) ->
 	Port = 33082,
-	cowboy:start_listener(misc, 100,
+	{ok,_} = cowboy:start_listener(misc, 100,
 		cowboy_tcp_transport, [{port, Port}],
 		cowboy_http_protocol, [{dispatch, [{'_', [
 			{[], http_handler, []}
@@ -92,15 +94,16 @@ init_per_group(misc, Config) ->
 	[{port, Port}|Config];
 init_per_group(rest, Config) ->
 	Port = 33083,
-	cowboy:start_listener(reset, 100,
+	{ok,_} = cowboy:start_listener(rest, 100,
 		cowboy_tcp_transport, [{port, Port}],
 		cowboy_http_protocol, [{dispatch, [{'_', [
 			{[<<"simple">>], rest_simple_resource, []},
 			{[<<"forbidden_post">>], rest_forbidden_resource, [true]},
 			{[<<"simple_post">>], rest_forbidden_resource, [false]},
-			{[<<"nodelete">>], rest_nodelete_resource, []}
+			{[<<"nodelete">>], rest_nodelete_resource, []},
+			{[<<"resetags">>], rest_resource_etags, []}
 	]}]}]),
-	[{port, Port}|Config].
+	[{scheme, "http"},{port, Port}|Config].
 
 end_per_group(https, Config) ->
 	cowboy:stop_listener(https),
@@ -512,7 +515,7 @@ static_function_etag(Arguments, etag_data) ->
 	{_, _Modified} = lists:keyfind(mtime, 1, Arguments),
 	ChecksumCommand = lists:flatten(io_lib:format("sha1sum ~s", [Filepath])),
 	[Checksum|_] = string:tokens(os:cmd(ChecksumCommand), " "),
-	iolist_to_binary(Checksum).
+	{strong, iolist_to_binary(Checksum)}.
 
 %% http and https.
 
@@ -623,3 +626,55 @@ rest_nodelete(Config) ->
 	{ok, Data} = gen_tcp:recv(Socket, 0, 6000),
 	{0, 12} = binary:match(Data, <<"HTTP/1.1 500">>),
 	ok = gen_tcp:close(Socket).
+
+rest_resource_etags(Config) ->
+	%% The Etag header should be set to the return value of generate_etag/2.
+	fun() ->
+	%% Correct return values from generate_etag/2.
+	{Packet1, 200} = raw_resp([
+		"GET /resetags?type=tuple-weak HTTP/1.1\r\n",
+		"Host: localhost\r\n", "Connection: close\r\n", "\r\n"], Config),
+	{_,_} = binary:match(Packet1, <<"ETag: W/\"etag-header-value\"\r\n">>),
+	{Packet2, 200} = raw_resp([
+		"GET /resetags?type=tuple-strong HTTP/1.1\r\n",
+		"Host: localhost\r\n", "Connection: close\r\n", "\r\n"], Config),
+	{_,_} = binary:match(Packet2, <<"ETag: \"etag-header-value\"\r\n">>),
+	%% Backwards compatible return values from generate_etag/2.
+	{Packet3, 200} = raw_resp([
+		"GET /resetags?type=binary-weak-quoted HTTP/1.1\r\n",
+		"Host: localhost\r\n", "Connection: close\r\n", "\r\n"], Config),
+	{_,_} = binary:match(Packet3, <<"ETag: W/\"etag-header-value\"\r\n">>),
+	{Packet4, 200} = raw_resp([
+		"GET /resetags?type=binary-strong-quoted HTTP/1.1\r\n",
+		"Host: localhost\r\n", "Connection: close\r\n", "\r\n"], Config),
+	{_,_} = binary:match(Packet4, <<"ETag: \"etag-header-value\"\r\n">>),
+	%% Invalid return values from generate_etag/2.
+	{_Packet5, 500} = raw_resp([
+		"GET /resetags?type=binary-strong-unquoted HTTP/1.1\r\n",
+		"Host: localhost\r\n", "Connection: close\r\n", "\r\n"], Config),
+	{_Packet6, 500} = raw_resp([
+		"GET /resetags?type=binary-weak-unquoted HTTP/1.1\r\n",
+		"Host: localhost\r\n", "Connection: close\r\n", "\r\n"], Config)
+	end(),
+
+	%% The return value of generate_etag/2 should match the request header.
+	fun() ->
+	%% Correct return values from generate_etag/2.
+	{_Packet1, 304} = raw_resp([
+		"GET /resetags?type=tuple-weak HTTP/1.1\r\n",
+		"Host: localhost\r\n", "Connection: close\r\n",
+		"If-None-Match: W/\"etag-header-value\"\r\n", "\r\n"], Config),
+	{_Packet2, 304} = raw_resp([
+		"GET /resetags?type=tuple-strong HTTP/1.1\r\n",
+		"Host: localhost\r\n", "Connection: close\r\n",
+		"If-None-Match: \"etag-header-value\"\r\n", "\r\n"], Config),
+	%% Backwards compatible return values from generate_etag/2.
+	{_Packet3, 304} = raw_resp([
+		"GET /resetags?type=binary-weak-quoted HTTP/1.1\r\n",
+		"Host: localhost\r\n", "Connection: close\r\n",
+		"If-None-Match: W/\"etag-header-value\"\r\n", "\r\n"], Config),
+	{_Packet4, 304} = raw_resp([
+		"GET /resetags?type=binary-strong-quoted HTTP/1.1\r\n",
+		"Host: localhost\r\n", "Connection: close\r\n",
+		"If-None-Match: \"etag-header-value\"\r\n", "\r\n"], Config)
+	end().
