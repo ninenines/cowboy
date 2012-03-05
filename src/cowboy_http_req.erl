@@ -414,9 +414,12 @@ body_length(Req) ->
 %%
 %% Standard encodings can be found in cowboy_http.
 -spec init_stream(fun(), any(), fun(), #http_req{}) -> {ok, #http_req{}}.
-init_stream(TransferDecode, TransferState, ContentDecode, Req) ->
+init_stream(TransferDecode, TransferState, ContentDecode, ContentTypeDecode, Req) ->
 	{ok, Req#http_req{body_state=
-		{stream, TransferDecode, TransferState, ContentDecode}}}.
+                              #stream{te_fun = TransferDecode,
+                                      te_state = TransferState,
+                                      ce_fun = ContentDecode,
+                                      ct_fun = ContentTypeDecode}}}.
 
 %% @doc Stream the request's body.
 %%
@@ -435,23 +438,21 @@ stream_body(Req=#http_req{body_state=waiting}) ->
 	case parse_header('Transfer-Encoding', Req) of
 		{[<<"chunked">>], Req2} ->
 			stream_body(Req2#http_req{body_state=
-				{stream, fun cowboy_http:te_chunked/2, {0, 0},
-				 fun cowboy_http:ce_identity/1}});
+                                                      #stream{te_state = {0, 0}}});
 		{[<<"identity">>], Req2} ->
 			{Length, Req3} = body_length(Req2),
 			case Length of
 				0 ->
 					{done, Req3#http_req{body_state=done}};
 				Length ->
-					stream_body(Req3#http_req{body_state=
-						{stream, fun cowboy_http:te_identity/2, {0, Length},
-						 fun cowboy_http:ce_identity/1}})
+                                stream_body(Req3#http_req{body_state=
+                                                              #stream{te_state = {0, Length}}})
 			end
 	end;
-stream_body(Req=#http_req{buffer=Buffer, body_state={stream, _, _, _}})
+stream_body(Req=#http_req{buffer=Buffer, body_state=#stream{}})
 		when Buffer =/= <<>> ->
 	transfer_decode(Buffer, Req#http_req{buffer= <<>>});
-stream_body(Req=#http_req{body_state={stream, _, _, _}}) ->
+stream_body(Req=#http_req{body_state=#stream{}}) ->
 	stream_body_recv(Req);
 stream_body(Req=#http_req{body_state=done}) ->
 	{done, Req}.
@@ -468,27 +469,29 @@ stream_body_recv(Req=#http_req{transport=Transport, socket=Socket}) ->
 -spec transfer_decode(binary(), #http_req{})
 	-> {ok, binary(), #http_req{}} | {error, atom()}.
 transfer_decode(Data, Req=#http_req{
-		body_state={stream, TransferDecode, TransferState, ContentDecode}}) ->
-	case TransferDecode(Data, TransferState) of
-		{ok, Data2, TransferState2} ->
-			content_decode(ContentDecode, Data2, Req#http_req{body_state=
-				{stream, TransferDecode, TransferState2, ContentDecode}});
-		{ok, Data2, Rest, TransferState2} ->
-			content_decode(ContentDecode, Data2, Req#http_req{
-				buffer=Rest, body_state=
-				{stream, TransferDecode, TransferState2, ContentDecode}});
-		%% @todo {header(s) for chunked
-		more ->
-			stream_body_recv(Req);
-		{done, Length, Rest} ->
-			Req2 = transfer_decode_done(Length, Rest, Req),
-			{done, Req2};
-		{done, Data2, Length, Rest} ->
-			Req2 = transfer_decode_done(Length, Rest, Req),
-			content_decode(ContentDecode, Data2, Req2);
-		{error, Reason} ->
-			{error, Reason}
-	end.
+                        body_state=#stream{te_fun = TransferDecode, te_state = TransferState, te_fun = ContentDecode, ct_fun = ContentTypeDecode}=Stream}) ->
+    case TransferDecode(Data, TransferState) of
+        {ok, Data2, TransferState2} ->
+            content_decode(ContentDecode, ContentTypeDecode, Data2,
+                           Req#http_req{body_state=
+                                            Stream#stream{te_state = TransferState2}});
+        {ok, Data2, Rest, TransferState2} ->
+            content_decode(ContentDecode, ContentTypeDecode, Data2,
+                           Req#http_req{buffer=Rest,
+                                        body_state=
+                                            Stream#stream{te_state = TransferState2}});
+        %% @todo {header(s) for chunked
+        more ->
+            stream_body_recv(Req);
+        {done, Length, Rest} ->
+            Req2 = transfer_decode_done(Length, Rest, Req),
+            {done, Req2};
+        {done, Data2, Length, Rest} ->
+            Req2 = transfer_decode_done(Length, Rest, Req),
+            content_decode(ContentDecode, ContentTypeDecode, Data2, Req2);
+        {error, Reason} ->
+            {error, Reason}
+    end.
 
 -spec transfer_decode_done(non_neg_integer(), binary(), #http_req{})
 	-> #http_req{}.
@@ -507,10 +510,17 @@ transfer_decode_done(Length, Rest, Req=#http_req{
 %% @todo Probably needs a Rest.
 -spec content_decode(fun(), binary(), #http_req{})
 	-> {ok, binary(), #http_req{}} | {error, atom()}.
-content_decode(ContentDecode, Data, Req) ->
+content_decode(ContentDecode, ContentTypeDecode, Data, #http_req{body_state = Stream} = Req) ->
 	case ContentDecode(Data) of
-		{ok, Data2} -> {ok, Data2, Req};
-		{error, Reason} -> {error, Reason}
+            {ok, Data2} ->
+                case ContentTypeDecode(Data2) of
+                    {ok, Result, Cont} ->
+                        {ok, Result, Req#http_req{body_state = Stream#stream{ct_fun = Cont}}};
+                    more ->
+                        stream_body_recv(Req)
+                end;
+            {error, Reason} ->
+                {error, Reason}
 	end.
 
 %% @doc Return the full body sent with the request.
@@ -583,11 +593,9 @@ multiparts(Req) ->
 				| {data, binary()} | end_of_part | eof,
 			#http_req{}}.
 multipart_data(Req=#http_req{body_state=waiting}) ->
-	{{<<"multipart">>, _SubType, Params}, Req2} =
-		parse_header('Content-Type', Req),
+	{{<<"multipart">>, _SubType, Params}, Req2} = parse_header('Content-Type', Req),
 	{_, Boundary} = lists:keyfind(<<"boundary">>, 1, Params),
-	{Length, Req3=#http_req{buffer=Buffer}} =
-		parse_header('Content-Length', Req2),
+	{Length, Req3=#http_req{buffer=Buffer}} = parse_header('Content-Length', Req2),
 	multipart_data(Req3, Length, cowboy_multipart:parser(Boundary), Buffer);
 multipart_data(Req=#http_req{body_state={multipart, Length, Cont}}) ->
 	multipart_data(Req, Length, Cont());
