@@ -37,6 +37,8 @@
 	has_body/1, body_length/1, init_stream/4, stream_body/1,
 	skip_body/1, body/1, body/2, body_qs/1,
 	multipart_data/1, multipart_skip/1
+
+        multiparts/1
 ]). %% Request Body API.
 
 -export([
@@ -557,6 +559,15 @@ body_qs(Req=#http_req{urldecode={URLDecFun, URLDecArg}}) ->
 		Body, fun(Bin) -> URLDecFun(Bin, URLDecArg) end), Req2}.
 
 %% Multipart Request API.
+
+
+%% @doc Returns all Parts as #http_multipart{} records.
+%%
+%% This function returns all parts of multipart request as a list,
+%% untill <em>eof</em> is reached.
+multiparts(Req) ->
+    cowboy_multipart:recv(Req).
+
 
 %% @doc Return data from the multipart parser.
 %%
