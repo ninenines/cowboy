@@ -156,6 +156,13 @@ media_type(Data, Fun) ->
 					fun (_Rest2, <<>>) -> {error, badarg};
 						(Rest2, SubType) -> Fun(Rest2, Type, SubType)
 					end);
+			%% This is a non-strict parsing clause required by some user agents
+			%% that use * instead of */* in the list of media types.
+			(Rest, <<"*">> = Type) ->
+				token_ci(<<"*", Rest/binary>>,
+					fun (_Rest2, <<>>) -> {error, badarg};
+						(Rest2, SubType) -> Fun(Rest2, Type, SubType)
+					end);
 			(_Rest, _Type) -> {error, badarg}
 		end).
 
@@ -676,6 +683,9 @@ quoted_string(<< C, Rest/binary >>, Fun, Acc) ->
 -spec qvalue(binary(), fun()) -> any().
 qvalue(<< $0, $., Rest/binary >>, Fun) ->
 	qvalue(Rest, Fun, 0, 100);
+%% Some user agents use q=.x instead of q=0.x
+qvalue(<< $., Rest/binary >>, Fun) ->
+	qvalue(Rest, Fun, 0, 100);
 qvalue(<< $0, Rest/binary >>, Fun) ->
 	Fun(Rest, 0);
 qvalue(<< $1, $., $0, $0, $0, Rest/binary >>, Fun) ->
@@ -894,6 +904,13 @@ media_range_list_test_() ->
 				[{<<"level">>, <<"1">>}, {<<"quoted">>, <<"hi hi hi">>}]}, 123,
 				[<<"standalone">>, {<<"complex">>, <<"gits">>}]},
 			{{<<"text">>, <<"plain">>, []}, 1000, []}
+		]},
+		{<<"text/html, image/gif, image/jpeg, *; q=.2, */*; q=.2">>, [
+			{{<<"text">>, <<"html">>, []}, 1000, []},
+			{{<<"image">>, <<"gif">>, []}, 1000, []},
+			{{<<"image">>, <<"jpeg">>, []}, 1000, []},
+			{{<<"*">>, <<"*">>, []}, 200, []},
+			{{<<"*">>, <<"*">>, []}, 200, []}
 		]}
 	],
 	[{V, fun() -> R = list(V, fun media_range/2) end} || {V, R} <- Tests].
