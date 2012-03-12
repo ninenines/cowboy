@@ -729,10 +729,14 @@ put_resource(Req, State, OnTrue) ->
 			choose_content_type(Req3, State2, OnTrue, ContentType, CTA)
 	end.
 
+%% The special content type '*' will always match. It can be used as a
+%% catch-all content type for accepting any kind of request content.
+%% Note that because it will always match, it should be the last of the
+%% list of content types, otherwise it'll shadow the ones following.
 choose_content_type(Req, State, _OnTrue, _ContentType, []) ->
 	respond(Req, State, 415);
-choose_content_type(Req, State, OnTrue, ContentType,
-		[{Accepted, Fun}|_Tail]) when ContentType =:= Accepted ->
+choose_content_type(Req, State, OnTrue, ContentType, [{Accepted, Fun}|_Tail])
+		when Accepted =:= '*' orelse Accepted =:= ContentType ->
 	case call(Req, State, Fun) of
 		{halt, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
