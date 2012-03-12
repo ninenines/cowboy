@@ -467,8 +467,8 @@ hixie76_key_to_integer(Key) ->
 	Spaces = length([C || << C >> <= Key, C =:= 32]),
 	Number div Spaces.
 
--spec hixie76_location(atom(), binary(), inet:ip_port(), binary(), binary())
-	-> binary().
+-spec hixie76_location(atom(), binary(), inet:port_number(),
+	binary(), binary()) -> binary().
 hixie76_location(Protocol, Host, Port, Path, <<>>) ->
     << (hixie76_location_protocol(Protocol))/binary, "://", Host/binary,
        (hixie76_location_port(Protocol, Port))/binary, Path/binary>>;
@@ -482,7 +482,7 @@ hixie76_location_protocol(_)   -> <<"ws">>.
 
 %% @todo We should add a secure/0 function to transports
 %% instead of relying on their name.
--spec hixie76_location_port(atom(), inet:ip_port()) -> binary().
+-spec hixie76_location_port(atom(), inet:port_number()) -> binary().
 hixie76_location_port(ssl, 443) ->
 	<<>>;
 hixie76_location_port(tcp, 80) ->

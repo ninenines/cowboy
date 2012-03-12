@@ -33,7 +33,7 @@
 
 %% @doc Split a hostname into a list of tokens.
 -spec split_host(binary())
-	-> {tokens(), binary(), undefined | inet:ip_port()}.
+	-> {tokens(), binary(), undefined | inet:port_number()}.
 split_host(<<>>) ->
 	{[], <<>>, undefined};
 split_host(Host) ->

@@ -58,7 +58,7 @@ messages() -> {ssl, ssl_closed, ssl_error}.
 %% </dl>
 %%
 %% @see ssl:listen/2
--spec listen([{port, inet:ip_port()} | {certfile, string()}
+-spec listen([{port, inet:port_number()} | {certfile, string()}
 	| {keyfile, string()} | {password, string()}
 	| {cacertfile, string()} | {ip, inet:ip_address()}])
 	-> {ok, ssl:sslsocket()} | {error, atom()}.
@@ -139,7 +139,7 @@ controlling_process(Socket, Pid) ->
 %% @doc Return the address and port for the other end of a connection.
 %% @see ssl:peername/1
 -spec peername(ssl:sslsocket())
-	-> {ok, {inet:ip_address(), inet:ip_port()}} | {error, atom()}.
+	-> {ok, {inet:ip_address(), inet:port_number()}} | {error, atom()}.
 peername(Socket) ->
 	ssl:peername(Socket).
 

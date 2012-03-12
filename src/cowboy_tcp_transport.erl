@@ -45,7 +45,7 @@ messages() -> {tcp, tcp_closed, tcp_error}.
 %% </dl>
 %%
 %% @see gen_tcp:listen/2
--spec listen([{port, inet:ip_port()} | {ip, inet:ip_address()}])
+-spec listen([{port, inet:port_number()} | {ip, inet:ip_address()}])
 	-> {ok, inet:socket()} | {error, atom()}.
 listen(Opts) ->
 	{port, Port} = lists:keyfind(port, 1, Opts),
@@ -95,7 +95,7 @@ controlling_process(Socket, Pid) ->
 %% @doc Return the address and port for the other end of a connection.
 %% @see inet:peername/1
 -spec peername(inet:socket())
-	-> {ok, {inet:ip_address(), inet:ip_port()}} | {error, atom()}.
+	-> {ok, {inet:ip_address(), inet:port_number()}} | {error, atom()}.
 peername(Socket) ->
 	inet:peername(Socket).
 

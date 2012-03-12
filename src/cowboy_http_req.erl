@@ -65,7 +65,8 @@ version(Req) ->
 	{Req#http_req.version, Req}.
 
 %% @doc Return the peer address and port number of the remote host.
--spec peer(#http_req{}) -> {{inet:ip_address(), inet:ip_port()}, #http_req{}}.
+-spec peer(#http_req{})
+	-> {{inet:ip_address(), inet:port_number()}, #http_req{}}.
 peer(Req=#http_req{socket=Socket, transport=Transport, peer=undefined}) ->
 	{ok, Peer} = Transport:peername(Socket),
 	{Peer, Req#http_req{peer=Peer}};
@@ -113,7 +114,7 @@ raw_host(Req) ->
 	{Req#http_req.raw_host, Req}.
 
 %% @doc Return the port used for this request.
--spec port(#http_req{}) -> {inet:ip_port(), #http_req{}}.
+-spec port(#http_req{}) -> {inet:port_number(), #http_req{}}.
 port(Req) ->
 	{Req#http_req.port, Req}.
 
