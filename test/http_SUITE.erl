@@ -28,7 +28,7 @@
 -export([http_200/1, http_404/1, handler_errors/1,
 	file_200/1, file_403/1, dir_403/1, file_404/1,
 	file_400/1]). %% http and https.
--export([http_10_hostless/1]). %% misc.
+-export([http_10_hostless/1, http_10_chunkless/1]). %% misc.
 -export([rest_simple/1, rest_keepalive/1, rest_keepalive_post/1,
 	rest_nodelete/1, rest_resource_etags/1]). %% rest.
 
@@ -47,7 +47,7 @@ groups() ->
 		static_mimetypes_function, static_attribute_etag,
 		static_function_etag, multipart] ++ BaseTests},
 	{https, [], BaseTests},
-	{misc, [], [http_10_hostless]},
+	{misc, [], [http_10_hostless, http_10_chunkless]},
 	{rest, [], [rest_simple, rest_keepalive, rest_keepalive_post,
 		rest_nodelete, rest_resource_etags]}].
 
@@ -89,6 +89,7 @@ init_per_group(misc, Config) ->
 	{ok,_} = cowboy:start_listener(misc, 100,
 		cowboy_tcp_transport, [{port, Port}],
 		cowboy_http_protocol, [{dispatch, [{'_', [
+			{[<<"chunked_response">>], chunked_handler, []},
 			{[], http_handler, []}
 	]}]}]),
 	[{port, Port}|Config];
@@ -562,11 +563,23 @@ file_400(Config) ->
 		httpc:request(build_url("/static/%2e", Config)),
 	{ok, {{"HTTP/1.1", 400, "Bad Request"}, _Headers2, _Body2}} =
 		httpc:request(build_url("/static/%2e%2e", Config)).
+
 %% misc.
 
 http_10_hostless(Config) ->
 	Packet = "GET / HTTP/1.0\r\n\r\n",
 	{Packet, 200} = raw_req(Packet, Config).
+
+http_10_chunkless(Config) ->
+	{port, Port} = lists:keyfind(port, 1, Config),
+	{ok, Socket} = gen_tcp:connect("localhost", Port,
+		[binary, {active, false}, {packet, raw}]),
+	Packet = "GET /chunked_response HTTP/1.0\r\nContent-Length: 0\r\n\r\n",
+	ok = gen_tcp:send(Socket, Packet),
+	{ok, Data} = gen_tcp:recv(Socket, 0, 6000),
+	nomatch = binary:match(Data, <<"Transfer-Encoding">>),
+	{_, _} = binary:match(Data, <<"chunked_handler\r\nworks fine!">>),
+	ok = gen_tcp:close(Socket).
 
 %% rest.
 

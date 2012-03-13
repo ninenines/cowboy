@@ -579,15 +579,21 @@ chunked_reply(Status, Req) ->
 -spec chunked_reply(cowboy_http:status(), cowboy_http:headers(), #http_req{})
 	-> {ok, #http_req{}}.
 chunked_reply(Status, Headers, Req=#http_req{socket=Socket,
-		transport=Transport, connection=Connection, pid=ReqPid,
-		resp_state=waiting, resp_headers=RespHeaders}) ->
+		transport=Transport, version=Version, connection=Connection,
+		pid=ReqPid, resp_state=waiting, resp_headers=RespHeaders}) ->
 	RespConn = response_connection(Headers, Connection),
-	Head = response_head(Status, Headers, RespHeaders, [
-		{<<"Connection">>, atom_to_connection(Connection)},
-		{<<"Transfer-Encoding">>, <<"chunked">>},
+	DefaultHeaders = [
 		{<<"Date">>, cowboy_clock:rfc1123()},
 		{<<"Server">>, <<"Cowboy">>}
-	]),
+	],
+	DefaultHeaders2 = case Version of
+		{1, 1} -> [
+				{<<"Connection">>, atom_to_connection(Connection)},
+				{<<"Transfer-Encoding">>, <<"chunked">>}
+			] ++ DefaultHeaders;
+		_ -> DefaultHeaders
+	end,
+	Head = response_head(Status, Headers, RespHeaders, DefaultHeaders2),
 	Transport:send(Socket, Head),
 	ReqPid ! {?MODULE, resp_sent},
 	{ok, Req#http_req{connection=RespConn, resp_state=chunks,
@@ -599,6 +605,8 @@ chunked_reply(Status, Headers, Req=#http_req{socket=Socket,
 -spec chunk(iodata(), #http_req{}) -> ok | {error, atom()}.
 chunk(_Data, #http_req{socket=_Socket, transport=_Transport, method='HEAD'}) ->
 	ok;
+chunk(Data, #http_req{socket=Socket, transport=Transport, version={1, 0}}) ->
+	Transport:send(Socket, Data);
 chunk(Data, #http_req{socket=Socket, transport=Transport, resp_state=chunks}) ->
 	Transport:send(Socket, [integer_to_list(iolist_size(Data), 16),
 		<<"\r\n">>, Data, <<"\r\n">>]).
