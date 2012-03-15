@@ -31,11 +31,13 @@
 -export([http_10_hostless/1, http_10_chunkless/1]). %% misc.
 -export([rest_simple/1, rest_keepalive/1, rest_keepalive_post/1,
 	rest_nodelete/1, rest_resource_etags/1]). %% rest.
+-export([onrequest/1, onrequest_reply/1]). %% hooks.
 
 %% ct.
 
 all() ->
-	[{group, http}, {group, https}, {group, misc}, {group, rest}].
+	[{group, http}, {group, https}, {group, misc}, {group, rest},
+		{group, hooks}].
 
 groups() ->
 	BaseTests = [http_200, http_404, handler_errors,
@@ -49,7 +51,8 @@ groups() ->
 	{https, [], BaseTests},
 	{misc, [], [http_10_hostless, http_10_chunkless]},
 	{rest, [], [rest_simple, rest_keepalive, rest_keepalive_post,
-		rest_nodelete, rest_resource_etags]}].
+		rest_nodelete, rest_resource_etags]},
+	{hooks, [], [onrequest, onrequest_reply]}].
 
 init_per_suite(Config) ->
 	application:start(inets),
@@ -104,7 +107,16 @@ init_per_group(rest, Config) ->
 			{[<<"nodelete">>], rest_nodelete_resource, []},
 			{[<<"resetags">>], rest_resource_etags, []}
 	]}]}]),
-	[{scheme, "http"},{port, Port}|Config].
+	[{scheme, "http"},{port, Port}|Config];
+init_per_group(hooks, Config) ->
+	Port = 33084,
+	{ok, _} = cowboy:start_listener(hooks, 100,
+		cowboy_tcp_transport, [{port, Port}],
+		cowboy_http_protocol, [
+			{dispatch, init_http_dispatch(Config)},
+			{onrequest, fun onrequest_hook/1}
+		]),
+	[{scheme, "http"}, {port, Port}|Config].
 
 end_per_group(https, Config) ->
 	cowboy:stop_listener(https),
@@ -691,3 +703,36 @@ rest_resource_etags(Config) ->
 		"Host: localhost\r\n", "Connection: close\r\n",
 		"If-None-Match: \"etag-header-value\"\r\n", "\r\n"], Config)
 	end().
+
+onrequest(Config) ->
+	{port, Port} = lists:keyfind(port, 1, Config),
+	{ok, Socket} = gen_tcp:connect("localhost", Port,
+		[binary, {active, false}, {packet, raw}]),
+	ok = gen_tcp:send(Socket, "GET / HTTP/1.1\r\nHost: localhost\r\n\r\n"),
+	{ok, Data} = gen_tcp:recv(Socket, 0, 6000),
+	{_, _} = binary:match(Data, <<"Server: Serenity">>),
+	{_, _} = binary:match(Data, <<"http_handler">>),
+	gen_tcp:close(Socket).
+
+onrequest_reply(Config) ->
+	{port, Port} = lists:keyfind(port, 1, Config),
+	{ok, Socket} = gen_tcp:connect("localhost", Port,
+		[binary, {active, false}, {packet, raw}]),
+	ok = gen_tcp:send(Socket, "GET /?reply=1 HTTP/1.1\r\nHost: localhost\r\n\r\n"),
+	{ok, Data} = gen_tcp:recv(Socket, 0, 6000),
+	{_, _} = binary:match(Data, <<"Server: Cowboy">>),
+	nomatch = binary:match(Data, <<"http_handler">>),
+	{_, _} = binary:match(Data, <<"replied!">>),
+	gen_tcp:close(Socket).
+
+onrequest_hook(Req) ->
+	case cowboy_http_req:qs_val(<<"reply">>, Req) of
+		{undefined, Req2} ->
+			{ok, Req3} = cowboy_http_req:set_resp_header(
+				'Server', <<"Serenity">>, Req2),
+			Req3;
+		{_, Req2} ->
+			{ok, Req3} = cowboy_http_req:reply(
+				200, [], <<"replied!">>, Req2),
+			Req3
+	end.

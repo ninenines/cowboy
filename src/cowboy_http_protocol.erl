@@ -47,6 +47,7 @@
 	transport :: module(),
 	dispatch :: cowboy_dispatcher:dispatch_rules(),
 	handler :: {module(), any()},
+	onrequest :: undefined | fun((#http_req{}) -> #http_req{}),
 	urldecode :: {fun((binary(), T) -> binary()), T},
 	req_empty_lines = 0 :: integer(),
 	max_empty_lines :: integer(),
@@ -77,6 +78,7 @@ init(ListenerPid, Socket, Transport, Opts) ->
 	MaxEmptyLines = proplists:get_value(max_empty_lines, Opts, 5),
 	MaxKeepalive = proplists:get_value(max_keepalive, Opts, infinity),
 	MaxLineLength = proplists:get_value(max_line_length, Opts, 4096),
+	OnRequest = proplists:get_value(onrequest, Opts),
 	Timeout = proplists:get_value(timeout, Opts, 5000),
 	URLDecDefault = {fun cowboy_http:urldecode/2, crash},
 	URLDec = proplists:get_value(urldecode, Opts, URLDecDefault),
@@ -84,7 +86,7 @@ init(ListenerPid, Socket, Transport, Opts) ->
 	wait_request(#state{listener=ListenerPid, socket=Socket, transport=Transport,
 		dispatch=Dispatch, max_empty_lines=MaxEmptyLines,
 		max_keepalive=MaxKeepalive, max_line_length=MaxLineLength,
-		timeout=Timeout, urldecode=URLDec}).
+		timeout=Timeout, onrequest=OnRequest, urldecode=URLDec}).
 
 %% @private
 -spec parse_request(#state{}) -> ok.
@@ -170,11 +172,11 @@ header({http_header, _I, 'Host', _R, RawHost}, Req=#http_req{
 	case catch cowboy_dispatcher:split_host(RawHost2) of
 		{Host, RawHost3, undefined} ->
 			Port = default_port(Transport:name()),
-			dispatch(fun parse_header/2, Req#http_req{
+			parse_header(Req#http_req{
 				host=Host, raw_host=RawHost3, port=Port,
 				headers=[{'Host', RawHost3}|Req#http_req.headers]}, State);
 		{Host, RawHost3, Port} ->
-			dispatch(fun parse_header/2, Req#http_req{
+			parse_header(Req#http_req{
 				host=Host, raw_host=RawHost3, port=Port,
 				headers=[{'Host', RawHost3}|Req#http_req.headers]}, State);
 		{'EXIT', _Reason} ->
@@ -201,24 +203,33 @@ header(http_eoh, #http_req{version={1, 1}, host=undefined}, State) ->
 header(http_eoh, Req=#http_req{version={1, 0}, transport=Transport,
 		host=undefined}, State=#state{buffer=Buffer}) ->
 	Port = default_port(Transport:name()),
-	dispatch(fun handler_init/2, Req#http_req{host=[], raw_host= <<>>,
+	onrequest(Req#http_req{host=[], raw_host= <<>>,
 		port=Port, buffer=Buffer}, State#state{buffer= <<>>});
 header(http_eoh, Req, State=#state{buffer=Buffer}) ->
-	handler_init(Req#http_req{buffer=Buffer}, State#state{buffer= <<>>});
+	onrequest(Req#http_req{buffer=Buffer}, State#state{buffer= <<>>});
 header(_Any, _Req, State) ->
 	error_terminate(400, State).
 
--spec dispatch(fun((#http_req{}, #state{}) -> ok),
-	#http_req{}, #state{}) -> ok.
-dispatch(Next, Req=#http_req{host=Host, path=Path},
+%% Call the global onrequest callback. The callback can send a reply,
+%% in which case we consider the request handled and move on to the next
+%% one. Note that since we haven't dispatched yet, we don't know the
+%% handler, host_info, path_info or bindings yet.
+-spec onrequest(#http_req{}, #state{}) -> ok.
+onrequest(Req, State=#state{onrequest=undefined}) ->
+	dispatch(Req, State);
+onrequest(Req, State=#state{onrequest=OnRequest}) ->
+	Req2 = OnRequest(Req),
+	case Req2#http_req.resp_state of
+		waiting -> dispatch(Req2, State);
+		_ -> next_request(Req2, State, ok)
+	end.
+
+-spec dispatch(#http_req{}, #state{}) -> ok.
+dispatch(Req=#http_req{host=Host, path=Path},
 		State=#state{dispatch=Dispatch}) ->
-	%% @todo We should allow a configurable chain of handlers here to
-	%%       allow things like url rewriting, site-wide authentication,
-	%%       optional dispatching, and more. It would default to what
-	%%       we are doing so far.
 	case cowboy_dispatcher:match(Host, Path, Dispatch) of
 		{ok, Handler, Opts, Binds, HostInfo, PathInfo} ->
-			Next(Req#http_req{host_info=HostInfo, path_info=PathInfo,
+			handler_init(Req#http_req{host_info=HostInfo, path_info=PathInfo,
 				bindings=Binds}, State#state{handler={Handler, Opts}});
 		{error, notfound, host} ->
 			error_terminate(400, State);
