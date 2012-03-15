@@ -410,15 +410,15 @@ ensure_response(#http_req{resp_state=done}) ->
 ensure_response(Req=#http_req{resp_state=waiting}) ->
 	_ = cowboy_http_req:reply(204, [], [], Req),
 	ok;
-%% Close the chunked reply.
+%% Terminate the chunked body for HTTP/1.1 only.
 ensure_response(#http_req{method='HEAD', resp_state=chunks}) ->
-	close;
+	ok;
 ensure_response(#http_req{version={1, 0}, resp_state=chunks}) ->
-	close;
+	ok;
 ensure_response(#http_req{socket=Socket, transport=Transport,
 		resp_state=chunks}) ->
 	Transport:send(Socket, <<"0\r\n\r\n">>),
-	close.
+	ok.
 
 %% Only send an error reply if there is no resp_sent message.
 -spec error_terminate(cowboy_http:status(), #state{}) -> ok.
