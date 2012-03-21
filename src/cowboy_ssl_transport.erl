@@ -76,6 +76,7 @@ listen(Opts) ->
 		({keyfile, _} = KeyFile, Acc) -> [KeyFile | Acc];
 		({password, _} = Password, Acc) -> [Password | Acc];
 		({cacertfile, _} = CACertFile, Acc) -> [CACertFile | Acc];
+		({ciphers, _} = Ciphers, Acc) -> [Ciphers | Acc];
 		(_, Acc) -> Acc
 	end, ListenOpts0, Opts),
 	ssl:listen(Port, ListenOpts).
