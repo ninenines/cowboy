@@ -67,30 +67,17 @@ listen(Opts) ->
 	{port, Port} = lists:keyfind(port, 1, Opts),
 	Backlog = proplists:get_value(backlog, Opts, 1024),
 	{certfile, CertFile} = lists:keyfind(certfile, 1, Opts),
-	KeyFileOpts =
-		case lists:keyfind(keyfile, 1, Opts) of
-			false -> [];
-			KeyFile -> [KeyFile]
-		end,
-	PasswordOpts =
-		case lists:keyfind(password, 1, Opts) of
-			false -> [];
-			Password -> [Password]
-		end,
+
 	ListenOpts0 = [binary, {active, false},
 		{backlog, Backlog}, {packet, raw}, {reuseaddr, true},
 		{certfile, CertFile}],
-	ListenOpts1 =
-		case lists:keyfind(ip, 1, Opts) of
-			false -> ListenOpts0;
-			Ip -> [Ip|ListenOpts0]
-		end,
-	ListenOpts2 =
-		case lists:keyfind(cacertfile, 1, Opts) of
-			false -> ListenOpts1;
-			CACertFile -> [CACertFile|ListenOpts1]
-		end,
-	ListenOpts = ListenOpts2 ++ KeyFileOpts ++ PasswordOpts,
+	ListenOpts = lists:foldl(fun
+		({ip, _} = Ip, Acc) -> [Ip | Acc];
+		({keyfile, _} = KeyFile, Acc) -> [KeyFile | Acc];
+		({password, _} = Password, Acc) -> [Password | Acc];
+		({cacertfile, _} = CACertFile, Acc) -> [CACertFile | Acc];
+		(_, Acc) -> Acc
+	end, ListenOpts0, Opts),
 	ssl:listen(Port, ListenOpts).
 
 %% @doc Accept an incoming connection on a listen socket.
