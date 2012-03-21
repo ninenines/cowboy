@@ -20,8 +20,9 @@
 
 -type bindings() :: list({atom(), binary()}).
 -type tokens() :: list(binary()).
+-type handler() :: module() | fun().
 -type match_rule() :: '_' | '*' | list(binary() | '_' | '...' | atom()).
--type dispatch_path() :: list({match_rule(), module(), any()}).
+-type dispatch_path() :: list({match_rule(), handler(), any()}).
 -type dispatch_rule() :: {Host::match_rule(), Path::dispatch_path()}.
 -type dispatch_rules() :: list(dispatch_rule()).
 
@@ -95,7 +96,7 @@ do_split_path(RawPath, Separator, URLDec) ->
 %% the tokens that were matched by the <em>'...'</em> atom for both the
 %% hostname and path.
 -spec match(Host::tokens(), Path::tokens(), dispatch_rules())
-	-> {ok, module(), any(), bindings(),
+	-> {ok, handler(), any(), bindings(),
 		HostInfo::undefined | tokens(),
 		PathInfo::undefined | tokens()}
 	| {error, notfound, host} | {error, notfound, path}.
@@ -115,7 +116,7 @@ match(Host, Path, [{HostMatch, PathMatchs}|Tail]) ->
 
 -spec match_path(tokens(), dispatch_path(), bindings(),
 	HostInfo::undefined | tokens())
-	-> {ok, module(), any(), bindings(),
+	-> {ok, handler(), any(), bindings(),
 		HostInfo::undefined | tokens(),
 		PathInfo::undefined | tokens()}
 	| {error, notfound, path}.

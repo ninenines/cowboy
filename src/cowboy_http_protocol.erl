@@ -243,6 +243,16 @@ onrequest(Req, State=#state{onrequest=OnRequest}) ->
 dispatch(Req=#http_req{host=Host, path=Path},
 		State=#state{dispatch=Dispatch}) ->
 	case cowboy_dispatcher:match(Host, Path, Dispatch) of
+		{ok, HandlerFun, FunOpts, Binds, HostInfo, PathInfo} when is_function(HandlerFun, 3) ->
+			case HandlerFun(FunOpts, HostInfo, PathInfo) of
+				{ok, Handler, Opts, HostInfo1, PathInfo1} ->
+					handler_init(Req#http_req{host_info=HostInfo1, path_info=PathInfo1,
+								  bindings=Binds}, State#state{handler={Handler, Opts}});
+				{error, notfound, host} ->
+					error_terminate(400, State);
+				{error, notfound, path} ->
+					error_terminate(404, State)
+			end;
 		{ok, Handler, Opts, Binds, HostInfo, PathInfo} ->
 			handler_init(Req#http_req{host_info=HostInfo, path_info=PathInfo,
 				bindings=Binds}, State#state{handler={Handler, Opts}});
