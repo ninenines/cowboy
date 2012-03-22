@@ -316,8 +316,10 @@ sfallback(Transport, Socket, File, Sent) ->
 			ok = file:close(File),
 			{sent, Sent};
 		{ok, Bin} ->
-			ok = Transport:send(Socket, Bin),
-			sfallback(Transport, Socket, File, Sent + byte_size(Bin))
+			case Transport:send(Socket, Bin) of
+				ok -> sfallback(Transport, Socket, File, Sent + byte_size(Bin));
+				{error, closed} -> {sent, Sent}
+			end			
 	end.
 
 
