@@ -48,13 +48,16 @@ messages() -> {ssl, ssl_closed, ssl_error}.
 %%   by default.</dd>
 %%  <dt>certfile</dt><dd>Mandatory. Path to a file containing the user's
 %%   certificate.</dd>
-%%  <dt>keyfile</dt><dd>Mandatory. Path to the file containing the user's
+%%  <dt>keyfile</dt><dd>Optional. Path to the file containing the user's
 %%   private PEM encoded key.</dd>
 %%  <dt>cacertfile</dt><dd>Optional. Path to file containing PEM encoded
 %%   CA certificates (trusted certificates used for verifying a peer
 %%   certificate).</dd>
-%%  <dt>password</dt><dd>Mandatory. String containing the user's password.
+%%  <dt>password</dt><dd>Optional. String containing the user's password.
 %%   All private keyfiles must be password protected currently.</dd>
+%%  <dt>ciphers</dt><dd>Optional. The cipher suites that should be supported.
+%%  The function ssl:cipher_suites/0 can be used to find all available
+%%  ciphers.</dd>
 %% </dl>
 %%
 %% @see ssl:listen/2
@@ -74,8 +77,8 @@ listen(Opts) ->
 	ListenOpts = lists:foldl(fun
 		({ip, _} = Ip, Acc) -> [Ip | Acc];
 		({keyfile, _} = KeyFile, Acc) -> [KeyFile | Acc];
-		({password, _} = Password, Acc) -> [Password | Acc];
 		({cacertfile, _} = CACertFile, Acc) -> [CACertFile | Acc];
+		({password, _} = Password, Acc) -> [Password | Acc];
 		({ciphers, _} = Ciphers, Acc) -> [Ciphers | Acc];
 		(_, Acc) -> Acc
 	end, ListenOpts0, Opts),
