@@ -48,13 +48,16 @@ messages() -> {ssl, ssl_closed, ssl_error}.
 %%   by default.</dd>
 %%  <dt>certfile</dt><dd>Mandatory. Path to a file containing the user's
 %%   certificate.</dd>
-%%  <dt>keyfile</dt><dd>Mandatory. Path to the file containing the user's
+%%  <dt>keyfile</dt><dd>Optional. Path to the file containing the user's
 %%   private PEM encoded key.</dd>
 %%  <dt>cacertfile</dt><dd>Optional. Path to file containing PEM encoded
 %%   CA certificates (trusted certificates used for verifying a peer
 %%   certificate).</dd>
-%%  <dt>password</dt><dd>Mandatory. String containing the user's password.
+%%  <dt>password</dt><dd>Optional. String containing the user's password.
 %%   All private keyfiles must be password protected currently.</dd>
+%%  <dt>ciphers</dt><dd>Optional. The cipher suites that should be supported.
+%%  The function ssl:cipher_suites/0 can be used to find all available
+%%  ciphers.</dd>
 %% </dl>
 %%
 %% @see ssl:listen/2
@@ -67,30 +70,18 @@ listen(Opts) ->
 	{port, Port} = lists:keyfind(port, 1, Opts),
 	Backlog = proplists:get_value(backlog, Opts, 1024),
 	{certfile, CertFile} = lists:keyfind(certfile, 1, Opts),
-	KeyFileOpts =
-		case lists:keyfind(keyfile, 1, Opts) of
-			false -> [];
-			KeyFile -> [KeyFile]
-		end,
-	PasswordOpts =
-		case lists:keyfind(password, 1, Opts) of
-			false -> [];
-			Password -> [Password]
-		end,
+
 	ListenOpts0 = [binary, {active, false},
 		{backlog, Backlog}, {packet, raw}, {reuseaddr, true},
 		{certfile, CertFile}],
-	ListenOpts1 =
-		case lists:keyfind(ip, 1, Opts) of
-			false -> ListenOpts0;
-			Ip -> [Ip|ListenOpts0]
-		end,
-	ListenOpts2 =
-		case lists:keyfind(cacertfile, 1, Opts) of
-			false -> ListenOpts1;
-			CACertFile -> [CACertFile|ListenOpts1]
-		end,
-	ListenOpts = ListenOpts2 ++ KeyFileOpts ++ PasswordOpts,
+	ListenOpts = lists:foldl(fun
+		({ip, _} = Ip, Acc) -> [Ip | Acc];
+		({keyfile, _} = KeyFile, Acc) -> [KeyFile | Acc];
+		({cacertfile, _} = CACertFile, Acc) -> [CACertFile | Acc];
+		({password, _} = Password, Acc) -> [Password | Acc];
+		({ciphers, _} = Ciphers, Acc) -> [Ciphers | Acc];
+		(_, Acc) -> Acc
+	end, ListenOpts0, Opts),
 	ssl:listen(Port, ListenOpts).
 
 %% @doc Accept an incoming connection on a listen socket.
