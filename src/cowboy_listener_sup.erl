@@ -26,17 +26,20 @@
 start_link(NbAcceptors, Transport, TransOpts, Protocol, ProtoOpts) ->
 	MaxConns = proplists:get_value(max_connections, TransOpts, 1024),
 	{ok, SupPid} = supervisor:start_link(?MODULE, []),
-	{ok, ListenerPid} = supervisor:start_child(SupPid,
-		{cowboy_listener, {cowboy_listener, start_link, [MaxConns, ProtoOpts]},
-		 permanent, 5000, worker, [cowboy_listener]}),
-	{ok, ReqsPid} = supervisor:start_child(SupPid,
-		{cowboy_requests_sup, {cowboy_requests_sup, start_link, []},
-		 permanent, 5000, supervisor, [cowboy_requests_sup]}),
-	{ok, _PoolPid} = supervisor:start_child(SupPid,
-		{cowboy_acceptors_sup, {cowboy_acceptors_sup, start_link, [
-			NbAcceptors, Transport, TransOpts,
-			Protocol, ProtoOpts, ListenerPid, ReqsPid
-		]}, permanent, 5000, supervisor, [cowboy_acceptors_sup]}),
+	Listener = {cowboy_listener,
+		{cowboy_listener, start_link, [MaxConns, ProtoOpts]},
+		permanent, 5000, worker, [cowboy_listener]},
+	ReqsSup = {cowboy_requests_sup,
+		{cowboy_requests_sup, start_link, []},
+		permanent, 5000, supervisor, [cowboy_requests_sup]},
+	{ok, ListenerPid} = supervisor:start_child(SupPid, Listener),
+	{ok, ReqsPid} = supervisor:start_child(SupPid, ReqsSup),
+	AcceptSup = {cowboy_acceptors_sup,
+		{cowboy_acceptors_sup, start_link,
+			[NbAcceptors, Transport, TransOpts,
+			Protocol, ProtoOpts, ListenerPid, ReqsPid]},
+		permanent, 5000, supervisor, [cowboy_acceptors_sup]},
+	{ok, _PoolPid} = supervisor:start_child(SupPid, AcceptSup),
 	{ok, SupPid}.
 
 %% supervisor.
