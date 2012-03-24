@@ -40,5 +40,6 @@ start_request(ListenerPid, Socket, Transport, Protocol, Opts) ->
 	'dynamic' | [atom() | tuple()]}]
 }}.
 init([]) ->
-	{ok, {{simple_one_for_one, 0, 1}, [{?MODULE, {?MODULE, start_request, []},
-		temporary, brutal_kill, worker, [?MODULE]}]}}.
+	Procs = [{?MODULE, {?MODULE, start_request, []},
+		temporary, brutal_kill, worker, [?MODULE]}],
+	{ok, {{simple_one_for_one, 0, 1}, Procs}}.

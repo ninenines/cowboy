@@ -40,9 +40,10 @@ start_link(NbAcceptors, Transport, TransOpts,
 init([NbAcceptors, Transport, TransOpts,
 		Protocol, ProtoOpts, ListenerPid, ReqsPid]) ->
 	{ok, LSocket} = Transport:listen(TransOpts),
-	Procs = [{{acceptor, self(), N}, {cowboy_acceptor, start_link, [
-				LSocket, Transport, Protocol, ProtoOpts,
-				ListenerPid, ReqsPid
-      ]}, permanent, brutal_kill, worker, []}
+	Procs = [{{acceptor, self(), N},
+		{cowboy_acceptor, start_link,
+			[LSocket, Transport, Protocol, ProtoOpts,
+			ListenerPid, ReqsPid]},
+		permanent, brutal_kill, worker, []}
 		|| N <- lists:seq(1, NbAcceptors)],
 	{ok, {{one_for_one, 10, 10}, Procs}}.
