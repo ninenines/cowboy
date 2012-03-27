@@ -40,6 +40,8 @@ start_link(NbAcceptors, Transport, TransOpts,
 init([NbAcceptors, Transport, TransOpts,
 		Protocol, ProtoOpts, ListenerPid, ReqsPid]) ->
 	{ok, LSocket} = Transport:listen(TransOpts),
+    Port = Transport:port(LSocket),
+    ok = cowboy_listener:set_port(ListenerPid, Port),
 	Procs = [{{acceptor, self(), N}, {cowboy_acceptor, start_link, [
 				LSocket, Transport, Protocol, ProtoOpts,
 				ListenerPid, ReqsPid

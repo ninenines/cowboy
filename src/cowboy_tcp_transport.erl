@@ -20,7 +20,7 @@
 -module(cowboy_tcp_transport).
 
 -export([name/0, messages/0, listen/1, accept/2, recv/3, send/2, setopts/2,
-	controlling_process/2, peername/1, close/1]).
+	controlling_process/2, peername/1, port/1, close/1]).
 
 %% @doc Name of this transport API, <em>tcp</em>.
 -spec name() -> tcp.
@@ -98,6 +98,11 @@ controlling_process(Socket, Pid) ->
 	-> {ok, {inet:ip_address(), inet:port_number()}} | {error, atom()}.
 peername(Socket) ->
 	inet:peername(Socket).
+
+%% @ Return the port used by a socket
+-spec port(inet:socket()) -> {ok, inet:port_number()} | {error, any()}.
+port(Socket) ->
+    inet:port(Socket).
 
 %% @doc Close a TCP socket.
 %% @see gen_tcp:close/1

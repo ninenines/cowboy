@@ -18,7 +18,8 @@
 
 -export([start_link/2, stop/1,
 	add_connection/4, move_connection/3, remove_connection/2, check_upgrades/2,
-	get_protocol_options/1, set_protocol_options/2]). %% API.
+	get_protocol_options/1, set_protocol_options/2,
+    get_port/1, set_port/2]). %% API.
 -export([init/1, handle_call/3, handle_cast/2,
 	handle_info/2, terminate/2, code_change/3]). %% gen_server.
 
@@ -30,7 +31,8 @@
 	queue = undefined :: queue(),
 	max_conns = undefined :: non_neg_integer(),
 	proto_opts :: any(),
-	proto_opts_vsn = 1 :: non_neg_integer()
+	proto_opts_vsn = 1 :: non_neg_integer(),
+    port :: integer()
 }).
 
 %% API.
@@ -100,6 +102,16 @@ get_protocol_options(ServerPid) ->
 set_protocol_options(ServerPid, ProtoOpts) ->
 	gen_server:call(ServerPid, {set_protocol_options, ProtoOpts}).
 
+%% @doc return the port used by the listener
+-spec get_port(pid()) -> {ok, inet:port_number()} | {error, any()}.
+get_port(ServerPid) ->
+    gen_server:call(ServerPid, get_port).
+
+%% @doc set the port used by the listener
+-spec set_port(pid(), integer()) -> ok.
+set_port(ServerPid, Port) ->
+    gen_server:call(ServerPid, {set_port, Port}).
+
 %% gen_server.
 
 %% @private
@@ -139,6 +151,10 @@ handle_call(get_protocol_options, _From, State=#state{proto_opts=ProtoOpts}) ->
 handle_call({set_protocol_options, ProtoOpts}, _From,
 		State=#state{proto_opts_vsn=OptsVsn}) ->
 	{reply, ok, State#state{proto_opts=ProtoOpts, proto_opts_vsn=OptsVsn + 1}};
+handle_call(get_port, _From, #state{port=Port}=State) ->
+    {reply, Port, State};
+handle_call({set_port, Port}, _From, State) ->
+    {reply, ok, State#state{port=Port}};
 handle_call(stop, _From, State) ->
 	{stop, normal, stopped, State};
 handle_call(_Request, _From, State) ->

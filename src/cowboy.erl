@@ -16,7 +16,7 @@
 -module(cowboy).
 
 -export([start_listener/6, stop_listener/1, child_spec/6, accept_ack/1,
-	get_protocol_options/1, set_protocol_options/2]).
+	get_protocol_options/1, set_protocol_options/2, get_port/1]).
 
 %% @doc Start a listener for the given transport and protocol.
 %%
@@ -101,6 +101,14 @@ get_protocol_options(Ref) ->
 set_protocol_options(Ref, ProtoOpts) ->
 	ListenerPid = ref_to_listener_pid(Ref),
 	ok = cowboy_listener:set_protocol_options(ListenerPid, ProtoOpts).
+
+%% @doc Return the port used by a listener.
+%%
+-spec get_port(any()) -> inet:port_number().
+get_port(Ref) ->
+    ListenerPid = ref_to_listener_pid(Ref),
+    cowboy_listener:get_port(ListenerPid).
+
 
 %% Internal.
 
