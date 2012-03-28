@@ -41,8 +41,8 @@
 	meta       = []        :: [{atom(), any()}],
 
 	%% Request body.
-	body_state = waiting   :: waiting | done |
-								{multipart, non_neg_integer(), fun()},
+	body_state = waiting   :: waiting | done | {stream, fun(), any(), fun()}
+								| {multipart, non_neg_integer(), fun()},
 	buffer     = <<>>      :: binary(),
 
 	%% Response.

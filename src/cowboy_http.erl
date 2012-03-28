@@ -22,6 +22,9 @@
 	http_date/1, rfc1123_date/1, rfc850_date/1, asctime_date/1,
 	whitespace/2, digits/1, token/2, token_ci/2, quoted_string/2]).
 
+%% Decoding.
+-export([te_chunked/2, te_identity/2, ce_identity/1]).
+
 %% Interpretation.
 -export([connection_to_atom/1, urldecode/1, urldecode/2, urlencode/1,
 	urlencode/2, x_www_form_urlencoded/2]).
@@ -708,6 +711,51 @@ qvalue(<< C, Rest/binary >>, Fun, Q, M)
 qvalue(Data, Fun, Q, _M) ->
 	Fun(Data, Q).
 
+%% Decoding.
+
+%% @doc Decode a stream of chunks.
+-spec te_chunked(binary(), {non_neg_integer(), non_neg_integer()})
+	-> more | {ok, binary(), {non_neg_integer(), non_neg_integer()}}
+	| {ok, binary(), binary(),  {non_neg_integer(), non_neg_integer()}}
+	| {done, non_neg_integer(), binary()} | {error, badarg}.
+te_chunked(<<>>, _) ->
+	more;
+te_chunked(<< "0\r\n\r\n", Rest/binary >>, {0, Streamed}) ->
+	{done, Streamed, Rest};
+te_chunked(Data, {0, Streamed}) ->
+	%% @todo We are expecting an hex size, not a general token.
+	token(Data,
+		fun (Rest, _) when byte_size(Rest) < 4 ->
+				more;
+			(<< "\r\n", Rest/binary >>, BinLen) ->
+				Len = list_to_integer(binary_to_list(BinLen), 16),
+				te_chunked(Rest, {Len, Streamed});
+			(_, _) ->
+				{error, badarg}
+		end);
+te_chunked(Data, {ChunkRem, Streamed}) when byte_size(Data) >= ChunkRem + 2 ->
+	<< Chunk:ChunkRem/binary, "\r\n", Rest/binary >> = Data,
+	{ok, Chunk, Rest, {0, Streamed + byte_size(Chunk)}};
+te_chunked(Data, {ChunkRem, Streamed}) ->
+	Size = byte_size(Data),
+	{ok, Data, {ChunkRem - Size, Streamed + Size}}.
+
+%% @doc Decode an identity stream.
+-spec te_identity(binary(), {non_neg_integer(), non_neg_integer()})
+	-> {ok, binary(), {non_neg_integer(), non_neg_integer()}}
+	| {done, binary(), non_neg_integer(), binary()}.
+te_identity(Data, {Streamed, Total})
+		when Streamed + byte_size(Data) < Total ->
+	{ok, Data, {Streamed + byte_size(Data), Total}};
+te_identity(Data, {Streamed, Total}) ->
+	Size = Total - Streamed,
+	<< Data2:Size/binary, Rest/binary >> = Data,
+	{done, Data2, Total, Rest}.
+
+%% @doc Decode an identity content.
+-spec ce_identity(binary()) -> {ok, binary()}.
+ce_identity(Data) ->
+	{ok, Data}.
 
 %% Interpretation.
 

@@ -34,7 +34,8 @@
 ]). %% Request API.
 
 -export([
-	body/1, body/2, body_qs/1,
+	has_body/1, body_length/1, init_stream/4, stream_body/1,
+	skip_body/1, body/1, body/2, body_qs/1,
 	multipart_data/1, multipart_skip/1
 ]). %% Request Body API.
 
@@ -231,6 +232,7 @@ parse_header(Name, Req=#http_req{p_headers=PHeaders}) ->
 %% @doc Default values for semantic header parsing.
 -spec parse_header_default(cowboy_http:header()) -> any().
 parse_header_default('Connection') -> [];
+parse_header_default('Transfer-Encoding') -> [<<"identity">>];
 parse_header_default(_Name) -> undefined.
 
 %% @doc Semantically parse headers.
@@ -290,6 +292,12 @@ parse_header(Name, Req, Default)
 		fun (Value) ->
 			cowboy_http:http_date(Value)
 		end);
+%% @todo Extension parameters.
+parse_header(Name, Req, Default) when Name =:= 'Transfer-Encoding' ->
+	parse_header(Name, Req, Default,
+		fun (Value) ->
+			cowboy_http:nonempty_list(Value, fun cowboy_http:token_ci/2)
+		end);
 parse_header(Name, Req, Default) when Name =:= 'Upgrade' ->
 	parse_header(Name, Req, Default,
 		fun (Value) ->
@@ -299,6 +307,7 @@ parse_header(Name, Req, Default) ->
 	{Value, Req2} = header(Name, Req, Default),
 	{undefined, Value, Req2}.
 
+%% @todo This doesn't look in the cache.
 parse_header(Name, Req=#http_req{p_headers=PHeaders}, Default, Fun) ->
 	case header(Name, Req) of
 		{undefined, Req2} ->
@@ -368,42 +377,179 @@ meta(Name, Req, Default) ->
 
 %% Request Body API.
 
-%% @doc Return the full body sent with the request, or <em>{error, badarg}</em>
-%% if no <em>Content-Length</em> is available.
-%% @todo We probably want to allow a max length.
-%% @todo Add multipart support to this function.
--spec body(#http_req{}) -> {ok, binary(), #http_req{}} | {error, atom()}.
-body(Req) ->
-	{Length, Req2} = cowboy_http_req:parse_header('Content-Length', Req),
-	case Length of
-		undefined -> {error, badarg};
-		{error, badarg} -> {error, badarg};
-		_Any ->
-			body(Length, Req2)
+%% @doc Return whether the request message has a body.
+-spec has_body(#http_req{}) -> {boolean(), #http_req{}}.
+has_body(Req) ->
+	Has = lists:keymember('Content-Length', 1, Req#http_req.headers) orelse
+		lists:keymember('Transfer-Encoding', 1, Req#http_req.headers),
+	{Has, Req}.
+
+%% @doc Return the request message body length, if known.
+%%
+%% The length may not be known if Transfer-Encoding is not identity,
+%% and the body hasn't been read at the time of the call.
+-spec body_length(#http_req{}) -> {undefined | non_neg_integer(), #http_req{}}.
+body_length(Req) ->
+	case lists:keymember('Transfer-Encoding', 1, Req#http_req.headers) of
+		true -> {undefined, Req};
+		false -> parse_header('Content-Length', Req, 0)
 	end.
 
-%% @doc Return <em>Length</em> bytes of the request body.
+%% @doc Initialize body streaming and set custom decoding functions.
 %%
-%% You probably shouldn't be calling this function directly, as it expects the
-%% <em>Length</em> argument to be the full size of the body, and will consider
-%% the body to be fully read from the socket.
-%% @todo We probably want to configure the timeout.
--spec body(non_neg_integer(), #http_req{})
+%% Calling this function is optional. It should only be used if you
+%% need to override the default behavior of Cowboy. Otherwise you
+%% should call stream_body/1 directly.
+%%
+%% Two decodings happen. First a decoding function is applied to the
+%% transferred data, and then another is applied to the actual content.
+%%
+%% Transfer encoding is generally used for chunked bodies. The decoding
+%% function uses a state to keep track of how much it has read, which is
+%% also initialized through this function.
+%%
+%% Content encoding is generally used for compression.
+%%
+%% Standard encodings can be found in cowboy_http.
+-spec init_stream(fun(), any(), fun(), #http_req{}) -> {ok, #http_req{}}.
+init_stream(TransferDecode, TransferState, ContentDecode, Req) ->
+	{ok, Req#http_req{body_state=
+		{stream, TransferDecode, TransferState, ContentDecode}}}.
+
+%% @doc Stream the request's body.
+%%
+%% This is the most low level function to read the request body.
+%%
+%% In most cases, if they weren't defined before using stream_body/4,
+%% this function will guess which transfer and content encodings were
+%% used for building the request body, and configure the decoding
+%% functions that will be used when streaming.
+%%
+%% It then starts streaming the body, returning {ok, Data, Req}
+%% for each streamed part, and {done, Req} when it's finished streaming.
+-spec stream_body(#http_req{}) -> {ok, binary(), #http_req{}}
+	| {done, #http_req{}} | {error, atom()}.
+stream_body(Req=#http_req{body_state=waiting}) ->
+	case parse_header('Transfer-Encoding', Req) of
+		{[<<"chunked">>], Req2} ->
+			stream_body(Req2#http_req{body_state=
+				{stream, fun cowboy_http:te_chunked/2, {0, 0},
+				 fun cowboy_http:ce_identity/1}});
+		{[<<"identity">>], Req2} ->
+			{Length, Req3} = body_length(Req2),
+			case Length of
+				0 ->
+					{done, Req3#http_req{body_state=done}};
+				Length ->
+					stream_body(Req3#http_req{body_state=
+						{stream, fun cowboy_http:te_identity/2, {0, Length},
+						 fun cowboy_http:ce_identity/1}})
+			end
+	end;
+stream_body(Req=#http_req{buffer=Buffer, body_state={stream, _, _, _}})
+		when Buffer =/= <<>> ->
+	transfer_decode(Buffer, Req#http_req{buffer= <<>>});
+stream_body(Req=#http_req{body_state={stream, _, _, _}}) ->
+	stream_body_recv(Req);
+stream_body(Req=#http_req{body_state=done}) ->
+	{done, Req}.
+
+-spec stream_body_recv(#http_req{})
 	-> {ok, binary(), #http_req{}} | {error, atom()}.
-body(Length, Req=#http_req{body_state=waiting, buffer=Buffer})
-		when is_integer(Length) andalso Length =< byte_size(Buffer) ->
-	<< Body:Length/binary, Rest/bits >> = Buffer,
-	{ok, Body, Req#http_req{body_state=done, buffer=Rest}};
-body(Length, Req=#http_req{socket=Socket, transport=Transport,
-		body_state=waiting, buffer=Buffer}) ->
-	case Transport:recv(Socket, Length - byte_size(Buffer), 5000) of
-		{ok, Body} -> {ok, << Buffer/binary, Body/binary >>,
-			Req#http_req{body_state=done, buffer= <<>>}};
+stream_body_recv(Req=#http_req{transport=Transport, socket=Socket}) ->
+	%% @todo Allow configuring the timeout.
+	case Transport:recv(Socket, 0, 5000) of
+		{ok, Data} -> transfer_decode(Data, Req);
+		{error, Reason} -> {error, Reason}
+	end.
+
+-spec transfer_decode(binary(), #http_req{})
+	-> {ok, binary(), #http_req{}} | {error, atom()}.
+transfer_decode(Data, Req=#http_req{
+		body_state={stream, TransferDecode, TransferState, ContentDecode}}) ->
+	case TransferDecode(Data, TransferState) of
+		{ok, Data2, TransferState2} ->
+			content_decode(ContentDecode, Data2, Req#http_req{body_state=
+				{stream, TransferDecode, TransferState2, ContentDecode}});
+		{ok, Data2, Rest, TransferState2} ->
+			content_decode(ContentDecode, Data2, Req#http_req{
+				buffer=Rest, body_state=
+				{stream, TransferDecode, TransferState2, ContentDecode}});
+		%% @todo {header(s) for chunked
+		more ->
+			stream_body_recv(Req);
+		{done, Length, Rest} ->
+			Req2 = transfer_decode_done(Length, Rest, Req),
+			{done, Req2};
+		{done, Data2, Length, Rest} ->
+			Req2 = transfer_decode_done(Length, Rest, Req),
+			content_decode(ContentDecode, Data2, Req2);
+		{error, Reason} ->
+			{error, Reason}
+	end.
+
+-spec transfer_decode_done(non_neg_integer(), binary(), #http_req{})
+	-> #http_req{}.
+transfer_decode_done(Length, Rest, Req=#http_req{
+		headers=Headers, p_headers=PHeaders}) ->
+	Headers2 = lists:keystore('Content-Length', 1, Headers,
+		{'Content-Length', list_to_binary(integer_to_list(Length))}),
+	%% At this point we just assume TEs were all decoded.
+	Headers3 = lists:keydelete('Transfer-Encoding', 1, Headers2),
+	PHeaders2 = lists:keystore('Content-Length', 1, PHeaders,
+		{'Content-Length', Length}),
+	PHeaders3 = lists:keydelete('Transfer-Encoding', 1, PHeaders2),
+	Req#http_req{buffer=Rest, body_state=done,
+		headers=Headers3, p_headers=PHeaders3}.
+
+%% @todo Probably needs a Rest.
+-spec content_decode(fun(), binary(), #http_req{})
+	-> {ok, binary(), #http_req{}} | {error, atom()}.
+content_decode(ContentDecode, Data, Req) ->
+	case ContentDecode(Data) of
+		{ok, Data2} -> {ok, Data2, Req};
+		{error, Reason} -> {error, Reason}
+	end.
+
+%% @doc Return the full body sent with the request.
+-spec body(#http_req{}) -> {ok, binary(), #http_req{}} | {error, atom()}.
+body(Req) ->
+	read_body(infinity, Req, <<>>).
+
+%% @doc Return the full body sent with the request as long as the body
+%% length doesn't go over MaxLength.
+%%
+%% This is most useful to quickly be able to get the full body while
+%% avoiding filling your memory with huge request bodies when you're
+%% not expecting it.
+-spec body(non_neg_integer() | infinity, #http_req{})
+	-> {ok, binary(), #http_req{}} | {error, atom()}.
+body(MaxLength, Req) ->
+	read_body(MaxLength, Req, <<>>).
+
+-spec read_body(non_neg_integer() | infinity, #http_req{}, binary())
+	-> {ok, binary(), #http_req{}} | {error, atom()}.
+read_body(MaxLength, Req, Acc) when MaxLength > byte_size(Acc) ->
+	case stream_body(Req) of
+		{ok, Data, Req2} ->
+			read_body(MaxLength, Req2, << Acc/binary, Data/binary >>);
+		{done, Req2} ->
+			{ok, Acc, Req2};
+		{error, Reason} ->
+			{error, Reason}
+	end.
+
+-spec skip_body(#http_req{}) -> {ok, #http_req{}} | {error, atom()}.
+skip_body(Req) ->
+	case stream_body(Req) of
+		{ok, _, Req2} -> skip_body(Req2);
+		{done, Req2} -> {ok, Req2};
 		{error, Reason} -> {error, Reason}
 	end.
 
 %% @doc Return the full body sent with the reqest, parsed as an
 %% application/x-www-form-urlencoded string. Essentially a POST query string.
+%% @todo We need an option to limit the size of the body for QS too.
 -spec body_qs(#http_req{}) -> {list({binary(), binary() | true}), #http_req{}}.
 body_qs(Req=#http_req{urldecode={URLDecFun, URLDecArg}}) ->
 	{ok, Body, Req2} = body(Req),

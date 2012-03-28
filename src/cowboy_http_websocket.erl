@@ -175,12 +175,18 @@ websocket_handshake(State=#state{version=0, origin=Origin,
 	%% We replied with a proper response. Proxies should be happy enough,
 	%% we can now read the 8 last bytes of the challenge keys and send
 	%% the challenge response directly to the socket.
-	case cowboy_http_req:body(8, Req2) of
-		{ok, Key3, Req3} ->
+	%%
+	%% We use a trick here to read exactly 8 bytes of the body regardless
+	%% of what's in the buffer.
+	{ok, Req3} = cowboy_http_req:init_stream(
+		fun cowboy_http:te_identity/2, {0, 8},
+		fun cowboy_http:ce_identity/1, Req2),
+	case cowboy_http_req:body(Req3) of
+		{ok, Key3, Req4} ->
 			Challenge = hixie76_challenge(Key1, Key2, Key3),
 			Transport:send(Socket, Challenge),
 			handler_before_loop(State#state{messages=Transport:messages()},
-				Req3, HandlerState, <<>>);
+				Req4, HandlerState, <<>>);
 		_Any ->
 			closed %% If an error happened reading the body, stop there.
 	end;

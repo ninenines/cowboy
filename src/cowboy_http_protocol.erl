@@ -396,10 +396,9 @@ next_request(Req=#http_req{connection=Conn},
 ensure_body_processed(#http_req{body_state=done, buffer=Buffer}) ->
 	{ok, Buffer};
 ensure_body_processed(Req=#http_req{body_state=waiting}) ->
-	case cowboy_http_req:body(Req) of
-		{error, badarg} -> {ok, Req#http_req.buffer}; %% No body.
-		{error, _Reason} -> {close, <<>>};
-		{ok, _, Req2} -> {ok, Req2#http_req.buffer}
+	case cowboy_http_req:skip_body(Req) of
+		{ok, Req2} -> {ok, Req2#http_req.buffer};
+		{error, _Reason} -> {close, <<>>}
 	end;
 ensure_body_processed(Req=#http_req{body_state={multipart, _, _}}) ->
 	{ok, Req2} = cowboy_http_req:multipart_skip(Req),

@@ -24,7 +24,8 @@
 	pipeline/1, raw/1, set_resp_header/1, set_resp_overwrite/1,
 	set_resp_body/1, stream_body_set_resp/1, response_as_req/1,
 	static_mimetypes_function/1, static_attribute_etag/1,
-	static_function_etag/1, multipart/1]). %% http.
+	static_function_etag/1, multipart/1, te_identity/1,
+	te_chunked/1, te_chunked_delayed/1]). %% http.
 -export([http_200/1, http_404/1, handler_errors/1,
 	file_200/1, file_403/1, dir_403/1, file_404/1,
 	file_400/1]). %% http and https.
@@ -47,7 +48,8 @@ groups() ->
 		set_resp_header, set_resp_overwrite,
 		set_resp_body, response_as_req, stream_body_set_resp,
 		static_mimetypes_function, static_attribute_etag,
-		static_function_etag, multipart] ++ BaseTests},
+		static_function_etag, multipart, te_identity, te_chunked,
+		te_chunked_delayed] ++ BaseTests},
 	{https, [], BaseTests},
 	{misc, [], [http_10_hostless, http_10_chunkless]},
 	{rest, [], [rest_simple, rest_keepalive, rest_keepalive_post,
@@ -165,6 +167,7 @@ init_http_dispatch(Config) ->
 				[{directory, ?config(static_dir, Config)},
 				 {etag, {fun static_function_etag/2, etag_data}}]},
 			{[<<"multipart">>], http_handler_multipart, []},
+			{[<<"echo">>, <<"body">>], http_handler_echo_body, []},
 			{[], http_handler, []}
 		]}
 	].
@@ -529,6 +532,57 @@ static_function_etag(Arguments, etag_data) ->
 	ChecksumCommand = lists:flatten(io_lib:format("sha1sum ~s", [Filepath])),
 	[Checksum|_] = string:tokens(os:cmd(ChecksumCommand), " "),
 	{strong, iolist_to_binary(Checksum)}.
+
+te_identity(Config) ->
+	{port, Port} = lists:keyfind(port, 1, Config),
+	{ok, Socket} = gen_tcp:connect("localhost", Port,
+		[binary, {active, false}, {packet, raw}]),
+	Body = list_to_binary(io_lib:format("~p", [lists:seq(1, 100)])),
+	StrLen = integer_to_list(byte_size(Body)),
+	ok = gen_tcp:send(Socket, ["GET /echo/body HTTP/1.1\r\n"
+		"Host: localhost\r\nConnection: close\r\n"
+		"Content-Length: ", StrLen, "\r\n\r\n", Body]),
+	{ok, Data} = gen_tcp:recv(Socket, 0, 6000),
+	{_, _} = binary:match(Data, Body).
+
+te_chunked(Config) ->
+	{port, Port} = lists:keyfind(port, 1, Config),
+	{ok, Socket} = gen_tcp:connect("localhost", Port,
+		[binary, {active, false}, {packet, raw}]),
+	Body = list_to_binary(io_lib:format("~p", [lists:seq(1, 100)])),
+	Chunks = body_to_chunks(50, Body, []),
+	ok = gen_tcp:send(Socket, ["GET /echo/body HTTP/1.1\r\n"
+		"Host: localhost\r\nConnection: close\r\n"
+		"Transfer-Encoding: chunked\r\n\r\n", Chunks]),
+	{ok, Data} = gen_tcp:recv(Socket, 0, 6000),
+	{_, _} = binary:match(Data, Body).
+
+te_chunked_delayed(Config) ->
+	{port, Port} = lists:keyfind(port, 1, Config),
+	{ok, Socket} = gen_tcp:connect("localhost", Port,
+		[binary, {active, false}, {packet, raw}]),
+	Body = list_to_binary(io_lib:format("~p", [lists:seq(1, 100)])),
+	Chunks = body_to_chunks(50, Body, []),
+	ok = gen_tcp:send(Socket, ["GET /echo/body HTTP/1.1\r\n"
+		"Host: localhost\r\nConnection: close\r\n"
+		"Transfer-Encoding: chunked\r\n\r\n"]),
+	_ = [begin ok = gen_tcp:send(Socket, Chunk), ok = timer:sleep(10) end
+		|| Chunk <- Chunks],
+	{ok, Data} = gen_tcp:recv(Socket, 0, 6000),
+	{_, _} = binary:match(Data, Body).
+
+body_to_chunks(_, <<>>, Acc) ->
+	lists:reverse([<<"0\r\n\r\n">>|Acc]);
+body_to_chunks(ChunkSize, Body, Acc) ->
+	BodySize = byte_size(Body),
+	ChunkSize2 = case BodySize < ChunkSize of
+		true -> BodySize;
+		false -> ChunkSize
+	end,
+	<< Chunk:ChunkSize2/binary, Rest/binary >> = Body,
+	ChunkSizeBin = list_to_binary(integer_to_list(ChunkSize2, 16)),
+	body_to_chunks(ChunkSize, Rest,
+		[<< ChunkSizeBin/binary, "\r\n", Chunk/binary, "\r\n" >>|Acc]).
 
 %% http and https.
 
