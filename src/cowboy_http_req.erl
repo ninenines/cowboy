@@ -795,6 +795,7 @@ header_to_binary('Warning') -> <<"Warning">>;
 header_to_binary('Www-Authenticate') -> <<"Www-Authenticate">>;
 header_to_binary('Allow') -> <<"Allow">>;
 header_to_binary('Content-Base') -> <<"Content-Base">>;
+header_to_binary('Content-Disposition') -> <<"Content-Disposition">>;
 header_to_binary('Content-Encoding') -> <<"Content-Encoding">>;
 header_to_binary('Content-Language') -> <<"Content-Language">>;
 header_to_binary('Content-Length') -> <<"Content-Length">>;
