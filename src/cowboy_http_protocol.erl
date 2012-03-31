@@ -261,12 +261,13 @@ handler_init(Req, State=#state{transport=Transport,
 			upgrade_protocol(Req, State, Module)
 	catch Class:Reason ->
 		error_terminate(500, State),
+		Req2 = lists:zip(record_info(fields, http_req), tl(tuple_to_list(Req))),
 		error_logger:error_msg(
 			"** Handler ~p terminating in init/3~n"
 			"   for the reason ~p:~p~n"
 			"** Options were ~p~n"
 			"** Request was ~p~n** Stacktrace: ~p~n~n",
-			[Handler, Class, Reason, Opts, Req, erlang:get_stacktrace()])
+			[Handler, Class, Reason, Opts, Req2, erlang:get_stacktrace()])
 	end.
 
 -spec upgrade_protocol(#http_req{}, #state{}, atom()) -> ok.
@@ -283,13 +284,14 @@ handler_handle(HandlerState, Req, State=#state{handler={Handler, Opts}}) ->
 		{ok, Req2, HandlerState2} ->
 			terminate_request(HandlerState2, Req2, State)
 	catch Class:Reason ->
+		Req2 = lists:zip(record_info(fields, http_req), tl(tuple_to_list(Req))),
 		error_logger:error_msg(
 			"** Handler ~p terminating in handle/2~n"
 			"   for the reason ~p:~p~n"
 			"** Options were ~p~n** Handler state was ~p~n"
 			"** Request was ~p~n** Stacktrace: ~p~n~n",
 			[Handler, Class, Reason, Opts,
-			 HandlerState, Req, erlang:get_stacktrace()]),
+			 HandlerState, Req2, erlang:get_stacktrace()]),
 		handler_terminate(HandlerState, Req, State),
 		error_terminate(500, State)
 	end.
@@ -341,13 +343,14 @@ handler_call(HandlerState, Req, State=#state{handler={Handler, Opts}},
 			handler_before_loop(HandlerState2, Req2,
 				State#state{hibernate=true})
 	catch Class:Reason ->
+		Req2 = lists:zip(record_info(fields, http_req), tl(tuple_to_list(Req))),
 		error_logger:error_msg(
 			"** Handler ~p terminating in info/3~n"
 			"   for the reason ~p:~p~n"
 			"** Options were ~p~n** Handler state was ~p~n"
 			"** Request was ~p~n** Stacktrace: ~p~n~n",
 			[Handler, Class, Reason, Opts,
-			 HandlerState, Req, erlang:get_stacktrace()]),
+			 HandlerState, Req2, erlang:get_stacktrace()]),
 		handler_terminate(HandlerState, Req, State),
 		error_terminate(500, State)
 	end.
@@ -357,13 +360,14 @@ handler_terminate(HandlerState, Req, #state{handler={Handler, Opts}}) ->
 	try
 		Handler:terminate(Req#http_req{resp_state=locked}, HandlerState)
 	catch Class:Reason ->
+		Req2 = lists:zip(record_info(fields, http_req), tl(tuple_to_list(Req))),
 		error_logger:error_msg(
 			"** Handler ~p terminating in terminate/2~n"
 			"   for the reason ~p:~p~n"
 			"** Options were ~p~n** Handler state was ~p~n"
 			"** Request was ~p~n** Stacktrace: ~p~n~n",
 			[Handler, Class, Reason, Opts,
-			 HandlerState, Req, erlang:get_stacktrace()])
+			 HandlerState, Req2, erlang:get_stacktrace()])
 	end.
 
 -spec terminate_request(any(), #http_req{}, #state{}) -> ok.
