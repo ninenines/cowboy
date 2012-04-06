@@ -24,7 +24,7 @@
 %% @see ssl
 -module(cowboy_ssl_transport).
 -export([name/0, messages/0, listen/1, accept/2, recv/3, send/2, setopts/2,
-	controlling_process/2, peername/1, close/1]).
+	controlling_process/2, peername/1, close/1, sockname/1]).
 
 %% @doc Name of this transport API, <em>ssl</em>.
 -spec name() -> ssl.
@@ -139,6 +139,13 @@ peername(Socket) ->
 -spec close(ssl:sslsocket()) -> ok.
 close(Socket) ->
 	ssl:close(Socket).
+
+%% @doc Get the local address and port of a socket
+%% @see ssl:sockname/1
+-spec sockname(ssl:sslsocket())
+	-> {ok, {inet:ip_address(), inet:port_number()}} | {error, atom()}.
+sockname(Socket) ->
+	ssl:sockname(Socket).
 
 %% Internal.
 
