@@ -16,7 +16,8 @@
 -module(cowboy).
 
 -export([start_listener/6, stop_listener/1, child_spec/6, accept_ack/1,
-	get_protocol_options/1, set_protocol_options/2]).
+	    get_protocol_options/1, get_protocol_options/2, 
+      set_protocol_options/2, set_protocol_options/3]).
 
 %% @doc Start a listener for the given transport and protocol.
 %%
@@ -88,7 +89,14 @@ accept_ack(ListenerPid) ->
 %% @doc Return the current protocol options for the given listener.
 -spec get_protocol_options(any()) -> any().
 get_protocol_options(Ref) ->
-	ListenerPid = ref_to_listener_pid(Ref),
+  get_protocol_options(cowboy_sup, Ref).
+
+%% @doc Return the current protocol options for the listener started 
+%% using {@link child_spec/6}. The supervisor reference is expected to 
+%% be the one assigned the child spec.
+-spec get_protocol_options(atom(), any()) -> any().
+get_protocol_options(Sup, Ref) ->
+	ListenerPid = ref_to_listener_pid(Sup, Ref),
 	{ok, ProtoOpts} = cowboy_listener:get_protocol_options(ListenerPid),
 	ProtoOpts.
 
@@ -99,14 +107,25 @@ get_protocol_options(Ref) ->
 %% no effect on the currently opened connections.
 -spec set_protocol_options(any(), any()) -> ok.
 set_protocol_options(Ref, ProtoOpts) ->
-	ListenerPid = ref_to_listener_pid(Ref),
+  set_protocol_options(cowboy_sup, Ref, ProtoOpts).
+
+%% @doc Upgrade the protocol options for the listener started 
+%% using {@link child_spec/6}. The supervisor reference is expected to 
+%% be the one assigned the child spec.
+%%
+%% The upgrade takes place at the acceptor level, meaning that only the
+%% newly accepted connections receive the new protocol options. This has
+%% no effect on the currently opened connections.
+-spec set_protocol_options(atom(), any(), any()) -> ok.
+set_protocol_options(Sup, Ref, ProtoOpts) ->
+	ListenerPid = ref_to_listener_pid(Sup, Ref),
 	ok = cowboy_listener:set_protocol_options(ListenerPid, ProtoOpts).
 
 %% Internal.
 
--spec ref_to_listener_pid(any()) -> pid().
-ref_to_listener_pid(Ref) ->
-	Children = supervisor:which_children(cowboy_sup),
+-spec ref_to_listener_pid(atom(), any()) -> pid().
+ref_to_listener_pid(Sup, Ref) ->
+	Children = supervisor:which_children(Sup),
 	{_, ListenerSupPid, _, _} = lists:keyfind(
 		{cowboy_listener_sup, Ref}, 1, Children),
 	ListenerSupChildren = supervisor:which_children(ListenerSupPid),
