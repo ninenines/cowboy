@@ -269,7 +269,15 @@ maybe_qparam(Data, Fun) ->
 		fun (<< $;, Rest/binary >>) ->
 			whitespace(Rest,
 				fun (Rest2) ->
-					qparam(Rest2, Fun)
+					%% This is a non-strict parsing clause required by some user agents
+					%% that use the wrong delimiter putting a charset where a qparam is
+					%% expected.
+					try qparam(Rest2, Fun) of
+						Result -> Result
+					catch
+						error:function_clause ->
+							Fun(<<",", Rest2/binary>>, 1000)
+					end
 				end);
 			(Rest) ->
 				Fun(Rest, 1000)
@@ -879,6 +887,12 @@ nonempty_charset_list_test_() ->
 		{<<"iso-8859-5, unicode-1-1;q=0.8">>, [
 			{<<"iso-8859-5">>, 1000},
 			{<<"unicode-1-1">>, 800}
+		]},
+		%% Some user agents send this invalid value for the Accept-Charset header
+		{<<"ISO-8859-1;utf-8;q=0.7,*;q=0.7">>, [
+			{<<"iso-8859-1">>, 1000},
+			{<<"utf-8">>, 700},
+			{<<"*">>, 700}
 		]}
 	],
 	[{V, fun() -> R = nonempty_list(V, fun conneg/2) end} || {V, R} <- Tests].
