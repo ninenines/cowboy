@@ -757,6 +757,12 @@ te_identity(Data, {Streamed, Total}) ->
 ce_identity(Data) ->
 	{ok, Data}.
 
+
+%% @doc Decode an unknown content type.
+-spec ct_unknown(binary()) -> {ok, binary()}.
+ct_unknown(Data) ->
+	{ok, Data, fun ct_unknown/1}.
+
 %% Interpretation.
 
 %% @doc Walk through a tokens list and return whether

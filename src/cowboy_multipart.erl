@@ -27,11 +27,88 @@
 -type end_of_part() :: {end_of_part, cont(more(part_result()))}.
 -type disposition() :: {binary(), [{binary(), binary()}]}.
 
+-export([recv/1,
+
+         body/1,
+	 header/2,
+	 parse_header/2]).
+
 -export([parser/1, content_disposition/1]).
+
+-record(http_multipart, {
+          headers    = []        :: cowboy_http:headers(),
+          p_headers  = []        :: [any()], %% @todo Improve those specs.
+          body       = <<>>      :: binary()
+         }).
 
 -include_lib("eunit/include/eunit.hrl").
 
 %% API.
+
+recv(Req) ->
+    recv(Req, []).
+
+recv(Req, Acc) ->
+    {Result, Req2} = cowboy_http_req:multipart_data(Req),
+    multiparts(Req2, Acc, Result).
+
+multiparts(Req, Acc, {headers, Headers}) ->
+    recv(Req, [#http_multipart{headers = Headers, body = []} | Acc]);
+multiparts(Req, [#http_multipart{body = BodyAcc} = H | Acc], {body, Data}) ->
+    recv(Req, [H#http_multipart{body = [Data|BodyAcc]} | Acc]);
+multiparts(Req, [#http_multipart{body = BodyAcc} = H | Acc], end_of_part) ->
+    recv(Req, [H#http_multipart{body = iolist_to_binary(lists:reverse(BodyAcc))} | Acc]);
+multiparts(Req, Acc, eof) ->
+    {lists:reverse(Acc), Req}.
+
+body(#http_multipart{body = Body} = Part) ->
+    {Body, Part}.
+
+-spec parse_header(binary(), #http_multipart{})
+                  -> {any(), #http_multipart{}} | {error, badarg}.
+parse_header(Name, Part=#http_multipart{p_headers=PHeaders}) ->
+    case lists:keyfind(Name, 1, PHeaders) of
+        false -> parse_header(Name, Part, undefined);
+        {Name, Value} -> {Value, Part}
+    end.
+
+parse_header(Name, Part, Default) when Name =:= <<"Content-Disposition">> ->
+    parse_header(Name, Part, Default,
+                 fun (Value) ->
+                         cowboy_multipart:content_disposition(Value)
+                 end);
+
+parse_header(Name, Part, Default) ->
+    {Value, Part2} = header(Name, Part, Default),
+    {undefined, Value, Part2}.
+
+parse_header(Name, Part=#http_multipart{p_headers=PHeaders}, Default, Fun) ->
+    case header(Name, Part) of
+        {undefined, Part2} ->
+            {Default, Part2#http_multipart{p_headers=[{Name, Default}|PHeaders]}};
+        {Value, Part2} ->
+            case Fun(Value) of
+                {error, badarg} ->
+                    {error, badarg};
+                P ->
+                    {P, Part2#http_multipart{p_headers=[{Name, P}|PHeaders]}}
+            end
+    end.
+
+%% @equiv header(Name, Part, undefined)
+-spec header(binary(), #http_multipart{})
+            -> {binary() | undefined, #http_multipart{}}.
+header(Name, Part) when is_binary(Name) ->
+    header(Name, Part, undefined).
+
+%% @doc Return the header value for the given key, or a default if missing.
+-spec header(binary(), #http_multipart{}, Default)
+            -> {binary() | Default, #http_multipart{}} when Default::any().
+header(Name, Part, Default) when is_binary(Name) ->
+    case lists:keyfind(Name, 1, Part#http_multipart.headers) of
+        {Name, Value} -> {Value, Part};
+        false -> {Default, Part}
+    end.
 
 %% @doc Return a multipart parser for the given boundary.
 -spec parser(binary()) -> part_parser().

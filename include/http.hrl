@@ -41,8 +41,7 @@
 	meta       = []        :: [{atom(), any()}],
 
 	%% Request body.
-	body_state = waiting   :: waiting | done | {stream, fun(), any(), fun()}
-								| {multipart, non_neg_integer(), fun()},
+	body_state = waiting   :: waiting | done | #stream{},
 	buffer     = <<>>      :: binary(),
 
 	%% Response.
@@ -54,3 +53,10 @@
 	%% Functions.
 	urldecode :: {fun((binary(), T) -> binary()), T}
 }).
+
+-record(stream, {
+          te_fun = fun cowboy_http:te_chunked/2 :: fun(),
+          te_state :: any(),
+          ce_fun = fun cowboy_http:ce_identity/1 :: fun(),
+          ct_fun = fun cowboy_http:ct_unknown/1 :: fun()
+         }).
