@@ -15,13 +15,19 @@ deps:
 app: deps
 	@$(REBAR) compile
 
-docs:
-	@$(REBAR) doc skip_deps=true
-
 clean:
 	@$(REBAR) clean
 	rm -f test/*.beam
 	rm -f erl_crash.dump
+
+docs: clean-docs
+	@$(REBAR) doc skip_deps=true
+
+clean-docs:
+	rm -f doc/*.css
+	rm -f doc/*.html
+	rm -f doc/*.png
+	rm -f doc/edoc-info
 
 # Tests.
 
