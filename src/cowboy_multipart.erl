@@ -74,17 +74,51 @@ parse(Bin, Boundary) ->
 	more(Bin, fun (NewBin) -> parse(NewBin, Boundary) end).
 
 -type pattern() :: {binary:cp(), non_neg_integer()}.
+-type patterns() :: {pattern(), pattern()}.
 
-%% @doc Return a compiled binary pattern with its size in bytes.
-%% The pattern is the boundary prepended with "\r\n--".
--spec pattern(binary()) -> pattern().
+%% @doc Return two compiled binary patterns with their sizes in bytes.
+%% The boundary pattern is the boundary prepended with "\r\n--".
+%% The boundary suffix pattern matches all prefixes of the boundary.
+-spec pattern(binary()) -> patterns().
 pattern(Boundary) ->
 	MatchPattern = <<"\r\n--", Boundary/binary>>,
-	{binary:compile_pattern(MatchPattern), byte_size(MatchPattern)}.
+	MatchPrefixes = prefixes(MatchPattern),
+	{{binary:compile_pattern(MatchPattern), byte_size(MatchPattern)},
+	 {binary:compile_pattern(MatchPrefixes), byte_size(MatchPattern)}}.
+
+%% @doc Return all prefixes of a binary string.
+%% The list of prefixes includes the full string.
+-spec prefixes(binary()) -> [binary()].
+prefixes(<<C, Rest/binary>>) ->
+	prefixes(Rest, <<C>>).
+
+-spec prefixes(binary(), binary()) -> [binary()].
+prefixes(<<C, Rest/binary>>, Acc) ->
+	[Acc|prefixes(Rest, <<Acc/binary, C>>)];
+prefixes(<<>>, Acc) ->
+	[Acc].
+
+%% @doc Test if a boundary is a possble suffix.
+%% The patterns are expected to have been returned from `pattern/1`.
+-spec suffix_match(binary(), patterns()) -> nomatch | {integer(), integer()}.
+suffix_match(Bin, {_Boundary, {Pat, Len}}) ->
+	Size = byte_size(Bin),
+	suffix_match(Bin, Pat, Size, max(-Size, -Len)).
+
+-spec suffix_match(binary(), tuple(), non_neg_integer(), 0|neg_integer()) ->
+		nomatch | {integer(), integer()}.
+suffix_match(_Bin, _Pat, _Size, _Match=0) ->
+	nomatch;
+suffix_match(Bin, Pat, Size, Match) when Match < 0 ->
+	case binary:match(Bin, Pat, [{scope, {Size, Match}}]) of
+		{Pos, Len}=Part when Pos + Len =:= Size -> Part;
+		{_, Len} -> suffix_match(Bin, Pat, Size, Match + Len);
+		nomatch -> nomatch
+	end.
 
 %% @doc Parse remaining characters of a line beginning with the boundary.
 %% If followed by "--", <em>eof</em> is returned and parsing is finished.
--spec parse_boundary_tail(binary(), pattern()) -> more(part_result()).
+-spec parse_boundary_tail(binary(), patterns()) -> more(part_result()).
 parse_boundary_tail(Bin, Pattern) when byte_size(Bin) >= 2 ->
 	case Bin of
 		<<"--", _Rest/binary>> ->
@@ -100,7 +134,7 @@ parse_boundary_tail(Bin, Pattern) ->
 	more(Bin, fun (NewBin) -> parse_boundary_tail(NewBin, Pattern) end).
 
 %% @doc Skip whitespace and unknown chars until CRLF.
--spec parse_boundary_eol(binary(), pattern()) -> more(part_result()).
+-spec parse_boundary_eol(binary(), patterns()) -> more(part_result()).
 parse_boundary_eol(Bin, Pattern) ->
 	case binary:match(Bin, <<"\r\n">>) of
 		{CrlfStart, _Length} ->
@@ -115,7 +149,7 @@ parse_boundary_eol(Bin, Pattern) ->
 			more(Rest, fun (NewBin) -> parse_boundary_eol(NewBin, Pattern) end)
 	end.
 
--spec parse_boundary_crlf(binary(), pattern()) -> more(part_result()).
+-spec parse_boundary_crlf(binary(), patterns()) -> more(part_result()).
 parse_boundary_crlf(<<"\r\n", Rest/binary>>, Pattern) ->
 	% The binary is at least 2 bytes long as this function is only called by
 	% parse_boundary_eol/3 when CRLF has been found so a more tuple will never
@@ -127,11 +161,11 @@ parse_boundary_crlf(Bin, Pattern) ->
 	% considered part of the boundary so EOL needs to be searched again.
 	parse_boundary_eol(Bin, Pattern).
 
--spec parse_headers(binary(), pattern()) -> more(part_result()).
+-spec parse_headers(binary(), patterns()) -> more(part_result()).
 parse_headers(Bin, Pattern) ->
   parse_headers(Bin, Pattern, []).
 
--spec parse_headers(binary(), pattern(), http_headers()) -> more(part_result()).
+-spec parse_headers(binary(), patterns(), http_headers()) -> more(part_result()).
 parse_headers(Bin, Pattern, Acc) ->
 	case erlang:decode_packet(httph_bin, Bin, []) of
 		{ok, {http_header, _, Name, _, Value}, Rest} ->
@@ -150,8 +184,8 @@ parse_headers(Bin, Pattern, Acc) ->
 			more(Bin, fun (NewBin) -> parse_headers(NewBin, Pattern, Acc) end)
 	end.
 
--spec parse_body(binary(), pattern()) -> more(body_result()).
-parse_body(Bin, Pattern = {P, PSize}) when byte_size(Bin) >= PSize ->
+-spec parse_body(binary(), patterns()) -> more(body_result()).
+parse_body(Bin, Pattern = {{P, PSize}, _}) when byte_size(Bin) >= PSize ->
 	case binary:match(Bin, P) of
 		{0, _Length} ->
 			<<_:PSize/binary, Rest/binary>> = Bin,
@@ -163,19 +197,27 @@ parse_body(Bin, Pattern = {P, PSize}) when byte_size(Bin) >= PSize ->
 			FResult = end_of_part(Rest, Pattern),
 			{body, PBody, fun () -> FResult end};
 		nomatch ->
-			PartialLength = byte_size(Bin) - PSize + 1,
-			<<PBody:PartialLength/binary, Rest/binary>> = Bin,
-			{body, PBody, fun () -> parse_body(Rest, Pattern) end}
+			case suffix_match(Bin, Pattern) of
+				nomatch ->
+					%% Prefix of boundary not found at end of input. it's
+					%% safe to return the whole binary. Saves copying of
+					%% next input onto tail of current input binary.
+					{body, Bin, fun () -> parse_body(<<>>, Pattern) end};
+				{BoundaryStart, Len} ->
+					PBody = binary:part(Bin, BoundaryStart, Len),
+					Rest = binary:part(Bin, 0, BoundaryStart),
+					{body, PBody, fun () -> parse_body(Rest, Pattern) end}
+			end
 	end;
 parse_body(Bin, Pattern) ->
 	more(Bin, fun (NewBin) -> parse_body(NewBin, Pattern) end).
 
--spec end_of_part(binary(), pattern()) -> end_of_part().
+-spec end_of_part(binary(), patterns()) -> end_of_part().
 end_of_part(Bin, Pattern) ->
 	{end_of_part, fun () -> parse_boundary_tail(Bin, Pattern) end}.
 
--spec skip(binary(), pattern()) -> more(part_result()).
-skip(Bin, Pattern = {P, PSize}) ->
+-spec skip(binary(), patterns()) -> more(part_result()).
+skip(Bin, Pattern = {{P, PSize}, _}) ->
 	case binary:match(Bin, P) of
 		{BoundaryStart, _Length} ->
 			% Boundary found, proceed with parsing of the next part.
@@ -254,5 +296,21 @@ title(Bin) ->
 		[{"\t", "\\\\t"}, {"\r", "\\\\r"}, {"\n", "\\\\n"}]
 	),
 	iolist_to_binary(Title).
+
+suffix_test_() ->
+	[?_assertEqual(Part, suffix_match(Packet, pattern(Boundary))) ||
+		{Part, Packet, Boundary} <- [
+		{nomatch, <<>>, <<"ABC">>},
+		{{0, 1}, <<"\r">>, <<"ABC">>},
+		{{0, 2}, <<"\r\n">>, <<"ABC">>},
+		{{0, 4}, <<"\r\n--">>, <<"ABC">>},
+		{{0, 5}, <<"\r\n--A">>, <<"ABC">>},
+		{{0, 6}, <<"\r\n--AB">>, <<"ABC">>},
+		{{0, 7}, <<"\r\n--ABC">>, <<"ABC">>},
+		{nomatch, <<"\r\n--AB1">>, <<"ABC">>},
+		{{1, 1}, <<"1\r">>, <<"ABC">>},
+		{{2, 2}, <<"12\r\n">>, <<"ABC">>},
+		{{3, 4}, <<"123\r\n--">>, <<"ABC">>}
+	]].
 
 -endif.
