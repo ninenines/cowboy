@@ -835,6 +835,8 @@ response_head(Status, Headers, RespHeaders, DefaultHeaders) ->
 	-> cowboy_http:headers().
 merge_headers(Headers, []) ->
 	Headers;
+merge_headers(Headers, [{<<"Set-Cookie">>=Name, Value}|Tail]) ->
+	merge_headers(Headers ++ [{Name, Value}], Tail);
 merge_headers(Headers, [{Name, Value}|Tail]) ->
 	Headers2 = case lists:keymember(Name, 1, Headers) of
 		true -> Headers;
