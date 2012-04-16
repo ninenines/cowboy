@@ -86,7 +86,8 @@ known_methods(Req=#http_req{method=Method}, State) ->
 	case call(Req, State, known_methods) of
 		no_call when Method =:= 'HEAD'; Method =:= 'GET'; Method =:= 'POST';
 					Method =:= 'PUT'; Method =:= 'DELETE'; Method =:= 'TRACE';
-					Method =:= 'CONNECT'; Method =:= 'OPTIONS' ->
+					Method =:= 'CONNECT'; Method =:= 'OPTIONS';
+					Method =:= 'PATCH' ->
 			next(Req, State, fun uri_too_long/2);
 		no_call ->
 			next(Req, State, 501);
@@ -640,6 +641,8 @@ method(Req=#http_req{method='POST'}, State) ->
 	post_is_create(Req, State);
 method(Req=#http_req{method='PUT'}, State) ->
 	is_conflict(Req, State);
+method(Req=#http_req{method='PATCH'}, State) ->
+	patch_resource(Req, State);
 method(Req, State) ->
 	set_resp_body(Req, State).
 
@@ -729,6 +732,25 @@ put_resource(Req, State, OnTrue) ->
 				= cowboy_http_req:parse_header('Content-Type', Req2),
 			choose_content_type(Req3, State2, OnTrue, ContentType, CTA)
 	end.
+
+%% content_types_modify should return a list of media types and their
+%% associated callback functions in the same format as content_types_accepted.
+%%
+%% The callback will then be called and is expected to process the content
+%% pushed to the resource in the request body.
+patch_resource(Req, State) ->
+	case call(Req, State, content_types_modify) of
+		no_call ->
+			respond(Req, State, 415);
+		{halt, Req2, HandlerState} ->
+			terminate(Req2, State#state{handler_state=HandlerState});
+		{CTA, Req2, HandlerState} ->
+			State2 = State#state{handler_state=HandlerState},
+			{ContentType, Req3}
+				= cowboy_http_req:parse_header('Content-Type', Req2),
+			choose_content_type(Req3, State2, 204, ContentType, CTA)
+	end.
+
 
 %% The special content type '*' will always match. It can be used as a
 %% catch-all content type for accepting any kind of request content.
