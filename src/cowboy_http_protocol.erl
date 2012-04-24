@@ -316,16 +316,15 @@ handler_loop_timeout(State=#state{loop_timeout=Timeout,
 		loop_timeout_ref=PrevRef}) ->
 	_ = case PrevRef of undefined -> ignore; PrevRef ->
 		erlang:cancel_timer(PrevRef) end,
-	TRef = make_ref(),
-	erlang:send_after(Timeout, self(), {?MODULE, timeout, TRef}),
+	TRef = erlang:start_timer(Timeout, self(), ?MODULE),
 	State#state{loop_timeout_ref=TRef}.
 
 -spec handler_loop(any(), #http_req{}, #state{}) -> ok.
 handler_loop(HandlerState, Req, State=#state{loop_timeout_ref=TRef}) ->
 	receive
-		{?MODULE, timeout, TRef} ->
+		{timeout, TRef, ?MODULE} ->
 			terminate_request(HandlerState, Req, State);
-		{?MODULE, timeout, OlderTRef} when is_reference(OlderTRef) ->
+		{timeout, OlderTRef, ?MODULE} when is_reference(OlderTRef) ->
 			handler_loop(HandlerState, Req, State);
 		Message ->
 			handler_call(HandlerState, Req, State, Message)
