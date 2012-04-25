@@ -41,6 +41,9 @@
 %% directory of an application. This is configured by setting the value of the
 %% directory option to a tuple of the form `{priv_dir, Application, Relpath}'.
 %%
+%% In addition to directories, individual path to file mappings can be specified
+%% using the file directive instead of directory.
+%%
 %% ==== Examples ====
 %% ```
 %% %% Serve files from /var/www/ under http://example.com/static/
@@ -54,6 +57,10 @@
 %% %% Serve files from cowboy/priv/www under http://example.com/
 %% {['...'], cowboy_http_static,
 %%     [{directory, {priv_dir, cowboy, [<<"www">>]}}]}
+%%
+%% %% Serve index.html from the /index route:
+%% {[<<"index">>], cowboy_http_static,
+%%     [{file}, <<"index.html">>]}
 %% '''
 %%
 %% == Content type configuration  ==
@@ -174,8 +181,6 @@ init({_Transport, http}, _Req, _Opts) ->
 %% @private Set up initial state of REST handler.
 -spec rest_init(#http_req{}, list()) -> {ok, #http_req{}, #state{}}.
 rest_init(Req, Opts) ->
-	Directory = proplists:get_value(directory, Opts),
-	Directory1 = directory_path(Directory),
 	Mimetypes = proplists:get_value(mimetypes, Opts, []),
 	Mimetypes1 = case Mimetypes of
 		{_, _} -> Mimetypes;
@@ -189,18 +194,28 @@ rest_init(Req, Opts) ->
 		{attributes, Attrs} -> {fun attr_etag_function/2, Attrs};
 		{_, _}=ETagFunction1 -> ETagFunction1
 	end,
-	{Filepath, Req1} = cowboy_http_req:path_info(Req),
-	State = case check_path(Filepath) of
-		error ->
-			#state{filepath=error, fileinfo=error, mimetypes=undefined,
-				etag_fun=ETagFunction};
-		ok ->
-			Filepath1 = join_paths(Directory1, Filepath),
-			Fileinfo = file:read_file_info(Filepath1),
-			#state{filepath=Filepath1, fileinfo=Fileinfo, mimetypes=Mimetypes1,
-				etag_fun=ETagFunction}
+	{State, Req2} = case proplists:is_defined(directory, Opts) of
+		true ->
+			Directory = proplists:get_value(directory, Opts),
+			Directory1 = directory_path(Directory),
+			{Filepath, Req1} = cowboy_http_req:path_info(Req),
+			case check_path(Filepath) of
+				error ->
+					#state{filepath=error, fileinfo=error, mimetypes=undefined,
+						etag_fun=ETagFunction};
+				ok ->
+					Filepath1 = join_paths(Directory1, Filepath),
+					Fileinfo = file:read_file_info(Filepath1),
+					{#state{filepath=Filepath1, fileinfo=Fileinfo, mimetypes=Mimetypes1,
+							etag_fun=ETagFunction}, Req1}
+			end;
+		false ->
+			Filepath = proplists:get_value(file, Opts),
+			Fileinfo = file:read_file_info(Filepath),
+			{#state{filepath=Filepath, fileinfo=Fileinfo, mimetypes=Mimetypes1,
+					etag_fun=ETagFunction}, Req}
 	end,
-	{ok, Req1, State}.
+	{ok, Req2, State}.
 
 
 %% @private Only allow GET and HEAD requests on files.
