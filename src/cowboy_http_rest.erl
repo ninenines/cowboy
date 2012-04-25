@@ -768,7 +768,7 @@ created_path(Req=#http_req{meta=Meta}, State) ->
 			{ok, Req3} = cowboy_http_req:set_resp_header(
 				<<"Location">>, Location, Req2),
 			respond(Req3#http_req{meta=[{put_path, Path}|Meta]},
-				State2, 201)
+				State2, 303)
 	end.
 
 %% Whether we created a new resource, either through PUT or POST.
