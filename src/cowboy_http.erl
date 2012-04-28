@@ -26,7 +26,8 @@
 -export([te_chunked/2, te_identity/2, ce_identity/1]).
 
 %% Interpretation.
--export([connection_to_atom/1, urldecode/1, urldecode/2, urlencode/1,
+-export([connection_to_atom/1, version_to_binary/1,
+	urldecode/1, urldecode/2, urlencode/1,
 	urlencode/2, x_www_form_urlencoded/2]).
 
 -type method() :: 'OPTIONS' | 'GET' | 'HEAD'
@@ -772,6 +773,11 @@ connection_to_atom([<<"close">>|_Tail]) ->
 	close;
 connection_to_atom([_Any|Tail]) ->
 	connection_to_atom(Tail).
+
+%% @doc Convert an HTTP version tuple to its binary form.
+-spec version_to_binary(version()) -> binary().
+version_to_binary({1, 1}) -> <<"HTTP/1.1">>;
+version_to_binary({1, 0}) -> <<"HTTP/1.0">>.
 
 %% @doc Decode a URL encoded binary.
 %% @equiv urldecode(Bin, crash)
