@@ -1,3 +1,4 @@
+.cowboy.plt
 .eunit
 deps
 doc/*.css
