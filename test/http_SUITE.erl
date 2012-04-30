@@ -17,44 +17,102 @@
 
 -include_lib("common_test/include/ct.hrl").
 
--export([all/0, groups/0, init_per_suite/1, end_per_suite/1,
-	init_per_group/2, end_per_group/2]). %% ct.
--export([chunked_response/1, headers_dupe/1, headers_huge/1,
-	keepalive_nl/1, max_keepalive/1, nc_rand/1, nc_zero/1,
-	pipeline/1, raw/1, set_resp_header/1, set_resp_overwrite/1,
-	set_resp_body/1, stream_body_set_resp/1, response_as_req/1,
-	static_mimetypes_function/1, static_attribute_etag/1,
-	static_function_etag/1, multipart/1, te_identity/1,
-	te_chunked/1, te_chunked_delayed/1]). %% http.
--export([http_200/1, http_404/1, handler_errors/1,
-	file_200/1, file_403/1, dir_403/1, file_404/1,
-	file_400/1]). %% http and https.
--export([http_10_hostless/1, http_10_chunkless/1]). %% misc.
--export([rest_simple/1, rest_keepalive/1, rest_keepalive_post/1,
-	rest_nodelete/1, rest_resource_etags/1]). %% rest.
--export([onrequest/1, onrequest_reply/1]). %% hooks.
+%% ct.
+-export([all/0]).
+-export([groups/0]).
+-export([init_per_suite/1]).
+-export([end_per_suite/1]).
+-export([init_per_group/2]).
+-export([end_per_group/2]).
+
+%% Tests.
+-export([check_raw_status/1]).
+-export([check_status/1]).
+-export([chunked_response/1]).
+-export([error_chain_handle_after_reply/1]).
+-export([error_chain_handle_before_reply/1]).
+-export([error_handle_after_reply/1]).
+-export([error_init_after_reply/1]).
+-export([error_init_reply_handle_error/1]).
+-export([headers_dupe/1]).
+-export([http10_chunkless/1]).
+-export([http10_hostless/1]).
+-export([keepalive_max/1]).
+-export([keepalive_nl/1]).
+-export([multipart/1]).
+-export([nc_rand/1]).
+-export([nc_zero/1]).
+-export([onrequest/1]).
+-export([onrequest_reply/1]).
+-export([pipeline/1]).
+-export([rest_keepalive/1]).
+-export([rest_keepalive_post/1]).
+-export([rest_nodelete/1]).
+-export([rest_resource_etags/1]).
+-export([rest_resource_etags_if_none_match/1]).
+-export([set_resp_body/1]).
+-export([set_resp_header/1]).
+-export([set_resp_overwrite/1]).
+-export([static_attribute_etag/1]).
+-export([static_function_etag/1]).
+-export([static_mimetypes_function/1]).
+-export([static_test_file/1]).
+-export([static_test_file_css/1]).
+-export([stream_body_set_resp/1]).
+-export([te_chunked/1]).
+-export([te_chunked_delayed/1]).
+-export([te_identity/1]).
 
 %% ct.
 
 all() ->
-	[{group, http}, {group, https}, {group, misc}, {group, rest},
-		{group, hooks}].
+	[{group, http}, {group, https}, {group, hooks}].
 
 groups() ->
-	BaseTests = [http_200, http_404, handler_errors,
-		file_200, file_403, dir_403, file_404, file_400],
-	[{http, [], [chunked_response, headers_dupe, headers_huge,
-		keepalive_nl, max_keepalive, nc_rand, nc_zero, pipeline, raw,
-		set_resp_header, set_resp_overwrite,
-		set_resp_body, response_as_req, stream_body_set_resp,
-		static_mimetypes_function, static_attribute_etag,
-		static_function_etag, multipart, te_identity, te_chunked,
-		te_chunked_delayed] ++ BaseTests},
-	{https, [], BaseTests},
-	{misc, [], [http_10_hostless, http_10_chunkless]},
-	{rest, [], [rest_simple, rest_keepalive, rest_keepalive_post,
-		rest_nodelete, rest_resource_etags]},
-	{hooks, [], [onrequest, onrequest_reply]}].
+	Tests = [
+		check_raw_status,
+		check_status,
+		chunked_response,
+		error_chain_handle_after_reply,
+		error_chain_handle_before_reply,
+		error_handle_after_reply,
+		error_init_after_reply,
+		error_init_reply_handle_error,
+		headers_dupe,
+		http10_chunkless,
+		http10_hostless,
+		keepalive_max,
+		keepalive_nl,
+		multipart,
+		nc_rand,
+		nc_zero,
+		pipeline,
+		rest_keepalive,
+		rest_keepalive_post,
+		rest_nodelete,
+		rest_resource_etags,
+		rest_resource_etags_if_none_match,
+		set_resp_body,
+		set_resp_header,
+		set_resp_overwrite,
+		static_attribute_etag,
+		static_function_etag,
+		static_mimetypes_function,
+		static_test_file,
+		static_test_file_css,
+		stream_body_set_resp,
+		te_chunked,
+		te_chunked_delayed,
+		te_identity
+	],
+	[
+		{http, [], Tests},
+		{https, [], Tests},
+		{hooks, [], [
+			onrequest,
+			onrequest_reply
+		]}
+	].
 
 init_per_suite(Config) ->
 	application:start(inets),
@@ -68,57 +126,54 @@ end_per_suite(_Config) ->
 
 init_per_group(http, Config) ->
 	Port = 33080,
+	Transport = cowboy_tcp_transport,
 	Config1 = init_static_dir(Config),
 	cowboy:start_listener(http, 100,
-		cowboy_tcp_transport, [{port, Port}],
-		cowboy_http_protocol, [{max_keepalive, 50},
-			{dispatch, init_http_dispatch(Config1)}]
+		Transport, [{port, Port}],
+		cowboy_http_protocol, [
+			{dispatch, init_dispatch(Config1)},
+			{max_keepalive, 50},
+			{timeout, 500}]
 	),
-	[{scheme, "http"}, {port, Port}|Config1];
+	{ok, Client} = cowboy_client:init([]),
+	[{scheme, <<"http">>}, {port, Port}, {opts, []},
+		{transport, Transport}, {client, Client}|Config1];
 init_per_group(https, Config) ->
 	Port = 33081,
+	Transport = cowboy_ssl_transport,
+	Opts = [
+		{certfile, ?config(data_dir, Config) ++ "cert.pem"},
+		{keyfile, ?config(data_dir, Config) ++ "key.pem"},
+		{password, "cowboy"}
+	],
 	Config1 = init_static_dir(Config),
 	application:start(crypto),
 	application:start(public_key),
 	application:start(ssl),
-	DataDir = ?config(data_dir, Config),
 	{ok,_} = cowboy:start_listener(https, 100,
-		cowboy_ssl_transport, [
-			{port, Port}, {certfile, DataDir ++ "cert.pem"},
-			{keyfile, DataDir ++ "key.pem"}, {password, "cowboy"}],
-		cowboy_http_protocol, [{dispatch, init_https_dispatch(Config1)}]
-	),
-	[{scheme, "https"}, {port, Port}|Config1];
-init_per_group(misc, Config) ->
-	Port = 33082,
-	{ok,_} = cowboy:start_listener(misc, 100,
-		cowboy_tcp_transport, [{port, Port}],
-		cowboy_http_protocol, [{dispatch, [{'_', [
-			{[<<"chunked_response">>], chunked_handler, []},
-			{[], http_handler, []}
-	]}]}]),
-	[{port, Port}|Config];
-init_per_group(rest, Config) ->
-	Port = 33083,
-	{ok,_} = cowboy:start_listener(rest, 100,
-		cowboy_tcp_transport, [{port, Port}],
-		cowboy_http_protocol, [{dispatch, [{'_', [
-			{[<<"simple">>], rest_simple_resource, []},
-			{[<<"forbidden_post">>], rest_forbidden_resource, [true]},
-			{[<<"simple_post">>], rest_forbidden_resource, [false]},
-			{[<<"nodelete">>], rest_nodelete_resource, []},
-			{[<<"resetags">>], rest_resource_etags, []}
-	]}]}]),
-	[{scheme, "http"},{port, Port}|Config];
-init_per_group(hooks, Config) ->
-	Port = 33084,
-	{ok, _} = cowboy:start_listener(hooks, 100,
-		cowboy_tcp_transport, [{port, Port}],
+		Transport, Opts ++ [{port, Port}],
 		cowboy_http_protocol, [
-			{dispatch, init_http_dispatch(Config)},
-			{onrequest, fun onrequest_hook/1}
+			{dispatch, init_dispatch(Config1)},
+			{max_keepalive, 50},
+			{timeout, 500}]
+	),
+	{ok, Client} = cowboy_client:init(Opts),
+	[{scheme, <<"https">>}, {port, Port}, {opts, Opts},
+		{transport, Transport}, {client, Client}|Config1];
+init_per_group(hooks, Config) ->
+	Port = 33082,
+	Transport = cowboy_tcp_transport,
+	{ok, _} = cowboy:start_listener(hooks, 100,
+		Transport, [{port, Port}],
+		cowboy_http_protocol, [
+			{dispatch, init_dispatch(Config)},
+			{max_keepalive, 50},
+			{onrequest, fun onrequest_hook/1},
+			{timeout, 500}
 		]),
-	[{scheme, "http"}, {port, Port}|Config].
+	{ok, Client} = cowboy_client:init([]),
+	[{scheme, <<"http">>}, {port, Port}, {opts, []},
+		{transport, Transport}, {client, Client}|Config].
 
 end_per_group(https, Config) ->
 	cowboy:stop_listener(https),
@@ -130,13 +185,13 @@ end_per_group(https, Config) ->
 end_per_group(http, Config) ->
 	cowboy:stop_listener(http),
 	end_static_dir(Config);
-end_per_group(Listener, _Config) ->
-	cowboy:stop_listener(Listener),
+end_per_group(hooks, _) ->
+	cowboy:stop_listener(hooks),
 	ok.
 
 %% Dispatch configuration.
 
-init_http_dispatch(Config) ->
+init_dispatch(Config) ->
 	[
 		{[<<"localhost">>], [
 			{[<<"chunked_response">>], chunked_handler, []},
@@ -168,13 +223,14 @@ init_http_dispatch(Config) ->
 				 {etag, {fun static_function_etag/2, etag_data}}]},
 			{[<<"multipart">>], http_handler_multipart, []},
 			{[<<"echo">>, <<"body">>], http_handler_echo_body, []},
+			{[<<"simple">>], rest_simple_resource, []},
+			{[<<"forbidden_post">>], rest_forbidden_resource, [true]},
+			{[<<"simple_post">>], rest_forbidden_resource, [false]},
+			{[<<"nodelete">>], rest_nodelete_resource, []},
+			{[<<"resetags">>], rest_resource_etags, []},
 			{[], http_handler, []}
 		]}
 	].
-
-init_https_dispatch(Config) ->
-	init_http_dispatch(Config).
-
 
 init_static_dir(Config) ->
 	Dir = filename:join(?config(priv_dir, Config), "static"),
@@ -199,246 +255,53 @@ end_static_dir(Config) ->
 	ok = file:del_dir(Dir),
 	Config.
 
-%% http.
+%% Convenience functions.
 
-chunked_response(Config) ->
-	{ok, {{"HTTP/1.1", 200, "OK"}, _Headers, "chunked_handler\r\nworks fine!"}} =
-		httpc:request(build_url("/chunked_response", Config)).
-
-headers_dupe(Config) ->
-	{port, Port} = lists:keyfind(port, 1, Config),
-	{ok, Socket} = gen_tcp:connect("localhost", Port,
-		[binary, {active, false}, {packet, raw}]),
-	ok = gen_tcp:send(Socket, "GET /headers/dupe HTTP/1.1\r\n"
-		"Host: localhost\r\nConnection: keep-alive\r\n\r\n"),
-	{ok, Data} = gen_tcp:recv(Socket, 0, 6000),
-	{_Start, _Length} = binary:match(Data, <<"Connection: close">>),
-	nomatch = binary:match(Data, <<"Connection: keep-alive">>),
-	{error, closed} = gen_tcp:recv(Socket, 0, 1000).
-
-headers_huge(Config) ->
-	Cookie = lists:flatten(["whatever_man_biiiiiiiiiiiig_cookie_me_want_77="
-		"Wed Apr 06 2011 10:38:52 GMT-0500 (CDT)" || _N <- lists:seq(1, 40)]),
-	{_Packet, 200} = raw_req(["GET / HTTP/1.0\r\nHost: localhost\r\n"
-		"Set-Cookie: ", Cookie, "\r\n\r\n"], Config).
-
-keepalive_nl(Config) ->
-	{port, Port} = lists:keyfind(port, 1, Config),
-	{ok, Socket} = gen_tcp:connect("localhost", Port,
-		[binary, {active, false}, {packet, raw}]),
-	ok = keepalive_nl_loop(Socket, 10),
-	ok = gen_tcp:close(Socket).
-
-keepalive_nl_loop(_Socket, 0) ->
-	ok;
-keepalive_nl_loop(Socket, N) ->
-	ok = gen_tcp:send(Socket, "GET / HTTP/1.1\r\n"
-		"Host: localhost\r\nConnection: keep-alive\r\n\r\n"),
-	{ok, Data} = gen_tcp:recv(Socket, 0, 6000),
-	{0, 12} = binary:match(Data, <<"HTTP/1.1 200">>),
-	nomatch = binary:match(Data, <<"Connection: close">>),
-	ok = gen_tcp:send(Socket, "\r\n"), %% extra nl
-	keepalive_nl_loop(Socket, N - 1).
-
-max_keepalive(Config) ->
-	{port, Port} = lists:keyfind(port, 1, Config),
-	{ok, Socket} = gen_tcp:connect("localhost", Port,
-		[binary, {active, false}, {packet, raw}]),
-	ok = max_keepalive_loop(Socket, 50),
-	{error, closed} = gen_tcp:recv(Socket, 0, 1000).
-
-max_keepalive_loop(_Socket, 0) ->
-	ok;
-max_keepalive_loop(Socket, N) ->
-	ok = gen_tcp:send(Socket, "GET / HTTP/1.1\r\n"
-		"Host: localhost\r\nConnection: keep-alive\r\n\r\n"),
-	{ok, Data} = gen_tcp:recv(Socket, 0, 6000),
-	{0, 12} = binary:match(Data, <<"HTTP/1.1 200">>),
-	case N of
-		1 -> {_, _} = binary:match(Data, <<"Connection: close">>);
-		N -> nomatch = binary:match(Data, <<"Connection: close">>)
-	end,
-	keepalive_nl_loop(Socket, N - 1).
-
-multipart(Config) ->
-	Url = build_url("/multipart", Config),
-	Body = <<
-		"This is a preamble."
-		"\r\n--OHai\r\nX-Name:answer\r\n\r\n42"
-		"\r\n--OHai\r\nServer:Cowboy\r\n\r\nIt rocks!\r\n"
-		"\r\n--OHai--"
-		"This is an epiloque."
-	>>,
-	Request = {Url, [], "multipart/x-makes-no-sense; boundary=OHai", Body},
-	{ok, {{"HTTP/1.1", 200, "OK"}, _Headers, Response}} =
-		httpc:request(post, Request, [], [{body_format, binary}]),
-	Parts = binary_to_term(Response),
-	Parts = [
-		{[{<<"X-Name">>, <<"answer">>}], <<"42">>},
-		{[{'Server', <<"Cowboy">>}], <<"It rocks!\r\n">>}
-	].
-
-nc_rand(Config) ->
-	nc_reqs(Config, "/dev/urandom").
-
-nc_zero(Config) ->
-	nc_reqs(Config, "/dev/zero").
-
-nc_reqs(Config, Input) ->
-	Cat = os:find_executable("cat"),
-	Nc = os:find_executable("nc"),
-	case {Cat, Nc} of
-		{false, _} ->
-			{skip, {notfound, cat}};
-		{_, false} ->
-			{skip, {notfound, nc}};
-		_Good ->
-			%% Throw garbage at the server then check if it's still up.
-			{port, Port} = lists:keyfind(port, 1, Config),
-			[nc_run_req(Port, Input) || _N <- lists:seq(1, 100)],
-			Packet = "GET / HTTP/1.0\r\nHost: localhost\r\n\r\n",
-			{Packet, 200} = raw_req(Packet, Config)
+quick_raw(Data, Config) ->
+	Client = ?config(client, Config),
+	Transport = ?config(transport, Config),
+	{ok, Client2} = cowboy_client:connect(
+		Transport, "localhost", ?config(port, Config), Client),
+	{ok, Client3} = cowboy_client:raw_request(Data, Client2),
+	case cowboy_client:response(Client3) of
+		{ok, Status, _, _} -> Status;
+		{error, _} -> closed
 	end.
 
-nc_run_req(Port, Input) ->
-	os:cmd("cat " ++ Input ++ " | nc localhost " ++ integer_to_list(Port)).
-
-pipeline(Config) ->
+build_url(Path, Config) ->
+	{scheme, Scheme} = lists:keyfind(scheme, 1, Config),
 	{port, Port} = lists:keyfind(port, 1, Config),
-	{ok, Socket} = gen_tcp:connect("localhost", Port,
-		[binary, {active, false}, {packet, raw}]),
-	ok = gen_tcp:send(Socket,
-		"GET / HTTP/1.1\r\nHost: localhost\r\nConnection: keep-alive\r\n\r\n"
-		"GET / HTTP/1.1\r\nHost: localhost\r\nConnection: keep-alive\r\n\r\n"
-		"GET / HTTP/1.1\r\nHost: localhost\r\nConnection: keep-alive\r\n\r\n"
-		"GET / HTTP/1.1\r\nHost: localhost\r\nConnection: keep-alive\r\n\r\n"
-		"GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"),
-	Data = pipeline_recv(Socket, <<>>),
-	Reqs = binary:split(Data, << "\r\n\r\nhttp_handler" >>, [global, trim]),
-	5 = length(Reqs),
-	pipeline_check(Reqs).
+	PortBin = list_to_binary(integer_to_list(Port)),
+	PathBin = list_to_binary(Path),
+	<< Scheme/binary, "://localhost:", PortBin/binary, PathBin/binary >>.
 
-pipeline_check([]) ->
-	ok;
-pipeline_check([Req|Tail]) ->
-	<< "HTTP/1.1 200", _Rest/bits >> = Req,
-	pipeline_check(Tail).
+quick_get(URL, Config) ->
+	Client = ?config(client, Config),
+	{ok, Client2} = cowboy_client:request(<<"GET">>,
+		build_url(URL, Config), Client),
+	{ok, Status, _, _} = cowboy_client:response(Client2),
+	Status.
 
-pipeline_recv(Socket, SoFar) ->
-	case gen_tcp:recv(Socket, 0, 6000) of
-		{ok, Data} ->
-			pipeline_recv(Socket, << SoFar/binary, Data/binary >>);
-		{error, closed} ->
-			ok = gen_tcp:close(Socket),
-			SoFar
-	end.
-
-raw_req(Packet, Config) ->
-	{port, Port} = lists:keyfind(port, 1, Config),
-	{ok, Socket} = gen_tcp:connect("localhost", Port,
-		[binary, {active, false}, {packet, raw}]),
-	ok = gen_tcp:send(Socket, Packet),
-	Res = case gen_tcp:recv(Socket, 0, 6000) of
-		{ok, << "HTTP/1.1 ", Str:24/bits, _Rest/bits >>} ->
-			list_to_integer(binary_to_list(Str));
-		{error, Reason} ->
-			Reason
+body_to_chunks(_, <<>>, Acc) ->
+	lists:reverse([<<"0\r\n\r\n">>|Acc]);
+body_to_chunks(ChunkSize, Body, Acc) ->
+	BodySize = byte_size(Body),
+	ChunkSize2 = case BodySize < ChunkSize of
+		true -> BodySize;
+		false -> ChunkSize
 	end,
-	gen_tcp:close(Socket),
-	{Packet, Res}.
+	<< Chunk:ChunkSize2/binary, Rest/binary >> = Body,
+	ChunkSizeBin = list_to_binary(integer_to_list(ChunkSize2, 16)),
+	body_to_chunks(ChunkSize, Rest,
+		[<< ChunkSizeBin/binary, "\r\n", Chunk/binary, "\r\n" >>|Acc]).
 
-%% Send a raw request. Return the response code and the full response.
-raw_resp(Request, Config) ->
-   	{port, Port} = lists:keyfind(port, 1, Config),
-	Transport = case ?config(scheme, Config) of
-		"http" -> gen_tcp;
-		"https" -> ssl
-	end,
-	{ok, Socket} = Transport:connect("localhost", Port,
-		[binary, {active, false}, {packet, raw}]),
-	ok = Transport:send(Socket, Request),
-	{StatusCode,  Response} = case recv_loop(Transport, Socket, <<>>) of
-		{ok, << "HTTP/1.1 ", Str:24/bits, _Rest/bits >> = Bin} ->
-			{list_to_integer(binary_to_list(Str)), Bin};
-		{ok, Bin} ->
-			{badresp, Bin};
-		{error, Reason} ->
-			{Reason, <<>>}
-	end,
-	Transport:close(Socket),
-	{Response, StatusCode}.
+%% Tests.
 
-recv_loop(Transport, Socket, Acc) ->
-	case Transport:recv(Socket, 0, 6000) of
-		{ok, Data} ->
-			recv_loop(Transport, Socket, <<Acc/binary, Data/binary>>);
-		{error, closed} ->
-			ok = Transport:close(Socket),
-			{ok, Acc};
-		{error, Reason} ->
-			{error, Reason}
-	end.
-
-
-
-raw(Config) ->
-	Huge = [$0 || _N <- lists:seq(1, 5000)],
-	Tests = [
-		{"\r\n\r\n\r\n\r\n\r\nGET / HTTP/1.1\r\nHost: localhost\r\n\r\n", 200},
-		{"\n", 400},
-		{"Garbage\r\n\r\n", 400},
-		{"\r\n\r\n\r\n\r\n\r\n\r\n", 400},
-		{"GET / HTTP/1.1\r\nHost: dev-extend.eu\r\n\r\n", 400},
-		{"", closed},
-		{"\r\n", closed},
-		{"\r\n\r\n", closed},
-		{"GET / HTTP/1.1", closed},
-		{"GET / HTTP/1.1\r\n", 408},
-		{"GET / HTTP/1.1\r\nHost: localhost", 408},
-		{"GET / HTTP/1.1\r\nHost: localhost\r\n", 408},
-		{"GET / HTTP/1.1\r\nHost: localhost\r\n\r", 408},
-		{"GET http://proxy/ HTTP/1.1\r\n\r\n", 400},
-		{"GET http://proxy/ HTTP/1.1\r\nHost: localhost\r\n\r\n", 200},
-		{"GET / HTTP/1.2\r\nHost: localhost\r\n\r\n", 505},
-		{"GET /init_shutdown HTTP/1.1\r\nHost: localhost\r\n\r\n", 666},
-		{"GET /long_polling HTTP/1.1\r\nHost: localhost\r\n\r\n", 102},
-		{Huge, 413},
-		{"GET / HTTP/1.1\r\n" ++ Huge, 413}
-	],
-	[{Packet, StatusCode} = raw_req(Packet, Config)
-		|| {Packet, StatusCode} <- Tests].
-
-set_resp_header(Config) ->
-	{port, Port} = lists:keyfind(port, 1, Config),
-	{ok, Socket} = gen_tcp:connect("localhost", Port,
-		[binary, {active, false}, {packet, raw}]),
-	ok = gen_tcp:send(Socket, "GET /set_resp/header HTTP/1.1\r\n"
-		"Host: localhost\r\nConnection: close\r\n\r\n"),
-	{ok, Data} = gen_tcp:recv(Socket, 0, 6000),
-	{_, _} = binary:match(Data, <<"Vary: Accept">>),
-	{_, _} = binary:match(Data, <<"Set-Cookie: ">>).
-
-set_resp_overwrite(Config) ->
-	{port, Port} = lists:keyfind(port, 1, Config),
-	{ok, Socket} = gen_tcp:connect("localhost", Port,
-		[binary, {active, false}, {packet, raw}]),
-	ok = gen_tcp:send(Socket, "GET /set_resp/overwrite HTTP/1.1\r\n"
-		"Host: localhost\r\nConnection: close\r\n\r\n"),
-	{ok, Data} = gen_tcp:recv(Socket, 0, 6000),
-	{_Start, _Length} = binary:match(Data, <<"Server: DesireDrive/1.0">>).
-
-set_resp_body(Config) ->
-	{port, Port} = lists:keyfind(port, 1, Config),
-	{ok, Socket} = gen_tcp:connect("localhost", Port,
-		[binary, {active, false}, {packet, raw}]),
-	ok = gen_tcp:send(Socket, "GET /set_resp/body HTTP/1.1\r\n"
-		"Host: localhost\r\nConnection: close\r\n\r\n"),
-	{ok, Data} = gen_tcp:recv(Socket, 0, 6000),
-	{_Start, _Length} = binary:match(Data, <<"\r\n\r\n"
-		"A flameless dance does not equal a cycle">>).
-
-response_as_req(Config) ->
-	Packet =
+check_raw_status(Config) ->
+	Huge = [$0 || _ <- lists:seq(1, 5000)],
+	HugeCookie = lists:flatten(["whatever_man_biiiiiiiiiiiig_cookie_me_want_77="
+		"Wed Apr 06 2011 10:38:52 GMT-0500 (CDT)" || _ <- lists:seq(1, 40)]),
+	ResponsePacket =
 "HTTP/1.0 302 Found
 Location: http://www.google.co.il/
 Cache-Control: private
@@ -456,329 +319,243 @@ X-Frame-Options: SAMEORIGIN
 The document has moved
 <A HREF=\"http://www.google.co.il/\">here</A>.
 </BODY></HTML>",
-	{Packet, 400} = raw_req(Packet, Config).
+	Tests = [
+		{200, ["GET / HTTP/1.0\r\nHost: localhost\r\n"
+			"Set-Cookie: ", HugeCookie, "\r\n\r\n"]},
+		{200, "\r\n\r\n\r\n\r\n\r\nGET / HTTP/1.1\r\nHost: localhost\r\n\r\n"},
+		{200, "GET http://proxy/ HTTP/1.1\r\nHost: localhost\r\n\r\n"},
+		{400, "\n"},
+		{400, "Garbage\r\n\r\n"},
+		{400, "\r\n\r\n\r\n\r\n\r\n\r\n"},
+		{400, "GET / HTTP/1.1\r\nHost: dev-extend.eu\r\n\r\n"},
+		{400, "GET http://proxy/ HTTP/1.1\r\n\r\n"},
+		{400, ResponsePacket},
+		{408, "GET / HTTP/1.1\r\n"},
+		{408, "GET / HTTP/1.1\r\nHost: localhost"},
+		{408, "GET / HTTP/1.1\r\nHost: localhost\r\n"},
+		{408, "GET / HTTP/1.1\r\nHost: localhost\r\n\r"},
+		{413, Huge},
+		{413, "GET / HTTP/1.1\r\n" ++ Huge},
+		{505, "GET / HTTP/1.2\r\nHost: localhost\r\n\r\n"},
+		{closed, ""},
+		{closed, "\r\n"},
+		{closed, "\r\n\r\n"},
+		{closed, "GET / HTTP/1.1"}
+	],
+	_ = [{Status, Packet} = begin
+		Ret = quick_raw(Packet, Config),
+		{Ret, Packet}
+	end || {Status, Packet} <- Tests].
 
-stream_body_set_resp(Config) ->
-	{Packet, 200} = raw_resp(
-		"GET /stream_body/set_resp HTTP/1.1\r\n"
-		"Host: localhost\r\nConnection: close\r\n\r\n", Config),
-	{_Start, _Length} = binary:match(Packet, <<"stream_body_set_resp">>).
+check_status(Config) ->
+	Tests = [
+		{102, "/long_polling"},
+		{200, "/"},
+		{200, "/simple"},
+		{400, "/static/%2f"},
+		{400, "/static/%2e"},
+		{400, "/static/%2e%2e"},
+		{403, "/static/test_dir"},
+		{403, "/static/test_dir/"},
+		{403, "/static/test_noread"},
+		{404, "/not/found"},
+		{404, "/static/not_found"},
+		{500, "/handler_errors?case=handler_before_reply"},
+		{500, "/handler_errors?case=init_before_reply"},
+		{666, "/init_shutdown"}
+	],
+	_ = [{Status, URL} = begin
+		Ret = quick_get(URL, Config),
+		{Ret, URL}
+	end || {Status, URL} <- Tests].
 
-static_mimetypes_function(Config) ->
-	TestURL = build_url("/static_mimetypes_function/test.html", Config),
-	{ok, {{"HTTP/1.1", 200, "OK"}, Headers1, "test.html\n"}} =
-		httpc:request(TestURL),
-	"text/html" = ?config("content-type", Headers1).
+%% @todo Convert to cowboy_client.
+chunked_response(Config) ->
+	{ok, {{"HTTP/1.1", 200, "OK"}, _, "chunked_handler\r\nworks fine!"}}
+		= httpc:request(binary_to_list(build_url("/chunked_response", Config))).
 
-handler_errors(Config) ->
-	Request = fun(Case) ->
-		raw_resp(["GET /handler_errors?case=", Case, " HTTP/1.1\r\n",
-		 "Host: localhost\r\n\r\n"], Config) end,
+error_chain_handle_after_reply(Config) ->
+	Client = ?config(client, Config),
+	{ok, Client2} = cowboy_client:request(<<"GET">>,
+		build_url("/", Config), Client),
+	{ok, Client3} = cowboy_client:request(<<"GET">>,
+		build_url("/handler_errors?case=handle_after_reply", Config), Client2),
+	{ok, 200, _, Client4} = cowboy_client:response(Client3),
+	{ok, 200, _, Client5} = cowboy_client:response(Client4),
+	{error, closed} = cowboy_client:response(Client5).
 
-	{_Packet1, 500} = Request("init_before_reply"),
+error_chain_handle_before_reply(Config) ->
+	Client = ?config(client, Config),
+	{ok, Client2} = cowboy_client:request(<<"GET">>,
+		build_url("/", Config), Client),
+	{ok, Client3} = cowboy_client:request(<<"GET">>,
+		build_url("/handler_errors?case=handle_before_reply", Config), Client2),
+	{ok, 200, _, Client4} = cowboy_client:response(Client3),
+	{ok, 500, _, Client5} = cowboy_client:response(Client4),
+	{error, closed} = cowboy_client:response(Client5).
 
-	{Packet2, 200} = Request("init_after_reply"),
-	nomatch = binary:match(Packet2, <<"HTTP/1.1 500">>),
+error_handle_after_reply(Config) ->
+	Client = ?config(client, Config),
+	{ok, Client2} = cowboy_client:request(<<"GET">>,
+		build_url("/handler_errors?case=handle_after_reply", Config), Client),
+	{ok, 200, _, Client3} = cowboy_client:response(Client2),
+	{error, closed} = cowboy_client:response(Client3).
 
-	{Packet3, 200} = Request("init_reply_handle_error"),
-	nomatch = binary:match(Packet3, <<"HTTP/1.1 500">>),
+error_init_after_reply(Config) ->
+	Client = ?config(client, Config),
+	{ok, Client2} = cowboy_client:request(<<"GET">>,
+		build_url("/handler_errors?case=init_after_reply", Config), Client),
+	{ok, 200, _, Client3} = cowboy_client:response(Client2),
+	{error, closed} = cowboy_client:response(Client3).
 
-	{_Packet4, 500} = Request("handle_before_reply"),
+error_init_reply_handle_error(Config) ->
+	Client = ?config(client, Config),
+	{ok, Client2} = cowboy_client:request(<<"GET">>,
+		build_url("/handler_errors?case=init_reply_handle_error", Config), Client),
+	{ok, 200, _, Client3} = cowboy_client:response(Client2),
+	{error, closed} = cowboy_client:response(Client3).
 
-	{Packet5, 200} = Request("handle_after_reply"),
-	nomatch = binary:match(Packet5, <<"HTTP/1.1 500">>),
+headers_dupe(Config) ->
+	Client = ?config(client, Config),
+	{ok, Client2} = cowboy_client:request(<<"GET">>,
+		build_url("/headers/dupe", Config), Client),
+	{ok, 200, Headers, Client3} = cowboy_client:response(Client2),
+	{<<"connection">>, <<"close">>}
+		= lists:keyfind(<<"connection">>, 1, Headers),
+	Connections = [H || H = {Name, _} <- Headers, Name =:= <<"connection">>],
+	1 = length(Connections),
+	{error, closed} = cowboy_client:response(Client3).
 
-	{Packet6, 200} = raw_resp([
-		"GET / HTTP/1.1\r\n",
-		"Host: localhost\r\n",
-		"Connection: keep-alive\r\n\r\n",
-		"GET /handler_errors?case=handle_after_reply\r\n",
-		"Host: localhost\r\n\r\n"], Config),
-	nomatch = binary:match(Packet6, <<"HTTP/1.1 500">>),
-
-	{Packet7, 200} = raw_resp([
-		"GET / HTTP/1.1\r\n",
-		"Host: localhost\r\n",
-		"Connection: keep-alive\r\n\r\n",
-		"GET /handler_errors?case=handle_before_reply HTTP/1.1\r\n",
-		"Host: localhost\r\n\r\n"], Config),
-	{{_, _}, _} = {binary:match(Packet7, <<"HTTP/1.1 500">>), Packet7},
-
-	done.
-
-static_attribute_etag(Config) ->
-	TestURL = build_url("/static_attribute_etag/test.html", Config),
-	{ok, {{"HTTP/1.1", 200, "OK"}, Headers1, "test.html\n"}} =
-		httpc:request(TestURL),
-	false = ?config("etag", Headers1) =:= undefined,
-	{ok, {{"HTTP/1.1", 200, "OK"}, Headers2, "test.html\n"}} =
-		httpc:request(TestURL),
-	true = ?config("etag", Headers1) =:= ?config("etag", Headers2).
-
-static_function_etag(Config) ->
-	TestURL = build_url("/static_function_etag/test.html", Config),
-	{ok, {{"HTTP/1.1", 200, "OK"}, Headers1, "test.html\n"}} =
-		httpc:request(TestURL),
-	false = ?config("etag", Headers1) =:= undefined,
-	{ok, {{"HTTP/1.1", 200, "OK"}, Headers2, "test.html\n"}} =
-		httpc:request(TestURL),
-	true = ?config("etag", Headers1) =:= ?config("etag", Headers2).
-
-static_function_etag(Arguments, etag_data) ->
-	{_, Filepath} = lists:keyfind(filepath, 1, Arguments),
-	{_, _Filesize} = lists:keyfind(filesize, 1, Arguments),
-	{_, _INode} = lists:keyfind(inode, 1, Arguments),
-	{_, _Modified} = lists:keyfind(mtime, 1, Arguments),
-	ChecksumCommand = lists:flatten(io_lib:format("sha1sum ~s", [Filepath])),
-	[Checksum|_] = string:tokens(os:cmd(ChecksumCommand), " "),
-	{strong, iolist_to_binary(Checksum)}.
-
-te_identity(Config) ->
-	{port, Port} = lists:keyfind(port, 1, Config),
-	{ok, Socket} = gen_tcp:connect("localhost", Port,
-		[binary, {active, false}, {packet, raw}]),
-	Body = list_to_binary(io_lib:format("~p", [lists:seq(1, 100)])),
-	StrLen = integer_to_list(byte_size(Body)),
-	ok = gen_tcp:send(Socket, ["GET /echo/body HTTP/1.1\r\n"
-		"Host: localhost\r\nConnection: close\r\n"
-		"Content-Length: ", StrLen, "\r\n\r\n", Body]),
-	{ok, Data} = gen_tcp:recv(Socket, 0, 6000),
-	{_, _} = binary:match(Data, Body).
-
-te_chunked(Config) ->
-	{port, Port} = lists:keyfind(port, 1, Config),
-	{ok, Socket} = gen_tcp:connect("localhost", Port,
-		[binary, {active, false}, {packet, raw}]),
-	Body = list_to_binary(io_lib:format("~p", [lists:seq(1, 100)])),
-	Chunks = body_to_chunks(50, Body, []),
-	ok = gen_tcp:send(Socket, ["GET /echo/body HTTP/1.1\r\n"
-		"Host: localhost\r\nConnection: close\r\n"
-		"Transfer-Encoding: chunked\r\n\r\n", Chunks]),
-	{ok, Data} = gen_tcp:recv(Socket, 0, 6000),
-	{_, _} = binary:match(Data, Body).
-
-te_chunked_delayed(Config) ->
-	{port, Port} = lists:keyfind(port, 1, Config),
-	{ok, Socket} = gen_tcp:connect("localhost", Port,
-		[binary, {active, false}, {packet, raw}]),
-	Body = list_to_binary(io_lib:format("~p", [lists:seq(1, 100)])),
-	Chunks = body_to_chunks(50, Body, []),
-	ok = gen_tcp:send(Socket, ["GET /echo/body HTTP/1.1\r\n"
-		"Host: localhost\r\nConnection: close\r\n"
-		"Transfer-Encoding: chunked\r\n\r\n"]),
-	_ = [begin ok = gen_tcp:send(Socket, Chunk), ok = timer:sleep(10) end
-		|| Chunk <- Chunks],
-	{ok, Data} = gen_tcp:recv(Socket, 0, 6000),
-	{_, _} = binary:match(Data, Body).
-
-body_to_chunks(_, <<>>, Acc) ->
-	lists:reverse([<<"0\r\n\r\n">>|Acc]);
-body_to_chunks(ChunkSize, Body, Acc) ->
-	BodySize = byte_size(Body),
-	ChunkSize2 = case BodySize < ChunkSize of
-		true -> BodySize;
-		false -> ChunkSize
+http10_chunkless(Config) ->
+	Client = ?config(client, Config),
+	Transport = ?config(transport, Config),
+	{ok, Client2} = cowboy_client:connect(
+		Transport, "localhost", ?config(port, Config), Client),
+	Data = "GET /chunked_response HTTP/1.0\r\nHost: localhost\r\n\r\n",
+	{ok, Client3} = cowboy_client:raw_request(Data, Client2),
+	{ok, 200, Headers, Client4} = cowboy_client:response(Client3),
+	false = lists:keyfind(<<"transfer-encoding">>, 1, Headers),
+	%% Hack: we just try to get 28 bytes and compare.
+	{ok, Transport, Socket} = cowboy_client:transport(Client4),
+	Buffer = element(7, Client4),
+	Buffer2 = case Transport:recv(Socket, 28 - byte_size(Buffer), 1000) of
+		{ok, Recv} -> << Buffer/binary, Recv/binary >>;
+		_ -> Buffer
 	end,
-	<< Chunk:ChunkSize2/binary, Rest/binary >> = Body,
-	ChunkSizeBin = list_to_binary(integer_to_list(ChunkSize2, 16)),
-	body_to_chunks(ChunkSize, Rest,
-		[<< ChunkSizeBin/binary, "\r\n", Chunk/binary, "\r\n" >>|Acc]).
+	<<"chunked_handler\r\nworks fine!">> = Buffer2.
 
-%% http and https.
+http10_hostless(Config) ->
+	Port10 = ?config(port, Config) + 10,
+	Name = list_to_atom("http10_hostless_" ++ integer_to_list(Port10)),
+	cowboy:start_listener(Name, 5,
+		?config(transport, Config), ?config(opts, Config) ++ [{port, Port10}],
+		cowboy_http_protocol, [
+			{dispatch, [{'_', [
+				{[<<"http1.0">>, <<"hostless">>], http_handler, []}]}]},
+			{max_keepalive, 50},
+			{timeout, 500}]
+	),
+	200 = quick_raw("GET /http1.0/hostless HTTP/1.0\r\n\r\n",
+		[{port, Port10}|Config]),
+	cowboy:stop_listener(http10).
 
-build_url(Path, Config) ->
-	{scheme, Scheme} = lists:keyfind(scheme, 1, Config),
-	{port, Port} = lists:keyfind(port, 1, Config),
-	Scheme ++ "://localhost:" ++ integer_to_list(Port) ++ Path.
+keepalive_max(Config) ->
+	Client = ?config(client, Config),
+	URL = build_url("/", Config),
+	ok = keepalive_max_loop(Client, URL, 50).
 
-http_200(Config) ->
-	{ok, {{"HTTP/1.1", 200, "OK"}, _Headers, "http_handler"}} =
-		httpc:request(build_url("/", Config)).
-
-http_404(Config) ->
-	{ok, {{"HTTP/1.1", 404, "Not Found"}, _Headers, _Body}} =
-		httpc:request(build_url("/not/found", Config)).
-
-file_200(Config) ->
-	{ok, {{"HTTP/1.1", 200, "OK"}, Headers, "test_file\n"}} =
-		httpc:request(build_url("/static/test_file", Config)),
-	"application/octet-stream" = ?config("content-type", Headers),
-
-	{ok, {{"HTTP/1.1", 200, "OK"}, Headers1, "test_file.css\n"}} =
-		httpc:request(build_url("/static/test_file.css", Config)),
-	"text/css" = ?config("content-type", Headers1).
-
-file_403(Config) ->
-	{ok, {{"HTTP/1.1", 403, "Forbidden"}, _Headers, _Body}} =
-		httpc:request(build_url("/static/test_noread", Config)).
-
-dir_403(Config) ->
-	{ok, {{"HTTP/1.1", 403, "Forbidden"}, _Headers, _Body}} =
-		httpc:request(build_url("/static/test_dir", Config)),
-	{ok, {{"HTTP/1.1", 403, "Forbidden"}, _Headers, _Body}} =
-		httpc:request(build_url("/static/test_dir/", Config)).
-
-file_404(Config) ->
-	{ok, {{"HTTP/1.1", 404, "Not Found"}, _Headers, _Body}} =
-		httpc:request(build_url("/static/not_found", Config)).
-
-file_400(Config) ->
-	{ok, {{"HTTP/1.1", 400, "Bad Request"}, _Headers, _Body}} =
-		httpc:request(build_url("/static/%2f", Config)),
-	{ok, {{"HTTP/1.1", 400, "Bad Request"}, _Headers1, _Body1}} =
-		httpc:request(build_url("/static/%2e", Config)),
-	{ok, {{"HTTP/1.1", 400, "Bad Request"}, _Headers2, _Body2}} =
-		httpc:request(build_url("/static/%2e%2e", Config)).
-
-%% misc.
-
-http_10_hostless(Config) ->
-	Packet = "GET / HTTP/1.0\r\n\r\n",
-	{Packet, 200} = raw_req(Packet, Config).
-
-http_10_chunkless(Config) ->
-	{port, Port} = lists:keyfind(port, 1, Config),
-	{ok, Socket} = gen_tcp:connect("localhost", Port,
-		[binary, {active, false}, {packet, raw}]),
-	Packet = "GET /chunked_response HTTP/1.0\r\nContent-Length: 0\r\n\r\n",
-	ok = gen_tcp:send(Socket, Packet),
-	{ok, Data} = gen_tcp:recv(Socket, 0, 6000),
-	nomatch = binary:match(Data, <<"Transfer-Encoding">>),
-	{_, _} = binary:match(Data, <<"chunked_handler\r\nworks fine!">>),
-	ok = gen_tcp:close(Socket).
-
-%% rest.
-
-rest_simple(Config) ->
-	Packet = "GET /simple HTTP/1.1\r\nHost: localhost\r\n\r\n",
-	{Packet, 200} = raw_req(Packet, Config).
-
-rest_keepalive(Config) ->
-	{port, Port} = lists:keyfind(port, 1, Config),
-	{ok, Socket} = gen_tcp:connect("localhost", Port,
-		[binary, {active, false}, {packet, raw}]),
-	ok = rest_keepalive_loop(Socket, 100),
-	ok = gen_tcp:close(Socket).
-
-rest_keepalive_loop(_Socket, 0) ->
+keepalive_max_loop(_, _, 0) ->
 	ok;
-rest_keepalive_loop(Socket, N) ->
-	ok = gen_tcp:send(Socket, "GET /simple HTTP/1.1\r\n"
-		"Host: localhost\r\nConnection: keep-alive\r\n\r\n"),
-	{ok, Data} = gen_tcp:recv(Socket, 0, 6000),
-	{0, 12} = binary:match(Data, <<"HTTP/1.1 200">>),
-	nomatch = binary:match(Data, <<"Connection: close">>),
-	rest_keepalive_loop(Socket, N - 1).
+keepalive_max_loop(Client, URL, N) ->
+	Headers = [{<<"connection">>, <<"keep-alive">>}],
+	{ok, Client2} = cowboy_client:request(<<"GET">>, URL, Headers, Client),
+	{ok, 200, RespHeaders, Client3} = cowboy_client:response(Client2),
+	Expected = case N of
+		1 -> <<"close">>;
+		N -> <<"keep-alive">>
+	end,
+	{<<"connection">>, Expected}
+		= lists:keyfind(<<"connection">>, 1, RespHeaders),
+	keepalive_max_loop(Client3, URL, N - 1).
 
-rest_keepalive_post(Config) ->
-	{port, Port} = lists:keyfind(port, 1, Config),
-	{ok, Socket} = gen_tcp:connect("localhost", Port,
-		[binary, {active, false}, {packet, raw}]),
-	ok = rest_keepalive_post_loop(Socket, 10, forbidden_post),
-	ok = gen_tcp:close(Socket).
+keepalive_nl(Config) ->
+	Client = ?config(client, Config),
+	URL = build_url("/", Config),
+	ok = keepalive_nl_loop(Client, URL, 10).
 
-rest_keepalive_post_loop(_Socket, 0, _) ->
+keepalive_nl_loop(_, _, 0) ->
 	ok;
-rest_keepalive_post_loop(Socket, N, simple_post) ->
-	ok = gen_tcp:send(Socket, "POST /simple_post HTTP/1.1\r\n"
-		"Host: localhost\r\nConnection: keep-alive\r\n"
-		"Content-Length: 5\r\nContent-Type: text/plain\r\n\r\n12345"),
-	{ok, Data} = gen_tcp:recv(Socket, 0, 6000),
-	{0, 12} = binary:match(Data, <<"HTTP/1.1 303">>),
-	nomatch = binary:match(Data, <<"Connection: close">>),
-	rest_keepalive_post_loop(Socket, N - 1, forbidden_post);
-rest_keepalive_post_loop(Socket, N, forbidden_post) ->
-	ok = gen_tcp:send(Socket, "POST /forbidden_post HTTP/1.1\r\n"
-		"Host: localhost\r\nConnection: keep-alive\r\n"
-		"Content-Length: 5\r\nContent-Type: text/plain\r\n\r\n12345"),
-	{ok, Data} = gen_tcp:recv(Socket, 0, 6000),
-	{0, 12} = binary:match(Data, <<"HTTP/1.1 403">>),
-	nomatch = binary:match(Data, <<"Connection: close">>),
-	rest_keepalive_post_loop(Socket, N - 1, simple_post).
+keepalive_nl_loop(Client, URL, N) ->
+	Headers = [{<<"connection">>, <<"keep-alive">>}],
+	{ok, Client2} = cowboy_client:request(<<"GET">>, URL, Headers, Client),
+	{ok, 200, RespHeaders, Client3} = cowboy_client:response(Client2),
+	{<<"connection">>, <<"keep-alive">>}
+		= lists:keyfind(<<"connection">>, 1, RespHeaders),
+	{ok, Transport, Socket} = cowboy_client:transport(Client2),
+	ok = Transport:send(Socket, <<"\r\n">>), %% empty line
+	keepalive_nl_loop(Client3, URL, N - 1).
 
-rest_nodelete(Config) ->
-	{port, Port} = lists:keyfind(port, 1, Config),
-	{ok, Socket} = gen_tcp:connect("localhost", Port,
-		[binary, {active, false}, {packet, raw}]),
-	Request = "DELETE /nodelete HTTP/1.1\r\nHost: localhost\r\n\r\n",
-	ok = gen_tcp:send(Socket, Request),
-	{ok, Data} = gen_tcp:recv(Socket, 0, 6000),
-	{0, 12} = binary:match(Data, <<"HTTP/1.1 500">>),
-	ok = gen_tcp:close(Socket).
+multipart(Config) ->
+	Client = ?config(client, Config),
+	Body = <<
+		"This is a preamble."
+		"\r\n--OHai\r\nX-Name:answer\r\n\r\n42"
+		"\r\n--OHai\r\nServer:Cowboy\r\n\r\nIt rocks!\r\n"
+		"\r\n--OHai--"
+		"This is an epiloque."
+	>>,
+	{ok, Client2} = cowboy_client:request(<<"POST">>,
+		build_url("/multipart", Config),
+		[{<<"content-type">>, <<"multipart/x-makes-no-sense; boundary=OHai">>}],
+		Body, Client),
+	{ok, 200, _, Client3} = cowboy_client:response(Client2),
+	{ok, RespBody, _} = cowboy_client:response_body(Client3),
+	Parts = binary_to_term(RespBody),
+	Parts = [
+		{[{<<"X-Name">>, <<"answer">>}], <<"42">>},
+		{[{'Server', <<"Cowboy">>}], <<"It rocks!\r\n">>}
+	].
 
-rest_resource_etags(Config) ->
-	%% The Etag header should be set to the return value of generate_etag/2.
-	fun() ->
-	%% Correct return values from generate_etag/2.
-	{Packet1, 200} = raw_resp([
-		"GET /resetags?type=tuple-weak HTTP/1.1\r\n",
-		"Host: localhost\r\n", "Connection: close\r\n", "\r\n"], Config),
-	{_,_} = binary:match(Packet1, <<"ETag: W/\"etag-header-value\"\r\n">>),
-	{Packet2, 200} = raw_resp([
-		"GET /resetags?type=tuple-strong HTTP/1.1\r\n",
-		"Host: localhost\r\n", "Connection: close\r\n", "\r\n"], Config),
-	{_,_} = binary:match(Packet2, <<"ETag: \"etag-header-value\"\r\n">>),
-	%% Backwards compatible return values from generate_etag/2.
-	{Packet3, 200} = raw_resp([
-		"GET /resetags?type=binary-weak-quoted HTTP/1.1\r\n",
-		"Host: localhost\r\n", "Connection: close\r\n", "\r\n"], Config),
-	{_,_} = binary:match(Packet3, <<"ETag: W/\"etag-header-value\"\r\n">>),
-	{Packet4, 200} = raw_resp([
-		"GET /resetags?type=binary-strong-quoted HTTP/1.1\r\n",
-		"Host: localhost\r\n", "Connection: close\r\n", "\r\n"], Config),
-	{_,_} = binary:match(Packet4, <<"ETag: \"etag-header-value\"\r\n">>),
-	%% Invalid return values from generate_etag/2.
-	{_Packet5, 500} = raw_resp([
-		"GET /resetags?type=binary-strong-unquoted HTTP/1.1\r\n",
-		"Host: localhost\r\n", "Connection: close\r\n", "\r\n"], Config),
-	{_Packet6, 500} = raw_resp([
-		"GET /resetags?type=binary-weak-unquoted HTTP/1.1\r\n",
-		"Host: localhost\r\n", "Connection: close\r\n", "\r\n"], Config)
-	end(),
+nc_reqs(Config, Input) ->
+	Cat = os:find_executable("cat"),
+	Nc = os:find_executable("nc"),
+	case {Cat, Nc} of
+		{false, _} ->
+			{skip, {notfound, cat}};
+		{_, false} ->
+			{skip, {notfound, nc}};
+		_Good ->
+			%% Throw garbage at the server then check if it's still up.
+			{port, Port} = lists:keyfind(port, 1, Config),
+			StrPort = integer_to_list(Port),
+			[os:cmd("cat " ++ Input ++ " | nc localhost " ++ StrPort)
+				|| _ <- lists:seq(1, 100)],
+			200 = quick_get("/", Config)
+	end.
 
-	%% The return value of generate_etag/2 should match the request header.
-	fun() ->
-	%% Correct return values from generate_etag/2.
-	{_Packet1, 304} = raw_resp([
-		"GET /resetags?type=tuple-weak HTTP/1.1\r\n",
-		"Host: localhost\r\n", "Connection: close\r\n",
-		"If-None-Match: W/\"etag-header-value\"\r\n", "\r\n"], Config),
-	{_Packet2, 304} = raw_resp([
-		"GET /resetags?type=tuple-strong HTTP/1.1\r\n",
-		"Host: localhost\r\n", "Connection: close\r\n",
-		"If-None-Match: \"etag-header-value\"\r\n", "\r\n"], Config),
-	%% Backwards compatible return values from generate_etag/2.
-	{_Packet3, 304} = raw_resp([
-		"GET /resetags?type=binary-weak-quoted HTTP/1.1\r\n",
-		"Host: localhost\r\n", "Connection: close\r\n",
-		"If-None-Match: W/\"etag-header-value\"\r\n", "\r\n"], Config),
-	{_Packet4, 304} = raw_resp([
-		"GET /resetags?type=binary-strong-quoted HTTP/1.1\r\n",
-		"Host: localhost\r\n", "Connection: close\r\n",
-		"If-None-Match: \"etag-header-value\"\r\n", "\r\n"], Config)
-	end().
+nc_rand(Config) ->
+	nc_reqs(Config, "/dev/urandom").
+
+nc_zero(Config) ->
+	nc_reqs(Config, "/dev/zero").
 
 onrequest(Config) ->
-	{port, Port} = lists:keyfind(port, 1, Config),
-	{ok, Socket} = gen_tcp:connect("localhost", Port,
-		[binary, {active, false}, {packet, raw}]),
-	ok = gen_tcp:send(Socket, "GET / HTTP/1.1\r\nHost: localhost\r\n\r\n"),
-	{ok, Data} = gen_tcp:recv(Socket, 0, 6000),
-	{_, _} = binary:match(Data, <<"Server: Serenity">>),
-	{_, _} = binary:match(Data, <<"http_handler">>),
-	gen_tcp:close(Socket).
+	Client = ?config(client, Config),
+	{ok, Client2} = cowboy_client:request(<<"GET">>,
+		build_url("/", Config), Client),
+	{ok, 200, Headers, Client3} = cowboy_client:response(Client2),
+	{<<"server">>, <<"Serenity">>} = lists:keyfind(<<"server">>, 1, Headers),
+	{ok, <<"http_handler">>, _} = cowboy_client:response_body(Client3).
 
 onrequest_reply(Config) ->
-	{port, Port} = lists:keyfind(port, 1, Config),
-	{ok, Socket} = gen_tcp:connect("localhost", Port,
-		[binary, {active, false}, {packet, raw}]),
-	ok = gen_tcp:send(Socket, "GET /?reply=1 HTTP/1.1\r\nHost: localhost\r\n\r\n"),
-	{ok, Data} = gen_tcp:recv(Socket, 0, 6000),
-	{_, _} = binary:match(Data, <<"Server: Cowboy">>),
-	nomatch = binary:match(Data, <<"http_handler">>),
-	{_, _} = binary:match(Data, <<"replied!">>),
-	gen_tcp:close(Socket).
+	Client = ?config(client, Config),
+	{ok, Client2} = cowboy_client:request(<<"GET">>,
+		build_url("/?reply=1", Config), Client),
+	{ok, 200, Headers, Client3} = cowboy_client:response(Client2),
+	{<<"server">>, <<"Cowboy">>} = lists:keyfind(<<"server">>, 1, Headers),
+	{ok, <<"replied!">>, _} = cowboy_client:response_body(Client3).
 
+%% Hook for the above onrequest tests.
 onrequest_hook(Req) ->
 	case cowboy_http_req:qs_val(<<"reply">>, Req) of
 		{undefined, Req2} ->
@@ -790,3 +567,238 @@ onrequest_hook(Req) ->
 				200, [], <<"replied!">>, Req2),
 			Req3
 	end.
+
+pipeline(Config) ->
+	Client = ?config(client, Config),
+	{ok, Client2} = cowboy_client:request(<<"GET">>,
+		build_url("/", Config), Client),
+	{ok, Client3} = cowboy_client:request(<<"GET">>,
+		build_url("/", Config), Client2),
+	{ok, Client4} = cowboy_client:request(<<"GET">>,
+		build_url("/", Config), Client3),
+	{ok, Client5} = cowboy_client:request(<<"GET">>,
+		build_url("/", Config), Client4),
+	{ok, Client6} = cowboy_client:request(<<"GET">>,
+		build_url("/", Config), [{<<"connection">>, <<"close">>}], Client5),
+	{ok, 200, _, Client7} = cowboy_client:response(Client6),
+	{ok, 200, _, Client8} = cowboy_client:response(Client7),
+	{ok, 200, _, Client9} = cowboy_client:response(Client8),
+	{ok, 200, _, Client10} = cowboy_client:response(Client9),
+	{ok, 200, _, Client11} = cowboy_client:response(Client10),
+	{error, closed} = cowboy_client:response(Client11).
+
+rest_keepalive(Config) ->
+	Client = ?config(client, Config),
+	URL = build_url("/simple", Config),
+	ok = rest_keepalive_loop(Client, URL, 10).
+
+rest_keepalive_loop(_, _, 0) ->
+	ok;
+rest_keepalive_loop(Client, URL, N) ->
+	Headers = [{<<"connection">>, <<"keep-alive">>}],
+	{ok, Client2} = cowboy_client:request(<<"GET">>, URL, Headers, Client),
+	{ok, 200, RespHeaders, Client3} = cowboy_client:response(Client2),
+	{<<"connection">>, <<"keep-alive">>}
+		= lists:keyfind(<<"connection">>, 1, RespHeaders),
+	rest_keepalive_loop(Client3, URL, N - 1).
+
+rest_keepalive_post(Config) ->
+	Client = ?config(client, Config),
+	ok = rest_keepalive_post_loop(Config, Client, forbidden_post, 10).
+
+rest_keepalive_post_loop(_, _, _, 0) ->
+	ok;
+rest_keepalive_post_loop(Config, Client, simple_post, N) ->
+	Headers = [
+		{<<"connection">>, <<"keep-alive">>},
+		{<<"content-type">>, <<"text/plain">>}
+	],
+	{ok, Client2} = cowboy_client:request(<<"POST">>,
+		build_url("/simple_post", Config), Headers, "12345", Client),
+	{ok, 303, RespHeaders, Client3} = cowboy_client:response(Client2),
+	{<<"connection">>, <<"keep-alive">>}
+		= lists:keyfind(<<"connection">>, 1, RespHeaders),
+	rest_keepalive_post_loop(Config, Client3, forbidden_post, N - 1);
+rest_keepalive_post_loop(Config, Client, forbidden_post, N) ->
+	Headers = [
+		{<<"connection">>, <<"keep-alive">>},
+		{<<"content-type">>, <<"text/plain">>}
+	],
+	{ok, Client2} = cowboy_client:request(<<"POST">>,
+		build_url("/forbidden_post", Config), Headers, "12345", Client),
+	{ok, 403, RespHeaders, Client3} = cowboy_client:response(Client2),
+	{<<"connection">>, <<"keep-alive">>}
+		= lists:keyfind(<<"connection">>, 1, RespHeaders),
+	rest_keepalive_post_loop(Config, Client3, simple_post, N - 1).
+
+rest_nodelete(Config) ->
+	Client = ?config(client, Config),
+	{ok, Client2} = cowboy_client:request(<<"DELETE">>,
+		build_url("/nodelete", Config), Client),
+	{ok, 500, _, _} = cowboy_client:response(Client2).
+
+rest_resource_get_etag(Config, Type) ->
+	rest_resource_get_etag(Config, Type, []).
+
+rest_resource_get_etag(Config, Type, Headers) ->
+	Client = ?config(client, Config),
+	{ok, Client2} = cowboy_client:request(<<"GET">>,
+		build_url("/resetags?type=" ++ Type, Config), Headers, Client),
+	{ok, Status, RespHeaders, _} = cowboy_client:response(Client2),
+	case lists:keyfind(<<"etag">>, 1, RespHeaders) of
+		false -> {Status, false};
+		{<<"etag">>, ETag} -> {Status, ETag}
+	end.
+
+rest_resource_etags(Config) ->
+	Tests = [
+		{200, <<"W/\"etag-header-value\"">>, "tuple-weak"},
+		{200, <<"\"etag-header-value\"">>, "tuple-strong"},
+		{200, <<"W/\"etag-header-value\"">>, "binary-weak-quoted"},
+		{200, <<"\"etag-header-value\"">>, "binary-strong-quoted"},
+		{500, false, "binary-strong-unquoted"},
+		{500, false, "binary-weak-unquoted"}
+	],
+	_ = [{Status, ETag, Type} = begin
+		{Ret, RespETag} = rest_resource_get_etag(Config, Type),
+		{Ret, RespETag, Type}
+	end || {Status, ETag, Type} <- Tests].
+
+rest_resource_etags_if_none_match(Config) ->
+	Tests = [
+		{304, <<"W/\"etag-header-value\"">>, "tuple-weak"},
+		{304, <<"\"etag-header-value\"">>, "tuple-strong"},
+		{304, <<"W/\"etag-header-value\"">>, "binary-weak-quoted"},
+		{304, <<"\"etag-header-value\"">>, "binary-strong-quoted"}
+	],
+	_ = [{Status, Type} = begin
+		{Ret, _} = rest_resource_get_etag(Config, Type,
+			[{<<"if-none-match">>, ETag}]),
+		{Ret, Type}
+	end || {Status, ETag, Type} <- Tests].
+
+set_resp_body(Config) ->
+	Client = ?config(client, Config),
+	{ok, Client2} = cowboy_client:request(<<"GET">>,
+		build_url("/set_resp/body", Config), Client),
+	{ok, 200, _, Client3} = cowboy_client:response(Client2),
+	{ok, <<"A flameless dance does not equal a cycle">>, _}
+		= cowboy_client:response_body(Client3).
+
+set_resp_header(Config) ->
+	Client = ?config(client, Config),
+	{ok, Client2} = cowboy_client:request(<<"GET">>,
+		build_url("/set_resp/header", Config), Client),
+	{ok, 200, Headers, _} = cowboy_client:response(Client2),
+	{<<"vary">>, <<"Accept">>} = lists:keyfind(<<"vary">>, 1, Headers),
+	{<<"set-cookie">>, _} = lists:keyfind(<<"set-cookie">>, 1, Headers).
+
+set_resp_overwrite(Config) ->
+	Client = ?config(client, Config),
+	{ok, Client2} = cowboy_client:request(<<"GET">>,
+		build_url("/set_resp/overwrite", Config), Client),
+	{ok, 200, Headers, _} = cowboy_client:response(Client2),
+	{<<"server">>, <<"DesireDrive/1.0">>}
+		= lists:keyfind(<<"server">>, 1, Headers).
+
+static_attribute_etag(Config) ->
+	Client = ?config(client, Config),
+	{ok, Client2} = cowboy_client:request(<<"GET">>,
+		build_url("/static_attribute_etag/test.html", Config), Client),
+	{ok, Client3} = cowboy_client:request(<<"GET">>,
+		build_url("/static_attribute_etag/test.html", Config), Client2),
+	{ok, 200, Headers1, Client4} = cowboy_client:response(Client3),
+	{ok, 200, Headers2, _} = cowboy_client:response(Client4),
+	{<<"etag">>, ETag1} = lists:keyfind(<<"etag">>, 1, Headers1),
+	{<<"etag">>, ETag2} = lists:keyfind(<<"etag">>, 1, Headers2),
+	false = ETag1 =:= undefined,
+	ETag1 = ETag2.
+
+static_function_etag(Config) ->
+	Client = ?config(client, Config),
+	{ok, Client2} = cowboy_client:request(<<"GET">>,
+		build_url("/static_function_etag/test.html", Config), Client),
+	{ok, Client3} = cowboy_client:request(<<"GET">>,
+		build_url("/static_function_etag/test.html", Config), Client2),
+	{ok, 200, Headers1, Client4} = cowboy_client:response(Client3),
+	{ok, 200, Headers2, _} = cowboy_client:response(Client4),
+	{<<"etag">>, ETag1} = lists:keyfind(<<"etag">>, 1, Headers1),
+	{<<"etag">>, ETag2} = lists:keyfind(<<"etag">>, 1, Headers2),
+	false = ETag1 =:= undefined,
+	ETag1 = ETag2.
+
+%% Callback function for generating the ETag for the above test.
+static_function_etag(Arguments, etag_data) ->
+	{_, Filepath} = lists:keyfind(filepath, 1, Arguments),
+	{_, _Filesize} = lists:keyfind(filesize, 1, Arguments),
+	{_, _INode} = lists:keyfind(inode, 1, Arguments),
+	{_, _Modified} = lists:keyfind(mtime, 1, Arguments),
+	ChecksumCommand = lists:flatten(io_lib:format("sha1sum ~s", [Filepath])),
+	[Checksum|_] = string:tokens(os:cmd(ChecksumCommand), " "),
+	{strong, iolist_to_binary(Checksum)}.
+
+static_mimetypes_function(Config) ->
+	Client = ?config(client, Config),
+	{ok, Client2} = cowboy_client:request(<<"GET">>,
+		build_url("/static_mimetypes_function/test.html", Config), Client),
+	{ok, 200, Headers, _} = cowboy_client:response(Client2),
+	{<<"content-type">>, <<"text/html">>}
+		= lists:keyfind(<<"content-type">>, 1, Headers).
+
+static_test_file(Config) ->
+	Client = ?config(client, Config),
+	{ok, Client2} = cowboy_client:request(<<"GET">>,
+		build_url("/static/test_file", Config), Client),
+	{ok, 200, Headers, _} = cowboy_client:response(Client2),
+	{<<"content-type">>, <<"application/octet-stream">>}
+		= lists:keyfind(<<"content-type">>, 1, Headers).
+
+static_test_file_css(Config) ->
+	Client = ?config(client, Config),
+	{ok, Client2} = cowboy_client:request(<<"GET">>,
+		build_url("/static/test_file.css", Config), Client),
+	{ok, 200, Headers, _} = cowboy_client:response(Client2),
+	{<<"content-type">>, <<"text/css">>}
+		= lists:keyfind(<<"content-type">>, 1, Headers).
+
+stream_body_set_resp(Config) ->
+	Client = ?config(client, Config),
+	{ok, Client2} = cowboy_client:request(<<"GET">>,
+		build_url("/stream_body/set_resp", Config), Client),
+	{ok, 200, _, Client3} = cowboy_client:response(Client2),
+	{ok, <<"stream_body_set_resp">>, _}
+		= cowboy_client:response_body(Client3).
+
+te_chunked(Config) ->
+	Client = ?config(client, Config),
+	Body = list_to_binary(io_lib:format("~p", [lists:seq(1, 100)])),
+	Chunks = body_to_chunks(50, Body, []),
+	{ok, Client2} = cowboy_client:request(<<"GET">>,
+		build_url("/echo/body", Config),
+		[{<<"transfer-encoding">>, <<"chunked">>}],
+		Chunks, Client),
+	{ok, 200, _, Client3} = cowboy_client:response(Client2),
+	{ok, Body, _} = cowboy_client:response_body(Client3).
+
+te_chunked_delayed(Config) ->
+	Client = ?config(client, Config),
+	Body = list_to_binary(io_lib:format("~p", [lists:seq(1, 100)])),
+	Chunks = body_to_chunks(50, Body, []),
+	{ok, Client2} = cowboy_client:request(<<"GET">>,
+		build_url("/echo/body", Config),
+		[{<<"transfer-encoding">>, <<"chunked">>}], Client),
+	{ok, Transport, Socket} = cowboy_client:transport(Client2),
+	_ = [begin
+		ok = Transport:send(Socket, Chunk),
+		ok = timer:sleep(10)
+	end || Chunk <- Chunks],
+	{ok, 200, _, Client3} = cowboy_client:response(Client2),
+	{ok, Body, _} = cowboy_client:response_body(Client3).
+
+te_identity(Config) ->
+	Client = ?config(client, Config),
+	Body = list_to_binary(io_lib:format("~p", [lists:seq(1, 100)])),
+	{ok, Client2} = cowboy_client:request(<<"GET">>,
+		build_url("/echo/body", Config), [], Body, Client),
+	{ok, 200, _, Client3} = cowboy_client:response(Client2),
+	{ok, Body, _} = cowboy_client:response_body(Client3).

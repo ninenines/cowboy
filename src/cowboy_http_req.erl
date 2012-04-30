@@ -456,10 +456,11 @@ stream_body(Req=#http_req{body_state=done}) ->
 
 -spec stream_body_recv(#http_req{})
 	-> {ok, binary(), #http_req{}} | {error, atom()}.
-stream_body_recv(Req=#http_req{transport=Transport, socket=Socket}) ->
+stream_body_recv(Req=#http_req{
+		transport=Transport, socket=Socket, buffer=Buffer}) ->
 	%% @todo Allow configuring the timeout.
 	case Transport:recv(Socket, 0, 5000) of
-		{ok, Data} -> transfer_decode(Data, Req);
+		{ok, Data} -> transfer_decode(<< Buffer/binary, Data/binary >>, Req);
 		{error, Reason} -> {error, Reason}
 	end.
 
@@ -477,7 +478,7 @@ transfer_decode(Data, Req=#http_req{
 				{stream, TransferDecode, TransferState2, ContentDecode}});
 		%% @todo {header(s) for chunked
 		more ->
-			stream_body_recv(Req);
+			stream_body_recv(Req#http_req{buffer=Data});
 		{done, Length, Rest} ->
 			Req2 = transfer_decode_done(Length, Rest, Req),
 			{done, Req2};

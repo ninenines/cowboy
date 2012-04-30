@@ -121,16 +121,22 @@ request({http_request, Method, {absoluteURI, _Scheme, _Host, _Port, Path},
 	request({http_request, Method, {abs_path, Path}, Version}, State);
 request({http_request, Method, {abs_path, AbsPath}, Version},
 		State=#state{socket=Socket, transport=Transport,
+		req_keepalive=Keepalive, max_keepalive=MaxKeepalive,
 		urldecode={URLDecFun, URLDecArg}=URLDec}) ->
 	URLDecode = fun(Bin) -> URLDecFun(Bin, URLDecArg) end,
 	{Path, RawPath, Qs} = cowboy_dispatcher:split_path(AbsPath, URLDecode),
-	ConnAtom = version_to_connection(Version),
+	ConnAtom = if Keepalive < MaxKeepalive -> version_to_connection(Version);
+		true -> close
+	end,
 	parse_header(#http_req{socket=Socket, transport=Transport,
 		connection=ConnAtom, pid=self(), method=Method, version=Version,
 		path=Path, raw_path=RawPath, raw_qs=Qs, urldecode=URLDec}, State);
 request({http_request, Method, '*', Version},
-		State=#state{socket=Socket, transport=Transport, urldecode=URLDec}) ->
-	ConnAtom = version_to_connection(Version),
+		State=#state{socket=Socket, transport=Transport,
+		req_keepalive=Keepalive, max_keepalive=MaxKeepalive, urldecode=URLDec}) ->
+	ConnAtom = if Keepalive < MaxKeepalive -> version_to_connection(Version);
+		true -> close
+	end,
 	parse_header(#http_req{socket=Socket, transport=Transport,
 		connection=ConnAtom, pid=self(), method=Method, version=Version,
 		path='*', raw_path= <<"*">>, raw_qs= <<>>, urldecode=URLDec}, State);
@@ -186,7 +192,9 @@ header({http_header, _I, 'Host', _R, RawHost}, Req=#http_req{
 header({http_header, _I, 'Host', _R, _V}, Req, State) ->
 	parse_header(Req, State);
 header({http_header, _I, 'Connection', _R, Connection},
-		Req=#http_req{headers=Headers}, State) ->
+		Req=#http_req{headers=Headers}, State=#state{
+		req_keepalive=Keepalive, max_keepalive=MaxKeepalive})
+		when Keepalive < MaxKeepalive ->
 	Req2 = Req#http_req{headers=[{'Connection', Connection}|Headers]},
 	{ConnTokens, Req3}
 		= cowboy_http_req:parse_header('Connection', Req2),
@@ -376,15 +384,14 @@ terminate_request(HandlerState, Req, State) ->
 	next_request(Req, State, HandlerRes).
 
 -spec next_request(#http_req{}, #state{}, any()) -> ok.
-next_request(Req=#http_req{connection=Conn},
-		State=#state{req_keepalive=Keepalive, max_keepalive=MaxKeepalive},
-		HandlerRes) ->
+next_request(Req=#http_req{connection=Conn}, State=#state{
+		req_keepalive=Keepalive}, HandlerRes) ->
 	RespRes = ensure_response(Req),
 	{BodyRes, Buffer} = ensure_body_processed(Req),
 	%% Flush the resp_sent message before moving on.
 	receive {cowboy_http_req, resp_sent} -> ok after 0 -> ok end,
 	case {HandlerRes, BodyRes, RespRes, Conn} of
-		{ok, ok, ok, keepalive} when Keepalive < MaxKeepalive ->
+		{ok, ok, ok, keepalive} ->
 			?MODULE:parse_request(State#state{
 				buffer=Buffer, req_empty_lines=0,
 				req_keepalive=Keepalive + 1});

@@ -25,6 +25,7 @@
 -module(cowboy_ssl_transport).
 -export([name/0, messages/0, listen/1, accept/2, recv/3, send/2, setopts/2,
 	controlling_process/2, peername/1, close/1, sockname/1]).
+-export([connect/3]).
 
 %% @doc Name of this transport API, <em>ssl</em>.
 -spec name() -> ssl.
@@ -36,6 +37,12 @@ name() -> ssl.
 %% data in active mode.
 -spec messages() -> {ssl, ssl_closed, ssl_error}.
 messages() -> {ssl, ssl_closed, ssl_error}.
+
+%% @private
+%% @todo Probably filter Opts?
+connect(Host, Port, Opts) when is_list(Host), is_integer(Port) ->
+	ssl:connect(Host, Port,
+		Opts ++ [binary, {active, false}, {packet, raw}]).
 
 %% @doc Setup a socket to listen on the given port on the local host.
 %%
