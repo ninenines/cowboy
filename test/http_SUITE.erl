@@ -58,6 +58,8 @@
 -export([static_mimetypes_function/1]).
 -export([static_test_file/1]).
 -export([static_test_file_css/1]).
+-export([static_specify_file/1]).
+-export([static_specify_file_catchall/1]).
 -export([stream_body_set_resp/1]).
 -export([te_chunked/1]).
 -export([te_chunked_delayed/1]).
@@ -100,6 +102,8 @@ groups() ->
 		static_mimetypes_function,
 		static_test_file,
 		static_test_file_css,
+		static_specify_file,
+		static_specify_file_catchall,
 		stream_body_set_resp,
 		te_chunked,
 		te_chunked_delayed,
@@ -221,6 +225,10 @@ init_dispatch(Config) ->
 			{[<<"static_function_etag">>, '...'], cowboy_http_static,
 				[{directory, ?config(static_dir, Config)},
 				 {etag, {fun static_function_etag/2, etag_data}}]},
+			{[<<"static_specify_file">>, '...'],  cowboy_http_static,
+				[{directory, ?config(static_dir, Config)},
+				 {mimetypes, [{<<".css">>, [<<"text/css">>]}]},
+				 {file, <<"test_file.css">>}]},
 			{[<<"multipart">>], http_handler_multipart, []},
 			{[<<"echo">>, <<"body">>], http_handler_echo_body, []},
 			{[<<"simple">>], rest_simple_resource, []},
@@ -760,6 +768,22 @@ static_test_file_css(Config) ->
 	{ok, 200, Headers, _} = cowboy_client:response(Client2),
 	{<<"content-type">>, <<"text/css">>}
 		= lists:keyfind(<<"content-type">>, 1, Headers).
+
+static_specify_file(Config) ->
+	Client = ?config(client, Config),
+	{ok, Client2} = cowboy_client:request(<<"GET">>,
+		build_url("/static_specify_file", Config), Client),
+	{ok, 200, Headers, Client3} = cowboy_client:response(Client2),
+	{_, <<"text/css">>} = lists:keyfind(<<"content-type">>, 1, Headers),
+	{ok, <<"test_file.css\n">>, _} = cowboy_client:response_body(Client3).
+
+static_specify_file_catchall(Config) ->
+	Client = ?config(client, Config),
+	{ok, Client2} = cowboy_client:request(<<"GET">>,
+		build_url("/static_specify_file/none", Config), Client),
+	{ok, 200, Headers, Client3} = cowboy_client:response(Client2),
+	{_, <<"text/css">>} = lists:keyfind(<<"content-type">>, 1, Headers),
+	{ok, <<"test_file.css\n">>, _} = cowboy_client:response_body(Client3).
 
 stream_body_set_resp(Config) ->
 	Client = ?config(client, Config),
