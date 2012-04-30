@@ -232,8 +232,7 @@ handler_loop_timeout(State=#state{timeout=infinity}) ->
 handler_loop_timeout(State=#state{timeout=Timeout, timeout_ref=PrevRef}) ->
 	_ = case PrevRef of undefined -> ignore; PrevRef ->
 		erlang:cancel_timer(PrevRef) end,
-	TRef = make_ref(),
-	erlang:send_after(Timeout, self(), {?MODULE, timeout, TRef}),
+	TRef = erlang:start_timer(Timeout, self(), ?MODULE),
 	State#state{timeout_ref=TRef}.
 
 %% @private
@@ -248,9 +247,9 @@ handler_loop(State=#state{messages={OK, Closed, Error}, timeout_ref=TRef},
 			handler_terminate(State, Req, HandlerState, {error, closed});
 		{Error, Socket, Reason} ->
 			handler_terminate(State, Req, HandlerState, {error, Reason});
-		{?MODULE, timeout, TRef} ->
+		{timeout, TRef, ?MODULE} ->
 			websocket_close(State, Req, HandlerState, {normal, timeout});
-		{?MODULE, timeout, OlderTRef} when is_reference(OlderTRef) ->
+		{timeout, OlderTRef, ?MODULE} when is_reference(OlderTRef) ->
 			handler_loop(State, Req, HandlerState, SoFar);
 		Message ->
 			handler_call(State, Req, HandlerState,
