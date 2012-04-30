@@ -44,6 +44,7 @@
 -export([nc_zero/1]).
 -export([onrequest/1]).
 -export([onrequest_reply/1]).
+-export([onresponse_reply/1]).
 -export([pipeline/1]).
 -export([rest_keepalive/1]).
 -export([rest_keepalive_post/1]).
@@ -66,7 +67,7 @@
 %% ct.
 
 all() ->
-	[{group, http}, {group, https}, {group, hooks}].
+	[{group, http}, {group, https}, {group, onrequest}, {group, onresponse}].
 
 groups() ->
 	Tests = [
@@ -108,9 +109,12 @@ groups() ->
 	[
 		{http, [], Tests},
 		{https, [], Tests},
-		{hooks, [], [
+		{onrequest, [], [
 			onrequest,
 			onrequest_reply
+		]},
+		{onresponse, [], [
+			onresponse_reply
 		]}
 	].
 
@@ -160,15 +164,29 @@ init_per_group(https, Config) ->
 	{ok, Client} = cowboy_client:init(Opts),
 	[{scheme, <<"https">>}, {port, Port}, {opts, Opts},
 		{transport, Transport}, {client, Client}|Config1];
-init_per_group(hooks, Config) ->
+init_per_group(onrequest, Config) ->
 	Port = 33082,
 	Transport = cowboy_tcp_transport,
-	{ok, _} = cowboy:start_listener(hooks, 100,
+	{ok, _} = cowboy:start_listener(onrequest, 100,
 		Transport, [{port, Port}],
 		cowboy_http_protocol, [
 			{dispatch, init_dispatch(Config)},
 			{max_keepalive, 50},
 			{onrequest, fun onrequest_hook/1},
+			{timeout, 500}
+		]),
+	{ok, Client} = cowboy_client:init([]),
+	[{scheme, <<"http">>}, {port, Port}, {opts, []},
+		{transport, Transport}, {client, Client}|Config];
+init_per_group(onresponse, Config) ->
+	Port = 33083,
+	Transport = cowboy_tcp_transport,
+	{ok, _} = cowboy:start_listener(onresponse, 100,
+		Transport, [{port, Port}],
+		cowboy_http_protocol, [
+			{dispatch, init_dispatch(Config)},
+			{max_keepalive, 50},
+			{onresponse, fun onresponse_hook/3},
 			{timeout, 500}
 		]),
 	{ok, Client} = cowboy_client:init([]),
@@ -185,8 +203,8 @@ end_per_group(https, Config) ->
 end_per_group(http, Config) ->
 	cowboy:stop_listener(http),
 	end_static_dir(Config);
-end_per_group(hooks, _) ->
-	cowboy:stop_listener(hooks),
+end_per_group(Name, _) ->
+	cowboy:stop_listener(Name),
 	ok.
 
 %% Dispatch configuration.
@@ -567,6 +585,21 @@ onrequest_hook(Req) ->
 				200, [], <<"replied!">>, Req2),
 			Req3
 	end.
+
+onresponse_reply(Config) ->
+	Client = ?config(client, Config),
+	{ok, Client2} = cowboy_client:request(<<"GET">>,
+		build_url("/", Config), Client),
+	{ok, 777, Headers, Client3} = cowboy_client:response(Client2),
+	{<<"x-hook">>, <<"onresponse">>} = lists:keyfind(<<"x-hook">>, 1, Headers),
+	%% Make sure we don't get the body initially sent.
+	{error, closed} = cowboy_client:response_body(Client3).
+
+%% Hook for the above onresponse tests.
+onresponse_hook(_, Headers, Req) ->
+	{ok, Req2} = cowboy_http_req:reply(
+		<<"777 Lucky">>, [{<<"x-hook">>, <<"onresponse">>}|Headers], Req),
+	Req2.
 
 pipeline(Config) ->
 	Client = ?config(client, Config),

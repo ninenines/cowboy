@@ -48,6 +48,8 @@
 	dispatch :: cowboy_dispatcher:dispatch_rules(),
 	handler :: {module(), any()},
 	onrequest :: undefined | fun((#http_req{}) -> #http_req{}),
+	onresponse = undefined :: undefined | fun((cowboy_http:status(),
+		cowboy_http:headers(), #http_req{}) -> #http_req{}),
 	urldecode :: {fun((binary(), T) -> binary()), T},
 	req_empty_lines = 0 :: integer(),
 	max_empty_lines :: integer(),
@@ -79,6 +81,7 @@ init(ListenerPid, Socket, Transport, Opts) ->
 	MaxKeepalive = proplists:get_value(max_keepalive, Opts, infinity),
 	MaxLineLength = proplists:get_value(max_line_length, Opts, 4096),
 	OnRequest = proplists:get_value(onrequest, Opts),
+	OnResponse = proplists:get_value(onresponse, Opts),
 	Timeout = proplists:get_value(timeout, Opts, 5000),
 	URLDecDefault = {fun cowboy_http:urldecode/2, crash},
 	URLDec = proplists:get_value(urldecode, Opts, URLDecDefault),
@@ -86,7 +89,8 @@ init(ListenerPid, Socket, Transport, Opts) ->
 	wait_request(#state{listener=ListenerPid, socket=Socket, transport=Transport,
 		dispatch=Dispatch, max_empty_lines=MaxEmptyLines,
 		max_keepalive=MaxKeepalive, max_line_length=MaxLineLength,
-		timeout=Timeout, onrequest=OnRequest, urldecode=URLDec}).
+		timeout=Timeout, onrequest=OnRequest, onresponse=OnResponse,
+		urldecode=URLDec}).
 
 %% @private
 -spec parse_request(#state{}) -> ok.
@@ -122,7 +126,7 @@ request({http_request, Method, {absoluteURI, _Scheme, _Host, _Port, Path},
 request({http_request, Method, {abs_path, AbsPath}, Version},
 		State=#state{socket=Socket, transport=Transport,
 		req_keepalive=Keepalive, max_keepalive=MaxKeepalive,
-		urldecode={URLDecFun, URLDecArg}=URLDec}) ->
+		onresponse=OnResponse, urldecode={URLDecFun, URLDecArg}=URLDec}) ->
 	URLDecode = fun(Bin) -> URLDecFun(Bin, URLDecArg) end,
 	{Path, RawPath, Qs} = cowboy_dispatcher:split_path(AbsPath, URLDecode),
 	ConnAtom = if Keepalive < MaxKeepalive -> version_to_connection(Version);
@@ -130,16 +134,19 @@ request({http_request, Method, {abs_path, AbsPath}, Version},
 	end,
 	parse_header(#http_req{socket=Socket, transport=Transport,
 		connection=ConnAtom, pid=self(), method=Method, version=Version,
-		path=Path, raw_path=RawPath, raw_qs=Qs, urldecode=URLDec}, State);
+		path=Path, raw_path=RawPath, raw_qs=Qs, onresponse=OnResponse,
+		urldecode=URLDec}, State);
 request({http_request, Method, '*', Version},
 		State=#state{socket=Socket, transport=Transport,
-		req_keepalive=Keepalive, max_keepalive=MaxKeepalive, urldecode=URLDec}) ->
+		req_keepalive=Keepalive, max_keepalive=MaxKeepalive,
+		onresponse=OnResponse, urldecode=URLDec}) ->
 	ConnAtom = if Keepalive < MaxKeepalive -> version_to_connection(Version);
 		true -> close
 	end,
 	parse_header(#http_req{socket=Socket, transport=Transport,
 		connection=ConnAtom, pid=self(), method=Method, version=Version,
-		path='*', raw_path= <<"*">>, raw_qs= <<>>, urldecode=URLDec}, State);
+		path='*', raw_path= <<"*">>, raw_qs= <<>>, onresponse=OnResponse,
+		urldecode=URLDec}, State);
 request({http_request, _Method, _URI, _Version}, State) ->
 	error_terminate(501, State);
 request({http_error, <<"\r\n">>},
