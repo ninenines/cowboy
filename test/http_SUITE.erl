@@ -228,6 +228,7 @@ init_dispatch(Config) ->
 			{[<<"simple_post">>], rest_forbidden_resource, [false]},
 			{[<<"nodelete">>], rest_nodelete_resource, []},
 			{[<<"resetags">>], rest_resource_etags, []},
+			{[<<"loop_timeout">>], http_handler_loop_timeout, []},
 			{[], http_handler, []}
 		]}
 	].
@@ -352,6 +353,7 @@ check_status(Config) ->
 		{102, "/long_polling"},
 		{200, "/"},
 		{200, "/simple"},
+		{204, "/loop_timeout"},
 		{400, "/static/%2f"},
 		{400, "/static/%2e"},
 		{400, "/static/%2e%2e"},
