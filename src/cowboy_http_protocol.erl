@@ -83,8 +83,8 @@ init(ListenerPid, Socket, Transport, Opts) ->
 	Timeout = proplists:get_value(timeout, Opts, 5000),
 	URLDecDefault = {fun cowboy_http:urldecode/2, crash},
 	URLDec = proplists:get_value(urldecode, Opts, URLDecDefault),
-	StartTime = calendar:datetime_to_gregorian_seconds(calendar:universal_time()),
-	HeadersTimeLimit = StartTime + proplists:get_value(headers_timeout, Opts, 30),
+	StartTime = internal_real_time(),
+	HeadersTimeLimit = StartTime + proplists:get_value(headers_timeout, Opts, 30000),
 	ok = cowboy:accept_ack(ListenerPid),
 	wait_request(#state{listener=ListenerPid, socket=Socket, transport=Transport,
 		dispatch=Dispatch, max_empty_lines=MaxEmptyLines,
@@ -488,8 +488,12 @@ format_header(<< C, Rest/bits >>, false, Acc) ->
 
 make_timeout(MaxTimeout, TimeLimit) ->
 	max(1, 
-		1000 * min(MaxTimeout,
-			       TimeLimit - calendar:datetime_to_gregorian_seconds(calendar:universal_time()))).
+	    min(MaxTimeout,
+	        TimeLimit - internal_real_time())).
+
+internal_real_time() ->
+	{Meg, Sec, Mic} = now(),
+	trunc(Meg * 1000000000 + Sec * 1000 + Mic / 1000).
 
 %% Tests.
 
