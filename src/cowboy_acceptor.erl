@@ -33,13 +33,20 @@ start_link(LSocket, Transport, Protocol, Opts,
 -spec acceptor(inet:socket(), module(), module(), any(),
 	non_neg_integer(), pid(), pid()) -> no_return().
 acceptor(LSocket, Transport, Protocol, Opts, OptsVsn, ListenerPid, ReqsSup) ->
+	Filters = proplists:get_value(connection_filters, Opts, []),
 	Res = case Transport:accept(LSocket, 2000) of
 		{ok, CSocket} ->
-			{ok, Pid} = supervisor:start_child(ReqsSup,
-				[ListenerPid, CSocket, Transport, Protocol, Opts]),
-			Transport:controlling_process(CSocket, Pid),
-			cowboy_listener:add_connection(ListenerPid,
-				default, Pid, OptsVsn);
+			case filter_connection(CSocket, Filters) of
+				ok ->
+					{ok, Pid} = supervisor:start_child(ReqsSup,
+							[ListenerPid, CSocket, Transport, Protocol, Opts]),
+					Transport:controlling_process(CSocket, Pid),
+					cowboy_listener:add_connection(ListenerPid,
+						default, Pid, OptsVsn);
+				{reject, _} ->
+                    Transport:close(CSocket),
+					ok
+			end;
 		{error, timeout} ->
 			cowboy_listener:check_upgrades(ListenerPid, OptsVsn);
 		{error, _Reason} ->
@@ -55,3 +62,12 @@ acceptor(LSocket, Transport, Protocol, Opts, OptsVsn, ListenerPid, ReqsSup) ->
 			?MODULE:acceptor(LSocket, Transport, Protocol,
 				Opts2, OptsVsn2, ListenerPid, ReqsSup)
 	end.
+
+filter_connection(_Socket, []) ->
+	ok;
+filter_connection(Socket, [H | T]) ->
+	case H:approve_connection(Socket) of
+		ok -> filter_connection(Socket, T);
+		Reply -> Reply
+	end.
+
