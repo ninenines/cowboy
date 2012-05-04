@@ -57,6 +57,7 @@
 	max_keepalive :: integer(),
 	max_line_length :: integer(),
 	timeout :: timeout(),
+	headers_time_limit :: timeout(), % Not the amout of time but the second when all headers should be received
 	buffer = <<>> :: binary(),
 	hibernate = false :: boolean(),
 	loop_timeout = infinity :: timeout(),
@@ -85,12 +86,14 @@ init(ListenerPid, Socket, Transport, Opts) ->
 	Timeout = proplists:get_value(timeout, Opts, 5000),
 	URLDecDefault = {fun cowboy_http:urldecode/2, crash},
 	URLDec = proplists:get_value(urldecode, Opts, URLDecDefault),
+	StartTime = internal_real_time(),
+	HeadersTimeLimit = StartTime + proplists:get_value(headers_timeout, Opts, 30000),
 	ok = cowboy:accept_ack(ListenerPid),
 	wait_request(#state{listener=ListenerPid, socket=Socket, transport=Transport,
 		dispatch=Dispatch, max_empty_lines=MaxEmptyLines,
 		max_keepalive=MaxKeepalive, max_line_length=MaxLineLength,
 		timeout=Timeout, onrequest=OnRequest, onresponse=OnResponse,
-		urldecode=URLDec}).
+		urldecode=URLDec, headers_time_limit=HeadersTimeLimit}).
 
 %% @private
 -spec parse_request(#state{}) -> ok.
@@ -107,8 +110,9 @@ parse_request(State=#state{buffer=Buffer, max_line_length=MaxLength}) ->
 
 -spec wait_request(#state{}) -> ok.
 wait_request(State=#state{socket=Socket, transport=Transport,
-		timeout=T, buffer=Buffer}) ->
-	case Transport:recv(Socket, 0, T) of
+		timeout=T, buffer=Buffer, headers_time_limit=HeadersTimeLimit}) ->
+	Timeout = make_timeout(T, HeadersTimeLimit),
+	case Transport:recv(Socket, 0, Timeout) of
 		{ok, Data} -> parse_request(State#state{
 			buffer= << Buffer/binary, Data/binary >>});
 		{error, _Reason} -> terminate(State)
@@ -168,9 +172,10 @@ parse_header(Req, State=#state{buffer=Buffer, max_line_length=MaxLength}) ->
 	end.
 
 -spec wait_header(#http_req{}, #state{}) -> ok.
-wait_header(Req, State=#state{socket=Socket,
-		transport=Transport, timeout=T, buffer=Buffer}) ->
-	case Transport:recv(Socket, 0, T) of
+wait_header(Req, State=#state{socket=Socket, transport=Transport,
+		timeout=T, buffer=Buffer, headers_time_limit=HeadersTimeLimit}) ->
+	Timeout = make_timeout(T, HeadersTimeLimit),
+	case Transport:recv(Socket, 0, Timeout) of
 		{ok, Data} -> parse_header(Req, State#state{
 			buffer= << Buffer/binary, Data/binary >>});
 		{error, timeout} -> error_terminate(408, State);
@@ -485,6 +490,16 @@ format_header(<< C, Rest/bits >>, true, Acc) ->
 	format_header(Rest, false, << Acc/binary, (cowboy_bstr:char_to_upper(C)) >>);
 format_header(<< C, Rest/bits >>, false, Acc) ->
 	format_header(Rest, false, << Acc/binary, (cowboy_bstr:char_to_lower(C)) >>).
+
+make_timeout(MaxTimeout, TimeLimit) ->
+	max(1,
+	    min(MaxTimeout,
+	        TimeLimit - internal_real_time())).
+
+%% In milliseconds
+internal_real_time() ->
+	{Meg, Sec, Mic} = now(),
+	trunc(Meg * 1000000000 + Sec * 1000 + Mic / 1000).
 
 %% Tests.
 
