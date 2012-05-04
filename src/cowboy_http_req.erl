@@ -563,14 +563,14 @@ body_qs(Req=#http_req{urldecode={URLDecFun, URLDecArg}}) ->
 %%
 %% Use this function for multipart streaming. For each part in the request,
 %% this function returns <em>{headers, Headers}</em> followed by a sequence of
-%% <em>{data, Data}</em> tuples and finally <em>end_of_part</em>. When there
+%% <em>{body, Data}</em> tuples and finally <em>end_of_part</em>. When there
 %% is no part to parse anymore, <em>eof</em> is returned.
 %%
 %% If the request Content-Type is not a multipart one, <em>{error, badarg}</em>
 %% is returned.
 -spec multipart_data(#http_req{})
 		-> {{headers, cowboy_http:headers()}
-				| {data, binary()} | end_of_part | eof,
+				| {body, binary()} | end_of_part | eof,
 			#http_req{}}.
 multipart_data(Req=#http_req{body_state=waiting}) ->
 	{{<<"multipart">>, _SubType, Params}, Req2} =
