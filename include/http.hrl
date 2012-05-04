@@ -52,5 +52,7 @@
 								fun(() -> {sent, non_neg_integer()})},
 
 	%% Functions.
+	onresponse = undefined :: undefined | fun((cowboy_http:status(),
+		cowboy_http:headers(), #http_req{}) -> #http_req{}),
 	urldecode :: {fun((binary(), T) -> binary()), T}
 }).

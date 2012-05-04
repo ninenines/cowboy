@@ -158,7 +158,9 @@ response_body_loop(Client, Acc) ->
 		{ok, Data, Client2} ->
 			response_body_loop(Client2, << Acc/binary, Data/binary >>);
 		{done, Client2} ->
-			{ok, Acc, Client2}
+			{ok, Acc, Client2};
+		{error, Reason} ->
+			{error, Reason}
 	end.
 
 skip_body(Client=#client{state=response_body}) ->

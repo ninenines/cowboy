@@ -696,7 +696,7 @@ reply(Status, Headers, Req=#http_req{resp_body=Body}) ->
 -spec reply(cowboy_http:status(), cowboy_http:headers(), iodata(), #http_req{})
 	-> {ok, #http_req{}}.
 reply(Status, Headers, Body, Req=#http_req{socket=Socket, transport=Transport,
-		version=Version, connection=Connection, pid=ReqPid,
+		version=Version, connection=Connection,
 		method=Method, resp_state=waiting, resp_headers=RespHeaders}) ->
 	RespConn = response_connection(Headers, Connection),
 	ContentLen = case Body of {CL, _} -> CL; _ -> iolist_size(Body) end,
@@ -704,18 +704,20 @@ reply(Status, Headers, Body, Req=#http_req{socket=Socket, transport=Transport,
 		{1, 1} -> [{<<"Connection">>, atom_to_connection(Connection)}];
 		_ -> []
 	end,
-	response(Status, Headers, RespHeaders,  [
+	{ReplyType, Req2} = response(Status, Headers, RespHeaders,  [
 		{<<"Content-Length">>, integer_to_list(ContentLen)},
 		{<<"Date">>, cowboy_clock:rfc1123()},
 		{<<"Server">>, <<"Cowboy">>}
 	|HTTP11Headers], Req),
-	case {Method, Body} of
-		{'HEAD', _} -> ok;
-		{_, {_, StreamFun}} -> StreamFun();
-		{_, _} -> Transport:send(Socket, Body)
+	if	Method =:= 'HEAD' -> ok;
+		ReplyType =:= hook -> ok; %% Hook replied for us, stop there.
+		true ->
+			case Body of
+				{_, StreamFun} -> StreamFun();
+				_ -> Transport:send(Socket, Body)
+			end
 	end,
-	ReqPid ! {?MODULE, resp_sent},
-	{ok, Req#http_req{connection=RespConn, resp_state=done,
+	{ok, Req2#http_req{connection=RespConn, resp_state=done,
 		resp_headers=[], resp_body= <<>>}}.
 
 %% @equiv chunked_reply(Status, [], Req)
@@ -729,7 +731,7 @@ chunked_reply(Status, Req) ->
 	-> {ok, #http_req{}}.
 chunked_reply(Status, Headers, Req=#http_req{
 		version=Version, connection=Connection,
-		pid=ReqPid, resp_state=waiting, resp_headers=RespHeaders}) ->
+		resp_state=waiting, resp_headers=RespHeaders}) ->
 	RespConn = response_connection(Headers, Connection),
 	HTTP11Headers = case Version of
 		{1, 1} -> [
@@ -737,12 +739,11 @@ chunked_reply(Status, Headers, Req=#http_req{
 			{<<"Transfer-Encoding">>, <<"chunked">>}];
 		_ -> []
 	end,
-	response(Status, Headers, RespHeaders, [
+	{_, Req2} = response(Status, Headers, RespHeaders, [
 		{<<"Date">>, cowboy_clock:rfc1123()},
 		{<<"Server">>, <<"Cowboy">>}
 	|HTTP11Headers], Req),
-	ReqPid ! {?MODULE, resp_sent},
-	{ok, Req#http_req{connection=RespConn, resp_state=chunks,
+	{ok, Req2#http_req{connection=RespConn, resp_state=chunks,
 		resp_headers=[], resp_body= <<>>}}.
 
 %% @doc Send a chunk of data.
@@ -762,12 +763,11 @@ chunk(Data, #http_req{socket=Socket, transport=Transport, resp_state=chunks}) ->
 -spec upgrade_reply(cowboy_http:status(), cowboy_http:headers(), #http_req{})
 	-> {ok, #http_req{}}.
 upgrade_reply(Status, Headers, Req=#http_req{
-		pid=ReqPid, resp_state=waiting, resp_headers=RespHeaders}) ->
-	response(Status, Headers, RespHeaders, [
+		resp_state=waiting, resp_headers=RespHeaders}) ->
+	{_, Req2} = response(Status, Headers, RespHeaders, [
 		{<<"Connection">>, <<"Upgrade">>}
 	], Req),
-	ReqPid ! {?MODULE, resp_sent},
-	{ok, Req#http_req{resp_state=done, resp_headers=[], resp_body= <<>>}}.
+	{ok, Req2#http_req{resp_state=done, resp_headers=[], resp_body= <<>>}}.
 
 %% Misc API.
 
@@ -798,16 +798,33 @@ transport(#http_req{transport=Transport, socket=Socket}) ->
 %% Internal.
 
 -spec response(cowboy_http:status(), cowboy_http:headers(),
-	cowboy_http:headers(), cowboy_http:headers(), #http_req{}) -> ok.
-response(Status, Headers, RespHeaders, DefaultHeaders, #http_req{
-		socket=Socket, transport=Transport, version=Version}) ->
+	cowboy_http:headers(), cowboy_http:headers(), #http_req{})
+	-> {normal | hook, #http_req{}}.
+response(Status, Headers, RespHeaders, DefaultHeaders, Req=#http_req{
+		socket=Socket, transport=Transport, version=Version,
+		pid=ReqPid, onresponse=OnResponse}) ->
 	FullHeaders = response_merge_headers(Headers, RespHeaders, DefaultHeaders),
-	%% @todo 'onresponse' hook here.
-	HTTPVer = cowboy_http:version_to_binary(Version),
-	StatusLine = << HTTPVer/binary, " ", (status(Status))/binary, "\r\n" >>,
-	HeaderLines = [[Key, <<": ">>, Value, <<"\r\n">>]
-		|| {Key, Value} <- FullHeaders],
-	Transport:send(Socket, [StatusLine, HeaderLines, <<"\r\n">>]).
+	Req2 = case OnResponse of
+		undefined -> Req;
+		OnResponse -> OnResponse(Status, FullHeaders,
+			%% Don't call 'onresponse' from the hook itself.
+			Req#http_req{resp_headers=[], resp_body= <<>>,
+				onresponse=undefined})
+	end,
+	ReplyType = case Req2#http_req.resp_state of
+		waiting ->
+			HTTPVer = cowboy_http:version_to_binary(Version),
+			StatusLine = << HTTPVer/binary, " ",
+				(status(Status))/binary, "\r\n" >>,
+			HeaderLines = [[Key, <<": ">>, Value, <<"\r\n">>]
+				|| {Key, Value} <- FullHeaders],
+			Transport:send(Socket, [StatusLine, HeaderLines, <<"\r\n">>]),
+			ReqPid ! {?MODULE, resp_sent},
+			normal;
+		_ ->
+			hook
+	end,
+	{ReplyType, Req2}.
 
 -spec response_connection(cowboy_http:headers(), keepalive | close)
 	-> keepalive | close.
