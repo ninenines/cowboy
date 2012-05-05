@@ -29,6 +29,7 @@
 -export([check_raw_status/1]).
 -export([check_status/1]).
 -export([chunked_response/1]).
+-export([echo_body/1]).
 -export([error_chain_handle_after_reply/1]).
 -export([error_chain_handle_before_reply/1]).
 -export([error_handle_after_reply/1]).
@@ -74,6 +75,7 @@ groups() ->
 		check_raw_status,
 		check_status,
 		chunked_response,
+		echo_body,
 		error_chain_handle_after_reply,
 		error_chain_handle_before_reply,
 		error_handle_after_reply,
@@ -393,6 +395,20 @@ check_status(Config) ->
 chunked_response(Config) ->
 	{ok, {{"HTTP/1.1", 200, "OK"}, _, "chunked_handler\r\nworks fine!"}}
 		= httpc:request(binary_to_list(build_url("/chunked_response", Config))).
+
+%% Check if sending requests whose size is around the MTU breaks something.
+echo_body(Config) ->
+	Client = ?config(client, Config),
+	{ok, [{mtu, MTU}]} = inet:ifget("lo", [mtu]),
+	[begin
+		Body = list_to_binary(lists:duplicate(Size, $a)),
+		{ok, Client2} = cowboy_client:request(<<"POST">>,
+			build_url("/echo/body", Config),
+			[{<<"connection">>, <<"close">>}],
+			Body, Client),
+		{ok, 200, _, Client3} = cowboy_client:response(Client2),
+		{ok, Body, _} = cowboy_client:response_body(Client3)
+	end || Size <- lists:seq(MTU - 500, MTU)].
 
 error_chain_handle_after_reply(Config) ->
 	Client = ?config(client, Config),
