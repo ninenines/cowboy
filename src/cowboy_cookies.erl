@@ -96,7 +96,7 @@ cookie(Key, Value, Options) when is_binary(Key)
 			undefined ->
 				<<"">>;
 			Path ->
-				<<"; Path=", (quote(Path))/binary>>
+				<<"; Path=", (quote(Path, true))/binary>>
 		end,
 	HttpOnlyPart =
 		case proplists:get_value(http_only, Options) of
@@ -119,7 +119,7 @@ is_whitespace($\r) -> true;
 is_whitespace($\n) -> true;
 is_whitespace(_) -> false.
 
-%% @doc Check if a character is a seperator.
+%% @doc Check if a character is a separator.
 -spec is_separator(char()) -> boolean().
 is_separator(C) when C < 32 -> true;
 is_separator($\s) -> true;
@@ -143,33 +143,38 @@ is_separator(${) -> true;
 is_separator($}) -> true;
 is_separator(_) -> false.
 
-%% @doc Check if a binary has an ASCII seperator character.
--spec has_seperator(binary()) -> boolean().
-has_seperator(<<>>) ->
+%% @doc Check if a binary has an ASCII separator character.
+-spec has_separator(binary(), boolean()) -> boolean().
+has_separator(<<>>, _) ->
 	false;
-has_seperator(<<$/, Rest/binary>>) ->
-	has_seperator(Rest);
-has_seperator(<<C, Rest/binary>>) ->
+has_separator(<<$/, Rest/binary>>, true) ->
+	has_separator(Rest, true);
+has_separator(<<C, Rest/binary>>, IgnoreSlash) ->
 	case is_separator(C) of
 		true ->
 			true;
 		false ->
-			has_seperator(Rest)
+			has_separator(Rest, IgnoreSlash)
 	end.
 
 %% @doc Convert to a binary and raise an error if quoting is required. Quoting
 %% is broken in different ways for different browsers. Its better to simply
 %% avoiding doing it at all.
 %% @end
--spec quote(term()) -> binary().
-quote(V0) ->
+-spec quote(term(), boolean()) -> binary().
+quote(V0, IgnoreSlash) ->
 	V = any_to_binary(V0),
-	case has_seperator(V) of
+	case has_separator(V, IgnoreSlash) of
 		true ->
 			erlang:error({cookie_quoting_required, V});
 		false ->
 			V
 	end.
+
+%% @equiv quote(Bin, false)
+-spec quote(term()) -> binary().
+quote(V0) ->
+	quote(V0, false).
 
 -spec add_seconds(integer(), calendar:datetime()) -> calendar:datetime().
 add_seconds(Secs, LocalTime) ->
@@ -265,7 +270,7 @@ binary_splitwith(F, Head, Tail) ->
 binary_splitwith(F, String) ->
 	binary_splitwith(F, <<>>, String).
 
-%% @doc Split the binary when the next seperator is found.
+%% @doc Split the binary when the next separator is found.
 -spec read_token(binary()) -> {binary(), binary()}.
 read_token(String) ->
 	binary_splitwith(fun is_separator/1, String).
@@ -301,6 +306,9 @@ quote_test() ->
 	catch error:{cookie_quoting_required, <<":wq">>} -> ok
 	end,
 	?assertEqual(<<"foo">>,quote(foo)),
+	_ = try quote(<<"/test/slashes/">>)
+	catch error:{cookie_quoting_required, <<"/test/slashes/">>} -> ok
+	end,
 	ok.
 
 parse_cookie_test() ->
