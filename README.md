@@ -188,6 +188,9 @@ requests to a single handler.
 
 There is currently no way to match multiple tokens at once.
 
+The handler field is a dispatch rule is either a module name or a
+fun(Opts, HostInfo, PathInfo) that returns the handler info.
+
 Requests handling
 -----------------
 

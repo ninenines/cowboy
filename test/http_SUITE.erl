@@ -29,6 +29,7 @@
 -export([check_raw_status/1]).
 -export([check_status/1]).
 -export([chunked_response/1]).
+-export([dynamic_dispatch/1]).
 -export([echo_body/1]).
 -export([error_chain_handle_after_reply/1]).
 -export([error_chain_handle_before_reply/1]).
@@ -75,6 +76,7 @@ groups() ->
 		check_raw_status,
 		check_status,
 		chunked_response,
+		dynamic_dispatch,
 		echo_body,
 		error_chain_handle_after_reply,
 		error_chain_handle_before_reply,
@@ -243,6 +245,7 @@ init_dispatch(Config) ->
 				 {etag, {fun static_function_etag/2, etag_data}}]},
 			{[<<"multipart">>], http_handler_multipart, []},
 			{[<<"echo">>, <<"body">>], http_handler_echo_body, []},
+			{[<<"dynamic">>, <<"echo">>], fun dynamic_dispatch_echo_body/3, []},
 			{[<<"simple">>], rest_simple_resource, []},
 			{[<<"forbidden_post">>], rest_forbidden_resource, [true]},
 			{[<<"simple_post">>], rest_forbidden_resource, [false]},
@@ -395,6 +398,20 @@ check_status(Config) ->
 chunked_response(Config) ->
 	{ok, {{"HTTP/1.1", 200, "OK"}, _, "chunked_handler\r\nworks fine!"}}
 		= httpc:request(binary_to_list(build_url("/chunked_response", Config))).
+
+%% Check is dynamic dispatching works
+dynamic_dispatch_echo_body(_Opts, HostInfo, PathInfo) ->
+    {ok, http_handler_echo_body, [], HostInfo, PathInfo}.
+
+dynamic_dispatch(Config) ->
+	Client = ?config(client, Config),
+	Body = <<"echo">>,
+	{ok, Client2} = cowboy_client:request(<<"POST">>,
+		build_url("/dynamic/echo", Config),
+		[{<<"connection">>, <<"close">>}],
+		Body, Client),
+	{ok, 200, _, Client3} = cowboy_client:response(Client2),
+	{ok, Body, _} = cowboy_client:response_body(Client3).
 
 %% Check if sending requests whose size is around the MTU breaks something.
 echo_body(Config) ->
