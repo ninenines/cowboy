@@ -576,20 +576,12 @@ multipart_data(Req=#http_req{body_state=waiting}) ->
 	{{<<"multipart">>, _SubType, Params}, Req2} =
 		parse_header('Content-Type', Req),
 	{_, Boundary} = lists:keyfind(<<"boundary">>, 1, Params),
-	{Length, Req3=#http_req{buffer=Buffer}} =
-		parse_header('Content-Length', Req2),
-	multipart_data(Req3, Length, cowboy_multipart:parser(Boundary), Buffer);
+	{Length, Req3} = parse_header('Content-Length', Req2),
+	multipart_data(Req3, Length, {more, cowboy_multipart:parser(Boundary)});
 multipart_data(Req=#http_req{body_state={multipart, Length, Cont}}) ->
 	multipart_data(Req, Length, Cont());
 multipart_data(Req=#http_req{body_state=done}) ->
 	{eof, Req}.
-
-multipart_data(Req, Length, Parser, Buffer) when byte_size(Buffer) >= Length ->
-	<< Data:Length/binary, Rest/binary >> = Buffer,
-	multipart_data(Req#http_req{buffer=Rest}, 0, Parser(Data));
-multipart_data(Req, Length, Parser, Buffer) ->
-	NewLength = Length - byte_size(Buffer),
-	multipart_data(Req#http_req{buffer= <<>>}, NewLength, Parser(Buffer)).
 
 multipart_data(Req, Length, {headers, Headers, Cont}) ->
 	{{headers, Headers}, Req#http_req{body_state={multipart, Length, Cont}}};
@@ -601,15 +593,15 @@ multipart_data(Req, 0, eof) ->
 	{eof, Req#http_req{body_state=done}};
 multipart_data(Req=#http_req{socket=Socket, transport=Transport},
 		Length, eof) ->
+	%% We just want to skip so no need to stream data here.
 	{ok, _Data} = Transport:recv(Socket, Length, 5000),
 	{eof, Req#http_req{body_state=done}};
-multipart_data(Req=#http_req{socket=Socket, transport=Transport},
-		Length, {more, Parser}) when Length > 0 ->
-	case Transport:recv(Socket, 0, 5000) of
-		{ok, << Data:Length/binary, Buffer/binary >>} ->
-			multipart_data(Req#http_req{buffer=Buffer}, 0, Parser(Data));
-		{ok, Data} ->
-			multipart_data(Req, Length - byte_size(Data), Parser(Data))
+multipart_data(Req, Length, {more, Parser}) when Length > 0 ->
+	case stream_body(Req) of
+		{ok, << Data:Length/binary, Buffer/binary >>, Req2} ->
+			multipart_data(Req2#http_req{buffer=Buffer}, 0, Parser(Data));
+		{ok, Data, Req2} ->
+			multipart_data(Req2, Length - byte_size(Data), Parser(Data))
 	end.
 
 %% @doc Skip a part returned by the multipart parser.
