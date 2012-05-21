@@ -618,7 +618,7 @@ onresponse_crash(Config) ->
 	Client = ?config(client, Config),
 	{ok, Client2} = cowboy_client:request(<<"GET">>,
 		build_url("/handler_errors?case=init_before_reply", Config), Client),
-	{ok, 777, Headers, Client3} = cowboy_client:response(Client2),
+	{ok, 777, Headers, _} = cowboy_client:response(Client2),
 	{<<"x-hook">>, <<"onresponse">>} = lists:keyfind(<<"x-hook">>, 1, Headers).
 
 onresponse_reply(Config) ->
