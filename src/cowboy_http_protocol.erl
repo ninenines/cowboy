@@ -438,12 +438,13 @@ ensure_response(#http_req{socket=Socket, transport=Transport,
 
 %% Only send an error reply if there is no resp_sent message.
 -spec error_terminate(cowboy_http:status(), #state{}) -> ok.
-error_terminate(Code, State=#state{socket=Socket, transport=Transport}) ->
+error_terminate(Code, State=#state{socket=Socket, transport=Transport,
+		onresponse=OnResponse}) ->
 	receive
 		{cowboy_http_req, resp_sent} -> ok
 	after 0 ->
 		_ = cowboy_http_req:reply(Code, #http_req{
-			socket=Socket, transport=Transport,
+			socket=Socket, transport=Transport, onresponse=OnResponse,
 			connection=close, pid=self(), resp_state=waiting}),
 		ok
 	end,

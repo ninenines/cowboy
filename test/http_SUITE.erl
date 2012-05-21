@@ -45,6 +45,7 @@
 -export([nc_zero/1]).
 -export([onrequest/1]).
 -export([onrequest_reply/1]).
+-export([onresponse_crash/1]).
 -export([onresponse_reply/1]).
 -export([pipeline/1]).
 -export([rest_keepalive/1]).
@@ -116,6 +117,7 @@ groups() ->
 			onrequest_reply
 		]},
 		{onresponse, [], [
+			onresponse_crash,
 			onresponse_reply
 		]}
 	].
@@ -603,6 +605,13 @@ onrequest_hook(Req) ->
 				200, [], <<"replied!">>, Req2),
 			Req3
 	end.
+
+onresponse_crash(Config) ->
+	Client = ?config(client, Config),
+	{ok, Client2} = cowboy_client:request(<<"GET">>,
+		build_url("/handler_errors?case=init_before_reply", Config), Client),
+	{ok, 777, Headers, Client3} = cowboy_client:response(Client2),
+	{<<"x-hook">>, <<"onresponse">>} = lists:keyfind(<<"x-hook">>, 1, Headers).
 
 onresponse_reply(Config) ->
 	Client = ?config(client, Config),
