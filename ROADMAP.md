@@ -61,55 +61,19 @@ are not ordered.
     Tools like curl expect a 100 Continue before sending a
     request body by default.
 
-*   Content-Encoding support.
-
-    Cowboy should be able to send encoded content automatically.
-    The default should be to encode, but the developer must be
-    able to override this default either for the whole listener
-    or just for a single reply.
-
-*   Improve body reading API.
-
-    We want to have various different things for reading the
-    body. First, there should be raw functions for the different
-    ways to read the body: basic, transfer encoded, multipart.
-    Each should allow us to limit the size of what is read.
-
-    On top of these functions there should be two more
-    advanced functions: one would return the result of parsing
-    a x-www-form-urlencoded body; the other would parse a
-    multipart request, save files from the multipart data to
-    a temporary location and return a proplist of values if any
-    along with the files details. This behavior is similar to
-    what is done automatically by PHP with its $_FILES array.
-
-    The advanced functions are of course here for convenience
-    only and it should be trivial to reimplement them directly
-    in a Cowboy application if needed.
+*   Convert the multipart code to stream_body.
 
 *   Complete the work on Websockets.
 
     Now that the Autobahn test suite is available (make inttests),
     we have a definite way to know whether Cowboy's implementation
     of Websockets is right. The work can thus be completed. The
-    remaining tasks are proper UTF8 handling and fragmentation.
+    remaining tasks are proper UTF8 handling.
 
 *   SPDY support.
 
     While SPDY probably won't be added directly to Cowboy, work
     has been started on making Cowboy use SPDY.
-
-*   Hooks.
-
-    Customizable hooks would allow the developer to extend Cowboy
-    easily. Two kinds of hooks are needed: before dispatching the
-    request, and before sending a reply.
-
-    The first would allow us to apply site-wide functions like
-    authentication or request logging and modify the Req if needed.
-
-    The second is more interesting for response logging or to
-    filter the replies, for example to send custom error pages.
 
 *   Transport upgrades.
 

@@ -134,7 +134,7 @@ init_per_group(http, Config) ->
 	Port = 33080,
 	Transport = cowboy_tcp_transport,
 	Config1 = init_static_dir(Config),
-	cowboy:start_listener(http, 100,
+	{ok, _} = cowboy:start_listener(http, 100,
 		Transport, [{port, Port}],
 		cowboy_http_protocol, [
 			{dispatch, init_dispatch(Config1)},
@@ -156,7 +156,7 @@ init_per_group(https, Config) ->
 	application:start(crypto),
 	application:start(public_key),
 	application:start(ssl),
-	{ok,_} = cowboy:start_listener(https, 100,
+	{ok, _} = cowboy:start_listener(https, 100,
 		Transport, Opts ++ [{port, Port}],
 		cowboy_http_protocol, [
 			{dispatch, init_dispatch(Config1)},
