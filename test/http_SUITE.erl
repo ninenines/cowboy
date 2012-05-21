@@ -59,6 +59,8 @@
 -export([static_attribute_etag/1]).
 -export([static_function_etag/1]).
 -export([static_mimetypes_function/1]).
+-export([static_specify_file/1]).
+-export([static_specify_file_catchall/1]).
 -export([static_test_file/1]).
 -export([static_test_file_css/1]).
 -export([stream_body_set_resp/1]).
@@ -102,6 +104,8 @@ groups() ->
 		static_attribute_etag,
 		static_function_etag,
 		static_mimetypes_function,
+		static_specify_file,
+		static_specify_file_catchall,
 		static_test_file,
 		static_test_file_css,
 		stream_body_set_resp,
@@ -243,6 +247,10 @@ init_dispatch(Config) ->
 			{[<<"static_function_etag">>, '...'], cowboy_http_static,
 				[{directory, ?config(static_dir, Config)},
 				 {etag, {fun static_function_etag/2, etag_data}}]},
+			{[<<"static_specify_file">>, '...'],  cowboy_http_static,
+				[{directory, ?config(static_dir, Config)},
+				 {mimetypes, [{<<".css">>, [<<"text/css">>]}]},
+				 {file, <<"test_file.css">>}]},
 			{[<<"multipart">>], http_handler_multipart, []},
 			{[<<"echo">>, <<"body">>], http_handler_echo_body, []},
 			{[<<"simple">>], rest_simple_resource, []},
@@ -804,6 +812,24 @@ static_mimetypes_function(Config) ->
 	{ok, 200, Headers, _} = cowboy_client:response(Client2),
 	{<<"content-type">>, <<"text/html">>}
 		= lists:keyfind(<<"content-type">>, 1, Headers).
+
+static_specify_file(Config) ->
+	Client = ?config(client, Config),
+	{ok, Client2} = cowboy_client:request(<<"GET">>,
+		build_url("/static_specify_file", Config), Client),
+	{ok, 200, Headers, Client3} = cowboy_client:response(Client2),
+	{<<"content-type">>, <<"text/css">>}
+		= lists:keyfind(<<"content-type">>, 1, Headers),
+	{ok, <<"test_file.css\n">>, _} = cowboy_client:response_body(Client3).
+
+static_specify_file_catchall(Config) ->
+	Client = ?config(client, Config),
+	{ok, Client2} = cowboy_client:request(<<"GET">>,
+		build_url("/static_specify_file/none", Config), Client),
+	{ok, 200, Headers, Client3} = cowboy_client:response(Client2),
+	{<<"content-type">>, <<"text/css">>}
+		= lists:keyfind(<<"content-type">>, 1, Headers),
+	{ok, <<"test_file.css\n">>, _} = cowboy_client:response_body(Client3).
 
 static_test_file(Config) ->
 	Client = ?config(client, Config),

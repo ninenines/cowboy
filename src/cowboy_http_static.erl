@@ -31,7 +31,7 @@
 %% The handler must be configured with a request path prefix to serve files
 %% under and the path to a directory to read files from. The request path prefix
 %% is defined in the path pattern of the cowboy dispatch rule for the handler.
-%% The request path pattern must end with a ``'...''' token.
+%% The request path pattern must end with a `...' token.
 %% The directory path can be set to either an absolute or relative path in the
 %% form of a list or binary string representation of a file system path. A list
 %% of binary path segments, as is used throughout cowboy, is also a valid
@@ -133,6 +133,40 @@
 %%     [Checksum|_] = string:tokens(os:cmd(ChecksumCommand), " "),
 %%     {strong, iolist_to_binary(Checksum)}.
 %% '''
+%%
+%% == File configuration ==
+%%
+%% If the file system path being served does not share a common suffix with
+%% the request path it is possible to override the file path using the `file'
+%% option. The value of this option is expected to be a relative path within
+%% the static file directory specified using the `directory' option.
+%% The path must be in the form of a list or binary string representation of a
+%% file system path. A list of binary path segments, as is used throughout
+%% cowboy, is also a valid.
+%%
+%% When the `file' option is used the same file will be served for all requests
+%% matching the cowboy dispatch fule for the handler. It is not necessary to
+%% end the request path pattern with a `...' token because the request path
+%% will not be used to determine which file to serve from the static directory.
+%%
+%% === Examples ===
+%%
+%% ```
+%% %% Serve cowboy/priv/www/index.html as http://example.com/
+%% {[], cowboy_http_static,
+%%     [{directory, {priv_dir, cowboy, [<<"www">>]}}
+%%      {file, <<"index.html">>}]}
+%%
+%% %% Serve cowboy/priv/www/page.html under http://example.com/*/page
+%% {['*', <<"page">>], cowboy_http_static,
+%%     [{directory, {priv_dir, cowboy, [<<"www">>]}}
+%%      {file, <<"page.html">>}]}.
+%%
+%% %% Always serve cowboy/priv/www/other.html under http://example.com/other
+%% {[<<"other">>, '...'], cowboy_http_static,
+%%     [{directory, {priv_dir, cowboy, [<<"www">>]}}
+%%      {file, "other.html"}]}
+%% '''
 -module(cowboy_http_static).
 
 %% include files
@@ -189,7 +223,10 @@ rest_init(Req, Opts) ->
 		{attributes, Attrs} -> {fun attr_etag_function/2, Attrs};
 		{_, _}=ETagFunction1 -> ETagFunction1
 	end,
-	{Filepath, Req1} = cowboy_http_req:path_info(Req),
+	{Filepath, Req1} = case lists:keyfind(file, 1, Opts) of
+		{_, Filepath2} -> {filepath_path(Filepath2), Req};
+		false -> cowboy_http_req:path_info(Req)
+	end,
 	State = case check_path(Filepath) of
 		error ->
 			#state{filepath=error, fileinfo=error, mimetypes=undefined,
@@ -341,6 +378,14 @@ directory_path({priv_dir, App, Path}) when is_binary(Path) ->
 directory_path(Path) ->
 	Path.
 
+%% @private Ensure that a file path is of the same type as a request path.
+-spec filepath_path(dirpath()) -> Path::[binary()].
+filepath_path([H|_]=Path) when is_integer(H) ->
+	filename:split(list_to_binary(Path));
+filepath_path(Path) when is_binary(Path) ->
+	filename:split(Path);
+filepath_path([H|_]=Path) when is_binary(H) ->
+	Path.
 
 %% @private Validate a request path for unsafe characters.
 %% There is no way to escape special characters in a filesystem path.
@@ -459,5 +504,14 @@ directory_path_test_() ->
 	 ?_eq("a/b", P("a/b"))
 	].
 
+filepath_path_test_() ->
+	P = fun filepath_path/1,
+	[?_eq([<<"a">>], P("a")),
+	 ?_eq([<<"a">>], P(<<"a">>)),
+	 ?_eq([<<"a">>], P([<<"a">>])),
+	 ?_eq([<<"a">>, <<"b">>], P("a/b")),
+	 ?_eq([<<"a">>, <<"b">>], P(<<"a/b">>)),
+	 ?_eq([<<"a">>, <<"b">>], P([<<"a">>, <<"b">>]))
+	].
 
 -endif.
