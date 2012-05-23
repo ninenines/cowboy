@@ -157,28 +157,28 @@ based on the hostname and path information from the request. It also lets
 you define static options for the handler directly in the rules.
 
 To match the hostname and path, Cowboy requires a list of tokens. For
-example, to match the "dev-extend.eu" domain name, you must specify
-`[<<"dev-extend">>, <<"eu">>]`. Or, to match the "/path/to/my/resource"
+example, to match the "ninenines.eu" domain name, you must specify
+`[<<"ninenines">>, <<"eu">>]`. Or, to match the "/path/to/my/resource"
 you must use `[<<"path">>, <<"to">>, <<"my">>, <<"resource">>]`. All the
 tokens must be given as binary.
 
 You can use the special token `'_'` (the atom underscore) to indicate that
 you accept anything in that position. For example if you have both
-"dev-extend.eu" and "dev-extend.fr" domains, you can use the match spec
-`[<<"dev-extend">>, '_']` to match any top level extension.
+"ninenines.eu" and "ninenines.fr" domains, you can use the match spec
+`[<<"ninenines">>, '_']` to match any top level extension.
 
 Finally, you can also match multiple leading segments of the domain name and
 multiple trailing segments of the request path using the atom `'...'` (the atom
 ellipsis) respectively as the first host token or the last path token. For
-example, host rule `['...', <<"dev-extend">>, <<"eu">>]` can match both
-"cowboy.bugs.dev-extend.eu" and "dev-extend.eu" and path rule
+example, host rule `['...', <<"ninenines">>, <<"eu">>]` can match both
+"cowboy.bugs.ninenines.eu" and "ninenines.eu" and path rule
 `[<<"projects">>, '...']` can match both "/projects" and
 "/projects/cowboy/issues/42". The host leading segments and the path trailing
 segments can later be retrieved through `cowboy_http_req:host_info/1` and
 `cowboy_http_req:path_info/1`.
 
 Any other atom used as a token will bind the value to this atom when
-matching. To follow on our hostnames example, `[<<"dev-extend">>, ext]`
+matching. To follow on our hostnames example, `[<<"ninenines">>, ext]`
 would bind the values `<<"eu">>` and `<<"fr">>` to the ext atom, that you
 can later retrieve in your handler by calling `cowboy_http_req:binding/{2,3}`.
 

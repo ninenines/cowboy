@@ -1,4 +1,4 @@
-%% Copyright (c) 2011, Loïc Hoguin <essen@dev-extend.eu>
+%% Copyright (c) 2011-2012, Loïc Hoguin <essen@ninenines.eu>
 %% Copyright (c) 2011, Anthony Ramine <nox@dev-extend.eu>
 %%
 %% Permission to use, copy, modify, and/or distribute this software for any
@@ -85,8 +85,8 @@ do_split_path(RawPath, Separator, URLDec) ->
 %% corresponding token value and return it.
 %%
 %% The list of hostname tokens is reversed before matching. For example, if
-%% we were to match "www.dev-extend.eu", we would first match "eu", then
-%% "dev-extend", then "www". This means that in the context of hostnames,
+%% we were to match "www.ninenines.eu", we would first match "eu", then
+%% "ninenines", then "www". This means that in the context of hostnames,
 %% the <em>'...'</em> atom matches properly the lower levels of the domain
 %% as would be expected.
 %%
@@ -173,16 +173,16 @@ split_host_test_() ->
 		{<<"">>, {[], <<"">>, undefined}},
 		{<<".........">>, {[], <<".........">>, undefined}},
 		{<<"*">>, {[<<"*">>], <<"*">>, undefined}},
-		{<<"cowboy.dev-extend.eu">>,
-			{[<<"cowboy">>, <<"dev-extend">>, <<"eu">>],
-			 <<"cowboy.dev-extend.eu">>, undefined}},
-		{<<"dev-extend..eu">>,
-			{[<<"dev-extend">>, <<>>, <<"eu">>],
-			 <<"dev-extend..eu">>, undefined}},
-		{<<"dev-extend.eu">>,
-			{[<<"dev-extend">>, <<"eu">>], <<"dev-extend.eu">>, undefined}},
-		{<<"dev-extend.eu:8080">>,
-			{[<<"dev-extend">>, <<"eu">>], <<"dev-extend.eu">>, 8080}},
+		{<<"cowboy.ninenines.eu">>,
+			{[<<"cowboy">>, <<"ninenines">>, <<"eu">>],
+			 <<"cowboy.ninenines.eu">>, undefined}},
+		{<<"ninenines..eu">>,
+			{[<<"ninenines">>, <<>>, <<"eu">>],
+			 <<"ninenines..eu">>, undefined}},
+		{<<"ninenines.eu">>,
+			{[<<"ninenines">>, <<"eu">>], <<"ninenines.eu">>, undefined}},
+		{<<"ninenines.eu:8080">>,
+			{[<<"ninenines">>, <<"eu">>], <<"ninenines.eu">>, 8080}},
 		{<<"a.b.c.d.e.f.g.h.i.j.k.l.m.n.o.p.q.r.s.t.u.v.w.x.y.z">>,
 			{[<<"a">>, <<"b">>, <<"c">>, <<"d">>, <<"e">>, <<"f">>, <<"g">>,
 			  <<"h">>, <<"i">>, <<"j">>, <<"k">>, <<"l">>, <<"m">>, <<"n">>,
@@ -195,13 +195,13 @@ split_host_test_() ->
 
 split_host_fail_test_() ->
 	Tests = [
-		<<"dev-extend.eu:owns">>,
-		<<"dev-extend.eu: owns">>,
-		<<"dev-extend.eu:42fun">>,
-		<<"dev-extend.eu: 42fun">>,
-		<<"dev-extend.eu:42 fun">>,
-		<<"dev-extend.eu:fun 42">>,
-		<<"dev-extend.eu: 42">>,
+		<<"ninenines.eu:owns">>,
+		<<"ninenines.eu: owns">>,
+		<<"ninenines.eu:42fun">>,
+		<<"ninenines.eu: 42fun">>,
+		<<"ninenines.eu:42 fun">>,
+		<<"ninenines.eu:fun 42">>,
+		<<"ninenines.eu: 42">>,
 		<<":owns">>,
 		<<":42 fun">>
 	],
@@ -233,14 +233,14 @@ split_path_test_() ->
 
 match_test_() ->
 	Dispatch = [
-		{[<<"www">>, '_', <<"dev-extend">>, <<"eu">>], [
+		{[<<"www">>, '_', <<"ninenines">>, <<"eu">>], [
 			{[<<"users">>, '_', <<"mails">>], match_any_subdomain_users, []}
 		]},
-		{[<<"dev-extend">>, <<"eu">>], [
+		{[<<"ninenines">>, <<"eu">>], [
 			{[<<"users">>, id, <<"friends">>], match_extend_users_friends, []},
 			{'_', match_extend, []}
 		]},
-		{[<<"dev-extend">>, var], [
+		{[<<"ninenines">>, var], [
 			{[<<"threads">>, var], match_duplicate_vars,
 				[we, {expect, two}, var, here]}
 		]},
@@ -255,22 +255,22 @@ match_test_() ->
 	%% {Host, Path, Result}
 	Tests = [
 		{[<<"any">>], [], {ok, match_any, [], []}},
-		{[<<"www">>, <<"any">>, <<"dev-extend">>, <<"eu">>],
+		{[<<"www">>, <<"any">>, <<"ninenines">>, <<"eu">>],
 			[<<"users">>, <<"42">>, <<"mails">>],
 			{ok, match_any_subdomain_users, [], []}},
-		{[<<"www">>, <<"dev-extend">>, <<"eu">>],
+		{[<<"www">>, <<"ninenines">>, <<"eu">>],
 			[<<"users">>, <<"42">>, <<"mails">>], {ok, match_any, [], []}},
-		{[<<"www">>, <<"dev-extend">>, <<"eu">>], [], {ok, match_any, [], []}},
-		{[<<"www">>, <<"any">>, <<"dev-extend">>, <<"eu">>],
+		{[<<"www">>, <<"ninenines">>, <<"eu">>], [], {ok, match_any, [], []}},
+		{[<<"www">>, <<"any">>, <<"ninenines">>, <<"eu">>],
 			[<<"not_users">>, <<"42">>, <<"mails">>], {error, notfound, path}},
-		{[<<"dev-extend">>, <<"eu">>], [], {ok, match_extend, [], []}},
-		{[<<"dev-extend">>, <<"eu">>], [<<"users">>, <<"42">>, <<"friends">>],
+		{[<<"ninenines">>, <<"eu">>], [], {ok, match_extend, [], []}},
+		{[<<"ninenines">>, <<"eu">>], [<<"users">>, <<"42">>, <<"friends">>],
 			{ok, match_extend_users_friends, [], [{id, <<"42">>}]}},
 		{[<<"erlang">>, <<"fr">>], '_',
 			{ok, match_erlang_ext, [], [{ext, <<"fr">>}]}},
 		{[<<"any">>], [<<"users">>, <<"444">>, <<"friends">>],
 			{ok, match_users_friends, [], [{id, <<"444">>}]}},
-		{[<<"dev-extend">>, <<"fr">>], [<<"threads">>, <<"987">>],
+		{[<<"ninenines">>, <<"fr">>], [<<"threads">>, <<"987">>],
 			{ok, match_duplicate_vars, [we, {expect, two}, var, here],
 			[{var, <<"fr">>}, {var, <<"987">>}]}}
 	],
@@ -280,27 +280,27 @@ match_test_() ->
 
 match_info_test_() ->
 	Dispatch = [
-		{[<<"www">>, <<"dev-extend">>, <<"eu">>], [
+		{[<<"www">>, <<"ninenines">>, <<"eu">>], [
 			{[<<"pathinfo">>, <<"is">>, <<"next">>, '...'], match_path, []}
 		]},
-		{['...', <<"dev-extend">>, <<"eu">>], [
+		{['...', <<"ninenines">>, <<"eu">>], [
 			{'_', match_any, []}
 		]}
 	],
 	Tests = [
-		{[<<"dev-extend">>, <<"eu">>], [],
+		{[<<"ninenines">>, <<"eu">>], [],
 			{ok, match_any, [], [], [], undefined}},
-		{[<<"bugs">>, <<"dev-extend">>, <<"eu">>], [],
+		{[<<"bugs">>, <<"ninenines">>, <<"eu">>], [],
 			{ok, match_any, [], [], [<<"bugs">>], undefined}},
-		{[<<"cowboy">>, <<"bugs">>, <<"dev-extend">>, <<"eu">>], [],
+		{[<<"cowboy">>, <<"bugs">>, <<"ninenines">>, <<"eu">>], [],
 			{ok, match_any, [], [], [<<"cowboy">>, <<"bugs">>], undefined}},
-		{[<<"www">>, <<"dev-extend">>, <<"eu">>],
+		{[<<"www">>, <<"ninenines">>, <<"eu">>],
 			[<<"pathinfo">>, <<"is">>, <<"next">>],
 			{ok, match_path, [], [], undefined, []}},
-		{[<<"www">>, <<"dev-extend">>, <<"eu">>],
+		{[<<"www">>, <<"ninenines">>, <<"eu">>],
 			[<<"pathinfo">>, <<"is">>, <<"next">>, <<"path_info">>],
 			{ok, match_path, [], [], undefined, [<<"path_info">>]}},
-		{[<<"www">>, <<"dev-extend">>, <<"eu">>],
+		{[<<"www">>, <<"ninenines">>, <<"eu">>],
 			[<<"pathinfo">>, <<"is">>, <<"next">>, <<"foo">>, <<"bar">>],
 			{ok, match_path, [], [], undefined, [<<"foo">>, <<"bar">>]}}
 	],

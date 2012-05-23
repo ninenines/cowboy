@@ -61,14 +61,12 @@ are not ordered.
     Tools like curl expect a 100 Continue before sending a
     request body by default.
 
-*   Convert the multipart code to stream_body.
-
 *   Complete the work on Websockets.
 
     Now that the Autobahn test suite is available (make inttests),
     we have a definite way to know whether Cowboy's implementation
     of Websockets is right. The work can thus be completed. The
-    remaining tasks are proper UTF8 handling.
+    remaining task is proper UTF8 handling.
 
 *   SPDY support.
 
