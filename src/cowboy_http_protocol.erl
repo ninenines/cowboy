@@ -1,4 +1,4 @@
-%% Copyright (c) 2011, Loïc Hoguin <essen@dev-extend.eu>
+%% Copyright (c) 2011-2012, Loïc Hoguin <essen@ninenines.eu>
 %% Copyright (c) 2011, Anthony Ramine <nox@dev-extend.eu>
 %%
 %% Permission to use, copy, modify, and/or distribute this software for any
@@ -38,7 +38,7 @@
 -export([start_link/4]). %% API.
 -export([init/4, parse_request/1, handler_loop/3]). %% FSM.
 
--include("include/http.hrl").
+-include("http.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
 -record(state, {
@@ -47,6 +47,9 @@
 	transport :: module(),
 	dispatch :: cowboy_dispatcher:dispatch_rules(),
 	handler :: {module(), any()},
+	onrequest :: undefined | fun((#http_req{}) -> #http_req{}),
+	onresponse = undefined :: undefined | fun((cowboy_http:status(),
+		cowboy_http:headers(), #http_req{}) -> #http_req{}),
 	urldecode :: {fun((binary(), T) -> binary()), T},
 	req_empty_lines = 0 :: integer(),
 	max_empty_lines :: integer(),
@@ -77,6 +80,8 @@ init(ListenerPid, Socket, Transport, Opts) ->
 	MaxEmptyLines = proplists:get_value(max_empty_lines, Opts, 5),
 	MaxKeepalive = proplists:get_value(max_keepalive, Opts, infinity),
 	MaxLineLength = proplists:get_value(max_line_length, Opts, 4096),
+	OnRequest = proplists:get_value(onrequest, Opts),
+	OnResponse = proplists:get_value(onresponse, Opts),
 	Timeout = proplists:get_value(timeout, Opts, 5000),
 	URLDecDefault = {fun cowboy_http:urldecode/2, crash},
 	URLDec = proplists:get_value(urldecode, Opts, URLDecDefault),
@@ -84,7 +89,8 @@ init(ListenerPid, Socket, Transport, Opts) ->
 	wait_request(#state{listener=ListenerPid, socket=Socket, transport=Transport,
 		dispatch=Dispatch, max_empty_lines=MaxEmptyLines,
 		max_keepalive=MaxKeepalive, max_line_length=MaxLineLength,
-		timeout=Timeout, urldecode=URLDec}).
+		timeout=Timeout, onrequest=OnRequest, onresponse=OnResponse,
+		urldecode=URLDec}).
 
 %% @private
 -spec parse_request(#state{}) -> ok.
@@ -119,19 +125,28 @@ request({http_request, Method, {absoluteURI, _Scheme, _Host, _Port, Path},
 	request({http_request, Method, {abs_path, Path}, Version}, State);
 request({http_request, Method, {abs_path, AbsPath}, Version},
 		State=#state{socket=Socket, transport=Transport,
-		urldecode={URLDecFun, URLDecArg}=URLDec}) ->
+		req_keepalive=Keepalive, max_keepalive=MaxKeepalive,
+		onresponse=OnResponse, urldecode={URLDecFun, URLDecArg}=URLDec}) ->
 	URLDecode = fun(Bin) -> URLDecFun(Bin, URLDecArg) end,
 	{Path, RawPath, Qs} = cowboy_dispatcher:split_path(AbsPath, URLDecode),
-	ConnAtom = version_to_connection(Version),
+	ConnAtom = if Keepalive < MaxKeepalive -> version_to_connection(Version);
+		true -> close
+	end,
 	parse_header(#http_req{socket=Socket, transport=Transport,
 		connection=ConnAtom, pid=self(), method=Method, version=Version,
-		path=Path, raw_path=RawPath, raw_qs=Qs, urldecode=URLDec}, State);
+		path=Path, raw_path=RawPath, raw_qs=Qs, onresponse=OnResponse,
+		urldecode=URLDec}, State);
 request({http_request, Method, '*', Version},
-		State=#state{socket=Socket, transport=Transport, urldecode=URLDec}) ->
-	ConnAtom = version_to_connection(Version),
+		State=#state{socket=Socket, transport=Transport,
+		req_keepalive=Keepalive, max_keepalive=MaxKeepalive,
+		onresponse=OnResponse, urldecode=URLDec}) ->
+	ConnAtom = if Keepalive < MaxKeepalive -> version_to_connection(Version);
+		true -> close
+	end,
 	parse_header(#http_req{socket=Socket, transport=Transport,
 		connection=ConnAtom, pid=self(), method=Method, version=Version,
-		path='*', raw_path= <<"*">>, raw_qs= <<>>, urldecode=URLDec}, State);
+		path='*', raw_path= <<"*">>, raw_qs= <<>>, onresponse=OnResponse,
+		urldecode=URLDec}, State);
 request({http_request, _Method, _URI, _Version}, State) ->
 	error_terminate(501, State);
 request({http_error, <<"\r\n">>},
@@ -170,11 +185,11 @@ header({http_header, _I, 'Host', _R, RawHost}, Req=#http_req{
 	case catch cowboy_dispatcher:split_host(RawHost2) of
 		{Host, RawHost3, undefined} ->
 			Port = default_port(Transport:name()),
-			dispatch(fun parse_header/2, Req#http_req{
+			parse_header(Req#http_req{
 				host=Host, raw_host=RawHost3, port=Port,
 				headers=[{'Host', RawHost3}|Req#http_req.headers]}, State);
 		{Host, RawHost3, Port} ->
-			dispatch(fun parse_header/2, Req#http_req{
+			parse_header(Req#http_req{
 				host=Host, raw_host=RawHost3, port=Port,
 				headers=[{'Host', RawHost3}|Req#http_req.headers]}, State);
 		{'EXIT', _Reason} ->
@@ -184,7 +199,9 @@ header({http_header, _I, 'Host', _R, RawHost}, Req=#http_req{
 header({http_header, _I, 'Host', _R, _V}, Req, State) ->
 	parse_header(Req, State);
 header({http_header, _I, 'Connection', _R, Connection},
-		Req=#http_req{headers=Headers}, State) ->
+		Req=#http_req{headers=Headers}, State=#state{
+		req_keepalive=Keepalive, max_keepalive=MaxKeepalive})
+		when Keepalive < MaxKeepalive ->
 	Req2 = Req#http_req{headers=[{'Connection', Connection}|Headers]},
 	{ConnTokens, Req3}
 		= cowboy_http_req:parse_header('Connection', Req2),
@@ -201,24 +218,33 @@ header(http_eoh, #http_req{version={1, 1}, host=undefined}, State) ->
 header(http_eoh, Req=#http_req{version={1, 0}, transport=Transport,
 		host=undefined}, State=#state{buffer=Buffer}) ->
 	Port = default_port(Transport:name()),
-	dispatch(fun handler_init/2, Req#http_req{host=[], raw_host= <<>>,
+	onrequest(Req#http_req{host=[], raw_host= <<>>,
 		port=Port, buffer=Buffer}, State#state{buffer= <<>>});
 header(http_eoh, Req, State=#state{buffer=Buffer}) ->
-	handler_init(Req#http_req{buffer=Buffer}, State#state{buffer= <<>>});
+	onrequest(Req#http_req{buffer=Buffer}, State#state{buffer= <<>>});
 header(_Any, _Req, State) ->
 	error_terminate(400, State).
 
--spec dispatch(fun((#http_req{}, #state{}) -> ok),
-	#http_req{}, #state{}) -> ok.
-dispatch(Next, Req=#http_req{host=Host, path=Path},
+%% Call the global onrequest callback. The callback can send a reply,
+%% in which case we consider the request handled and move on to the next
+%% one. Note that since we haven't dispatched yet, we don't know the
+%% handler, host_info, path_info or bindings yet.
+-spec onrequest(#http_req{}, #state{}) -> ok.
+onrequest(Req, State=#state{onrequest=undefined}) ->
+	dispatch(Req, State);
+onrequest(Req, State=#state{onrequest=OnRequest}) ->
+	Req2 = OnRequest(Req),
+	case Req2#http_req.resp_state of
+		waiting -> dispatch(Req2, State);
+		_ -> next_request(Req2, State, ok)
+	end.
+
+-spec dispatch(#http_req{}, #state{}) -> ok.
+dispatch(Req=#http_req{host=Host, path=Path},
 		State=#state{dispatch=Dispatch}) ->
-	%% @todo We should allow a configurable chain of handlers here to
-	%%       allow things like url rewriting, site-wide authentication,
-	%%       optional dispatching, and more. It would default to what
-	%%       we are doing so far.
 	case cowboy_dispatcher:match(Host, Path, Dispatch) of
 		{ok, Handler, Opts, Binds, HostInfo, PathInfo} ->
-			Next(Req#http_req{host_info=HostInfo, path_info=PathInfo,
+			handler_init(Req#http_req{host_info=HostInfo, path_info=PathInfo,
 				bindings=Binds}, State#state{handler={Handler, Opts}});
 		{error, notfound, host} ->
 			error_terminate(400, State);
@@ -250,12 +276,13 @@ handler_init(Req, State=#state{transport=Transport,
 			upgrade_protocol(Req, State, Module)
 	catch Class:Reason ->
 		error_terminate(500, State),
+		PLReq = lists:zip(record_info(fields, http_req), tl(tuple_to_list(Req))),
 		error_logger:error_msg(
 			"** Handler ~p terminating in init/3~n"
 			"   for the reason ~p:~p~n"
 			"** Options were ~p~n"
 			"** Request was ~p~n** Stacktrace: ~p~n~n",
-			[Handler, Class, Reason, Opts, Req, erlang:get_stacktrace()])
+			[Handler, Class, Reason, Opts, PLReq, erlang:get_stacktrace()])
 	end.
 
 -spec upgrade_protocol(#http_req{}, #state{}, atom()) -> ok.
@@ -272,13 +299,14 @@ handler_handle(HandlerState, Req, State=#state{handler={Handler, Opts}}) ->
 		{ok, Req2, HandlerState2} ->
 			terminate_request(HandlerState2, Req2, State)
 	catch Class:Reason ->
+		PLReq = lists:zip(record_info(fields, http_req), tl(tuple_to_list(Req))),
 		error_logger:error_msg(
 			"** Handler ~p terminating in handle/2~n"
 			"   for the reason ~p:~p~n"
 			"** Options were ~p~n** Handler state was ~p~n"
 			"** Request was ~p~n** Stacktrace: ~p~n~n",
 			[Handler, Class, Reason, Opts,
-			 HandlerState, Req, erlang:get_stacktrace()]),
+			 HandlerState, PLReq, erlang:get_stacktrace()]),
 		handler_terminate(HandlerState, Req, State),
 		error_terminate(500, State)
 	end.
@@ -303,16 +331,15 @@ handler_loop_timeout(State=#state{loop_timeout=Timeout,
 		loop_timeout_ref=PrevRef}) ->
 	_ = case PrevRef of undefined -> ignore; PrevRef ->
 		erlang:cancel_timer(PrevRef) end,
-	TRef = make_ref(),
-	erlang:send_after(Timeout, self(), {?MODULE, timeout, TRef}),
+	TRef = erlang:start_timer(Timeout, self(), ?MODULE),
 	State#state{loop_timeout_ref=TRef}.
 
 -spec handler_loop(any(), #http_req{}, #state{}) -> ok.
 handler_loop(HandlerState, Req, State=#state{loop_timeout_ref=TRef}) ->
 	receive
-		{?MODULE, timeout, TRef} ->
+		{timeout, TRef, ?MODULE} ->
 			terminate_request(HandlerState, Req, State);
-		{?MODULE, timeout, OlderTRef} when is_reference(OlderTRef) ->
+		{timeout, OlderTRef, ?MODULE} when is_reference(OlderTRef) ->
 			handler_loop(HandlerState, Req, State);
 		Message ->
 			handler_call(HandlerState, Req, State, Message)
@@ -330,13 +357,14 @@ handler_call(HandlerState, Req, State=#state{handler={Handler, Opts}},
 			handler_before_loop(HandlerState2, Req2,
 				State#state{hibernate=true})
 	catch Class:Reason ->
+		PLReq = lists:zip(record_info(fields, http_req), tl(tuple_to_list(Req))),
 		error_logger:error_msg(
 			"** Handler ~p terminating in info/3~n"
 			"   for the reason ~p:~p~n"
 			"** Options were ~p~n** Handler state was ~p~n"
 			"** Request was ~p~n** Stacktrace: ~p~n~n",
 			[Handler, Class, Reason, Opts,
-			 HandlerState, Req, erlang:get_stacktrace()]),
+			 HandlerState, PLReq, erlang:get_stacktrace()]),
 		handler_terminate(HandlerState, Req, State),
 		error_terminate(500, State)
 	end.
@@ -346,13 +374,14 @@ handler_terminate(HandlerState, Req, #state{handler={Handler, Opts}}) ->
 	try
 		Handler:terminate(Req#http_req{resp_state=locked}, HandlerState)
 	catch Class:Reason ->
+		PLReq = lists:zip(record_info(fields, http_req), tl(tuple_to_list(Req))),
 		error_logger:error_msg(
 			"** Handler ~p terminating in terminate/2~n"
 			"   for the reason ~p:~p~n"
 			"** Options were ~p~n** Handler state was ~p~n"
 			"** Request was ~p~n** Stacktrace: ~p~n~n",
 			[Handler, Class, Reason, Opts,
-			 HandlerState, Req, erlang:get_stacktrace()])
+			 HandlerState, PLReq, erlang:get_stacktrace()])
 	end.
 
 -spec terminate_request(any(), #http_req{}, #state{}) -> ok.
@@ -361,15 +390,14 @@ terminate_request(HandlerState, Req, State) ->
 	next_request(Req, State, HandlerRes).
 
 -spec next_request(#http_req{}, #state{}, any()) -> ok.
-next_request(Req=#http_req{connection=Conn},
-		State=#state{req_keepalive=Keepalive, max_keepalive=MaxKeepalive},
-		HandlerRes) ->
+next_request(Req=#http_req{connection=Conn}, State=#state{
+		req_keepalive=Keepalive}, HandlerRes) ->
 	RespRes = ensure_response(Req),
 	{BodyRes, Buffer} = ensure_body_processed(Req),
 	%% Flush the resp_sent message before moving on.
 	receive {cowboy_http_req, resp_sent} -> ok after 0 -> ok end,
 	case {HandlerRes, BodyRes, RespRes, Conn} of
-		{ok, ok, ok, keepalive} when Keepalive < MaxKeepalive ->
+		{ok, ok, ok, keepalive} ->
 			?MODULE:parse_request(State#state{
 				buffer=Buffer, req_empty_lines=0,
 				req_keepalive=Keepalive + 1});
@@ -381,10 +409,9 @@ next_request(Req=#http_req{connection=Conn},
 ensure_body_processed(#http_req{body_state=done, buffer=Buffer}) ->
 	{ok, Buffer};
 ensure_body_processed(Req=#http_req{body_state=waiting}) ->
-	case cowboy_http_req:body(Req) of
-		{error, badarg} -> {ok, Req#http_req.buffer}; %% No body.
-		{error, _Reason} -> {close, <<>>};
-		{ok, _, Req2} -> {ok, Req2#http_req.buffer}
+	case cowboy_http_req:skip_body(Req) of
+		{ok, Req2} -> {ok, Req2#http_req.buffer};
+		{error, _Reason} -> {close, <<>>}
 	end;
 ensure_body_processed(Req=#http_req{body_state={multipart, _, _}}) ->
 	{ok, Req2} = cowboy_http_req:multipart_skip(Req),
@@ -399,22 +426,25 @@ ensure_response(#http_req{resp_state=done}) ->
 ensure_response(Req=#http_req{resp_state=waiting}) ->
 	_ = cowboy_http_req:reply(204, [], [], Req),
 	ok;
-%% Close the chunked reply.
+%% Terminate the chunked body for HTTP/1.1 only.
 ensure_response(#http_req{method='HEAD', resp_state=chunks}) ->
-	close;
+	ok;
+ensure_response(#http_req{version={1, 0}, resp_state=chunks}) ->
+	ok;
 ensure_response(#http_req{socket=Socket, transport=Transport,
 		resp_state=chunks}) ->
 	Transport:send(Socket, <<"0\r\n\r\n">>),
-	close.
+	ok.
 
 %% Only send an error reply if there is no resp_sent message.
 -spec error_terminate(cowboy_http:status(), #state{}) -> ok.
-error_terminate(Code, State=#state{socket=Socket, transport=Transport}) ->
+error_terminate(Code, State=#state{socket=Socket, transport=Transport,
+		onresponse=OnResponse}) ->
 	receive
 		{cowboy_http_req, resp_sent} -> ok
 	after 0 ->
 		_ = cowboy_http_req:reply(Code, #http_req{
-			socket=Socket, transport=Transport,
+			socket=Socket, transport=Transport, onresponse=OnResponse,
 			connection=close, pid=self(), resp_state=waiting}),
 		ok
 	end,

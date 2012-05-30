@@ -1,4 +1,4 @@
-.cowboy_dialyzer.plt
+.cowboy.plt
 .eunit
 deps
 doc/*.css
@@ -8,7 +8,3 @@ doc/edoc-info
 ebin
 logs
 test/*.beam
-*.un~
-*~
-\#*\#
-*.swp

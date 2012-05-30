@@ -29,7 +29,7 @@ def install_env(env):
     subprocess.check_call(["curl", "-sS", VIRTUALENV_URL, "-o", VIRTUALENV_BIN])
     subprocess.check_call(["python", VIRTUALENV_BIN, env])
     activate_env(env)
-    subprocess.check_call([PIP_BIN, "install", "Autobahn"])
+    subprocess.check_call([PIP_BIN, "install", "AutobahnTestSuite"])
 
 def client_config():
     """
@@ -54,7 +54,7 @@ def run_test(env, config):
     activate_env(env)
     from twisted.python import log
     from twisted.internet import reactor
-    from autobahn.fuzzing import FuzzingClientFactory
+    from autobahntestsuite.fuzzing import FuzzingClientFactory
     os.chdir(AB_TESTS_PRIV)
     log.startLogging(sys.stdout)
     fuzzer = FuzzingClientFactory(config)

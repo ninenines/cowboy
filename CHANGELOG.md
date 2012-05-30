@@ -1,6 +1,92 @@
 CHANGELOG
 =========
 
+0.6.0
+-----
+
+*   Add multipart support
+
+*   Add chunked transfer decoding support
+
+    Done by reworking the body reading API. Now all the body
+    reading goes through the cowboy_http_req:stream_body/1
+    function. This function takes care of handling both the
+    Transfer-Encoding and the Content-Encoding, returning
+    properly decoded data ready for consumption.
+
+*   Add fragmented websocket messages support
+
+    Properly tested by the addition of the Autobahn websocket
+    test suite to our toolbox. All tests pass except a few
+    related to UTF-8 handling, as Cowboy does no checks on that
+    end at this point.
+
+*   Add 'onrequest' and 'onresponse' hooks
+
+    The first can be used for all the special cases you may have
+    that can't be dealt with otherwise. It's also pretty good for
+    writing access logs or rewriting URLs.
+
+    The second can be used for logging errors or replacing error
+    pages, amongst others.
+
+*   Add cowboy:get_protocol_options/1 and cowboy:set_protocol_options/2
+
+    These functions allow for retrieving a listener's protocol options,
+    and for modifying them while the listener is running. This is
+    most useful to upgrade the dispatch list. The upgrade applies
+    to all the future connections.
+
+*   Add the sockname/1 function to TCP and SSL transports
+
+*   Improve SSL transport support
+
+    Add support for specifying the ciphers. Add CA support. Make
+    specifying the password optional.
+
+*   Add new HTTP status codes from RFC 6585
+
+*   Add a 'file' option to cowboy_http_static
+
+    This allows for mapping /folder/ paths to a /folder/index.html file.
+
+*   Add the '*' catch all Content-Type for REST
+
+*   Add {halt, Req, State} as a possible return value for REST
+
+*   Add absolute URI support for requests
+
+*   Add cowboy_http:x_www_form_urlencoded/2
+
+*   Various REST bug fixes
+
+*   Do not send chunked replies for HTTP/1.0 connections
+
+*   Fix a DST bug in the cookies code
+
+*   Fix a bug with setting cookie values containing slashes
+
+*   Fix a small timer leak when using loop/websocket timeouts
+
+*   Make charset and media type parsing more relaxed
+
+    This is to accomodate some widely used broken clients.
+
+*   Make error messages more readable
+
+*   Fix and improve type specifications
+
+*   Fix a bug preventing documentation from being generated
+
+*   Small improvements to the documentation
+
+*   Rework the HTTP test suite
+
+    The suite now uses an integrated Cowboy HTTP client. The client
+    is currently experimental and shouldn't be used.
+
+*   Add many many tests.
+
 0.4.0
 -----
 

@@ -31,7 +31,7 @@
 %% The handler must be configured with a request path prefix to serve files
 %% under and the path to a directory to read files from. The request path prefix
 %% is defined in the path pattern of the cowboy dispatch rule for the handler.
-%% The request path pattern must end with a ``'...''' token.
+%% The request path pattern must end with a `...' token.
 %% The directory path can be set to either an absolute or relative path in the
 %% form of a list or binary string representation of a file system path. A list
 %% of binary path segments, as is used throughout cowboy, is also a valid
@@ -96,15 +96,16 @@
 %%
 %% The default behaviour can be overridden to generate an ETag header based on
 %% a combination of the file path, file size, inode and mtime values. If the
-%% option value is a list of attribute names tagged with `attributes' a hex
-%% encoded CRC32 checksum of the attribute values are used as the ETag header
-%% value.
+%% option value is a non-empty list of attribute names tagged with `attributes'
+%% a hex encoded checksum of each attribute specified is included in the value
+%% of the the ETag header. If the list of attribute names is empty no ETag
+%% header is generated.
 %%
 %% If a strong ETag is required a user defined function for generating the
 %% header value can be supplied. The function must accept a proplist of the
 %% file attributes as the first argument and a second argument containing any
-%% additional data that the function requires. The function must return a
-%% `binary()' or `undefined'.
+%% additional data that the function requires. The function must return a term
+%% of the type `{weak | strong, binary()}' or `undefined'.
 %%
 %% ====  Examples ====
 %% ```
@@ -130,7 +131,41 @@
 %%     {_, _Modified} = lists:keyfind(mtime, 1, Arguments),
 %%     ChecksumCommand = lists:flatten(io_lib:format("sha1sum ~s", [Filepath])),
 %%     [Checksum|_] = string:tokens(os:cmd(ChecksumCommand), " "),
-%%     iolist_to_binary(Checksum).
+%%     {strong, iolist_to_binary(Checksum)}.
+%% '''
+%%
+%% == File configuration ==
+%%
+%% If the file system path being served does not share a common suffix with
+%% the request path it is possible to override the file path using the `file'
+%% option. The value of this option is expected to be a relative path within
+%% the static file directory specified using the `directory' option.
+%% The path must be in the form of a list or binary string representation of a
+%% file system path. A list of binary path segments, as is used throughout
+%% cowboy, is also a valid.
+%%
+%% When the `file' option is used the same file will be served for all requests
+%% matching the cowboy dispatch fule for the handler. It is not necessary to
+%% end the request path pattern with a `...' token because the request path
+%% will not be used to determine which file to serve from the static directory.
+%%
+%% === Examples ===
+%%
+%% ```
+%% %% Serve cowboy/priv/www/index.html as http://example.com/
+%% {[], cowboy_http_static,
+%%     [{directory, {priv_dir, cowboy, [<<"www">>]}}
+%%      {file, <<"index.html">>}]}
+%%
+%% %% Serve cowboy/priv/www/page.html under http://example.com/*/page
+%% {['*', <<"page">>], cowboy_http_static,
+%%     [{directory, {priv_dir, cowboy, [<<"www">>]}}
+%%      {file, <<"page.html">>}]}.
+%%
+%% %% Always serve cowboy/priv/www/other.html under http://example.com/other
+%% {[<<"other">>, '...'], cowboy_http_static,
+%%     [{directory, {priv_dir, cowboy, [<<"www">>]}}
+%%      {file, "other.html"}]}
 %% '''
 -module(cowboy_http_static).
 
@@ -161,7 +196,8 @@
 	filepath  :: binary() | error,
 	fileinfo  :: {ok, #file_info{}} | {error, _} | error,
 	mimetypes :: {fun((binary(), T) -> [mimedef()]), T} | undefined,
-	etag_fun  :: {fun(([etagarg()], T) -> undefined | binary()), T}}).
+	etag_fun  :: {fun(([etagarg()], T) ->
+		undefined | {strong | weak, binary()}), T}}).
 
 
 %% @private Upgrade from HTTP handler to REST handler.
@@ -183,10 +219,14 @@ rest_init(Req, Opts) ->
 	ETagFunction = case proplists:get_value(etag, Opts) of
 		default -> {fun no_etag_function/2, undefined};
 		undefined -> {fun no_etag_function/2, undefined};
+		{attributes, []} -> {fun no_etag_function/2, undefined};
 		{attributes, Attrs} -> {fun attr_etag_function/2, Attrs};
-		{_, _}=EtagFunction1 -> EtagFunction1
+		{_, _}=ETagFunction1 -> ETagFunction1
 	end,
-	{Filepath, Req1} = cowboy_http_req:path_info(Req),
+	{Filepath, Req1} = case lists:keyfind(file, 1, Opts) of
+		{_, Filepath2} -> {filepath_path(Filepath2), Req};
+		false -> cowboy_http_req:path_info(Req)
+	end,
 	State = case check_path(Filepath) of
 		error ->
 			#state{filepath=error, fileinfo=error, mimetypes=undefined,
@@ -313,8 +353,10 @@ sfallback(Transport, Socket, File, Sent) ->
 			ok = file:close(File),
 			{sent, Sent};
 		{ok, Bin} ->
-			ok = Transport:send(Socket, Bin),
-			sfallback(Transport, Socket, File, Sent + byte_size(Bin))
+			case Transport:send(Socket, Bin) of
+				ok -> sfallback(Transport, Socket, File, Sent + byte_size(Bin));
+				{error, closed} -> {sent, Sent}
+			end
 	end.
 
 
@@ -336,6 +378,14 @@ directory_path({priv_dir, App, Path}) when is_binary(Path) ->
 directory_path(Path) ->
 	Path.
 
+%% @private Ensure that a file path is of the same type as a request path.
+-spec filepath_path(dirpath()) -> Path::[binary()].
+filepath_path([H|_]=Path) when is_integer(H) ->
+	filename:split(list_to_binary(Path));
+filepath_path(Path) when is_binary(Path) ->
+	filename:split(Path);
+filepath_path([H|_]=Path) when is_binary(H) ->
+	Path.
 
 %% @private Validate a request path for unsafe characters.
 %% There is no way to escape special characters in a filesystem path.
@@ -411,16 +461,13 @@ no_etag_function(_Args, undefined) ->
 
 %% @private A simple alternative is to send an ETag based on file attributes.
 -type fileattr() :: filepath | filesize | mtime | inode.
--spec attr_etag_function([etagarg()], [fileattr()]) -> binary().
+-spec attr_etag_function([etagarg()], [fileattr()]) -> {strong, binary()}.
 attr_etag_function(Args, Attrs) ->
-	attr_etag_function(Args, Attrs, []).
-
--spec attr_etag_function([etagarg()], [fileattr()], [binary()]) -> binary().
-attr_etag_function(_Args, [], Acc) ->
-	list_to_binary(integer_to_list(erlang:crc32(Acc), 16));
-attr_etag_function(Args, [H|T], Acc) ->
-	{_, Value} = lists:keyfind(H, 1, Args),
-	attr_etag_function(Args, T, [term_to_binary(Value)|Acc]).
+	[[_|H]|T] = [begin
+		{_,Pair} = {_,{_,_}} = {Attr,lists:keyfind(Attr, 1, Args)},
+		[$-|integer_to_list(erlang:phash2(Pair, 1 bsl 32), 16)]
+	end || Attr <- Attrs],
+	{strong, list_to_binary([H|T])}.
 
 
 -ifdef(TEST).
@@ -457,5 +504,14 @@ directory_path_test_() ->
 	 ?_eq("a/b", P("a/b"))
 	].
 
+filepath_path_test_() ->
+	P = fun filepath_path/1,
+	[?_eq([<<"a">>], P("a")),
+	 ?_eq([<<"a">>], P(<<"a">>)),
+	 ?_eq([<<"a">>], P([<<"a">>])),
+	 ?_eq([<<"a">>, <<"b">>], P("a/b")),
+	 ?_eq([<<"a">>, <<"b">>], P(<<"a/b">>)),
+	 ?_eq([<<"a">>, <<"b">>], P([<<"a">>, <<"b">>]))
+	].
 
 -endif.

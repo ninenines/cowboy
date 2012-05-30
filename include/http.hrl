@@ -1,4 +1,4 @@
-%% Copyright (c) 2011, Loïc Hoguin <essen@dev-extend.eu>
+%% Copyright (c) 2011-2012, Loïc Hoguin <essen@ninenines.eu>
 %% Copyright (c) 2011, Anthony Ramine <nox@dev-extend.eu>
 %%
 %% Permission to use, copy, modify, and/or distribute this software for any
@@ -23,11 +23,12 @@
 	pid        = undefined :: pid(),
 	method     = 'GET'     :: cowboy_http:method(),
 	version    = {1, 1}    :: cowboy_http:version(),
-	peer       = undefined :: undefined | {inet:ip_address(), inet:ip_port()},
+	peer       = undefined :: undefined |
+								{inet:ip_address(), inet:port_number()},
 	host       = undefined :: undefined | cowboy_dispatcher:tokens(),
 	host_info  = undefined :: undefined | cowboy_dispatcher:tokens(),
 	raw_host   = undefined :: undefined | binary(),
-	port       = undefined :: undefined | inet:ip_port(),
+	port       = undefined :: undefined | inet:port_number(),
 	path       = undefined :: undefined | '*' | cowboy_dispatcher:tokens(),
 	path_info  = undefined :: undefined | cowboy_dispatcher:tokens(),
 	raw_path   = undefined :: undefined | binary(),
@@ -40,8 +41,8 @@
 	meta       = []        :: [{atom(), any()}],
 
 	%% Request body.
-	body_state = waiting   :: waiting | done |
-								{multipart, non_neg_integer(), fun()},
+	body_state = waiting   :: waiting | done | {stream, fun(), any(), fun()}
+								| {multipart, non_neg_integer(), fun()},
 	buffer     = <<>>      :: binary(),
 
 	%% Response.
@@ -51,5 +52,7 @@
 								fun(() -> {sent, non_neg_integer()})},
 
 	%% Functions.
+	onresponse = undefined :: undefined | fun((cowboy_http:status(),
+		cowboy_http:headers(), #http_req{}) -> #http_req{}),
 	urldecode :: {fun((binary(), T) -> binary()), T}
 }).

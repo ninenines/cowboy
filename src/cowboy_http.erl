@@ -1,4 +1,4 @@
-%% Copyright (c) 2011, Loïc Hoguin <essen@dev-extend.eu>
+%% Copyright (c) 2011-2012, Loïc Hoguin <essen@ninenines.eu>
 %% Copyright (c) 2011, Anthony Ramine <nox@dev-extend.eu>
 %%
 %% Permission to use, copy, modify, and/or distribute this software for any
@@ -22,8 +22,12 @@
 	http_date/1, rfc1123_date/1, rfc850_date/1, asctime_date/1,
 	whitespace/2, digits/1, token/2, token_ci/2, quoted_string/2]).
 
+%% Decoding.
+-export([te_chunked/2, te_identity/2, ce_identity/1]).
+
 %% Interpretation.
--export([connection_to_atom/1, urldecode/1, urldecode/2, urlencode/1,
+-export([connection_to_atom/1, version_to_binary/1,
+	urldecode/1, urldecode/2, urlencode/1,
 	urlencode/2, x_www_form_urlencoded/2]).
 
 -type method() :: 'OPTIONS' | 'GET' | 'HEAD'
@@ -51,7 +55,6 @@
 
 -export_type([method/0, uri/0, version/0, header/0, headers/0, status/0]).
 
--include("include/http.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
 %% Parsing.
@@ -154,6 +157,13 @@ media_type(Data, Fun) ->
 		fun (_Rest, <<>>) -> {error, badarg};
 			(<< $/, Rest/binary >>, Type) ->
 				token_ci(Rest,
+					fun (_Rest2, <<>>) -> {error, badarg};
+						(Rest2, SubType) -> Fun(Rest2, Type, SubType)
+					end);
+			%% This is a non-strict parsing clause required by some user agents
+			%% that use * instead of */* in the list of media types.
+			(Rest, <<"*">> = Type) ->
+				token_ci(<<"*", Rest/binary>>,
 					fun (_Rest2, <<>>) -> {error, badarg};
 						(Rest2, SubType) -> Fun(Rest2, Type, SubType)
 					end);
@@ -260,7 +270,15 @@ maybe_qparam(Data, Fun) ->
 		fun (<< $;, Rest/binary >>) ->
 			whitespace(Rest,
 				fun (Rest2) ->
-					qparam(Rest2, Fun)
+					%% This is a non-strict parsing clause required by some user agents
+					%% that use the wrong delimiter putting a charset where a qparam is
+					%% expected.
+					try qparam(Rest2, Fun) of
+						Result -> Result
+					catch
+						error:function_clause ->
+							Fun(<<",", Rest2/binary>>, 1000)
+					end
 				end);
 			(Rest) ->
 				Fun(Rest, 1000)
@@ -677,6 +695,9 @@ quoted_string(<< C, Rest/binary >>, Fun, Acc) ->
 -spec qvalue(binary(), fun()) -> any().
 qvalue(<< $0, $., Rest/binary >>, Fun) ->
 	qvalue(Rest, Fun, 0, 100);
+%% Some user agents use q=.x instead of q=0.x
+qvalue(<< $., Rest/binary >>, Fun) ->
+	qvalue(Rest, Fun, 0, 100);
 qvalue(<< $0, Rest/binary >>, Fun) ->
 	Fun(Rest, 0);
 qvalue(<< $1, $., $0, $0, $0, Rest/binary >>, Fun) ->
@@ -699,6 +720,51 @@ qvalue(<< C, Rest/binary >>, Fun, Q, M)
 qvalue(Data, Fun, Q, _M) ->
 	Fun(Data, Q).
 
+%% Decoding.
+
+%% @doc Decode a stream of chunks.
+-spec te_chunked(binary(), {non_neg_integer(), non_neg_integer()})
+	-> more | {ok, binary(), {non_neg_integer(), non_neg_integer()}}
+	| {ok, binary(), binary(),  {non_neg_integer(), non_neg_integer()}}
+	| {done, non_neg_integer(), binary()} | {error, badarg}.
+te_chunked(<<>>, _) ->
+	more;
+te_chunked(<< "0\r\n\r\n", Rest/binary >>, {0, Streamed}) ->
+	{done, Streamed, Rest};
+te_chunked(Data, {0, Streamed}) ->
+	%% @todo We are expecting an hex size, not a general token.
+	token(Data,
+		fun (Rest, _) when byte_size(Rest) < 4 ->
+				more;
+			(<< "\r\n", Rest/binary >>, BinLen) ->
+				Len = list_to_integer(binary_to_list(BinLen), 16),
+				te_chunked(Rest, {Len, Streamed});
+			(_, _) ->
+				{error, badarg}
+		end);
+te_chunked(Data, {ChunkRem, Streamed}) when byte_size(Data) >= ChunkRem + 2 ->
+	<< Chunk:ChunkRem/binary, "\r\n", Rest/binary >> = Data,
+	{ok, Chunk, Rest, {0, Streamed + byte_size(Chunk)}};
+te_chunked(Data, {ChunkRem, Streamed}) ->
+	Size = byte_size(Data),
+	{ok, Data, {ChunkRem - Size, Streamed + Size}}.
+
+%% @doc Decode an identity stream.
+-spec te_identity(binary(), {non_neg_integer(), non_neg_integer()})
+	-> {ok, binary(), {non_neg_integer(), non_neg_integer()}}
+	| {done, binary(), non_neg_integer(), binary()}.
+te_identity(Data, {Streamed, Total})
+		when Streamed + byte_size(Data) < Total ->
+	{ok, Data, {Streamed + byte_size(Data), Total}};
+te_identity(Data, {Streamed, Total}) ->
+	Size = Total - Streamed,
+	<< Data2:Size/binary, Rest/binary >> = Data,
+	{done, Data2, Total, Rest}.
+
+%% @doc Decode an identity content.
+-spec ce_identity(binary()) -> {ok, binary()}.
+ce_identity(Data) ->
+	{ok, Data}.
 
 %% Interpretation.
 
@@ -715,6 +781,11 @@ connection_to_atom([<<"close">>|_Tail]) ->
 	close;
 connection_to_atom([_Any|Tail]) ->
 	connection_to_atom(Tail).
+
+%% @doc Convert an HTTP version tuple to its binary form.
+-spec version_to_binary(version()) -> binary().
+version_to_binary({1, 1}) -> <<"HTTP/1.1">>;
+version_to_binary({1, 0}) -> <<"HTTP/1.0">>.
 
 %% @doc Decode a URL encoded binary.
 %% @equiv urldecode(Bin, crash)
@@ -822,6 +893,12 @@ nonempty_charset_list_test_() ->
 		{<<"iso-8859-5, unicode-1-1;q=0.8">>, [
 			{<<"iso-8859-5">>, 1000},
 			{<<"unicode-1-1">>, 800}
+		]},
+		%% Some user agents send this invalid value for the Accept-Charset header
+		{<<"ISO-8859-1;utf-8;q=0.7,*;q=0.7">>, [
+			{<<"iso-8859-1">>, 1000},
+			{<<"utf-8">>, 700},
+			{<<"*">>, 700}
 		]}
 	],
 	[{V, fun() -> R = nonempty_list(V, fun conneg/2) end} || {V, R} <- Tests].
@@ -895,6 +972,13 @@ media_range_list_test_() ->
 				[{<<"level">>, <<"1">>}, {<<"quoted">>, <<"hi hi hi">>}]}, 123,
 				[<<"standalone">>, {<<"complex">>, <<"gits">>}]},
 			{{<<"text">>, <<"plain">>, []}, 1000, []}
+		]},
+		{<<"text/html, image/gif, image/jpeg, *; q=.2, */*; q=.2">>, [
+			{{<<"text">>, <<"html">>, []}, 1000, []},
+			{{<<"image">>, <<"gif">>, []}, 1000, []},
+			{{<<"image">>, <<"jpeg">>, []}, 1000, []},
+			{{<<"*">>, <<"*">>, []}, 200, []},
+			{{<<"*">>, <<"*">>, []}, 200, []}
 		]}
 	],
 	[{V, fun() -> R = list(V, fun media_range/2) end} || {V, R} <- Tests].

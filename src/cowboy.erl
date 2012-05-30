@@ -1,4 +1,4 @@
-%% Copyright (c) 2011, Loïc Hoguin <essen@dev-extend.eu>
+%% Copyright (c) 2011-2012, Loïc Hoguin <essen@ninenines.eu>
 %%
 %% Permission to use, copy, modify, and/or distribute this software for any
 %% purpose with or without fee is hereby granted, provided that the above
@@ -51,7 +51,6 @@ start_listener(Ref, NbAcceptors, Transport, TransOpts, Protocol, ProtoOpts)
 		Transport, TransOpts, Protocol, ProtoOpts)).
 
 %% @doc Stop a listener identified by <em>Ref</em>.
-%% @todo Currently request processes aren't terminated with the listener.
 -spec stop_listener(any()) -> ok | {error, not_found}.
 stop_listener(Ref) ->
 	case supervisor:terminate_child(cowboy_sup, {cowboy_listener_sup, Ref}) of
