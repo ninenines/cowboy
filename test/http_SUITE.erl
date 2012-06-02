@@ -53,6 +53,7 @@
 -export([rest_nodelete/1]).
 -export([rest_resource_etags/1]).
 -export([rest_resource_etags_if_none_match/1]).
+-export([rest_created_path/1]).
 -export([set_resp_body/1]).
 -export([set_resp_header/1]).
 -export([set_resp_overwrite/1]).
@@ -98,6 +99,7 @@ groups() ->
 		rest_nodelete,
 		rest_resource_etags,
 		rest_resource_etags_if_none_match,
+		rest_created_path,
 		set_resp_body,
 		set_resp_header,
 		set_resp_overwrite,
@@ -258,6 +260,7 @@ init_dispatch(Config) ->
 			{[<<"simple_post">>], rest_forbidden_resource, [false]},
 			{[<<"nodelete">>], rest_nodelete_resource, []},
 			{[<<"resetags">>], rest_resource_etags, []},
+			{[<<"createdpath">>], rest_created_path, []},
 			{[<<"loop_timeout">>], http_handler_loop_timeout, []},
 			{[], http_handler, []}
 		]}
@@ -744,6 +747,16 @@ rest_resource_etags_if_none_match(Config) ->
 			[{<<"if-none-match">>, ETag}]),
 		{Ret, Type}
 	end || {Status, ETag, Type} <- Tests].
+
+rest_created_path(Config) ->
+	Client = ?config(client, Config),
+	Headers = [{<<"Content-Type">>, <<"plain/text">>}],
+	{ok, Client2} = cowboy_client:request(<<"POST">>,
+		build_url("/createdpath", Config), Headers, <<>>, Client),
+	{ok, Status, RespHeaders, _} = cowboy_client:response(Client2),
+    ct:pal("status ~p respheaders ~p~n", [Status, RespHeaders]),
+	{<<"location">>, <<"/newpath">>} = lists:keyfind(<<"Location">>, 1,
+		RespHeaders).
 
 set_resp_body(Config) ->
 	Client = ?config(client, Config),
