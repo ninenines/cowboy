@@ -57,18 +57,20 @@
 -spec upgrade(pid(), module(), any(), Req)
 	-> {ok, Req} | close when Req::cowboy_req:req().
 upgrade(_ListenerPid, Handler, Opts, Req) ->
+	case rest_init(Handler, Opts, Req) of
+		{ok, Req2, HandlerState} ->
+		        Method = cowboy_req:get(method, Req),
+			service_available(Req2, #state{method=Method,
+                                handler=Handler, handler_state=HandlerState})
+	end.
+
+rest_init(Handler, Opts, Req) ->
 	try
-		Method = cowboy_req:get(method, Req),
 		case erlang:function_exported(Handler, rest_init, 2) of
 			true ->
-				case Handler:rest_init(Req, Opts) of
-					{ok, Req2, HandlerState} ->
-						service_available(Req2, #state{method=Method,
-							handler=Handler, handler_state=HandlerState})
-				end;
+				Handler:rest_init(Req, Opts);
 			false ->
-				service_available(Req, #state{method=Method,
-					handler=Handler})
+				{ok, Req, undefined}
 		end
 	catch Class:Reason ->
 		PLReq = cowboy_req:to_list(Req),
