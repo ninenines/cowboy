@@ -239,7 +239,7 @@ parse_header_default(_Name) -> undefined.
 %%
 %% When the header is unknown, the value is returned directly without parsing.
 -spec parse_header(cowboy_http:header(), #http_req{}, any())
-	-> {any(), #http_req{}} | {error, badarg}.
+	-> {any(), #http_req{}} | {undefined, any(), #http_req{}} | {error, badarg}.
 parse_header(Name, Req, Default) when Name =:= 'Accept' ->
 	parse_header(Name, Req, Default,
 		fun (Value) ->
