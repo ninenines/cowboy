@@ -472,7 +472,13 @@ stream_body(Req=#http_req{buffer=Buffer, body_state={stream, _, _, _}})
 stream_body(Req=#http_req{body_state={stream, _, _, _}}) ->
 	stream_body_recv(Req);
 stream_body(Req=#http_req{body_state=done}) ->
-	{done, Req}.
+	{done, Req};
+stream_body(Req=#http_req{body_state={multipart, _N, _Fun},
+		transport=Transport, socket=Socket}) ->
+	case Transport:recv(Socket, 0, 5000) of
+		{ok, Data} -> {ok, Data, Req};
+		{error, Reason} -> {error, Reason}
+	end.
 
 -spec stream_body_recv(#http_req{})
 	-> {ok, binary(), #http_req{}} | {error, atom()}.
