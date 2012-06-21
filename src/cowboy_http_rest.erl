@@ -56,26 +56,26 @@
 -spec upgrade(pid(), module(), any(), #http_req{})
 	-> {ok, #http_req{}} | close.
 upgrade(_ListenerPid, Handler, Opts, Req) ->
-	try
-		case erlang:function_exported(Handler, rest_init, 2) of
-			true ->
+	case erlang:function_exported(Handler, rest_init, 2) of
+		true ->
+			try
 				case Handler:rest_init(Req, Opts) of
 					{ok, Req2, HandlerState} ->
 						service_available(Req2, #state{handler=Handler,
 							handler_state=HandlerState})
-				end;
-			false ->
-				service_available(Req, #state{handler=Handler})
-		end
-	catch Class:Reason ->
-		PLReq = lists:zip(record_info(fields, http_req), tl(tuple_to_list(Req))),
-		error_logger:error_msg(
-			"** Handler ~p terminating in rest_init/3~n"
-			"   for the reason ~p:~p~n** Options were ~p~n"
-			"** Request was ~p~n** Stacktrace: ~p~n~n",
-			[Handler, Class, Reason, Opts, PLReq, erlang:get_stacktrace()]),
-		{ok, _Req2} = cowboy_http_req:reply(500, Req),
-		close
+				end
+			catch Class:Reason ->
+					PLReq = lists:zip(record_info(fields, http_req), tl(tuple_to_list(Req))),
+					error_logger:error_msg(
+						"** Handler ~p terminating in rest_init/3~n"
+						"   for the reason ~p:~p~n** Options were ~p~n"
+						"** Request was ~p~n** Stacktrace: ~p~n~n",
+						[Handler, Class, Reason, Opts, PLReq, erlang:get_stacktrace()]),
+					{ok, _Req2} = cowboy_http_req:reply(500, Req),
+					close
+			end;
+		false ->
+			service_available(Req, #state{handler=Handler})
 	end.
 
 service_available(Req, State) ->
