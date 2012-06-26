@@ -187,11 +187,11 @@ header({http_header, _I, 'Host', _R, RawHost}, Req=#http_req{
 			Port = default_port(Transport:name()),
 			parse_header(Req#http_req{
 				host=Host, raw_host=RawHost3, port=Port,
-				headers=[{'Host', RawHost3}|Req#http_req.headers]}, State);
+				headers=[{'Host', RawHost}|Req#http_req.headers]}, State);
 		{Host, RawHost3, Port} ->
 			parse_header(Req#http_req{
 				host=Host, raw_host=RawHost3, port=Port,
-				headers=[{'Host', RawHost3}|Req#http_req.headers]}, State);
+				headers=[{'Host', RawHost}|Req#http_req.headers]}, State);
 		{'EXIT', _Reason} ->
 			error_terminate(400, State)
 	end;
