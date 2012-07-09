@@ -166,6 +166,12 @@
 %% {[<<"other">>, '...'], cowboy_http_static,
 %%     [{directory, {priv_dir, cowboy, [<<"www">>]}}
 %%      {file, "other.html"}]}
+%%
+%% %% Always serve cowboy/priv/www/anything/static/img/lolcat.jpg
+%%    under http://example.com/anything/static/img/lolcat.jpg
+%% {['*', <<"static">>, '...'], cowboy_http_static,
+%%     [{directory, {priv_dir, cowboy, [<<"www">>]}}
+%%      {file, request_path}]}
 %% '''
 -module(cowboy_http_static).
 
@@ -224,6 +230,7 @@ rest_init(Req, Opts) ->
 		{_, _}=ETagFunction1 -> ETagFunction1
 	end,
 	{Filepath, Req1} = case lists:keyfind(file, 1, Opts) of
+		{_, request_path} -> cowboy_http_req:path(Req);
 		{_, Filepath2} -> {filepath_path(Filepath2), Req};
 		false -> cowboy_http_req:path_info(Req)
 	end,
