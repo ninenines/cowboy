@@ -1,6 +1,6 @@
 %% Feel free to use, reuse and abuse the code in this file.
 
--module(hello_world).
+-module(static).
 
 %% API.
 -export([start/0]).
@@ -9,4 +9,4 @@
 
 start() ->
 	ok = application:start(cowboy),
-	ok = application:start(hello_world).
+	ok = application:start(static).
