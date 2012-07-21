@@ -367,7 +367,8 @@ charsets_provided(Req, State) ->
 				cowboy_http_req:parse_header('Accept-Charset', Req2),
 			case AcceptCharset of
 				undefined ->
-					set_content_type(Req3, State2#state{charset_a=hd(CP)});
+					set_content_type(Req3, State2#state{
+						charset_a=element(1, hd(CP))});
 				AcceptCharset ->
 					AcceptCharset2 = prioritize_charsets(AcceptCharset),
 					choose_charset(Req3, State2, AcceptCharset2)
@@ -397,10 +398,9 @@ choose_charset(Req, State=#state{charsets_p=CP}, [Charset|Tail]) ->
 
 match_charset(Req, State, Accept, [], _Charset) ->
 	choose_charset(Req, State, Accept);
-match_charset(Req, State, _Accept, [Provided|_Tail],
-		{Provided, _Quality}) ->
+match_charset(Req, State, _Accept, [{Provided, _}|_], {Provided, _}) ->
 	set_content_type(Req, State#state{charset_a=Provided});
-match_charset(Req, State, Accept, [_Provided|Tail], Charset) ->
+match_charset(Req, State, Accept, [_|Tail], Charset) ->
 	match_charset(Req, State, Accept, Tail, Charset).
 
 set_content_type(Req=#http_req{meta=Meta}, State=#state{
