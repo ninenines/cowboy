@@ -275,7 +275,7 @@ parse_header(Name, Req, Default) when Name =:= 'Content-Type' ->
 		fun (Value) ->
 			cowboy_http:content_type(Value)
 		end);
-parse_header(Name, Req, Default) when Name =:= 'Expect' ->
+parse_header(Name, Req, Default) when Name =:= <<"Expect">> ->
 	parse_header(Name, Req, Default,
 		fun (Value) ->
 			cowboy_http:nonempty_list(Value, fun cowboy_http:expectation/2)
@@ -429,8 +429,19 @@ init_stream(TransferDecode, TransferState, ContentDecode, Req) ->
 %% for each streamed part, and {done, Req} when it's finished streaming.
 -spec stream_body(#http_req{}) -> {ok, binary(), #http_req{}}
 	| {done, #http_req{}} | {error, atom()}.
-stream_body(Req=#http_req{body_state=waiting}) ->
-	case parse_header('Transfer-Encoding', Req) of
+stream_body(Req=#http_req{body_state=waiting,
+		version=Version, transport=Transport, socket=Socket}) ->
+	case parse_header(<<"Expect">>, Req) of
+		{[<<"100-continue">>], Req1} ->
+			HTTPVer = cowboy_http:version_to_binary(Version),
+			Transport:send(Socket,
+				<< HTTPVer/binary, " ", (status(100))/binary, "\r\n\r\n" >>);
+		{undefined, Req1} ->
+			ok;
+		{undefined, _, Req1} ->
+			ok
+	end,
+	case parse_header('Transfer-Encoding', Req1) of
 		{[<<"chunked">>], Req2} ->
 			stream_body(Req2#http_req{body_state=
 				{stream, fun cowboy_http:te_chunked/2, {0, 0},
