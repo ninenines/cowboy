@@ -203,7 +203,7 @@ content_types_provided(Req=#http_req{meta=Meta}, State) ->
 		{[], Req2, HandlerState} ->
 			not_acceptable(Req2, State#state{handler_state=HandlerState});
 		{CTP, Req2, HandlerState} ->
-		    CTP2 = [normalize_content_types_provided(P) || P <- CTP],
+		    CTP2 = [normalize_content_types(P) || P <- CTP],
 			State2 = State#state{
 				handler_state=HandlerState, content_types_p=CTP2},
 			{Accept, Req3} = cowboy_http_req:parse_header('Accept', Req2),
@@ -219,10 +219,10 @@ content_types_provided(Req=#http_req{meta=Meta}, State) ->
 			end
 	end.
 
-normalize_content_types_provided({ContentType, Handler})
+normalize_content_types({ContentType, Callback})
 		when is_binary(ContentType) ->
-    {cowboy_http:content_type(ContentType), Handler};
-normalize_content_types_provided(Provided) ->
+    {cowboy_http:content_type(ContentType), Callback};
+normalize_content_types(Provided) ->
 	Provided.
 
 prioritize_accept(Accept) ->
@@ -724,10 +724,11 @@ put_resource(Req, State, OnTrue) ->
 		{halt, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
 		{CTA, Req2, HandlerState} ->
+		    CTA2 = [normalize_content_types(P) || P <- CTA],
 			State2 = State#state{handler_state=HandlerState},
 			{ContentType, Req3}
 				= cowboy_http_req:parse_header('Content-Type', Req2),
-			choose_content_type(Req3, State2, OnTrue, ContentType, CTA)
+			choose_content_type(Req3, State2, OnTrue, ContentType, CTA2)
 	end.
 
 %% The special content type '*' will always match. It can be used as a
