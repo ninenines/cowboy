@@ -307,8 +307,15 @@ parse_header(Name, Req, Default) ->
 	{Value, Req2} = header(Name, Req, Default),
 	{undefined, Value, Req2}.
 
-%% @todo This doesn't look in the cache.
 parse_header(Name, Req=#http_req{p_headers=PHeaders}, Default, Fun) ->
+	case lists:keyfind(Name, 1, PHeaders) of
+		{Name, P} ->
+			{P, Req};
+		false ->
+			parse_header_no_cache(Name, Req, Default, Fun)
+	end.
+
+parse_header_no_cache(Name, Req=#http_req{p_headers=PHeaders}, Default, Fun) ->
 	case header(Name, Req) of
 		{undefined, Req2} ->
 			{Default, Req2#http_req{p_headers=[{Name, Default}|PHeaders]}};
