@@ -906,7 +906,6 @@ next(Req, State, Next) when is_function(Next) ->
 next(Req, State, StatusCode) when is_integer(StatusCode) ->
 	respond(Req, State, StatusCode).
 
-%% @todo Allow some sort of callback for custom error pages.
 respond(Req, State, StatusCode) ->
 	{ok, Req2} = cowboy_http_req:reply(StatusCode, Req),
 	terminate(Req2, State).
