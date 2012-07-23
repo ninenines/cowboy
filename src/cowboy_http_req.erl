@@ -222,7 +222,8 @@ headers(Req) ->
 %% returned is used as a return value.
 %% @see parse_header/3
 -spec parse_header(cowboy_http:header(), #http_req{})
-	-> {any(), #http_req{}} | {error, badarg}.
+	-> {any(), #http_req{}} | {undefined, binary(), #http_req{}}
+	| {error, badarg}.
 parse_header(Name, Req=#http_req{p_headers=PHeaders}) ->
 	case lists:keyfind(Name, 1, PHeaders) of
 		false -> parse_header(Name, Req, parse_header_default(Name));
@@ -239,7 +240,8 @@ parse_header_default(_Name) -> undefined.
 %%
 %% When the header is unknown, the value is returned directly without parsing.
 -spec parse_header(cowboy_http:header(), #http_req{}, any())
-	-> {any(), #http_req{}} | {error, badarg}.
+	-> {any(), #http_req{}} | {undefined, binary(), #http_req{}}
+	| {error, badarg}.
 parse_header(Name, Req, Default) when Name =:= 'Accept' ->
 	parse_header(Name, Req, Default,
 		fun (Value) ->

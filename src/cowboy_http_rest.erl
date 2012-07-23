@@ -28,16 +28,16 @@
 
 	%% Media type.
 	content_types_p = [] ::
-		[{{binary(), binary(), [{binary(), binary()}]}, atom()}],
+		[{binary() | {binary(), binary(), [{binary(), binary()}]}, atom()}],
 	content_type_a :: undefined
-		| {{binary(), binary(), [{binary(), binary()}]}, atom()},
+		| {binary() | {binary(), binary(), [{binary(), binary()}]}, atom()},
 
 	%% Language.
 	languages_p = [] :: [binary()],
 	language_a :: undefined | binary(),
 
 	%% Charset.
-	charsets_p = [] :: [binary()],
+	charsets_p = [] :: [{binary(), atom()}],
 	charset_a :: undefined | binary(),
 
 	%% Cached resource calls.
