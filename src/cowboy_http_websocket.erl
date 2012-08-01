@@ -220,14 +220,14 @@ handler_loop_timeout(State=#state{timeout=Timeout, timeout_ref=PrevRef}) ->
 %% @private
 -spec handler_loop(#state{}, #http_req{}, any(), binary()) -> closed.
 handler_loop(State=#state{messages={OK, Closed, Error}, timeout_ref=TRef},
-		Req=#http_req{socket=Socket}, HandlerState, SoFar) ->
+		Req, HandlerState, SoFar) ->
 	receive
-		{OK, Socket, Data} ->
+		{OK, _Socket, Data} ->
 			websocket_data(State, Req, HandlerState,
 				<< SoFar/binary, Data/binary >>);
-		{Closed, Socket} ->
+		{Closed, _Socket} ->
 			handler_terminate(State, Req, HandlerState, {error, closed});
-		{Error, Socket, Reason} ->
+		{Error, _Socket, Reason} ->
 			handler_terminate(State, Req, HandlerState, {error, Reason});
 		{timeout, TRef, ?MODULE} ->
 			websocket_close(State, Req, HandlerState, {normal, timeout});
