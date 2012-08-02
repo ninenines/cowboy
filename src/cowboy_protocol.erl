@@ -50,12 +50,9 @@
 %% handler itself.
 -module(cowboy_protocol).
 
--export([behaviour_info/1]).
+-callback start_link(ListenerPid :: pid(),
+		     Socket :: inet:socket(),
+		     Module :: module(),
+		     Options :: any()) ->
+    {ok, Pid :: pid()}.
 
-%% @private
--spec behaviour_info(_)
-	-> undefined | [{start_link, 4}, ...].
-behaviour_info(callbacks) ->
-	[{start_link, 4}];
-behaviour_info(_Other) ->
-	undefined.

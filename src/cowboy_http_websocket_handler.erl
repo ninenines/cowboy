@@ -47,14 +47,32 @@
 %% <em>hibernate</em>. Doing so helps save memory and improve CPU usage.
 -module(cowboy_http_websocket_handler).
 
--export([behaviour_info/1]).
+-callback websocket_init(Transport::atom(), Req :: cowboy_http_req:http_req(), _Options)  ->
+	{ok, Req2 :: cowboy_http_req:http_req(), _State} |
+	{ok, Req2 :: cowboy_http_req:http_req(), _State, hibernate} |
+	{ok, Req2 :: cowboy_http_req:http_req(), _State, Timeout :: non_neg_integer()} |
+	{ok, Req2 :: cowboy_http_req:http_req(), _State, Timeout :: non_neg_integer(), hibernate} |
+	{shutdown, Req2 :: cowboy_http_req:http_req()}.
 
-%% @private
--spec behaviour_info(_)
-	-> undefined | [{websocket_handle, 3} | {websocket_info, 3}
-		| {websocket_init, 3} | {websocket_terminate, 3}, ...].
-behaviour_info(callbacks) ->
-	[{websocket_init, 3}, {websocket_handle, 3},
-	 {websocket_info, 3}, {websocket_terminate, 3}];
-behaviour_info(_Other) ->
-	undefined.
+-type payload_type() :: text | binary | ping | pong.
+-type payload() :: {payload_type(),_} | _ .
+
+-callback websocket_handle(_Message, Req :: cowboy_http_req:http_req(), _State) ->
+        {ok, Req2 :: cowboy_http_req:http_req(), _State2} |
+	{ok, Req2 :: cowboy_http_req:http_req(), _State2, hibernate} |
+	{reply, Payload :: payload(), Req2 :: cowboy_http_req:http_req(), _State2} |
+	{reply, Payload :: payload(), Req2 :: cowboy_http_req:http_req(), _State2, hibernate} |
+	{shutdown, Req2 :: cowboy_http_req:http_req(), _State2}.
+
+-callback websocket_info(_Message, Req :: cowboy_http_req:http_req(), _State) ->
+        {ok, Req2 :: cowboy_http_req:http_req(), _State2} |
+	{ok, Req2 :: cowboy_http_req:http_req(), _State2, hibernate} |
+	{reply, Payload :: payload(), Req2 :: cowboy_http_req:http_req(), _State2} |
+	{reply, Payload :: payload(), Req2 :: cowboy_http_req:http_req(), _State2, hibernate} |
+	{shutdown, Req2 :: cowboy_http_req:http_req(), _State2}.
+
+-callback websocket_terminate(TerminateReason :: {atom(),atom()},
+			      Req2 :: cowboy_http_req:http_req(),
+			      _State) -> no_return().
+
+    
