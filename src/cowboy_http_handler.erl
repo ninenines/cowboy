@@ -37,12 +37,17 @@
 %% define the <em>handle/2</em> and <em>terminate/2</em> callbacks.
 -module(cowboy_http_handler).
 
--export([behaviour_info/1]).
+-callback init({atom(),atom()},Req :: cowboy_http_req:http_req(),_Options) ->
+    {ok,Req2 :: cowboy_http_req:http_req(),_State2} |
+	{loop, Req2 :: cowboy_http_req:http_req(), _State2} |
+	{loop, Req2 :: cowboy_http_req:http_req(), _State2, hibernate} |
+	{loop, Req2 :: cowboy_http_req:http_req(), _State2, Timeout :: non_neg_integer()} |
+	{loop, Req2 :: cowboy_http_req:http_req(), _State2, Timeout :: non_neg_integer(), hibernate} |
+	{upgrade, protocol, Module :: module()}.
 
-%% @private
--spec behaviour_info(_)
-	-> undefined | [{handle, 2} | {init, 3} | {terminate, 2}, ...].
-behaviour_info(callbacks) ->
-	[{init, 3}, {handle, 2}, {terminate, 2}];
-behaviour_info(_Other) ->
-	undefined.
+-callback handle(Req :: cowboy_http_req:http_req(),_State) ->
+    {ok,Req2 :: cowboy_http_req:http_req(),_State2}.
+
+-callback terminate(Req :: cowboy_http_req:http_req(),_State) ->
+    ok.
+    

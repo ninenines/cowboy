@@ -52,6 +52,8 @@
 ]). %% Misc API.
 
 -include("http.hrl").
+-type http_req() :: #http_req{}.
+-export_type([http_req/0]).
 
 %% Request API.
 
