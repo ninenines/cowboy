@@ -150,17 +150,28 @@ upgrade_denied(#http_req{socket=Socket, transport=Transport,
 	closed.
 
 -spec websocket_handshake(#state{}, #http_req{}, any()) -> closed.
-websocket_handshake(State=#state{version=0, origin=Origin,
+websocket_handshake(State=#state{opts=Opts, version=0, origin=Origin,
 		challenge={Key1, Key2}}, Req=#http_req{socket=Socket,
 		transport=Transport, raw_host=Host, port=Port,
 		raw_path=Path, raw_qs=QS}, HandlerState) ->
 	Location = hixie76_location(Transport:name(), Host, Port, Path, QS),
-	{ok, Req2} = cowboy_http_req:upgrade_reply(
-		<<"101 WebSocket Protocol Handshake">>,
-		[{<<"Upgrade">>, <<"WebSocket">>},
-		 {<<"Sec-Websocket-Location">>, Location},
-		 {<<"Sec-Websocket-Origin">>, Origin}],
-		Req#http_req{resp_state=waiting}),
+        {ok, Req2} = case proplists:lookup(websocket, Opts) of
+			 none ->
+			     cowboy_http_req:upgrade_reply(
+			       <<"101 WebSocket Protocol Handshake">>,
+			       [{<<"Upgrade">>, <<"WebSocket">>},
+				{<<"Sec-Websocket-Location">>, Location},
+				{<<"Sec-Websocket-Origin">>, Origin}],
+			       Req#http_req{resp_state=waiting});
+			 {websocket, {protocol, WebSocketProtocol}} ->
+			     cowboy_http_req:upgrade_reply(
+			       <<"101 WebSocket Protocol Handshake">>,
+			       [{<<"Upgrade">>, <<"WebSocket">>},
+				{<<"Sec-Websocket-Location">>, Location},
+				{<<"Sec-Websocket-Protocol">>, WebSocketProtocol},
+				{<<"Sec-Websocket-Origin">>, Origin}],
+			       Req#http_req{resp_state=waiting})				 
+		     end,
 	%% Flush the resp_sent message before moving on.
 	receive {cowboy_http_req, resp_sent} -> ok after 0 -> ok end,
 	%% We replied with a proper response. Proxies should be happy enough,
@@ -181,13 +192,24 @@ websocket_handshake(State=#state{version=0, origin=Origin,
 		_Any ->
 			closed %% If an error happened reading the body, stop there.
 	end;
-websocket_handshake(State=#state{challenge=Challenge},
+websocket_handshake(State=#state{opts=Opts, challenge=Challenge},
 		Req=#http_req{transport=Transport}, HandlerState) ->
-	{ok, Req2} = cowboy_http_req:upgrade_reply(
-		101,
-		[{<<"Upgrade">>, <<"websocket">>},
-		 {<<"Sec-Websocket-Accept">>, Challenge}],
-		Req#http_req{resp_state=waiting}),
+        {ok, Req2} = case proplists:lookup(websocket, Opts) of
+			 none ->
+			     cowboy_http_req:upgrade_reply(
+			       101,
+			       [{<<"Upgrade">>, <<"websocket">>},
+				{<<"Sec-Websocket-Accept">>, Challenge}],
+			       Req#http_req{resp_state=waiting});
+			 
+			 {websocket, {protocol, WebSocketProtocol}} -> 
+			     cowboy_http_req:upgrade_reply(
+			       101,
+			       [{<<"Upgrade">>, <<"websocket">>},
+				{<<"Sec-Websocket-Protocol">>, WebSocketProtocol},
+				{<<"Sec-Websocket-Accept">>, Challenge}],
+			       Req#http_req{resp_state=waiting})				 
+		     end,
 	%% Flush the resp_sent message before moving on.
 	receive {cowboy_http_req, resp_sent} -> ok after 0 -> ok end,
 	handler_before_loop(State#state{messages=Transport:messages()},
