@@ -67,6 +67,7 @@
 -export([te_chunked/1]).
 -export([te_chunked_delayed/1]).
 -export([te_identity/1]).
+-export([total_request_timeout/1]).
 
 %% ct.
 
@@ -114,7 +115,8 @@ groups() ->
 		te_identity
 	],
 	[
-		{http, [], Tests},
+		{http, [], [total_request_timeout |
+					Tests]},
 		{https, [], Tests},
 		{onrequest, [], [
 			onrequest,
@@ -145,7 +147,8 @@ init_per_group(http, Config) ->
 		cowboy_http_protocol, [
 			{dispatch, init_dispatch(Config1)},
 			{max_keepalive, 50},
-			{timeout, 500}]
+			{timeout, 500},
+			{headers_timeout, 5000}]
 	),
 	{ok, Client} = cowboy_client:init([]),
 	[{scheme, <<"http">>}, {port, Port}, {opts, []},
@@ -167,7 +170,8 @@ init_per_group(https, Config) ->
 		cowboy_http_protocol, [
 			{dispatch, init_dispatch(Config1)},
 			{max_keepalive, 50},
-			{timeout, 500}]
+			{timeout, 500},
+			{headers_timeout, 5000}]
 	),
 	{ok, Client} = cowboy_client:init(Opts),
 	[{scheme, <<"https">>}, {port, Port}, {opts, Opts},
@@ -888,3 +892,21 @@ te_identity(Config) ->
 		build_url("/echo/body", Config), [], Body, Client),
 	{ok, 200, _, Client3} = cowboy_client:response(Client2),
 	{ok, Body, _} = cowboy_client:response_body(Client3).
+
+total_request_timeout(Config) ->
+	Port = ?config(port, Config),
+	{ok, Socket} = gen_tcp:connect(localhost, Port, [{active, false}, binary, {packet, raw}]),
+	ok = gen_tcp:send(Socket, <<"GET /echo/body HTTP/1.1\r\n">>),
+	closed = send_with_interval(Socket, "Host: localhost\r\nContent-Length", 200), % Should be closed on 25th
+	gen_tcp:close(Socket).
+
+send_with_interval(_Socket, [], _Interval) ->
+	ok;
+send_with_interval(Socket, [Char | Rest], Interval) ->
+	ok = gen_tcp:send(Socket, <<Char>>),
+	timer:sleep(Interval),
+	case gen_tcp:recv(Socket, 0, 1) of
+		{error, closed} -> closed;
+		_               -> send_with_interval(Socket, Rest, Interval)
+	end.
+
