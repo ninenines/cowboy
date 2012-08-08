@@ -1,6 +1,24 @@
 CHANGELOG
 =========
 
+0.6.1
+-----
+
+*   Add hello_world, rest_hello_world, chunked_hello_world,
+    echo_get, echo_post and static examples.
+
+*   Add support for the "Expect: 100-continue" header.
+
+*   Keep the original 'Host' header value instead of modifying it.
+
+*   Fix use of parsed headers cache.
+
+*   REST: fix the matching of charsets.
+
+*   REST: allow <<"type/subtype">> format for content_types_accepted.
+
+*   Improve typespecs.
+
 0.6.0
 -----
 
