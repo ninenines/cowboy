@@ -359,6 +359,9 @@ websocket_before_unmask(State, Req, HandlerState, Data,
 	case {Mask, PayloadLen} of
 		{0, 0} ->
 			websocket_dispatch(State, Req, HandlerState, Rest, Opcode, <<>>);
+        {0, _N} ->
+            << Payload:PayloadLen/binary, Rest2/bits >> = Rest,
+            websocket_dispatch(State, Req, HandlerState, Rest2, Opcode, Payload);
 		{1, N} when N + 4 > byte_size(Rest); N =:= undefined ->
 			%% @todo We probably should allow limiting frame length.
 			handler_before_loop(State, Req, HandlerState, Data);
