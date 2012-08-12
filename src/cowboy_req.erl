@@ -1138,8 +1138,18 @@ response_merge_headers(Headers, RespHeaders, DefaultHeaders) ->
 
 -spec merge_headers(cowboy_http:headers(), cowboy_http:headers())
 	-> cowboy_http:headers().
+
+%% Merge headers by prepending the tuples in the second list to the
+%% first list. It also handles Set-Cookie properly, which supports
+%% duplicated entries. Notice that, while the RFC2109 does allow more
+%% than one cookie to be set per Set-Cookie header, we are following
+%% the implementation of common web servers and applications which
+%% return many distinct headers per each Set-Cookie entry to avoid
+%% issues with clients/browser which may not support it.
 merge_headers(Headers, []) ->
 	Headers;
+merge_headers(Headers, [{<<"set-cookie">>, Value}|Tail]) ->
+  merge_headers([{<<"set-cookie">>, Value}|Headers], Tail);
 merge_headers(Headers, [{Name, Value}|Tail]) ->
 	Headers2 = case lists:keymember(Name, 1, Headers) of
 		true -> Headers;
@@ -1332,5 +1342,27 @@ connection_to_atom_test_() ->
 	],
 	[{lists:flatten(io_lib:format("~p", [T])),
 		fun() -> R = connection_to_atom(T) end} || {T, R} <- Tests].
+
+merge_headers_test() ->
+  Left0  = [{<<"content-length">>,<<"13">>},{<<"server">>,<<"Cowboy">>}],
+  Right0 = [{<<"set-cookie">>,<<"foo=bar">>},{<<"content-length">>,<<"11">>}],
+
+  ?assertMatch(
+  [{<<"set-cookie">>,<<"foo=bar">>},
+   {<<"content-length">>,<<"13">>},
+   {<<"server">>,<<"Cowboy">>}],
+  merge_headers(Left0, Right0)),
+
+  Left1  = [{<<"content-length">>,<<"13">>},{<<"server">>,<<"Cowboy">>}],
+  Right1 = [{<<"set-cookie">>,<<"foo=bar">>},{<<"set-cookie">>,<<"bar=baz">>}],
+
+  ?assertMatch(
+  [{<<"set-cookie">>,<<"bar=baz">>},
+   {<<"set-cookie">>,<<"foo=bar">>},
+   {<<"content-length">>,<<"13">>},
+   {<<"server">>,<<"Cowboy">>}],
+  merge_headers(Left1, Right1)),
+
+  ok.
 
 -endif.
