@@ -342,7 +342,7 @@ websocket_data(State=#state{frag_state={nofin, Opcode, Payloads}}, Req,
 %% control messages MUST NOT use 7+16 bits or 7+64 bits payload length prefixes
 websocket_data(State, Req, HandlerState, _Fin, _Rsv, Opcode, _Mask, PayloadLen,
 		_Rest, _Data) when Opcode >= 8, PayloadLen > 125 ->
-	 websocket_close(State, Req, HandlerState, {error, protocol});
+	 websocket_close(State, Req, HandlerState, {error, badframe});
 %% unfragmented message. unmask and dispatch the message.
 websocket_data(State=#state{version=Version}, Req, HandlerState, _Fin=1, _Rsv=0,
 		Opcode, Mask, PayloadLen, Rest, Data) when Version =/= 0 ->
