@@ -18,7 +18,7 @@
 %% can be found in the Webmachine source tree, and on the Webmachine
 %% documentation available at http://wiki.basho.com/Webmachine.html
 %% at the time of writing.
--module(cowboy_http_rest).
+-module(cowboy_rest).
 
 -export([upgrade/4]).
 

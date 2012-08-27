@@ -62,7 +62,7 @@
 %% `application/octet-stream'. This can be overriden by supplying a list
 %% of filename extension to mimetypes pairs in the `mimetypes' option.
 %% The filename extension should be a binary string including the leading dot.
-%% The mimetypes must be of a type that the `cowboy_http_rest' protocol can
+%% The mimetypes must be of a type that the `cowboy_rest' protocol can
 %% handle.
 %%
 %% The <a href="https://github.com/spawngrid/mimetypes">spawngrid/mimetypes</a>
@@ -176,7 +176,7 @@
 %% cowboy_protocol callbacks
 -export([init/3]).
 
-%% cowboy_http_rest callbacks
+%% cowboy_rest callbacks
 -export([rest_init/2]).
 -export([allowed_methods/2]).
 -export([malformed_request/2]).
@@ -208,7 +208,7 @@
 
 %% @private Upgrade from HTTP handler to REST handler.
 init({_Transport, http}, _Req, _Opts) ->
-	{upgrade, protocol, cowboy_http_rest}.
+	{upgrade, protocol, cowboy_rest}.
 
 
 %% @private Set up initial state of REST handler.

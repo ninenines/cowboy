@@ -4,7 +4,7 @@
 		post_is_create/2, create_path/2, to_text/2, from_text/2]).
 
 init(_Transport, _Req, _Opts) ->
-	{upgrade, protocol, cowboy_http_rest}.
+	{upgrade, protocol, cowboy_rest}.
 
 rest_init(Req, [Forbidden]) ->
 	{ok, Req, Forbidden}.

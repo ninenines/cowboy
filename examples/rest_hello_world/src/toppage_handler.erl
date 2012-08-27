@@ -10,7 +10,7 @@
 -export([hello_to_text/2]).
 
 init(_Transport, _Req, []) ->
-	{upgrade, protocol, cowboy_http_rest}.
+	{upgrade, protocol, cowboy_rest}.
 
 content_types_provided(Req, State) ->
 	{[

@@ -2,7 +2,7 @@
 -export([init/3, generate_etag/2, content_types_provided/2, get_text_plain/2]).
 
 init(_Transport, _Req, _Opts) ->
-	{upgrade, protocol, cowboy_http_rest}.
+	{upgrade, protocol, cowboy_rest}.
 
 generate_etag(Req, State) ->
 	case cowboy_req:qs_val(<<"type">>, Req) of
