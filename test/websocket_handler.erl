@@ -8,7 +8,7 @@
 	websocket_info/3, websocket_terminate/3]).
 
 init(_Any, _Req, _Opts) ->
-	{upgrade, protocol, cowboy_http_websocket}.
+	{upgrade, protocol, cowboy_websocket}.
 
 handle(_Req, _State) ->
 	exit(badarg).

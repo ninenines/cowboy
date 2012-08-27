@@ -327,7 +327,7 @@ handler_before_loop(HandlerState, Req, State) ->
 	State2 = handler_loop_timeout(State),
 	handler_loop(HandlerState, Req, State2).
 
-%% Almost the same code can be found in cowboy_http_websocket.
+%% Almost the same code can be found in cowboy_websocket.
 -spec handler_loop_timeout(#state{}) -> #state{}.
 handler_loop_timeout(State=#state{loop_timeout=infinity}) ->
 	State#state{loop_timeout_ref=undefined};

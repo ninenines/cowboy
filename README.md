@@ -198,7 +198,7 @@ Websocket would look like this:
     websocket_info/3, websocket_terminate/3]).
 
 init({tcp, http}, Req, Opts) ->
-    {upgrade, protocol, cowboy_http_websocket}.
+    {upgrade, protocol, cowboy_websocket}.
 
 websocket_init(TransportName, Req, _Opts) ->
     erlang:start_timer(1000, self(), <<"Hello!">>),
