@@ -138,7 +138,7 @@ upgrade_error(Req) ->
 		Req#http_req{resp_state=waiting}),
 	closed.
 
-%% @see cowboy_http_protocol:ensure_response/1
+%% @see cowboy_protocol:ensure_response/1
 -spec upgrade_denied(#http_req{}) -> closed.
 upgrade_denied(#http_req{resp_state=done}) ->
 	closed;

@@ -32,7 +32,7 @@
 %%
 %% @see cowboy_dispatcher
 %% @see cowboy_http_handler
--module(cowboy_http_protocol).
+-module(cowboy_protocol).
 
 %% API.
 -export([start_link/4]).

@@ -24,14 +24,14 @@
 start_http(Ref, NbAcceptors, TransOpts, ProtoOpts)
 		when is_integer(NbAcceptors), NbAcceptors > 0 ->
 	ranch:start_listener(Ref, NbAcceptors,
-		ranch_tcp, TransOpts, cowboy_http_protocol, ProtoOpts).
+		ranch_tcp, TransOpts, cowboy_protocol, ProtoOpts).
 
 %% @doc Start an HTTPS listener.
 -spec start_https(any(), non_neg_integer(), any(), any()) -> {ok, pid()}.
 start_https(Ref, NbAcceptors, TransOpts, ProtoOpts)
 		when is_integer(NbAcceptors), NbAcceptors > 0 ->
 	ranch:start_listener(Ref, NbAcceptors,
-		ranch_ssl, TransOpts, cowboy_http_protocol, ProtoOpts).
+		ranch_ssl, TransOpts, cowboy_protocol, ProtoOpts).
 
 %% @doc Stop a listener.
 -spec stop_listener(any()) -> ok.

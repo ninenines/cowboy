@@ -173,7 +173,7 @@
 -include("http.hrl").
 -include_lib("kernel/include/file.hrl").
 
-%% cowboy_http_protocol callbacks
+%% cowboy_protocol callbacks
 -export([init/3]).
 
 %% cowboy_http_rest callbacks

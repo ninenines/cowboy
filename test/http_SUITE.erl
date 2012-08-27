@@ -489,7 +489,7 @@ http10_hostless(Config) ->
 	Name = list_to_atom("http10_hostless_" ++ integer_to_list(Port10)),
 	ranch:start_listener(Name, 5,
 		?config(transport, Config), ?config(opts, Config) ++ [{port, Port10}],
-		cowboy_http_protocol, [
+		cowboy_protocol, [
 			{dispatch, [{'_', [
 				{[<<"http1.0">>, <<"hostless">>], http_handler, []}]}]},
 			{max_keepalive, 50},
