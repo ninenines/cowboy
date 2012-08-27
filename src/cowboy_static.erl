@@ -44,15 +44,15 @@
 %% ==== Examples ====
 %% ```
 %% %% Serve files from /var/www/ under http://example.com/static/
-%% {[<<"static">>, '...'], cowboy_http_static,
+%% {[<<"static">>, '...'], cowboy_static,
 %%     [{directory, "/var/www"}]}
 %%
 %% %% Serve files from the current working directory under http://example.com/static/
-%% {[<<"static">>, '...'], cowboy_http_static,
+%% {[<<"static">>, '...'], cowboy_static,
 %%     [{directory, <<"./">>}]}
 %%
 %% %% Serve files from cowboy/priv/www under http://example.com/
-%% {['...'], cowboy_http_static,
+%% {['...'], cowboy_static,
 %%     [{directory, {priv_dir, cowboy, [<<"www">>]}}]}
 %% '''
 %%
@@ -74,14 +74,14 @@
 %% ==== Example ====
 %% ```
 %% %% Use a static list of content types.
-%% {[<<"static">>, '...'], cowboy_http_static,
+%% {[<<"static">>, '...'], cowboy_static,
 %%     [{directory, {priv_dir, cowboy, []}},
 %%      {mimetypes, [
 %%          {<<".css">>, [<<"text/css">>]},
 %%          {<<".js">>, [<<"application/javascript">>]}]}]}
 %%
 %% %% Use the default database in the mimetypes application.
-%% {[<<"static">>, '...', cowboy_http_static,
+%% {[<<"static">>, '...', cowboy_static,
 %%     [{directory, {priv_dir, cowboy, []}},
 %%      {mimetypes, {fun mimetypes:path_to_mimes/2, default}}]]}
 %% '''
@@ -110,17 +110,17 @@
 %% ====  Examples ====
 %% ```
 %% %% A value of default is equal to not specifying the option.
-%% {[<<"static">>, '...', cowboy_http_static,
+%% {[<<"static">>, '...', cowboy_static,
 %%     [{directory, {priv_dir, cowboy, []}},
 %%      {etag, default}]]}
 %%
 %% %% Use all avaliable ETag function arguments to generate a header value.
-%% {[<<"static">>, '...', cowboy_http_static,
+%% {[<<"static">>, '...', cowboy_static,
 %%     [{directory, {priv_dir, cowboy, []}},
 %%      {etag, {attributes, [filepath, filesize, inode, mtime]}}]]}
 %%
 %% %% Use a user defined function to generate a strong ETag header value.
-%% {[<<"static">>, '...', cowboy_http_static,
+%% {[<<"static">>, '...', cowboy_static,
 %%     [{directory, {priv_dir, cowboy, []}},
 %%      {etag, {fun generate_strong_etag/2, strong_etag_extra}}]]}
 %%
@@ -153,21 +153,21 @@
 %%
 %% ```
 %% %% Serve cowboy/priv/www/index.html as http://example.com/
-%% {[], cowboy_http_static,
+%% {[], cowboy_static,
 %%     [{directory, {priv_dir, cowboy, [<<"www">>]}}
 %%      {file, <<"index.html">>}]}
 %%
 %% %% Serve cowboy/priv/www/page.html under http://example.com/*/page
-%% {['*', <<"page">>], cowboy_http_static,
+%% {['*', <<"page">>], cowboy_static,
 %%     [{directory, {priv_dir, cowboy, [<<"www">>]}}
 %%      {file, <<"page.html">>}]}.
 %%
 %% %% Always serve cowboy/priv/www/other.html under http://example.com/other
-%% {[<<"other">>, '...'], cowboy_http_static,
+%% {[<<"other">>, '...'], cowboy_static,
 %%     [{directory, {priv_dir, cowboy, [<<"www">>]}}
 %%      {file, "other.html"}]}
 %% '''
--module(cowboy_http_static).
+-module(cowboy_static).
 
 %% include files
 -include("http.hrl").

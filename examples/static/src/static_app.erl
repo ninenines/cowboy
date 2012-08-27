@@ -13,7 +13,7 @@
 start(_Type, _Args) ->
 	Dispatch = [
 		{'_', [
-			{['...'], cowboy_http_static, [
+			{['...'], cowboy_static, [
 				{directory, {priv_dir, static, []}}
 			]} 
 		]}
