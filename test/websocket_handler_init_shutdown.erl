@@ -2,7 +2,7 @@
 
 -module(websocket_handler_init_shutdown).
 -behaviour(cowboy_http_handler).
--behaviour(cowboy_http_websocket_handler).
+-behaviour(cowboy_websocket_handler).
 -export([init/3, handle/2, terminate/2]).
 -export([websocket_init/3, websocket_handle/3,
 	websocket_info/3, websocket_terminate/3]).

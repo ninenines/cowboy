@@ -14,13 +14,14 @@
 
 %% @doc Handler for HTTP WebSocket requests.
 %%
-%% WebSocket handlers must implement four callbacks: <em>websocket_init/3</em>,
-%% <em>websocket_handle/3</em>, <em>websocket_info/3</em> and
-%% <em>websocket_terminate/3</em>. These callbacks will only be called if the
-%% connection is upgraded to WebSocket in the HTTP handler's <em>init/3</em>
-%% callback. They are then called in that order, although
-%% <em>websocket_handle/3</em> will be called for each packet received,
-%% and <em>websocket_info</em> for each message received.
+%% WebSocket handlers must implement five callbacks: <em>init/3</em>,
+%% <em>websocket_init/3</em>, <em>websocket_handle/3</em>,
+%% <em>websocket_info/3</em> and <em>websocket_terminate/3</em>.
+%% These callbacks will only be called if the connection is upgraded
+%% to WebSocket in the HTTP handler's <em>init/3</em> callback.
+%% They are then called in that order, although <em>websocket_handle/3</em>
+%% will be called for each packet received, and <em>websocket_info</em>
+%% for each message received.
 %%
 %% <em>websocket_init/3</em> is meant for initialization. It receives
 %% information about the transport and protocol used, along with the handler
@@ -45,16 +46,36 @@
 %% <em>websocket_info/3</em> can decide to hibernate the process by adding
 %% an extra element to the returned tuple, containing the atom
 %% <em>hibernate</em>. Doing so helps save memory and improve CPU usage.
--module(cowboy_http_websocket_handler).
+-module(cowboy_websocket_handler).
 
--export([behaviour_info/1]).
+-type opts() :: any().
+-type state() :: any().
+-type terminate_reason() :: {normal, closed}
+	| {normal, timeout}
+	| {error, closed}
+	| {error, badframe}
+	| {error, atom()}.
 
-%% @private
--spec behaviour_info(_)
-	-> undefined | [{websocket_handle, 3} | {websocket_info, 3}
-		| {websocket_init, 3} | {websocket_terminate, 3}, ...].
-behaviour_info(callbacks) ->
-	[{websocket_init, 3}, {websocket_handle, 3},
-	 {websocket_info, 3}, {websocket_terminate, 3}];
-behaviour_info(_Other) ->
-	undefined.
+-callback websocket_init(atom(), Req, opts())
+	-> {ok, Req, state()}
+	| {ok, Req, state(), hibernate}
+	| {ok, Req, state(), timeout()}
+	| {ok, Req, state(), timeout(), hibernate}
+	| {shutdown, Req}
+	when Req::cowboy_req:req().
+-callback websocket_handle({text | binary | ping | pong, binary()}, Req, State)
+	-> {ok, Req, State}
+	| {ok, Req, State, hibernate}
+	| {reply, {text | binary | ping | pong, binary()}, Req, State}
+	| {reply, {text | binary | ping | pong, binary()}, Req, State, hibernate}
+	| {shutdown, Req, State}
+	when Req::cowboy_req:req(), State::state().
+-callback websocket_info(any(), Req, State)
+	-> {ok, Req, State}
+	| {ok, Req, State, hibernate}
+	| {reply, {text | binary | ping | pong, binary()}, Req, State}
+	| {reply, {text | binary | ping | pong, binary()}, Req, State, hibernate}
+	| {shutdown, Req, State}
+	when Req::cowboy_req:req(), State::state().
+-callback websocket_terminate(terminate_reason(), cowboy_req:req(), state())
+	-> ok.

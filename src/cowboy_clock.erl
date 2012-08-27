@@ -107,7 +107,6 @@ rfc2109(LocalTime) ->
 %% gen_server.
 
 %% @private
--spec init([]) -> {ok, #state{}}.
 init([]) ->
 	?TABLE = ets:new(?TABLE, [set, protected,
 		named_table, {read_concurrency, true}]),
@@ -118,8 +117,6 @@ init([]) ->
 	{ok, #state{universaltime=T, rfc1123=B, tref=TRef}}.
 
 %% @private
--spec handle_call(_, _, State)
-	-> {reply, ignored, State} | {stop, normal, stopped, State}.
 handle_call(stop, _From, State=#state{tref=TRef}) ->
 	{ok, cancel} = timer:cancel(TRef),
 	{stop, normal, stopped, State};
@@ -127,12 +124,10 @@ handle_call(_Request, _From, State) ->
 	{reply, ignored, State}.
 
 %% @private
--spec handle_cast(_, State) -> {noreply, State}.
 handle_cast(_Msg, State) ->
 	{noreply, State}.
 
 %% @private
--spec handle_info(_, State) -> {noreply, State}.
 handle_info(update, #state{universaltime=Prev, rfc1123=B1, tref=TRef}) ->
 	T = erlang:universaltime(),
 	B2 = update_rfc1123(B1, Prev, T),
@@ -142,12 +137,10 @@ handle_info(_Info, State) ->
 	{noreply, State}.
 
 %% @private
--spec terminate(_, _) -> ok.
 terminate(_Reason, _State) ->
 	ok.
 
 %% @private
--spec code_change(_, State, _) -> {ok, State}.
 code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
 

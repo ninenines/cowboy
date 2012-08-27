@@ -20,15 +20,10 @@
 -export([start/2]).
 -export([stop/1]).
 
--type application_start_type() :: normal
-	| {takeover, node()} | {failover, node()}.
-
 %% API.
 
--spec start(application_start_type(), any()) -> {ok, pid()}.
 start(_Type, _Args) ->
 	cowboy_sup:start_link().
 
--spec stop(any()) -> ok.
 stop(_State) ->
 	ok.

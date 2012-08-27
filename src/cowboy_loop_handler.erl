@@ -12,15 +12,16 @@
 %% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-%% @doc Behaviour for short-lived HTTP handlers.
+%% @doc Behaviour for long-lived HTTP handlers.
 %%
 %% <em>init/3</em> allows you to initialize a state for all subsequent
 %% callbacks, and indicate to Cowboy whether you accept to handle the
 %% request or want to shutdown without handling it, in which case the
-%% <em>handle/2</em> call will simply be skipped.
+%% receive loop and <em>info/3</em> calls will simply be skipped.
 %%
-%% <em>handle/2</em> allows you to handle the request. It receives the
-%% state previously defined.
+%% <em>info/3</em> allows you to handle the messages this process will
+%% receive. It receives the message and the state previously defined.
+%% It can decide to stop the receive loop or continue receiving.
 %%
 %% <em>terminate/2</em> allows you to clean up. It receives the state
 %% previously defined.
@@ -29,7 +30,12 @@
 %% other than returning the proper values. Make sure you always return
 %% the last modified Req so that Cowboy has the up to date information
 %% about the request.
--module(cowboy_http_handler).
+%%
+%% It is recommended to use hibernate if this process is not going to
+%% receive a lot of messages. It is also recommended to use a timeout
+%% value so that the connection gets closed after a long period of
+%% inactivity.
+-module(cowboy_loop_handler).
 
 -type opts() :: any().
 -type state() :: any().
@@ -43,6 +49,9 @@
 	| {shutdown, Req, state()}
 	| {upgrade, protocol, module()}
 	when Req::cowboy_req:req().
--callback handle(Req, State) -> {ok, Req, State}
+-callback info(any(), Req, State)
+	-> {ok, Req, State}
+	| {loop, Req, State}
+	| {loop, Req, State, hibernate}
 	when Req::cowboy_req:req(), State::state().
 -callback terminate(cowboy_req:req(), state()) -> ok.
