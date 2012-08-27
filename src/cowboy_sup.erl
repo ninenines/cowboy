@@ -16,8 +16,11 @@
 -module(cowboy_sup).
 -behaviour(supervisor).
 
--export([start_link/0]). %% API.
--export([init/1]). %% supervisor.
+%% API.
+-export([start_link/0]).
+
+%% supervisor.
+-export([init/1]).
 
 -define(SUPERVISOR, ?MODULE).
 

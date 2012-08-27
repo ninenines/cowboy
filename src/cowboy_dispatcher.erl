@@ -16,7 +16,10 @@
 %% @doc Dispatch requests according to a hostname and path.
 -module(cowboy_dispatcher).
 
--export([split_host/1, split_path/2, match/3]). %% API.
+%% API.
+-export([split_host/1]).
+-export([split_path/2]).
+-export([match/3]).
 
 -type bindings() :: list({atom(), binary()}).
 -type tokens() :: list(binary()).
@@ -25,7 +28,9 @@
 -type dispatch_rule() :: {Host::match_rule(), Path::dispatch_path()}.
 -type dispatch_rules() :: list(dispatch_rule()).
 
--export_type([bindings/0, tokens/0, dispatch_rules/0]).
+-export_type([bindings/0]).
+-export_type([tokens/0]).
+-export_type([dispatch_rules/0]).
 
 -include_lib("eunit/include/eunit.hrl").
 

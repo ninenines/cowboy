@@ -17,7 +17,10 @@
 
 -module(cowboy_cookies).
 
--export([parse_cookie/1, cookie/3, cookie/2]). %% API.
+%% API.
+-export([parse_cookie/1]).
+-export([cookie/3]).
+-export([cookie/2]).
 
 %% Types.
 -type kv() :: {Name::binary(), Value::binary()}.
@@ -26,7 +29,10 @@
 				| {local_time, calendar:datetime()}
 				| {domain, binary()} | {path, binary()}
 				| {secure, true | false} | {http_only, true | false}.
--export_type([kv/0, kvlist/0, cookie_option/0]).
+
+-export_type([kv/0]).
+-export_type([kvlist/0]).
+-export_type([cookie_option/0]).
 
 -define(QUOTE, $\").
 

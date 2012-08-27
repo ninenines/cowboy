@@ -34,8 +34,13 @@
 %% @see cowboy_http_handler
 -module(cowboy_http_protocol).
 
--export([start_link/4]). %% API.
--export([init/4, parse_request/1, handler_loop/3]). %% FSM.
+%% API.
+-export([start_link/4]).
+
+%% Internal.
+-export([init/4]).
+-export([parse_request/1]).
+-export([handler_loop/3]).
 
 -include("http.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -70,7 +75,7 @@ start_link(ListenerPid, Socket, Transport, Opts) ->
 	Pid = spawn_link(?MODULE, init, [ListenerPid, Socket, Transport, Opts]),
 	{ok, Pid}.
 
-%% FSM.
+%% Internal.
 
 %% @private
 -spec init(pid(), inet:socket(), module(), any()) -> ok.

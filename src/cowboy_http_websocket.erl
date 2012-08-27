@@ -19,8 +19,11 @@
 %% is no need for concern as crypto is already included.
 -module(cowboy_http_websocket).
 
--export([upgrade/4]). %% API.
--export([handler_loop/4]). %% Internal.
+%% API.
+-export([upgrade/4]).
+
+%% Internal.
+-export([handler_loop/4]).
 
 -include("http.hrl").
 -include_lib("eunit/include/eunit.hrl").

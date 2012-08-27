@@ -21,35 +21,66 @@
 %% some lazy evaluation and cache results where possible.
 -module(cowboy_http_req).
 
--export([
-	method/1, version/1, peer/1, peer_addr/1,
-	host/1, host_info/1, raw_host/1, port/1,
-	path/1, path_info/1, raw_path/1,
-	qs_val/2, qs_val/3, qs_vals/1, raw_qs/1,
-	binding/2, binding/3, bindings/1,
-	header/2, header/3, headers/1,
-	parse_header/2, parse_header/3,
-	cookie/2, cookie/3, cookies/1,
-	meta/2, meta/3
-]). %% Request API.
+%% Request API.
+-export([method/1]).
+-export([version/1]).
+-export([peer/1]).
+-export([peer_addr/1]).
+-export([host/1]).
+-export([host_info/1]).
+-export([raw_host/1]).
+-export([port/1]).
+-export([path/1]).
+-export([path_info/1]).
+-export([raw_path/1]).
+-export([qs_val/2]).
+-export([qs_val/3]).
+-export([qs_vals/1]).
+-export([raw_qs/1]).
+-export([binding/2]).
+-export([binding/3]).
+-export([bindings/1]).
+-export([header/2]).
+-export([header/3]).
+-export([headers/1]).
+-export([parse_header/2]).
+-export([parse_header/3]).
+-export([cookie/2]).
+-export([cookie/3]).
+-export([cookies/1]).
+-export([meta/2]).
+-export([meta/3]).
 
--export([
-	has_body/1, body_length/1, init_stream/4, stream_body/1,
-	skip_body/1, body/1, body/2, body_qs/1,
-	multipart_data/1, multipart_skip/1
-]). %% Request Body API.
+%% Request body API.
+-export([has_body/1]).
+-export([body_length/1]).
+-export([init_stream/4]).
+-export([stream_body/1]).
+-export([skip_body/1]).
+-export([body/1]).
+-export([body/2]).
+-export([body_qs/1]).
+-export([multipart_data/1]).
+-export([multipart_skip/1]).
 
--export([
-	set_resp_cookie/4, set_resp_header/3, set_resp_body/2,
-	set_resp_body_fun/3, has_resp_header/2, has_resp_body/1,
-	reply/2, reply/3, reply/4,
-	chunked_reply/2, chunked_reply/3, chunk/2,
-	upgrade_reply/3
-]). %% Response API.
+%% Response API.
+-export([set_resp_cookie/4]).
+-export([set_resp_header/3]).
+-export([set_resp_body/2]).
+-export([set_resp_body_fun/3]).
+-export([has_resp_header/2]).
+-export([has_resp_body/1]).
+-export([reply/2]).
+-export([reply/3]).
+-export([reply/4]).
+-export([chunked_reply/2]).
+-export([chunked_reply/3]).
+-export([chunk/2]).
+-export([upgrade_reply/3]).
 
--export([
-	compact/1, transport/1
-]). %% Misc API.
+%% Misc API.
+-export([compact/1]).
+-export([transport/1]).
 
 -include("http.hrl").
 

@@ -17,18 +17,38 @@
 -module(cowboy_http).
 
 %% Parsing.
--export([list/2, nonempty_list/2, content_type/1, media_range/2, conneg/2,
-	language_range/2, entity_tag_match/1, expectation/2, params/2,
-	http_date/1, rfc1123_date/1, rfc850_date/1, asctime_date/1,
-	whitespace/2, digits/1, token/2, token_ci/2, quoted_string/2]).
+-export([list/2]).
+-export([nonempty_list/2]).
+-export([content_type/1]).
+-export([media_range/2]).
+-export([conneg/2]).
+-export([language_range/2]).
+-export([entity_tag_match/1]).
+-export([expectation/2]).
+-export([params/2]).
+-export([http_date/1]).
+-export([rfc1123_date/1]).
+-export([rfc850_date/1]).
+-export([asctime_date/1]).
+-export([whitespace/2]).
+-export([digits/1]).
+-export([token/2]).
+-export([token_ci/2]).
+-export([quoted_string/2]).
 
 %% Decoding.
--export([te_chunked/2, te_identity/2, ce_identity/1]).
+-export([te_chunked/2]).
+-export([te_identity/2]).
+-export([ce_identity/1]).
 
 %% Interpretation.
--export([connection_to_atom/1, version_to_binary/1,
-	urldecode/1, urldecode/2, urlencode/1,
-	urlencode/2, x_www_form_urlencoded/2]).
+-export([connection_to_atom/1]).
+-export([version_to_binary/1]).
+-export([urldecode/1]).
+-export([urldecode/2]).
+-export([urlencode/1]).
+-export([urlencode/2]).
+-export([x_www_form_urlencoded/2]).
 
 -type method() :: 'OPTIONS' | 'GET' | 'HEAD'
 	| 'POST' | 'PUT' | 'DELETE' | 'TRACE' | binary().
@@ -53,7 +73,12 @@
 -type headers() :: [{header(), iodata()}].
 -type status() :: non_neg_integer() | binary().
 
--export_type([method/0, uri/0, version/0, header/0, headers/0, status/0]).
+-export_type([method/0]).
+-export_type([uri/0]).
+-export_type([version/0]).
+-export_type([header/0]).
+-export_type([headers/0]).
+-export_type([status/0]).
 
 -include_lib("eunit/include/eunit.hrl").
 

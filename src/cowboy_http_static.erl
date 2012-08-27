@@ -177,9 +177,15 @@
 -export([init/3]).
 
 %% cowboy_http_rest callbacks
--export([rest_init/2, allowed_methods/2, malformed_request/2,
-	resource_exists/2, forbidden/2, last_modified/2, generate_etag/2,
-	content_types_provided/2, file_contents/2]).
+-export([rest_init/2]).
+-export([allowed_methods/2]).
+-export([malformed_request/2]).
+-export([resource_exists/2]).
+-export([forbidden/2]).
+-export([last_modified/2]).
+-export([generate_etag/2]).
+-export([content_types_provided/2]).
+-export([file_contents/2]).
 
 %% internal
 -export([path_to_mimetypes/2]).

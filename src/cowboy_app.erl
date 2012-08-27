@@ -16,7 +16,9 @@
 -module(cowboy_app).
 -behaviour(application).
 
--export([start/2, stop/1]). %% API.
+%% API.
+-export([start/2]).
+-export([stop/1]).
 
 -type application_start_type() :: normal
 	| {takeover, node()} | {failover, node()}.
