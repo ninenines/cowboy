@@ -18,7 +18,7 @@ terminate(_Req, _State) ->
 
 websocket_init(_TransportName, Req, _Opts) ->
 	erlang:start_timer(1000, self(), <<"websocket_init">>),
-	Req2 = cowboy_http_req:compact(Req),
+	Req2 = cowboy_req:compact(Req),
 	{ok, Req2, undefined}.
 
 websocket_handle({text, Data}, Req, State) ->

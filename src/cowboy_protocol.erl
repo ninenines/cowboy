@@ -208,7 +208,7 @@ header({http_header, _I, 'Connection', _R, Connection},
 		when Keepalive < MaxKeepalive ->
 	Req2 = Req#http_req{headers=[{'Connection', Connection}|Headers]},
 	{ConnTokens, Req3}
-		= cowboy_http_req:parse_header('Connection', Req2),
+		= cowboy_req:parse_header('Connection', Req2),
 	ConnAtom = cowboy_http:connection_to_atom(ConnTokens),
 	parse_header(Req3#http_req{connection=ConnAtom}, State);
 header({http_header, _I, Field, _R, Value}, Req, State) ->
@@ -399,7 +399,7 @@ next_request(Req=#http_req{connection=Conn}, State=#state{
 	RespRes = ensure_response(Req),
 	{BodyRes, Buffer} = ensure_body_processed(Req),
 	%% Flush the resp_sent message before moving on.
-	receive {cowboy_http_req, resp_sent} -> ok after 0 -> ok end,
+	receive {cowboy_req, resp_sent} -> ok after 0 -> ok end,
 	case {HandlerRes, BodyRes, RespRes, Conn} of
 		{ok, ok, ok, keepalive} ->
 			?MODULE:parse_request(State#state{
@@ -413,12 +413,12 @@ next_request(Req=#http_req{connection=Conn}, State=#state{
 ensure_body_processed(#http_req{body_state=done, buffer=Buffer}) ->
 	{ok, Buffer};
 ensure_body_processed(Req=#http_req{body_state=waiting}) ->
-	case cowboy_http_req:skip_body(Req) of
+	case cowboy_req:skip_body(Req) of
 		{ok, Req2} -> {ok, Req2#http_req.buffer};
 		{error, _Reason} -> {close, <<>>}
 	end;
 ensure_body_processed(Req=#http_req{body_state={multipart, _, _}}) ->
-	{ok, Req2} = cowboy_http_req:multipart_skip(Req),
+	{ok, Req2} = cowboy_req:multipart_skip(Req),
 	ensure_body_processed(Req2).
 
 -spec ensure_response(#http_req{}) -> ok.
@@ -428,7 +428,7 @@ ensure_response(#http_req{resp_state=done}) ->
 %% No response has been sent but everything apparently went fine.
 %% Reply with 204 No Content to indicate this.
 ensure_response(Req=#http_req{resp_state=waiting}) ->
-	_ = cowboy_http_req:reply(204, [], [], Req),
+	_ = cowboy_req:reply(204, [], [], Req),
 	ok;
 %% Terminate the chunked body for HTTP/1.1 only.
 ensure_response(#http_req{method='HEAD', resp_state=chunks}) ->
@@ -445,9 +445,9 @@ ensure_response(#http_req{socket=Socket, transport=Transport,
 error_terminate(Code, State=#state{socket=Socket, transport=Transport,
 		onresponse=OnResponse}) ->
 	receive
-		{cowboy_http_req, resp_sent} -> ok
+		{cowboy_req, resp_sent} -> ok
 	after 0 ->
-		_ = cowboy_http_req:reply(Code, #http_req{
+		_ = cowboy_req:reply(Code, #http_req{
 			socket=Socket, transport=Transport, onresponse=OnResponse,
 			connection=close, pid=self(), resp_state=waiting}),
 		ok

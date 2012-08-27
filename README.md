@@ -85,7 +85,7 @@ init({tcp, http}, Req, Opts) ->
     {ok, Req, undefined_state}.
 
 handle(Req, State) ->
-    {ok, Req2} = cowboy_http_req:reply(200, [], <<"Hello World!">>, Req),
+    {ok, Req2} = cowboy_req:reply(200, [], <<"Hello World!">>, Req),
     {ok, Req2, State}.
 
 terminate(Req, State) ->
@@ -110,7 +110,7 @@ init({tcp, http}, Req, Opts) ->
 	{loop, Req, undefined_state, ?TIMEOUT, hibernate}.
 
 info({reply, Body}, Req, State) ->
-	{ok, Req2} = cowboy_http_req:reply(200, [], Body, Req),
+	{ok, Req2} = cowboy_req:reply(200, [], Body, Req),
 	{ok, Req2, State};
 info(Message, Req, State) ->
 	{loop, Req, State, hibernate}.
@@ -149,13 +149,13 @@ example, host rule `['...', <<"ninenines">>, <<"eu">>]` can match both
 "cowboy.bugs.ninenines.eu" and "ninenines.eu" and path rule
 `[<<"projects">>, '...']` can match both "/projects" and
 "/projects/cowboy/issues/42". The host leading segments and the path trailing
-segments can later be retrieved through `cowboy_http_req:host_info/1` and
-`cowboy_http_req:path_info/1`.
+segments can later be retrieved through `cowboy_req:host_info/1` and
+`cowboy_req:path_info/1`.
 
 Any other atom used as a token will bind the value to this atom when
 matching. To follow on our hostnames example, `[<<"ninenines">>, ext]`
 would bind the values `<<"eu">>` and `<<"fr">>` to the ext atom, that you
-can later retrieve in your handler by calling `cowboy_http_req:binding/{2,3}`.
+can later retrieve in your handler by calling `cowboy_req:binding/{2,3}`.
 
 You can also accept any match spec by using the atom `'_'` directly instead of
 a list of tokens. Our hello world example above uses this to forward all
@@ -168,7 +168,7 @@ Requests handling
 
 Requests are passed around in the Request variable. Although they are
 defined as a record, it is recommended to access them only through the
-cowboy_http_req module API.
+cowboy_req module API.
 
 You can retrieve the HTTP method, HTTP version, peer address and port,
 host tokens, raw host, used port, path tokens, raw path, query string
@@ -177,7 +177,7 @@ request. You can also read the request body, if any, optionally parsing
 it as a query string. Finally, the request allows you to send a response
 to the client.
 
-See the cowboy_http_req module for more information.
+See the cowboy_req module for more information.
 
 Websockets
 ----------

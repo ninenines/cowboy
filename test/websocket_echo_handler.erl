@@ -17,7 +17,7 @@ terminate(_Req, _State) ->
 	exit(badarg).
 
 websocket_init(_TransportName, Req, _Opts) ->
-	Req2 = cowboy_http_req:compact(Req),
+	Req2 = cowboy_req:compact(Req),
 	{ok, Req2, undefined}.
 
 websocket_handle({text, Data}, Req, State) ->

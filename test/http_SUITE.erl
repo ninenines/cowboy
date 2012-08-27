@@ -597,13 +597,13 @@ onrequest_reply(Config) ->
 
 %% Hook for the above onrequest tests.
 onrequest_hook(Req) ->
-	case cowboy_http_req:qs_val(<<"reply">>, Req) of
+	case cowboy_req:qs_val(<<"reply">>, Req) of
 		{undefined, Req2} ->
-			{ok, Req3} = cowboy_http_req:set_resp_header(
+			{ok, Req3} = cowboy_req:set_resp_header(
 				'Server', <<"Serenity">>, Req2),
 			Req3;
 		{_, Req2} ->
-			{ok, Req3} = cowboy_http_req:reply(
+			{ok, Req3} = cowboy_req:reply(
 				200, [], <<"replied!">>, Req2),
 			Req3
 	end.
@@ -626,7 +626,7 @@ onresponse_reply(Config) ->
 
 %% Hook for the above onresponse tests.
 onresponse_hook(_, Headers, Req) ->
-	{ok, Req2} = cowboy_http_req:reply(
+	{ok, Req2} = cowboy_req:reply(
 		<<"777 Lucky">>, [{<<"x-hook">>, <<"onresponse">>}|Headers], Req),
 	Req2.
 

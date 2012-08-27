@@ -27,7 +27,7 @@ post_is_create(Req, State) ->
 	{true, Req, State}.
 
 create_path(Req, State) ->
-	{Path, Req2} = cowboy_http_req:raw_path(Req),
+	{Path, Req2} = cowboy_req:raw_path(Req),
 	{Path, Req2, State}.
 
 to_text(Req, State) ->

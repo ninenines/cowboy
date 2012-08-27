@@ -9,7 +9,7 @@ init({_, http}, Req, _) ->
 	{loop, Req, undefined, 500, hibernate}.
 
 info(error_timeout, Req, State) ->
-	{ok, Req2} = cowboy_http_req:reply(500, Req),
+	{ok, Req2} = cowboy_req:reply(500, Req),
 	{ok, Req2, State}.
 
 terminate(_, _) ->

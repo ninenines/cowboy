@@ -11,7 +11,7 @@ init(_Transport, Req, []) ->
 	{ok, Req, undefined}.
 
 handle(Req, State) ->
-	{ok, Req2} = cowboy_http_req:reply(200, [], <<"Hello world!">>, Req),
+	{ok, Req2} = cowboy_req:reply(200, [], <<"Hello world!">>, Req),
 	{ok, Req2, State}.
 
 terminate(_Req, _State) ->

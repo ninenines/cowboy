@@ -231,7 +231,7 @@ rest_init(Req, Opts) ->
 	end,
 	{Filepath, Req1} = case lists:keyfind(file, 1, Opts) of
 		{_, Filepath2} -> {filepath_path(Filepath2), Req};
-		false -> cowboy_http_req:path_info(Req)
+		false -> cowboy_req:path_info(Req)
 	end,
 	State = case check_path(Filepath) of
 		error ->
@@ -320,7 +320,7 @@ content_types_provided(Req, #state{filepath=Filepath,
 -spec file_contents(#http_req{}, #state{}) -> tuple().
 file_contents(Req, #state{filepath=Filepath,
 		fileinfo={ok, #file_info{size=Filesize}}}=State) ->
-	{ok, Transport, Socket} = cowboy_http_req:transport(Req),
+	{ok, Transport, Socket} = cowboy_req:transport(Req),
 	Writefile = content_function(Transport, Socket, Filepath),
 	{{stream, Filesize, Writefile}, Req, State}.
 

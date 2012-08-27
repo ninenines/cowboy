@@ -13,11 +13,11 @@ init({_Transport, http}, Req, Opts) ->
 	{ok, Req, #state{headers=Headers, body=Body, reply=Reply}}.
 
 handle(Req, State=#state{headers=_Headers, body=Body, reply=set_resp}) ->
-	{ok, Transport, Socket} = cowboy_http_req:transport(Req),
+	{ok, Transport, Socket} = cowboy_req:transport(Req),
 	SFun = fun() -> Transport:send(Socket, Body), sent end,
 	SLen = iolist_size(Body),
-	{ok, Req2} = cowboy_http_req:set_resp_body_fun(SLen, SFun, Req),
-	{ok, Req3} = cowboy_http_req:reply(200, Req2),
+	{ok, Req2} = cowboy_req:set_resp_body_fun(SLen, SFun, Req),
+	{ok, Req3} = cowboy_req:reply(200, Req2),
 	{ok, Req3, State}.
 
 terminate(_Req, _State) ->

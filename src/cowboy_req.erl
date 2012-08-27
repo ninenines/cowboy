@@ -19,7 +19,7 @@
 %% It should always be used instead of the one used in your function call
 %% because it keeps the state of the request. It also allows Cowboy to do
 %% some lazy evaluation and cache results where possible.
--module(cowboy_http_req).
+-module(cowboy_req).
 
 %% Request API.
 -export([method/1]).
@@ -711,7 +711,7 @@ set_resp_body(Body, Req) ->
 %% if the response is later sent using anything other than `reply/2' or
 %% `reply/3'.
 %%
-%% @see cowboy_http_req:transport/1.
+%% @see cowboy_req:transport/1.
 -spec set_resp_body_fun(non_neg_integer(), fun(() -> {sent, non_neg_integer()}),
 		#http_req{}) -> {ok, #http_req{}}.
 set_resp_body_fun(StreamLen, StreamFun, Req) ->
@@ -775,7 +775,7 @@ chunked_reply(Status, Req) ->
 	chunked_reply(Status, [], Req).
 
 %% @doc Initiate the sending of a chunked reply to the client.
-%% @see cowboy_http_req:chunk/2
+%% @see cowboy_req:chunk/2
 -spec chunked_reply(cowboy_http:status(), cowboy_http:headers(), #http_req{})
 	-> {ok, #http_req{}}.
 chunked_reply(Status, Headers, Req=#http_req{

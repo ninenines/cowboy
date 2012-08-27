@@ -12,7 +12,7 @@ handle(_Req, _State) ->
 	exit(badarg).
 
 info(timeout, Req, 0) ->
-	{ok, Req2} = cowboy_http_req:reply(102, Req),
+	{ok, Req2} = cowboy_req:reply(102, Req),
 	{ok, Req2, 0};
 info(timeout, Req, State) ->
 	erlang:send_after(500, self(), timeout),

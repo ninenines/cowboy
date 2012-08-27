@@ -5,7 +5,7 @@ init(_Transport, _Req, _Opts) ->
 	{upgrade, protocol, cowboy_http_rest}.
 
 generate_etag(Req, State) ->
-	case cowboy_http_req:qs_val(<<"type">>, Req) of
+	case cowboy_req:qs_val(<<"type">>, Req) of
 		%% Correct return values from generate_etag/2.
 		{<<"tuple-weak">>, Req2} ->
 			{{weak, <<"etag-header-value">>}, Req2, State};
