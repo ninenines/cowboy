@@ -326,13 +326,14 @@ file_contents(Req, #state{filepath=Filepath,
 -spec content_function(module(), inet:socket(), binary()) ->
 	fun(() -> {sent, non_neg_integer()}).
 content_function(Transport, Socket, Filepath) ->
-	%% `file:sendfile/2' will only work with the `cowboy_tcp_transport'
+	%% `file:sendfile/2' will only work with the `ranch_tcp'
 	%% transport module. SSL or future SPDY transports that require the
-	%% content to be encrypted or framed as the content is sent.
+	%% content to be encrypted or framed as the content is sent
+	%% will use the fallback mechanism.
 	case erlang:function_exported(file, sendfile, 2) of
 		false ->
 			fun() -> sfallback(Transport, Socket, Filepath) end;
-		_ when Transport =/= cowboy_tcp_transport ->
+		_ when Transport =/= ranch_tcp ->
 			fun() -> sfallback(Transport, Socket, Filepath) end;
 		true ->
 			fun() -> sendfile(Socket, Filepath) end

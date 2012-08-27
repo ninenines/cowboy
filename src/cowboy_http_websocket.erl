@@ -57,7 +57,7 @@
 %% in your <em>cowboy_http_handler:init/3</em> handler function.
 -spec upgrade(pid(), module(), any(), #http_req{}) -> closed.
 upgrade(ListenerPid, Handler, Opts, Req) ->
-	cowboy_listener:move_connection(ListenerPid, websocket, self()),
+	ranch_listener:remove_connection(ListenerPid),
 	case catch websocket_upgrade(#state{handler=Handler, opts=Opts}, Req) of
 		{ok, State, Req2} -> handler_init(State, Req2);
 		{'EXIT', _Reason} -> upgrade_error(Req)

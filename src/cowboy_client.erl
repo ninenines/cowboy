@@ -108,11 +108,11 @@ request(Method, URL, Headers, Body, Client=#client{
 	raw_request(Data, Client2).
 
 parse_url(<< "https://", Rest/binary >>) ->
-	parse_url(Rest, cowboy_ssl_transport);
+	parse_url(Rest, ranch_ssl);
 parse_url(<< "http://", Rest/binary >>) ->
-	parse_url(Rest, cowboy_tcp_transport);
+	parse_url(Rest, ranch_tcp);
 parse_url(URL) ->
-	parse_url(URL, cowboy_tcp_transport).
+	parse_url(URL, ranch_tcp).
 
 parse_url(URL, Transport) ->
 	case binary:split(URL, <<"/">>) of
@@ -126,9 +126,9 @@ parse_url(URL, Transport) ->
 
 parse_peer(Peer, Transport) ->
 	case binary:split(Peer, <<":">>) of
-		[Host] when Transport =:= cowboy_tcp_transport ->
+		[Host] when Transport =:= ranch_tcp ->
 			{binary_to_list(Host), 80};
-		[Host] when Transport =:= cowboy_ssl_transport ->
+		[Host] when Transport =:= ranch_ssl ->
 			{binary_to_list(Host), 443};
 		[Host, Port] ->
 			{binary_to_list(Host), list_to_integer(binary_to_list(Port))}

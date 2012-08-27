@@ -8,5 +8,6 @@
 %% API.
 
 start() ->
+	ok = application:start(ranch),
 	ok = application:start(cowboy),
 	ok = application:start(rest_hello_world).

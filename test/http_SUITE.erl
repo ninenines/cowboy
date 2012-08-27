@@ -128,31 +128,31 @@ groups() ->
 
 init_per_suite(Config) ->
 	application:start(inets),
+	application:start(ranch),
 	application:start(cowboy),
 	Config.
 
 end_per_suite(_Config) ->
 	application:stop(cowboy),
+	application:stop(ranch),
 	application:stop(inets),
 	ok.
 
 init_per_group(http, Config) ->
 	Port = 33080,
-	Transport = cowboy_tcp_transport,
+	Transport = ranch_tcp,
 	Config1 = init_static_dir(Config),
-	{ok, _} = cowboy:start_listener(http, 100,
-		Transport, [{port, Port}],
-		cowboy_http_protocol, [
-			{dispatch, init_dispatch(Config1)},
-			{max_keepalive, 50},
-			{timeout, 500}]
-	),
+	{ok, _} = cowboy:start_http(http, 100, [{port, Port}], [
+		{dispatch, init_dispatch(Config1)},
+		{max_keepalive, 50},
+		{timeout, 500}
+	]),
 	{ok, Client} = cowboy_client:init([]),
 	[{scheme, <<"http">>}, {port, Port}, {opts, []},
 		{transport, Transport}, {client, Client}|Config1];
 init_per_group(https, Config) ->
 	Port = 33081,
-	Transport = cowboy_ssl_transport,
+	Transport = ranch_ssl,
 	Opts = [
 		{certfile, ?config(data_dir, Config) ++ "cert.pem"},
 		{keyfile, ?config(data_dir, Config) ++ "key.pem"},
@@ -162,41 +162,35 @@ init_per_group(https, Config) ->
 	application:start(crypto),
 	application:start(public_key),
 	application:start(ssl),
-	{ok, _} = cowboy:start_listener(https, 100,
-		Transport, Opts ++ [{port, Port}],
-		cowboy_http_protocol, [
-			{dispatch, init_dispatch(Config1)},
-			{max_keepalive, 50},
-			{timeout, 500}]
-	),
+	{ok, _} = cowboy:start_https(https, 100, Opts ++ [{port, Port}], [
+		{dispatch, init_dispatch(Config1)},
+		{max_keepalive, 50},
+		{timeout, 500}
+	]),
 	{ok, Client} = cowboy_client:init(Opts),
 	[{scheme, <<"https">>}, {port, Port}, {opts, Opts},
 		{transport, Transport}, {client, Client}|Config1];
 init_per_group(onrequest, Config) ->
 	Port = 33082,
-	Transport = cowboy_tcp_transport,
-	{ok, _} = cowboy:start_listener(onrequest, 100,
-		Transport, [{port, Port}],
-		cowboy_http_protocol, [
-			{dispatch, init_dispatch(Config)},
-			{max_keepalive, 50},
-			{onrequest, fun onrequest_hook/1},
-			{timeout, 500}
-		]),
+	Transport = ranch_tcp,
+	{ok, _} = cowboy:start_http(onrequest, 100, [{port, Port}], [
+		{dispatch, init_dispatch(Config)},
+		{max_keepalive, 50},
+		{onrequest, fun onrequest_hook/1},
+		{timeout, 500}
+	]),
 	{ok, Client} = cowboy_client:init([]),
 	[{scheme, <<"http">>}, {port, Port}, {opts, []},
 		{transport, Transport}, {client, Client}|Config];
 init_per_group(onresponse, Config) ->
 	Port = 33083,
-	Transport = cowboy_tcp_transport,
-	{ok, _} = cowboy:start_listener(onresponse, 100,
-		Transport, [{port, Port}],
-		cowboy_http_protocol, [
-			{dispatch, init_dispatch(Config)},
-			{max_keepalive, 50},
-			{onresponse, fun onresponse_hook/3},
-			{timeout, 500}
-		]),
+	Transport = ranch_tcp,
+	{ok, _} = cowboy:start_http(onresponse, 100, [{port, Port}], [
+		{dispatch, init_dispatch(Config)},
+		{max_keepalive, 50},
+		{onresponse, fun onresponse_hook/3},
+		{timeout, 500}
+	]),
 	{ok, Client} = cowboy_client:init([]),
 	[{scheme, <<"http">>}, {port, Port}, {opts, []},
 		{transport, Transport}, {client, Client}|Config].
@@ -493,7 +487,7 @@ http10_chunkless(Config) ->
 http10_hostless(Config) ->
 	Port10 = ?config(port, Config) + 10,
 	Name = list_to_atom("http10_hostless_" ++ integer_to_list(Port10)),
-	cowboy:start_listener(Name, 5,
+	ranch:start_listener(Name, 5,
 		?config(transport, Config), ?config(opts, Config) ++ [{port, Port10}],
 		cowboy_http_protocol, [
 			{dispatch, [{'_', [

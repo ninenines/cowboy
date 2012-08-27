@@ -18,10 +18,9 @@ start(_Type, _Args) ->
 			]} 
 		]}
 	],
-	{ok, _} = cowboy:start_listener(http, 100,
-		cowboy_tcp_transport, [{port, 8080}],
-		cowboy_http_protocol, [{dispatch, Dispatch}]
-	),
+	{ok, _} = cowboy:start_http(http, 100, [{port, 8080}], [
+		{dispatch, Dispatch}
+	]),
 	static_sup:start_link().
 
 stop(_State) ->

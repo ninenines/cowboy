@@ -9,10 +9,10 @@ all: app
 
 # Application.
 
-deps:
+deps/ranch:
 	@$(REBAR) get-deps
 
-app: deps
+app: deps/ranch
 	@$(REBAR) compile
 
 clean:
@@ -52,7 +52,7 @@ intct:
 
 build-plt:
 	@$(DIALYZER) --build_plt --output_plt .$(PROJECT).plt \
-		--apps kernel stdlib sasl inets crypto public_key ssl
+		--apps kernel stdlib sasl inets crypto public_key ssl deps/*
 
 dialyze:
 	@$(DIALYZER) --src src --plt .$(PROJECT).plt --no_native \
