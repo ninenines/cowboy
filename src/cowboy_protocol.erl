@@ -62,6 +62,7 @@
 	max_line_length :: integer(),
 	timeout :: timeout(),
 	buffer = <<>> :: binary(),
+	host_tokens = undefined :: undefined | cowboy_dispatcher:tokens(),
 	hibernate = false :: boolean(),
 	loop_timeout = infinity :: timeout(),
 	loop_timeout_ref :: undefined | reference()
@@ -184,18 +185,20 @@ wait_header(Req, State=#state{socket=Socket,
 -spec header({http_header, integer(), cowboy_http:header(), any(), binary()}
 	| http_eoh, #http_req{}, #state{}) -> ok.
 header({http_header, _I, 'Host', _R, RawHost}, Req=#http_req{
-		transport=Transport, host=undefined}, State) ->
+		transport=Transport}, State=#state{host_tokens=undefined}) ->
 	RawHost2 = cowboy_bstr:to_lower(RawHost),
 	case catch cowboy_dispatcher:split_host(RawHost2) of
-		{Host, RawHost3, undefined} ->
+		{HostTokens, RawHost3, undefined} ->
 			Port = default_port(Transport:name()),
 			parse_header(Req#http_req{
-				host=Host, raw_host=RawHost3, port=Port,
-				headers=[{'Host', RawHost}|Req#http_req.headers]}, State);
-		{Host, RawHost3, Port} ->
+				host=RawHost3, port=Port,
+				headers=[{'Host', RawHost}|Req#http_req.headers]},
+				State#state{host_tokens=HostTokens});
+		{HostTokens, RawHost3, Port} ->
 			parse_header(Req#http_req{
-				host=Host, raw_host=RawHost3, port=Port,
-				headers=[{'Host', RawHost}|Req#http_req.headers]}, State);
+				host=RawHost3, port=Port,
+				headers=[{'Host', RawHost}|Req#http_req.headers]},
+				State#state{host_tokens=HostTokens});
 		{'EXIT', _Reason} ->
 			error_terminate(400, State)
 	end;
@@ -216,14 +219,15 @@ header({http_header, _I, Field, _R, Value}, Req, State) ->
 	parse_header(Req#http_req{headers=[{Field2, Value}|Req#http_req.headers]},
 		State);
 %% The Host header is required in HTTP/1.1.
-header(http_eoh, #http_req{version={1, 1}, host=undefined}, State) ->
+header(http_eoh, #http_req{version={1, 1}},
+		State=#state{host_tokens=undefined}) ->
 	error_terminate(400, State);
 %% It is however optional in HTTP/1.0.
-header(http_eoh, Req=#http_req{version={1, 0}, transport=Transport,
-		host=undefined}, State=#state{buffer=Buffer}) ->
+header(http_eoh, Req=#http_req{version={1, 0}, transport=Transport},
+		State=#state{buffer=Buffer, host_tokens=undefined}) ->
 	Port = default_port(Transport:name()),
-	onrequest(Req#http_req{host=[], raw_host= <<>>,
-		port=Port, buffer=Buffer}, State#state{buffer= <<>>});
+	onrequest(Req#http_req{host= <<>>, port=Port, buffer=Buffer},
+		State#state{buffer= <<>>, host_tokens=[]});
 header(http_eoh, Req, State=#state{buffer=Buffer}) ->
 	onrequest(Req#http_req{buffer=Buffer}, State#state{buffer= <<>>});
 header(_Any, _Req, State) ->
@@ -244,12 +248,13 @@ onrequest(Req, State=#state{onrequest=OnRequest}) ->
 	end.
 
 -spec dispatch(#http_req{}, #state{}) -> ok.
-dispatch(Req=#http_req{host=Host, path=Path},
-		State=#state{dispatch=Dispatch}) ->
-	case cowboy_dispatcher:match(Host, Path, Dispatch) of
+dispatch(Req=#http_req{path=Path},
+		State=#state{dispatch=Dispatch, host_tokens=HostTokens}) ->
+	case cowboy_dispatcher:match(HostTokens, Path, Dispatch) of
 		{ok, Handler, Opts, Binds, HostInfo, PathInfo} ->
 			handler_init(Req#http_req{host_info=HostInfo, path_info=PathInfo,
-				bindings=Binds}, State#state{handler={Handler, Opts}});
+				bindings=Binds}, State#state{handler={Handler, Opts},
+				host_tokens=undefined});
 		{error, notfound, host} ->
 			error_terminate(400, State);
 		{error, notfound, path} ->
@@ -403,8 +408,8 @@ next_request(Req=#http_req{connection=Conn}, State=#state{
 	case {HandlerRes, BodyRes, RespRes, Conn} of
 		{ok, ok, ok, keepalive} ->
 			?MODULE:parse_request(State#state{
-				buffer=Buffer, req_empty_lines=0,
-				req_keepalive=Keepalive + 1});
+				buffer=Buffer, host_tokens=undefined,
+				req_empty_lines=0, req_keepalive=Keepalive + 1});
 		_Closed ->
 			terminate(State)
 	end.

@@ -672,7 +672,7 @@ create_path(Req=#http_req{meta=Meta}, State) ->
 				State2, 303)
 	end.
 
-create_path_location(#http_req{transport=Transport, raw_host=Host,
+create_path_location(#http_req{transport=Transport, host=Host,
 		port=Port}, Path) ->
 	TransportName = Transport:name(),
 	<< (create_path_location_protocol(TransportName))/binary, "://",

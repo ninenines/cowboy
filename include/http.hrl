@@ -25,9 +25,8 @@
 	version    = {1, 1}    :: cowboy_http:version(),
 	peer       = undefined :: undefined |
 								{inet:ip_address(), inet:port_number()},
-	host       = undefined :: undefined | cowboy_dispatcher:tokens(),
+	host       = undefined :: undefined | binary(),
 	host_info  = undefined :: undefined | cowboy_dispatcher:tokens(),
-	raw_host   = undefined :: undefined | binary(),
 	port       = undefined :: undefined | inet:port_number(),
 	path       = undefined :: undefined | '*' | cowboy_dispatcher:tokens(),
 	path_info  = undefined :: undefined | cowboy_dispatcher:tokens(),

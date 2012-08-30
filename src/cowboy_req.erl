@@ -28,7 +28,6 @@
 -export([peer_addr/1]).
 -export([host/1]).
 -export([host_info/1]).
--export([raw_host/1]).
 -export([port/1]).
 -export([path/1]).
 -export([path_info/1]).
@@ -131,8 +130,8 @@ peer_addr(Req = #http_req{}) ->
 	end,
 	{PeerAddr, Req3}.
 
-%% @doc Return the tokens for the hostname requested.
--spec host(Req) -> {cowboy_dispatcher:tokens(), Req} when Req::req().
+%% @doc Return the host binary string.
+-spec host(Req) -> {binary(), Req} when Req::req().
 host(Req) ->
 	{Req#http_req.host, Req}.
 
@@ -142,11 +141,6 @@ host(Req) ->
 	-> {cowboy_dispatcher:tokens() | undefined, Req} when Req::req().
 host_info(Req) ->
 	{Req#http_req.host_info, Req}.
-
-%% @doc Return the raw host directly taken from the request.
--spec raw_host(Req) -> {binary(), Req} when Req::req().
-raw_host(Req) ->
-	{Req#http_req.raw_host, Req}.
 
 %% @doc Return the port used for this request.
 -spec port(Req) -> {inet:port_number(), Req} when Req::req().
@@ -826,12 +820,12 @@ upgrade_reply(Status, Headers, Req=#http_req{
 
 %% @doc Compact the request data by removing all non-system information.
 %%
-%% This essentially removes the host, path, query string, bindings and headers.
+%% This essentially removes the path, query string, bindings and headers.
 %% Use it when you really need to save up memory, for example when having
 %% many concurrent long-running connections.
 -spec compact(Req) -> Req when Req::req().
 compact(Req) ->
-	Req#http_req{host=undefined, host_info=undefined, path=undefined,
+	Req#http_req{host_info=undefined, path=undefined,
 		path_info=undefined, qs_vals=undefined,
 		bindings=undefined, headers=[],
 		p_headers=[], cookies=[]}.
