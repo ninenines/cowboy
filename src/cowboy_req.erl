@@ -712,7 +712,7 @@ skip_body(Req) ->
 		{error, Reason} -> {error, Reason}
 	end.
 
-%% @doc Return the full body sent with the reqest, parsed as an
+%% @doc Return the full body sent with the request, parsed as an
 %% application/x-www-form-urlencoded string. Essentially a POST query string.
 %% @todo We need an option to limit the size of the body for QS too.
 -spec body_qs(Req)
