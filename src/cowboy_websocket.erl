@@ -156,7 +156,7 @@ upgrade_denied(#http_req{socket=Socket, transport=Transport,
 websocket_handshake(State=#state{version=0, origin=Origin,
 		challenge={Key1, Key2}}, Req=#http_req{socket=Socket,
 		transport=Transport, host=Host, port=Port,
-		raw_path=Path, raw_qs=QS}, HandlerState) ->
+		path=Path, raw_qs=QS}, HandlerState) ->
 	Location = hixie76_location(Transport:name(), Host, Port, Path, QS),
 	{ok, Req2} = cowboy_req:upgrade_reply(
 		<<"101 WebSocket Protocol Handshake">>,

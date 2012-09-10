@@ -706,7 +706,7 @@ process_post(Req, State) ->
 is_conflict(Req, State) ->
 	expect(Req, State, is_conflict, false, fun put_resource/2, 409).
 
-put_resource(Req=#http_req{raw_path=RawPath, meta=Meta}, State) ->
+put_resource(Req=#http_req{path=RawPath, meta=Meta}, State) ->
 	Req2 = Req#http_req{meta=[{put_path, RawPath}|Meta]},
 	put_resource(Req2, State, fun is_new_resource/2).
 

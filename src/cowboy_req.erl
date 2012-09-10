@@ -31,7 +31,6 @@
 -export([port/1]).
 -export([path/1]).
 -export([path_info/1]).
--export([raw_path/1]).
 -export([qs_val/2]).
 -export([qs_val/3]).
 -export([qs_vals/1]).
@@ -147,12 +146,8 @@ host_info(Req) ->
 port(Req) ->
 	{Req#http_req.port, Req}.
 
-%% @doc Return the path segments for the path requested.
-%%
-%% Following RFC2396, this function may return path segments containing any
-%% character, including <em>/</em> if, and only if, a <em>/</em> was escaped
-%% and part of a path segment in the path requested.
--spec path(Req) -> {cowboy_dispatcher:tokens(), Req} when Req::req().
+%% @doc Return the path binary string.
+-spec path(Req) -> {binary(), Req} when Req::req().
 path(Req) ->
 	{Req#http_req.path, Req}.
 
@@ -162,11 +157,6 @@ path(Req) ->
 	-> {cowboy_dispatcher:tokens() | undefined, Req} when Req::req().
 path_info(Req) ->
 	{Req#http_req.path_info, Req}.
-
-%% @doc Return the raw path directly taken from the request.
--spec raw_path(Req) -> {binary(), Req} when Req::req().
-raw_path(Req) ->
-	{Req#http_req.raw_path, Req}.
 
 %% @equiv qs_val(Name, Req, undefined)
 -spec qs_val(binary(), Req)
@@ -820,12 +810,14 @@ upgrade_reply(Status, Headers, Req=#http_req{
 
 %% @doc Compact the request data by removing all non-system information.
 %%
-%% This essentially removes the path, query string, bindings and headers.
+%% This essentially removes the host and path info, query string, bindings,
+%% headers and cookies.
+%%
 %% Use it when you really need to save up memory, for example when having
 %% many concurrent long-running connections.
 -spec compact(Req) -> Req when Req::req().
 compact(Req) ->
-	Req#http_req{host_info=undefined, path=undefined,
+	Req#http_req{host_info=undefined,
 		path_info=undefined, qs_vals=undefined,
 		bindings=undefined, headers=[],
 		p_headers=[], cookies=[]}.

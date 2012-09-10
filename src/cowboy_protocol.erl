@@ -63,6 +63,7 @@
 	timeout :: timeout(),
 	buffer = <<>> :: binary(),
 	host_tokens = undefined :: undefined | cowboy_dispatcher:tokens(),
+	path_tokens = undefined :: undefined | '*' | cowboy_dispatcher:tokens(),
 	hibernate = false :: boolean(),
 	loop_timeout = infinity :: timeout(),
 	loop_timeout_ref :: undefined | reference()
@@ -133,14 +134,15 @@ request({http_request, Method, {abs_path, AbsPath}, Version},
 		req_keepalive=Keepalive, max_keepalive=MaxKeepalive,
 		onresponse=OnResponse, urldecode={URLDecFun, URLDecArg}=URLDec}) ->
 	URLDecode = fun(Bin) -> URLDecFun(Bin, URLDecArg) end,
-	{Path, RawPath, Qs} = cowboy_dispatcher:split_path(AbsPath, URLDecode),
+	{PathTokens, RawPath, Qs}
+		= cowboy_dispatcher:split_path(AbsPath, URLDecode),
 	ConnAtom = if Keepalive < MaxKeepalive -> version_to_connection(Version);
 		true -> close
 	end,
 	parse_header(#http_req{socket=Socket, transport=Transport,
 		connection=ConnAtom, pid=self(), method=Method, version=Version,
-		path=Path, raw_path=RawPath, raw_qs=Qs, onresponse=OnResponse,
-		urldecode=URLDec}, State);
+		path=RawPath, raw_qs=Qs, onresponse=OnResponse, urldecode=URLDec},
+		State#state{path_tokens=PathTokens});
 request({http_request, Method, '*', Version},
 		State=#state{socket=Socket, transport=Transport,
 		req_keepalive=Keepalive, max_keepalive=MaxKeepalive,
@@ -150,8 +152,8 @@ request({http_request, Method, '*', Version},
 	end,
 	parse_header(#http_req{socket=Socket, transport=Transport,
 		connection=ConnAtom, pid=self(), method=Method, version=Version,
-		path='*', raw_path= <<"*">>, raw_qs= <<>>, onresponse=OnResponse,
-		urldecode=URLDec}, State);
+		path= <<"*">>, raw_qs= <<>>, onresponse=OnResponse,
+		urldecode=URLDec}, State#state{path_tokens='*'});
 request({http_request, _Method, _URI, _Version}, State) ->
 	error_terminate(501, State);
 request({http_error, <<"\r\n">>},
@@ -248,13 +250,13 @@ onrequest(Req, State=#state{onrequest=OnRequest}) ->
 	end.
 
 -spec dispatch(#http_req{}, #state{}) -> ok.
-dispatch(Req=#http_req{path=Path},
-		State=#state{dispatch=Dispatch, host_tokens=HostTokens}) ->
-	case cowboy_dispatcher:match(HostTokens, Path, Dispatch) of
+dispatch(Req, State=#state{dispatch=Dispatch,
+		host_tokens=HostTokens, path_tokens=PathTokens}) ->
+	case cowboy_dispatcher:match(HostTokens, PathTokens, Dispatch) of
 		{ok, Handler, Opts, Binds, HostInfo, PathInfo} ->
 			handler_init(Req#http_req{host_info=HostInfo, path_info=PathInfo,
 				bindings=Binds}, State#state{handler={Handler, Opts},
-				host_tokens=undefined});
+				host_tokens=undefined, path_tokens=undefined});
 		{error, notfound, host} ->
 			error_terminate(400, State);
 		{error, notfound, path} ->
@@ -408,7 +410,7 @@ next_request(Req=#http_req{connection=Conn}, State=#state{
 	case {HandlerRes, BodyRes, RespRes, Conn} of
 		{ok, ok, ok, keepalive} ->
 			?MODULE:parse_request(State#state{
-				buffer=Buffer, host_tokens=undefined,
+				buffer=Buffer, host_tokens=undefined, path_tokens=undefined,
 				req_empty_lines=0, req_keepalive=Keepalive + 1});
 		_Closed ->
 			terminate(State)
