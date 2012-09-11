@@ -14,9 +14,6 @@
 
 %% @doc WebSocket protocol implementation.
 %%
-%% When using websockets, make sure that the crypto application is
-%% included in your release. If you are not using releases then there
-%% is no need for concern as crypto is already included.
 -module(cowboy_http_websocket).
 
 -export([upgrade/4]). %% API.

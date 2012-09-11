@@ -19,7 +19,8 @@
 	{registered, [cowboy_clock, cowboy_sup]},
 	{applications, [
 		kernel,
-		stdlib
+		stdlib,
+		crypto
 	]},
 	{mod, {cowboy_app, []}},
 	{env, []}
