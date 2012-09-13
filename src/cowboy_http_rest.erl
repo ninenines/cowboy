@@ -70,7 +70,7 @@ upgrade(_ListenerPid, Handler, Opts, Req) ->
 	catch Class:Reason ->
 		PLReq = lists:zip(record_info(fields, http_req), tl(tuple_to_list(Req))),
 		error_logger:error_msg(
-			"** Handler ~p terminating in rest_init/3~n"
+			"** Handler ~p terminating in rest_init/2~n"
 			"   for the reason ~p:~p~n** Options were ~p~n"
 			"** Request was ~p~n** Stacktrace: ~p~n~n",
 			[Handler, Class, Reason, Opts, PLReq, erlang:get_stacktrace()]),
