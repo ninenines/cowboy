@@ -424,7 +424,7 @@ ensure_body_processed(Req=#http_req{body_state=waiting}) ->
 		{ok, Req2} -> {ok, Req2#http_req.buffer};
 		{error, _Reason} -> {close, <<>>}
 	end;
-ensure_body_processed(Req=#http_req{body_state={multipart, _, _}}) ->
+ensure_body_processed(Req=#http_req{body_state={stream, _, _, _}}) ->
 	{ok, Req2} = cowboy_req:multipart_skip(Req),
 	ensure_body_processed(Req2).
 

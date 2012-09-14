@@ -490,13 +490,7 @@ stream_body(Req=#http_req{buffer=Buffer, body_state={stream, _, _, _}})
 stream_body(Req=#http_req{body_state={stream, _, _, _}}) ->
 	stream_body_recv(Req);
 stream_body(Req=#http_req{body_state=done}) ->
-	{done, Req};
-stream_body(Req=#http_req{body_state={multipart, _N, _Fun},
-		transport=Transport, socket=Socket}) ->
-	case Transport:recv(Socket, 0, 5000) of
-		{ok, Data} -> {ok, Data, Req};
-		{error, Reason} -> {error, Reason}
-	end.
+	{done, Req}.
 
 -spec stream_body_recv(Req)
 	-> {ok, binary(), Req} | {error, atom()} when Req::req().
@@ -621,25 +615,25 @@ multipart_data(Req=#http_req{body_state=waiting}) ->
 	{_, Boundary} = lists:keyfind(<<"boundary">>, 1, Params),
 	{Length, Req3} = parse_header('Content-Length', Req2),
 	multipart_data(Req3, Length, {more, cowboy_multipart:parser(Boundary)});
-multipart_data(Req=#http_req{body_state={multipart, Length, Cont}}) ->
+multipart_data(Req=#http_req{multipart={Length, Cont}}) ->
 	multipart_data(Req, Length, Cont());
 multipart_data(Req=#http_req{body_state=done}) ->
 	{eof, Req}.
 
 %% @todo Typespecs.
 multipart_data(Req, Length, {headers, Headers, Cont}) ->
-	{{headers, Headers}, Req#http_req{body_state={multipart, Length, Cont}}};
+	{{headers, Headers}, Req#http_req{multipart={Length, Cont}}};
 multipart_data(Req, Length, {body, Data, Cont}) ->
-	{{body, Data}, Req#http_req{body_state={multipart, Length, Cont}}};
+	{{body, Data}, Req#http_req{multipart={Length, Cont}}};
 multipart_data(Req, Length, {end_of_part, Cont}) ->
-	{end_of_part, Req#http_req{body_state={multipart, Length, Cont}}};
+	{end_of_part, Req#http_req{multipart={Length, Cont}}};
 multipart_data(Req, 0, eof) ->
-	{eof, Req#http_req{body_state=done}};
+	{eof, Req#http_req{body_state=done, multipart=undefined}};
 multipart_data(Req=#http_req{socket=Socket, transport=Transport},
 		Length, eof) ->
 	%% We just want to skip so no need to stream data here.
 	{ok, _Data} = Transport:recv(Socket, Length, 5000),
-	{eof, Req#http_req{body_state=done}};
+	{eof, Req#http_req{body_state=done, multipart=undefined}};
 multipart_data(Req, Length, {more, Parser}) when Length > 0 ->
 	case stream_body(Req) of
 		{ok, << Data:Length/binary, Buffer/binary >>, Req2} ->
