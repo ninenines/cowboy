@@ -25,8 +25,6 @@
 %% Internal.
 -export([handler_loop/4]).
 
--include("http.hrl").
-
 -type opcode() :: 0 | 1 | 2 | 8 | 9 | 10.
 -type mask_key() :: 0..16#ffffffff.
 
@@ -91,16 +89,16 @@ websocket_upgrade(State, Req) ->
 %% third part of the challenge key, because proxies will wait for
 %% a reply before sending it. Therefore we calculate the challenge
 %% key only in websocket_handshake/3.
-websocket_upgrade(undefined, State, Req=#http_req{meta=Meta}) ->
+websocket_upgrade(undefined, State, Req) ->
 	{Origin, Req2} = cowboy_req:header(<<"Origin">>, Req),
 	{Key1, Req3} = cowboy_req:header(<<"Sec-Websocket-Key1">>, Req2),
 	{Key2, Req4} = cowboy_req:header(<<"Sec-Websocket-Key2">>, Req3),
 	false = lists:member(undefined, [Origin, Key1, Key2]),
 	EOP = binary:compile_pattern(<< 255 >>),
 	{ok, State#state{version=0, origin=Origin, challenge={Key1, Key2},
-		eop=EOP}, Req4#http_req{meta=[{websocket_version, 0}|Meta]}};
+		eop=EOP}, cowboy_req:set_meta(websocket_version, 0, Req4)};
 %% Versions 7 and 8. Implementation follows the hybi 7 through 17 drafts.
-websocket_upgrade(Version, State, Req=#http_req{meta=Meta})
+websocket_upgrade(Version, State, Req)
 		when Version =:= <<"7">>; Version =:= <<"8">>;
 			Version =:= <<"13">> ->
 	{Key, Req2} = cowboy_req:header(<<"Sec-Websocket-Key">>, Req),
@@ -108,7 +106,7 @@ websocket_upgrade(Version, State, Req=#http_req{meta=Meta})
 	Challenge = hybi_challenge(Key),
 	IntVersion = list_to_integer(binary_to_list(Version)),
 	{ok, State#state{version=IntVersion, challenge=Challenge},
-		Req2#http_req{meta=[{websocket_version, IntVersion}|Meta]}}.
+		cowboy_req:set_meta(websocket_version, IntVersion, Req2)}.
 
 -spec handler_init(#state{}, cowboy_req:req()) -> closed.
 handler_init(State=#state{transport=Transport, handler=Handler, opts=Opts},

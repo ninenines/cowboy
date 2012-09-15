@@ -195,7 +195,7 @@ options(Req, State) ->
 %% resources a little more readable, this is a lot less efficient. An example
 %% of such a return value would be:
 %%    {<<"text/html">>, to_html}
-content_types_provided(Req=#http_req{meta=Meta}, State) ->
+content_types_provided(Req, State) ->
 	case call(Req, State, content_types_provided) of
 		no_call ->
 			not_acceptable(Req, State);
@@ -212,7 +212,7 @@ content_types_provided(Req=#http_req{meta=Meta}, State) ->
 				undefined ->
 					{PMT, _Fun} = HeadCTP = hd(CTP2),
 					languages_provided(
-						Req3#http_req{meta=[{media_type, PMT}|Meta]},
+						cowboy_req:set_meta(media_type, PMT, Req3),
 						State2#state{content_type_a=HeadCTP});
 				Accept ->
 					Accept2 = prioritize_accept(Accept),
@@ -275,12 +275,12 @@ match_media_type(Req, State, Accept,
 match_media_type(Req, State, Accept, [_Any|Tail], MediaType) ->
 	match_media_type(Req, State, Accept, Tail, MediaType).
 
-match_media_type_params(Req=#http_req{meta=Meta}, State, Accept,
+match_media_type_params(Req, State, Accept,
 		[Provided = {PMT = {_TP, _STP, Params_P}, _Fun}|Tail],
 		MediaType = {{_TA, _STA, Params_A}, _QA, _APA}) ->
 	case lists:sort(Params_P) =:= lists:sort(Params_A) of
 		true ->
-			languages_provided(Req#http_req{meta=[{media_type, PMT}|Meta]},
+			languages_provided(cowboy_req:set_meta(media_type, PMT, Req),
 				State#state{content_type_a=Provided});
 		false ->
 			match_media_type(Req, State, Accept, Tail, MediaType)
@@ -347,10 +347,10 @@ match_language(Req, State, Accept, [Provided|Tail],
 			match_language(Req, State, Accept, Tail, Language)
 	end.
 
-set_language(Req=#http_req{meta=Meta}, State=#state{language_a=Language}) ->
+set_language(Req, State=#state{language_a=Language}) ->
 	{ok, Req2} = cowboy_req:set_resp_header(
 		<<"Content-Language">>, Language, Req),
-	charsets_provided(Req2#http_req{meta=[{language, Language}|Meta]}, State).
+	charsets_provided(cowboy_req:set_meta(language, Language, Req2), State).
 
 %% charsets_provided should return a list of binary values indicating
 %% which charsets are accepted by the resource.
@@ -404,7 +404,7 @@ match_charset(Req, State, _Accept, [{Provided, _}|_], {Provided, _}) ->
 match_charset(Req, State, Accept, [_|Tail], Charset) ->
 	match_charset(Req, State, Accept, Tail, Charset).
 
-set_content_type(Req=#http_req{meta=Meta}, State=#state{
+set_content_type(Req, State=#state{
 		content_type_a={{Type, SubType, Params}, _Fun},
 		charset_a=Charset}) ->
 	ParamsBin = set_content_type_build_params(Params, []),
@@ -415,7 +415,7 @@ set_content_type(Req=#http_req{meta=Meta}, State=#state{
 	end,
 	{ok, Req2} = cowboy_req:set_resp_header(
 		<<"Content-Type">>, ContentType2, Req),
-	encodings_provided(Req2#http_req{meta=[{charset, Charset}|Meta]}, State).
+	encodings_provided(cowboy_req:set_meta(charset, Charset, Req2), State).
 
 set_content_type_build_params([], []) ->
 	<<>>;
@@ -659,7 +659,7 @@ post_is_create(Req, State) ->
 %% When the POST method can create new resources, create_path/2 will be called
 %% and is expected to return the full path to the new resource
 %% (including the leading /).
-create_path(Req=#http_req{meta=Meta}, State) ->
+create_path(Req, State) ->
 	case call(Req, State, create_path) of
 		{halt, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
@@ -668,7 +668,7 @@ create_path(Req=#http_req{meta=Meta}, State) ->
 			State2 = State#state{handler_state=HandlerState},
 			{ok, Req3} = cowboy_req:set_resp_header(
 				<<"Location">>, Location, Req2),
-			put_resource(Req3#http_req{meta=[{put_path, Path}|Meta]},
+			put_resource(cowboy_req:set_meta(put_path, Path, Req3),
 				State2, 303)
 	end.
 
@@ -706,9 +706,9 @@ process_post(Req, State) ->
 is_conflict(Req, State) ->
 	expect(Req, State, is_conflict, false, fun put_resource/2, 409).
 
-put_resource(Req=#http_req{path=RawPath, meta=Meta}, State) ->
-	Req2 = Req#http_req{meta=[{put_path, RawPath}|Meta]},
-	put_resource(Req2, State, fun is_new_resource/2).
+put_resource(Req=#http_req{path=RawPath}, State) ->
+	put_resource(cowboy_req:set_meta(put_path, RawPath, Req),
+		State, fun is_new_resource/2).
 
 %% content_types_accepted should return a list of media types and their
 %% associated callback functions in the same format as content_types_provided.

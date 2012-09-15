@@ -49,6 +49,7 @@
 -export([cookies/1]).
 -export([meta/2]).
 -export([meta/3]).
+-export([set_meta/3]).
 
 %% Request body API.
 -export([has_body/1]).
@@ -428,6 +429,15 @@ meta(Name, Req, Default) ->
 		{Name, Value} -> {Value, Req};
 		false -> {Default, Req}
 	end.
+
+%% @doc Set metadata information.
+%%
+%% You can use this function to attach information about the request.
+%%
+%% If the value already exists it will be overwritten.
+-spec set_meta(atom(), any(), Req) -> Req when Req::req().
+set_meta(Name, Value, Req=#http_req{meta=Meta}) ->
+	Req#http_req{meta=[{Name, Value}|lists:keydelete(Name, 1, Meta)]}.
 
 %% Request Body API.
 
