@@ -404,7 +404,10 @@ terminate_request(HandlerState, Req, State) ->
 next_request(Req=#http_req{connection=Conn}, State=#state{
 		req_keepalive=Keepalive}, HandlerRes) ->
 	cowboy_req:ensure_response(Req, 204),
-	{BodyRes, Buffer} = ensure_body_processed(Req),
+	{BodyRes, Buffer} = case cowboy_req:skip_body(Req) of
+		{ok, Req2} -> {ok, Req2#http_req.buffer};
+		{error, _} -> {close, <<>>}
+	end,
 	%% Flush the resp_sent message before moving on.
 	receive {cowboy_req, resp_sent} -> ok after 0 -> ok end,
 	case {HandlerRes, BodyRes, Conn} of
@@ -415,18 +418,6 @@ next_request(Req=#http_req{connection=Conn}, State=#state{
 		_Closed ->
 			terminate(State)
 	end.
-
--spec ensure_body_processed(cowboy_req:req()) -> {ok | close, binary()}.
-ensure_body_processed(#http_req{body_state=done, buffer=Buffer}) ->
-	{ok, Buffer};
-ensure_body_processed(Req=#http_req{body_state=waiting}) ->
-	case cowboy_req:skip_body(Req) of
-		{ok, Req2} -> {ok, Req2#http_req.buffer};
-		{error, _Reason} -> {close, <<>>}
-	end;
-ensure_body_processed(Req=#http_req{body_state={stream, _, _, _}}) ->
-	{ok, Req2} = cowboy_req:multipart_skip(Req),
-	ensure_body_processed(Req2).
 
 %% Only send an error reply if there is no resp_sent message.
 -spec error_terminate(cowboy_http:status(), #state{}) -> ok.
