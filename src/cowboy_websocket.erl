@@ -140,9 +140,12 @@ handler_init(State=#state{transport=Transport, handler=Handler, opts=Opts},
 
 -spec upgrade_error(cowboy_req:req()) -> closed.
 upgrade_error(Req) ->
-	{ok, _Req2} = cowboy_req:reply(400, [], [],
-		Req#http_req{resp_state=waiting}),
-	closed.
+	receive
+		{cowboy_req, resp_sent} -> closed
+	after 0 ->
+		_ = cowboy_req:reply(400, [], [], Req),
+		closed
+	end.
 
 %% @see cowboy_protocol:ensure_response/1
 -spec upgrade_denied(cowboy_req:req()) -> closed.
