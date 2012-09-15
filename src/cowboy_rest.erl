@@ -579,9 +579,8 @@ if_modified_since(Req, State, IfModifiedSince) ->
 			end
 	end.
 
-not_modified(Req=#http_req{resp_headers=RespHeaders}, State) ->
-	RespHeaders2 = lists:keydelete(<<"Content-Type">>, 1, RespHeaders),
-	Req2 = Req#http_req{resp_headers=RespHeaders2},
+not_modified(Req, State) ->
+	Req2 = cowboy_req:delete_resp_header(<<"Content-Type">>, Req),
 	{Req3, State2} = set_resp_etag(Req2, State),
 	{Req4, State3} = set_resp_expires(Req3, State2),
 	respond(Req4, State3, 304).

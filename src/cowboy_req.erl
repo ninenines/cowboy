@@ -71,6 +71,7 @@
 -export([set_resp_body_fun/3]).
 -export([has_resp_header/2]).
 -export([has_resp_body/1]).
+-export([delete_resp_header/2]).
 -export([reply/2]).
 -export([reply/3]).
 -export([reply/4]).
@@ -724,7 +725,6 @@ set_resp_header(Name, Value, Req=#http_req{resp_headers=RespHeaders}) ->
 set_resp_body(Body, Req) ->
 	{ok, Req#http_req{resp_body=Body}}.
 
-
 %% @doc Add a body function to the response.
 %%
 %% The response body may also be set to a content-length - stream-function pair.
@@ -756,6 +756,13 @@ has_resp_body(#http_req{resp_body={Length, _}}) ->
 	Length > 0;
 has_resp_body(#http_req{resp_body=RespBody}) ->
 	iolist_size(RespBody) > 0.
+
+%% Remove a header previously set for the response.
+-spec delete_resp_header(cowboy_http:header(), Req)
+	-> Req when Req::req().
+delete_resp_header(Name, Req=#http_req{resp_headers=RespHeaders}) ->
+	RespHeaders2 = lists:keydelete(Name, 1, RespHeaders),
+	Req#http_req{resp_headers=RespHeaders2}.
 
 %% @equiv reply(Status, [], [], Req)
 -spec reply(cowboy_http:status(), Req) -> {ok, Req} when Req::req().
