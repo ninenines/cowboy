@@ -23,6 +23,8 @@
 -export([upgrade/4]).
 
 -record(state, {
+	method = undefined :: cowboy_http:method(),
+
 	%% Handler.
 	handler :: atom(),
 	handler_state :: any(),
@@ -58,15 +60,17 @@
 	-> {ok, Req} | close when Req::cowboy_req:req().
 upgrade(_ListenerPid, Handler, Opts, Req) ->
 	try
+		{Method, Req1} = cowboy_req:method(Req),
 		case erlang:function_exported(Handler, rest_init, 2) of
 			true ->
-				case Handler:rest_init(Req, Opts) of
+				case Handler:rest_init(Req1, Opts) of
 					{ok, Req2, HandlerState} ->
-						service_available(Req2, #state{handler=Handler,
-							handler_state=HandlerState})
+						service_available(Req2, #state{method=Method,
+							handler=Handler, handler_state=HandlerState})
 				end;
 			false ->
-				service_available(Req, #state{handler=Handler})
+				service_available(Req1, #state{method=Method,
+					handler=Handler})
 		end
 	catch Class:Reason ->
 		PLReq = cowboy_req:to_list(Req),
@@ -83,7 +87,7 @@ service_available(Req, State) ->
 	expect(Req, State, service_available, true, fun known_methods/2, 503).
 
 %% known_methods/2 should return a list of atoms or binary methods.
-known_methods(Req=#http_req{method=Method}, State) ->
+known_methods(Req, State=#state{method=Method}) ->
 	case call(Req, State, known_methods) of
 		no_call when Method =:= 'HEAD'; Method =:= 'GET'; Method =:= 'POST';
 					Method =:= 'PUT'; Method =:= 'DELETE'; Method =:= 'TRACE';
@@ -105,7 +109,7 @@ uri_too_long(Req, State) ->
 	expect(Req, State, uri_too_long, false, fun allowed_methods/2, 414).
 
 %% allowed_methods/2 should return a list of atoms or binary methods.
-allowed_methods(Req=#http_req{method=Method}, State) ->
+allowed_methods(Req, State=#state{method=Method}) ->
 	case call(Req, State, allowed_methods) of
 		no_call when Method =:= 'HEAD'; Method =:= 'GET' ->
 			next(Req, State, fun malformed_request/2);
@@ -170,7 +174,7 @@ valid_entity_length(Req, State) ->
 
 %% If you need to add additional headers to the response at this point,
 %% you should do it directly in the options/2 call using set_resp_headers.
-options(Req=#http_req{method='OPTIONS'}, State) ->
+options(Req, State=#state{method='OPTIONS'}) ->
 	case call(Req, State, options) of
 		{halt, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
@@ -541,7 +545,7 @@ if_none_match(Req, State, EtagsList) ->
 			end
 	end.
 
-precondition_is_head_get(Req=#http_req{method=Method}, State)
+precondition_is_head_get(Req, State=#state{method=Method})
 		when Method =:= 'HEAD'; Method =:= 'GET' ->
 	not_modified(Req, State);
 precondition_is_head_get(Req, State) ->
@@ -585,7 +589,7 @@ not_modified(Req=#http_req{resp_headers=RespHeaders}, State) ->
 precondition_failed(Req, State) ->
 	respond(Req, State, 412).
 
-is_put_to_missing_resource(Req=#http_req{method='PUT'}, State) ->
+is_put_to_missing_resource(Req, State=#state{method='PUT'}) ->
 	moved_permanently(Req, State, fun is_conflict/2);
 is_put_to_missing_resource(Req, State) ->
 	previously_existed(Req, State).
@@ -627,7 +631,7 @@ moved_temporarily(Req, State) ->
 			is_post_to_missing_resource(Req, State, 410)
 	end.
 
-is_post_to_missing_resource(Req=#http_req{method='POST'}, State, OnFalse) ->
+is_post_to_missing_resource(Req, State=#state{method='POST'}, OnFalse) ->
 	allow_missing_post(Req, State, OnFalse);
 is_post_to_missing_resource(Req, State, OnFalse) ->
 	respond(Req, State, OnFalse).
@@ -635,14 +639,17 @@ is_post_to_missing_resource(Req, State, OnFalse) ->
 allow_missing_post(Req, State, OnFalse) ->
 	expect(Req, State, allow_missing_post, true, fun post_is_create/2, OnFalse).
 
-method(Req=#http_req{method='DELETE'}, State) ->
+method(Req, State=#state{method='DELETE'}) ->
 	delete_resource(Req, State);
-method(Req=#http_req{method='POST'}, State) ->
+method(Req, State=#state{method='POST'}) ->
 	post_is_create(Req, State);
-method(Req=#http_req{method='PUT'}, State) ->
+method(Req, State=#state{method='PUT'}) ->
 	is_conflict(Req, State);
+method(Req, State=#state{method=Method})
+		when Method =:= 'GET'; Method =:= 'HEAD' ->
+	set_resp_body(Req, State);
 method(Req, State) ->
-	set_resp_body(Req, State).
+	multiple_choices(Req, State).
 
 %% delete_resource/2 should start deleting the resource and return.
 delete_resource(Req, State) ->
@@ -771,9 +778,7 @@ has_resp_body(Req, State) ->
 %% Set the response headers and call the callback found using
 %% content_types_provided/2 to obtain the request body and add
 %% it to the response.
-set_resp_body(Req=#http_req{method=Method},
-		State=#state{content_type_a={_Type, Fun}})
-		when Method =:= 'GET'; Method =:= 'HEAD' ->
+set_resp_body(Req, State=#state{content_type_a={_Type, Fun}}) ->
 	{Req2, State2} = set_resp_etag(Req, State),
 	{LastModified, Req3, State3} = last_modified(Req2, State2),
 	case LastModified of
@@ -797,9 +802,7 @@ set_resp_body(Req=#http_req{method=Method},
 					cowboy_req:set_resp_body(Body, Req6)
 			end,
 			multiple_choices(Req7, State5)
-	end;
-set_resp_body(Req, State) ->
-	multiple_choices(Req, State).
+	end.
 
 multiple_choices(Req, State) ->
 	expect(Req, State, multiple_choices, false, 200, 300).
