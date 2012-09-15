@@ -126,7 +126,8 @@ handler_init(State=#state{transport=Transport, handler=Handler, opts=Opts},
 			websocket_handshake(State#state{timeout=Timeout,
 				hibernate=true}, Req2, HandlerState);
 		{shutdown, Req2} ->
-			upgrade_denied(Req2)
+			cowboy_req:ensure_response(Req2, 400),
+			closed
 	catch Class:Reason ->
 		upgrade_error(Req),
 		PLReq = cowboy_req:to_list(Req),
@@ -145,20 +146,6 @@ upgrade_error(Req) ->
 		_ = cowboy_req:reply(400, [], [], Req),
 		closed
 	end.
-
-%% @see cowboy_protocol:ensure_response/1
--spec upgrade_denied(cowboy_req:req()) -> closed.
-upgrade_denied(#http_req{resp_state=done}) ->
-	closed;
-upgrade_denied(Req=#http_req{resp_state=waiting}) ->
-	{ok, _Req2} = cowboy_req:reply(400, [], [], Req),
-	closed;
-upgrade_denied(#http_req{method='HEAD', resp_state=chunks}) ->
-	closed;
-upgrade_denied(#http_req{socket=Socket, transport=Transport,
-		resp_state=chunks}) ->
-	Transport:send(Socket, <<"0\r\n\r\n">>),
-	closed.
 
 -spec websocket_handshake(#state{}, cowboy_req:req(), any()) -> closed.
 websocket_handshake(State=#state{socket=Socket, transport=Transport,

@@ -76,6 +76,7 @@
 -export([chunked_reply/3]).
 -export([chunk/2]).
 -export([upgrade_reply/3]).
+-export([ensure_response/2]).
 
 %% Misc API.
 -export([compact/1]).
@@ -825,6 +826,27 @@ upgrade_reply(Status, Headers, Req=#http_req{
 		{<<"Connection">>, <<"Upgrade">>}
 	], Req),
 	{ok, Req2#http_req{resp_state=done, resp_headers=[], resp_body= <<>>}}.
+
+%% @doc Ensure the response has been sent fully.
+%% @private
+-spec ensure_response(req(), cowboy_http:status()) -> ok.
+%% The response has already been fully sent to the client.
+ensure_response(#http_req{resp_state=done}, _) ->
+	ok;
+%% No response has been sent but everything apparently went fine.
+%% Reply with the status code found in the second argument.
+ensure_response(Req=#http_req{resp_state=waiting}, Status) ->
+	_ = reply(Status, [], [], Req),
+	ok;
+%% Terminate the chunked body for HTTP/1.1 only.
+ensure_response(#http_req{method='HEAD', resp_state=chunks}, _) ->
+	ok;
+ensure_response(#http_req{version={1, 0}, resp_state=chunks}, _) ->
+	ok;
+ensure_response(#http_req{socket=Socket, transport=Transport,
+		resp_state=chunks}, _) ->
+	Transport:send(Socket, <<"0\r\n\r\n">>),
+	ok.
 
 %% Misc API.
 

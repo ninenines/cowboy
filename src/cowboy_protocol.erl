@@ -403,12 +403,12 @@ terminate_request(HandlerState, Req, State) ->
 -spec next_request(cowboy_req:req(), #state{}, any()) -> ok.
 next_request(Req=#http_req{connection=Conn}, State=#state{
 		req_keepalive=Keepalive}, HandlerRes) ->
-	RespRes = ensure_response(Req),
+	cowboy_req:ensure_response(Req, 204),
 	{BodyRes, Buffer} = ensure_body_processed(Req),
 	%% Flush the resp_sent message before moving on.
 	receive {cowboy_req, resp_sent} -> ok after 0 -> ok end,
-	case {HandlerRes, BodyRes, RespRes, Conn} of
-		{ok, ok, ok, keepalive} ->
+	case {HandlerRes, BodyRes, Conn} of
+		{ok, ok, keepalive} ->
 			?MODULE:parse_request(State#state{
 				buffer=Buffer, host_tokens=undefined, path_tokens=undefined,
 				req_empty_lines=0, req_keepalive=Keepalive + 1});
@@ -427,25 +427,6 @@ ensure_body_processed(Req=#http_req{body_state=waiting}) ->
 ensure_body_processed(Req=#http_req{body_state={stream, _, _, _}}) ->
 	{ok, Req2} = cowboy_req:multipart_skip(Req),
 	ensure_body_processed(Req2).
-
--spec ensure_response(cowboy_req:req()) -> ok.
-%% The handler has already fully replied to the client.
-ensure_response(#http_req{resp_state=done}) ->
-	ok;
-%% No response has been sent but everything apparently went fine.
-%% Reply with 204 No Content to indicate this.
-ensure_response(Req=#http_req{resp_state=waiting}) ->
-	_ = cowboy_req:reply(204, [], [], Req),
-	ok;
-%% Terminate the chunked body for HTTP/1.1 only.
-ensure_response(#http_req{method='HEAD', resp_state=chunks}) ->
-	ok;
-ensure_response(#http_req{version={1, 0}, resp_state=chunks}) ->
-	ok;
-ensure_response(#http_req{socket=Socket, transport=Transport,
-		resp_state=chunks}) ->
-	Transport:send(Socket, <<"0\r\n\r\n">>),
-	ok.
 
 %% Only send an error reply if there is no resp_sent message.
 -spec error_terminate(cowboy_http:status(), #state{}) -> ok.
