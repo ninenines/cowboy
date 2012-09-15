@@ -35,6 +35,7 @@
 -export([qs_val/3]).
 -export([qs_vals/1]).
 -export([raw_qs/1]).
+-export([url/1]).
 -export([binding/2]).
 -export([binding/3]).
 -export([bindings/1]).
@@ -82,6 +83,7 @@
 -export([transport/1]).
 
 -include("http.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 -type req() :: #http_req{}.
 -export_type([req/0]).
@@ -194,6 +196,29 @@ qs_vals(Req=#http_req{qs_vals=QsVals}) ->
 -spec raw_qs(Req) -> {binary(), Req} when Req::req().
 raw_qs(Req) ->
 	{Req#http_req.raw_qs, Req}.
+
+%% @doc Return the full request URL as a binary.
+%%
+%% The URL includes the scheme, host, port, path and query string.
+-spec url(Req) -> {binary(), Req} when Req::req().
+url(Req=#http_req{transport=Transport, host=Host, port=Port,
+		path=Path, raw_qs=QS}) ->
+	TransportName = Transport:name(),
+	Secure = case TransportName of
+		ssl -> <<"s">>;
+		_ -> <<>>
+	end,
+	PortBin = case {TransportName, Port} of
+		{ssl, 443} -> <<>>;
+		{tcp, 80} -> <<>>;
+		_ -> << ":", (list_to_binary(integer_to_list(Port)))/binary >>
+	end,
+	QS2 = case QS of
+		<<>> -> <<>>;
+		_ -> << "?", QS/binary >>
+	end,
+	{<< "http", Secure/binary, "://", Host/binary, PortBin/binary,
+		Path/binary, QS2/binary >>, Req}.
 
 %% @equiv binding(Name, Req, undefined)
 -spec binding(atom(), Req) -> {binary() | undefined, Req} when Req::req().
@@ -1026,3 +1051,33 @@ header_to_binary('Cookie') -> <<"Cookie">>;
 header_to_binary('Keep-Alive') -> <<"Keep-Alive">>;
 header_to_binary('Proxy-Connection') -> <<"Proxy-Connection">>;
 header_to_binary(B) when is_binary(B) -> B.
+
+%% Tests.
+
+-ifdef(TEST).
+
+url_test() ->
+	{<<"http://localhost/path">>, _ } =
+		url(#http_req{transport=ranch_tcp, host= <<"localhost">>, port=80,
+			path= <<"/path">>, raw_qs= <<>>, pid=self()}),
+	{<<"http://localhost:443/path">>, _} =
+		url(#http_req{transport=ranch_tcp, host= <<"localhost">>, port=443,
+			path= <<"/path">>, raw_qs= <<>>, pid=self()}),
+	{<<"http://localhost:8080/path">>, _} =
+		url(#http_req{transport=ranch_tcp, host= <<"localhost">>, port=8080,
+			path= <<"/path">>, raw_qs= <<>>, pid=self()}),
+	{<<"http://localhost:8080/path?dummy=2785">>, _} =
+		url(#http_req{transport=ranch_tcp, host= <<"localhost">>, port=8080,
+			path= <<"/path">>, raw_qs= <<"dummy=2785">>, pid=self()}),
+	{<<"https://localhost/path">>, _} =
+		url(#http_req{transport=ranch_ssl, host= <<"localhost">>, port=443,
+			path= <<"/path">>, raw_qs= <<>>, pid=self()}),
+	{<<"https://localhost:8443/path">>, _} =
+		url(#http_req{transport=ranch_ssl, host= <<"localhost">>, port=8443,
+			path= <<"/path">>, raw_qs= <<>>, pid=self()}),
+	{<<"https://localhost:8443/path?dummy=2785">>, _} =
+		url(#http_req{transport=ranch_ssl, host= <<"localhost">>, port=8443,
+			path= <<"/path">>, raw_qs= <<"dummy=2785">>, pid=self()}),
+	ok.
+
+-endif.

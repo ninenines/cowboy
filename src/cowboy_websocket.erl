@@ -26,7 +26,6 @@
 -export([handler_loop/4]).
 
 -include("http.hrl").
--include_lib("eunit/include/eunit.hrl").
 
 -type opcode() :: 0 | 1 | 2 | 8 | 9 | 10.
 -type mask_key() :: 0..16#ffffffff.
@@ -164,15 +163,14 @@ upgrade_denied(#http_req{socket=Socket, transport=Transport,
 -spec websocket_handshake(#state{}, cowboy_req:req(), any()) -> closed.
 websocket_handshake(State=#state{socket=Socket, transport=Transport,
 		version=0, origin=Origin, challenge={Key1, Key2}},
-		Req=#http_req{host=Host, port=Port, path=Path, raw_qs=QS},
-		HandlerState) ->
-	Location = hixie76_location(Transport:name(), Host, Port, Path, QS),
+		Req, HandlerState) ->
+	{<< "http", Location/binary >>, Req1} = cowboy_req:url(Req),
 	{ok, Req2} = cowboy_req:upgrade_reply(
 		<<"101 WebSocket Protocol Handshake">>,
 		[{<<"Upgrade">>, <<"WebSocket">>},
-		 {<<"Sec-Websocket-Location">>, Location},
+		 {<<"Sec-Websocket-Location">>, << "ws", Location/binary >>},
 		 {<<"Sec-Websocket-Origin">>, Origin}],
-		Req),
+		Req1),
 	%% Flush the resp_sent message before moving on.
 	receive {cowboy_req, resp_sent} -> ok after 0 -> ok end,
 	%% We replied with a proper response. Proxies should be happy enough,
@@ -554,29 +552,6 @@ hixie76_key_to_integer(Key) ->
 	Spaces = length([C || << C >> <= Key, C =:= 32]),
 	Number div Spaces.
 
--spec hixie76_location(atom(), binary(), inet:port_number(),
-	binary(), binary()) -> binary().
-hixie76_location(Protocol, Host, Port, Path, <<>>) ->
-    << (hixie76_location_protocol(Protocol))/binary, "://", Host/binary,
-       (hixie76_location_port(Protocol, Port))/binary, Path/binary>>;
-hixie76_location(Protocol, Host, Port, Path, QS) ->
-    << (hixie76_location_protocol(Protocol))/binary, "://", Host/binary,
-       (hixie76_location_port(Protocol, Port))/binary, Path/binary, "?", QS/binary >>.
-
--spec hixie76_location_protocol(atom()) -> binary().
-hixie76_location_protocol(ssl) -> <<"wss">>;
-hixie76_location_protocol(_)   -> <<"ws">>.
-
-%% @todo We should add a secure/0 function to transports
-%% instead of relying on their name.
--spec hixie76_location_port(atom(), inet:port_number()) -> binary().
-hixie76_location_port(ssl, 443) ->
-	<<>>;
-hixie76_location_port(tcp, 80) ->
-	<<>>;
-hixie76_location_port(_, Port) ->
-	<<":", (list_to_binary(integer_to_list(Port)))/binary>>.
-
 %% hybi specific.
 
 -spec hybi_challenge(binary()) -> binary().
@@ -592,26 +567,3 @@ hybi_payload_length(N) ->
 		N when N =< 16#ffff -> << 126:7, N:16 >>;
 		N when N =< 16#7fffffffffffffff -> << 127:7, N:64 >>
 	end.
-
-%% Tests.
-
--ifdef(TEST).
-
-hixie76_location_test() ->
-	?assertEqual(<<"ws://localhost/path">>,
-		hixie76_location(tcp, <<"localhost">>, 80, <<"/path">>, <<>>)),
-	?assertEqual(<<"ws://localhost:443/path">>,
-		hixie76_location(tcp, <<"localhost">>, 443, <<"/path">>, <<>>)),
-	?assertEqual(<<"ws://localhost:8080/path">>,
-		hixie76_location(tcp, <<"localhost">>, 8080, <<"/path">>, <<>>)),
-	?assertEqual(<<"ws://localhost:8080/path?dummy=2785">>,
-		hixie76_location(tcp, <<"localhost">>, 8080, <<"/path">>, <<"dummy=2785">>)),
-	?assertEqual(<<"wss://localhost/path">>,
-		hixie76_location(ssl, <<"localhost">>, 443, <<"/path">>, <<>>)),
-	?assertEqual(<<"wss://localhost:8443/path">>,
-		hixie76_location(ssl, <<"localhost">>, 8443, <<"/path">>, <<>>)),
-	?assertEqual(<<"wss://localhost:8443/path?dummy=2785">>,
-		hixie76_location(ssl, <<"localhost">>, 8443, <<"/path">>, <<"dummy=2785">>)),
-	ok.
-
--endif.
