@@ -78,6 +78,7 @@
 
 %% Misc API.
 -export([compact/1]).
+-export([to_list/1]).
 -export([transport/1]).
 
 -include("http.hrl").
@@ -815,6 +816,11 @@ compact(Req) ->
 		path_info=undefined, qs_vals=undefined,
 		bindings=undefined, headers=[],
 		p_headers=[], cookies=[]}.
+
+%% @doc Convert the Req object to a list of key/values.
+-spec to_list(req()) -> [{atom(), any()}].
+to_list(Req) ->
+	lists:zip(record_info(fields, http_req), tl(tuple_to_list(Req))).
 
 %% @doc Return the transport module and socket associated with a request.
 %%

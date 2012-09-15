@@ -69,7 +69,7 @@ upgrade(_ListenerPid, Handler, Opts, Req) ->
 				service_available(Req, #state{handler=Handler})
 		end
 	catch Class:Reason ->
-		PLReq = lists:zip(record_info(fields, http_req), tl(tuple_to_list(Req))),
+		PLReq = cowboy_req:to_list(Req),
 		error_logger:error_msg(
 			"** Handler ~p terminating in rest_init/3~n"
 			"   for the reason ~p:~p~n** Options were ~p~n"

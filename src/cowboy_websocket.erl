@@ -125,7 +125,7 @@ handler_init(State=#state{handler=Handler, opts=Opts},
 			upgrade_denied(Req2)
 	catch Class:Reason ->
 		upgrade_error(Req),
-		PLReq = lists:zip(record_info(fields, http_req), tl(tuple_to_list(Req))),
+		PLReq = cowboy_req:to_list(Req),
 		error_logger:error_msg(
 			"** Handler ~p terminating in websocket_init/3~n"
 			"   for the reason ~p:~p~n** Options were ~p~n"
@@ -473,7 +473,7 @@ handler_call(State=#state{handler=Handler, opts=Opts}, Req, HandlerState,
 		{shutdown, Req2, HandlerState2} ->
 			websocket_close(State, Req2, HandlerState2, {normal, shutdown})
 	catch Class:Reason ->
-		PLReq = lists:zip(record_info(fields, http_req), tl(tuple_to_list(Req))),
+		PLReq = cowboy_req:to_list(Req),
 		error_logger:error_msg(
 			"** Handler ~p terminating in ~p/3~n"
 			"   for the reason ~p:~p~n** Message was ~p~n"
@@ -523,7 +523,7 @@ handler_terminate(#state{handler=Handler, opts=Opts},
 	try
 		Handler:websocket_terminate(TerminateReason, Req, HandlerState)
 	catch Class:Reason ->
-		PLReq = lists:zip(record_info(fields, http_req), tl(tuple_to_list(Req))),
+		PLReq = cowboy_req:to_list(Req),
 		error_logger:error_msg(
 			"** Handler ~p terminating in websocket_terminate/3~n"
 			"   for the reason ~p:~p~n** Initial reason was ~p~n"
