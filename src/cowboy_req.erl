@@ -35,6 +35,7 @@
 -export([qs_val/3]).
 -export([qs_vals/1]).
 -export([raw_qs/1]).
+-export([host_url/1]).
 -export([url/1]).
 -export([binding/2]).
 -export([binding/3]).
@@ -199,12 +200,12 @@ qs_vals(Req=#http_req{qs_vals=QsVals}) ->
 raw_qs(Req) ->
 	{Req#http_req.raw_qs, Req}.
 
-%% @doc Return the full request URL as a binary.
+%% @doc Return the request URL as a binary without the path and query string.
 %%
-%% The URL includes the scheme, host, port, path and query string.
--spec url(Req) -> {binary(), Req} when Req::req().
-url(Req=#http_req{transport=Transport, host=Host, port=Port,
-		path=Path, raw_qs=QS}) ->
+%% The URL includes the scheme, host and port only.
+%% @see cowboy_req:url/1
+-spec host_url(Req) -> {binary(), Req} when Req::req().
+host_url(Req=#http_req{transport=Transport, host=Host, port=Port}) ->
 	TransportName = Transport:name(),
 	Secure = case TransportName of
 		ssl -> <<"s">>;
@@ -215,12 +216,19 @@ url(Req=#http_req{transport=Transport, host=Host, port=Port,
 		{tcp, 80} -> <<>>;
 		_ -> << ":", (list_to_binary(integer_to_list(Port)))/binary >>
 	end,
+	{<< "http", Secure/binary, "://", Host/binary, PortBin/binary >>, Req}.
+
+%% @doc Return the full request URL as a binary.
+%%
+%% The URL includes the scheme, host, port, path and query string.
+-spec url(Req) -> {binary(), Req} when Req::req().
+url(Req=#http_req{path=Path, raw_qs=QS}) ->
+	{HostURL, Req2} = host_url(Req),
 	QS2 = case QS of
 		<<>> -> <<>>;
 		_ -> << "?", QS/binary >>
 	end,
-	{<< "http", Secure/binary, "://", Host/binary, PortBin/binary,
-		Path/binary, QS2/binary >>, Req}.
+	{<< HostURL/binary, Path/binary, QS2/binary >>, Req2}.
 
 %% @equiv binding(Name, Req, undefined)
 -spec binding(atom(), Req) -> {binary() | undefined, Req} when Req::req().

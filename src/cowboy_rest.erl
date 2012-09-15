@@ -671,30 +671,13 @@ create_path(Req, State) ->
 		{halt, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
 		{Path, Req2, HandlerState} ->
-			Location = create_path_location(Req2, Path),
+			{HostURL, Req3} = cowboy_req:host_url(Req2),
 			State2 = State#state{handler_state=HandlerState},
-			{ok, Req3} = cowboy_req:set_resp_header(
-				<<"Location">>, Location, Req2),
-			put_resource(cowboy_req:set_meta(put_path, Path, Req3),
+			{ok, Req4} = cowboy_req:set_resp_header(
+				<<"Location">>, << HostURL/binary, Path/binary >>, Req3),
+			put_resource(cowboy_req:set_meta(put_path, Path, Req4),
 				State2, 303)
 	end.
-
-create_path_location(#http_req{transport=Transport, host=Host,
-		port=Port}, Path) ->
-	TransportName = Transport:name(),
-	<< (create_path_location_protocol(TransportName))/binary, "://",
-		Host/binary, (create_path_location_port(TransportName, Port))/binary,
-		Path/binary >>.
-
-create_path_location_protocol(ssl) -> <<"https">>;
-create_path_location_protocol(_) -> <<"http">>.
-
-create_path_location_port(ssl, 443) ->
-	<<>>;
-create_path_location_port(tcp, 80) ->
-	<<>>;
-create_path_location_port(_, Port) ->
-	<<":", (list_to_binary(integer_to_list(Port)))/binary>>.
 
 %% process_post should return true when the POST body could be processed
 %% and false when it hasn't, in which case a 500 error is sent.
