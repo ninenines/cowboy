@@ -383,7 +383,7 @@ handler_call(HandlerState, Req, State=#state{handler={Handler, Opts}},
 -spec handler_terminate(any(), cowboy_req:req(), #state{}) -> ok.
 handler_terminate(HandlerState, Req, #state{handler={Handler, Opts}}) ->
 	try
-		Handler:terminate(Req#http_req{resp_state=locked}, HandlerState)
+		Handler:terminate(cowboy_req:lock(Req), HandlerState)
 	catch Class:Reason ->
 		PLReq = cowboy_req:to_list(Req),
 		error_logger:error_msg(

@@ -103,6 +103,7 @@
 
 %% Misc API.
 -export([compact/1]).
+-export([lock/1]).
 -export([to_list/1]).
 -export([transport/1]).
 
@@ -907,6 +908,12 @@ compact(Req) ->
 		path_info=undefined, qs_vals=undefined,
 		bindings=undefined, headers=[],
 		p_headers=[], cookies=[]}.
+
+%% @doc Prevent any further responses.
+%% @private
+-spec lock(Req) -> Req when Req::req().
+lock(Req) ->
+	Req#http_req{resp_state=locked}.
 
 %% @doc Convert the Req object to a list of key/values.
 -spec to_list(req()) -> [{atom(), any()}].

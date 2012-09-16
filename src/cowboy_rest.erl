@@ -897,7 +897,7 @@ respond(Req, State, StatusCode) ->
 terminate(Req, #state{handler=Handler, handler_state=HandlerState}) ->
 	case erlang:function_exported(Handler, rest_terminate, 2) of
 		true -> ok = Handler:rest_terminate(
-			Req#http_req{resp_state=locked}, HandlerState);
+			cowboy_req:lock(Req), HandlerState);
 		false -> ok
 	end,
 	{ok, Req}.
