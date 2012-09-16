@@ -233,7 +233,7 @@ onrequest(Req, State=#state{onrequest=undefined}) ->
 	dispatch(Req, State);
 onrequest(Req, State=#state{onrequest=OnRequest}) ->
 	Req2 = OnRequest(Req),
-	case Req2#http_req.resp_state of
+	case cowboy_req:get_resp_state(Req2) of
 		waiting -> dispatch(Req2, State);
 		_ -> next_request(Req2, State, ok)
 	end.
