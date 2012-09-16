@@ -139,10 +139,8 @@ request({http_request, Method, {abs_path, AbsPath}, Version},
 	ConnAtom = if Keepalive < MaxKeepalive -> version_to_connection(Version);
 		true -> close
 	end,
-	parse_header(#http_req{socket=Socket, transport=Transport,
-		connection=ConnAtom, pid=self(), method=Method, version=Version,
-		path=RawPath, raw_qs=Qs, onresponse=OnResponse, urldecode=URLDec},
-		State#state{path_tokens=PathTokens});
+	parse_header(cowboy_req:new(Socket, Transport, ConnAtom, Method, Version,
+		RawPath, Qs, OnResponse, URLDec), State#state{path_tokens=PathTokens});
 request({http_request, Method, '*', Version},
 		State=#state{socket=Socket, transport=Transport,
 		req_keepalive=Keepalive, max_keepalive=MaxKeepalive,
@@ -150,10 +148,8 @@ request({http_request, Method, '*', Version},
 	ConnAtom = if Keepalive < MaxKeepalive -> version_to_connection(Version);
 		true -> close
 	end,
-	parse_header(#http_req{socket=Socket, transport=Transport,
-		connection=ConnAtom, pid=self(), method=Method, version=Version,
-		path= <<"*">>, raw_qs= <<>>, onresponse=OnResponse,
-		urldecode=URLDec}, State#state{path_tokens='*'});
+	parse_header(cowboy_req:new(Socket, Transport, ConnAtom, Method, Version,
+		<<"*">>, <<>>, OnResponse, URLDec), State#state{path_tokens='*'});
 request({http_request, _Method, _URI, _Version}, State) ->
 	error_terminate(501, State);
 request({http_error, <<"\r\n">>},
@@ -427,9 +423,8 @@ error_terminate(Code, State=#state{socket=Socket, transport=Transport,
 	receive
 		{cowboy_req, resp_sent} -> ok
 	after 0 ->
-		_ = cowboy_req:reply(Code, #http_req{
-			socket=Socket, transport=Transport, onresponse=OnResponse,
-			connection=close, pid=self(), resp_state=waiting}),
+		_ = cowboy_req:reply(Code, cowboy_req:new(Socket, Transport,
+			close, 'GET', {1, 1}, <<>>, <<>>, OnResponse, undefined)),
 		ok
 	end,
 	terminate(State).

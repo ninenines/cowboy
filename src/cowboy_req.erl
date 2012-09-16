@@ -42,6 +42,7 @@
 -module(cowboy_req).
 
 %% Request API.
+-export([new/9]).
 -export([method/1]).
 -export([version/1]).
 -export([peer/1]).
@@ -114,6 +115,20 @@
 -export_type([req/0]).
 
 %% Request API.
+
+%% @doc Create a new HTTP Req object.
+%%
+%% This function takes care of setting the owner's pid to self().
+%% @private
+-spec new(inet:socket(), module(), keepalive | close,
+	cowboy_http:method(), cowboy_http:version(), binary(), binary(),
+	undefined | fun(), undefined | {fun(), atom()})
+	-> req().
+new(Socket, Transport, Connection, Method, Version, Path, Qs,
+		OnResponse, URLDecode) ->
+	#http_req{socket=Socket, transport=Transport, connection=Connection,
+		pid=self(), method=Method, version=Version, path=Path, raw_qs=Qs,
+		onresponse=OnResponse, urldecode=URLDecode}.
 
 %% @doc Return the HTTP method of the request.
 -spec method(Req) -> {cowboy_http:method(), Req} when Req::req().

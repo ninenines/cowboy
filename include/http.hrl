@@ -28,10 +28,10 @@
 	host       = undefined :: undefined | binary(),
 	host_info  = undefined :: undefined | cowboy_dispatcher:tokens(),
 	port       = undefined :: undefined | inet:port_number(),
-	path       = undefined :: undefined | binary(),
+	path       = undefined :: binary(),
 	path_info  = undefined :: undefined | cowboy_dispatcher:tokens(),
 	qs_vals    = undefined :: undefined | list({binary(), binary() | true}),
-	raw_qs     = undefined :: undefined | binary(),
+	raw_qs     = undefined :: binary(),
 	bindings   = undefined :: undefined | cowboy_dispatcher:bindings(),
 	headers    = []        :: cowboy_http:headers(),
 	p_headers  = []        :: [any()], %% @todo Improve those specs.
