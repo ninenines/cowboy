@@ -205,8 +205,7 @@ header({http_header, _I, 'Connection', _R, Connection}, Req,
 	parse_header(cowboy_req:set_connection(Connection, Req), State);
 header({http_header, _I, Field, _R, Value}, Req, State) ->
 	Field2 = format_header(Field),
-	parse_header(Req#http_req{headers=[{Field2, Value}|Req#http_req.headers]},
-		State);
+	parse_header(cowboy_req:add_header(Field2, Value, Req), State);
 %% The Host header is required in HTTP/1.1 and optional in HTTP/1.0.
 header(http_eoh, Req, State=#state{host_tokens=undefined,
 		buffer=Buffer, transport=Transport}) ->

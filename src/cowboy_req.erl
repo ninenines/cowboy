@@ -105,6 +105,7 @@
 %% Private setter/getter API.
 -export([set_host/4]).
 -export([set_connection/2]).
+-export([add_header/3]).
 
 %% Misc API.
 -export([compact/1]).
@@ -927,6 +928,12 @@ set_connection(RawConnection, Req=#http_req{headers=Headers}) ->
 	{ok, ConnTokens, Req3} = parse_header('Connection', Req2),
 	ConnAtom = cowboy_http:connection_to_atom(ConnTokens),
 	Req3#http_req{connection=ConnAtom}.
+
+%% @private
+-spec add_header(cowboy_http:header(), binary(), Req)
+	-> Req when Req::req().
+add_header(Name, Value, Req=#http_req{headers=Headers}) ->
+	Req#http_req{headers=[{Name, Value}|Headers]}.
 
 %% Misc API.
 
