@@ -106,6 +106,7 @@
 -export([set_host/4]).
 -export([set_connection/2]).
 -export([add_header/3]).
+-export([set_buffer/2]).
 
 %% Misc API.
 -export([compact/1]).
@@ -934,6 +935,11 @@ set_connection(RawConnection, Req=#http_req{headers=Headers}) ->
 	-> Req when Req::req().
 add_header(Name, Value, Req=#http_req{headers=Headers}) ->
 	Req#http_req{headers=[{Name, Value}|Headers]}.
+
+%% @private
+-spec set_buffer(binary(), Req) -> Req when Req::req().
+set_buffer(Buffer, Req) ->
+	Req#http_req{buffer=Buffer}.
 
 %% Misc API.
 

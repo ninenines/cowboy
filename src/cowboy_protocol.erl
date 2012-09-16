@@ -214,11 +214,13 @@ header(http_eoh, Req, State=#state{host_tokens=undefined,
 			error_terminate(400, State);
 		{{1, 0}, Req2} ->
 			Port = default_port(Transport:name()),
-			onrequest(Req2#http_req{host= <<>>, port=Port, buffer=Buffer},
+			onrequest(
+				cowboy_req:set_buffer(Buffer,
+					cowboy_req:set_host(<<>>, Port, <<>>, Req2)),
 				State#state{buffer= <<>>, host_tokens=[]})
 	end;
 header(http_eoh, Req, State=#state{buffer=Buffer}) ->
-	onrequest(Req#http_req{buffer=Buffer}, State#state{buffer= <<>>});
+	onrequest(cowboy_req:set_buffer(Buffer, Req), State#state{buffer= <<>>});
 header(_Any, _Req, State) ->
 	error_terminate(400, State).
 
