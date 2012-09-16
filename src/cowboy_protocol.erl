@@ -394,7 +394,7 @@ next_request(Req=#http_req{connection=Conn}, State=#state{
 		req_keepalive=Keepalive}, HandlerRes) ->
 	cowboy_req:ensure_response(Req, 204),
 	{BodyRes, Buffer} = case cowboy_req:skip_body(Req) of
-		{ok, Req2} -> {ok, Req2#http_req.buffer};
+		{ok, Req2} -> {ok, cowboy_req:get_buffer(Req2)};
 		{error, _} -> {close, <<>>}
 	end,
 	%% Flush the resp_sent message before moving on.

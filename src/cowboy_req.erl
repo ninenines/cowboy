@@ -109,6 +109,7 @@
 -export([set_buffer/2]).
 -export([set_bindings/4]).
 -export([get_resp_state/1]).
+-export([get_buffer/1]).
 
 %% Misc API.
 -export([compact/1]).
@@ -954,6 +955,11 @@ set_bindings(HostInfo, PathInfo, Bindings, Req) ->
 -spec get_resp_state(req()) -> locked | waiting | chunks | done.
 get_resp_state(#http_req{resp_state=RespState}) ->
 	RespState.
+
+%% @private
+-spec get_buffer(req()) -> binary().
+get_buffer(#http_req{buffer=Buffer}) ->
+	Buffer.
 
 %% Misc API.
 
