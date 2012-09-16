@@ -220,16 +220,17 @@ header({http_header, _I, Field, _R, Value}, Req, State) ->
 	Field2 = format_header(Field),
 	parse_header(Req#http_req{headers=[{Field2, Value}|Req#http_req.headers]},
 		State);
-%% The Host header is required in HTTP/1.1.
-header(http_eoh, #http_req{version={1, 1}},
-		State=#state{host_tokens=undefined}) ->
-	error_terminate(400, State);
-%% It is however optional in HTTP/1.0.
-header(http_eoh, Req=#http_req{version={1, 0}, transport=Transport},
-		State=#state{buffer=Buffer, host_tokens=undefined}) ->
-	Port = default_port(Transport:name()),
-	onrequest(Req#http_req{host= <<>>, port=Port, buffer=Buffer},
-		State#state{buffer= <<>>, host_tokens=[]});
+%% The Host header is required in HTTP/1.1 and optional in HTTP/1.0.
+header(http_eoh, Req, State=#state{host_tokens=undefined,
+		buffer=Buffer, transport=Transport}) ->
+	case cowboy_req:version(Req) of
+		{{1, 1}, _} ->
+			error_terminate(400, State);
+		{{1, 0}, Req2} ->
+			Port = default_port(Transport:name()),
+			onrequest(Req2#http_req{host= <<>>, port=Port, buffer=Buffer},
+				State#state{buffer= <<>>, host_tokens=[]})
+	end;
 header(http_eoh, Req, State=#state{buffer=Buffer}) ->
 	onrequest(Req#http_req{buffer=Buffer}, State#state{buffer= <<>>});
 header(_Any, _Req, State) ->
