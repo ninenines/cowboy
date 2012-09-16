@@ -49,8 +49,6 @@
 	expires :: undefined | no_call | calendar:datetime()
 }).
 
--include("http.hrl").
-
 %% @doc Upgrade a HTTP request to the REST protocol.
 %%
 %% You do not need to call this function manually. To upgrade to the REST
@@ -693,8 +691,9 @@ process_post(Req, State) ->
 is_conflict(Req, State) ->
 	expect(Req, State, is_conflict, false, fun put_resource/2, 409).
 
-put_resource(Req=#http_req{path=RawPath}, State) ->
-	put_resource(cowboy_req:set_meta(put_path, RawPath, Req),
+put_resource(Req, State) ->
+	{Path, Req2} = cowboy_req:path(Req),
+	put_resource(cowboy_req:set_meta(put_path, Path, Req2),
 		State, fun is_new_resource/2).
 
 %% content_types_accepted should return a list of media types and their
