@@ -199,15 +199,10 @@ header({http_header, _I, 'Host', _R, RawHost}, Req,
 %% Ignore Host headers if we already have it.
 header({http_header, _I, 'Host', _R, _V}, Req, State) ->
 	parse_header(Req, State);
-header({http_header, _I, 'Connection', _R, Connection},
-		Req=#http_req{headers=Headers}, State=#state{
-		req_keepalive=Keepalive, max_keepalive=MaxKeepalive})
+header({http_header, _I, 'Connection', _R, Connection}, Req,
+		State=#state{req_keepalive=Keepalive, max_keepalive=MaxKeepalive})
 		when Keepalive < MaxKeepalive ->
-	Req2 = Req#http_req{headers=[{'Connection', Connection}|Headers]},
-	{ok, ConnTokens, Req3}
-		= cowboy_req:parse_header('Connection', Req2),
-	ConnAtom = cowboy_http:connection_to_atom(ConnTokens),
-	parse_header(Req3#http_req{connection=ConnAtom}, State);
+	parse_header(cowboy_req:set_connection(Connection, Req), State);
 header({http_header, _I, Field, _R, Value}, Req, State) ->
 	Field2 = format_header(Field),
 	parse_header(Req#http_req{headers=[{Field2, Value}|Req#http_req.headers]},

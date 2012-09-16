@@ -104,6 +104,7 @@
 
 %% Private setter/getter API.
 -export([set_host/4]).
+-export([set_connection/2]).
 
 %% Misc API.
 -export([compact/1]).
@@ -918,6 +919,14 @@ ensure_response(#http_req{socket=Socket, transport=Transport,
 	-> Req when Req::req().
 set_host(Host, Port, RawHost, Req=#http_req{headers=Headers}) ->
 	Req#http_req{host=Host, port=Port, headers=[{'Host', RawHost}|Headers]}.
+
+%% @private
+-spec set_connection(binary(), Req) -> Req when Req::req().
+set_connection(RawConnection, Req=#http_req{headers=Headers}) ->
+	Req2 = Req#http_req{headers=[{'Connection', RawConnection}|Headers]},
+	{ok, ConnTokens, Req3} = parse_header('Connection', Req2),
+	ConnAtom = cowboy_http:connection_to_atom(ConnTokens),
+	Req3#http_req{connection=ConnAtom}.
 
 %% Misc API.
 
