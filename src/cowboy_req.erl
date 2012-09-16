@@ -110,6 +110,7 @@
 -export([set_bindings/4]).
 -export([get_resp_state/1]).
 -export([get_buffer/1]).
+-export([get_connection/1]).
 
 %% Misc API.
 -export([compact/1]).
@@ -960,6 +961,11 @@ get_resp_state(#http_req{resp_state=RespState}) ->
 -spec get_buffer(req()) -> binary().
 get_buffer(#http_req{buffer=Buffer}) ->
 	Buffer.
+
+%% @private
+-spec get_connection(req()) -> keepalive | close.
+get_connection(#http_req{connection=Connection}) ->
+	Connection.
 
 %% Misc API.
 

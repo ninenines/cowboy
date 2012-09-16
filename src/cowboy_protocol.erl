@@ -42,7 +42,6 @@
 -export([parse_request/1]).
 -export([handler_loop/3]).
 
--include("http.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
 -record(state, {
@@ -390,7 +389,7 @@ terminate_request(HandlerState, Req, State) ->
 	next_request(Req, State, HandlerRes).
 
 -spec next_request(cowboy_req:req(), #state{}, any()) -> ok.
-next_request(Req=#http_req{connection=Conn}, State=#state{
+next_request(Req, State=#state{
 		req_keepalive=Keepalive}, HandlerRes) ->
 	cowboy_req:ensure_response(Req, 204),
 	{BodyRes, Buffer} = case cowboy_req:skip_body(Req) of
@@ -399,7 +398,7 @@ next_request(Req=#http_req{connection=Conn}, State=#state{
 	end,
 	%% Flush the resp_sent message before moving on.
 	receive {cowboy_req, resp_sent} -> ok after 0 -> ok end,
-	case {HandlerRes, BodyRes, Conn} of
+	case {HandlerRes, BodyRes, cowboy_req:get_connection(Req)} of
 		{ok, ok, keepalive} ->
 			?MODULE:parse_request(State#state{
 				buffer=Buffer, host_tokens=undefined, path_tokens=undefined,
