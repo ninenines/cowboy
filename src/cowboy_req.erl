@@ -15,10 +15,30 @@
 
 %% @doc HTTP request manipulation API.
 %%
-%% Almost all functions in this module return a new <em>Req</em> variable.
-%% It should always be used instead of the one used in your function call
-%% because it keeps the state of the request. It also allows Cowboy to do
-%% some lazy evaluation and cache results where possible.
+%% The functions in this module try to follow this pattern for their
+%% return types:
+%% <dl>
+%% <dt>access:</dt>
+%%   <dd><em>{Value, Req}</em></dd>
+%% <dt>action:</dt>
+%%   <dd><em>{Result, Req} | {Result, Value, Req} | {error, atom()}</em></dd>
+%% <dt>modification:</dt>
+%%   <dd><em>Req</em></dd>
+%% <dt>question (<em>has_*</em> or <em>is_*</em>):</dt>
+%%   <dd><em>boolean()</em></dd>
+%% </dl>
+%%
+%% Exceptions include <em>chunk/2</em> which always returns <em>'ok'</em>,
+%% <em>to_list/1</em> which returns a list of key/values,
+%% and <em>transport/1</em> which returns <em>{ok, Transport, Socket}</em>.
+%%
+%% Also note that all body reading functions perform actions, as Cowboy
+%% doesn't read the request body until they are called.
+%%
+%% Whenever <em>Req</em> is returned, it should always be kept in place of
+%% the one given as argument in your function call, because it keeps
+%% track of the request and response state. Doing so allows Cowboy to do
+%% some lazy evaluation and cache results when possible.
 -module(cowboy_req).
 
 %% Request API.
@@ -277,12 +297,12 @@ headers(Req) ->
 %% returned is used as a return value.
 %% @see parse_header/3
 -spec parse_header(cowboy_http:header(), Req)
-	-> {any(), Req} | {undefined, binary(), Req}
+	-> {ok, any(), Req} | {undefined, binary(), Req}
 	| {error, badarg} when Req::req().
 parse_header(Name, Req=#http_req{p_headers=PHeaders}) ->
 	case lists:keyfind(Name, 1, PHeaders) of
 		false -> parse_header(Name, Req, parse_header_default(Name));
-		{Name, Value} -> {Value, Req}
+		{Name, Value} -> {ok, Value, Req}
 	end.
 
 %% @doc Default values for semantic header parsing.
@@ -295,7 +315,7 @@ parse_header_default(_Name) -> undefined.
 %%
 %% When the header is unknown, the value is returned directly without parsing.
 -spec parse_header(cowboy_http:header(), Req, any())
-	-> {any(), Req} | {undefined, binary(), Req}
+	-> {ok, any(), Req} | {undefined, binary(), Req}
 	| {error, badarg} when Req::req().
 parse_header(Name, Req, Default) when Name =:= 'Accept' ->
 	parse_header(Name, Req, Default,
@@ -365,23 +385,15 @@ parse_header(Name, Req, Default) ->
 	{undefined, Value, Req2}.
 
 parse_header(Name, Req=#http_req{p_headers=PHeaders}, Default, Fun) ->
-	case lists:keyfind(Name, 1, PHeaders) of
-		{Name, P} ->
-			{P, Req};
-		false ->
-			parse_header_no_cache(Name, Req, Default, Fun)
-	end.
-
-parse_header_no_cache(Name, Req=#http_req{p_headers=PHeaders}, Default, Fun) ->
 	case header(Name, Req) of
 		{undefined, Req2} ->
-			{Default, Req2#http_req{p_headers=[{Name, Default}|PHeaders]}};
+			{ok, Default, Req2#http_req{p_headers=[{Name, Default}|PHeaders]}};
 		{Value, Req2} ->
 			case Fun(Value) of
 				{error, badarg} ->
 					{error, badarg};
 				P ->
-					{P, Req2#http_req{p_headers=[{Name, P}|PHeaders]}}
+					{ok, P, Req2#http_req{p_headers=[{Name, P}|PHeaders]}}
 			end
 	end.
 
@@ -464,8 +476,11 @@ has_body(Req) ->
 -spec body_length(Req) -> {undefined | non_neg_integer(), Req} when Req::req().
 body_length(Req) ->
 	case lists:keymember('Transfer-Encoding', 1, Req#http_req.headers) of
-		true -> {undefined, Req};
-		false -> parse_header('Content-Length', Req, 0)
+		true ->
+			{undefined, Req};
+		false ->
+			{ok, Length, Req2} = parse_header('Content-Length', Req, 0),
+			{Length, Req2}
 	end.
 
 %% @doc Initialize body streaming and set custom decoding functions.
@@ -505,21 +520,19 @@ init_stream(TransferDecode, TransferState, ContentDecode, Req) ->
 stream_body(Req=#http_req{body_state=waiting,
 		version=Version, transport=Transport, socket=Socket}) ->
 	case parse_header(<<"Expect">>, Req) of
-		{[<<"100-continue">>], Req1} ->
+		{ok, [<<"100-continue">>], Req1} ->
 			HTTPVer = cowboy_http:version_to_binary(Version),
 			Transport:send(Socket,
 				<< HTTPVer/binary, " ", (status(100))/binary, "\r\n\r\n" >>);
-		{undefined, Req1} ->
-			ok;
-		{undefined, _, Req1} ->
+		{ok, undefined, Req1} ->
 			ok
 	end,
 	case parse_header('Transfer-Encoding', Req1) of
-		{[<<"chunked">>], Req2} ->
+		{ok, [<<"chunked">>], Req2} ->
 			stream_body(Req2#http_req{body_state=
 				{stream, fun cowboy_http:te_chunked/2, {0, 0},
 				 fun cowboy_http:ce_identity/1}});
-		{[<<"identity">>], Req2} ->
+		{ok, [<<"identity">>], Req2} ->
 			{Length, Req3} = body_length(Req2),
 			case Length of
 				0 ->
@@ -635,11 +648,17 @@ skip_body(Req) ->
 %% @doc Return the full body sent with the reqest, parsed as an
 %% application/x-www-form-urlencoded string. Essentially a POST query string.
 %% @todo We need an option to limit the size of the body for QS too.
--spec body_qs(Req) -> {list({binary(), binary() | true}), Req} when Req::req().
+-spec body_qs(Req)
+	-> {ok, [{binary(), binary() | true}], Req} | {error, atom()}
+	when Req::req().
 body_qs(Req=#http_req{urldecode={URLDecFun, URLDecArg}}) ->
-	{ok, Body, Req2} = body(Req),
-	{cowboy_http:x_www_form_urlencoded(
-		Body, fun(Bin) -> URLDecFun(Bin, URLDecArg) end), Req2}.
+	case body(Req) of
+		{ok, Body, Req2} ->
+			{ok, cowboy_http:x_www_form_urlencoded(
+				Body, fun(Bin) -> URLDecFun(Bin, URLDecArg) end), Req2};
+		{error, Reason} ->
+			{error, Reason}
+	end.
 
 %% Multipart Request API.
 
@@ -653,13 +672,13 @@ body_qs(Req=#http_req{urldecode={URLDecFun, URLDecArg}}) ->
 %% If the request Content-Type is not a multipart one, <em>{error, badarg}</em>
 %% is returned.
 -spec multipart_data(Req)
-	-> {{headers, cowboy_http:headers()} | {body, binary()}
-		| end_of_part | eof, Req} when Req::req().
+	-> {headers, cowboy_http:headers(), Req} | {body, binary(), Req}
+		| {end_of_part | eof, Req} when Req::req().
 multipart_data(Req=#http_req{body_state=waiting}) ->
-	{{<<"multipart">>, _SubType, Params}, Req2} =
+	{ok, {<<"multipart">>, _SubType, Params}, Req2} =
 		parse_header('Content-Type', Req),
 	{_, Boundary} = lists:keyfind(<<"boundary">>, 1, Params),
-	{Length, Req3} = parse_header('Content-Length', Req2),
+	{ok, Length, Req3} = parse_header('Content-Length', Req2),
 	multipart_data(Req3, Length, {more, cowboy_multipart:parser(Boundary)});
 multipart_data(Req=#http_req{multipart={Length, Cont}}) ->
 	multipart_data(Req, Length, Cont());
@@ -668,9 +687,9 @@ multipart_data(Req=#http_req{body_state=done}) ->
 
 %% @todo Typespecs.
 multipart_data(Req, Length, {headers, Headers, Cont}) ->
-	{{headers, Headers}, Req#http_req{multipart={Length, Cont}}};
+	{headers, Headers, Req#http_req{multipart={Length, Cont}}};
 multipart_data(Req, Length, {body, Data, Cont}) ->
-	{{body, Data}, Req#http_req{multipart={Length, Cont}}};
+	{body, Data, Req#http_req{multipart={Length, Cont}}};
 multipart_data(Req, Length, {end_of_part, Cont}) ->
 	{end_of_part, Req#http_req{multipart={Length, Cont}}};
 multipart_data(Req, 0, eof) ->
@@ -697,33 +716,33 @@ multipart_skip(Req) ->
 	case multipart_data(Req) of
 		{end_of_part, Req2} -> {ok, Req2};
 		{eof, Req2} -> {ok, Req2};
-		{_Other, Req2} -> multipart_skip(Req2)
+		{_, _, Req2} -> multipart_skip(Req2)
 	end.
 
 %% Response API.
 
 %% @doc Add a cookie header to the response.
 -spec set_resp_cookie(binary(), binary(),
-	[cowboy_cookies:cookie_option()], Req) -> {ok, Req} when Req::req().
+	[cowboy_cookies:cookie_option()], Req) -> Req when Req::req().
 set_resp_cookie(Name, Value, Options, Req) ->
 	{HeaderName, HeaderValue} = cowboy_cookies:cookie(Name, Value, Options),
 	set_resp_header(HeaderName, HeaderValue, Req).
 
 %% @doc Add a header to the response.
 -spec set_resp_header(cowboy_http:header(), iodata(), Req)
-	-> {ok, Req} when Req::req().
+	-> Req when Req::req().
 set_resp_header(Name, Value, Req=#http_req{resp_headers=RespHeaders}) ->
 	NameBin = header_to_binary(Name),
-	{ok, Req#http_req{resp_headers=[{NameBin, Value}|RespHeaders]}}.
+	Req#http_req{resp_headers=[{NameBin, Value}|RespHeaders]}.
 
 %% @doc Add a body to the response.
 %%
 %% The body set here is ignored if the response is later sent using
 %% anything other than reply/2 or reply/3. The response body is expected
 %% to be a binary or an iolist.
--spec set_resp_body(iodata(), Req) -> {ok, Req} when Req::req().
+-spec set_resp_body(iodata(), Req) -> Req when Req::req().
 set_resp_body(Body, Req) ->
-	{ok, Req#http_req{resp_body=Body}}.
+	Req#http_req{resp_body=Body}.
 
 %% @doc Add a body function to the response.
 %%
@@ -740,9 +759,9 @@ set_resp_body(Body, Req) ->
 %%
 %% @see cowboy_req:transport/1.
 -spec set_resp_body_fun(non_neg_integer(),
-	fun(() -> {sent, non_neg_integer()}), Req) -> {ok, Req} when Req::req().
+	fun(() -> {sent, non_neg_integer()}), Req) -> Req when Req::req().
 set_resp_body_fun(StreamLen, StreamFun, Req) ->
-	{ok, Req#http_req{resp_body={StreamLen, StreamFun}}}.
+	Req#http_req{resp_body={StreamLen, StreamFun}}.
 
 %% @doc Return whether the given header has been set for the response.
 -spec has_resp_header(cowboy_http:header(), req()) -> boolean().

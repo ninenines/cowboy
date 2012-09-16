@@ -8,22 +8,22 @@ init({_Transport, http}, Req, []) ->
 	{ok, Req, {}}.
 
 handle(Req, State) ->
-	{Result, Req2} = acc_multipart(Req, []),
+	{Result, Req2} = acc_multipart(Req),
 	{ok, Req3} = cowboy_req:reply(200, [], term_to_binary(Result), Req2),
 	{ok, Req3, State}.
 
 terminate(_Req, _State) ->
 	ok.
 
-acc_multipart(Req, Acc) ->
-	{Result, Req2} = cowboy_req:multipart_data(Req),
-	acc_multipart(Req2, Acc, Result).
+acc_multipart(Req) ->
+	acc_multipart(cowboy_req:multipart_data(Req), []).
 
-acc_multipart(Req, Acc, {headers, Headers}) ->
-	acc_multipart(Req, [{Headers, []}|Acc]);
-acc_multipart(Req, [{Headers, BodyAcc}|Acc], {body, Data}) ->
-	acc_multipart(Req, [{Headers, [Data|BodyAcc]}|Acc]);
-acc_multipart(Req, [{Headers, BodyAcc}|Acc], end_of_part) ->
-	acc_multipart(Req, [{Headers, list_to_binary(lists:reverse(BodyAcc))}|Acc]);
-acc_multipart(Req, Acc, eof) ->
+acc_multipart({headers, Headers, Req}, Acc) ->
+	acc_multipart(cowboy_req:multipart_data(Req), [{Headers, []}|Acc]);
+acc_multipart({body, Data, Req}, [{Headers, BodyAcc}|Acc]) ->
+	acc_multipart(cowboy_req:multipart_data(Req), [{Headers, [Data|BodyAcc]}|Acc]);
+acc_multipart({end_of_part, Req}, [{Headers, BodyAcc}|Acc]) ->
+	acc_multipart(cowboy_req:multipart_data(Req),
+		[{Headers, list_to_binary(lists:reverse(BodyAcc))}|Acc]);
+acc_multipart({eof, Req}, Acc) ->
 	{lists:reverse(Acc), Req}.

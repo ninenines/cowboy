@@ -7,14 +7,12 @@
 init({_Transport, http}, Req, Opts) ->
 	Headers = proplists:get_value(headers, Opts, []),
 	Body = proplists:get_value(body, Opts, <<"http_handler_set_resp">>),
-	{ok, Req2} = lists:foldl(fun({Name, Value}, {ok, R}) ->
+	Req2 = lists:foldl(fun({Name, Value}, R) ->
 		cowboy_req:set_resp_header(Name, Value, R)
-	end, {ok, Req}, Headers),
-	{ok, Req3} = cowboy_req:set_resp_body(Body, Req2),
-	{ok, Req4} = cowboy_req:set_resp_header(
-		<<"X-Cowboy-Test">>, <<"ok">>, Req3),
-	{ok, Req5} = cowboy_req:set_resp_cookie(
-		<<"cake">>, <<"lie">>, [], Req4),
+	end, Req, Headers),
+	Req3 = cowboy_req:set_resp_body(Body, Req2),
+	Req4 = cowboy_req:set_resp_header(<<"X-Cowboy-Test">>, <<"ok">>, Req3),
+	Req5 = cowboy_req:set_resp_cookie(<<"cake">>, <<"lie">>, [], Req4),
 	{ok, Req5, undefined}.
 
 handle(Req, State) ->

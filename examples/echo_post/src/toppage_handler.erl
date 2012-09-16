@@ -17,7 +17,7 @@ handle(Req, State) ->
 	{ok, Req4, State}.
 
 maybe_echo('POST', true, Req) ->
-	{PostVals, Req2} = cowboy_req:body_qs(Req),
+	{ok, PostVals, Req2} = cowboy_req:body_qs(Req),
 	Echo = proplists:get_value(<<"echo">>, PostVals),
 	echo(Echo, Req2);
 maybe_echo('POST', false, Req) ->

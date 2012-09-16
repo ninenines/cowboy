@@ -212,7 +212,7 @@ header({http_header, _I, 'Connection', _R, Connection},
 		req_keepalive=Keepalive, max_keepalive=MaxKeepalive})
 		when Keepalive < MaxKeepalive ->
 	Req2 = Req#http_req{headers=[{'Connection', Connection}|Headers]},
-	{ConnTokens, Req3}
+	{ok, ConnTokens, Req3}
 		= cowboy_req:parse_header('Connection', Req2),
 	ConnAtom = cowboy_http:connection_to_atom(ConnTokens),
 	parse_header(Req3#http_req{connection=ConnAtom}, State);

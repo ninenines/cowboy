@@ -126,7 +126,7 @@ allowed_methods(Req, State=#state{method=Method}) ->
 	end.
 
 method_not_allowed(Req, State, Methods) ->
-	{ok, Req2} = cowboy_req:set_resp_header(
+	Req2 = cowboy_req:set_resp_header(
 		<<"Allow">>, method_not_allowed_build(Methods, []), Req),
 	respond(Req2, State, 405).
 
@@ -153,7 +153,7 @@ is_authorized(Req, State) ->
 		{true, Req2, HandlerState} ->
 			forbidden(Req2, State#state{handler_state=HandlerState});
 		{{false, AuthHead}, Req2, HandlerState} ->
-			{ok, Req3} = cowboy_req:set_resp_header(
+			Req3 = cowboy_req:set_resp_header(
 				<<"Www-Authenticate">>, AuthHead, Req2),
 			respond(Req3, State#state{handler_state=HandlerState}, 401)
 	end.
@@ -211,7 +211,7 @@ content_types_provided(Req, State) ->
 		    CTP2 = [normalize_content_types(P) || P <- CTP],
 			State2 = State#state{
 				handler_state=HandlerState, content_types_p=CTP2},
-			{Accept, Req3} = cowboy_req:parse_header('Accept', Req2),
+			{ok, Accept, Req3} = cowboy_req:parse_header('Accept', Req2),
 			case Accept of
 				undefined ->
 					{PMT, _Fun} = HeadCTP = hd(CTP2),
@@ -305,7 +305,7 @@ languages_provided(Req, State) ->
 			not_acceptable(Req2, State#state{handler_state=HandlerState});
 		{LP, Req2, HandlerState} ->
 			State2 = State#state{handler_state=HandlerState, languages_p=LP},
-			{AcceptLanguage, Req3} =
+			{ok, AcceptLanguage, Req3} =
 				cowboy_req:parse_header('Accept-Language', Req2),
 			case AcceptLanguage of
 				undefined ->
@@ -352,8 +352,7 @@ match_language(Req, State, Accept, [Provided|Tail],
 	end.
 
 set_language(Req, State=#state{language_a=Language}) ->
-	{ok, Req2} = cowboy_req:set_resp_header(
-		<<"Content-Language">>, Language, Req),
+	Req2 = cowboy_req:set_resp_header(<<"Content-Language">>, Language, Req),
 	charsets_provided(cowboy_req:set_meta(language, Language, Req2), State).
 
 %% charsets_provided should return a list of binary values indicating
@@ -368,7 +367,7 @@ charsets_provided(Req, State) ->
 			not_acceptable(Req2, State#state{handler_state=HandlerState});
 		{CP, Req2, HandlerState} ->
 			State2 = State#state{handler_state=HandlerState, charsets_p=CP},
-			{AcceptCharset, Req3} =
+			{ok, AcceptCharset, Req3} =
 				cowboy_req:parse_header('Accept-Charset', Req2),
 			case AcceptCharset of
 				undefined ->
@@ -417,8 +416,7 @@ set_content_type(Req, State=#state{
 		undefined -> ContentType;
 		Charset -> [ContentType, <<"; charset=">>, Charset]
 	end,
-	{ok, Req2} = cowboy_req:set_resp_header(
-		<<"Content-Type">>, ContentType2, Req),
+	Req2 = cowboy_req:set_resp_header(<<"Content-Type">>, ContentType2, Req),
 	encodings_provided(cowboy_req:set_meta(charset, Charset, Req2), State).
 
 set_content_type_build_params([], []) ->
@@ -472,7 +470,7 @@ variances(Req, State=#state{content_types_p=CTP,
 		[] ->
 			resource_exists(Req3, State2);
 		[[<<", ">>, H]|Variances5] ->
-			{ok, Req4} = cowboy_req:set_resp_header(
+			Req4 = cowboy_req:set_resp_header(
 				<<"Variances">>, [H|Variances5], Req3),
 			resource_exists(Req4, State2)
 	end.
@@ -483,11 +481,11 @@ resource_exists(Req, State) ->
 
 if_match_exists(Req, State) ->
 	case cowboy_req:parse_header('If-Match', Req) of
-		{undefined, Req2} ->
+		{ok, undefined, Req2} ->
 			if_unmodified_since_exists(Req2, State);
-		{'*', Req2} ->
+		{ok, '*', Req2} ->
 			if_unmodified_since_exists(Req2, State);
-		{ETagsList, Req2} ->
+		{ok, ETagsList, Req2} ->
 			if_match(Req2, State, ETagsList)
 	end.
 
@@ -507,12 +505,12 @@ if_match_musnt_exist(Req, State) ->
 
 if_unmodified_since_exists(Req, State) ->
 	case cowboy_req:parse_header('If-Unmodified-Since', Req) of
-		{undefined, Req2} ->
+		{ok, undefined, Req2} ->
 			if_none_match_exists(Req2, State);
-		{{error, badarg}, Req2} ->
-			if_none_match_exists(Req2, State);
-		{IfUnmodifiedSince, Req2} ->
-			if_unmodified_since(Req2, State, IfUnmodifiedSince)
+		{ok, IfUnmodifiedSince, Req2} ->
+			if_unmodified_since(Req2, State, IfUnmodifiedSince);
+		{error, badarg} ->
+			if_none_match_exists(Req, State)
 	end.
 
 %% If LastModified is the atom 'no_call', we continue.
@@ -525,11 +523,11 @@ if_unmodified_since(Req, State, IfUnmodifiedSince) ->
 
 if_none_match_exists(Req, State) ->
 	case cowboy_req:parse_header('If-None-Match', Req) of
-		{undefined, Req2} ->
+		{ok, undefined, Req2} ->
 			if_modified_since_exists(Req2, State);
-		{'*', Req2} ->
+		{ok, '*', Req2} ->
 			precondition_is_head_get(Req2, State);
-		{EtagsList, Req2} ->
+		{ok, EtagsList, Req2} ->
 			if_none_match(Req2, State, EtagsList)
 	end.
 
@@ -553,12 +551,12 @@ precondition_is_head_get(Req, State) ->
 
 if_modified_since_exists(Req, State) ->
 	case cowboy_req:parse_header('If-Modified-Since', Req) of
-		{undefined, Req2} ->
+		{ok, undefined, Req2} ->
 			method(Req2, State);
-		{{error, badarg}, Req2} ->
-			method(Req2, State);
-		{IfModifiedSince, Req2} ->
-			if_modified_since_now(Req2, State, IfModifiedSince)
+		{ok, IfModifiedSince, Req2} ->
+			if_modified_since_now(Req2, State, IfModifiedSince);
+		{error, badarg} ->
+			method(Req, State)
 	end.
 
 if_modified_since_now(Req, State, IfModifiedSince) ->
@@ -598,7 +596,7 @@ is_put_to_missing_resource(Req, State) ->
 moved_permanently(Req, State, OnFalse) ->
 	case call(Req, State, moved_permanently) of
 		{{true, Location}, Req2, HandlerState} ->
-			{ok, Req3} = cowboy_req:set_resp_header(
+			Req3 = cowboy_req:set_resp_header(
 				<<"Location">>, Location, Req2),
 			respond(Req3, State#state{handler_state=HandlerState}, 301);
 		{false, Req2, HandlerState} ->
@@ -619,7 +617,7 @@ previously_existed(Req, State) ->
 moved_temporarily(Req, State) ->
 	case call(Req, State, moved_temporarily) of
 		{{true, Location}, Req2, HandlerState} ->
-			{ok, Req3} = cowboy_req:set_resp_header(
+			Req3 = cowboy_req:set_resp_header(
 				<<"Location">>, Location, Req2),
 			respond(Req3, State#state{handler_state=HandlerState}, 307);
 		{false, Req2, HandlerState} ->
@@ -672,7 +670,7 @@ create_path(Req, State) ->
 		{Path, Req2, HandlerState} ->
 			{HostURL, Req3} = cowboy_req:host_url(Req2),
 			State2 = State#state{handler_state=HandlerState},
-			{ok, Req4} = cowboy_req:set_resp_header(
+			Req4 = cowboy_req:set_resp_header(
 				<<"Location">>, << HostURL/binary, Path/binary >>, Req3),
 			put_resource(cowboy_req:set_meta(put_path, Path, Req4),
 				State2, 303)
@@ -716,7 +714,7 @@ put_resource(Req, State, OnTrue) ->
 		{CTA, Req2, HandlerState} ->
 		    CTA2 = [normalize_content_types(P) || P <- CTA],
 			State2 = State#state{handler_state=HandlerState},
-			{ContentType, Req3}
+			{ok, ContentType, Req3}
 				= cowboy_req:parse_header('Content-Type', Req2),
 			choose_content_type(Req3, State2, OnTrue, ContentType, CTA2)
 	end.
@@ -768,7 +766,7 @@ set_resp_body(Req, State=#state{content_type_a={_Type, Fun}}) ->
 			Req4 = Req3;
 		LastModified ->
 			LastModifiedStr = httpd_util:rfc1123_date(LastModified),
-			{ok, Req4} = cowboy_req:set_resp_header(
+			Req4 = cowboy_req:set_resp_header(
 				<<"Last-Modified">>, LastModifiedStr, Req3)
 	end,
 	{Req5, State4} = set_resp_expires(Req4, State3),
@@ -777,7 +775,7 @@ set_resp_body(Req, State=#state{content_type_a={_Type, Fun}}) ->
 			terminate(Req6, State4#state{handler_state=HandlerState});
 		{Body, Req6, HandlerState} ->
 			State5 = State4#state{handler_state=HandlerState},
-			{ok, Req7} = case Body of
+			Req7 = case Body of
 				{stream, Len, Fun1} ->
 					cowboy_req:set_resp_body_fun(Len, Fun1, Req6);
 				_Contents ->
@@ -797,7 +795,7 @@ set_resp_etag(Req, State) ->
 		undefined ->
 			{Req2, State2};
 		Etag ->
-			{ok, Req3} = cowboy_req:set_resp_header(
+			Req3 = cowboy_req:set_resp_header(
 				<<"ETag">>, encode_etag(Etag), Req2),
 			{Req3, State2}
 	end.
@@ -813,7 +811,7 @@ set_resp_expires(Req, State) ->
 			{Req2, State2};
 		Expires ->
 			ExpiresStr = httpd_util:rfc1123_date(Expires),
-			{ok, Req3} = cowboy_req:set_resp_header(
+			Req3 = cowboy_req:set_resp_header(
 				<<"Expires">>, ExpiresStr, Req2),
 			{Req3, State2}
 	end.

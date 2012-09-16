@@ -599,9 +599,7 @@ onrequest_reply(Config) ->
 onrequest_hook(Req) ->
 	case cowboy_req:qs_val(<<"reply">>, Req) of
 		{undefined, Req2} ->
-			{ok, Req3} = cowboy_req:set_resp_header(
-				'Server', <<"Serenity">>, Req2),
-			Req3;
+			cowboy_req:set_resp_header('Server', <<"Serenity">>, Req2);
 		{_, Req2} ->
 			{ok, Req3} = cowboy_req:reply(
 				200, [], <<"replied!">>, Req2),

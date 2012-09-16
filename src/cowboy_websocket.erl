@@ -71,11 +71,11 @@ upgrade(ListenerPid, Handler, Opts, Req) ->
 -spec websocket_upgrade(#state{}, Req)
 	-> {ok, #state{}, Req} when Req::cowboy_req:req().
 websocket_upgrade(State, Req) ->
-	{ConnTokens, Req2}
+	{ok, ConnTokens, Req2}
 		= cowboy_req:parse_header('Connection', Req),
 	true = lists:member(<<"upgrade">>, ConnTokens),
 	%% @todo Should probably send a 426 if the Upgrade header is missing.
-	{[<<"websocket">>], Req3} = cowboy_req:parse_header('Upgrade', Req2),
+	{ok, [<<"websocket">>], Req3} = cowboy_req:parse_header('Upgrade', Req2),
 	{Version, Req4} = cowboy_req:header(<<"Sec-Websocket-Version">>, Req3),
 	websocket_upgrade(Version, State, Req4).
 
