@@ -107,6 +107,7 @@
 -export([set_connection/2]).
 -export([add_header/3]).
 -export([set_buffer/2]).
+-export([set_bindings/4]).
 
 %% Misc API.
 -export([compact/1]).
@@ -940,6 +941,13 @@ add_header(Name, Value, Req=#http_req{headers=Headers}) ->
 -spec set_buffer(binary(), Req) -> Req when Req::req().
 set_buffer(Buffer, Req) ->
 	Req#http_req{buffer=Buffer}.
+
+%% @private
+-spec set_bindings(cowboy_dispatcher:tokens(), cowboy_dispatcher:tokens(),
+	cowboy_dispatcher:bindings(), Req) -> Req when Req::req().
+set_bindings(HostInfo, PathInfo, Bindings, Req) ->
+	Req#http_req{host_info=HostInfo, path_info=PathInfo,
+		bindings=Bindings}.
 
 %% Misc API.
 

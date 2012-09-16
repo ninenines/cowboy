@@ -242,9 +242,9 @@ onrequest(Req, State=#state{onrequest=OnRequest}) ->
 dispatch(Req, State=#state{dispatch=Dispatch,
 		host_tokens=HostTokens, path_tokens=PathTokens}) ->
 	case cowboy_dispatcher:match(HostTokens, PathTokens, Dispatch) of
-		{ok, Handler, Opts, Binds, HostInfo, PathInfo} ->
-			handler_init(Req#http_req{host_info=HostInfo, path_info=PathInfo,
-				bindings=Binds}, State#state{handler={Handler, Opts},
+		{ok, Handler, Opts, Bindings, HostInfo, PathInfo} ->
+			Req2 = cowboy_req:set_bindings(HostInfo, PathInfo, Bindings, Req),
+			handler_init(Req2, State#state{handler={Handler, Opts},
 				host_tokens=undefined, path_tokens=undefined});
 		{error, notfound, host} ->
 			error_terminate(400, State);
