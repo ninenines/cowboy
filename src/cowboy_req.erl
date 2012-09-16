@@ -102,6 +102,9 @@
 -export([upgrade_reply/3]).
 -export([ensure_response/2]).
 
+%% Private setter/getter API.
+-export([set_host/4]).
+
 %% Misc API.
 -export([compact/1]).
 -export([lock/1]).
@@ -907,6 +910,14 @@ ensure_response(#http_req{socket=Socket, transport=Transport,
 		resp_state=chunks}, _) ->
 	Transport:send(Socket, <<"0\r\n\r\n">>),
 	ok.
+
+%% Private setter/getter API.
+
+%% @private
+-spec set_host(binary(), inet:port_number(), binary(), Req)
+	-> Req when Req::req().
+set_host(Host, Port, RawHost, Req=#http_req{headers=Headers}) ->
+	Req#http_req{host=Host, port=Port, headers=[{'Host', RawHost}|Headers]}.
 
 %% Misc API.
 

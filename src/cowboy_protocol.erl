@@ -182,20 +182,16 @@ wait_header(Req, State=#state{socket=Socket,
 
 -spec header({http_header, integer(), cowboy_http:header(), any(), binary()}
 	| http_eoh, cowboy_req:req(), #state{}) -> ok.
-header({http_header, _I, 'Host', _R, RawHost}, Req=#http_req{
-		transport=Transport}, State=#state{host_tokens=undefined}) ->
+header({http_header, _I, 'Host', _R, RawHost}, Req,
+		State=#state{host_tokens=undefined, transport=Transport}) ->
 	RawHost2 = cowboy_bstr:to_lower(RawHost),
 	case catch cowboy_dispatcher:split_host(RawHost2) of
-		{HostTokens, RawHost3, undefined} ->
+		{HostTokens, Host, undefined} ->
 			Port = default_port(Transport:name()),
-			parse_header(Req#http_req{
-				host=RawHost3, port=Port,
-				headers=[{'Host', RawHost}|Req#http_req.headers]},
+			parse_header(cowboy_req:set_host(Host, Port, RawHost, Req),
 				State#state{host_tokens=HostTokens});
-		{HostTokens, RawHost3, Port} ->
-			parse_header(Req#http_req{
-				host=RawHost3, port=Port,
-				headers=[{'Host', RawHost}|Req#http_req.headers]},
+		{HostTokens, Host, Port} ->
+			parse_header(cowboy_req:set_host(Host, Port, RawHost, Req),
 				State#state{host_tokens=HostTokens});
 		{'EXIT', _Reason} ->
 			error_terminate(400, State)
