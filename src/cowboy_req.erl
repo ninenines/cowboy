@@ -52,10 +52,10 @@
 -export([port/1]).
 -export([path/1]).
 -export([path_info/1]).
+-export([qs/1]).
 -export([qs_val/2]).
 -export([qs_val/3]).
 -export([qs_vals/1]).
--export([raw_qs/1]).
 -export([host_url/1]).
 -export([url/1]).
 -export([binding/2]).
@@ -138,8 +138,8 @@
 	port = undefined :: undefined | inet:port_number(),
 	path = undefined :: binary(),
 	path_info = undefined :: undefined | cowboy_dispatcher:tokens(),
+	qs = undefined :: binary(),
 	qs_vals = undefined :: undefined | list({binary(), binary() | true}),
-	raw_qs = undefined :: binary(),
 	bindings = undefined :: undefined | cowboy_dispatcher:bindings(),
 	headers = [] :: cowboy_http:headers(),
 	p_headers = [] :: [any()], %% @todo Improve those specs.
@@ -179,7 +179,7 @@
 new(Socket, Transport, Connection, Method, Version, Path, Qs,
 		OnResponse, URLDecode) ->
 	#http_req{socket=Socket, transport=Transport, connection=Connection,
-		pid=self(), method=Method, version=Version, path=Path, raw_qs=Qs,
+		pid=self(), method=Method, version=Version, path=Path, qs=Qs,
 		onresponse=OnResponse, urldecode=URLDecode}.
 
 %% @doc Return the HTTP method of the request.
@@ -253,6 +253,11 @@ path(Req) ->
 path_info(Req) ->
 	{Req#http_req.path_info, Req}.
 
+%% @doc Return the raw query string directly taken from the request.
+-spec qs(Req) -> {binary(), Req} when Req::req().
+qs(Req) ->
+	{Req#http_req.qs, Req}.
+
 %% @equiv qs_val(Name, Req, undefined)
 -spec qs_val(binary(), Req)
 	-> {binary() | true | undefined, Req} when Req::req().
@@ -263,7 +268,7 @@ qs_val(Name, Req) when is_binary(Name) ->
 %% missing.
 -spec qs_val(binary(), Req, Default)
 	-> {binary() | true | Default, Req} when Req::req(), Default::any().
-qs_val(Name, Req=#http_req{raw_qs=RawQs, qs_vals=undefined,
+qs_val(Name, Req=#http_req{qs=RawQs, qs_vals=undefined,
 		urldecode={URLDecFun, URLDecArg}}, Default) when is_binary(Name) ->
 	QsVals = cowboy_http:x_www_form_urlencoded(
 		RawQs, fun(Bin) -> URLDecFun(Bin, URLDecArg) end),
@@ -276,18 +281,13 @@ qs_val(Name, Req, Default) ->
 
 %% @doc Return the full list of query string values.
 -spec qs_vals(Req) -> {list({binary(), binary() | true}), Req} when Req::req().
-qs_vals(Req=#http_req{raw_qs=RawQs, qs_vals=undefined,
+qs_vals(Req=#http_req{qs=RawQs, qs_vals=undefined,
 		urldecode={URLDecFun, URLDecArg}}) ->
 	QsVals = cowboy_http:x_www_form_urlencoded(
 		RawQs, fun(Bin) -> URLDecFun(Bin, URLDecArg) end),
 	qs_vals(Req#http_req{qs_vals=QsVals});
 qs_vals(Req=#http_req{qs_vals=QsVals}) ->
 	{QsVals, Req}.
-
-%% @doc Return the raw query string directly taken from the request.
--spec raw_qs(Req) -> {binary(), Req} when Req::req().
-raw_qs(Req) ->
-	{Req#http_req.raw_qs, Req}.
 
 %% @doc Return the request URL as a binary without the path and query string.
 %%
@@ -311,7 +311,7 @@ host_url(Req=#http_req{transport=Transport, host=Host, port=Port}) ->
 %%
 %% The URL includes the scheme, host, port, path and query string.
 -spec url(Req) -> {binary(), Req} when Req::req().
-url(Req=#http_req{path=Path, raw_qs=QS}) ->
+url(Req=#http_req{path=Path, qs=QS}) ->
 	{HostURL, Req2} = host_url(Req),
 	QS2 = case QS of
 		<<>> -> <<>>;
@@ -1248,25 +1248,25 @@ header_to_binary(B) when is_binary(B) -> B.
 url_test() ->
 	{<<"http://localhost/path">>, _ } =
 		url(#http_req{transport=ranch_tcp, host= <<"localhost">>, port=80,
-			path= <<"/path">>, raw_qs= <<>>, pid=self()}),
+			path= <<"/path">>, qs= <<>>, pid=self()}),
 	{<<"http://localhost:443/path">>, _} =
 		url(#http_req{transport=ranch_tcp, host= <<"localhost">>, port=443,
-			path= <<"/path">>, raw_qs= <<>>, pid=self()}),
+			path= <<"/path">>, qs= <<>>, pid=self()}),
 	{<<"http://localhost:8080/path">>, _} =
 		url(#http_req{transport=ranch_tcp, host= <<"localhost">>, port=8080,
-			path= <<"/path">>, raw_qs= <<>>, pid=self()}),
+			path= <<"/path">>, qs= <<>>, pid=self()}),
 	{<<"http://localhost:8080/path?dummy=2785">>, _} =
 		url(#http_req{transport=ranch_tcp, host= <<"localhost">>, port=8080,
-			path= <<"/path">>, raw_qs= <<"dummy=2785">>, pid=self()}),
+			path= <<"/path">>, qs= <<"dummy=2785">>, pid=self()}),
 	{<<"https://localhost/path">>, _} =
 		url(#http_req{transport=ranch_ssl, host= <<"localhost">>, port=443,
-			path= <<"/path">>, raw_qs= <<>>, pid=self()}),
+			path= <<"/path">>, qs= <<>>, pid=self()}),
 	{<<"https://localhost:8443/path">>, _} =
 		url(#http_req{transport=ranch_ssl, host= <<"localhost">>, port=8443,
-			path= <<"/path">>, raw_qs= <<>>, pid=self()}),
+			path= <<"/path">>, qs= <<>>, pid=self()}),
 	{<<"https://localhost:8443/path?dummy=2785">>, _} =
 		url(#http_req{transport=ranch_ssl, host= <<"localhost">>, port=8443,
-			path= <<"/path">>, raw_qs= <<"dummy=2785">>, pid=self()}),
+			path= <<"/path">>, qs= <<"dummy=2785">>, pid=self()}),
 	ok.
 
 -endif.
