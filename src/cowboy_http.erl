@@ -868,8 +868,8 @@ urlencode(Bin) ->
 %% instead.
 -spec urlencode(binary(), [noplus|upper]) -> binary().
 urlencode(Bin, Opts) ->
-	Plus = not proplists:get_value(noplus, Opts, false),
-	Upper = proplists:get_value(upper, Opts, false),
+	Plus = not lists:member(noplus, Opts),
+	Upper = lists:member(upper, Opts),
 	urlencode(Bin, <<>>, Plus, Upper).
 
 -spec urlencode(binary(), binary(), boolean(), boolean()) -> binary().

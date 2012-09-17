@@ -80,18 +80,26 @@ start_link(ListenerPid, Socket, Transport, Opts) ->
 
 %% Internal.
 
+%% @doc Faster alternative to proplists:get_value/3.
+%% @private
+get_value(Key, Opts, Default) ->
+	case lists:keyfind(Key, 1, Opts) of
+		{_, Value} -> Value;
+		_ -> Default
+	end.
+
 %% @private
 -spec init(pid(), inet:socket(), module(), any()) -> ok.
 init(ListenerPid, Socket, Transport, Opts) ->
-	Dispatch = proplists:get_value(dispatch, Opts, []),
-	MaxEmptyLines = proplists:get_value(max_empty_lines, Opts, 5),
-	MaxKeepalive = proplists:get_value(max_keepalive, Opts, infinity),
-	MaxLineLength = proplists:get_value(max_line_length, Opts, 4096),
-	OnRequest = proplists:get_value(onrequest, Opts),
-	OnResponse = proplists:get_value(onresponse, Opts),
-	Timeout = proplists:get_value(timeout, Opts, 5000),
+	Dispatch = get_value(dispatch, Opts, []),
+	MaxEmptyLines = get_value(max_empty_lines, Opts, 5),
+	MaxKeepalive = get_value(max_keepalive, Opts, infinity),
+	MaxLineLength = get_value(max_line_length, Opts, 4096),
+	OnRequest = get_value(onrequest, Opts, undefined),
+	OnResponse = get_value(onresponse, Opts, undefined),
+	Timeout = get_value(timeout, Opts, 5000),
 	URLDecDefault = {fun cowboy_http:urldecode/2, crash},
-	URLDec = proplists:get_value(urldecode, Opts, URLDecDefault),
+	URLDec = get_value(urldecode, Opts, URLDecDefault),
 	ok = ranch:accept_ack(ListenerPid),
 	wait_request(#state{listener=ListenerPid, socket=Socket, transport=Transport,
 		dispatch=Dispatch, max_empty_lines=MaxEmptyLines,
