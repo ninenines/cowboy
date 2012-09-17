@@ -80,7 +80,9 @@
 -export_type([headers/0]).
 -export_type([status/0]).
 
+-ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
+-endif.
 
 %% Parsing.
 

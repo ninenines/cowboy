@@ -42,7 +42,9 @@
 -export([parse_request/1]).
 -export([handler_loop/3]).
 
+-ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
+-endif.
 
 -record(state, {
 	listener :: pid(),

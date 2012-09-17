@@ -32,7 +32,9 @@
 -export_type([tokens/0]).
 -export_type([dispatch_rules/0]).
 
+-ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
+-endif.
 
 %% API.
 

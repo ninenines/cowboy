@@ -118,7 +118,9 @@
 -export([to_list/1]).
 -export([transport/1]).
 
+-ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
+-endif.
 
 -record(http_req, {
 	%% Transport.

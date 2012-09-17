@@ -30,7 +30,9 @@
 -type end_of_part() :: {end_of_part, cont(more(part_result()))}.
 -type disposition() :: {binary(), [{binary(), binary()}]}.
 
+-ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
+-endif.
 
 %% API.
 

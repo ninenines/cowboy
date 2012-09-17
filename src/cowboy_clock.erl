@@ -44,7 +44,9 @@
 -define(SERVER, ?MODULE).
 -define(TABLE, ?MODULE).
 
+-ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
+-endif.
 
 %% API.
 
