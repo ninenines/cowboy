@@ -46,15 +46,21 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
+-type onrequest_fun() :: fun((Req) -> Req).
+-type onresponse_fun() ::
+	fun((cowboy_http:status(), cowboy_http:headers(), Req) -> Req).
+
+-export_type([onrequest_fun/0]).
+-export_type([onresponse_fun/0]).
+
 -record(state, {
 	listener :: pid(),
 	socket :: inet:socket(),
 	transport :: module(),
 	dispatch :: cowboy_dispatcher:dispatch_rules(),
 	handler :: {module(), any()},
-	onrequest :: undefined | fun((cowboy_req:req()) -> cowboy_req:req()),
-	onresponse = undefined :: undefined | fun((cowboy_http:status(),
-		cowboy_http:headers(), cowboy_req:req()) -> cowboy_req:req()),
+	onrequest :: undefined | onrequest_fun(),
+	onresponse = undefined :: undefined | onresponse_fun(),
 	urldecode :: {fun((binary(), T) -> binary()), T},
 	req_empty_lines = 0 :: integer(),
 	max_empty_lines :: integer(),
