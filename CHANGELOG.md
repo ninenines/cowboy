@@ -1,6 +1,68 @@
 CHANGELOG
 =========
 
+next
+----
+
+*   This release drops R14 compatibility
+
+*   Use Ranch for connection handling
+
+    To start listeners you can now use cowboy:start_http/4 for HTTP,
+    and cowboy:start_https/4 for HTTPS. The proper transport and
+    protocol modules will be used.
+
+*   Shorten the name of many modules
+
+    * cowboy_http_protocol becomes cowboy_protocol.
+    * cowboy_http_req becomes cowboy_req.
+    * cowboy_http_rest becomes cowboy_rest.
+    * cowboy_http_static becomes cowboy_static.
+    * cowboy_http_websocket becomes cowboy_websocket.
+
+*   Introduce the cowboy_req:req() opaque type
+
+    The include/http.hrl file was removed. Users are expected to use
+    the cowboy_req API to access or modify the Req object.
+
+    This required a lot of changes so cleanup and optimization were
+    performed where possible.
+
+*   Add many cowboy_req functions
+
+    * cowboy_req:delete_resp_header/2 deletes a previously set resp header.
+    * cowboy_req:set_meta/3 sets metadata in the Req object.
+    * cowboy_req:to_list/1 converts the Req object to a list of key/values.
+    * cowboy_req:host_url/1 returns the request URL without the path or qs.
+    * cowboy_req:url/1 returns the full request URL.
+
+*   Rename or drop many cowboy_req functions
+
+    * Replace cowboy_req:host/1 with cowboy_req:raw_host/1.
+    * Replace cowboy_req:path/1 with cowboy_req:raw_path/1.
+    * cowboy_req:raw_qs/1 becomes cowboy_req:qs/1.
+
+*   Change the signature of many cowboy_req functions
+
+    * parse_header now returns {ok, any(), Req} instead of {any(), Req}.
+    * body_qs now returns {ok, QsVals, Req} instead of {QsVals, Req}.
+    * multipart_data now returns {headers, Headers, Req} instead of
+      {{headers, Headers}, Req} and {body, Body, Req} instead of
+      {{body, Body}, Req}.
+    * set_resp_* functions now return Req instead of {ok, Req}.
+
+*   Use -callback in behaviours
+
+*   Add cowboy_protocol:onrequest_fun/0 and :onresponse_fun/0 types
+
+*   Isolate multipart from body reading to fix an issue
+
+*   Change a websocket error from {error, protocol} to {error, badframe}
+
+*   Avoid a duplicate HTTP reply in cowboy_websocket:upgrade_error/1
+
+*   Avoid using proplists:get_value/{2,3} in a few places
+
 0.6.1
 -----
 
