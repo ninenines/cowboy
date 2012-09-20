@@ -247,9 +247,9 @@ rest_init(Req, Opts) ->
 
 %% @private Only allow GET and HEAD requests on files.
 -spec allowed_methods(Req, #state{})
-	-> {[atom()], Req, #state{}} when Req::cowboy_req:req().
+	-> {[binary()], Req, #state{}} when Req::cowboy_req:req().
 allowed_methods(Req, State) ->
-	{['GET', 'HEAD'], Req, State}.
+	{[<<"GET">>, <<"HEAD">>], Req, State}.
 
 %% @private
 -spec malformed_request(Req, #state{})

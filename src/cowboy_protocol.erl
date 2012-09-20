@@ -113,19 +113,6 @@ init(ListenerPid, Socket, Transport, Opts) ->
 		timeout=Timeout, onrequest=OnRequest, onresponse=OnResponse,
 		urldecode=URLDec}).
 
-%% @private
--spec parse_request(#state{}) -> ok.
-%% We limit the length of the Request-line to MaxLength to avoid endlessly
-%% reading from the socket and eventually crashing.
-parse_request(State=#state{buffer=Buffer, max_line_length=MaxLength}) ->
-	case erlang:decode_packet(http_bin, Buffer, []) of
-		{ok, Request, Rest} -> request(Request, State#state{buffer=Rest});
-		{more, _Length} when byte_size(Buffer) > MaxLength ->
-			error_terminate(413, State);
-		{more, _Length} -> wait_request(State);
-		{error, _Reason} -> error_terminate(400, State)
-	end.
-
 -spec wait_request(#state{}) -> ok.
 wait_request(State=#state{socket=Socket, transport=Transport,
 		timeout=T, buffer=Buffer}) ->
@@ -135,48 +122,56 @@ wait_request(State=#state{socket=Socket, transport=Transport,
 		{error, _Reason} -> terminate(State)
 	end.
 
--spec request({http_request, cowboy_http:method(), cowboy_http:uri(),
-	cowboy_http:version()}, #state{}) -> ok.
-request({http_request, _Method, _URI, Version}, State)
+%% @private
+-spec parse_request(#state{}) -> ok.
+%% We limit the length of the Request-line to MaxLength to avoid endlessly
+%% reading from the socket and eventually crashing.
+parse_request(State=#state{buffer=Buffer, max_line_length=MaxLength,
+		req_empty_lines=ReqEmpty, max_empty_lines=MaxEmpty}) ->
+	case binary:split(Buffer, <<"\r\n">>) of
+		[_] when byte_size(Buffer) > MaxLength ->
+			error_terminate(413, State);
+		[<< "\n", _/binary >>] ->
+			error_terminate(400, State);
+		[_] ->
+			wait_request(State);
+		[<<>>, _] when ReqEmpty =:= MaxEmpty ->
+			error_terminate(400, State);
+		[<<>>, Rest] ->
+			parse_request(State#state{
+				buffer=Rest, req_empty_lines=ReqEmpty + 1});
+		[RequestLine, Rest] ->
+			case cowboy_http:request_line(RequestLine) of
+				{Method, AbsPath, Version} ->
+					request(State#state{buffer=Rest}, Method, AbsPath, Version);
+				{error, _} ->
+					error_terminate(400, State)
+			end
+	end.
+
+-spec request(#state{}, binary(), binary(), cowboy_http:version()) -> ok.
+request(State, _, _, Version)
 		when Version =/= {1, 0}, Version =/= {1, 1} ->
 	error_terminate(505, State);
-%% We still receive the original Host header.
-request({http_request, Method, {absoluteURI, _Scheme, _Host, _Port, Path},
-		Version}, State) ->
-	request({http_request, Method, {abs_path, Path}, Version}, State);
-request({http_request, Method, {abs_path, AbsPath}, Version},
-		State=#state{socket=Socket, transport=Transport,
-		req_keepalive=Keepalive, max_keepalive=MaxKeepalive,
-		onresponse=OnResponse, urldecode={URLDecFun, URLDecArg}=URLDec}) ->
-	URLDecode = fun(Bin) -> URLDecFun(Bin, URLDecArg) end,
-	{PathTokens, RawPath, Qs}
-		= cowboy_dispatcher:split_path(AbsPath, URLDecode),
-	ConnAtom = if Keepalive < MaxKeepalive -> version_to_connection(Version);
-		true -> close
-	end,
-	parse_header(cowboy_req:new(Socket, Transport, ConnAtom, Method, Version,
-		RawPath, Qs, OnResponse, URLDec), State#state{path_tokens=PathTokens});
-request({http_request, Method, '*', Version},
-		State=#state{socket=Socket, transport=Transport,
-		req_keepalive=Keepalive, max_keepalive=MaxKeepalive,
-		onresponse=OnResponse, urldecode=URLDec}) ->
-	ConnAtom = if Keepalive < MaxKeepalive -> version_to_connection(Version);
-		true -> close
-	end,
-	parse_header(cowboy_req:new(Socket, Transport, ConnAtom, Method, Version,
-		<<"*">>, <<>>, OnResponse, URLDec), State#state{path_tokens='*'});
-request({http_request, _Method, _URI, _Version}, State) ->
-	error_terminate(501, State);
-request({http_error, <<"\r\n">>},
-		State=#state{req_empty_lines=N, max_empty_lines=N}) ->
-	error_terminate(400, State);
-request({http_error, <<"\r\n">>}, State=#state{req_empty_lines=N}) ->
-	parse_request(State#state{req_empty_lines=N + 1});
-request(_Any, State) ->
-	error_terminate(400, State).
+request(State=#state{socket=Socket, transport=Transport,
+		onresponse=OnResponse, urldecode=URLDec},
+		Method, <<"*">>, Version) ->
+	Connection = version_to_connection(State, Version),
+	parse_header(State#state{path_tokens= '*'},
+		cowboy_req:new(Socket, Transport, Connection, Method, Version,
+			<<"*">>, <<>>, OnResponse, URLDec));
+request(State=#state{socket=Socket, transport=Transport,
+		onresponse=OnResponse, urldecode=URLDec={URLDecFun, URLDecArg}},
+		Method, AbsPath, Version) ->
+	Connection = version_to_connection(State, Version),
+	{PathTokens, Path, Qs} = cowboy_dispatcher:split_path(AbsPath,
+		fun(Bin) -> URLDecFun(Bin, URLDecArg) end),
+	parse_header(State#state{path_tokens=PathTokens},
+		cowboy_req:new(Socket, Transport, Connection, Method, Version,
+			Path, Qs, OnResponse, URLDec)).
 
--spec parse_header(cowboy_req:req(), #state{}) -> ok.
-parse_header(Req, State=#state{buffer=Buffer, max_line_length=MaxLength}) ->
+-spec parse_header(#state{}, cowboy_req:req()) -> ok.
+parse_header(State=#state{buffer=Buffer, max_line_length=MaxLength}, Req) ->
 	case erlang:decode_packet(httph_bin, Buffer, []) of
 		{ok, Header, Rest} -> header(Header, Req, State#state{buffer=Rest});
 		{more, _Length} when byte_size(Buffer) > MaxLength ->
@@ -189,8 +184,8 @@ parse_header(Req, State=#state{buffer=Buffer, max_line_length=MaxLength}) ->
 wait_header(Req, State=#state{socket=Socket,
 		transport=Transport, timeout=T, buffer=Buffer}) ->
 	case Transport:recv(Socket, 0, T) of
-		{ok, Data} -> parse_header(Req, State#state{
-			buffer= << Buffer/binary, Data/binary >>});
+		{ok, Data} -> parse_header(State#state{
+			buffer= << Buffer/binary, Data/binary >>}, Req);
 		{error, timeout} -> error_terminate(408, State);
 		{error, closed} -> terminate(State)
 	end.
@@ -203,24 +198,24 @@ header({http_header, _I, 'Host', _R, RawHost}, Req,
 	case catch cowboy_dispatcher:split_host(RawHost2) of
 		{HostTokens, Host, undefined} ->
 			Port = default_port(Transport:name()),
-			parse_header(cowboy_req:set_host(Host, Port, RawHost, Req),
-				State#state{host_tokens=HostTokens});
+			parse_header(State#state{host_tokens=HostTokens},
+				cowboy_req:set_host(Host, Port, RawHost, Req));
 		{HostTokens, Host, Port} ->
-			parse_header(cowboy_req:set_host(Host, Port, RawHost, Req),
-				State#state{host_tokens=HostTokens});
+			parse_header(State#state{host_tokens=HostTokens},
+				cowboy_req:set_host(Host, Port, RawHost, Req));
 		{'EXIT', _Reason} ->
 			error_terminate(400, State)
 	end;
 %% Ignore Host headers if we already have it.
 header({http_header, _I, 'Host', _R, _V}, Req, State) ->
-	parse_header(Req, State);
+	parse_header(State, Req);
 header({http_header, _I, 'Connection', _R, Connection}, Req,
 		State=#state{req_keepalive=Keepalive, max_keepalive=MaxKeepalive})
 		when Keepalive < MaxKeepalive ->
-	parse_header(cowboy_req:set_connection(Connection, Req), State);
+	parse_header(State, cowboy_req:set_connection(Connection, Req));
 header({http_header, _I, Field, _R, Value}, Req, State) ->
 	Field2 = format_header(Field),
-	parse_header(cowboy_req:add_header(Field2, Value, Req), State);
+	parse_header(State, cowboy_req:add_header(Field2, Value, Req));
 %% The Host header is required in HTTP/1.1 and optional in HTTP/1.0.
 header(http_eoh, Req, State=#state{host_tokens=undefined,
 		buffer=Buffer, transport=Transport}) ->
@@ -431,7 +426,7 @@ error_terminate(Code, State=#state{socket=Socket, transport=Transport,
 		{cowboy_req, resp_sent} -> ok
 	after 0 ->
 		_ = cowboy_req:reply(Code, cowboy_req:new(Socket, Transport,
-			close, 'GET', {1, 1}, <<>>, <<>>, OnResponse, undefined)),
+			close, <<"GET">>, {1, 1}, <<>>, <<>>, OnResponse, undefined)),
 		ok
 	end,
 	terminate(State).
@@ -443,9 +438,15 @@ terminate(#state{socket=Socket, transport=Transport}) ->
 
 %% Internal.
 
--spec version_to_connection(cowboy_http:version()) -> keepalive | close.
-version_to_connection({1, 1}) -> keepalive;
-version_to_connection(_Any) -> close.
+-spec version_to_connection(#state{}, cowboy_http:version())
+	-> keepalive | close.
+version_to_connection(#state{req_keepalive=Keepalive,
+		max_keepalive=MaxKeepalive}, _) when Keepalive >= MaxKeepalive ->
+	close;
+version_to_connection(_, {1, 1}) ->
+	keepalive;
+version_to_connection(_, _) ->
+	close.
 
 -spec default_port(atom()) -> 80 | 443.
 default_port(ssl) -> 443;

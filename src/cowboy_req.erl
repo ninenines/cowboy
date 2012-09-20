@@ -130,7 +130,7 @@
 
 	%% Request.
 	pid = undefined :: pid(),
-	method = 'GET' :: cowboy_http:method(),
+	method = <<"GET">> :: binary(),
 	version = {1, 1} :: cowboy_http:version(),
 	peer = undefined :: undefined | {inet:ip_address(), inet:port_number()},
 	host = undefined :: undefined | binary(),
@@ -172,7 +172,7 @@
 %% This function takes care of setting the owner's pid to self().
 %% @private
 -spec new(inet:socket(), module(), keepalive | close,
-	cowboy_http:method(), cowboy_http:version(), binary(), binary(),
+	binary(), cowboy_http:version(), binary(), binary(),
 	undefined | fun(), undefined | {fun(), atom()})
 	-> req().
 new(Socket, Transport, Connection, Method, Version, Path, Qs,
@@ -182,7 +182,7 @@ new(Socket, Transport, Connection, Method, Version, Path, Qs,
 		onresponse=OnResponse, urldecode=URLDecode}.
 
 %% @doc Return the HTTP method of the request.
--spec method(Req) -> {cowboy_http:method(), Req} when Req::req().
+-spec method(Req) -> {binary(), Req} when Req::req().
 method(Req) ->
 	{Req#http_req.method, Req}.
 
@@ -878,7 +878,7 @@ reply(Status, Headers, Body, Req=#http_req{socket=Socket, transport=Transport,
 		{<<"Date">>, cowboy_clock:rfc1123()},
 		{<<"Server">>, <<"Cowboy">>}
 	|HTTP11Headers], Req),
-	if	Method =:= 'HEAD' -> ok;
+	if	Method =:= <<"HEAD">> -> ok;
 		ReplyType =:= hook -> ok; %% Hook replied for us, stop there.
 		true ->
 			case Body of
@@ -919,7 +919,7 @@ chunked_reply(Status, Headers, Req=#http_req{
 %%
 %% A chunked reply must have been initiated before calling this function.
 -spec chunk(iodata(), req()) -> ok | {error, atom()}.
-chunk(_Data, #http_req{socket=_Socket, transport=_Transport, method='HEAD'}) ->
+chunk(_Data, #http_req{method= <<"HEAD">>}) ->
 	ok;
 chunk(Data, #http_req{socket=Socket, transport=Transport, version={1, 0}}) ->
 	Transport:send(Socket, Data);
@@ -950,7 +950,7 @@ ensure_response(Req=#http_req{resp_state=waiting}, Status) ->
 	_ = reply(Status, [], [], Req),
 	ok;
 %% Terminate the chunked body for HTTP/1.1 only.
-ensure_response(#http_req{method='HEAD', resp_state=chunks}, _) ->
+ensure_response(#http_req{method= <<"HEAD">>, resp_state=chunks}, _) ->
 	ok;
 ensure_response(#http_req{version={1, 0}, resp_state=chunks}, _) ->
 	ok;

@@ -10,7 +10,7 @@ rest_init(Req, [Forbidden]) ->
 	{ok, Req, Forbidden}.
 
 allowed_methods(Req, State) ->
-	{['GET', 'HEAD', 'POST'], Req, State}.
+	{[<<"GET">>, <<"HEAD">>, <<"POST">>], Req, State}.
 
 forbidden(Req, State=true) ->
 	{true, Req, State};

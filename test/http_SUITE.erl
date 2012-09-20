@@ -327,17 +327,17 @@ check_raw_status(Config) ->
 	HugeCookie = lists:flatten(["whatever_man_biiiiiiiiiiiig_cookie_me_want_77="
 		"Wed Apr 06 2011 10:38:52 GMT-0500 (CDT)" || _ <- lists:seq(1, 40)]),
 	ResponsePacket =
-"HTTP/1.0 302 Found
-Location: http://www.google.co.il/
-Cache-Control: private
-Content-Type: text/html; charset=UTF-8
-Set-Cookie: PREF=ID=568f67013d4a7afa:FF=0:TM=1323014101:LM=1323014101:S=XqctDWC65MzKT0zC; expires=Tue, 03-Dec-2013 15:55:01 GMT; path=/; domain=.google.com
-Date: Sun, 04 Dec 2011 15:55:01 GMT
-Server: gws
-Content-Length: 221
-X-XSS-Protection: 1; mode=block
-X-Frame-Options: SAMEORIGIN
-
+"HTTP/1.0 302 Found\r
+Location: http://www.google.co.il/\r
+Cache-Control: private\r
+Content-Type: text/html; charset=UTF-8\r
+Set-Cookie: PREF=ID=568f67013d4a7afa:FF=0:TM=1323014101:LM=1323014101:S=XqctDWC65MzKT0zC; expires=Tue, 03-Dec-2013 15:55:01 GMT; path=/; domain=.google.com\r
+Date: Sun, 04 Dec 2011 15:55:01 GMT\r
+Server: gws\r
+Content-Length: 221\r
+X-XSS-Protection: 1; mode=block\r
+X-Frame-Options: SAMEORIGIN\r
+\r
 <HTML><HEAD><meta http-equiv=\"content-type\" content=\"text/html;charset=utf-8\">
 <TITLE>302 Moved</TITLE></HEAD><BODY>
 <H1>302 Moved</H1>

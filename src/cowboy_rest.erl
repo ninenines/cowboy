@@ -23,7 +23,7 @@
 -export([upgrade/4]).
 
 -record(state, {
-	method = undefined :: cowboy_http:method(),
+	method = undefined :: binary(),
 
 	%% Handler.
 	handler :: atom(),
@@ -87,9 +87,10 @@ service_available(Req, State) ->
 %% known_methods/2 should return a list of atoms or binary methods.
 known_methods(Req, State=#state{method=Method}) ->
 	case call(Req, State, known_methods) of
-		no_call when Method =:= 'HEAD'; Method =:= 'GET'; Method =:= 'POST';
-					Method =:= 'PUT'; Method =:= 'DELETE'; Method =:= 'TRACE';
-					Method =:= 'CONNECT'; Method =:= 'OPTIONS' ->
+		no_call when Method =:= <<"HEAD">>; Method =:= <<"GET">>;
+				Method =:= <<"POST">>; Method =:= <<"PUT">>;
+				Method =:= <<"DELETE">>; Method =:= <<"TRACE">>;
+				Method =:= <<"CONNECT">>; Method =:= <<"OPTIONS">> ->
 			next(Req, State, fun uri_too_long/2);
 		no_call ->
 			next(Req, State, 501);
@@ -109,10 +110,10 @@ uri_too_long(Req, State) ->
 %% allowed_methods/2 should return a list of atoms or binary methods.
 allowed_methods(Req, State=#state{method=Method}) ->
 	case call(Req, State, allowed_methods) of
-		no_call when Method =:= 'HEAD'; Method =:= 'GET' ->
+		no_call when Method =:= <<"HEAD">>; Method =:= <<"GET">> ->
 			next(Req, State, fun malformed_request/2);
 		no_call ->
-			method_not_allowed(Req, State, ['GET', 'HEAD']);
+			method_not_allowed(Req, State, [<<"GET">>, <<"HEAD">>]);
 		{halt, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
 		{List, Req2, HandlerState} ->
@@ -172,7 +173,7 @@ valid_entity_length(Req, State) ->
 
 %% If you need to add additional headers to the response at this point,
 %% you should do it directly in the options/2 call using set_resp_headers.
-options(Req, State=#state{method='OPTIONS'}) ->
+options(Req, State=#state{method= <<"OPTIONS">>}) ->
 	case call(Req, State, options) of
 		{halt, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
@@ -542,7 +543,7 @@ if_none_match(Req, State, EtagsList) ->
 	end.
 
 precondition_is_head_get(Req, State=#state{method=Method})
-		when Method =:= 'HEAD'; Method =:= 'GET' ->
+		when Method =:= <<"HEAD">>; Method =:= <<"GET">> ->
 	not_modified(Req, State);
 precondition_is_head_get(Req, State) ->
 	precondition_failed(Req, State).
@@ -584,7 +585,7 @@ not_modified(Req, State) ->
 precondition_failed(Req, State) ->
 	respond(Req, State, 412).
 
-is_put_to_missing_resource(Req, State=#state{method='PUT'}) ->
+is_put_to_missing_resource(Req, State=#state{method= <<"PUT">>}) ->
 	moved_permanently(Req, State, fun is_conflict/2);
 is_put_to_missing_resource(Req, State) ->
 	previously_existed(Req, State).
@@ -626,7 +627,7 @@ moved_temporarily(Req, State) ->
 			is_post_to_missing_resource(Req, State, 410)
 	end.
 
-is_post_to_missing_resource(Req, State=#state{method='POST'}, OnFalse) ->
+is_post_to_missing_resource(Req, State=#state{method= <<"POST">>}, OnFalse) ->
 	allow_missing_post(Req, State, OnFalse);
 is_post_to_missing_resource(Req, State, OnFalse) ->
 	respond(Req, State, OnFalse).
@@ -634,14 +635,14 @@ is_post_to_missing_resource(Req, State, OnFalse) ->
 allow_missing_post(Req, State, OnFalse) ->
 	expect(Req, State, allow_missing_post, true, fun post_is_create/2, OnFalse).
 
-method(Req, State=#state{method='DELETE'}) ->
+method(Req, State=#state{method= <<"DELETE">>}) ->
 	delete_resource(Req, State);
-method(Req, State=#state{method='POST'}) ->
+method(Req, State=#state{method= <<"POST">>}) ->
 	post_is_create(Req, State);
-method(Req, State=#state{method='PUT'}) ->
+method(Req, State=#state{method= <<"PUT">>}) ->
 	is_conflict(Req, State);
 method(Req, State=#state{method=Method})
-		when Method =:= 'GET'; Method =:= 'HEAD' ->
+		when Method =:= <<"GET">>; Method =:= <<"HEAD">> ->
 	set_resp_body(Req, State);
 method(Req, State) ->
 	multiple_choices(Req, State).

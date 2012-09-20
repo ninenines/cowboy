@@ -16,9 +16,9 @@ handle(Req, State) ->
 	{ok, Req4} = echo(Method, Echo, Req3),
 	{ok, Req4, State}.
 
-echo('GET', undefined, Req) ->
+echo(<<"GET">>, undefined, Req) ->
 	cowboy_req:reply(400, [], <<"Missing echo parameter.">>, Req);
-echo('GET', Echo, Req) ->
+echo(<<"GET">>, Echo, Req) ->
 	cowboy_req:reply(200,
 		[{<<"Content-Encoding">>, <<"utf-8">>}], Echo, Req);
 echo(_, _, Req) ->

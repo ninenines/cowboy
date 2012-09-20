@@ -16,11 +16,11 @@ handle(Req, State) ->
 	{ok, Req4} = maybe_echo(Method, HasBody, Req3),
 	{ok, Req4, State}.
 
-maybe_echo('POST', true, Req) ->
+maybe_echo(<<"POST">>, true, Req) ->
 	{ok, PostVals, Req2} = cowboy_req:body_qs(Req),
 	Echo = proplists:get_value(<<"echo">>, PostVals),
 	echo(Echo, Req2);
-maybe_echo('POST', false, Req) ->
+maybe_echo(<<"POST">>, false, Req) ->
 	cowboy_req:reply(400, [], <<"Missing body.">>, Req);
 maybe_echo(_, _, Req) ->
 	%% Method not allowed.

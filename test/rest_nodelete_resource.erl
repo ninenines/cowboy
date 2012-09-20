@@ -6,7 +6,7 @@ init(_Transport, _Req, _Opts) ->
 	{upgrade, protocol, cowboy_rest}.
 
 allowed_methods(Req, State) ->
-	{['GET', 'HEAD', 'DELETE'], Req, State}.
+	{[<<"GET">>, <<"HEAD">>, <<"DELETE">>], Req, State}.
 
 
 content_types_provided(Req, State) ->
