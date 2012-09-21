@@ -72,11 +72,12 @@ upgrade(ListenerPid, Handler, Opts, Req) ->
 	-> {ok, #state{}, Req} when Req::cowboy_req:req().
 websocket_upgrade(State, Req) ->
 	{ok, ConnTokens, Req2}
-		= cowboy_req:parse_header('Connection', Req),
+		= cowboy_req:parse_header(<<"connection">>, Req),
 	true = lists:member(<<"upgrade">>, ConnTokens),
 	%% @todo Should probably send a 426 if the Upgrade header is missing.
-	{ok, [<<"websocket">>], Req3} = cowboy_req:parse_header('Upgrade', Req2),
-	{Version, Req4} = cowboy_req:header(<<"Sec-Websocket-Version">>, Req3),
+	{ok, [<<"websocket">>], Req3}
+		= cowboy_req:parse_header(<<"upgrade">>, Req2),
+	{Version, Req4} = cowboy_req:header(<<"sec-websocket-version">>, Req3),
 	websocket_upgrade(Version, State, Req4).
 
 %% @todo Handle the Sec-Websocket-Protocol header.
@@ -90,9 +91,9 @@ websocket_upgrade(State, Req) ->
 %% a reply before sending it. Therefore we calculate the challenge
 %% key only in websocket_handshake/3.
 websocket_upgrade(undefined, State, Req) ->
-	{Origin, Req2} = cowboy_req:header(<<"Origin">>, Req),
-	{Key1, Req3} = cowboy_req:header(<<"Sec-Websocket-Key1">>, Req2),
-	{Key2, Req4} = cowboy_req:header(<<"Sec-Websocket-Key2">>, Req3),
+	{Origin, Req2} = cowboy_req:header(<<"origin">>, Req),
+	{Key1, Req3} = cowboy_req:header(<<"sec-websocket-key1">>, Req2),
+	{Key2, Req4} = cowboy_req:header(<<"sec-websocket-key2">>, Req3),
 	false = lists:member(undefined, [Origin, Key1, Key2]),
 	EOP = binary:compile_pattern(<< 255 >>),
 	{ok, State#state{version=0, origin=Origin, challenge={Key1, Key2},
@@ -101,7 +102,7 @@ websocket_upgrade(undefined, State, Req) ->
 websocket_upgrade(Version, State, Req)
 		when Version =:= <<"7">>; Version =:= <<"8">>;
 			Version =:= <<"13">> ->
-	{Key, Req2} = cowboy_req:header(<<"Sec-Websocket-Key">>, Req),
+	{Key, Req2} = cowboy_req:header(<<"sec-websocket-key">>, Req),
 	false = Key =:= undefined,
 	Challenge = hybi_challenge(Key),
 	IntVersion = list_to_integer(binary_to_list(Version)),

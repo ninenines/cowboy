@@ -62,14 +62,14 @@ stop() ->
 
 %% @doc Return the current date and time formatted according to RFC-1123.
 %%
-%% This format is used in the <em>'Date'</em> header sent with HTTP responses.
+%% This format is used in the <em>date</em> header sent with HTTP responses.
 -spec rfc1123() -> binary().
 rfc1123() ->
 	ets:lookup_element(?TABLE, rfc1123, 2).
 
 %% @doc Return the current date and time formatted according to RFC-2109.
 %%
-%% This format is used in the <em>'Set-Cookie'</em> header sent with
+%% This format is used in the <em>set-cookie</em> header sent with
 %% HTTP responses.
 -spec rfc2109(calendar:datetime()) -> binary().
 rfc2109(LocalTime) ->

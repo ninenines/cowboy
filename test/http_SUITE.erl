@@ -218,11 +218,11 @@ init_dispatch(Config) ->
 			{[<<"init_shutdown">>], http_handler_init_shutdown, []},
 			{[<<"long_polling">>], http_handler_long_polling, []},
 			{[<<"headers">>, <<"dupe">>], http_handler,
-				[{headers, [{<<"Connection">>, <<"close">>}]}]},
+				[{headers, [{<<"connection">>, <<"close">>}]}]},
 			{[<<"set_resp">>, <<"header">>], http_handler_set_resp,
-				[{headers, [{<<"Vary">>, <<"Accept">>}]}]},
+				[{headers, [{<<"vary">>, <<"Accept">>}]}]},
 			{[<<"set_resp">>, <<"overwrite">>], http_handler_set_resp,
-				[{headers, [{<<"Server">>, <<"DesireDrive/1.0">>}]}]},
+				[{headers, [{<<"server">>, <<"DesireDrive/1.0">>}]}]},
 			{[<<"set_resp">>, <<"body">>], http_handler_set_resp,
 				[{body, <<"A flameless dance does not equal a cycle">>}]},
 			{[<<"stream_body">>, <<"set_resp">>], http_handler_stream_body,
@@ -599,7 +599,7 @@ onrequest_reply(Config) ->
 onrequest_hook(Req) ->
 	case cowboy_req:qs_val(<<"reply">>, Req) of
 		{undefined, Req2} ->
-			cowboy_req:set_resp_header('Server', <<"Serenity">>, Req2);
+			cowboy_req:set_resp_header(<<"server">>, <<"Serenity">>, Req2);
 		{_, Req2} ->
 			{ok, Req3} = cowboy_req:reply(
 				200, [], <<"replied!">>, Req2),

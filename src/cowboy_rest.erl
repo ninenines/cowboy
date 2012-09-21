@@ -210,7 +210,7 @@ content_types_provided(Req, State) ->
 		    CTP2 = [normalize_content_types(P) || P <- CTP],
 			State2 = State#state{
 				handler_state=HandlerState, content_types_p=CTP2},
-			{ok, Accept, Req3} = cowboy_req:parse_header('Accept', Req2),
+			{ok, Accept, Req3} = cowboy_req:parse_header(<<"accept">>, Req2),
 			case Accept of
 				undefined ->
 					{PMT, _Fun} = HeadCTP = hd(CTP2),
@@ -305,7 +305,7 @@ languages_provided(Req, State) ->
 		{LP, Req2, HandlerState} ->
 			State2 = State#state{handler_state=HandlerState, languages_p=LP},
 			{ok, AcceptLanguage, Req3} =
-				cowboy_req:parse_header('Accept-Language', Req2),
+				cowboy_req:parse_header(<<"accept-language">>, Req2),
 			case AcceptLanguage of
 				undefined ->
 					set_language(Req3, State2#state{language_a=hd(LP)});
@@ -367,7 +367,7 @@ charsets_provided(Req, State) ->
 		{CP, Req2, HandlerState} ->
 			State2 = State#state{handler_state=HandlerState, charsets_p=CP},
 			{ok, AcceptCharset, Req3} =
-				cowboy_req:parse_header('Accept-Charset', Req2),
+				cowboy_req:parse_header(<<"accept-charset">>, Req2),
 			case AcceptCharset of
 				undefined ->
 					set_content_type(Req3, State2#state{
@@ -479,7 +479,7 @@ resource_exists(Req, State) ->
 		fun if_match_exists/2, fun if_match_musnt_exist/2).
 
 if_match_exists(Req, State) ->
-	case cowboy_req:parse_header('If-Match', Req) of
+	case cowboy_req:parse_header(<<"if-match">>, Req) of
 		{ok, undefined, Req2} ->
 			if_unmodified_since_exists(Req2, State);
 		{ok, '*', Req2} ->
@@ -497,13 +497,13 @@ if_match(Req, State, EtagsList) ->
 	end.
 
 if_match_musnt_exist(Req, State) ->
-	case cowboy_req:header('If-Match', Req) of
+	case cowboy_req:header(<<"if-match">>, Req) of
 		{undefined, Req2} -> is_put_to_missing_resource(Req2, State);
 		{_Any, Req2} -> precondition_failed(Req2, State)
 	end.
 
 if_unmodified_since_exists(Req, State) ->
-	case cowboy_req:parse_header('If-Unmodified-Since', Req) of
+	case cowboy_req:parse_header(<<"if-unmodified-since">>, Req) of
 		{ok, undefined, Req2} ->
 			if_none_match_exists(Req2, State);
 		{ok, IfUnmodifiedSince, Req2} ->
@@ -521,7 +521,7 @@ if_unmodified_since(Req, State, IfUnmodifiedSince) ->
 	end.
 
 if_none_match_exists(Req, State) ->
-	case cowboy_req:parse_header('If-None-Match', Req) of
+	case cowboy_req:parse_header(<<"if-none-match">>, Req) of
 		{ok, undefined, Req2} ->
 			if_modified_since_exists(Req2, State);
 		{ok, '*', Req2} ->
@@ -549,7 +549,7 @@ precondition_is_head_get(Req, State) ->
 	precondition_failed(Req, State).
 
 if_modified_since_exists(Req, State) ->
-	case cowboy_req:parse_header('If-Modified-Since', Req) of
+	case cowboy_req:parse_header(<<"if-modified-since">>, Req) of
 		{ok, undefined, Req2} ->
 			method(Req2, State);
 		{ok, IfModifiedSince, Req2} ->
@@ -715,7 +715,7 @@ put_resource(Req, State, OnTrue) ->
 		    CTA2 = [normalize_content_types(P) || P <- CTA],
 			State2 = State#state{handler_state=HandlerState},
 			{ok, ContentType, Req3}
-				= cowboy_req:parse_header('Content-Type', Req2),
+				= cowboy_req:parse_header(<<"content-type">>, Req2),
 			choose_content_type(Req3, State2, OnTrue, ContentType, CTA2)
 	end.
 

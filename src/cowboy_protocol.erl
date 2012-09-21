@@ -42,10 +42,6 @@
 -export([parse_request/1]).
 -export([handler_loop/3]).
 
--ifdef(TEST).
--include_lib("eunit/include/eunit.hrl").
--endif.
-
 -type onrequest_fun() :: fun((Req) -> Req).
 -type onresponse_fun() ::
 	fun((cowboy_http:status(), cowboy_http:headers(), Req) -> Req).
@@ -66,7 +62,9 @@
 	max_empty_lines :: integer(),
 	req_keepalive = 1 :: integer(),
 	max_keepalive :: integer(),
-	max_line_length :: integer(),
+	max_request_line_length :: integer(),
+	max_header_name_length :: integer(),
+	max_header_value_length :: integer(),
 	timeout :: timeout(),
 	buffer = <<>> :: binary(),
 	host_tokens = undefined :: undefined | cowboy_dispatcher:tokens(),
@@ -100,16 +98,21 @@ init(ListenerPid, Socket, Transport, Opts) ->
 	Dispatch = get_value(dispatch, Opts, []),
 	MaxEmptyLines = get_value(max_empty_lines, Opts, 5),
 	MaxKeepalive = get_value(max_keepalive, Opts, infinity),
-	MaxLineLength = get_value(max_line_length, Opts, 4096),
+	MaxRequestLineLength = get_value(max_request_line_length, Opts, 4096),
+	MaxHeaderNameLength = get_value(max_header_name_length, Opts, 64),
+	MaxHeaderValueLength = get_value(max_header_value_length, Opts, 4096),
 	OnRequest = get_value(onrequest, Opts, undefined),
 	OnResponse = get_value(onresponse, Opts, undefined),
 	Timeout = get_value(timeout, Opts, 5000),
 	URLDecDefault = {fun cowboy_http:urldecode/2, crash},
 	URLDec = get_value(urldecode, Opts, URLDecDefault),
 	ok = ranch:accept_ack(ListenerPid),
-	wait_request(#state{listener=ListenerPid, socket=Socket, transport=Transport,
-		dispatch=Dispatch, max_empty_lines=MaxEmptyLines,
-		max_keepalive=MaxKeepalive, max_line_length=MaxLineLength,
+	wait_request(#state{listener=ListenerPid, socket=Socket,
+		transport=Transport, dispatch=Dispatch,
+		max_empty_lines=MaxEmptyLines, max_keepalive=MaxKeepalive,
+		max_request_line_length=MaxRequestLineLength,
+		max_header_name_length=MaxHeaderNameLength,
+		max_header_value_length=MaxHeaderValueLength,
 		timeout=Timeout, onrequest=OnRequest, onresponse=OnResponse,
 		urldecode=URLDec}).
 
@@ -126,7 +129,7 @@ wait_request(State=#state{socket=Socket, transport=Transport,
 -spec parse_request(#state{}) -> ok.
 %% We limit the length of the Request-line to MaxLength to avoid endlessly
 %% reading from the socket and eventually crashing.
-parse_request(State=#state{buffer=Buffer, max_line_length=MaxLength,
+parse_request(State=#state{buffer=Buffer, max_request_line_length=MaxLength,
 		req_empty_lines=ReqEmpty, max_empty_lines=MaxEmpty}) ->
 	case binary:split(Buffer, <<"\r\n">>) of
 		[_] when byte_size(Buffer) > MaxLength ->
@@ -171,29 +174,50 @@ request(State=#state{socket=Socket, transport=Transport,
 			Path, Qs, OnResponse, URLDec)).
 
 -spec parse_header(#state{}, cowboy_req:req()) -> ok.
-parse_header(State=#state{buffer=Buffer, max_line_length=MaxLength}, Req) ->
-	case erlang:decode_packet(httph_bin, Buffer, []) of
-		{ok, Header, Rest} -> header(Header, Req, State#state{buffer=Rest});
-		{more, _Length} when byte_size(Buffer) > MaxLength ->
+parse_header(State=#state{buffer= << "\r\n", Rest/binary >>}, Req) ->
+	header_end(State#state{buffer=Rest}, Req);
+parse_header(State=#state{buffer=Buffer,
+		max_header_name_length=MaxLength}, Req) ->
+	case binary:split(Buffer, <<":">>) of
+		[_] when byte_size(Buffer) > MaxLength ->
 			error_terminate(413, State);
-		{more, _Length} -> wait_header(Req, State);
-		{error, _Reason} -> error_terminate(400, State)
+		[_] ->
+			wait_header(State, Req, fun parse_header/2);
+		[Name, Rest] ->
+			Name2 = cowboy_bstr:to_lower(Name),
+			Rest2 = cowboy_http:whitespace(Rest, fun(D) -> D end),
+			parse_header_value(State#state{buffer=Rest2}, Req, Name2, <<>>)
 	end.
 
--spec wait_header(cowboy_req:req(), #state{}) -> ok.
-wait_header(Req, State=#state{socket=Socket,
-		transport=Transport, timeout=T, buffer=Buffer}) ->
+parse_header_value(State=#state{buffer=Buffer,
+		max_header_value_length=MaxLength}, Req, Name, SoFar) ->
+	case binary:split(Buffer, <<"\r\n">>) of
+		[_] when byte_size(Buffer) + byte_size(SoFar) > MaxLength ->
+			error_terminate(413, State);
+		[_] ->
+			wait_header(State, Req,
+				fun(S, R) -> parse_header_value(S, R, Name, SoFar) end);
+		[Value, << C, Rest/binary >>] when C =:= $\s; C =:= $\t ->
+			parse_header_value(State#state{buffer=Rest}, Req, Name,
+				<< SoFar/binary, Value/binary >>);
+		[Value, Rest] ->
+			header(State#state{buffer=Rest}, Req, Name,
+				<< SoFar/binary, Value/binary >>)
+	end.
+
+-spec wait_header(#state{}, cowboy_req:req(), fun()) -> ok.
+wait_header(State=#state{socket=Socket, transport=Transport,
+		timeout=T, buffer=Buffer}, Req, Fun) ->
 	case Transport:recv(Socket, 0, T) of
-		{ok, Data} -> parse_header(State#state{
+		{ok, Data} -> Fun(State#state{
 			buffer= << Buffer/binary, Data/binary >>}, Req);
 		{error, timeout} -> error_terminate(408, State);
 		{error, closed} -> terminate(State)
 	end.
 
--spec header({http_header, integer(), cowboy_http:header(), any(), binary()}
-	| http_eoh, cowboy_req:req(), #state{}) -> ok.
-header({http_header, _I, 'Host', _R, RawHost}, Req,
-		State=#state{host_tokens=undefined, transport=Transport}) ->
+-spec header(#state{}, cowboy_req:req(), binary(), binary()) -> ok.
+header(State=#state{host_tokens=undefined, transport=Transport},
+		Req, <<"host">>, RawHost) ->
 	RawHost2 = cowboy_bstr:to_lower(RawHost),
 	case catch cowboy_dispatcher:split_host(RawHost2) of
 		{HostTokens, Host, undefined} ->
@@ -207,18 +231,18 @@ header({http_header, _I, 'Host', _R, RawHost}, Req,
 			error_terminate(400, State)
 	end;
 %% Ignore Host headers if we already have it.
-header({http_header, _I, 'Host', _R, _V}, Req, State) ->
+header(State, Req, <<"host">>, _) ->
 	parse_header(State, Req);
-header({http_header, _I, 'Connection', _R, Connection}, Req,
-		State=#state{req_keepalive=Keepalive, max_keepalive=MaxKeepalive})
+header(State=#state{req_keepalive=Keepalive, max_keepalive=MaxKeepalive},
+		Req, <<"connection">>, Connection)
 		when Keepalive < MaxKeepalive ->
 	parse_header(State, cowboy_req:set_connection(Connection, Req));
-header({http_header, _I, Field, _R, Value}, Req, State) ->
-	Field2 = format_header(Field),
-	parse_header(State, cowboy_req:add_header(Field2, Value, Req));
+header(State, Req, Name, Value) ->
+	parse_header(State, cowboy_req:add_header(Name, Value, Req)).
+
 %% The Host header is required in HTTP/1.1 and optional in HTTP/1.0.
-header(http_eoh, Req, State=#state{host_tokens=undefined,
-		buffer=Buffer, transport=Transport}) ->
+header_end(State=#state{host_tokens=undefined,
+		buffer=Buffer, transport=Transport}, Req) ->
 	case cowboy_req:version(Req) of
 		{{1, 1}, _} ->
 			error_terminate(400, State);
@@ -229,10 +253,8 @@ header(http_eoh, Req, State=#state{host_tokens=undefined,
 					cowboy_req:set_host(<<>>, Port, <<>>, Req2)),
 				State#state{buffer= <<>>, host_tokens=[]})
 	end;
-header(http_eoh, Req, State=#state{buffer=Buffer}) ->
-	onrequest(cowboy_req:set_buffer(Buffer, Req), State#state{buffer= <<>>});
-header(_Any, _Req, State) ->
-	error_terminate(400, State).
+header_end(State=#state{buffer=Buffer}, Req) ->
+	onrequest(cowboy_req:set_buffer(Buffer, Req), State#state{buffer= <<>>}).
 
 %% Call the global onrequest callback. The callback can send a reply,
 %% in which case we consider the request handled and move on to the next
@@ -451,45 +473,3 @@ version_to_connection(_, _) ->
 -spec default_port(atom()) -> 80 | 443.
 default_port(ssl) -> 443;
 default_port(_) -> 80.
-
-%% @todo While 32 should be enough for everybody, we should probably make
-%%       this configurable or something.
--spec format_header(atom()) -> atom(); (binary()) -> binary().
-format_header(Field) when is_atom(Field) ->
-	Field;
-format_header(Field) when byte_size(Field) =< 20; byte_size(Field) > 32 ->
-	Field;
-format_header(Field) ->
-	format_header(Field, true, <<>>).
-
--spec format_header(binary(), boolean(), binary()) -> binary().
-format_header(<<>>, _Any, Acc) ->
-	Acc;
-%% Replicate a bug in OTP for compatibility reasons when there's a - right
-%% after another. Proper use should always be 'true' instead of 'not Bool'.
-format_header(<< $-, Rest/bits >>, Bool, Acc) ->
-	format_header(Rest, not Bool, << Acc/binary, $- >>);
-format_header(<< C, Rest/bits >>, true, Acc) ->
-	format_header(Rest, false, << Acc/binary, (cowboy_bstr:char_to_upper(C)) >>);
-format_header(<< C, Rest/bits >>, false, Acc) ->
-	format_header(Rest, false, << Acc/binary, (cowboy_bstr:char_to_lower(C)) >>).
-
-%% Tests.
-
--ifdef(TEST).
-
-format_header_test_() ->
-	%% {Header, Result}
-	Tests = [
-		{<<"Sec-Websocket-Version">>, <<"Sec-Websocket-Version">>},
-		{<<"Sec-WebSocket-Version">>, <<"Sec-Websocket-Version">>},
-		{<<"sec-websocket-version">>, <<"Sec-Websocket-Version">>},
-		{<<"SEC-WEBSOCKET-VERSION">>, <<"Sec-Websocket-Version">>},
-		%% These last tests ensures we're formatting headers exactly like OTP.
-		%% Even though it's dumb, it's better for compatibility reasons.
-		{<<"Sec-WebSocket--Version">>, <<"Sec-Websocket--version">>},
-		{<<"Sec-WebSocket---Version">>, <<"Sec-Websocket---Version">>}
-	],
-	[{H, fun() -> R = format_header(H) end} || {H, R} <- Tests].
-
--endif.
