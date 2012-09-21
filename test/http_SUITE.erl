@@ -552,8 +552,8 @@ multipart(Config) ->
 	{ok, RespBody, _} = cowboy_client:response_body(Client3),
 	Parts = binary_to_term(RespBody),
 	Parts = [
-		{[{<<"X-Name">>, <<"answer">>}], <<"42">>},
-		{[{'Server', <<"Cowboy">>}], <<"It rocks!\r\n">>}
+		{[{<<"x-name">>, <<"answer">>}], <<"42">>},
+		{[{<<"server">>, <<"Cowboy">>}], <<"It rocks!\r\n">>}
 	].
 
 nc_reqs(Config, Input) ->

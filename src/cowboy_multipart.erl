@@ -23,7 +23,7 @@
 -type more(T) :: T | {more, parser(T)}.
 -type part_result() :: headers() | eof.
 -type headers() :: {headers, http_headers(), body_cont()}.
--type http_headers() :: [{atom() | binary(), binary()}].
+-type http_headers() :: [{binary(), binary()}].
 -type body_cont() :: cont(more(body_result())).
 -type cont(T) :: fun(() -> T).
 -type body_result() :: {body, binary(), body_cont()} | end_of_part().
@@ -135,7 +135,11 @@ parse_headers(Bin, Pattern) ->
 parse_headers(Bin, Pattern, Acc) ->
 	case erlang:decode_packet(httph_bin, Bin, []) of
 		{ok, {http_header, _, Name, _, Value}, Rest} ->
-			parse_headers(Rest, Pattern, [{Name, Value} | Acc]);
+			Name2 = case is_atom(Name) of
+				true -> cowboy_bstr:to_lower(atom_to_binary(Name, latin1));
+				false -> cowboy_bstr:to_lower(Name)
+			end,
+			parse_headers(Rest, Pattern, [{Name2, Value} | Acc]);
 		{ok, http_eoh, Rest} ->
 			Headers = lists:reverse(Acc),
 			{headers, Headers, fun () -> parse_body(Rest, Pattern) end};
@@ -205,7 +209,7 @@ multipart_test_() ->
 		{<<"preamble\r\n--boundary--">>, []},
 		{<<"--boundary--\r\nepilogue">>, []},
 		{<<"\r\n--boundary\r\nA:b\r\nC:d\r\n\r\n\r\n--boundary--">>,
-			[{[{<<"A">>, <<"b">>}, {<<"C">>, <<"d">>}], <<>>}]},
+			[{[{<<"a">>, <<"b">>}, {<<"c">>, <<"d">>}], <<>>}]},
 		{
 			<<
 				"--boundary\r\nX-Name:answer\r\n\r\n42"
@@ -213,8 +217,8 @@ multipart_test_() ->
 				"\r\n--boundary--"
 			>>,
 			[
-				{[{<<"X-Name">>, <<"answer">>}], <<"42">>},
-				{[{'Server', <<"Cowboy">>}], <<"It rocks!\r\n">>}
+				{[{<<"x-name">>, <<"answer">>}], <<"42">>},
+				{[{<<"server">>, <<"Cowboy">>}], <<"It rocks!\r\n">>}
 			]
 		}
 	],
