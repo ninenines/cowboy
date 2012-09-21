@@ -51,6 +51,18 @@ next
       {{body, Body}, Req}.
     * set_resp_* functions now return Req instead of {ok, Req}.
 
+*   Fix consistency issues caused by erlang:decode_packet/3
+
+    * The method is now always a case sensitive binary string.
+    * Note that standard method names are uppercase (e.g. <<"GET">>).
+    * Header names are now always lowercase binary string.
+
+*   The max_line_length cowboy_protocol option was replaced by 3 new options:
+
+    * max_request_line_length, defaults to 4096 bytes
+    * max_header_name_length, defaults to 64 bytes
+    * max_header_value_length, defaults to 4096 bytes
+
 *   Use -callback in behaviours
 
 *   Add cowboy_protocol:onrequest_fun/0 and :onresponse_fun/0 types
