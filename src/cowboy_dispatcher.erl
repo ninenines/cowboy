@@ -41,13 +41,12 @@
 %% @doc Split a hostname into a list of tokens.
 -spec split_host(binary())
 	-> {tokens(), binary(), undefined | inet:port_number()}.
-split_host(<<>>) ->
-	{[], <<>>, undefined};
 split_host(Host) ->
-	case binary:split(Host, <<":">>) of
-		[Host] ->
+	case binary:match(Host, <<":">>) of
+		nomatch ->
 			{binary:split(Host, <<".">>, [global, trim]), Host, undefined};
-		[Host2, Port] ->
+		{Pos, _} ->
+			<< Host2:Pos/binary, _:8, Port/bits >> = Host,
 			{binary:split(Host2, <<".">>, [global, trim]), Host2,
 				list_to_integer(binary_to_list(Port))}
 	end.
@@ -60,15 +59,17 @@ split_host(Host) ->
 -spec split_path(binary(), fun((binary()) -> binary())) ->
 		{tokens(), binary(), binary()}.
 split_path(Path, URLDec) ->
-	case binary:split(Path, <<"?">>) of
-		[Path] -> {do_split_path(Path, <<"/">>, URLDec), Path, <<>>};
-		[<<>>, Qs] -> {[], <<>>, Qs};
-		[Path2, Qs] -> {do_split_path(Path2, <<"/">>, URLDec), Path2, Qs}
+	case binary:match(Path, <<"?">>) of
+		nomatch ->
+			{do_split_path(Path, URLDec), Path, <<>>};
+		{Pos, _} ->
+			<< Path2:Pos/binary, _:8, Qs/bits >> = Path,
+			{do_split_path(Path2, URLDec), Path2, Qs}
 	end.
 
--spec do_split_path(binary(), <<_:8>>, fun((binary()) -> binary())) -> tokens().
-do_split_path(RawPath, Separator, URLDec) ->
-	EncodedPath = case binary:split(RawPath, Separator, [global, trim]) of
+-spec do_split_path(binary(), fun((binary()) -> binary())) -> tokens().
+do_split_path(RawPath, URLDec) ->
+	EncodedPath = case binary:split(RawPath, <<"/">>, [global, trim]) of
 		[<<>>|Path] -> Path;
 		Path -> Path
 	end,
@@ -219,8 +220,8 @@ split_host_fail_test_() ->
 split_path_test_() ->
 	%% {Path, Result, QueryString}
 	Tests = [
-		{<<"?">>, [], <<"">>, <<"">>},
-		{<<"???">>, [], <<"">>, <<"??">>},
+		{<<"/?">>, [], <<"/">>, <<"">>},
+		{<<"/???">>, [], <<"/">>, <<"??">>},
 		{<<"/">>, [], <<"/">>, <<"">>},
 		{<<"/extend//cowboy">>, [<<"extend">>, <<>>, <<"cowboy">>],
 			<<"/extend//cowboy">>, <<>>},
