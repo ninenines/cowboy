@@ -39,7 +39,7 @@
 
 %% Internal.
 -export([init/4]).
--export([parse_request/1]).
+-export([parse_request/2]).
 -export([handler_loop/3]).
 
 -type onrequest_fun() :: fun((Req) -> Req).
@@ -66,7 +66,6 @@
 	max_header_name_length :: integer(),
 	max_header_value_length :: integer(),
 	timeout :: timeout(),
-	buffer = <<>> :: binary(),
 	host_tokens = undefined :: undefined | cowboy_dispatcher:tokens(),
 	path_tokens = undefined :: undefined | '*' | cowboy_dispatcher:tokens(),
 	hibernate = false :: boolean(),
@@ -107,7 +106,7 @@ init(ListenerPid, Socket, Transport, Opts) ->
 	URLDecDefault = {fun cowboy_http:urldecode/2, crash},
 	URLDec = get_value(urldecode, Opts, URLDecDefault),
 	ok = ranch:accept_ack(ListenerPid),
-	wait_request(#state{listener=ListenerPid, socket=Socket,
+	wait_request(<<>>, #state{listener=ListenerPid, socket=Socket,
 		transport=Transport, dispatch=Dispatch,
 		max_empty_lines=MaxEmptyLines, max_keepalive=MaxKeepalive,
 		max_request_line_length=MaxRequestLineLength,
@@ -116,144 +115,141 @@ init(ListenerPid, Socket, Transport, Opts) ->
 		timeout=Timeout, onrequest=OnRequest, onresponse=OnResponse,
 		urldecode=URLDec}).
 
--spec wait_request(#state{}) -> ok.
-wait_request(State=#state{socket=Socket, transport=Transport,
-		timeout=T, buffer=Buffer}) ->
+-spec wait_request(binary(), #state{}) -> ok.
+wait_request(Buffer, State=#state{
+		socket=Socket, transport=Transport, timeout=T}) ->
 	case Transport:recv(Socket, 0, T) of
-		{ok, Data} -> parse_request(State#state{
-			buffer= << Buffer/binary, Data/binary >>});
+		{ok, Data} -> parse_request(<< Buffer/binary, Data/binary >>, State);
 		{error, _Reason} -> terminate(State)
 	end.
 
 %% @private
--spec parse_request(#state{}) -> ok.
+-spec parse_request(binary(), #state{}) -> ok.
 %% Empty lines must be using \r\n.
-parse_request(State=#state{buffer= << "\n", _/binary >>}) ->
+parse_request(<< "\n", _/binary >>, State) ->
 	error_terminate(400, State);
 %% We limit the length of the Request-line to MaxLength to avoid endlessly
 %% reading from the socket and eventually crashing.
-parse_request(State=#state{buffer=Buffer, max_request_line_length=MaxLength,
+parse_request(Buffer, State=#state{max_request_line_length=MaxLength,
 		req_empty_lines=ReqEmpty, max_empty_lines=MaxEmpty}) ->
 	case binary:match(Buffer, <<"\r\n">>) of
 		nomatch when byte_size(Buffer) > MaxLength ->
 			error_terminate(413, State);
 		nomatch ->
-			wait_request(State);
+			wait_request(Buffer, State);
 		{0, _} when ReqEmpty =:= MaxEmpty ->
 			error_terminate(400, State);
 		{0, _} ->
 			<< _:16, Rest/binary >> = Buffer,
-			parse_request(State#state{
-				buffer=Rest, req_empty_lines=ReqEmpty + 1});
+			parse_request(Rest, State#state{req_empty_lines=ReqEmpty + 1});
 		{Pos, _} ->
 			<< RequestLine:Pos/binary, _:16, Rest/binary >> = Buffer,
 			case cowboy_http:request_line(RequestLine) of
 				{Method, AbsPath, Version} ->
-					request(State#state{buffer=Rest}, Method, AbsPath, Version);
+					request(Rest, State, Method, AbsPath, Version);
 				{error, _} ->
 					error_terminate(400, State)
 			end
 	end.
 
--spec request(#state{}, binary(), binary(), cowboy_http:version()) -> ok.
-request(State, _, _, Version)
+-spec request(binary(), #state{}, binary(), binary(), cowboy_http:version())
+	-> ok.
+request(_, State, _, _, Version)
 		when Version =/= {1, 0}, Version =/= {1, 1} ->
 	error_terminate(505, State);
-request(State=#state{socket=Socket, transport=Transport,
+request(Buffer, State=#state{socket=Socket, transport=Transport,
 		onresponse=OnResponse, urldecode=URLDec},
 		Method, <<"*">>, Version) ->
 	Connection = version_to_connection(State, Version),
-	parse_header(State#state{path_tokens= '*'},
+	parse_header(Buffer, State#state{path_tokens= '*'},
 		cowboy_req:new(Socket, Transport, Connection, Method, Version,
 			<<"*">>, <<>>, OnResponse, URLDec));
-request(State=#state{socket=Socket, transport=Transport,
+request(Buffer, State=#state{socket=Socket, transport=Transport,
 		onresponse=OnResponse, urldecode=URLDec={URLDecFun, URLDecArg}},
 		Method, AbsPath, Version) ->
 	Connection = version_to_connection(State, Version),
 	{PathTokens, Path, Qs} = cowboy_dispatcher:split_path(AbsPath,
 		fun(Bin) -> URLDecFun(Bin, URLDecArg) end),
-	parse_header(State#state{path_tokens=PathTokens},
+	parse_header(Buffer, State#state{path_tokens=PathTokens},
 		cowboy_req:new(Socket, Transport, Connection, Method, Version,
 			Path, Qs, OnResponse, URLDec)).
 
--spec parse_header(#state{}, cowboy_req:req()) -> ok.
-parse_header(State=#state{buffer= << "\r\n", Rest/binary >>}, Req) ->
-	header_end(State#state{buffer=Rest}, Req);
-parse_header(State=#state{buffer=Buffer,
-		max_header_name_length=MaxLength}, Req) ->
+-spec parse_header(binary(), #state{}, cowboy_req:req()) -> ok.
+parse_header(<< "\r\n", Rest/binary >>, State, Req) ->
+	header_end(Rest, State, Req);
+parse_header(Buffer, State=#state{max_header_name_length=MaxLength}, Req) ->
 	case binary:match(Buffer, <<":">>) of
 		nomatch when byte_size(Buffer) > MaxLength ->
 			error_terminate(413, State);
 		nomatch ->
-			wait_header(State, Req, fun parse_header/2);
+			wait_header(Buffer, State, Req, fun parse_header/3);
 		{Pos, _} ->
 			<< Name:Pos/binary, _:8, Rest/binary >> = Buffer,
 			Name2 = cowboy_bstr:to_lower(Name),
 			Rest2 = cowboy_http:whitespace(Rest, fun(D) -> D end),
-			parse_header_value(State#state{buffer=Rest2}, Req, Name2, <<>>)
+			parse_header_value(Rest2, State, Req, Name2, <<>>)
 	end.
 
-parse_header_value(State=#state{buffer=Buffer,
-		max_header_value_length=MaxLength}, Req, Name, SoFar) ->
+parse_header_value(Buffer, State=#state{max_header_value_length=MaxLength},
+		Req, Name, SoFar) ->
 	case binary:match(Buffer, <<"\r\n">>) of
 		nomatch when byte_size(Buffer) + byte_size(SoFar) > MaxLength ->
 			error_terminate(413, State);
 		nomatch ->
-			wait_header(State, Req,
-				fun(S, R) -> parse_header_value(S, R, Name, SoFar) end);
+			wait_header(Buffer, State, Req,
+				fun(B, S, R) -> parse_header_value(B, S, R, Name, SoFar) end);
 		{Pos, _} when Pos + 2 =:= byte_size(Buffer) ->
-			wait_header(State, Req,
-				fun(S, R) -> parse_header_value(S, R, Name, SoFar) end);
+			wait_header(Buffer, State, Req,
+				fun(B, S, R) -> parse_header_value(B, S, R, Name, SoFar) end);
 		{Pos, _} ->
 			<< Value:Pos/binary, _:16, Rest/binary >> = Buffer,
 			case binary:at(Buffer, Pos + 2) of
 				C when C =:= $\s; C =:= $\t ->
-					parse_header_value(State#state{buffer=Rest}, Req, Name,
+					parse_header_value(Rest, State, Req, Name,
 						<< SoFar/binary, Value/binary >>);
 				_ ->
-					header(State#state{buffer=Rest}, Req, Name,
+					header(Rest, State, Req, Name,
 						<< SoFar/binary, Value/binary >>)
 			end
 	end.
 
--spec wait_header(#state{}, cowboy_req:req(), fun()) -> ok.
-wait_header(State=#state{socket=Socket, transport=Transport,
-		timeout=T, buffer=Buffer}, Req, Fun) ->
+-spec wait_header(binary(), #state{}, cowboy_req:req(), fun()) -> ok.
+wait_header(Buffer, State=#state{socket=Socket, transport=Transport,
+		timeout=T}, Req, Fun) ->
 	case Transport:recv(Socket, 0, T) of
-		{ok, Data} -> Fun(State#state{
-			buffer= << Buffer/binary, Data/binary >>}, Req);
+		{ok, Data} -> Fun(<< Buffer/binary, Data/binary >>, State, Req);
 		{error, timeout} -> error_terminate(408, State);
 		{error, closed} -> terminate(State)
 	end.
 
--spec header(#state{}, cowboy_req:req(), binary(), binary()) -> ok.
-header(State=#state{host_tokens=undefined, transport=Transport},
+-spec header(binary(), #state{}, cowboy_req:req(), binary(), binary()) -> ok.
+header(Buffer, State=#state{host_tokens=undefined, transport=Transport},
 		Req, <<"host">>, RawHost) ->
 	RawHost2 = cowboy_bstr:to_lower(RawHost),
 	case catch cowboy_dispatcher:split_host(RawHost2) of
 		{HostTokens, Host, undefined} ->
 			Port = default_port(Transport:name()),
-			parse_header(State#state{host_tokens=HostTokens},
+			parse_header(Buffer, State#state{host_tokens=HostTokens},
 				cowboy_req:set_host(Host, Port, RawHost, Req));
 		{HostTokens, Host, Port} ->
-			parse_header(State#state{host_tokens=HostTokens},
+			parse_header(Buffer, State#state{host_tokens=HostTokens},
 				cowboy_req:set_host(Host, Port, RawHost, Req));
 		{'EXIT', _Reason} ->
 			error_terminate(400, State)
 	end;
 %% Ignore Host headers if we already have it.
-header(State, Req, <<"host">>, _) ->
-	parse_header(State, Req);
-header(State=#state{req_keepalive=Keepalive, max_keepalive=MaxKeepalive},
-		Req, <<"connection">>, Connection)
+header(Buffer, State, Req, <<"host">>, _) ->
+	parse_header(Buffer, State, Req);
+header(Buffer, State=#state{req_keepalive=Keepalive,
+		max_keepalive=MaxKeepalive}, Req, <<"connection">>, Connection)
 		when Keepalive < MaxKeepalive ->
-	parse_header(State, cowboy_req:set_connection(Connection, Req));
-header(State, Req, Name, Value) ->
-	parse_header(State, cowboy_req:add_header(Name, Value, Req)).
+	parse_header(Buffer, State, cowboy_req:set_connection(Connection, Req));
+header(Buffer, State, Req, Name, Value) ->
+	parse_header(Buffer, State, cowboy_req:add_header(Name, Value, Req)).
 
 %% The Host header is required in HTTP/1.1 and optional in HTTP/1.0.
-header_end(State=#state{host_tokens=undefined,
-		buffer=Buffer, transport=Transport}, Req) ->
+header_end(Buffer, State=#state{host_tokens=undefined, transport=Transport},
+		Req) ->
 	case cowboy_req:version(Req) of
 		{{1, 1}, _} ->
 			error_terminate(400, State);
@@ -262,10 +258,10 @@ header_end(State=#state{host_tokens=undefined,
 			onrequest(
 				cowboy_req:set_buffer(Buffer,
 					cowboy_req:set_host(<<>>, Port, <<>>, Req2)),
-				State#state{buffer= <<>>, host_tokens=[]})
+				State)
 	end;
-header_end(State=#state{buffer=Buffer}, Req) ->
-	onrequest(cowboy_req:set_buffer(Buffer, Req), State#state{buffer= <<>>}).
+header_end(Buffer, State, Req) ->
+	onrequest(cowboy_req:set_buffer(Buffer, Req), State).
 
 %% Call the global onrequest callback. The callback can send a reply,
 %% in which case we consider the request handled and move on to the next
@@ -443,8 +439,7 @@ next_request(Req, State=#state{req_keepalive=Keepalive}, HandlerRes) ->
 	receive {cowboy_req, resp_sent} -> ok after 0 -> ok end,
 	case {HandlerRes, BodyRes, cowboy_req:get_connection(Req)} of
 		{ok, ok, keepalive} ->
-			?MODULE:parse_request(State#state{
-				handler=undefined, buffer=Buffer,
+			?MODULE:parse_request(Buffer, State#state{handler=undefined,
 				req_empty_lines=0, req_keepalive=Keepalive + 1});
 		_Closed ->
 			terminate(State)
