@@ -433,8 +433,7 @@ terminate_request(HandlerState, Req, State) ->
 	next_request(Req, State, HandlerRes).
 
 -spec next_request(cowboy_req:req(), #state{}, any()) -> ok.
-next_request(Req, State=#state{
-		req_keepalive=Keepalive}, HandlerRes) ->
+next_request(Req, State=#state{req_keepalive=Keepalive}, HandlerRes) ->
 	cowboy_req:ensure_response(Req, 204),
 	{BodyRes, Buffer} = case cowboy_req:skip_body(Req) of
 		{ok, Req2} -> {ok, cowboy_req:get_buffer(Req2)};
@@ -445,7 +444,7 @@ next_request(Req, State=#state{
 	case {HandlerRes, BodyRes, cowboy_req:get_connection(Req)} of
 		{ok, ok, keepalive} ->
 			?MODULE:parse_request(State#state{
-				buffer=Buffer, host_tokens=undefined, path_tokens=undefined,
+				handler=undefined, buffer=Buffer,
 				req_empty_lines=0, req_keepalive=Keepalive + 1});
 		_Closed ->
 			terminate(State)
