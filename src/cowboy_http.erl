@@ -95,17 +95,22 @@ request_line(Data) ->
 %% We just want to extract the path/qs and skip everything else.
 %% We do not really parse the URI, nor do we need to.
 uri_to_abspath(Data, Fun) ->
-	case binary:split(Data, <<" ">>) of
-		[_] -> %% We require the HTTP version.
+	case binary:match(Data, <<" ">>) of
+		nomatch -> %% We require the HTTP version.
 			{error, badarg};
-		[URI, Rest] ->
-			case binary:split(URI, <<"://">>) of
-				[_] -> %% Already is a path or "*".
+		{Pos1, _} ->
+			<< URI:Pos1/binary, _:8, Rest/bits >> = Data,
+			case binary:match(URI, <<"://">>) of
+				nomatch -> %% Already is a path or "*".
 					Fun(Rest, URI);
-				[_, NoScheme] ->
-					case binary:split(NoScheme, <<"/">>) of
-						[_] -> <<"/">>;
-						[_, NoHost] -> Fun(Rest, << "/", NoHost/binary >>)
+				{Pos2, _} ->
+					<< _:Pos2/binary, _:24, NoScheme/bits >> = Rest,
+					case binary:match(NoScheme, <<"/">>) of
+						nomatch ->
+							Fun(Rest, <<"/">>);
+						{Pos3, _} ->
+							<< _:Pos3/binary, _:8, NoHost/bits >> = NoScheme,
+							Fun(Rest, << "/", NoHost/binary >>)
 					end
 			end
 	end.
