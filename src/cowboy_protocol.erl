@@ -127,23 +127,26 @@ wait_request(State=#state{socket=Socket, transport=Transport,
 
 %% @private
 -spec parse_request(#state{}) -> ok.
+%% Empty lines must be using \r\n.
+parse_request(State=#state{buffer= << "\n", _/binary >>}) ->
+	error_terminate(400, State);
 %% We limit the length of the Request-line to MaxLength to avoid endlessly
 %% reading from the socket and eventually crashing.
 parse_request(State=#state{buffer=Buffer, max_request_line_length=MaxLength,
 		req_empty_lines=ReqEmpty, max_empty_lines=MaxEmpty}) ->
-	case binary:split(Buffer, <<"\r\n">>) of
-		[_] when byte_size(Buffer) > MaxLength ->
+	case binary:match(Buffer, <<"\r\n">>) of
+		nomatch when byte_size(Buffer) > MaxLength ->
 			error_terminate(413, State);
-		[<< "\n", _/binary >>] ->
-			error_terminate(400, State);
-		[_] ->
+		nomatch ->
 			wait_request(State);
-		[<<>>, _] when ReqEmpty =:= MaxEmpty ->
+		{0, _} when ReqEmpty =:= MaxEmpty ->
 			error_terminate(400, State);
-		[<<>>, Rest] ->
+		{0, _} ->
+			<< _:16, Rest/binary >> = Buffer,
 			parse_request(State#state{
 				buffer=Rest, req_empty_lines=ReqEmpty + 1});
-		[RequestLine, Rest] ->
+		{Pos, _} ->
+			<< RequestLine:Pos/binary, _:16, Rest/binary >> = Buffer,
 			case cowboy_http:request_line(RequestLine) of
 				{Method, AbsPath, Version} ->
 					request(State#state{buffer=Rest}, Method, AbsPath, Version);
@@ -178,12 +181,13 @@ parse_header(State=#state{buffer= << "\r\n", Rest/binary >>}, Req) ->
 	header_end(State#state{buffer=Rest}, Req);
 parse_header(State=#state{buffer=Buffer,
 		max_header_name_length=MaxLength}, Req) ->
-	case binary:split(Buffer, <<":">>) of
-		[_] when byte_size(Buffer) > MaxLength ->
+	case binary:match(Buffer, <<":">>) of
+		nomatch when byte_size(Buffer) > MaxLength ->
 			error_terminate(413, State);
-		[_] ->
+		nomatch ->
 			wait_header(State, Req, fun parse_header/2);
-		[Name, Rest] ->
+		{Pos, _} ->
+			<< Name:Pos/binary, _:8, Rest/binary >> = Buffer,
 			Name2 = cowboy_bstr:to_lower(Name),
 			Rest2 = cowboy_http:whitespace(Rest, fun(D) -> D end),
 			parse_header_value(State#state{buffer=Rest2}, Req, Name2, <<>>)
@@ -191,18 +195,25 @@ parse_header(State=#state{buffer=Buffer,
 
 parse_header_value(State=#state{buffer=Buffer,
 		max_header_value_length=MaxLength}, Req, Name, SoFar) ->
-	case binary:split(Buffer, <<"\r\n">>) of
-		[_] when byte_size(Buffer) + byte_size(SoFar) > MaxLength ->
+	case binary:match(Buffer, <<"\r\n">>) of
+		nomatch when byte_size(Buffer) + byte_size(SoFar) > MaxLength ->
 			error_terminate(413, State);
-		[_] ->
+		nomatch ->
 			wait_header(State, Req,
 				fun(S, R) -> parse_header_value(S, R, Name, SoFar) end);
-		[Value, << C, Rest/binary >>] when C =:= $\s; C =:= $\t ->
-			parse_header_value(State#state{buffer=Rest}, Req, Name,
-				<< SoFar/binary, Value/binary >>);
-		[Value, Rest] ->
-			header(State#state{buffer=Rest}, Req, Name,
-				<< SoFar/binary, Value/binary >>)
+		{Pos, _} when Pos + 2 =:= byte_size(Buffer) ->
+			wait_header(State, Req,
+				fun(S, R) -> parse_header_value(S, R, Name, SoFar) end);
+		{Pos, _} ->
+			<< Value:Pos/binary, _:16, Rest/binary >> = Buffer,
+			case binary:at(Buffer, Pos + 2) of
+				C when C =:= $\s; C =:= $\t ->
+					parse_header_value(State#state{buffer=Rest}, Req, Name,
+						<< SoFar/binary, Value/binary >>);
+				_ ->
+					header(State#state{buffer=Rest}, Req, Name,
+						<< SoFar/binary, Value/binary >>)
+			end
 	end.
 
 -spec wait_header(#state{}, cowboy_req:req(), fun()) -> ok.
