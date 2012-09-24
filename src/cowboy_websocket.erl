@@ -154,8 +154,9 @@ websocket_handshake(State=#state{socket=Socket, transport=Transport,
 	{ok, Req2} = cowboy_req:upgrade_reply(
 		<<"101 WebSocket Protocol Handshake">>,
 		[{<<"Upgrade">>, <<"WebSocket">>},
-		 {<<"Sec-Websocket-Location">>, << "ws", Location/binary >>},
-		 {<<"Sec-Websocket-Origin">>, Origin}],
+		 {<<"Connection">>, <<"Upgrade">>},
+		 {<<"Sec-WebSocket-Location">>, << "ws", Location/binary >>},
+		 {<<"Sec-WebSocket-Origin">>, Origin}],
 		Req1),
 	%% Flush the resp_sent message before moving on.
 	receive {cowboy_req, resp_sent} -> ok after 0 -> ok end,
@@ -182,6 +183,7 @@ websocket_handshake(State=#state{transport=Transport, challenge=Challenge},
 	{ok, Req2} = cowboy_req:upgrade_reply(
 		101,
 		[{<<"Upgrade">>, <<"websocket">>},
+		 {<<"Connection">>, <<"Upgrade">>},
 		 {<<"Sec-Websocket-Accept">>, Challenge}],
 		Req),
 	%% Flush the resp_sent message before moving on.
