@@ -49,12 +49,14 @@ prop_split_host_symmetric() ->
 	?FORALL(Server, server(),
 	begin case cowboy_dispatcher:split_host(Server) of
 			{Tokens, RawHost, undefined} ->
-				(Server == RawHost) and (Server == binary_join(Tokens, "."));
+				(Server == RawHost)
+					and (Server == binary_join(lists:reverse(Tokens), "."));
 			{Tokens, RawHost, Port} ->
 				PortBin = (list_to_binary(":" ++ integer_to_list(Port))),
 				(Server == << RawHost/binary, PortBin/binary >>)
-				and (Server == << (binary_join(Tokens, "."))/binary,
-					PortBin/binary >>)
+				and (Server ==
+					<< (binary_join(lists:reverse(Tokens), "."))/binary,
+						PortBin/binary >>)
 	end end).
 
 %% Internal.
