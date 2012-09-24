@@ -1107,7 +1107,7 @@ merge_headers(Headers, []) ->
 merge_headers(Headers, [{Name, Value}|Tail]) ->
 	Headers2 = case lists:keymember(Name, 1, Headers) of
 		true -> Headers;
-		false -> Headers ++ [{Name, Value}]
+		false -> [{Name, Value}|Headers]
 	end,
 	merge_headers(Headers2, Tail).
 
