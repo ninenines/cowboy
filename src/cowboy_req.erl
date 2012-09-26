@@ -170,6 +170,9 @@
 %%
 %% This function takes care of setting the owner's pid to self().
 %% @private
+%%
+%% Since we always need to parse the Connection header, we do it
+%% in an optimized way and add the parsed value to p_headers' cache.
 -spec new(inet:socket(), module(), binary(), binary(), binary(), binary(),
 	cowboy_http:version(), cowboy_http:headers(), binary(),
 	inet:port_number() | undefined, binary(), boolean(),
@@ -187,16 +190,16 @@ new(Socket, Transport, Method, Path, Query, Fragment,
 		false ->
 			Req#http_req{connection=close};
 		true ->
-			case lists:keymember(<<"connection">>, 1, Headers) of
+			case lists:keyfind(<<"connection">>, 1, Headers) of
 				false when Version =:= {1, 1} ->
 					Req; %% keepalive
 				false ->
 					Req#http_req{connection=close};
-				true ->
-					{ok, Tokens, Req2} = parse_header(<<"connection">>, Req),
-					%% @todo Might want to bring this function into cowboy_req.
-					Connection = cowboy_http:connection_to_atom(Tokens),
-					Req2#http_req{connection=Connection}
+				{_, ConnectionHeader} ->
+					Tokens = parse_connection_before(ConnectionHeader, []),
+					Connection = connection_to_atom(Tokens),
+					Req#http_req{connection=Connection,
+						p_headers=[{<<"connection">>, Tokens}]}
 			end
 	end.
 
@@ -431,11 +434,6 @@ parse_header(Name, Req, Default) when Name =:= <<"accept-language">> ->
 	parse_header(Name, Req, Default,
 		fun (Value) ->
 			cowboy_http:nonempty_list(Value, fun cowboy_http:language_range/2)
-		end);
-parse_header(Name, Req, Default) when Name =:= <<"connection">> ->
-	parse_header(Name, Req, Default,
-		fun (Value) ->
-			cowboy_http:nonempty_list(Value, fun cowboy_http:token_ci/2)
 		end);
 parse_header(Name, Req, Default) when Name =:= <<"content-length">> ->
 	parse_header(Name, Req, Default,
@@ -1099,7 +1097,7 @@ response_connection([{Name, Value}|Tail], Connection) ->
 -spec response_connection_parse(binary()) -> keepalive | close.
 response_connection_parse(ReplyConn) ->
 	Tokens = cowboy_http:nonempty_list(ReplyConn, fun cowboy_http:token/2),
-	cowboy_http:connection_to_atom(Tokens).
+	connection_to_atom(Tokens).
 
 -spec response_merge_headers(cowboy_http:headers(), cowboy_http:headers(),
 	cowboy_http:headers()) -> cowboy_http:headers().
@@ -1126,6 +1124,74 @@ atom_to_connection(keepalive) ->
 	<<"keep-alive">>;
 atom_to_connection(close) ->
 	<<"close">>.
+
+%% Optimized parsing functions for the Connection header.
+parse_connection_before(<<>>, Acc) ->
+	lists:reverse(Acc);
+parse_connection_before(<< C, Rest/bits >>, Acc)
+		when C =:= $,; C =:= $\s; C =:= $\t ->
+	parse_connection_before(Rest, Acc);
+parse_connection_before(Buffer, Acc) ->
+	parse_connection(Buffer, Acc, <<>>).
+
+%% An evil block of code appeared!
+parse_connection(<<>>, Acc, <<>>) ->
+	lists:reverse(Acc);
+parse_connection(<<>>, Acc, Token) ->
+	lists:reverse([Token|Acc]);
+parse_connection(<< C, Rest/bits >>, Acc, Token)
+		when C =:= $,; C =:= $\s; C =:= $\t ->
+	parse_connection_after(Rest, [Token|Acc]);
+parse_connection(<< C, Rest/bits >>, Acc, Token) ->
+	case C of
+		$A -> parse_connection(Rest, Acc, << Token/binary, $a >>);
+		$B -> parse_connection(Rest, Acc, << Token/binary, $b >>);
+		$C -> parse_connection(Rest, Acc, << Token/binary, $c >>);
+		$D -> parse_connection(Rest, Acc, << Token/binary, $d >>);
+		$E -> parse_connection(Rest, Acc, << Token/binary, $e >>);
+		$F -> parse_connection(Rest, Acc, << Token/binary, $f >>);
+		$G -> parse_connection(Rest, Acc, << Token/binary, $g >>);
+		$H -> parse_connection(Rest, Acc, << Token/binary, $h >>);
+		$I -> parse_connection(Rest, Acc, << Token/binary, $i >>);
+		$J -> parse_connection(Rest, Acc, << Token/binary, $j >>);
+		$K -> parse_connection(Rest, Acc, << Token/binary, $k >>);
+		$L -> parse_connection(Rest, Acc, << Token/binary, $l >>);
+		$M -> parse_connection(Rest, Acc, << Token/binary, $m >>);
+		$N -> parse_connection(Rest, Acc, << Token/binary, $n >>);
+		$O -> parse_connection(Rest, Acc, << Token/binary, $o >>);
+		$P -> parse_connection(Rest, Acc, << Token/binary, $p >>);
+		$Q -> parse_connection(Rest, Acc, << Token/binary, $q >>);
+		$R -> parse_connection(Rest, Acc, << Token/binary, $r >>);
+		$S -> parse_connection(Rest, Acc, << Token/binary, $s >>);
+		$T -> parse_connection(Rest, Acc, << Token/binary, $t >>);
+		$U -> parse_connection(Rest, Acc, << Token/binary, $u >>);
+		$V -> parse_connection(Rest, Acc, << Token/binary, $v >>);
+		$W -> parse_connection(Rest, Acc, << Token/binary, $w >>);
+		$X -> parse_connection(Rest, Acc, << Token/binary, $x >>);
+		$Y -> parse_connection(Rest, Acc, << Token/binary, $y >>);
+		$Z -> parse_connection(Rest, Acc, << Token/binary, $z >>);
+		C -> parse_connection(Rest, Acc, << Token/binary, C >>)
+	end.
+
+parse_connection_after(<<>>, Acc) ->
+	lists:reverse(Acc);
+parse_connection_after(<< $,, Rest/bits >>, Acc) ->
+	parse_connection_before(Rest, Acc);
+parse_connection_after(<< C, Rest/bits >>, Acc)
+		when C =:= $\s; C =:= $\t ->
+	parse_connection_after(Rest, Acc).
+
+%% @doc Walk through a tokens list and return whether
+%% the connection is keepalive or closed.
+%%
+%% We don't match on <<"keep-alive">> since it is the default value.
+-spec connection_to_atom([binary()]) -> keepalive | close.
+connection_to_atom([]) ->
+	keepalive;
+connection_to_atom([<<"close">>|_]) ->
+	close;
+connection_to_atom([_|Tail]) ->
+	connection_to_atom(Tail).
 
 -spec status(cowboy_http:status()) -> binary().
 status(100) -> <<"100 Continue">>;
@@ -1224,5 +1290,15 @@ url_test() ->
 			path= <<"/path">>, qs= <<"dummy=2785">>, fragment= <<"fragment">>,
 			pid=self()}),
 	ok.
+
+connection_to_atom_test_() ->
+	%% {Tokens, Result}
+	Tests = [
+		{[<<"close">>], close},
+		{[<<"keep-alive">>], keepalive},
+		{[<<"keep-alive">>, <<"upgrade">>], keepalive}
+	],
+	[{lists:flatten(io_lib:format("~p", [T])),
+		fun() -> R = connection_to_atom(T) end} || {T, R} <- Tests].
 
 -endif.

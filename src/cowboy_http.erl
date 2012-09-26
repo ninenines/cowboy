@@ -42,7 +42,6 @@
 -export([ce_identity/1]).
 
 %% Interpretation.
--export([connection_to_atom/1]).
 -export([version_to_binary/1]).
 -export([urldecode/1]).
 -export([urldecode/2]).
@@ -773,20 +772,6 @@ ce_identity(Data) ->
 
 %% Interpretation.
 
-%% @doc Walk through a tokens list and return whether
-%% the connection is keepalive or closed.
-%%
-%% The connection token is expected to be lower-case.
--spec connection_to_atom([binary()]) -> keepalive | close.
-connection_to_atom([]) ->
-	keepalive;
-connection_to_atom([<<"keep-alive">>|_Tail]) ->
-	keepalive;
-connection_to_atom([<<"close">>|_Tail]) ->
-	close;
-connection_to_atom([_Any|Tail]) ->
-	connection_to_atom(Tail).
-
 %% @doc Convert an HTTP version tuple to its binary form.
 -spec version_to_binary(version()) -> binary().
 version_to_binary({1, 1}) -> <<"HTTP/1.1">>;
@@ -1029,16 +1014,6 @@ asctime_date_test_() ->
 		{<<"Sun Nov  6 08:49:37 1994">>, {{1994, 11, 6}, {8, 49, 37}}}
 	],
 	[{V, fun() -> R = asctime_date(V) end} || {V, R} <- Tests].
-
-connection_to_atom_test_() ->
-	%% {Tokens, Result}
-	Tests = [
-		{[<<"close">>], close},
-		{[<<"keep-alive">>], keepalive},
-		{[<<"keep-alive">>, <<"upgrade">>], keepalive}
-	],
-	[{lists:flatten(io_lib:format("~p", [T])),
-		fun() -> R = connection_to_atom(T) end} || {T, R} <- Tests].
 
 content_type_test_() ->
 	%% {ContentType, Result}
