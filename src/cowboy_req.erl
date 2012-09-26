@@ -42,7 +42,7 @@
 -module(cowboy_req).
 
 %% Request API.
--export([new/9]).
+-export([new/14]).
 -export([method/1]).
 -export([version/1]).
 -export([peer/1]).
@@ -103,10 +103,6 @@
 -export([ensure_response/2]).
 
 %% Private setter/getter API.
--export([set_host/4]).
--export([set_connection/2]).
--export([add_header/3]).
--export([set_buffer/2]).
 -export([set_bindings/4]).
 -export([get_resp_state/1]).
 -export([get_buffer/1]).
@@ -172,15 +168,36 @@
 %%
 %% This function takes care of setting the owner's pid to self().
 %% @private
--spec new(inet:socket(), module(), keepalive | close,
-	binary(), cowboy_http:version(), binary(), binary(),
-	undefined | fun(), undefined | {fun(), atom()})
+%% @todo Fragment.
+-spec new(inet:socket(), module(), binary(), binary(), binary(), binary(),
+	cowboy_http:version(), cowboy_http:headers(), binary(),
+	inet:port_number() | undefined, binary(), boolean(),
+	undefined | cowboy_protocol:onresponse_fun(),
+	undefined | {fun(), atom()})
 	-> req().
-new(Socket, Transport, Connection, Method, Version, Path, Qs,
+new(Socket, Transport, Method, Path, Query, _Fragment,
+		Version, Headers, Host, Port, Buffer, CanKeepalive,
 		OnResponse, URLDecode) ->
-	#http_req{socket=Socket, transport=Transport, connection=Connection,
-		pid=self(), method=Method, version=Version, path=Path, qs=Qs,
-		onresponse=OnResponse, urldecode=URLDecode}.
+	Req = #http_req{socket=Socket, transport=Transport, pid=self(),
+		method=Method, path=Path, qs=Query, version=Version,
+		headers=Headers, host=Host, port=Port, buffer=Buffer,
+		onresponse=OnResponse, urldecode=URLDecode},
+	case CanKeepalive of
+		false ->
+			Req#http_req{connection=close};
+		true ->
+			case lists:keymember(<<"connection">>, 1, Headers) of
+				false when Version =:= {1, 1} ->
+					Req; %% keepalive
+				false ->
+					Req#http_req{connection=close};
+				true ->
+					{ok, Tokens, Req2} = parse_header(<<"connection">>, Req),
+					%% @todo Might want to bring this function into cowboy_req.
+					Connection = cowboy_http:connection_to_atom(Tokens),
+					Req2#http_req{connection=Connection}
+			end
+	end.
 
 %% @doc Return the HTTP method of the request.
 -spec method(Req) -> {binary(), Req} when Req::req().
@@ -966,31 +983,6 @@ ensure_response(#http_req{socket=Socket, transport=Transport,
 	ok.
 
 %% Private setter/getter API.
-
-%% @private
--spec set_host(binary(), inet:port_number(), binary(), Req)
-	-> Req when Req::req().
-set_host(Host, Port, RawHost, Req=#http_req{headers=Headers}) ->
-	Req#http_req{host=Host, port=Port, headers=[{<<"host">>, RawHost}|Headers]}.
-
-%% @private
--spec set_connection(binary(), Req) -> Req when Req::req().
-set_connection(RawConnection, Req=#http_req{headers=Headers}) ->
-	Req2 = Req#http_req{headers=[{<<"connection">>, RawConnection}|Headers]},
-	{ok, ConnTokens, Req3} = parse_header(<<"connection">>, Req2),
-	ConnAtom = cowboy_http:connection_to_atom(ConnTokens),
-	Req3#http_req{connection=ConnAtom}.
-
-%% @private
--spec add_header(binary(), binary(), Req)
-	-> Req when Req::req().
-add_header(Name, Value, Req=#http_req{headers=Headers}) ->
-	Req#http_req{headers=[{Name, Value}|Headers]}.
-
-%% @private
--spec set_buffer(binary(), Req) -> Req when Req::req().
-set_buffer(Buffer, Req) ->
-	Req#http_req{buffer=Buffer}.
 
 %% @private
 -spec set_bindings(cowboy_dispatcher:tokens(), cowboy_dispatcher:tokens(),

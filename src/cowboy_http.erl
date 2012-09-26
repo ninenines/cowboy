@@ -17,7 +17,6 @@
 -module(cowboy_http).
 
 %% Parsing.
--export([request_line/1]).
 -export([list/2]).
 -export([nonempty_list/2]).
 -export([content_type/1]).
@@ -51,15 +50,10 @@
 -export([urlencode/2]).
 -export([x_www_form_urlencoded/2]).
 
--type uri() :: '*' | {absoluteURI, http | https, Host::binary(),
-	Port::integer() | undefined, Path::binary()}
-	| {scheme, Scheme::binary(), binary()}
-	| {abs_path, binary()} | binary().
 -type version() :: {Major::non_neg_integer(), Minor::non_neg_integer()}.
 -type headers() :: [{binary(), iodata()}].
 -type status() :: non_neg_integer() | binary().
 
--export_type([uri/0]).
 -export_type([version/0]).
 -export_type([headers/0]).
 -export_type([status/0]).
@@ -69,51 +63,6 @@
 -endif.
 
 %% Parsing.
-
-%% @doc Parse a request-line.
--spec request_line(binary())
-	-> {binary(), binary(), version()} | {error, badarg}.
-request_line(Data) ->
-	token(Data,
-		fun (Rest, Method) ->
-			whitespace(Rest,
-				fun (Rest2) ->
-					uri_to_abspath(Rest2,
-						fun (Rest3, AbsPath) ->
-							whitespace(Rest3,
-								fun (<< "HTTP/", Maj, ".", Min, _/binary >>)
-											when Maj >= $0, Maj =< $9,
-												Min >= $0, Min =< $9 ->
-										{Method, AbsPath, {Maj - $0, Min - $0}};
-									(_) ->
-										{error, badarg}
-								end)
-						end)
-				end)
-		end).
-
-%% We just want to extract the path/qs and skip everything else.
-%% We do not really parse the URI, nor do we need to.
-uri_to_abspath(Data, Fun) ->
-	case binary:match(Data, <<" ">>) of
-		nomatch -> %% We require the HTTP version.
-			{error, badarg};
-		{Pos1, _} ->
-			<< URI:Pos1/binary, _:8, Rest/bits >> = Data,
-			case binary:match(URI, <<"://">>) of
-				nomatch -> %% Already is a path or "*".
-					Fun(Rest, URI);
-				{Pos2, _} ->
-					<< _:Pos2/binary, _:24, NoScheme/bits >> = Rest,
-					case binary:match(NoScheme, <<"/">>) of
-						nomatch ->
-							Fun(Rest, <<"/">>);
-						{Pos3, _} ->
-							<< _:Pos3/binary, _:8, NoHost/bits >> = NoScheme,
-							Fun(Rest, << "/", NoHost/binary >>)
-					end
-			end
-	end.
 
 %% @doc Parse a non-empty list of the given type.
 -spec nonempty_list(binary(), fun()) -> [any(), ...] | {error, badarg}.
