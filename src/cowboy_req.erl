@@ -56,6 +56,7 @@
 -export([qs_val/2]).
 -export([qs_val/3]).
 -export([qs_vals/1]).
+-export([fragment/1]).
 -export([host_url/1]).
 -export([url/1]).
 -export([binding/2]).
@@ -138,6 +139,7 @@
 	path_info = undefined :: undefined | cowboy_dispatcher:tokens(),
 	qs = undefined :: binary(),
 	qs_vals = undefined :: undefined | list({binary(), binary() | true}),
+	fragment = undefined :: binary(),
 	bindings = undefined :: undefined | cowboy_dispatcher:bindings(),
 	headers = [] :: cowboy_http:headers(),
 	p_headers = [] :: [any()], %% @todo Improve those specs.
@@ -168,18 +170,17 @@
 %%
 %% This function takes care of setting the owner's pid to self().
 %% @private
-%% @todo Fragment.
 -spec new(inet:socket(), module(), binary(), binary(), binary(), binary(),
 	cowboy_http:version(), cowboy_http:headers(), binary(),
 	inet:port_number() | undefined, binary(), boolean(),
 	undefined | cowboy_protocol:onresponse_fun(),
 	undefined | {fun(), atom()})
 	-> req().
-new(Socket, Transport, Method, Path, Query, _Fragment,
+new(Socket, Transport, Method, Path, Query, Fragment,
 		Version, Headers, Host, Port, Buffer, CanKeepalive,
 		OnResponse, URLDecode) ->
 	Req = #http_req{socket=Socket, transport=Transport, pid=self(),
-		method=Method, path=Path, qs=Query, version=Version,
+		method=Method, path=Path, qs=Query, fragment=Fragment, version=Version,
 		headers=Headers, host=Host, port=Port, buffer=Buffer,
 		onresponse=OnResponse, urldecode=URLDecode},
 	case CanKeepalive of
@@ -306,6 +307,11 @@ qs_vals(Req=#http_req{qs=RawQs, qs_vals=undefined,
 qs_vals(Req=#http_req{qs_vals=QsVals}) ->
 	{QsVals, Req}.
 
+%% @doc Return the raw fragment directly taken from the request.
+-spec fragment(Req) -> {binary(), Req} when Req::req().
+fragment(Req) ->
+	{Req#http_req.fragment, Req}.
+
 %% @doc Return the request URL as a binary without the path and query string.
 %%
 %% The URL includes the scheme, host and port only.
@@ -326,15 +332,19 @@ host_url(Req=#http_req{transport=Transport, host=Host, port=Port}) ->
 
 %% @doc Return the full request URL as a binary.
 %%
-%% The URL includes the scheme, host, port, path and query string.
+%% The URL includes the scheme, host, port, path, query string and fragment.
 -spec url(Req) -> {binary(), Req} when Req::req().
-url(Req=#http_req{path=Path, qs=QS}) ->
+url(Req=#http_req{path=Path, qs=QS, fragment=Fragment}) ->
 	{HostURL, Req2} = host_url(Req),
 	QS2 = case QS of
 		<<>> -> <<>>;
 		_ -> << "?", QS/binary >>
 	end,
-	{<< HostURL/binary, Path/binary, QS2/binary >>, Req2}.
+	Fragment2 = case Fragment of
+		<<>> -> <<>>;
+		_ -> << "#", Fragment/binary >>
+	end,
+	{<< HostURL/binary, Path/binary, QS2/binary, Fragment2/binary >>, Req2}.
 
 %% @equiv binding(Name, Req, undefined)
 -spec binding(atom(), Req) -> {binary() | undefined, Req} when Req::req().
@@ -1184,25 +1194,35 @@ status(B) when is_binary(B) -> B.
 url_test() ->
 	{<<"http://localhost/path">>, _ } =
 		url(#http_req{transport=ranch_tcp, host= <<"localhost">>, port=80,
-			path= <<"/path">>, qs= <<>>, pid=self()}),
+			path= <<"/path">>, qs= <<>>, fragment= <<>>, pid=self()}),
 	{<<"http://localhost:443/path">>, _} =
 		url(#http_req{transport=ranch_tcp, host= <<"localhost">>, port=443,
-			path= <<"/path">>, qs= <<>>, pid=self()}),
+			path= <<"/path">>, qs= <<>>, fragment= <<>>, pid=self()}),
 	{<<"http://localhost:8080/path">>, _} =
 		url(#http_req{transport=ranch_tcp, host= <<"localhost">>, port=8080,
-			path= <<"/path">>, qs= <<>>, pid=self()}),
+			path= <<"/path">>, qs= <<>>, fragment= <<>>, pid=self()}),
 	{<<"http://localhost:8080/path?dummy=2785">>, _} =
 		url(#http_req{transport=ranch_tcp, host= <<"localhost">>, port=8080,
-			path= <<"/path">>, qs= <<"dummy=2785">>, pid=self()}),
+			path= <<"/path">>, qs= <<"dummy=2785">>, fragment= <<>>,
+			pid=self()}),
+	{<<"http://localhost:8080/path?dummy=2785#fragment">>, _} =
+		url(#http_req{transport=ranch_tcp, host= <<"localhost">>, port=8080,
+			path= <<"/path">>, qs= <<"dummy=2785">>, fragment= <<"fragment">>,
+			pid=self()}),
 	{<<"https://localhost/path">>, _} =
 		url(#http_req{transport=ranch_ssl, host= <<"localhost">>, port=443,
-			path= <<"/path">>, qs= <<>>, pid=self()}),
+			path= <<"/path">>, qs= <<>>, fragment= <<>>, pid=self()}),
 	{<<"https://localhost:8443/path">>, _} =
 		url(#http_req{transport=ranch_ssl, host= <<"localhost">>, port=8443,
-			path= <<"/path">>, qs= <<>>, pid=self()}),
+			path= <<"/path">>, qs= <<>>, fragment= <<>>, pid=self()}),
 	{<<"https://localhost:8443/path?dummy=2785">>, _} =
 		url(#http_req{transport=ranch_ssl, host= <<"localhost">>, port=8443,
-			path= <<"/path">>, qs= <<"dummy=2785">>, pid=self()}),
+			path= <<"/path">>, qs= <<"dummy=2785">>, fragment= <<>>,
+			pid=self()}),
+	{<<"https://localhost:8443/path?dummy=2785#fragment">>, _} =
+		url(#http_req{transport=ranch_ssl, host= <<"localhost">>, port=8443,
+			path= <<"/path">>, qs= <<"dummy=2785">>, fragment= <<"fragment">>,
+			pid=self()}),
 	ok.
 
 -endif.
