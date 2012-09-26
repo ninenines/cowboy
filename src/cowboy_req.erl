@@ -122,6 +122,8 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
+-type resp_body_fun() :: fun(() -> {sent, non_neg_integer()}).
+
 -record(http_req, {
 	%% Transport.
 	socket = undefined :: undefined | inet:socket(),
@@ -154,8 +156,7 @@
 	%% Response.
 	resp_state = waiting :: locked | waiting | chunks | done,
 	resp_headers = [] :: cowboy_http:headers(),
-	resp_body = <<>> :: iodata()
-		| {non_neg_integer(), fun(() -> {sent, non_neg_integer()})},
+	resp_body = <<>> :: iodata() | {non_neg_integer(), resp_body_fun()},
 
 	%% Functions.
 	onresponse = undefined :: undefined | cowboy_protocol:onresponse_fun(),
@@ -825,8 +826,8 @@ set_resp_body(Body, Req) ->
 %% `reply/3'.
 %%
 %% @see cowboy_req:transport/1.
--spec set_resp_body_fun(non_neg_integer(),
-	fun(() -> {sent, non_neg_integer()}), Req) -> Req when Req::req().
+-spec set_resp_body_fun(non_neg_integer(), resp_body_fun(), Req)
+	-> Req when Req::req().
 set_resp_body_fun(StreamLen, StreamFun, Req) ->
 	Req#http_req{resp_body={StreamLen, StreamFun}}.
 
@@ -861,29 +862,35 @@ reply(Status, Headers, Req=#http_req{resp_body=Body}) ->
 	reply(Status, Headers, Body, Req).
 
 %% @doc Send a reply to the client.
--spec reply(cowboy_http:status(), cowboy_http:headers(), iodata(), Req)
+-spec reply(cowboy_http:status(), cowboy_http:headers(),
+	iodata() | {non_neg_integer() | resp_body_fun()}, Req)
 	-> {ok, Req} when Req::req().
-reply(Status, Headers, Body, Req=#http_req{socket=Socket, transport=Transport,
+reply(Status, Headers, Body, Req=#http_req{
 		version=Version, connection=Connection,
 		method=Method, resp_state=waiting, resp_headers=RespHeaders}) ->
 	RespConn = response_connection(Headers, Connection),
-	ContentLen = case Body of {CL, _} -> CL; _ -> iolist_size(Body) end,
 	HTTP11Headers = case Version of
 		{1, 1} -> [{<<"connection">>, atom_to_connection(Connection)}];
 		_ -> []
 	end,
-	{ReplyType, Req2} = response(Status, Headers, RespHeaders,  [
-		{<<"content-length">>, integer_to_list(ContentLen)},
-		{<<"date">>, cowboy_clock:rfc1123()},
-		{<<"server">>, <<"Cowboy">>}
-	|HTTP11Headers], Req),
-	if	Method =:= <<"HEAD">> -> ok;
-		ReplyType =:= hook -> ok; %% Hook replied for us, stop there.
-		true ->
-			case Body of
-				{_, StreamFun} -> StreamFun();
-				_ -> Transport:send(Socket, Body)
-			end
+	case Body of
+		{ContentLength, BodyFun} ->
+			{RespType, Req2} = response(Status, Headers, RespHeaders, [
+					{<<"content-length">>, integer_to_list(ContentLength)},
+					{<<"date">>, cowboy_clock:rfc1123()},
+					{<<"server">>, <<"Cowboy">>}
+				|HTTP11Headers], <<>>, Req),
+			if	RespType =/= hook, Method =/= <<"HEAD">> -> BodyFun();
+				true -> ok
+			end;
+		_ ->
+			{_, Req2} = response(Status, Headers, RespHeaders, [
+					{<<"content-length">>, integer_to_list(iolist_size(Body))},
+					{<<"date">>, cowboy_clock:rfc1123()},
+					{<<"server">>, <<"Cowboy">>}
+				|HTTP11Headers],
+				case Method of <<"HEAD">> -> <<>>; _ -> Body end,
+				Req)
 	end,
 	{ok, Req2#http_req{connection=RespConn, resp_state=done,
 		resp_headers=[], resp_body= <<>>}}.
@@ -910,7 +917,7 @@ chunked_reply(Status, Headers, Req=#http_req{
 	{_, Req2} = response(Status, Headers, RespHeaders, [
 		{<<"date">>, cowboy_clock:rfc1123()},
 		{<<"server">>, <<"Cowboy">>}
-	|HTTP11Headers], Req),
+	|HTTP11Headers], <<>>, Req),
 	{ok, Req2#http_req{connection=RespConn, resp_state=chunks,
 		resp_headers=[], resp_body= <<>>}}.
 
@@ -934,7 +941,7 @@ upgrade_reply(Status, Headers, Req=#http_req{
 		resp_state=waiting, resp_headers=RespHeaders}) ->
 	{_, Req2} = response(Status, Headers, RespHeaders, [
 		{<<"connection">>, <<"Upgrade">>}
-	], Req),
+	], <<>>, Req),
 	{ok, Req2#http_req{resp_state=done, resp_headers=[], resp_body= <<>>}}.
 
 %% @doc Ensure the response has been sent fully.
@@ -1049,9 +1056,9 @@ transport(#http_req{transport=Transport, socket=Socket}) ->
 %% Internal.
 
 -spec response(cowboy_http:status(), cowboy_http:headers(),
-	cowboy_http:headers(), cowboy_http:headers(), Req)
+	cowboy_http:headers(), cowboy_http:headers(), iodata(), Req)
 	-> {normal | hook, Req} when Req::req().
-response(Status, Headers, RespHeaders, DefaultHeaders, Req=#http_req{
+response(Status, Headers, RespHeaders, DefaultHeaders, Body, Req=#http_req{
 		socket=Socket, transport=Transport, version=Version,
 		pid=ReqPid, onresponse=OnResponse}) ->
 	FullHeaders = response_merge_headers(Headers, RespHeaders, DefaultHeaders),
@@ -1069,7 +1076,7 @@ response(Status, Headers, RespHeaders, DefaultHeaders, Req=#http_req{
 				(status(Status))/binary, "\r\n" >>,
 			HeaderLines = [[Key, <<": ">>, Value, <<"\r\n">>]
 				|| {Key, Value} <- FullHeaders],
-			Transport:send(Socket, [StatusLine, HeaderLines, <<"\r\n">>]),
+			Transport:send(Socket, [StatusLine, HeaderLines, <<"\r\n">>, Body]),
 			ReqPid ! {?MODULE, resp_sent},
 			normal;
 		_ ->
