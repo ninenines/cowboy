@@ -24,6 +24,8 @@
 %%   Defaults to 64.</dd>
 %%  <dt>max_header_value_length</dt><dd>Max length allowed for header values.
 %%   Defaults to 4096.</dd>
+%%  <dt>max_headers</dt><dd>Max number of headers allowed.
+%%   Defaults to 100.</dd>
 %%  <dt>max_keepalive</dt><dd>Max number of requests allowed in a single
 %%   keep-alive session. Defaults to infinity.</dd>
 %%  <dt>max_request_line_length</dt><dd>Max length allowed for the request
@@ -66,12 +68,13 @@
 	dispatch :: cowboy_dispatcher:dispatch_rules(),
 	onrequest :: undefined | onrequest_fun(),
 	onresponse = undefined :: undefined | onresponse_fun(),
-	max_empty_lines :: integer(),
-	req_keepalive = 1 :: integer(),
-	max_keepalive :: integer(),
-	max_request_line_length :: integer(),
-	max_header_name_length :: integer(),
-	max_header_value_length :: integer(),
+	max_empty_lines :: non_neg_integer(),
+	req_keepalive = 1 :: non_neg_integer(),
+	max_keepalive :: non_neg_integer(),
+	max_request_line_length :: non_neg_integer(),
+	max_header_name_length :: non_neg_integer(),
+	max_header_value_length :: non_neg_integer(),
+	max_headers :: non_neg_integer(),
 	timeout :: timeout(),
 	hibernate = false :: boolean(),
 	loop_timeout = infinity :: timeout(),
@@ -103,6 +106,7 @@ init(ListenerPid, Socket, Transport, Opts) ->
 	MaxEmptyLines = get_value(max_empty_lines, Opts, 5),
 	MaxHeaderNameLength = get_value(max_header_name_length, Opts, 64),
 	MaxHeaderValueLength = get_value(max_header_value_length, Opts, 4096),
+	MaxHeaders = get_value(max_headers, Opts, 100),
 	MaxKeepalive = get_value(max_keepalive, Opts, infinity),
 	MaxRequestLineLength = get_value(max_request_line_length, Opts, 4096),
 	OnRequest = get_value(onrequest, Opts, undefined),
@@ -114,7 +118,7 @@ init(ListenerPid, Socket, Transport, Opts) ->
 		max_empty_lines=MaxEmptyLines, max_keepalive=MaxKeepalive,
 		max_request_line_length=MaxRequestLineLength,
 		max_header_name_length=MaxHeaderNameLength,
-		max_header_value_length=MaxHeaderValueLength,
+		max_header_value_length=MaxHeaderValueLength, max_headers=MaxHeaders,
 		timeout=Timeout, onrequest=OnRequest, onresponse=OnResponse}, 0).
 
 %% Request parsing.
@@ -145,7 +149,7 @@ parse_request(Buffer, State=#state{max_request_line_length=MaxLength,
 		max_empty_lines=MaxEmpty}, ReqEmpty) ->
 	case binary:match(Buffer, <<"\n">>) of
 		nomatch when byte_size(Buffer) > MaxLength ->
-			error_terminate(413, State);
+			error_terminate(414, State);
 		nomatch ->
 			wait_request(Buffer, State, ReqEmpty);
 		{1, _} when ReqEmpty =:= MaxEmpty ->
@@ -213,6 +217,10 @@ parse_version(<< "HTTP/1.0\r\n", Rest/bits >>, S, M, P, Q, F) ->
 parse_version(_, State, _, _, _, _) ->
 	error_terminate(505, State).
 
+%% Stop receiving data if we have more than allowed number of headers.
+wait_header(_, State=#state{max_headers=MaxHeaders}, _, _, _, _, _, Headers)
+		when length(Headers) >= MaxHeaders ->
+	error_terminate(400, State);
 wait_header(Buffer, State=#state{socket=Socket, transport=Transport,
 		timeout=Timeout}, M, P, Q, F, V, H) ->
 	case Transport:recv(Socket, 0, Timeout) of
@@ -231,7 +239,7 @@ parse_header(Buffer, State=#state{max_header_name_length=MaxLength},
 		M, P, Q, F, V, H) ->
 	case binary:match(Buffer, <<":">>) of
 		nomatch when byte_size(Buffer) > MaxLength ->
-			error_terminate(413, State);
+			error_terminate(400, State);
 		nomatch ->
 			wait_header(Buffer, State, M, P, Q, F, V, H);
 		{_, _} ->
@@ -306,7 +314,7 @@ parse_hd_before_value(Buffer, State=#state{
 		max_header_value_length=MaxLength}, M, P, Q, F, V, H, N) ->
 	case binary:match(Buffer, <<"\n">>) of
 		nomatch when byte_size(Buffer) > MaxLength ->
-			error_terminate(413, State);
+			error_terminate(400, State);
 		nomatch ->
 			wait_hd_before_value(Buffer, State, M, P, Q, F, V, H, N);
 		{_, _} ->
@@ -359,7 +367,7 @@ parse_hd_value(<< C, Rest/bits >>, S, M, P, Q, F, V, H, N, SoFar) ->
 	parse_hd_value(Rest, S, M, P, Q, F, V, H, N, << SoFar/binary, C >>);
 parse_hd_value(<<>>, State=#state{max_header_value_length=MaxLength},
 		_, _, _, _, _, _, _, SoFar) when byte_size(SoFar) > MaxLength ->
-	error_terminate(413, State);
+	error_terminate(400, State);
 parse_hd_value(<<>>, S, M, P, Q, F, V, H, N, SoFar) ->
 	wait_hd_value(<<>>, S, M, P, Q, F, V, H, N, SoFar).
 
