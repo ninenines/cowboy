@@ -1228,7 +1228,7 @@ parse_connection_after(<< C, Rest/bits >>, Acc)
 %% @doc Walk through a tokens list and return whether
 %% the connection is keepalive or closed.
 %%
-%% We don't match on <<"keep-alive">> since it is the default value.
+%% We don't match on "keep-alive" since it is the default value.
 -spec connection_to_atom([binary()]) -> keepalive | close.
 connection_to_atom([]) ->
 	keepalive;
