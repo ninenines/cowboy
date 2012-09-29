@@ -1134,14 +1134,12 @@ response_connection([], Connection) ->
 	Connection;
 response_connection([{Name, Value}|Tail], Connection) ->
 	case Name of
-		<<"connection">> -> response_connection_parse(Value);
-		_ -> response_connection(Tail, Connection)
+		<<"connection">> ->
+			Tokens = parse_connection_before(Value, []),
+			connection_to_atom(Tokens);
+		_ ->
+			response_connection(Tail, Connection)
 	end.
-
--spec response_connection_parse(binary()) -> keepalive | close.
-response_connection_parse(ReplyConn) ->
-	Tokens = cowboy_http:nonempty_list(ReplyConn, fun cowboy_http:token/2),
-	connection_to_atom(Tokens).
 
 -spec response_merge_headers(cowboy_http:headers(), cowboy_http:headers(),
 	cowboy_http:headers()) -> cowboy_http:headers().
