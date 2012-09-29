@@ -20,6 +20,19 @@
 %%  <dt>dispatch</dt><dd>The dispatch list for this protocol.</dd>
 %%  <dt>max_empty_lines</dt><dd>Max number of empty lines before a request.
 %%   Defaults to 5.</dd>
+%%  <dt>max_header_name_length</dt><dd>Max length allowed for header names.
+%%   Defaults to 64.</dd>
+%%  <dt>max_header_value_length</dt><dd>Max length allowed for header values.
+%%   Defaults to 4096.</dd>
+%%  <dt>max_keepalive</dt><dd>Max number of requests allowed in a single
+%%   keep-alive session. Defaults to infinity.</dd>
+%%  <dt>max_request_line_length</dt><dd>Max length allowed for the request
+%%   line. Defaults to 4096.</dd>
+%%  <dt>onrequest</dt><dd>Optional fun that allows Req interaction before
+%%   any dispatching is done. Host info, path info and bindings are thus
+%%   not available at this point.</dd>
+%%  <dt>onresponse</dt><dd>Optional fun that allows replacing a response
+%%   sent by the application based on its status code or headers.</dd>
 %%  <dt>timeout</dt><dd>Time in milliseconds before an idle
 %%   connection is closed. Defaults to 5000 milliseconds.</dd>
 %% </dl>
@@ -88,10 +101,10 @@ get_value(Key, Opts, Default) ->
 init(ListenerPid, Socket, Transport, Opts) ->
 	Dispatch = get_value(dispatch, Opts, []),
 	MaxEmptyLines = get_value(max_empty_lines, Opts, 5),
-	MaxKeepalive = get_value(max_keepalive, Opts, infinity),
-	MaxRequestLineLength = get_value(max_request_line_length, Opts, 4096),
 	MaxHeaderNameLength = get_value(max_header_name_length, Opts, 64),
 	MaxHeaderValueLength = get_value(max_header_value_length, Opts, 4096),
+	MaxKeepalive = get_value(max_keepalive, Opts, infinity),
+	MaxRequestLineLength = get_value(max_request_line_length, Opts, 4096),
 	OnRequest = get_value(onrequest, Opts, undefined),
 	OnResponse = get_value(onresponse, Opts, undefined),
 	Timeout = get_value(timeout, Opts, 5000),
@@ -531,6 +544,7 @@ handler_loop_timeout(State=#state{loop_timeout=Timeout,
 	TRef = erlang:start_timer(Timeout, self(), ?MODULE),
 	State#state{loop_timeout_ref=TRef}.
 
+%% @private
 -spec handler_loop(cowboy_req:req(), #state{}, module(), any()) -> ok.
 handler_loop(Req, State=#state{loop_timeout_ref=TRef}, Handler, HandlerState) ->
 	receive
