@@ -42,7 +42,7 @@
 -module(cowboy_req).
 
 %% Request API.
--export([new/14]).
+-export([new/13]).
 -export([method/1]).
 -export([version/1]).
 -export([peer/1]).
@@ -156,8 +156,7 @@
 	resp_body = <<>> :: iodata() | {non_neg_integer(), resp_body_fun()},
 
 	%% Functions.
-	onresponse = undefined :: undefined | cowboy_protocol:onresponse_fun(),
-	urldecode :: {fun((binary(), T) -> binary()), T}
+	onresponse = undefined :: undefined | cowboy_protocol:onresponse_fun()
 }).
 
 -opaque req() :: #http_req{}.
@@ -175,16 +174,15 @@
 -spec new(inet:socket(), module(), binary(), binary(), binary(), binary(),
 	cowboy_http:version(), cowboy_http:headers(), binary(),
 	inet:port_number() | undefined, binary(), boolean(),
-	undefined | cowboy_protocol:onresponse_fun(),
-	undefined | {fun(), atom()})
+	undefined | cowboy_protocol:onresponse_fun())
 	-> req().
 new(Socket, Transport, Method, Path, Query, Fragment,
 		Version, Headers, Host, Port, Buffer, CanKeepalive,
-		OnResponse, URLDecode) ->
+		OnResponse) ->
 	Req = #http_req{socket=Socket, transport=Transport, pid=self(),
 		method=Method, path=Path, qs=Query, fragment=Fragment, version=Version,
 		headers=Headers, host=Host, port=Port, buffer=Buffer,
-		onresponse=OnResponse, urldecode=URLDecode},
+		onresponse=OnResponse},
 	case CanKeepalive of
 		false ->
 			Req#http_req{connection=close};
@@ -288,10 +286,9 @@ qs_val(Name, Req) when is_binary(Name) ->
 %% missing.
 -spec qs_val(binary(), Req, Default)
 	-> {binary() | true | Default, Req} when Req::req(), Default::any().
-qs_val(Name, Req=#http_req{qs=RawQs, qs_vals=undefined,
-		urldecode={URLDecFun, URLDecArg}}, Default) when is_binary(Name) ->
-	QsVals = cowboy_http:x_www_form_urlencoded(
-		RawQs, fun(Bin) -> URLDecFun(Bin, URLDecArg) end),
+qs_val(Name, Req=#http_req{qs=RawQs, qs_vals=undefined}, Default)
+		when is_binary(Name) ->
+	QsVals = cowboy_http:x_www_form_urlencoded(RawQs),
 	qs_val(Name, Req#http_req{qs_vals=QsVals}, Default);
 qs_val(Name, Req, Default) ->
 	case lists:keyfind(Name, 1, Req#http_req.qs_vals) of
@@ -301,10 +298,8 @@ qs_val(Name, Req, Default) ->
 
 %% @doc Return the full list of query string values.
 -spec qs_vals(Req) -> {list({binary(), binary() | true}), Req} when Req::req().
-qs_vals(Req=#http_req{qs=RawQs, qs_vals=undefined,
-		urldecode={URLDecFun, URLDecArg}}) ->
-	QsVals = cowboy_http:x_www_form_urlencoded(
-		RawQs, fun(Bin) -> URLDecFun(Bin, URLDecArg) end),
+qs_vals(Req=#http_req{qs=RawQs, qs_vals=undefined}) ->
+	QsVals = cowboy_http:x_www_form_urlencoded(RawQs),
 	qs_vals(Req#http_req{qs_vals=QsVals});
 qs_vals(Req=#http_req{qs_vals=QsVals}) ->
 	{QsVals, Req}.
@@ -744,11 +739,10 @@ skip_body(Req) ->
 -spec body_qs(Req)
 	-> {ok, [{binary(), binary() | true}], Req} | {error, atom()}
 	when Req::req().
-body_qs(Req=#http_req{urldecode={URLDecFun, URLDecArg}}) ->
+body_qs(Req) ->
 	case body(Req) of
 		{ok, Body, Req2} ->
-			{ok, cowboy_http:x_www_form_urlencoded(
-				Body, fun(Bin) -> URLDecFun(Bin, URLDecArg) end), Req2};
+			{ok, cowboy_http:x_www_form_urlencoded(Body), Req2};
 		{error, Reason} ->
 			{error, Reason}
 	end.

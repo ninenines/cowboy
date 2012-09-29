@@ -17,7 +17,7 @@
 -module(cowboy_dispatcher).
 
 %% API.
--export([match/4]).
+-export([match/3]).
 
 -type bindings() :: [{atom(), binary()}].
 -type tokens() :: [binary()].
@@ -63,53 +63,51 @@
 %% options found in the dispatch list, a key-value list of bindings and
 %% the tokens that were matched by the <em>'...'</em> atom for both the
 %% hostname and path.
--spec match(dispatch_rules(), fun((binary()) -> binary()),
-		Host::binary() | tokens(), Path::binary())
+-spec match(dispatch_rules(), Host::binary() | tokens(), Path::binary())
 	-> {ok, module(), any(), bindings(),
 		HostInfo::undefined | tokens(),
 		PathInfo::undefined | tokens()}
 	| {error, notfound, host} | {error, notfound, path}.
-match([], _, _, _) ->
+match([], _, _) ->
 	{error, notfound, host};
-match([{'_', PathMatchs}|_Tail], URLDecode, _, Path) ->
-	match_path(PathMatchs, URLDecode, undefined, Path, []);
-match([{HostMatch, PathMatchs}|Tail], URLDecode, Tokens, Path)
+match([{'_', PathMatchs}|_Tail], _, Path) ->
+	match_path(PathMatchs, undefined, Path, []);
+match([{HostMatch, PathMatchs}|Tail], Tokens, Path)
 		when is_list(Tokens) ->
 	case list_match(Tokens, lists:reverse(HostMatch), []) of
 		false ->
-			match(Tail, URLDecode, Tokens, Path);
+			match(Tail, Tokens, Path);
 		{true, Bindings, undefined} ->
-			match_path(PathMatchs, URLDecode, undefined, Path, Bindings);
+			match_path(PathMatchs, undefined, Path, Bindings);
 		{true, Bindings, HostInfo} ->
-			match_path(PathMatchs, URLDecode, lists:reverse(HostInfo),
+			match_path(PathMatchs, lists:reverse(HostInfo),
 				Path, Bindings)
 	end;
-match(Dispatch, URLDecode, Host, Path) ->
-	match(Dispatch, URLDecode, split_host(Host), Path).
+match(Dispatch, Host, Path) ->
+	match(Dispatch, split_host(Host), Path).
 
--spec match_path(dispatch_path(), fun((binary()) -> binary()),
+-spec match_path(dispatch_path(),
 	HostInfo::undefined | tokens(), binary() | tokens(), bindings())
 	-> {ok, module(), any(), bindings(),
 		HostInfo::undefined | tokens(),
 		PathInfo::undefined | tokens()}
 	| {error, notfound, path}.
-match_path([], _, _, _, _) ->
+match_path([], _, _, _) ->
 	{error, notfound, path};
-match_path([{'_', Handler, Opts}|_Tail], _, HostInfo, _, Bindings) ->
+match_path([{'_', Handler, Opts}|_Tail], HostInfo, _, Bindings) ->
 	{ok, Handler, Opts, Bindings, HostInfo, undefined};
-match_path([{'*', Handler, Opts}|_Tail], _, HostInfo, '*', Bindings) ->
+match_path([{'*', Handler, Opts}|_Tail], HostInfo, '*', Bindings) ->
 	{ok, Handler, Opts, Bindings, HostInfo, undefined};
-match_path([{PathMatch, Handler, Opts}|Tail], URLDecode, HostInfo, Tokens,
+match_path([{PathMatch, Handler, Opts}|Tail], HostInfo, Tokens,
 		Bindings) when is_list(Tokens) ->
 	case list_match(Tokens, PathMatch, []) of
 		false ->
-			match_path(Tail, URLDecode, HostInfo, Tokens, Bindings);
+			match_path(Tail, HostInfo, Tokens, Bindings);
 		{true, PathBinds, PathInfo} ->
 			{ok, Handler, Opts, Bindings ++ PathBinds, HostInfo, PathInfo}
 	end;
-match_path(Dispatch, URLDecode, HostInfo, Path, Bindings) ->
-	match_path(Dispatch, URLDecode, HostInfo,
-		split_path(Path, URLDecode), Bindings).
+match_path(Dispatch, HostInfo, Path, Bindings) ->
+	match_path(Dispatch, HostInfo, split_path(Path), Bindings).
 
 %% Internal.
 
@@ -135,19 +133,19 @@ split_host(Host, Acc) ->
 %% Following RFC2396, this function may return path segments containing any
 %% character, including <em>/</em> if, and only if, a <em>/</em> was escaped
 %% and part of a path segment.
--spec split_path(binary(), fun((binary()) -> binary())) -> tokens().
-split_path(<< $/, Path/bits >>, URLDec) ->
-	split_path(Path, URLDec, []).
+-spec split_path(binary()) -> tokens().
+split_path(<< $/, Path/bits >>) ->
+	split_path(Path, []).
 
-split_path(Path, URLDec, Acc) ->
+split_path(Path, Acc) ->
 	case binary:match(Path, <<"/">>) of
 		nomatch when Path =:= <<>> ->
-			lists:reverse([URLDec(S) || S <- Acc]);
+			lists:reverse([cowboy_http:urldecode(S) || S <- Acc]);
 		nomatch ->
-			lists:reverse([URLDec(S) || S <- [Path|Acc]]);
+			lists:reverse([cowboy_http:urldecode(S) || S <- [Path|Acc]]);
 		{Pos, _} ->
 			<< Segment:Pos/binary, _:8, Rest/bits >> = Path,
-			split_path(Rest, URLDec, [Segment|Acc])
+			split_path(Rest, [Segment|Acc])
 	end.
 
 -spec list_match(tokens(), match_rule(), bindings())
@@ -201,9 +199,7 @@ split_path_test_() ->
 		{<<"/users/42/friends">>, [<<"users">>, <<"42">>, <<"friends">>]},
 		{<<"/users/a+b/c%21d">>, [<<"users">>, <<"a b">>, <<"c!d">>]}
 	],
-	URLDecode = fun(Bin) -> cowboy_http:urldecode(Bin, crash) end,
-	[{P, fun() -> R = split_path(P, URLDecode) end}
-		|| {P, R} <- Tests].
+	[{P, fun() -> R = split_path(P) end} || {P, R} <- Tests].
 
 match_test_() ->
 	Dispatch = [
@@ -249,10 +245,9 @@ match_test_() ->
 			{ok, match_duplicate_vars, [we, {expect, two}, var, here],
 				[{var, <<"fr">>}, {var, <<"987">>}]}}
 	],
-	URLDecode = fun(Bin) -> cowboy_http:urldecode(Bin, crash) end,
 	[{lists:flatten(io_lib:format("~p, ~p", [H, P])), fun() ->
 		{ok, Handler, Opts, Binds, undefined, undefined}
-			= match(Dispatch, URLDecode, H, P)
+			= match(Dispatch, H, P)
 	end} || {H, P, {ok, Handler, Opts, Binds}} <- Tests].
 
 match_info_test_() ->
@@ -278,9 +273,8 @@ match_info_test_() ->
 		{<<"www.ninenines.eu">>, <<"/pathinfo/is/next/foo/bar">>,
 			{ok, match_path, [], [], undefined, [<<"foo">>, <<"bar">>]}}
 	],
-	URLDecode = fun(Bin) -> cowboy_http:urldecode(Bin, crash) end,
 	[{lists:flatten(io_lib:format("~p, ~p", [H, P])), fun() ->
-		R = match(Dispatch, URLDecode, H, P)
+		R = match(Dispatch, H, P)
 	end} || {H, P, R} <- Tests].
 
 -endif.

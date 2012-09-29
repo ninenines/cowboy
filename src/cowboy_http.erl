@@ -47,7 +47,7 @@
 -export([urldecode/2]).
 -export([urlencode/1]).
 -export([urlencode/2]).
--export([x_www_form_urlencoded/2]).
+-export([x_www_form_urlencoded/1]).
 
 -type version() :: {Major::non_neg_integer(), Minor::non_neg_integer()}.
 -type headers() :: [{binary(), iodata()}].
@@ -861,15 +861,14 @@ tohexu(C) when C < 17 -> $A + C - 10.
 tohexl(C) when C < 10 -> $0 + C;
 tohexl(C) when C < 17 -> $a + C - 10.
 
--spec x_www_form_urlencoded(binary(), fun((binary()) -> binary())) ->
-		list({binary(), binary() | true}).
-x_www_form_urlencoded(<<>>, _URLDecode) ->
+-spec x_www_form_urlencoded(binary()) -> list({binary(), binary() | true}).
+x_www_form_urlencoded(<<>>) ->
 	[];
-x_www_form_urlencoded(Qs, URLDecode) ->
+x_www_form_urlencoded(Qs) ->
 	Tokens = binary:split(Qs, <<"&">>, [global, trim]),
 	[case binary:split(Token, <<"=">>) of
-		[Token] -> {URLDecode(Token), true};
-		[Name, Value] -> {URLDecode(Name), URLDecode(Value)}
+		[Token] -> {urldecode(Token), true};
+		[Name, Value] -> {urldecode(Name), urldecode(Value)}
 	end || Token <- Tokens].
 
 %% Tests.
@@ -1053,9 +1052,7 @@ x_www_form_urlencoded_test_() ->
 		{<<"a=b=c=d=e&f=g">>, [{<<"a">>, <<"b=c=d=e">>}, {<<"f">>, <<"g">>}]},
 		{<<"a+b=c+d">>, [{<<"a b">>, <<"c d">>}]}
 	],
-	URLDecode = fun urldecode/1,
-	[{Qs, fun() -> R = x_www_form_urlencoded(
-		Qs, URLDecode) end} || {Qs, R} <- Tests].
+	[{Qs, fun() -> R = x_www_form_urlencoded(Qs) end} || {Qs, R} <- Tests].
 
 urldecode_test_() ->
 	U = fun urldecode/2,

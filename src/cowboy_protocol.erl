@@ -22,9 +22,6 @@
 %%   Defaults to 5.</dd>
 %%  <dt>timeout</dt><dd>Time in milliseconds before an idle
 %%   connection is closed. Defaults to 5000 milliseconds.</dd>
-%%  <dt>urldecode</dt><dd>Function and options argument to use when decoding
-%%   URL encoded strings. Defaults to `{fun cowboy_http:urldecode/2, crash}'.
-%%   </dd>
 %% </dl>
 %%
 %% Note that there is no need to monitor these processes when using Cowboy as
@@ -56,7 +53,6 @@
 	dispatch :: cowboy_dispatcher:dispatch_rules(),
 	onrequest :: undefined | onrequest_fun(),
 	onresponse = undefined :: undefined | onresponse_fun(),
-	urldecode :: {fun((binary(), T) -> binary()), T},
 	max_empty_lines :: integer(),
 	req_keepalive = 1 :: integer(),
 	max_keepalive :: integer(),
@@ -99,8 +95,6 @@ init(ListenerPid, Socket, Transport, Opts) ->
 	OnRequest = get_value(onrequest, Opts, undefined),
 	OnResponse = get_value(onresponse, Opts, undefined),
 	Timeout = get_value(timeout, Opts, 5000),
-	URLDecDefault = {fun cowboy_http:urldecode/2, crash},
-	URLDec = get_value(urldecode, Opts, URLDecDefault),
 	ok = ranch:accept_ack(ListenerPid),
 	wait_request(<<>>, #state{listener=ListenerPid, socket=Socket,
 		transport=Transport, dispatch=Dispatch,
@@ -108,8 +102,7 @@ init(ListenerPid, Socket, Transport, Opts) ->
 		max_request_line_length=MaxRequestLineLength,
 		max_header_name_length=MaxHeaderNameLength,
 		max_header_value_length=MaxHeaderValueLength,
-		timeout=Timeout, onrequest=OnRequest, onresponse=OnResponse,
-		urldecode=URLDec}, 0).
+		timeout=Timeout, onrequest=OnRequest, onresponse=OnResponse}, 0).
 
 %% Request parsing.
 %%
@@ -421,11 +414,11 @@ parse_host(<< C, Rest/bits >>, Acc) ->
 
 request(Buffer, State=#state{socket=Socket, transport=Transport,
 		req_keepalive=ReqKeepalive, max_keepalive=MaxKeepalive,
-		onresponse=OnResponse, urldecode=URLDecode},
+		onresponse=OnResponse},
 		Method, Path, Query, Fragment, Version, Headers, Host, Port) ->
 	Req = cowboy_req:new(Socket, Transport, Method, Path, Query, Fragment,
 		Version, Headers, Host, Port, Buffer, ReqKeepalive < MaxKeepalive,
-		OnResponse, URLDecode),
+		OnResponse),
 	onrequest(Req, State, Host, Path).
 
 %% Call the global onrequest callback. The callback can send a reply,
@@ -443,10 +436,8 @@ onrequest(Req, State=#state{onrequest=OnRequest}, Host, Path) ->
 	end.
 
 -spec dispatch(cowboy_req:req(), #state{}, binary(), binary()) -> ok.
-dispatch(Req, State=#state{dispatch=Dispatch, urldecode={URLDecFun, URLDecArg}},
-		Host, Path) ->
-	case cowboy_dispatcher:match(Dispatch,
-			fun(Bin) -> URLDecFun(Bin, URLDecArg) end, Host, Path) of
+dispatch(Req, State=#state{dispatch=Dispatch}, Host, Path) ->
+	case cowboy_dispatcher:match(Dispatch, Host, Path) of
 		{ok, Handler, Opts, Bindings, HostInfo, PathInfo} ->
 			Req2 = cowboy_req:set_bindings(HostInfo, PathInfo, Bindings, Req),
 			handler_init(Req2, State, Handler, Opts);
@@ -620,7 +611,7 @@ error_terminate(Code, State=#state{socket=Socket, transport=Transport,
 	after 0 ->
 		_ = cowboy_req:reply(Code, cowboy_req:new(Socket, Transport,
 			<<"GET">>, <<>>, <<>>, <<>>, {1, 1}, [], <<>>, undefined,
-			<<>>, false, OnResponse, undefined)),
+			<<>>, false, OnResponse)),
 		ok
 	end,
 	terminate(State).
