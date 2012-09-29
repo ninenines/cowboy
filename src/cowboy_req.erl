@@ -104,10 +104,9 @@
 -export([ensure_response/2]).
 
 %% Private setter/getter API.
+-export([get/2]).
+-export([set/2]).
 -export([set_bindings/4]).
--export([get_resp_state/1]).
--export([get_buffer/1]).
--export([get_connection/1]).
 
 %% Misc API.
 -export([compact/1]).
@@ -993,26 +992,77 @@ ensure_response(#http_req{socket=Socket, transport=Transport,
 %% Private setter/getter API.
 
 %% @private
+-spec get(atom(), req()) -> any(); ([atom()], req()) -> any().
+get(List, Req) when is_list(List) ->
+	[g(Atom, Req) || Atom <- List];
+get(Atom, Req) when is_atom(Atom) ->
+	g(Atom, Req).
+
+g(bindings, #http_req{bindings=Ret}) -> Ret;
+g(body_state, #http_req{body_state=Ret}) -> Ret;
+g(buffer, #http_req{buffer=Ret}) -> Ret;
+g(connection, #http_req{connection=Ret}) -> Ret;
+g(cookies, #http_req{cookies=Ret}) -> Ret;
+g(fragment, #http_req{fragment=Ret}) -> Ret;
+g(headers, #http_req{headers=Ret}) -> Ret;
+g(host, #http_req{host=Ret}) -> Ret;
+g(host_info, #http_req{host_info=Ret}) -> Ret;
+g(meta, #http_req{meta=Ret}) -> Ret;
+g(method, #http_req{method=Ret}) -> Ret;
+g(multipart, #http_req{multipart=Ret}) -> Ret;
+g(onresponse, #http_req{onresponse=Ret}) -> Ret;
+g(p_headers, #http_req{p_headers=Ret}) -> Ret;
+g(path, #http_req{path=Ret}) -> Ret;
+g(path_info, #http_req{path_info=Ret}) -> Ret;
+g(peer, #http_req{peer=Ret}) -> Ret;
+g(pid, #http_req{pid=Ret}) -> Ret;
+g(port, #http_req{port=Ret}) -> Ret;
+g(qs, #http_req{qs=Ret}) -> Ret;
+g(qs_vals, #http_req{qs_vals=Ret}) -> Ret;
+g(resp_body, #http_req{resp_body=Ret}) -> Ret;
+g(resp_headers, #http_req{resp_headers=Ret}) -> Ret;
+g(resp_state, #http_req{resp_state=Ret}) -> Ret;
+g(socket, #http_req{socket=Ret}) -> Ret;
+g(transport, #http_req{transport=Ret}) -> Ret;
+g(version, #http_req{version=Ret}) -> Ret.
+
+%% @private
+-spec set([{atom(), any()}], Req) -> Req when Req::req().
+set([], Req) -> Req;
+set([{bindings, Val}|Tail], Req) -> set(Tail, Req#http_req{bindings=Val});
+set([{body_state, Val}|Tail], Req) -> set(Tail, Req#http_req{body_state=Val});
+set([{buffer, Val}|Tail], Req) -> set(Tail, Req#http_req{buffer=Val});
+set([{connection, Val}|Tail], Req) -> set(Tail, Req#http_req{connection=Val});
+set([{cookies, Val}|Tail], Req) -> set(Tail, Req#http_req{cookies=Val});
+set([{fragment, Val}|Tail], Req) -> set(Tail, Req#http_req{fragment=Val});
+set([{headers, Val}|Tail], Req) -> set(Tail, Req#http_req{headers=Val});
+set([{host, Val}|Tail], Req) -> set(Tail, Req#http_req{host=Val});
+set([{host_info, Val}|Tail], Req) -> set(Tail, Req#http_req{host_info=Val});
+set([{meta, Val}|Tail], Req) -> set(Tail, Req#http_req{meta=Val});
+set([{method, Val}|Tail], Req) -> set(Tail, Req#http_req{method=Val});
+set([{multipart, Val}|Tail], Req) -> set(Tail, Req#http_req{multipart=Val});
+set([{onresponse, Val}|Tail], Req) -> set(Tail, Req#http_req{onresponse=Val});
+set([{p_headers, Val}|Tail], Req) -> set(Tail, Req#http_req{p_headers=Val});
+set([{path, Val}|Tail], Req) -> set(Tail, Req#http_req{path=Val});
+set([{path_info, Val}|Tail], Req) -> set(Tail, Req#http_req{path_info=Val});
+set([{peer, Val}|Tail], Req) -> set(Tail, Req#http_req{peer=Val});
+set([{pid, Val}|Tail], Req) -> set(Tail, Req#http_req{pid=Val});
+set([{port, Val}|Tail], Req) -> set(Tail, Req#http_req{port=Val});
+set([{qs, Val}|Tail], Req) -> set(Tail, Req#http_req{qs=Val});
+set([{qs_vals, Val}|Tail], Req) -> set(Tail, Req#http_req{qs_vals=Val});
+set([{resp_body, Val}|Tail], Req) -> set(Tail, Req#http_req{resp_body=Val});
+set([{resp_headers, Val}|Tail], Req) -> set(Tail, Req#http_req{resp_headers=Val});
+set([{resp_state, Val}|Tail], Req) -> set(Tail, Req#http_req{resp_state=Val});
+set([{socket, Val}|Tail], Req) -> set(Tail, Req#http_req{socket=Val});
+set([{transport, Val}|Tail], Req) -> set(Tail, Req#http_req{transport=Val});
+set([{version, Val}|Tail], Req) -> set(Tail, Req#http_req{version=Val}).
+
+%% @private
 -spec set_bindings(cowboy_dispatcher:tokens(), cowboy_dispatcher:tokens(),
 	cowboy_dispatcher:bindings(), Req) -> Req when Req::req().
 set_bindings(HostInfo, PathInfo, Bindings, Req) ->
 	Req#http_req{host_info=HostInfo, path_info=PathInfo,
 		bindings=Bindings}.
-
-%% @private
--spec get_resp_state(req()) -> locked | waiting | chunks | done.
-get_resp_state(#http_req{resp_state=RespState}) ->
-	RespState.
-
-%% @private
--spec get_buffer(req()) -> binary().
-get_buffer(#http_req{buffer=Buffer}) ->
-	Buffer.
-
-%% @private
--spec get_connection(req()) -> keepalive | close.
-get_connection(#http_req{connection=Connection}) ->
-	Connection.
 
 %% Misc API.
 

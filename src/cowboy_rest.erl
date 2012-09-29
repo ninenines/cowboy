@@ -58,16 +58,16 @@
 	-> {ok, Req} | close when Req::cowboy_req:req().
 upgrade(_ListenerPid, Handler, Opts, Req) ->
 	try
-		{Method, Req1} = cowboy_req:method(Req),
+		Method = cowboy_req:get(method, Req),
 		case erlang:function_exported(Handler, rest_init, 2) of
 			true ->
-				case Handler:rest_init(Req1, Opts) of
+				case Handler:rest_init(Req, Opts) of
 					{ok, Req2, HandlerState} ->
 						service_available(Req2, #state{method=Method,
 							handler=Handler, handler_state=HandlerState})
 				end;
 			false ->
-				service_available(Req1, #state{method=Method,
+				service_available(Req, #state{method=Method,
 					handler=Handler})
 		end
 	catch Class:Reason ->
@@ -693,8 +693,8 @@ is_conflict(Req, State) ->
 	expect(Req, State, is_conflict, false, fun put_resource/2, 409).
 
 put_resource(Req, State) ->
-	{Path, Req2} = cowboy_req:path(Req),
-	put_resource(cowboy_req:set_meta(put_path, Path, Req2),
+	Path = cowboy_req:get(path, Req),
+	put_resource(cowboy_req:set_meta(put_path, Path, Req),
 		State, fun is_new_resource/2).
 
 %% content_types_accepted should return a list of media types and their

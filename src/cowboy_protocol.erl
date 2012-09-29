@@ -437,7 +437,7 @@ onrequest(Req, State=#state{onrequest=undefined}, Host, Path) ->
 	dispatch(Req, State, Host, Path);
 onrequest(Req, State=#state{onrequest=OnRequest}, Host, Path) ->
 	Req2 = OnRequest(Req),
-	case cowboy_req:get_resp_state(Req2) of
+	case cowboy_req:get(resp_state, Req2) of
 		waiting -> dispatch(Req2, State, Host, Path);
 		_ -> next_request(Req2, State, ok)
 	end.
@@ -597,13 +597,13 @@ terminate_request(Req, State, Handler, HandlerState) ->
 -spec next_request(cowboy_req:req(), #state{}, any()) -> ok.
 next_request(Req, State=#state{req_keepalive=Keepalive}, HandlerRes) ->
 	cowboy_req:ensure_response(Req, 204),
-	{BodyRes, Buffer} = case cowboy_req:skip_body(Req) of
-		{ok, Req2} -> {ok, cowboy_req:get_buffer(Req2)};
-		{error, _} -> {close, <<>>}
+	{BodyRes, [Buffer, Connection]} = case cowboy_req:skip_body(Req) of
+		{ok, Req2} -> {ok, cowboy_req:get([buffer, connection], Req2)};
+		{error, _} -> {close, [<<>>, close]}
 	end,
 	%% Flush the resp_sent message before moving on.
 	receive {cowboy_req, resp_sent} -> ok after 0 -> ok end,
-	case {HandlerRes, BodyRes, cowboy_req:get_connection(Req)} of
+	case {HandlerRes, BodyRes, Connection} of
 		{ok, ok, keepalive} ->
 			?MODULE:parse_request(Buffer, State#state{
 				req_keepalive=Keepalive + 1}, 0);
