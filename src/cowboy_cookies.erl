@@ -26,7 +26,7 @@
 -type kv() :: {Name::binary(), Value::binary()}.
 -type kvlist() :: [kv()].
 -type cookie_option() :: {max_age, integer()}
-				| {local_time, calendar:datetime()}
+				| {local_time, calendar:datetime() | relative}
 				| {domain, binary()} | {path, binary()}
 				| {secure, true | false} | {http_only, true | false}.
 
@@ -34,7 +34,7 @@
 -export_type([kvlist/0]).
 -export_type([cookie_option/0]).
 
--define(QUOTE, $\").
+-define(QUOTE, $\").    % This comment is to fix vim code highlighting issue (")
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
@@ -71,6 +71,8 @@ cookie(Key, Value, Options) when is_binary(Key)
 				When = case proplists:get_value(local_time, Options) of
 						undefined ->
 							calendar:local_time();
+                        relative ->
+                            relative;
 						LocalTime ->
 							LocalTime
 					end,
@@ -81,9 +83,14 @@ cookie(Key, Value, Options) when is_binary(Key)
 							RawAge
 					end,
 				AgeBinary = quote(Age),
-				CookieDate = age_to_cookie_date(Age, When),
-				<<"; Expires=", CookieDate/binary,
-				"; Max-Age=", AgeBinary/binary>>
+                case When of
+                    relative ->
+                        <<"; Max-Age=", AgeBinary/binary>>;
+                    _ ->
+                        CookieDate = age_to_cookie_date(Age, When),
+                        <<"; Expires=", CookieDate/binary,
+                        "; Max-Age=", AgeBinary/binary>>
+                end
 		end,
 	SecurePart =
 		case proplists:get_value(secure, Options) of
@@ -411,6 +418,9 @@ cookie_test() ->
 		"Max-Age=86417">>},
 	C3 = cookie(<<"Customer">>, <<"WILE_E_COYOTE">>,
 				[{max_age, 86417}, {local_time, LocalTime}]),
+    {<<"Set-Cookie">>, <<"cmp=test; Version=1; Max-Age=0; Path=/">>}
+        = cookie(<<"cmp">>, <<"test">>,
+            [{path, "/"}, {max_age, -1}, {local_time, relative}]).
 	ok.
 
 -endif.
