@@ -17,16 +17,14 @@
 -module(cowboy_dispatcher).
 
 %% API.
--export([split_host/1]).
--export([split_path/2]).
 -export([match/3]).
 
--type bindings() :: list({atom(), binary()}).
--type tokens() :: list(binary()).
--type match_rule() :: '_' | '*' | list(binary() | '_' | '...' | atom()).
--type dispatch_path() :: list({match_rule(), module(), any()}).
+-type bindings() :: [{atom(), binary()}].
+-type tokens() :: [binary()].
+-type match_rule() :: '_' | '*' | [binary() | '_' | '...' | atom()].
+-type dispatch_path() :: [{match_rule(), module(), any()}].
 -type dispatch_rule() :: {Host::match_rule(), Path::dispatch_path()}.
--type dispatch_rules() :: list(dispatch_rule()).
+-type dispatch_rules() :: [dispatch_rule()].
 
 -export_type([bindings/0]).
 -export_type([tokens/0]).
@@ -37,42 +35,6 @@
 -endif.
 
 %% API.
-
-%% @doc Split a hostname into a list of tokens.
--spec split_host(binary())
-	-> {tokens(), binary(), undefined | inet:port_number()}.
-split_host(<<>>) ->
-	{[], <<>>, undefined};
-split_host(Host) ->
-	case binary:split(Host, <<":">>) of
-		[Host] ->
-			{binary:split(Host, <<".">>, [global, trim]), Host, undefined};
-		[Host2, Port] ->
-			{binary:split(Host2, <<".">>, [global, trim]), Host2,
-				list_to_integer(binary_to_list(Port))}
-	end.
-
-%% @doc Split a path into a list of path segments.
-%%
-%% Following RFC2396, this function may return path segments containing any
-%% character, including <em>/</em> if, and only if, a <em>/</em> was escaped
-%% and part of a path segment.
--spec split_path(binary(), fun((binary()) -> binary())) ->
-		{tokens(), binary(), binary()}.
-split_path(Path, URLDec) ->
-	case binary:split(Path, <<"?">>) of
-		[Path] -> {do_split_path(Path, <<"/">>, URLDec), Path, <<>>};
-		[<<>>, Qs] -> {[], <<>>, Qs};
-		[Path2, Qs] -> {do_split_path(Path2, <<"/">>, URLDec), Path2, Qs}
-	end.
-
--spec do_split_path(binary(), <<_:8>>, fun((binary()) -> binary())) -> tokens().
-do_split_path(RawPath, Separator, URLDec) ->
-	EncodedPath = case binary:split(RawPath, Separator, [global, trim]) of
-		[<<>>|Path] -> Path;
-		Path -> Path
-	end,
-	[URLDec(Token) || Token <- EncodedPath].
 
 %% @doc Match hostname tokens and path tokens against dispatch rules.
 %%
@@ -101,53 +63,90 @@ do_split_path(RawPath, Separator, URLDec) ->
 %% options found in the dispatch list, a key-value list of bindings and
 %% the tokens that were matched by the <em>'...'</em> atom for both the
 %% hostname and path.
--spec match(Host::tokens(), Path::tokens(), dispatch_rules())
+-spec match(dispatch_rules(), Host::binary() | tokens(), Path::binary())
 	-> {ok, module(), any(), bindings(),
 		HostInfo::undefined | tokens(),
 		PathInfo::undefined | tokens()}
 	| {error, notfound, host} | {error, notfound, path}.
-match(_Host, _Path, []) ->
+match([], _, _) ->
 	{error, notfound, host};
-match(_Host, Path, [{'_', PathMatchs}|_Tail]) ->
-	match_path(Path, PathMatchs, [], undefined);
-match(Host, Path, [{HostMatch, PathMatchs}|Tail]) ->
-	case try_match(host, Host, HostMatch) of
+match([{'_', PathMatchs}|_Tail], _, Path) ->
+	match_path(PathMatchs, undefined, Path, []);
+match([{HostMatch, PathMatchs}|Tail], Tokens, Path)
+		when is_list(Tokens) ->
+	case list_match(Tokens, lists:reverse(HostMatch), []) of
 		false ->
-			match(Host, Path, Tail);
-		{true, HostBinds, undefined} ->
-			match_path(Path, PathMatchs, HostBinds, undefined);
-		{true, HostBinds, HostInfo} ->
-			match_path(Path, PathMatchs, HostBinds, lists:reverse(HostInfo))
-	end.
+			match(Tail, Tokens, Path);
+		{true, Bindings, undefined} ->
+			match_path(PathMatchs, undefined, Path, Bindings);
+		{true, Bindings, HostInfo} ->
+			match_path(PathMatchs, lists:reverse(HostInfo),
+				Path, Bindings)
+	end;
+match(Dispatch, Host, Path) ->
+	match(Dispatch, split_host(Host), Path).
 
--spec match_path(tokens(), dispatch_path(), bindings(),
-	HostInfo::undefined | tokens())
+-spec match_path(dispatch_path(),
+	HostInfo::undefined | tokens(), binary() | tokens(), bindings())
 	-> {ok, module(), any(), bindings(),
 		HostInfo::undefined | tokens(),
 		PathInfo::undefined | tokens()}
 	| {error, notfound, path}.
-match_path(_Path, [], _HostBinds, _HostInfo) ->
+match_path([], _, _, _) ->
 	{error, notfound, path};
-match_path(_Path, [{'_', Handler, Opts}|_Tail], HostBinds, HostInfo) ->
-	{ok, Handler, Opts, HostBinds, HostInfo, undefined};
-match_path('*', [{'*', Handler, Opts}|_Tail], HostBinds, HostInfo) ->
-	{ok, Handler, Opts, HostBinds, HostInfo, undefined};
-match_path(Path, [{PathMatch, Handler, Opts}|Tail], HostBinds, HostInfo) ->
-	case try_match(path, Path, PathMatch) of
+match_path([{'_', Handler, Opts}|_Tail], HostInfo, _, Bindings) ->
+	{ok, Handler, Opts, Bindings, HostInfo, undefined};
+match_path([{'*', Handler, Opts}|_Tail], HostInfo, '*', Bindings) ->
+	{ok, Handler, Opts, Bindings, HostInfo, undefined};
+match_path([{PathMatch, Handler, Opts}|Tail], HostInfo, Tokens,
+		Bindings) when is_list(Tokens) ->
+	case list_match(Tokens, PathMatch, []) of
 		false ->
-			match_path(Path, Tail, HostBinds, HostInfo);
+			match_path(Tail, HostInfo, Tokens, Bindings);
 		{true, PathBinds, PathInfo} ->
-			{ok, Handler, Opts, HostBinds ++ PathBinds, HostInfo, PathInfo}
-	end.
+			{ok, Handler, Opts, Bindings ++ PathBinds, HostInfo, PathInfo}
+	end;
+match_path(Dispatch, HostInfo, Path, Bindings) ->
+	match_path(Dispatch, HostInfo, split_path(Path), Bindings).
 
 %% Internal.
 
--spec try_match(host | path, tokens(), match_rule())
-	-> {true, bindings(), undefined | tokens()} | false.
-try_match(host, List, Match) ->
-	list_match(lists:reverse(List), lists:reverse(Match), []);
-try_match(path, List, Match) ->
-	list_match(List, Match, []).
+%% @doc Split a hostname into a list of tokens.
+-spec split_host(binary()) -> tokens().
+split_host(Host) ->
+	split_host(Host, []).
+
+split_host(Host, Acc) ->
+	case binary:match(Host, <<".">>) of
+		nomatch when Host =:= <<>> ->
+			Acc;
+		nomatch ->
+			[Host|Acc];
+		{Pos, _} ->
+			<< Segment:Pos/binary, _:8, Rest/bits >> = Host,
+			false = byte_size(Segment) == 0,
+			split_host(Rest, [Segment|Acc])
+	end.
+
+%% @doc Split a path into a list of path segments.
+%%
+%% Following RFC2396, this function may return path segments containing any
+%% character, including <em>/</em> if, and only if, a <em>/</em> was escaped
+%% and part of a path segment.
+-spec split_path(binary()) -> tokens().
+split_path(<< $/, Path/bits >>) ->
+	split_path(Path, []).
+
+split_path(Path, Acc) ->
+	case binary:match(Path, <<"/">>) of
+		nomatch when Path =:= <<>> ->
+			lists:reverse([cowboy_http:urldecode(S) || S <- Acc]);
+		nomatch ->
+			lists:reverse([cowboy_http:urldecode(S) || S <- [Path|Acc]]);
+		{Pos, _} ->
+			<< Segment:Pos/binary, _:8, Rest/bits >> = Path,
+			split_path(Rest, [Segment|Acc])
+	end.
 
 -spec list_match(tokens(), match_rule(), bindings())
 	-> {true, bindings(), undefined | tokens()} | false.
@@ -177,66 +176,30 @@ list_match(_List, _Match, _Binds) ->
 split_host_test_() ->
 	%% {Host, Result}
 	Tests = [
-		{<<"">>, {[], <<"">>, undefined}},
-		{<<".........">>, {[], <<".........">>, undefined}},
-		{<<"*">>, {[<<"*">>], <<"*">>, undefined}},
+		{<<"">>, []},
+		{<<"*">>, [<<"*">>]},
 		{<<"cowboy.ninenines.eu">>,
-			{[<<"cowboy">>, <<"ninenines">>, <<"eu">>],
-			 <<"cowboy.ninenines.eu">>, undefined}},
-		{<<"ninenines..eu">>,
-			{[<<"ninenines">>, <<>>, <<"eu">>],
-			 <<"ninenines..eu">>, undefined}},
+			[<<"eu">>, <<"ninenines">>, <<"cowboy">>]},
 		{<<"ninenines.eu">>,
-			{[<<"ninenines">>, <<"eu">>], <<"ninenines.eu">>, undefined}},
-		{<<"ninenines.eu:8080">>,
-			{[<<"ninenines">>, <<"eu">>], <<"ninenines.eu">>, 8080}},
+			[<<"eu">>, <<"ninenines">>]},
 		{<<"a.b.c.d.e.f.g.h.i.j.k.l.m.n.o.p.q.r.s.t.u.v.w.x.y.z">>,
-			{[<<"a">>, <<"b">>, <<"c">>, <<"d">>, <<"e">>, <<"f">>, <<"g">>,
-			  <<"h">>, <<"i">>, <<"j">>, <<"k">>, <<"l">>, <<"m">>, <<"n">>,
-			  <<"o">>, <<"p">>, <<"q">>, <<"r">>, <<"s">>, <<"t">>, <<"u">>,
-			  <<"v">>, <<"w">>, <<"x">>, <<"y">>, <<"z">>],
-			 <<"a.b.c.d.e.f.g.h.i.j.k.l.m.n.o.p.q.r.s.t.u.v.w.x.y.z">>,
-			 undefined}}
+			[<<"z">>, <<"y">>, <<"x">>, <<"w">>, <<"v">>, <<"u">>, <<"t">>,
+			<<"s">>, <<"r">>, <<"q">>, <<"p">>, <<"o">>, <<"n">>, <<"m">>,
+			<<"l">>, <<"k">>, <<"j">>, <<"i">>, <<"h">>, <<"g">>, <<"f">>,
+			<<"e">>, <<"d">>, <<"c">>, <<"b">>, <<"a">>]}
 	],
 	[{H, fun() -> R = split_host(H) end} || {H, R} <- Tests].
-
-split_host_fail_test_() ->
-	Tests = [
-		<<"ninenines.eu:owns">>,
-		<<"ninenines.eu: owns">>,
-		<<"ninenines.eu:42fun">>,
-		<<"ninenines.eu: 42fun">>,
-		<<"ninenines.eu:42 fun">>,
-		<<"ninenines.eu:fun 42">>,
-		<<"ninenines.eu: 42">>,
-		<<":owns">>,
-		<<":42 fun">>
-	],
-	[{H, fun() -> case catch split_host(H) of
-		{'EXIT', _Reason} -> ok
-	end end} || H <- Tests].
 
 split_path_test_() ->
 	%% {Path, Result, QueryString}
 	Tests = [
-		{<<"?">>, [], <<"">>, <<"">>},
-		{<<"???">>, [], <<"">>, <<"??">>},
-		{<<"/">>, [], <<"/">>, <<"">>},
-		{<<"/extend//cowboy">>, [<<"extend">>, <<>>, <<"cowboy">>],
-			<<"/extend//cowboy">>, <<>>},
-		{<<"/users">>, [<<"users">>], <<"/users">>, <<"">>},
-		{<<"/users?">>, [<<"users">>], <<"/users">>, <<"">>},
-		{<<"/users?a">>, [<<"users">>], <<"/users">>, <<"a">>},
-		{<<"/users/42/friends?a=b&c=d&e=notsure?whatever">>,
-			[<<"users">>, <<"42">>, <<"friends">>],
-			<<"/users/42/friends">>, <<"a=b&c=d&e=notsure?whatever">>},
-		{<<"/users/a+b/c%21d?e+f=g+h">>,
-			[<<"users">>, <<"a b">>, <<"c!d">>],
-			<<"/users/a+b/c%21d">>, <<"e+f=g+h">>}
+		{<<"/">>, []},
+		{<<"/extend//cowboy">>, [<<"extend">>, <<>>, <<"cowboy">>]},
+		{<<"/users">>, [<<"users">>]},
+		{<<"/users/42/friends">>, [<<"users">>, <<"42">>, <<"friends">>]},
+		{<<"/users/a+b/c%21d">>, [<<"users">>, <<"a b">>, <<"c!d">>]}
 	],
-	URLDecode = fun(Bin) -> cowboy_http:urldecode(Bin, crash) end,
-	[{P, fun() -> {R, RawP, Qs} = split_path(P, URLDecode) end}
-		|| {P, R, RawP, Qs} <- Tests].
+	[{P, fun() -> R = split_path(P) end} || {P, R} <- Tests].
 
 match_test_() ->
 	Dispatch = [
@@ -261,28 +224,30 @@ match_test_() ->
 	],
 	%% {Host, Path, Result}
 	Tests = [
-		{[<<"any">>], [], {ok, match_any, [], []}},
-		{[<<"www">>, <<"any">>, <<"ninenines">>, <<"eu">>],
-			[<<"users">>, <<"42">>, <<"mails">>],
+		{<<"any">>, <<"/">>, {ok, match_any, [], []}},
+		{<<"www.any.ninenines.eu">>, <<"/users/42/mails">>,
 			{ok, match_any_subdomain_users, [], []}},
-		{[<<"www">>, <<"ninenines">>, <<"eu">>],
-			[<<"users">>, <<"42">>, <<"mails">>], {ok, match_any, [], []}},
-		{[<<"www">>, <<"ninenines">>, <<"eu">>], [], {ok, match_any, [], []}},
-		{[<<"www">>, <<"any">>, <<"ninenines">>, <<"eu">>],
-			[<<"not_users">>, <<"42">>, <<"mails">>], {error, notfound, path}},
-		{[<<"ninenines">>, <<"eu">>], [], {ok, match_extend, [], []}},
-		{[<<"ninenines">>, <<"eu">>], [<<"users">>, <<"42">>, <<"friends">>],
+		{<<"www.ninenines.eu">>, <<"/users/42/mails">>,
+			{ok, match_any, [], []}},
+		{<<"www.ninenines.eu">>, <<"/">>,
+			{ok, match_any, [], []}},
+		{<<"www.any.ninenines.eu">>, <<"/not_users/42/mails">>,
+			{error, notfound, path}},
+		{<<"ninenines.eu">>, <<"/">>,
+			{ok, match_extend, [], []}},
+		{<<"ninenines.eu">>, <<"/users/42/friends">>,
 			{ok, match_extend_users_friends, [], [{id, <<"42">>}]}},
-		{[<<"erlang">>, <<"fr">>], '_',
+		{<<"erlang.fr">>, '_',
 			{ok, match_erlang_ext, [], [{ext, <<"fr">>}]}},
-		{[<<"any">>], [<<"users">>, <<"444">>, <<"friends">>],
+		{<<"any">>, <<"/users/444/friends">>,
 			{ok, match_users_friends, [], [{id, <<"444">>}]}},
-		{[<<"ninenines">>, <<"fr">>], [<<"threads">>, <<"987">>],
+		{<<"ninenines.fr">>, <<"/threads/987">>,
 			{ok, match_duplicate_vars, [we, {expect, two}, var, here],
-			[{var, <<"fr">>}, {var, <<"987">>}]}}
+				[{var, <<"fr">>}, {var, <<"987">>}]}}
 	],
 	[{lists:flatten(io_lib:format("~p, ~p", [H, P])), fun() ->
-		{ok, Handler, Opts, Binds, undefined, undefined} = match(H, P, Dispatch)
+		{ok, Handler, Opts, Binds, undefined, undefined}
+			= match(Dispatch, H, P)
 	end} || {H, P, {ok, Handler, Opts, Binds}} <- Tests].
 
 match_info_test_() ->
@@ -295,24 +260,21 @@ match_info_test_() ->
 		]}
 	],
 	Tests = [
-		{[<<"ninenines">>, <<"eu">>], [],
+		{<<"ninenines.eu">>, <<"/">>,
 			{ok, match_any, [], [], [], undefined}},
-		{[<<"bugs">>, <<"ninenines">>, <<"eu">>], [],
+		{<<"bugs.ninenines.eu">>, <<"/">>,
 			{ok, match_any, [], [], [<<"bugs">>], undefined}},
-		{[<<"cowboy">>, <<"bugs">>, <<"ninenines">>, <<"eu">>], [],
+		{<<"cowboy.bugs.ninenines.eu">>, <<"/">>,
 			{ok, match_any, [], [], [<<"cowboy">>, <<"bugs">>], undefined}},
-		{[<<"www">>, <<"ninenines">>, <<"eu">>],
-			[<<"pathinfo">>, <<"is">>, <<"next">>],
+		{<<"www.ninenines.eu">>, <<"/pathinfo/is/next">>,
 			{ok, match_path, [], [], undefined, []}},
-		{[<<"www">>, <<"ninenines">>, <<"eu">>],
-			[<<"pathinfo">>, <<"is">>, <<"next">>, <<"path_info">>],
+		{<<"www.ninenines.eu">>, <<"/pathinfo/is/next/path_info">>,
 			{ok, match_path, [], [], undefined, [<<"path_info">>]}},
-		{[<<"www">>, <<"ninenines">>, <<"eu">>],
-			[<<"pathinfo">>, <<"is">>, <<"next">>, <<"foo">>, <<"bar">>],
+		{<<"www.ninenines.eu">>, <<"/pathinfo/is/next/foo/bar">>,
 			{ok, match_path, [], [], undefined, [<<"foo">>, <<"bar">>]}}
 	],
 	[{lists:flatten(io_lib:format("~p, ~p", [H, P])), fun() ->
-		R = match(H, P, Dispatch)
+		R = match(Dispatch, H, P)
 	end} || {H, P, R} <- Tests].
 
 -endif.

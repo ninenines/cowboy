@@ -42,7 +42,7 @@
 -module(cowboy_req).
 
 %% Request API.
--export([new/9]).
+-export([new/13]).
 -export([method/1]).
 -export([version/1]).
 -export([peer/1]).
@@ -56,6 +56,7 @@
 -export([qs_val/2]).
 -export([qs_val/3]).
 -export([qs_vals/1]).
+-export([fragment/1]).
 -export([host_url/1]).
 -export([url/1]).
 -export([binding/2]).
@@ -103,14 +104,9 @@
 -export([ensure_response/2]).
 
 %% Private setter/getter API.
--export([set_host/4]).
--export([set_connection/2]).
--export([add_header/3]).
--export([set_buffer/2]).
+-export([get/2]).
+-export([set/2]).
 -export([set_bindings/4]).
--export([get_resp_state/1]).
--export([get_buffer/1]).
--export([get_connection/1]).
 
 %% Misc API.
 -export([compact/1]).
@@ -121,6 +117,8 @@
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
+
+-type resp_body_fun() :: fun(() -> {sent, non_neg_integer()}).
 
 -record(http_req, {
 	%% Transport.
@@ -140,6 +138,7 @@
 	path_info = undefined :: undefined | cowboy_dispatcher:tokens(),
 	qs = undefined :: binary(),
 	qs_vals = undefined :: undefined | list({binary(), binary() | true}),
+	fragment = undefined :: binary(),
 	bindings = undefined :: undefined | cowboy_dispatcher:bindings(),
 	headers = [] :: cowboy_http:headers(),
 	p_headers = [] :: [any()], %% @todo Improve those specs.
@@ -154,12 +153,10 @@
 	%% Response.
 	resp_state = waiting :: locked | waiting | chunks | done,
 	resp_headers = [] :: cowboy_http:headers(),
-	resp_body = <<>> :: iodata()
-		| {non_neg_integer(), fun(() -> {sent, non_neg_integer()})},
+	resp_body = <<>> :: iodata() | {non_neg_integer(), resp_body_fun()},
 
 	%% Functions.
-	onresponse = undefined :: undefined | cowboy_protocol:onresponse_fun(),
-	urldecode :: {fun((binary(), T) -> binary()), T}
+	onresponse = undefined :: undefined | cowboy_protocol:onresponse_fun()
 }).
 
 -opaque req() :: #http_req{}.
@@ -171,15 +168,37 @@
 %%
 %% This function takes care of setting the owner's pid to self().
 %% @private
--spec new(inet:socket(), module(), keepalive | close,
-	binary(), cowboy_http:version(), binary(), binary(),
-	undefined | fun(), undefined | {fun(), atom()})
+%%
+%% Since we always need to parse the Connection header, we do it
+%% in an optimized way and add the parsed value to p_headers' cache.
+-spec new(inet:socket(), module(), binary(), binary(), binary(), binary(),
+	cowboy_http:version(), cowboy_http:headers(), binary(),
+	inet:port_number() | undefined, binary(), boolean(),
+	undefined | cowboy_protocol:onresponse_fun())
 	-> req().
-new(Socket, Transport, Connection, Method, Version, Path, Qs,
-		OnResponse, URLDecode) ->
-	#http_req{socket=Socket, transport=Transport, connection=Connection,
-		pid=self(), method=Method, version=Version, path=Path, qs=Qs,
-		onresponse=OnResponse, urldecode=URLDecode}.
+new(Socket, Transport, Method, Path, Query, Fragment,
+		Version, Headers, Host, Port, Buffer, CanKeepalive,
+		OnResponse) ->
+	Req = #http_req{socket=Socket, transport=Transport, pid=self(),
+		method=Method, path=Path, qs=Query, fragment=Fragment, version=Version,
+		headers=Headers, host=Host, port=Port, buffer=Buffer,
+		onresponse=OnResponse},
+	case CanKeepalive of
+		false ->
+			Req#http_req{connection=close};
+		true ->
+			case lists:keyfind(<<"connection">>, 1, Headers) of
+				false when Version =:= {1, 1} ->
+					Req; %% keepalive
+				false ->
+					Req#http_req{connection=close};
+				{_, ConnectionHeader} ->
+					Tokens = parse_connection_before(ConnectionHeader, []),
+					Connection = connection_to_atom(Tokens),
+					Req#http_req{connection=Connection,
+						p_headers=[{<<"connection">>, Tokens}]}
+			end
+	end.
 
 %% @doc Return the HTTP method of the request.
 -spec method(Req) -> {binary(), Req} when Req::req().
@@ -267,10 +286,9 @@ qs_val(Name, Req) when is_binary(Name) ->
 %% missing.
 -spec qs_val(binary(), Req, Default)
 	-> {binary() | true | Default, Req} when Req::req(), Default::any().
-qs_val(Name, Req=#http_req{qs=RawQs, qs_vals=undefined,
-		urldecode={URLDecFun, URLDecArg}}, Default) when is_binary(Name) ->
-	QsVals = cowboy_http:x_www_form_urlencoded(
-		RawQs, fun(Bin) -> URLDecFun(Bin, URLDecArg) end),
+qs_val(Name, Req=#http_req{qs=RawQs, qs_vals=undefined}, Default)
+		when is_binary(Name) ->
+	QsVals = cowboy_http:x_www_form_urlencoded(RawQs),
 	qs_val(Name, Req#http_req{qs_vals=QsVals}, Default);
 qs_val(Name, Req, Default) ->
 	case lists:keyfind(Name, 1, Req#http_req.qs_vals) of
@@ -280,13 +298,16 @@ qs_val(Name, Req, Default) ->
 
 %% @doc Return the full list of query string values.
 -spec qs_vals(Req) -> {list({binary(), binary() | true}), Req} when Req::req().
-qs_vals(Req=#http_req{qs=RawQs, qs_vals=undefined,
-		urldecode={URLDecFun, URLDecArg}}) ->
-	QsVals = cowboy_http:x_www_form_urlencoded(
-		RawQs, fun(Bin) -> URLDecFun(Bin, URLDecArg) end),
+qs_vals(Req=#http_req{qs=RawQs, qs_vals=undefined}) ->
+	QsVals = cowboy_http:x_www_form_urlencoded(RawQs),
 	qs_vals(Req#http_req{qs_vals=QsVals});
 qs_vals(Req=#http_req{qs_vals=QsVals}) ->
 	{QsVals, Req}.
+
+%% @doc Return the raw fragment directly taken from the request.
+-spec fragment(Req) -> {binary(), Req} when Req::req().
+fragment(Req) ->
+	{Req#http_req.fragment, Req}.
 
 %% @doc Return the request URL as a binary without the path and query string.
 %%
@@ -308,15 +329,19 @@ host_url(Req=#http_req{transport=Transport, host=Host, port=Port}) ->
 
 %% @doc Return the full request URL as a binary.
 %%
-%% The URL includes the scheme, host, port, path and query string.
+%% The URL includes the scheme, host, port, path, query string and fragment.
 -spec url(Req) -> {binary(), Req} when Req::req().
-url(Req=#http_req{path=Path, qs=QS}) ->
+url(Req=#http_req{path=Path, qs=QS, fragment=Fragment}) ->
 	{HostURL, Req2} = host_url(Req),
 	QS2 = case QS of
 		<<>> -> <<>>;
 		_ -> << "?", QS/binary >>
 	end,
-	{<< HostURL/binary, Path/binary, QS2/binary >>, Req2}.
+	Fragment2 = case Fragment of
+		<<>> -> <<>>;
+		_ -> << "#", Fragment/binary >>
+	end,
+	{<< HostURL/binary, Path/binary, QS2/binary, Fragment2/binary >>, Req2}.
 
 %% @equiv binding(Name, Req, undefined)
 -spec binding(atom(), Req) -> {binary() | undefined, Req} when Req::req().
@@ -403,11 +428,6 @@ parse_header(Name, Req, Default) when Name =:= <<"accept-language">> ->
 	parse_header(Name, Req, Default,
 		fun (Value) ->
 			cowboy_http:nonempty_list(Value, fun cowboy_http:language_range/2)
-		end);
-parse_header(Name, Req, Default) when Name =:= <<"connection">> ->
-	parse_header(Name, Req, Default,
-		fun (Value) ->
-			cowboy_http:nonempty_list(Value, fun cowboy_http:token_ci/2)
 		end);
 parse_header(Name, Req, Default) when Name =:= <<"content-length">> ->
 	parse_header(Name, Req, Default,
@@ -713,17 +733,16 @@ skip_body(Req) ->
 		{error, Reason} -> {error, Reason}
 	end.
 
-%% @doc Return the full body sent with the reqest, parsed as an
+%% @doc Return the full body sent with the request, parsed as an
 %% application/x-www-form-urlencoded string. Essentially a POST query string.
 %% @todo We need an option to limit the size of the body for QS too.
 -spec body_qs(Req)
 	-> {ok, [{binary(), binary() | true}], Req} | {error, atom()}
 	when Req::req().
-body_qs(Req=#http_req{urldecode={URLDecFun, URLDecArg}}) ->
+body_qs(Req) ->
 	case body(Req) of
 		{ok, Body, Req2} ->
-			{ok, cowboy_http:x_www_form_urlencoded(
-				Body, fun(Bin) -> URLDecFun(Bin, URLDecArg) end), Req2};
+			{ok, cowboy_http:x_www_form_urlencoded(Body), Req2};
 		{error, Reason} ->
 			{error, Reason}
 	end.
@@ -825,8 +844,8 @@ set_resp_body(Body, Req) ->
 %% `reply/3'.
 %%
 %% @see cowboy_req:transport/1.
--spec set_resp_body_fun(non_neg_integer(),
-	fun(() -> {sent, non_neg_integer()}), Req) -> Req when Req::req().
+-spec set_resp_body_fun(non_neg_integer(), resp_body_fun(), Req)
+	-> Req when Req::req().
 set_resp_body_fun(StreamLen, StreamFun, Req) ->
 	Req#http_req{resp_body={StreamLen, StreamFun}}.
 
@@ -861,29 +880,35 @@ reply(Status, Headers, Req=#http_req{resp_body=Body}) ->
 	reply(Status, Headers, Body, Req).
 
 %% @doc Send a reply to the client.
--spec reply(cowboy_http:status(), cowboy_http:headers(), iodata(), Req)
+-spec reply(cowboy_http:status(), cowboy_http:headers(),
+	iodata() | {non_neg_integer() | resp_body_fun()}, Req)
 	-> {ok, Req} when Req::req().
-reply(Status, Headers, Body, Req=#http_req{socket=Socket, transport=Transport,
+reply(Status, Headers, Body, Req=#http_req{
 		version=Version, connection=Connection,
 		method=Method, resp_state=waiting, resp_headers=RespHeaders}) ->
 	RespConn = response_connection(Headers, Connection),
-	ContentLen = case Body of {CL, _} -> CL; _ -> iolist_size(Body) end,
 	HTTP11Headers = case Version of
 		{1, 1} -> [{<<"connection">>, atom_to_connection(Connection)}];
 		_ -> []
 	end,
-	{ReplyType, Req2} = response(Status, Headers, RespHeaders,  [
-		{<<"content-length">>, integer_to_list(ContentLen)},
-		{<<"date">>, cowboy_clock:rfc1123()},
-		{<<"server">>, <<"Cowboy">>}
-	|HTTP11Headers], Req),
-	if	Method =:= <<"HEAD">> -> ok;
-		ReplyType =:= hook -> ok; %% Hook replied for us, stop there.
-		true ->
-			case Body of
-				{_, StreamFun} -> StreamFun();
-				_ -> Transport:send(Socket, Body)
-			end
+	case Body of
+		{ContentLength, BodyFun} ->
+			{RespType, Req2} = response(Status, Headers, RespHeaders, [
+					{<<"content-length">>, integer_to_list(ContentLength)},
+					{<<"date">>, cowboy_clock:rfc1123()},
+					{<<"server">>, <<"Cowboy">>}
+				|HTTP11Headers], <<>>, Req),
+			if	RespType =/= hook, Method =/= <<"HEAD">> -> BodyFun();
+				true -> ok
+			end;
+		_ ->
+			{_, Req2} = response(Status, Headers, RespHeaders, [
+					{<<"content-length">>, integer_to_list(iolist_size(Body))},
+					{<<"date">>, cowboy_clock:rfc1123()},
+					{<<"server">>, <<"Cowboy">>}
+				|HTTP11Headers],
+				case Method of <<"HEAD">> -> <<>>; _ -> Body end,
+				Req)
 	end,
 	{ok, Req2#http_req{connection=RespConn, resp_state=done,
 		resp_headers=[], resp_body= <<>>}}.
@@ -910,7 +935,7 @@ chunked_reply(Status, Headers, Req=#http_req{
 	{_, Req2} = response(Status, Headers, RespHeaders, [
 		{<<"date">>, cowboy_clock:rfc1123()},
 		{<<"server">>, <<"Cowboy">>}
-	|HTTP11Headers], Req),
+	|HTTP11Headers], <<>>, Req),
 	{ok, Req2#http_req{connection=RespConn, resp_state=chunks,
 		resp_headers=[], resp_body= <<>>}}.
 
@@ -934,7 +959,7 @@ upgrade_reply(Status, Headers, Req=#http_req{
 		resp_state=waiting, resp_headers=RespHeaders}) ->
 	{_, Req2} = response(Status, Headers, RespHeaders, [
 		{<<"connection">>, <<"Upgrade">>}
-	], Req),
+	], <<>>, Req),
 	{ok, Req2#http_req{resp_state=done, resp_headers=[], resp_body= <<>>}}.
 
 %% @doc Ensure the response has been sent fully.
@@ -961,29 +986,70 @@ ensure_response(#http_req{socket=Socket, transport=Transport,
 %% Private setter/getter API.
 
 %% @private
--spec set_host(binary(), inet:port_number(), binary(), Req)
-	-> Req when Req::req().
-set_host(Host, Port, RawHost, Req=#http_req{headers=Headers}) ->
-	Req#http_req{host=Host, port=Port, headers=[{<<"host">>, RawHost}|Headers]}.
+-spec get(atom(), req()) -> any(); ([atom()], req()) -> any().
+get(List, Req) when is_list(List) ->
+	[g(Atom, Req) || Atom <- List];
+get(Atom, Req) when is_atom(Atom) ->
+	g(Atom, Req).
+
+g(bindings, #http_req{bindings=Ret}) -> Ret;
+g(body_state, #http_req{body_state=Ret}) -> Ret;
+g(buffer, #http_req{buffer=Ret}) -> Ret;
+g(connection, #http_req{connection=Ret}) -> Ret;
+g(cookies, #http_req{cookies=Ret}) -> Ret;
+g(fragment, #http_req{fragment=Ret}) -> Ret;
+g(headers, #http_req{headers=Ret}) -> Ret;
+g(host, #http_req{host=Ret}) -> Ret;
+g(host_info, #http_req{host_info=Ret}) -> Ret;
+g(meta, #http_req{meta=Ret}) -> Ret;
+g(method, #http_req{method=Ret}) -> Ret;
+g(multipart, #http_req{multipart=Ret}) -> Ret;
+g(onresponse, #http_req{onresponse=Ret}) -> Ret;
+g(p_headers, #http_req{p_headers=Ret}) -> Ret;
+g(path, #http_req{path=Ret}) -> Ret;
+g(path_info, #http_req{path_info=Ret}) -> Ret;
+g(peer, #http_req{peer=Ret}) -> Ret;
+g(pid, #http_req{pid=Ret}) -> Ret;
+g(port, #http_req{port=Ret}) -> Ret;
+g(qs, #http_req{qs=Ret}) -> Ret;
+g(qs_vals, #http_req{qs_vals=Ret}) -> Ret;
+g(resp_body, #http_req{resp_body=Ret}) -> Ret;
+g(resp_headers, #http_req{resp_headers=Ret}) -> Ret;
+g(resp_state, #http_req{resp_state=Ret}) -> Ret;
+g(socket, #http_req{socket=Ret}) -> Ret;
+g(transport, #http_req{transport=Ret}) -> Ret;
+g(version, #http_req{version=Ret}) -> Ret.
 
 %% @private
--spec set_connection(binary(), Req) -> Req when Req::req().
-set_connection(RawConnection, Req=#http_req{headers=Headers}) ->
-	Req2 = Req#http_req{headers=[{<<"connection">>, RawConnection}|Headers]},
-	{ok, ConnTokens, Req3} = parse_header(<<"connection">>, Req2),
-	ConnAtom = cowboy_http:connection_to_atom(ConnTokens),
-	Req3#http_req{connection=ConnAtom}.
-
-%% @private
--spec add_header(binary(), binary(), Req)
-	-> Req when Req::req().
-add_header(Name, Value, Req=#http_req{headers=Headers}) ->
-	Req#http_req{headers=[{Name, Value}|Headers]}.
-
-%% @private
--spec set_buffer(binary(), Req) -> Req when Req::req().
-set_buffer(Buffer, Req) ->
-	Req#http_req{buffer=Buffer}.
+-spec set([{atom(), any()}], Req) -> Req when Req::req().
+set([], Req) -> Req;
+set([{bindings, Val}|Tail], Req) -> set(Tail, Req#http_req{bindings=Val});
+set([{body_state, Val}|Tail], Req) -> set(Tail, Req#http_req{body_state=Val});
+set([{buffer, Val}|Tail], Req) -> set(Tail, Req#http_req{buffer=Val});
+set([{connection, Val}|Tail], Req) -> set(Tail, Req#http_req{connection=Val});
+set([{cookies, Val}|Tail], Req) -> set(Tail, Req#http_req{cookies=Val});
+set([{fragment, Val}|Tail], Req) -> set(Tail, Req#http_req{fragment=Val});
+set([{headers, Val}|Tail], Req) -> set(Tail, Req#http_req{headers=Val});
+set([{host, Val}|Tail], Req) -> set(Tail, Req#http_req{host=Val});
+set([{host_info, Val}|Tail], Req) -> set(Tail, Req#http_req{host_info=Val});
+set([{meta, Val}|Tail], Req) -> set(Tail, Req#http_req{meta=Val});
+set([{method, Val}|Tail], Req) -> set(Tail, Req#http_req{method=Val});
+set([{multipart, Val}|Tail], Req) -> set(Tail, Req#http_req{multipart=Val});
+set([{onresponse, Val}|Tail], Req) -> set(Tail, Req#http_req{onresponse=Val});
+set([{p_headers, Val}|Tail], Req) -> set(Tail, Req#http_req{p_headers=Val});
+set([{path, Val}|Tail], Req) -> set(Tail, Req#http_req{path=Val});
+set([{path_info, Val}|Tail], Req) -> set(Tail, Req#http_req{path_info=Val});
+set([{peer, Val}|Tail], Req) -> set(Tail, Req#http_req{peer=Val});
+set([{pid, Val}|Tail], Req) -> set(Tail, Req#http_req{pid=Val});
+set([{port, Val}|Tail], Req) -> set(Tail, Req#http_req{port=Val});
+set([{qs, Val}|Tail], Req) -> set(Tail, Req#http_req{qs=Val});
+set([{qs_vals, Val}|Tail], Req) -> set(Tail, Req#http_req{qs_vals=Val});
+set([{resp_body, Val}|Tail], Req) -> set(Tail, Req#http_req{resp_body=Val});
+set([{resp_headers, Val}|Tail], Req) -> set(Tail, Req#http_req{resp_headers=Val});
+set([{resp_state, Val}|Tail], Req) -> set(Tail, Req#http_req{resp_state=Val});
+set([{socket, Val}|Tail], Req) -> set(Tail, Req#http_req{socket=Val});
+set([{transport, Val}|Tail], Req) -> set(Tail, Req#http_req{transport=Val});
+set([{version, Val}|Tail], Req) -> set(Tail, Req#http_req{version=Val}).
 
 %% @private
 -spec set_bindings(cowboy_dispatcher:tokens(), cowboy_dispatcher:tokens(),
@@ -991,21 +1057,6 @@ set_buffer(Buffer, Req) ->
 set_bindings(HostInfo, PathInfo, Bindings, Req) ->
 	Req#http_req{host_info=HostInfo, path_info=PathInfo,
 		bindings=Bindings}.
-
-%% @private
--spec get_resp_state(req()) -> locked | waiting | chunks | done.
-get_resp_state(#http_req{resp_state=RespState}) ->
-	RespState.
-
-%% @private
--spec get_buffer(req()) -> binary().
-get_buffer(#http_req{buffer=Buffer}) ->
-	Buffer.
-
-%% @private
--spec get_connection(req()) -> keepalive | close.
-get_connection(#http_req{connection=Connection}) ->
-	Connection.
 
 %% Misc API.
 
@@ -1049,9 +1100,9 @@ transport(#http_req{transport=Transport, socket=Socket}) ->
 %% Internal.
 
 -spec response(cowboy_http:status(), cowboy_http:headers(),
-	cowboy_http:headers(), cowboy_http:headers(), Req)
+	cowboy_http:headers(), cowboy_http:headers(), iodata(), Req)
 	-> {normal | hook, Req} when Req::req().
-response(Status, Headers, RespHeaders, DefaultHeaders, Req=#http_req{
+response(Status, Headers, RespHeaders, DefaultHeaders, Body, Req=#http_req{
 		socket=Socket, transport=Transport, version=Version,
 		pid=ReqPid, onresponse=OnResponse}) ->
 	FullHeaders = response_merge_headers(Headers, RespHeaders, DefaultHeaders),
@@ -1069,7 +1120,7 @@ response(Status, Headers, RespHeaders, DefaultHeaders, Req=#http_req{
 				(status(Status))/binary, "\r\n" >>,
 			HeaderLines = [[Key, <<": ">>, Value, <<"\r\n">>]
 				|| {Key, Value} <- FullHeaders],
-			Transport:send(Socket, [StatusLine, HeaderLines, <<"\r\n">>]),
+			Transport:send(Socket, [StatusLine, HeaderLines, <<"\r\n">>, Body]),
 			ReqPid ! {?MODULE, resp_sent},
 			normal;
 		_ ->
@@ -1083,14 +1134,12 @@ response_connection([], Connection) ->
 	Connection;
 response_connection([{Name, Value}|Tail], Connection) ->
 	case Name of
-		<<"connection">> -> response_connection_parse(Value);
-		_ -> response_connection(Tail, Connection)
+		<<"connection">> ->
+			Tokens = parse_connection_before(Value, []),
+			connection_to_atom(Tokens);
+		_ ->
+			response_connection(Tail, Connection)
 	end.
-
--spec response_connection_parse(binary()) -> keepalive | close.
-response_connection_parse(ReplyConn) ->
-	Tokens = cowboy_http:nonempty_list(ReplyConn, fun cowboy_http:token/2),
-	cowboy_http:connection_to_atom(Tokens).
 
 -spec response_merge_headers(cowboy_http:headers(), cowboy_http:headers(),
 	cowboy_http:headers()) -> cowboy_http:headers().
@@ -1107,7 +1156,7 @@ merge_headers(Headers, []) ->
 merge_headers(Headers, [{Name, Value}|Tail]) ->
 	Headers2 = case lists:keymember(Name, 1, Headers) of
 		true -> Headers;
-		false -> Headers ++ [{Name, Value}]
+		false -> [{Name, Value}|Headers]
 	end,
 	merge_headers(Headers2, Tail).
 
@@ -1117,6 +1166,74 @@ atom_to_connection(keepalive) ->
 	<<"keep-alive">>;
 atom_to_connection(close) ->
 	<<"close">>.
+
+%% Optimized parsing functions for the Connection header.
+parse_connection_before(<<>>, Acc) ->
+	lists:reverse(Acc);
+parse_connection_before(<< C, Rest/bits >>, Acc)
+		when C =:= $,; C =:= $\s; C =:= $\t ->
+	parse_connection_before(Rest, Acc);
+parse_connection_before(Buffer, Acc) ->
+	parse_connection(Buffer, Acc, <<>>).
+
+%% An evil block of code appeared!
+parse_connection(<<>>, Acc, <<>>) ->
+	lists:reverse(Acc);
+parse_connection(<<>>, Acc, Token) ->
+	lists:reverse([Token|Acc]);
+parse_connection(<< C, Rest/bits >>, Acc, Token)
+		when C =:= $,; C =:= $\s; C =:= $\t ->
+	parse_connection_after(Rest, [Token|Acc]);
+parse_connection(<< C, Rest/bits >>, Acc, Token) ->
+	case C of
+		$A -> parse_connection(Rest, Acc, << Token/binary, $a >>);
+		$B -> parse_connection(Rest, Acc, << Token/binary, $b >>);
+		$C -> parse_connection(Rest, Acc, << Token/binary, $c >>);
+		$D -> parse_connection(Rest, Acc, << Token/binary, $d >>);
+		$E -> parse_connection(Rest, Acc, << Token/binary, $e >>);
+		$F -> parse_connection(Rest, Acc, << Token/binary, $f >>);
+		$G -> parse_connection(Rest, Acc, << Token/binary, $g >>);
+		$H -> parse_connection(Rest, Acc, << Token/binary, $h >>);
+		$I -> parse_connection(Rest, Acc, << Token/binary, $i >>);
+		$J -> parse_connection(Rest, Acc, << Token/binary, $j >>);
+		$K -> parse_connection(Rest, Acc, << Token/binary, $k >>);
+		$L -> parse_connection(Rest, Acc, << Token/binary, $l >>);
+		$M -> parse_connection(Rest, Acc, << Token/binary, $m >>);
+		$N -> parse_connection(Rest, Acc, << Token/binary, $n >>);
+		$O -> parse_connection(Rest, Acc, << Token/binary, $o >>);
+		$P -> parse_connection(Rest, Acc, << Token/binary, $p >>);
+		$Q -> parse_connection(Rest, Acc, << Token/binary, $q >>);
+		$R -> parse_connection(Rest, Acc, << Token/binary, $r >>);
+		$S -> parse_connection(Rest, Acc, << Token/binary, $s >>);
+		$T -> parse_connection(Rest, Acc, << Token/binary, $t >>);
+		$U -> parse_connection(Rest, Acc, << Token/binary, $u >>);
+		$V -> parse_connection(Rest, Acc, << Token/binary, $v >>);
+		$W -> parse_connection(Rest, Acc, << Token/binary, $w >>);
+		$X -> parse_connection(Rest, Acc, << Token/binary, $x >>);
+		$Y -> parse_connection(Rest, Acc, << Token/binary, $y >>);
+		$Z -> parse_connection(Rest, Acc, << Token/binary, $z >>);
+		C -> parse_connection(Rest, Acc, << Token/binary, C >>)
+	end.
+
+parse_connection_after(<<>>, Acc) ->
+	lists:reverse(Acc);
+parse_connection_after(<< $,, Rest/bits >>, Acc) ->
+	parse_connection_before(Rest, Acc);
+parse_connection_after(<< C, Rest/bits >>, Acc)
+		when C =:= $\s; C =:= $\t ->
+	parse_connection_after(Rest, Acc).
+
+%% @doc Walk through a tokens list and return whether
+%% the connection is keepalive or closed.
+%%
+%% We don't match on "keep-alive" since it is the default value.
+-spec connection_to_atom([binary()]) -> keepalive | close.
+connection_to_atom([]) ->
+	keepalive;
+connection_to_atom([<<"close">>|_]) ->
+	close;
+connection_to_atom([_|Tail]) ->
+	connection_to_atom(Tail).
 
 -spec status(cowboy_http:status()) -> binary().
 status(100) -> <<"100 Continue">>;
@@ -1185,25 +1302,45 @@ status(B) when is_binary(B) -> B.
 url_test() ->
 	{<<"http://localhost/path">>, _ } =
 		url(#http_req{transport=ranch_tcp, host= <<"localhost">>, port=80,
-			path= <<"/path">>, qs= <<>>, pid=self()}),
+			path= <<"/path">>, qs= <<>>, fragment= <<>>, pid=self()}),
 	{<<"http://localhost:443/path">>, _} =
 		url(#http_req{transport=ranch_tcp, host= <<"localhost">>, port=443,
-			path= <<"/path">>, qs= <<>>, pid=self()}),
+			path= <<"/path">>, qs= <<>>, fragment= <<>>, pid=self()}),
 	{<<"http://localhost:8080/path">>, _} =
 		url(#http_req{transport=ranch_tcp, host= <<"localhost">>, port=8080,
-			path= <<"/path">>, qs= <<>>, pid=self()}),
+			path= <<"/path">>, qs= <<>>, fragment= <<>>, pid=self()}),
 	{<<"http://localhost:8080/path?dummy=2785">>, _} =
 		url(#http_req{transport=ranch_tcp, host= <<"localhost">>, port=8080,
-			path= <<"/path">>, qs= <<"dummy=2785">>, pid=self()}),
+			path= <<"/path">>, qs= <<"dummy=2785">>, fragment= <<>>,
+			pid=self()}),
+	{<<"http://localhost:8080/path?dummy=2785#fragment">>, _} =
+		url(#http_req{transport=ranch_tcp, host= <<"localhost">>, port=8080,
+			path= <<"/path">>, qs= <<"dummy=2785">>, fragment= <<"fragment">>,
+			pid=self()}),
 	{<<"https://localhost/path">>, _} =
 		url(#http_req{transport=ranch_ssl, host= <<"localhost">>, port=443,
-			path= <<"/path">>, qs= <<>>, pid=self()}),
+			path= <<"/path">>, qs= <<>>, fragment= <<>>, pid=self()}),
 	{<<"https://localhost:8443/path">>, _} =
 		url(#http_req{transport=ranch_ssl, host= <<"localhost">>, port=8443,
-			path= <<"/path">>, qs= <<>>, pid=self()}),
+			path= <<"/path">>, qs= <<>>, fragment= <<>>, pid=self()}),
 	{<<"https://localhost:8443/path?dummy=2785">>, _} =
 		url(#http_req{transport=ranch_ssl, host= <<"localhost">>, port=8443,
-			path= <<"/path">>, qs= <<"dummy=2785">>, pid=self()}),
+			path= <<"/path">>, qs= <<"dummy=2785">>, fragment= <<>>,
+			pid=self()}),
+	{<<"https://localhost:8443/path?dummy=2785#fragment">>, _} =
+		url(#http_req{transport=ranch_ssl, host= <<"localhost">>, port=8443,
+			path= <<"/path">>, qs= <<"dummy=2785">>, fragment= <<"fragment">>,
+			pid=self()}),
 	ok.
+
+connection_to_atom_test_() ->
+	%% {Tokens, Result}
+	Tests = [
+		{[<<"close">>], close},
+		{[<<"keep-alive">>], keepalive},
+		{[<<"keep-alive">>, <<"upgrade">>], keepalive}
+	],
+	[{lists:flatten(io_lib:format("~p", [T])),
+		fun() -> R = connection_to_atom(T) end} || {T, R} <- Tests].
 
 -endif.

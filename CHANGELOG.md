@@ -33,6 +33,7 @@ next
     * cowboy_req:delete_resp_header/2 deletes a previously set resp header.
     * cowboy_req:set_meta/3 sets metadata in the Req object.
     * cowboy_req:to_list/1 converts the Req object to a list of key/values.
+    * cowboy_req:fragment/1 returns the request URL fragment.
     * cowboy_req:host_url/1 returns the request URL without the path or qs.
     * cowboy_req:url/1 returns the full request URL.
 
@@ -73,7 +74,7 @@ next
 
 *   Avoid a duplicate HTTP reply in cowboy_websocket:upgrade_error/1
 
-*   Avoid using proplists:get_value/{2,3} in a few places
+*   Many, many optimizations for the most critical code path
 
 0.6.1
 -----

@@ -43,10 +43,10 @@ eunit:
 	@$(REBAR) -C rebar.tests.config eunit skip_deps=true
 
 ct:
-	@$(REBAR) -C rebar.tests.config ct skip_deps=true suites=http,proper,ws
+	@$(REBAR) -C rebar.tests.config ct skip_deps=true suites=http,ws
 
 intct:
-	@$(REBAR) -C rebar.tests.config ct skip_deps=true suites=http,proper,ws,autobahn
+	@$(REBAR) -C rebar.tests.config ct skip_deps=true suites=http,ws,autobahn
 
 # Dialyzer.
 

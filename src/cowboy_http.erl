@@ -17,7 +17,6 @@
 -module(cowboy_http).
 
 %% Parsing.
--export([request_line/1]).
 -export([list/2]).
 -export([nonempty_list/2]).
 -export([content_type/1]).
@@ -43,23 +42,17 @@
 -export([ce_identity/1]).
 
 %% Interpretation.
--export([connection_to_atom/1]).
 -export([version_to_binary/1]).
 -export([urldecode/1]).
 -export([urldecode/2]).
 -export([urlencode/1]).
 -export([urlencode/2]).
--export([x_www_form_urlencoded/2]).
+-export([x_www_form_urlencoded/1]).
 
--type uri() :: '*' | {absoluteURI, http | https, Host::binary(),
-	Port::integer() | undefined, Path::binary()}
-	| {scheme, Scheme::binary(), binary()}
-	| {abs_path, binary()} | binary().
 -type version() :: {Major::non_neg_integer(), Minor::non_neg_integer()}.
 -type headers() :: [{binary(), iodata()}].
 -type status() :: non_neg_integer() | binary().
 
--export_type([uri/0]).
 -export_type([version/0]).
 -export_type([headers/0]).
 -export_type([status/0]).
@@ -69,46 +62,6 @@
 -endif.
 
 %% Parsing.
-
-%% @doc Parse a request-line.
--spec request_line(binary())
-	-> {binary(), binary(), version()} | {error, badarg}.
-request_line(Data) ->
-	token(Data,
-		fun (Rest, Method) ->
-			whitespace(Rest,
-				fun (Rest2) ->
-					uri_to_abspath(Rest2,
-						fun (Rest3, AbsPath) ->
-							whitespace(Rest3,
-								fun (<< "HTTP/", Maj, ".", Min, _/binary >>)
-											when Maj >= $0, Maj =< $9,
-												Min >= $0, Min =< $9 ->
-										{Method, AbsPath, {Maj - $0, Min - $0}};
-									(_) ->
-										{error, badarg}
-								end)
-						end)
-				end)
-		end).
-
-%% We just want to extract the path/qs and skip everything else.
-%% We do not really parse the URI, nor do we need to.
-uri_to_abspath(Data, Fun) ->
-	case binary:split(Data, <<" ">>) of
-		[_] -> %% We require the HTTP version.
-			{error, badarg};
-		[URI, Rest] ->
-			case binary:split(URI, <<"://">>) of
-				[_] -> %% Already is a path or "*".
-					Fun(Rest, URI);
-				[_, NoScheme] ->
-					case binary:split(NoScheme, <<"/">>) of
-						[_] -> <<"/">>;
-						[_, NoHost] -> Fun(Rest, << "/", NoHost/binary >>)
-					end
-			end
-	end.
 
 %% @doc Parse a non-empty list of the given type.
 -spec nonempty_list(binary(), fun()) -> [any(), ...] | {error, badarg}.
@@ -819,20 +772,6 @@ ce_identity(Data) ->
 
 %% Interpretation.
 
-%% @doc Walk through a tokens list and return whether
-%% the connection is keepalive or closed.
-%%
-%% The connection token is expected to be lower-case.
--spec connection_to_atom([binary()]) -> keepalive | close.
-connection_to_atom([]) ->
-	keepalive;
-connection_to_atom([<<"keep-alive">>|_Tail]) ->
-	keepalive;
-connection_to_atom([<<"close">>|_Tail]) ->
-	close;
-connection_to_atom([_Any|Tail]) ->
-	connection_to_atom(Tail).
-
 %% @doc Convert an HTTP version tuple to its binary form.
 -spec version_to_binary(version()) -> binary().
 version_to_binary({1, 1}) -> <<"HTTP/1.1">>;
@@ -922,15 +861,14 @@ tohexu(C) when C < 17 -> $A + C - 10.
 tohexl(C) when C < 10 -> $0 + C;
 tohexl(C) when C < 17 -> $a + C - 10.
 
--spec x_www_form_urlencoded(binary(), fun((binary()) -> binary())) ->
-		list({binary(), binary() | true}).
-x_www_form_urlencoded(<<>>, _URLDecode) ->
+-spec x_www_form_urlencoded(binary()) -> list({binary(), binary() | true}).
+x_www_form_urlencoded(<<>>) ->
 	[];
-x_www_form_urlencoded(Qs, URLDecode) ->
+x_www_form_urlencoded(Qs) ->
 	Tokens = binary:split(Qs, <<"&">>, [global, trim]),
 	[case binary:split(Token, <<"=">>) of
-		[Token] -> {URLDecode(Token), true};
-		[Name, Value] -> {URLDecode(Name), URLDecode(Value)}
+		[Token] -> {urldecode(Token), true};
+		[Name, Value] -> {urldecode(Name), urldecode(Value)}
 	end || Token <- Tokens].
 
 %% Tests.
@@ -1076,16 +1014,6 @@ asctime_date_test_() ->
 	],
 	[{V, fun() -> R = asctime_date(V) end} || {V, R} <- Tests].
 
-connection_to_atom_test_() ->
-	%% {Tokens, Result}
-	Tests = [
-		{[<<"close">>], close},
-		{[<<"keep-alive">>], keepalive},
-		{[<<"keep-alive">>, <<"upgrade">>], keepalive}
-	],
-	[{lists:flatten(io_lib:format("~p", [T])),
-		fun() -> R = connection_to_atom(T) end} || {T, R} <- Tests].
-
 content_type_test_() ->
 	%% {ContentType, Result}
 	Tests = [
@@ -1124,9 +1052,7 @@ x_www_form_urlencoded_test_() ->
 		{<<"a=b=c=d=e&f=g">>, [{<<"a">>, <<"b=c=d=e">>}, {<<"f">>, <<"g">>}]},
 		{<<"a+b=c+d">>, [{<<"a b">>, <<"c d">>}]}
 	],
-	URLDecode = fun urldecode/1,
-	[{Qs, fun() -> R = x_www_form_urlencoded(
-		Qs, URLDecode) end} || {Qs, R} <- Tests].
+	[{Qs, fun() -> R = x_www_form_urlencoded(Qs) end} || {Qs, R} <- Tests].
 
 urldecode_test_() ->
 	U = fun urldecode/2,
