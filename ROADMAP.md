@@ -56,11 +56,6 @@ are not ordered.
     Cowboy. The server code should be reviewed and tested
     to ensure compatibility with remaining HTTP/1.0 products.
 
-*   HTTP 100 Continue support.
-
-    Tools like curl expect a 100 Continue before sending a
-    request body by default.
-
 *   Complete the work on Websockets.
 
     Now that the Autobahn test suite is available (make inttests),
