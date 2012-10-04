@@ -1183,7 +1183,7 @@ parse_connection(<<>>, Acc, Token) ->
 	lists:reverse([Token|Acc]);
 parse_connection(<< C, Rest/bits >>, Acc, Token)
 		when C =:= $,; C =:= $\s; C =:= $\t ->
-	parse_connection_after(Rest, [Token|Acc]);
+	parse_connection_before(Rest, [Token|Acc]);
 parse_connection(<< C, Rest/bits >>, Acc, Token) ->
 	case C of
 		$A -> parse_connection(Rest, Acc, << Token/binary, $a >>);
@@ -1214,14 +1214,6 @@ parse_connection(<< C, Rest/bits >>, Acc, Token) ->
 		$Z -> parse_connection(Rest, Acc, << Token/binary, $z >>);
 		C -> parse_connection(Rest, Acc, << Token/binary, C >>)
 	end.
-
-parse_connection_after(<<>>, Acc) ->
-	lists:reverse(Acc);
-parse_connection_after(<< $,, Rest/bits >>, Acc) ->
-	parse_connection_before(Rest, Acc);
-parse_connection_after(<< C, Rest/bits >>, Acc)
-		when C =:= $\s; C =:= $\t ->
-	parse_connection_after(Rest, Acc).
 
 %% @doc Walk through a tokens list and return whether
 %% the connection is keepalive or closed.
@@ -1332,6 +1324,17 @@ url_test() ->
 			path= <<"/path">>, qs= <<"dummy=2785">>, fragment= <<"fragment">>,
 			pid=self()}),
 	ok.
+
+parse_connection_test_() ->
+	%% {Binary, Result}
+	Tests = [
+		{<<"close">>, [<<"close">>]},
+		{<<"ClOsE">>, [<<"close">>]},
+		{<<"Keep-Alive">>, [<<"keep-alive">>]},
+		{<<"keep-alive, Upgrade">>, [<<"keep-alive">>, <<"upgrade">>]}
+	],
+	[{B, fun() -> R = parse_connection_before(B, []) end}
+		|| {B, R} <- Tests].
 
 connection_to_atom_test_() ->
 	%% {Tokens, Result}
