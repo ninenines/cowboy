@@ -265,7 +265,7 @@ path(Req) ->
 	{Req#http_req.path, Req}.
 
 %% @doc Return the extra path information obtained from partially matching
-%% the patch using <em>'...'</em>.
+%% the path using <em>'...'</em>.
 -spec path_info(Req)
 	-> {cowboy_dispatcher:tokens() | undefined, Req} when Req::req().
 path_info(Req) ->
