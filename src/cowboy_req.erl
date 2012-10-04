@@ -1108,7 +1108,7 @@ response(Status, Headers, RespHeaders, DefaultHeaders, Body, Req=#http_req{
 	FullHeaders = response_merge_headers(Headers, RespHeaders, DefaultHeaders),
 	Req2 = case OnResponse of
 		undefined -> Req;
-		OnResponse -> OnResponse(Status, FullHeaders,
+		OnResponse -> OnResponse(Status, FullHeaders, Body,
 			%% Don't call 'onresponse' from the hook itself.
 			Req#http_req{resp_headers=[], resp_body= <<>>,
 				onresponse=undefined})

@@ -188,7 +188,7 @@ init_per_group(onresponse, Config) ->
 	{ok, _} = cowboy:start_http(onresponse, 100, [{port, Port}], [
 		{dispatch, init_dispatch(Config)},
 		{max_keepalive, 50},
-		{onresponse, fun onresponse_hook/3},
+		{onresponse, fun onresponse_hook/4},
 		{timeout, 500}
 	]),
 	{ok, Client} = cowboy_client:init([]),
@@ -623,7 +623,7 @@ onresponse_reply(Config) ->
 	{error, closed} = cowboy_client:response_body(Client3).
 
 %% Hook for the above onresponse tests.
-onresponse_hook(_, Headers, Req) ->
+onresponse_hook(_, Headers, _, Req) ->
 	{ok, Req2} = cowboy_req:reply(
 		<<"777 Lucky">>, [{<<"x-hook">>, <<"onresponse">>}|Headers], Req),
 	Req2.

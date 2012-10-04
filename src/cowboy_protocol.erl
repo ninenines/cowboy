@@ -34,7 +34,7 @@
 %%   any dispatching is done. Host info, path info and bindings are thus
 %%   not available at this point.</dd>
 %%  <dt>onresponse</dt><dd>Optional fun that allows replacing a response
-%%   sent by the application based on its status code or headers.</dd>
+%%   sent by the application.</dd>
 %%  <dt>timeout</dt><dd>Time in milliseconds before an idle
 %%   connection is closed. Defaults to 5000 milliseconds.</dd>
 %% </dl>
@@ -56,7 +56,7 @@
 
 -type onrequest_fun() :: fun((Req) -> Req).
 -type onresponse_fun() ::
-	fun((cowboy_http:status(), cowboy_http:headers(), Req) -> Req).
+	fun((cowboy_http:status(), cowboy_http:headers(), iodata(), Req) -> Req).
 
 -export_type([onrequest_fun/0]).
 -export_type([onresponse_fun/0]).
