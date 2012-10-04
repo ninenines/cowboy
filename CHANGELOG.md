@@ -64,9 +64,15 @@ next
     * max_header_name_length, defaults to 64 bytes
     * max_header_value_length, defaults to 4096 bytes
 
+*   Add max_headers option, limiting the number of headers; defaults to 100
+
 *   Use -callback in behaviours
 
 *   Add cowboy_protocol:onrequest_fun/0 and :onresponse_fun/0 types
+
+*   Add the body data to onresponse_fun/0 callback
+
+*   Remove the urldecode cowboy_protocol option
 
 *   Isolate multipart from body reading to fix an issue
 
