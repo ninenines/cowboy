@@ -6,6 +6,8 @@ next
 
 *   This release drops R14 compatibility
 
+*   Add CONTRIBUTING.md file
+
 *   Use Ranch for connection handling
 
     To start listeners you can now use cowboy:start_http/4 for HTTP,
