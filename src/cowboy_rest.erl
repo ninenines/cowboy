@@ -470,7 +470,7 @@ variances(Req, State=#state{content_types_p=CTP,
 			resource_exists(Req3, State2);
 		[[<<", ">>, H]|Variances5] ->
 			Req4 = cowboy_req:set_resp_header(
-				<<"Variances">>, [H|Variances5], Req3),
+				<<"Vary">>, [H|Variances5], Req3),
 			resource_exists(Req4, State2)
 	end.
 

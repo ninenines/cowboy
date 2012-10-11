@@ -28,7 +28,7 @@ server: Cowboy
 date: Fri, 28 Sep 2012 04:15:52 GMT
 content-length: 136
 Content-Type: text/html
-Variances: Accept
+Vary: Accept
 
 <html>
 <head>
@@ -51,7 +51,7 @@ server: Cowboy
 date: Fri, 28 Sep 2012 04:16:46 GMT
 content-length: 24
 Content-Type: application/json
-Variances: Accept
+Vary: Accept
 
 {"rest": "Hello World!"}
 ```
@@ -66,7 +66,7 @@ server: Cowboy
 date: Fri, 28 Sep 2012 04:18:35 GMT
 content-length: 25
 Content-Type: text/plain
-Variances: Accept
+Vary: Accept
 
 REST Hello World as text!
 ```
