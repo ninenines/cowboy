@@ -13,10 +13,6 @@
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 %% @doc WebSocket protocol implementation.
-%%
-%% When using websockets, make sure that the crypto application is
-%% included in your release. If you are not using releases then there
-%% is no need for concern as crypto is already included.
 -module(cowboy_websocket).
 
 %% API.

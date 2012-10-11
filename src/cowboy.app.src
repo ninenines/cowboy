@@ -20,7 +20,8 @@
 	{applications, [
 		kernel,
 		stdlib,
-		ranch
+		ranch,
+		crypto
 	]},
 	{mod, {cowboy_app, []}},
 	{env, []}

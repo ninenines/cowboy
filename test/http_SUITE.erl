@@ -128,6 +128,7 @@ groups() ->
 
 init_per_suite(Config) ->
 	application:start(inets),
+	application:start(crypto),
 	application:start(ranch),
 	application:start(cowboy),
 	Config.
@@ -135,6 +136,7 @@ init_per_suite(Config) ->
 end_per_suite(_Config) ->
 	application:stop(cowboy),
 	application:stop(ranch),
+	application:stop(crypto),
 	application:stop(inets),
 	ok.
 
@@ -159,7 +161,6 @@ init_per_group(https, Config) ->
 		{password, "cowboy"}
 	],
 	Config1 = init_static_dir(Config),
-	application:start(crypto),
 	application:start(public_key),
 	application:start(ssl),
 	{ok, _} = cowboy:start_https(https, 100, Opts ++ [{port, Port}], [
@@ -199,7 +200,6 @@ end_per_group(https, Config) ->
 	cowboy:stop_listener(https),
 	application:stop(ssl),
 	application:stop(public_key),
-	application:stop(crypto),
 	end_static_dir(Config),
 	ok;
 end_per_group(http, Config) ->
