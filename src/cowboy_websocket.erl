@@ -450,11 +450,22 @@ handler_call(State=#state{handler=Handler, opts=Opts}, Req, HandlerState,
 		{ok, Req2, HandlerState2, hibernate} ->
 			NextState(State#state{hibernate=true},
 				Req2, HandlerState2, RemainingData);
-		{reply, Payload, Req2, HandlerState2} ->
-			websocket_send(Payload, State),
+		{reply, Payload, Req2, HandlerState2}
+				when is_tuple(Payload) ->
+			ok = websocket_send(Payload, State),
 			NextState(State, Req2, HandlerState2, RemainingData);
-		{reply, Payload, Req2, HandlerState2, hibernate} ->
-			websocket_send(Payload, State),
+		{reply, Payload, Req2, HandlerState2, hibernate}
+				when is_tuple(Payload) ->
+			ok = websocket_send(Payload, State),
+			NextState(State#state{hibernate=true},
+				Req2, HandlerState2, RemainingData);
+		{reply, Payload, Req2, HandlerState2}
+				when is_list(Payload) ->
+			ok = websocket_send_many(Payload, State),
+			NextState(State, Req2, HandlerState2, RemainingData);
+		{reply, Payload, Req2, HandlerState2, hibernate}
+				when is_list(Payload) ->
+			ok = websocket_send_many(Payload, State),
 			NextState(State#state{hibernate=true},
 				Req2, HandlerState2, RemainingData);
 		{shutdown, Req2, HandlerState2} ->
@@ -471,14 +482,15 @@ handler_call(State=#state{handler=Handler, opts=Opts}, Req, HandlerState,
 		websocket_close(State, Req, HandlerState, {error, handler})
 	end.
 
--spec websocket_send(binary(), #state{}) -> closed | ignore.
+-spec websocket_send({text | binary | ping | pong, binary()}, #state{})
+	-> ok | {error, atom()}.
 %% hixie-76 text frame.
 websocket_send({text, Payload}, #state{
 		socket=Socket, transport=Transport, version=0}) ->
 	Transport:send(Socket, [0, Payload, 255]);
 %% Ignore all unknown frame types for compatibility with hixie 76.
 websocket_send(_Any, #state{version=0}) ->
-	ignore;
+	ok;
 websocket_send({Type, Payload}, #state{socket=Socket, transport=Transport}) ->
 	Opcode = case Type of
 		text -> 1;
@@ -489,6 +501,14 @@ websocket_send({Type, Payload}, #state{socket=Socket, transport=Transport}) ->
 	Len = hybi_payload_length(iolist_size(Payload)),
 	Transport:send(Socket, [<< 1:1, 0:3, Opcode:4, 0:1, Len/bits >>,
 		Payload]).
+
+-spec websocket_send_many([{text | binary | ping | pong, binary()}], #state{})
+	-> ok | {error, atom()}.
+websocket_send_many([], _) ->
+	ok;
+websocket_send_many([Frame|Tail], State) ->
+	ok = websocket_send(Frame, State),
+	websocket_send_many(Tail, State).
 
 -spec websocket_close(#state{}, cowboy_req:req(), any(), {atom(), atom()})
 	-> closed.

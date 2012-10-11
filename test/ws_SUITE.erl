@@ -16,10 +16,23 @@
 
 -include_lib("common_test/include/ct.hrl").
 
--export([all/0, groups/0, init_per_suite/1, end_per_suite/1,
-	init_per_group/2, end_per_group/2]). %% ct.
--export([ws0/1, ws8/1, ws8_single_bytes/1, ws8_init_shutdown/1,
-	ws13/1, ws_timeout_hibernate/1, ws_text_fragments/1]). %% ws.
+%% ct.
+-export([all/0]).
+-export([groups/0]).
+-export([init_per_suite/1]).
+-export([end_per_suite/1]).
+-export([init_per_group/2]).
+-export([end_per_group/2]).
+
+%% Tests.
+-export([ws0/1]).
+-export([ws8/1]).
+-export([ws8_init_shutdown/1]).
+-export([ws8_single_bytes/1]).
+-export([ws13/1]).
+-export([ws_send_many/1]).
+-export([ws_text_fragments/1]).
+-export([ws_timeout_hibernate/1]).
 
 %% ct.
 
@@ -27,8 +40,16 @@ all() ->
 	[{group, ws}].
 
 groups() ->
-	BaseTests = [ws0, ws8, ws8_single_bytes, ws8_init_shutdown, ws13,
-		ws_timeout_hibernate, ws_text_fragments],
+	BaseTests = [
+		ws0,
+		ws8,
+		ws8_init_shutdown,
+		ws8_single_bytes,
+		ws13,
+		ws_send_many,
+		ws_text_fragments,
+		ws_timeout_hibernate
+	],
 	[{ws, [], BaseTests}].
 
 init_per_suite(Config) ->
@@ -62,9 +83,10 @@ init_dispatch() ->
 	[
 		{[<<"localhost">>], [
 			{[<<"websocket">>], websocket_handler, []},
-			{[<<"ws_timeout_hibernate">>], ws_timeout_hibernate_handler, []},
+			{[<<"ws_echo_handler">>], websocket_echo_handler, []},
 			{[<<"ws_init_shutdown">>], websocket_handler_init_shutdown, []},
-			{[<<"ws_echo_handler">>], websocket_echo_handler, []}
+			{[<<"ws_send_many">>], ws_send_many_handler, []},
+			{[<<"ws_timeout_hibernate">>], ws_timeout_hibernate_handler, []}
 		]}
 	].
 
@@ -158,6 +180,25 @@ ws8(Config) ->
 	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
 	ok.
 
+ws8_init_shutdown(Config) ->
+	{port, Port} = lists:keyfind(port, 1, Config),
+	{ok, Socket} = gen_tcp:connect("localhost", Port,
+		[binary, {active, false}, {packet, raw}]),
+	ok = gen_tcp:send(Socket, [
+		"GET /ws_init_shutdown HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Connection: Upgrade\r\n"
+		"Upgrade: websocket\r\n"
+		"Sec-WebSocket-Origin: http://localhost\r\n"
+		"Sec-WebSocket-Version: 8\r\n"
+		"Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n"
+		"\r\n"]),
+	{ok, Handshake} = gen_tcp:recv(Socket, 0, 6000),
+	{ok, {http_response, {1, 1}, 403, "Forbidden"}, _Rest}
+		= erlang:decode_packet(http, Handshake, []),
+	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
+	ok.
+
 ws8_single_bytes(Config) ->
 	{port, Port} = lists:keyfind(port, 1, Config),
 	{ok, Socket} = gen_tcp:connect("localhost", Port,
@@ -218,51 +259,6 @@ ws8_single_bytes(Config) ->
 	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
 	ok.
 
-ws_timeout_hibernate(Config) ->
-	{port, Port} = lists:keyfind(port, 1, Config),
-	{ok, Socket} = gen_tcp:connect("localhost", Port,
-		[binary, {active, false}, {packet, raw}]),
-	ok = gen_tcp:send(Socket, [
-		"GET /ws_timeout_hibernate HTTP/1.1\r\n"
-		"Host: localhost\r\n"
-		"Connection: Upgrade\r\n"
-		"Upgrade: websocket\r\n"
-		"Sec-WebSocket-Origin: http://localhost\r\n"
-		"Sec-WebSocket-Version: 8\r\n"
-		"Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n"
-		"\r\n"]),
-	{ok, Handshake} = gen_tcp:recv(Socket, 0, 6000),
-	{ok, {http_response, {1, 1}, 101, "Switching Protocols"}, Rest}
-		= erlang:decode_packet(http, Handshake, []),
-	[Headers, <<>>] = websocket_headers(
-		erlang:decode_packet(httph, Rest, []), []),
-	{'Connection', "Upgrade"} = lists:keyfind('Connection', 1, Headers),
-	{'Upgrade', "websocket"} = lists:keyfind('Upgrade', 1, Headers),
-	{"sec-websocket-accept", "s3pPLMBiTxaQ9kYGzzhZRbK+xOo="}
-		= lists:keyfind("sec-websocket-accept", 1, Headers),
-	{ok, << 1:1, 0:3, 8:4, 0:8 >>} = gen_tcp:recv(Socket, 0, 6000),
-	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
-	ok.
-
-ws8_init_shutdown(Config) ->
-	{port, Port} = lists:keyfind(port, 1, Config),
-	{ok, Socket} = gen_tcp:connect("localhost", Port,
-		[binary, {active, false}, {packet, raw}]),
-	ok = gen_tcp:send(Socket, [
-		"GET /ws_init_shutdown HTTP/1.1\r\n"
-		"Host: localhost\r\n"
-		"Connection: Upgrade\r\n"
-		"Upgrade: websocket\r\n"
-		"Sec-WebSocket-Origin: http://localhost\r\n"
-		"Sec-WebSocket-Version: 8\r\n"
-		"Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n"
-		"\r\n"]),
-	{ok, Handshake} = gen_tcp:recv(Socket, 0, 6000),
-	{ok, {http_response, {1, 1}, 403, "Forbidden"}, _Rest}
-		= erlang:decode_packet(http, Handshake, []),
-	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
-	ok.
-
 ws13(Config) ->
 	{port, Port} = lists:keyfind(port, 1, Config),
 	{ok, Socket} = gen_tcp:connect("localhost", Port,
@@ -309,6 +305,39 @@ ws13(Config) ->
 		= gen_tcp:recv(Socket, 0, 6000),
 	ok = gen_tcp:send(Socket, << 1:1, 0:3, 9:4, 0:8 >>), %% ping
 	{ok, << 1:1, 0:3, 10:4, 0:8 >>} = gen_tcp:recv(Socket, 0, 6000), %% pong
+	ok = gen_tcp:send(Socket, << 1:1, 0:3, 8:4, 0:8 >>), %% close
+	{ok, << 1:1, 0:3, 8:4, 0:8 >>} = gen_tcp:recv(Socket, 0, 6000),
+	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
+	ok.
+
+ws_send_many(Config) ->
+	{port, Port} = lists:keyfind(port, 1, Config),
+	{ok, Socket} = gen_tcp:connect("localhost", Port,
+		[binary, {active, false}, {packet, raw}]),
+	ok = gen_tcp:send(Socket, [
+		"GET /ws_send_many HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Connection: Upgrade\r\n"
+		"Upgrade: websocket\r\n"
+		"Sec-WebSocket-Origin: http://localhost\r\n"
+		"Sec-WebSocket-Version: 8\r\n"
+		"Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n"
+		"\r\n"]),
+	{ok, Handshake} = gen_tcp:recv(Socket, 0, 6000),
+	{ok, {http_response, {1, 1}, 101, "Switching Protocols"}, Rest}
+		= erlang:decode_packet(http, Handshake, []),
+	[Headers, <<>>] = websocket_headers(
+		erlang:decode_packet(httph, Rest, []), []),
+	{'Connection', "Upgrade"} = lists:keyfind('Connection', 1, Headers),
+	{'Upgrade', "websocket"} = lists:keyfind('Upgrade', 1, Headers),
+	{"sec-websocket-accept", "s3pPLMBiTxaQ9kYGzzhZRbK+xOo="}
+		= lists:keyfind("sec-websocket-accept", 1, Headers),
+	{ok, << 1:1, 0:3, 1:4, 0:1, 3:7, "one" >>}
+		= gen_tcp:recv(Socket, 0, 6000),
+	{ok, << 1:1, 0:3, 1:4, 0:1, 3:7, "two" >>}
+		= gen_tcp:recv(Socket, 0, 6000),
+	{ok, << 1:1, 0:3, 1:4, 0:1, 6:7, "seven!" >>}
+		= gen_tcp:recv(Socket, 0, 6000),
 	ok = gen_tcp:send(Socket, << 1:1, 0:3, 8:4, 0:8 >>), %% close
 	{ok, << 1:1, 0:3, 8:4, 0:8 >>} = gen_tcp:recv(Socket, 0, 6000),
 	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
@@ -369,6 +398,33 @@ ws_text_fragments(Config) ->
 	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
 	ok.
 
+ws_timeout_hibernate(Config) ->
+	{port, Port} = lists:keyfind(port, 1, Config),
+	{ok, Socket} = gen_tcp:connect("localhost", Port,
+		[binary, {active, false}, {packet, raw}]),
+	ok = gen_tcp:send(Socket, [
+		"GET /ws_timeout_hibernate HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Connection: Upgrade\r\n"
+		"Upgrade: websocket\r\n"
+		"Sec-WebSocket-Origin: http://localhost\r\n"
+		"Sec-WebSocket-Version: 8\r\n"
+		"Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n"
+		"\r\n"]),
+	{ok, Handshake} = gen_tcp:recv(Socket, 0, 6000),
+	{ok, {http_response, {1, 1}, 101, "Switching Protocols"}, Rest}
+		= erlang:decode_packet(http, Handshake, []),
+	[Headers, <<>>] = websocket_headers(
+		erlang:decode_packet(httph, Rest, []), []),
+	{'Connection', "Upgrade"} = lists:keyfind('Connection', 1, Headers),
+	{'Upgrade', "websocket"} = lists:keyfind('Upgrade', 1, Headers),
+	{"sec-websocket-accept", "s3pPLMBiTxaQ9kYGzzhZRbK+xOo="}
+		= lists:keyfind("sec-websocket-accept", 1, Headers),
+	{ok, << 1:1, 0:3, 8:4, 0:8 >>} = gen_tcp:recv(Socket, 0, 6000),
+	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
+	ok.
+
+%% Internal.
 
 websocket_headers({ok, http_eoh, Rest}, Acc) ->
 	[Acc, Rest];
