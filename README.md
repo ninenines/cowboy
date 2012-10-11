@@ -39,7 +39,8 @@ Cowboy does nothing by default.
 
 Cowboy uses Ranch for handling connections, and provides convenience
 functions to start and stop Ranch listeners. The Ranch application
-must always be started before Cowboy.
+must always be started before Cowboy. The crypto application must
+also be started.
 
 The `cowboy:start_http/4` function will handle HTTP connections
 using the TCP transport. Similarly, `cowboy:start_https/4` will
@@ -57,6 +58,7 @@ HTTP listener. It redirects all requests to the `my_handler`
 module.
 
 ``` erlang
+application:start(crypto),
 application:start(ranch),
 application:start(cowboy),
 Dispatch = [
