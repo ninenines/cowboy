@@ -14,7 +14,8 @@ start(_Type, _Args) ->
 	Dispatch = [
 		{'_', [
 			{['...'], cowboy_static, [
-				{directory, {priv_dir, static, []}}
+				{directory, {priv_dir, static, []}},
+				{mimetypes, {fun mimetypes:path_to_mimes/2, default}}
 			]} 
 		]}
 	],
