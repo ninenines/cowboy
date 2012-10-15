@@ -84,7 +84,7 @@ upgrade(_ListenerPid, Handler, Opts, Req) ->
 service_available(Req, State) ->
 	expect(Req, State, service_available, true, fun known_methods/2, 503).
 
-%% known_methods/2 should return a list of atoms or binary methods.
+%% known_methods/2 should return a list of binary methods.
 known_methods(Req, State=#state{method=Method}) ->
 	case call(Req, State, known_methods) of
 		no_call when Method =:= <<"HEAD">>; Method =:= <<"GET">>;
@@ -107,7 +107,7 @@ known_methods(Req, State=#state{method=Method}) ->
 uri_too_long(Req, State) ->
 	expect(Req, State, uri_too_long, false, fun allowed_methods/2, 414).
 
-%% allowed_methods/2 should return a list of atoms or binary methods.
+%% allowed_methods/2 should return a list of binary methods.
 allowed_methods(Req, State=#state{method=Method}) ->
 	case call(Req, State, allowed_methods) of
 		no_call when Method =:= <<"HEAD">>; Method =:= <<"GET">> ->
