@@ -6,34 +6,39 @@ Cowboy is a small, fast and modular HTTP server written in Erlang.
 Goals
 -----
 
-Cowboy aims to provide the following advantages:
+Cowboy aims to provide a **complete** HTTP stack in a **small** code base.
+It is optimized for **low latency** and **low memory usage**, in parts
+because it uses **binary strings**.
 
-* **Small** code base.
-* Damn **fast**.
-* **Modular**: transport and protocol handlers are replaceable.
-* **Binary HTTP** for greater speed and lower memory usage.
-* Easy to **embed** inside another application.
-* Selectively **dispatch** requests to handlers, allowing you to send some
-  requests to your embedded code and others to a FastCGI application in
-  PHP or Ruby.
-* No parameterized module. No process dictionary. **Clean** Erlang code.
+Cowboy provides **routing** capabilities, selectively dispatching requests
+to handlers written in Erlang.
 
-The server is currently in early development. Comments and suggestions are
-more than welcome. To contribute, either open bug reports, or fork the project
-and send us pull requests with new or improved functionality. You should
-discuss your plans with us before doing any serious work, though, to avoid
-duplicating efforts.
+Because it uses Ranch for managing connections, Cowboy can easily be
+**embedded** in any other application.
+
+No parameterized module. No process dictionary. **Clean** Erlang code.
 
 Quick start
 -----------
 
-* Add Cowboy as a rebar or agner dependency to your application.
+* Add Cowboy as a rebar dependency to your application.
 * Start Cowboy and add one or more listeners.
 * Write handlers for your application.
-* Check out the `examples/` directory!
 
 Getting Started
 ---------------
+
+* [Read the guide](https://github.com/extend/cowboy/blob/master/guide/toc.md)
+* Look at the examples in the ```examples/``` directory
+* Build API documentation with ```make docs```; open ```doc/index.html```
+
+
+
+Old README
+----------
+
+This and all following sections will be removed as soon as their
+equivalent appear in the Cowboy guide.
 
 Cowboy does nothing by default.
 
