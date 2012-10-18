@@ -440,19 +440,19 @@ request(Buffer, State=#state{socket=Socket, transport=Transport,
 	Req = cowboy_req:new(Socket, Transport, Method, Path, Query, Fragment,
 		Version, Headers, Host, Port, Buffer, ReqKeepalive < MaxKeepalive,
 		OnResponse),
-	onrequest(Req, State, Host, Path).
+	onrequest(Req, State, Host).
 
 %% Call the global onrequest callback. The callback can send a reply,
 %% in which case we consider the request handled and move on to the next
 %% one. Note that since we haven't dispatched yet, we don't know the
 %% handler, host_info, path_info or bindings yet.
--spec onrequest(cowboy_req:req(), #state{}, binary(), binary()) -> ok.
-onrequest(Req, State=#state{onrequest=undefined}, Host, Path) ->
-	dispatch(Req, State, Host, Path);
-onrequest(Req, State=#state{onrequest=OnRequest}, Host, Path) ->
+-spec onrequest(cowboy_req:req(), #state{}, binary()) -> ok.
+onrequest(Req, State=#state{onrequest=undefined}, Host) ->
+	dispatch(Req, State, Host, cowboy_req:get(path, Req));
+onrequest(Req, State=#state{onrequest=OnRequest}, Host) ->
 	Req2 = OnRequest(Req),
 	case cowboy_req:get(resp_state, Req2) of
-		waiting -> dispatch(Req2, State, Host, Path);
+		waiting -> dispatch(Req2, State, Host, cowboy_req:get(path, Req2));
 		_ -> next_request(Req2, State, ok)
 	end.
 
