@@ -81,9 +81,9 @@
 %%          {<<".js">>, [<<"application/javascript">>]}]}]}
 %%
 %% %% Use the default database in the mimetypes application.
-%% {[<<"static">>, '...', cowboy_static,
+%% {[<<"static">>, '...'], cowboy_static,
 %%     [{directory, {priv_dir, cowboy, []}},
-%%      {mimetypes, {fun mimetypes:path_to_mimes/2, default}}]]}
+%%      {mimetypes, {fun mimetypes:path_to_mimes/2, default}}]}
 %% '''
 %%
 %% == ETag Header Function ==
@@ -110,19 +110,19 @@
 %% ====  Examples ====
 %% ```
 %% %% A value of default is equal to not specifying the option.
-%% {[<<"static">>, '...', cowboy_static,
+%% {[<<"static">>, '...'], cowboy_static,
 %%     [{directory, {priv_dir, cowboy, []}},
-%%      {etag, default}]]}
+%%      {etag, default}]}
 %%
 %% %% Use all avaliable ETag function arguments to generate a header value.
-%% {[<<"static">>, '...', cowboy_static,
+%% {[<<"static">>, '...'], cowboy_static,
 %%     [{directory, {priv_dir, cowboy, []}},
-%%      {etag, {attributes, [filepath, filesize, inode, mtime]}}]]}
+%%      {etag, {attributes, [filepath, filesize, inode, mtime]}}]}
 %%
 %% %% Use a user defined function to generate a strong ETag header value.
-%% {[<<"static">>, '...', cowboy_static,
+%% {[<<"static">>, '...'], cowboy_static,
 %%     [{directory, {priv_dir, cowboy, []}},
-%%      {etag, {fun generate_strong_etag/2, strong_etag_extra}}]]}
+%%      {etag, {fun generate_strong_etag/2, strong_etag_extra}}]}
 %%
 %% generate_strong_etag(Arguments, strong_etag_extra) ->
 %%     {_, Filepath} = lists:keyfind(filepath, 1, Arguments),
