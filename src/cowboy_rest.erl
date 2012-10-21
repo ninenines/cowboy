@@ -82,7 +82,24 @@ upgrade(_ListenerPid, Handler, Opts, Req) ->
 	end.
 
 service_available(Req, State) ->
-	expect(Req, State, service_available, true, fun known_methods/2, 503).
+	expect(Req, State, service_available, true, fun rate_limited/2, 503).
+
+%% rate_limited/2 should return a false, true, or {true, RetryAfter}
+%% with RetryAfter being the number of seconds the client should wait.
+rate_limited(Req, State) ->
+	case call(Req, State, rate_limited) of
+		no_call ->
+			known_methods(Req, State);
+		{halt, Req2, HandlerState} ->
+			terminate(Req2, State#state{handler_state=HandlerState});
+		{false, Req2, HandlerState} ->
+			known_methods(Req2, State#state{handler_state=HandlerState});
+		{{true, RetryAfter}, Req2, HandlerState} ->
+			Req3 = cowboy_req:set_resp_header(<<"Retry-After">>, RetryAfter, Req2),
+			respond(Req3, State#state{handler_state=HandlerState}, 429);
+		{true, Req2, HandlerState} ->
+			respond(Req2, State#state{handler_state=HandlerState}, 429)
+	end.
 
 %% known_methods/2 should return a list of binary methods.
 known_methods(Req, State=#state{method=Method}) ->
