@@ -451,7 +451,7 @@ path_to_mimetypes(Filepath, Extensions) when is_binary(Filepath) ->
 
 -spec path_to_mimetypes_(binary(), [{binary(), [mimedef()]}]) -> [mimedef()].
 path_to_mimetypes_(Ext, Extensions) ->
-	case lists:keyfind(Ext, 1, Extensions) of
+	case lists:keyfind(cowboy_bstr:to_lower(Ext), 1, Extensions) of
 		{_, MTs} -> MTs;
 		_Unknown -> default_mimetype()
 	end.
