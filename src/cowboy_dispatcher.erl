@@ -67,7 +67,8 @@
 	-> {ok, module(), any(), bindings(),
 		HostInfo::undefined | tokens(),
 		PathInfo::undefined | tokens()}
-	| {error, notfound, host} | {error, notfound, path}.
+	| {error, notfound, host} | {error, notfound, path} 
+	| {error, badrequest, path}.
 match([], _, _) ->
 	{error, notfound, host};
 match([{'_', PathMatchs}|_Tail], _, Path) ->
@@ -91,7 +92,7 @@ match(Dispatch, Host, Path) ->
 	-> {ok, module(), any(), bindings(),
 		HostInfo::undefined | tokens(),
 		PathInfo::undefined | tokens()}
-	| {error, notfound, path}.
+	| {error, notfound, path} | {error, badrequest, path}.
 match_path([], _, _, _) ->
 	{error, notfound, path};
 match_path([{'_', Handler, Opts}|_Tail], HostInfo, _, Bindings) ->
@@ -106,6 +107,8 @@ match_path([{PathMatch, Handler, Opts}|Tail], HostInfo, Tokens,
 		{true, PathBinds, PathInfo} ->
 			{ok, Handler, Opts, Bindings ++ PathBinds, HostInfo, PathInfo}
 	end;
+match_path(_Dispatch, _HostInfo, badrequest, _Bindings) ->
+	{error, badrequest, path};
 match_path(Dispatch, HostInfo, Path, Bindings) ->
 	match_path(Dispatch, HostInfo, split_path(Path), Bindings).
 
@@ -138,14 +141,19 @@ split_path(<< $/, Path/bits >>) ->
 	split_path(Path, []).
 
 split_path(Path, Acc) ->
-	case binary:match(Path, <<"/">>) of
-		nomatch when Path =:= <<>> ->
-			lists:reverse([cowboy_http:urldecode(S) || S <- Acc]);
-		nomatch ->
-			lists:reverse([cowboy_http:urldecode(S) || S <- [Path|Acc]]);
-		{Pos, _} ->
-			<< Segment:Pos/binary, _:8, Rest/bits >> = Path,
-			split_path(Rest, [Segment|Acc])
+	try
+		case binary:match(Path, <<"/">>) of
+			nomatch when Path =:= <<>> ->
+				lists:reverse([cowboy_http:urldecode(S) || S <- Acc]);
+			nomatch ->
+				lists:reverse([cowboy_http:urldecode(S) || S <- [Path|Acc]]);
+			{Pos, _} ->
+				<< Segment:Pos/binary, _:8, Rest/bits >> = Path,
+				split_path(Rest, [Segment|Acc])
+		end
+	catch
+		error:badarg ->
+			badrequest
 	end.
 
 -spec list_match(tokens(), match_rule(), bindings())

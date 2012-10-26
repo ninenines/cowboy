@@ -464,6 +464,8 @@ dispatch(Req, State=#state{dispatch=Dispatch}, Host, Path) ->
 			handler_init(Req2, State, Handler, Opts);
 		{error, notfound, host} ->
 			error_terminate(400, State);
+		{error, badrequest, path} ->
+			error_terminate(400, State);
 		{error, notfound, path} ->
 			error_terminate(404, State)
 	end.
