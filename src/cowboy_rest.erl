@@ -40,7 +40,7 @@
 	language_a :: undefined | binary(),
 
 	%% Charset.
-	charsets_p = [] :: [{binary(), atom()}],
+	charsets_p = [] :: [binary()],
 	charset_a :: undefined | binary(),
 
 	%% Cached resource calls.
@@ -371,7 +371,7 @@ charsets_provided(Req, State) ->
 			case AcceptCharset of
 				undefined ->
 					set_content_type(Req3, State2#state{
-						charset_a=element(1, hd(CP))});
+						charset_a=hd(CP)});
 				AcceptCharset ->
 					AcceptCharset2 = prioritize_charsets(AcceptCharset),
 					choose_charset(Req3, State2, AcceptCharset2)
@@ -401,7 +401,7 @@ choose_charset(Req, State=#state{charsets_p=CP}, [Charset|Tail]) ->
 
 match_charset(Req, State, Accept, [], _Charset) ->
 	choose_charset(Req, State, Accept);
-match_charset(Req, State, _Accept, [{Provided, _}|_], {Provided, _}) ->
+match_charset(Req, State, _Accept, [Provided|_], {Provided, _}) ->
 	set_content_type(Req, State#state{charset_a=Provided});
 match_charset(Req, State, Accept, [_|Tail], Charset) ->
 	match_charset(Req, State, Accept, Tail, Charset).
