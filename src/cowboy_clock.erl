@@ -25,7 +25,7 @@
 -export([start_link/0]).
 -export([stop/0]).
 -export([rfc1123/0]).
--export([rfc2109/1]).
+-export([rfc2109/1, rfc2109_fast/1]).
 
 %% gen_server.
 -export([init/1]).
@@ -105,6 +105,21 @@ rfc2109(LocalTime) ->
 	HourBin/binary, ":",
 	MinBin/binary, ":",
 	SecBin/binary, " GMT">>.
+
+%% @doc Return the current date and time formatted according to RFC-2109.
+%%
+%% This format is used in the <em>set-cookie</em> header sent with
+%% HTTP responses.
+-spec rfc2109_fast(calendar:datetime()) -> binary().
+rfc2109_fast(DateTime) ->
+  {{Year, Month, Day}, {Hour, Minute, Second}} = DateTime,
+  DoW = calendar:day_of_the_week(Year, Month, Day),
+  list_to_binary(io_lib:format(
+      "~s, ~2..0B ~s ~4..0B ~2..0B:~2..0B:~2..0B GMT", [
+      weekday(DoW),
+      Day, month(Month), Year,
+      Hour, Minute, Second
+    ])).
 
 %% gen_server.
 

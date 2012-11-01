@@ -238,7 +238,7 @@ rest_init(Req, Opts) ->
 				etag_fun=ETagFunction};
 		ok ->
 			Filepath1 = join_paths(Directory1, Filepath),
-			Fileinfo = file:read_file_info(Filepath1),
+			Fileinfo = file:read_file_info(Filepath1, [{time, universal}]),
 			#state{filepath=Filepath1, fileinfo=Fileinfo, mimetypes=Mimetypes1,
 				etag_fun=ETagFunction}
 	end,
