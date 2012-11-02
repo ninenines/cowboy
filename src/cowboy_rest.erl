@@ -778,6 +778,8 @@ set_resp_body(Req, State=#state{content_type_a={_Type, Fun}}) ->
 			Req7 = case Body of
 				{stream, Len, Fun1} ->
 					cowboy_req:set_resp_body_fun(Len, Fun1, Req6);
+				{stream, Start, End, Length, Fun1} ->
+					cowboy_req:set_resp_body_fun(Start, End, Length, Fun1, Req6);
 				_Contents ->
 					cowboy_req:set_resp_body(Body, Req6)
 			end,
