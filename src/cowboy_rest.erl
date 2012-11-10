@@ -126,7 +126,7 @@ allowed_methods(Req, State=#state{method=Method}) ->
 
 method_not_allowed(Req, State, Methods) ->
 	Req2 = cowboy_req:set_resp_header(
-		<<"Allow">>, method_not_allowed_build(Methods, []), Req),
+		<<"allow">>, method_not_allowed_build(Methods, []), Req),
 	respond(Req2, State, 405).
 
 method_not_allowed_build([], []) ->
@@ -153,7 +153,7 @@ is_authorized(Req, State) ->
 			forbidden(Req2, State#state{handler_state=HandlerState});
 		{{false, AuthHead}, Req2, HandlerState} ->
 			Req3 = cowboy_req:set_resp_header(
-				<<"Www-Authenticate">>, AuthHead, Req2),
+				<<"www-authenticate">>, AuthHead, Req2),
 			respond(Req3, State#state{handler_state=HandlerState}, 401)
 	end.
 
@@ -351,7 +351,7 @@ match_language(Req, State, Accept, [Provided|Tail],
 	end.
 
 set_language(Req, State=#state{language_a=Language}) ->
-	Req2 = cowboy_req:set_resp_header(<<"Content-Language">>, Language, Req),
+	Req2 = cowboy_req:set_resp_header(<<"content-language">>, Language, Req),
 	charsets_provided(cowboy_req:set_meta(language, Language, Req2), State).
 
 %% charsets_provided should return a list of binary values indicating
@@ -415,7 +415,7 @@ set_content_type(Req, State=#state{
 		undefined -> ContentType;
 		Charset -> [ContentType, <<"; charset=">>, Charset]
 	end,
-	Req2 = cowboy_req:set_resp_header(<<"Content-Type">>, ContentType2, Req),
+	Req2 = cowboy_req:set_resp_header(<<"content-type">>, ContentType2, Req),
 	encodings_provided(cowboy_req:set_meta(charset, Charset, Req2), State).
 
 set_content_type_build_params([], []) ->
@@ -446,17 +446,17 @@ variances(Req, State=#state{content_types_p=CTP,
 	Variances = case CTP of
 		[] -> [];
 		[_] -> [];
-		[_|_] -> [<<"Accept">>]
+		[_|_] -> [<<"accept">>]
 	end,
 	Variances2 = case LP of
 		[] -> Variances;
 		[_] -> Variances;
-		[_|_] -> [<<"Accept-Language">>|Variances]
+		[_|_] -> [<<"accept-language">>|Variances]
 	end,
 	Variances3 = case CP of
 		[] -> Variances2;
 		[_] -> Variances2;
-		[_|_] -> [<<"Accept-Charset">>|Variances2]
+		[_|_] -> [<<"accept-charset">>|Variances2]
 	end,
 	{Variances4, Req3, State2} = case call(Req, State, variances) of
 		no_call ->
@@ -470,7 +470,7 @@ variances(Req, State=#state{content_types_p=CTP,
 			resource_exists(Req3, State2);
 		[[<<", ">>, H]|Variances5] ->
 			Req4 = cowboy_req:set_resp_header(
-				<<"Vary">>, [H|Variances5], Req3),
+				<<"vary">>, [H|Variances5], Req3),
 			resource_exists(Req4, State2)
 	end.
 
@@ -577,7 +577,7 @@ if_modified_since(Req, State, IfModifiedSince) ->
 	end.
 
 not_modified(Req, State) ->
-	Req2 = cowboy_req:delete_resp_header(<<"Content-Type">>, Req),
+	Req2 = cowboy_req:delete_resp_header(<<"content-type">>, Req),
 	{Req3, State2} = set_resp_etag(Req2, State),
 	{Req4, State3} = set_resp_expires(Req3, State2),
 	respond(Req4, State3, 304).
@@ -596,7 +596,7 @@ moved_permanently(Req, State, OnFalse) ->
 	case call(Req, State, moved_permanently) of
 		{{true, Location}, Req2, HandlerState} ->
 			Req3 = cowboy_req:set_resp_header(
-				<<"Location">>, Location, Req2),
+				<<"location">>, Location, Req2),
 			respond(Req3, State#state{handler_state=HandlerState}, 301);
 		{false, Req2, HandlerState} ->
 			OnFalse(Req2, State#state{handler_state=HandlerState});
@@ -617,7 +617,7 @@ moved_temporarily(Req, State) ->
 	case call(Req, State, moved_temporarily) of
 		{{true, Location}, Req2, HandlerState} ->
 			Req3 = cowboy_req:set_resp_header(
-				<<"Location">>, Location, Req2),
+				<<"location">>, Location, Req2),
 			respond(Req3, State#state{handler_state=HandlerState}, 307);
 		{false, Req2, HandlerState} ->
 			is_post_to_missing_resource(Req2, State#state{handler_state=HandlerState}, 410);
@@ -670,7 +670,7 @@ create_path(Req, State) ->
 			{HostURL, Req3} = cowboy_req:host_url(Req2),
 			State2 = State#state{handler_state=HandlerState},
 			Req4 = cowboy_req:set_resp_header(
-				<<"Location">>, << HostURL/binary, Path/binary >>, Req3),
+				<<"location">>, << HostURL/binary, Path/binary >>, Req3),
 			put_resource(cowboy_req:set_meta(put_path, Path, Req4),
 				State2, 303)
 	end.
@@ -744,7 +744,7 @@ choose_content_type(Req, State, OnTrue, ContentType, [_Any|Tail]) ->
 %% This is easily testable because we would have set the Location
 %% header by this point if we did so.
 is_new_resource(Req, State) ->
-	case cowboy_req:has_resp_header(<<"Location">>, Req) of
+	case cowboy_req:has_resp_header(<<"location">>, Req) of
 		true -> respond(Req, State, 201);
 		false -> has_resp_body(Req, State)
 	end.
@@ -767,7 +767,7 @@ set_resp_body(Req, State=#state{content_type_a={_Type, Fun}}) ->
 		LastModified ->
 			LastModifiedStr = httpd_util:rfc1123_date(LastModified),
 			Req4 = cowboy_req:set_resp_header(
-				<<"Last-Modified">>, LastModifiedStr, Req3)
+				<<"last-modified">>, LastModifiedStr, Req3)
 	end,
 	{Req5, State4} = set_resp_expires(Req4, State3),
 	case call(Req5, State4, Fun) of
@@ -796,7 +796,7 @@ set_resp_etag(Req, State) ->
 			{Req2, State2};
 		Etag ->
 			Req3 = cowboy_req:set_resp_header(
-				<<"ETag">>, encode_etag(Etag), Req2),
+				<<"etag">>, encode_etag(Etag), Req2),
 			{Req3, State2}
 	end.
 
@@ -812,7 +812,7 @@ set_resp_expires(Req, State) ->
 		Expires ->
 			ExpiresStr = httpd_util:rfc1123_date(Expires),
 			Req3 = cowboy_req:set_resp_header(
-				<<"Expires">>, ExpiresStr, Req2),
+				<<"expires">>, ExpiresStr, Req2),
 			{Req3, State2}
 	end.
 
