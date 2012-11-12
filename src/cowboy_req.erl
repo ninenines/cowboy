@@ -880,8 +880,12 @@ reply(Status, Headers, Body, Req=#http_req{
 	end,
 	case Body of
 		{ContentLength, BodyFun} ->
+			ResponseLength = case Method of
+			  <<"HEAD">> -> 0;
+			  _ -> ContentLength
+			end,
 			{RespType, Req2} = response(Status, Headers, RespHeaders, [
-					{<<"content-length">>, integer_to_list(ContentLength)},
+					{<<"content-length">>, integer_to_list(ResponseLength)},
 					{<<"date">>, cowboy_clock:rfc1123()},
 					{<<"server">>, <<"Cowboy">>}
 				|HTTP11Headers], <<>>, Req),
@@ -889,13 +893,15 @@ reply(Status, Headers, Body, Req=#http_req{
 				true -> ok
 			end;
 		_ ->
+			ResponseBody = case Method of
+			  <<"HEAD">> -> <<>>;
+			  _ -> Body
+			end,
 			{_, Req2} = response(Status, Headers, RespHeaders, [
-					{<<"content-length">>, integer_to_list(iolist_size(Body))},
+					{<<"content-length">>, integer_to_list(iolist_size(ResponseBody))},
 					{<<"date">>, cowboy_clock:rfc1123()},
 					{<<"server">>, <<"Cowboy">>}
-				|HTTP11Headers],
-				case Method of <<"HEAD">> -> <<>>; _ -> Body end,
-				Req)
+				|HTTP11Headers], ResponseBody, Req)
 	end,
 	{ok, Req2#http_req{connection=RespConn, resp_state=done,
 		resp_headers=[], resp_body= <<>>}}.
