@@ -13,7 +13,10 @@
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 {application, cowboy, [
+	{id, "Cowboy"},
 	{description, "Small, fast, modular HTTP server."},
+	{sub_description, "Cowboy is also a socket acceptor pool, "
+		"able to accept connections for any kind of TCP protocol."},
 	{vsn, "0.7.0"},
 	{modules, []},
 	{registered, [cowboy_clock, cowboy_sup]},
