@@ -21,16 +21,16 @@ No parameterized module. No process dictionary. **Clean** Erlang code.
 Quick start
 -----------
 
-* Add Cowboy as a rebar dependency to your application.
-* Start Cowboy and add one or more listeners.
-* Write handlers for your application.
+ *  Add Cowboy as a rebar dependency to your application.
+ *  Start Cowboy and add one or more listeners.
+ *  Write handlers for your application.
 
 Getting Started
 ---------------
 
-* [Read the guide](https://github.com/extend/cowboy/blob/master/guide/toc.md)
-* Look at the examples in the ```examples/``` directory
-* Build API documentation with ```make docs```; open ```doc/index.html```
+ *  [Read the guide](http://ninenines.eu/docs/en/cowboy/HEAD/guide/introduction)
+ *  Look at the examples in the `examples/` directory
+ *  Build API documentation with `make docs`; open `doc/index.html`
 
 
 
