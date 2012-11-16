@@ -166,7 +166,7 @@ valid_content_headers(Req, State) ->
 
 known_content_type(Req, State) ->
 	expect(Req, State, known_content_type, true,
-		fun valid_entity_length/2, 413).
+		fun valid_entity_length/2, 415).
 
 valid_entity_length(Req, State) ->
 	expect(Req, State, valid_entity_length, true, fun options/2, 413).
