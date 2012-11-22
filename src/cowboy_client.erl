@@ -213,7 +213,6 @@ stream_header(Client=#client{state=State, buffer=Buffer,
 		[<<>>, Rest] ->
 			%% If we have a body, set response_body.
 			Client2 = case RespBody of
-				undefined -> Client#client{state=request};
 				0 -> Client#client{state=request};
 				_ -> Client#client{state=response_body}
 			end,
@@ -249,15 +248,15 @@ stream_header(Client=#client{state=State, buffer=Buffer,
 	end.
 
 stream_body(Client=#client{state=response_body, response_body=RespBody})
-		when RespBody =:= undefined; RespBody =:= 0 ->
-	{done, Client#client{state=request, response_body=undefined}};
-stream_body(Client=#client{state=response_body, buffer=Buffer, response_body=stream}) ->
+		when RespBody =:= done; RespBody =:= 0 ->
+	{done, Client#client{state=request, response_body=done}};
+stream_body(Client=#client{state=response_body, buffer=Buffer, response_body=undefined})
     case recv(Client) of
       {ok, Data} ->
         Buffer2 = << Buffer/binary, Data/binary >>,
         stream_body(Client#client{buffer=Buffer2});
       {error, _Reason} ->
-        {ok, Buffer, Client#client{response_body=undefined}}
+        {ok, Buffer, Client#client{response_body=done}}
     end;
 stream_body(Client=#client{state=response_body, buffer=Buffer, response_body=Length}) when is_integer(Length) ->
 	case byte_size(Buffer) of
@@ -269,7 +268,7 @@ stream_body(Client=#client{state=response_body, buffer=Buffer, response_body=Len
 				{ok, Data} ->
 					<< Body:Length/binary, Rest/binary >> = Data,
 					{ok, Body, Client#client{buffer=Rest,
-						response_body=undefined}};
+						response_body=done}};
 				{error, Reason} ->
 					{error, Reason}
 			end;
@@ -278,7 +277,7 @@ stream_body(Client=#client{state=response_body, buffer=Buffer, response_body=Len
 			{ok, Buffer, Client#client{buffer= <<>>, response_body=Length2}};
 		_ ->
 			<< Body:Length/binary, Rest/binary >> = Buffer,
-			{ok, Body, Client#client{buffer=Rest, response_body=undefined}}
+			{ok, Body, Client#client{buffer=Rest, response_body=done}}
 	end.
 
 recv(#client{socket=Socket, transport=Transport, timeout=Timeout}) ->
