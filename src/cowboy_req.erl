@@ -67,6 +67,7 @@
 -export([headers/1]).
 -export([parse_header/2]).
 -export([parse_header/3]).
+-export([merge_headers/2]).
 -export([cookie/2]).
 -export([cookie/3]).
 -export([cookies/1]).
