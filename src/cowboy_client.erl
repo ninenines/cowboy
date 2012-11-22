@@ -230,7 +230,7 @@ stream_header(Client=#client{state=State, buffer=Buffer,
                 <<"transfer-encoding">> ->
                     case Value of
                         <<"chunked">> ->
-                            Client#client{response_body=chunked};
+                            Client#client{response_body=stream};
                           _ ->
                             ok
                     end;
@@ -251,7 +251,7 @@ stream_header(Client=#client{state=State, buffer=Buffer,
 stream_body(Client=#client{state=response_body, response_body=RespBody})
 		when RespBody =:= undefined; RespBody =:= 0 ->
 	{done, Client#client{state=request, response_body=undefined}};
-stream_body(Client=#client{state=response_body, buffer=Buffer, response_body=chunked}) ->
+stream_body(Client=#client{state=response_body, buffer=Buffer, response_body=stream}) ->
     case recv(Client) of
       {ok, Data} ->
         Buffer2 = << Buffer/binary, Data/binary >>,
