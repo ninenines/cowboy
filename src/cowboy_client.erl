@@ -226,13 +226,6 @@ stream_header(Client=#client{state=State, buffer=Buffer,
 					Length = list_to_integer(binary_to_list(Value)),
 					if Length >= 0 -> ok end,
 					Client#client{response_body=Length};
-                <<"transfer-encoding">> ->
-                    case Value of
-                        <<"chunked">> ->
-                            Client#client{response_body=stream};
-                          _ ->
-                            ok
-                    end;
 				_ ->
 					Client
 			end,
