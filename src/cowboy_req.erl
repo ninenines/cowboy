@@ -67,7 +67,6 @@
 -export([headers/1]).
 -export([parse_header/2]).
 -export([parse_header/3]).
--export([merge_headers/2]).
 -export([cookie/2]).
 -export([cookie/3]).
 -export([cookies/1]).
@@ -114,6 +113,7 @@
 -export([lock/1]).
 -export([to_list/1]).
 -export([transport/1]).
+-export([merge_headers/2]).
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
