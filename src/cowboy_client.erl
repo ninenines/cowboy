@@ -227,6 +227,13 @@ stream_header(Client=#client{state=State, buffer=Buffer,
 					Length = list_to_integer(binary_to_list(Value)),
 					if Length >= 0 -> ok end,
 					Client#client{response_body=Length};
+                <<"transfer-encoding">> ->
+                    case Value of
+                        <<"chunked">> ->
+                            Client#client{response_body=chunked};
+                          _ ->
+                            ok
+                    end;
 				_ ->
 					Client
 			end,
@@ -244,8 +251,15 @@ stream_header(Client=#client{state=State, buffer=Buffer,
 stream_body(Client=#client{state=response_body, response_body=RespBody})
 		when RespBody =:= undefined; RespBody =:= 0 ->
 	{done, Client#client{state=request, response_body=undefined}};
-stream_body(Client=#client{state=response_body, buffer=Buffer,
-		response_body=Length}) when is_integer(Length) ->
+stream_body(Client=#client{state=response_body, buffer=Buffer, response_body=chunked}) ->
+    case recv(Client) of
+      {ok, Data} ->
+        Buffer2 = << Buffer/binary, Data/binary >>,
+        stream_body(Client#client{buffer=Buffer2});
+      {error, _Reason} ->
+        {ok, Buffer, Client#client{response_body=undefined}}
+    end;
+stream_body(Client=#client{state=response_body, buffer=Buffer, response_body=Length}) when is_integer(Length) ->
 	case byte_size(Buffer) of
 		0 ->
 			case recv(Client) of
