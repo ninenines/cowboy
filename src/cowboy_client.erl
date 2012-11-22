@@ -243,7 +243,7 @@ stream_header(Client=#client{state=State, buffer=Buffer,
 stream_body(Client=#client{state=response_body, response_body=RespBody})
 		when RespBody =:= done; RespBody =:= 0 ->
 	{done, Client#client{state=request, response_body=done}};
-stream_body(Client=#client{state=response_body, buffer=Buffer, response_body=undefined})
+stream_body(Client=#client{state=response_body, buffer=Buffer, response_body=undefined}) ->
     case recv(Client) of
       {ok, Data} ->
         Buffer2 = << Buffer/binary, Data/binary >>,
