@@ -476,7 +476,7 @@ variances(Req, State=#state{content_types_p=CTP,
 
 resource_exists(Req, State) ->
 	expect(Req, State, resource_exists, true,
-		fun if_match_exists/2, fun if_match_musnt_exist/2).
+		fun if_match_exists/2, fun if_match_must_not_exist/2).
 
 if_match_exists(Req, State) ->
 	case cowboy_req:parse_header(<<"if-match">>, Req) of
@@ -496,7 +496,7 @@ if_match(Req, State, EtagsList) ->
 		false -> precondition_failed(Req2, State2)
 	end.
 
-if_match_musnt_exist(Req, State) ->
+if_match_must_not_exist(Req, State) ->
 	case cowboy_req:header(<<"if-match">>, Req) of
 		{undefined, Req2} -> is_put_to_missing_resource(Req2, State);
 		{_Any, Req2} -> precondition_failed(Req2, State)
