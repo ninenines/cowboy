@@ -8,9 +8,10 @@ Cowboy User Guide
    *  Getting started
  *  Routing
    *  Purpose
-   *  Dispatch rule
+   *  Dispatch list
    *  Match rules
    *  Bindings
+   *  Constraints
  *  Handlers
    *  Purpose
    *  Protocol upgrades

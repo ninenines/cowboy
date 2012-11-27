@@ -21,9 +21,9 @@ No parameterized module. No process dictionary. **Clean** Erlang code.
 Quick start
 -----------
 
- *  Add Cowboy as a rebar dependency to your application.
- *  Start Cowboy and add one or more listeners.
- *  Write handlers for your application.
+ *  Add Cowboy as a rebar dependency to your application
+ *  Start Cowboy and add one or more listeners
+ *  Write handlers for your application
 
 Getting Started
 ---------------

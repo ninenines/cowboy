@@ -195,8 +195,9 @@ options(Req, State) ->
 %%
 %% Note that it is also possible to return a binary content type that will
 %% then be parsed by Cowboy. However note that while this may make your
-%% resources a little more readable, this is a lot less efficient. An example
-%% of such a return value would be:
+%% resources a little more readable, this is a lot less efficient.
+%%
+%% An example of such return value would be:
 %%    {<<"text/html">>, to_html}
 content_types_provided(Req, State) ->
 	case call(Req, State, content_types_provided) of
