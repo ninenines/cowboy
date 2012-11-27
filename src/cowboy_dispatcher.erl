@@ -21,7 +21,7 @@
 
 -type bindings() :: [{atom(), binary()}].
 -type tokens() :: [binary()].
--type match_rule() :: '_' | '*' | [binary() | '_' | '...' | atom()].
+-type match_rule() :: '_' | <<_:8>> | [binary() | '_' | '...' | atom()].
 -type dispatch_path() :: [{match_rule(), module(), any()}].
 -type dispatch_rule() :: {Host::match_rule(), Path::dispatch_path()}.
 -type dispatch_rules() :: [dispatch_rule()].
@@ -45,9 +45,10 @@
 %% <em>PathRules</em> being a list of <em>{Path, HandlerMod, HandlerOpts}</em>.
 %%
 %% <em>Hostname</em> and <em>Path</em> are match rules and can be either the
-%% atom <em>'_'</em>, which matches everything for a single token, the atom
-%% <em>'*'</em>, which matches everything for the rest of the tokens, or a
-%% list of tokens. Each token can be either a binary, the atom <em>'_'</em>,
+%% atom <em>'_'</em>, which matches everything, <<"*">>, which match the
+%% wildcard path, or a list of tokens.
+%%
+%% Each token can be either a binary, the atom <em>'_'</em>,
 %% the atom '...' or a named atom. A binary token must match exactly,
 %% <em>'_'</em> matches everything for a single token, <em>'...'</em> matches
 %% everything for the rest of the tokens and a named atom will bind the
@@ -96,7 +97,7 @@ match_path([], _, _, _) ->
 	{error, notfound, path};
 match_path([{'_', Handler, Opts}|_Tail], HostInfo, _, Bindings) ->
 	{ok, Handler, Opts, Bindings, HostInfo, undefined};
-match_path([{'*', Handler, Opts}|_Tail], HostInfo, '*', Bindings) ->
+match_path([{<<"*">>, Handler, Opts}|_Tail], HostInfo, <<"*">>, Bindings) ->
 	{ok, Handler, Opts, Bindings, HostInfo, undefined};
 match_path([{PathMatch, Handler, Opts}|Tail], HostInfo, Tokens,
 		Bindings) when is_list(Tokens) ->

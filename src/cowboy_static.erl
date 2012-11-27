@@ -158,7 +158,7 @@
 %%      {file, <<"index.html">>}]}
 %%
 %% %% Serve cowboy/priv/www/page.html under http://example.com/*/page
-%% {['*', <<"page">>], cowboy_static,
+%% {['_', <<"page">>], cowboy_static,
 %%     [{directory, {priv_dir, cowboy, [<<"www">>]}}
 %%      {file, <<"page.html">>}]}.
 %%
