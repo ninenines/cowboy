@@ -183,15 +183,13 @@ new(Socket, Transport, Method, Path, Query, Fragment,
 		method=Method, path=Path, qs=Query, fragment=Fragment, version=Version,
 		headers=Headers, host=Host, port=Port, buffer=Buffer,
 		onresponse=OnResponse},
-	case CanKeepalive of
+	case CanKeepalive and (Version =:= {1, 1}) of
 		false ->
 			Req#http_req{connection=close};
 		true ->
 			case lists:keyfind(<<"connection">>, 1, Headers) of
-				false when Version =:= {1, 1} ->
-					Req; %% keepalive
 				false ->
-					Req#http_req{connection=close};
+					Req; %% keepalive
 				{_, ConnectionHeader} ->
 					Tokens = parse_connection_before(ConnectionHeader, []),
 					Connection = connection_to_atom(Tokens),
