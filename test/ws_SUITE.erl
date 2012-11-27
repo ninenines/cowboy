@@ -332,12 +332,11 @@ ws_send_many(Config) ->
 	{'Upgrade', "websocket"} = lists:keyfind('Upgrade', 1, Headers),
 	{"sec-websocket-accept", "s3pPLMBiTxaQ9kYGzzhZRbK+xOo="}
 		= lists:keyfind("sec-websocket-accept", 1, Headers),
-	{ok, << 1:1, 0:3, 1:4, 0:1, 3:7, "one" >>}
-		= gen_tcp:recv(Socket, 0, 6000),
-	{ok, << 1:1, 0:3, 1:4, 0:1, 3:7, "two" >>}
-		= gen_tcp:recv(Socket, 0, 6000),
-	{ok, << 1:1, 0:3, 1:4, 0:1, 6:7, "seven!" >>}
-		= gen_tcp:recv(Socket, 0, 6000),
+	%% We catch all frames at once and check them directly.
+	{ok, Many} = gen_tcp:recv(Socket, 18, 6000),
+	<< 1:1, 0:3, 1:4, 0:1, 3:7, "one",
+		1:1, 0:3, 1:4, 0:1, 3:7, "two",
+		1:1, 0:3, 1:4, 0:1, 6:7, "seven!" >> = Many,
 	ok = gen_tcp:send(Socket, << 1:1, 0:3, 8:4, 0:8 >>), %% close
 	{ok, << 1:1, 0:3, 8:4, 0:8 >>} = gen_tcp:recv(Socket, 0, 6000),
 	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
