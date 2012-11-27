@@ -452,22 +452,38 @@ handler_call(State=#state{handler=Handler, opts=Opts}, Req, HandlerState,
 				Req2, HandlerState2, RemainingData);
 		{reply, Payload, Req2, HandlerState2}
 				when is_tuple(Payload) ->
-			ok = websocket_send(Payload, State),
-			NextState(State, Req2, HandlerState2, RemainingData);
+			case websocket_send(Payload, State) of
+				ok ->
+					NextState(State, Req2, HandlerState2, RemainingData);
+				{error, _} = Error ->
+					handler_terminate(State, Req2, HandlerState2, Error)
+			end;
 		{reply, Payload, Req2, HandlerState2, hibernate}
 				when is_tuple(Payload) ->
-			ok = websocket_send(Payload, State),
-			NextState(State#state{hibernate=true},
-				Req2, HandlerState2, RemainingData);
+			case websocket_send(Payload, State) of
+				ok ->
+					NextState(State#state{hibernate=true},
+						Req2, HandlerState2, RemainingData);
+				{error, _} = Error ->
+					handler_terminate(State, Req2, HandlerState2, Error)
+			end;
 		{reply, Payload, Req2, HandlerState2}
 				when is_list(Payload) ->
-			ok = websocket_send_many(Payload, State),
-			NextState(State, Req2, HandlerState2, RemainingData);
+			case websocket_send_many(Payload, State) of
+				ok ->
+					NextState(State, Req2, HandlerState2, RemainingData);
+				{error, _} = Error ->
+					handler_terminate(State, Req2, HandlerState2, Error)
+			end;
 		{reply, Payload, Req2, HandlerState2, hibernate}
 				when is_list(Payload) ->
-			ok = websocket_send_many(Payload, State),
-			NextState(State#state{hibernate=true},
-				Req2, HandlerState2, RemainingData);
+			case websocket_send_many(Payload, State) of
+				ok ->
+					NextState(State#state{hibernate=true},
+						Req2, HandlerState2, RemainingData);
+				{error, _} = Error ->
+					handler_terminate(State, Req2, HandlerState2, Error)
+			end;
 		{shutdown, Req2, HandlerState2} ->
 			websocket_close(State, Req2, HandlerState2, {normal, shutdown})
 	catch Class:Reason ->
@@ -507,8 +523,10 @@ websocket_send({Type, Payload}, #state{socket=Socket, transport=Transport}) ->
 websocket_send_many([], _) ->
 	ok;
 websocket_send_many([Frame|Tail], State) ->
-	ok = websocket_send(Frame, State),
-	websocket_send_many(Tail, State).
+	case websocket_send(Frame, State) of
+		ok -> websocket_send_many(Tail, State);
+		Error -> Error
+	end.
 
 -spec websocket_close(#state{}, cowboy_req:req(), any(), {atom(), atom()})
 	-> closed.
