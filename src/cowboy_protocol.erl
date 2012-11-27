@@ -465,11 +465,11 @@ dispatch(Req, State=#state{dispatch=Dispatch}, Host, Path) ->
 			Req2 = cowboy_req:set_bindings(HostInfo, PathInfo, Bindings, Req),
 			handler_init(Req2, State, Handler, Opts);
 		{error, notfound, host} ->
-			error_terminate(400, State);
+			error_terminate(400, Req, State);
 		{error, badrequest, path} ->
-			error_terminate(400, State);
+			error_terminate(400, Req, State);
 		{error, notfound, path} ->
-			error_terminate(404, State)
+			error_terminate(404, Req, State)
 	end.
 
 -spec handler_init(cowboy_req:req(), #state{}, module(), any()) -> ok.
@@ -497,7 +497,7 @@ handler_init(Req, State=#state{transport=Transport}, Handler, Opts) ->
 		{upgrade, protocol, Module, Req2, Opts2} ->
 			upgrade_protocol(Req2, State, Handler, Opts2, Module)
 	catch Class:Reason ->
-		error_terminate(500, State),
+		error_terminate(500, Req, State),
 		error_logger:error_msg(
 			"** Cowboy handler ~p terminating in ~p/~p~n"
 			"   for the reason ~p:~p~n"
@@ -532,7 +532,7 @@ handler_handle(Req, State, Handler, HandlerState) ->
 			[Handler, handle, 2, Class, Reason, HandlerState,
 				cowboy_req:to_list(Req), erlang:get_stacktrace()]),
 		handler_terminate(Req, Handler, HandlerState),
-		error_terminate(500, State)
+		error_terminate(500, Req, State)
 	end.
 
 %% We don't listen for Transport closes because that would force us
@@ -590,7 +590,7 @@ handler_call(Req, State, Handler, HandlerState, Message) ->
 			[Handler, info, 3, Class, Reason, HandlerState,
 				cowboy_req:to_list(Req), erlang:get_stacktrace()]),
 		handler_terminate(Req, Handler, HandlerState),
-		error_terminate(500, State)
+		error_terminate(500, Req, State)
 	end.
 
 -spec handler_terminate(cowboy_req:req(), module(), any()) -> ok.
@@ -629,6 +629,17 @@ next_request(Req, State=#state{req_keepalive=Keepalive}, HandlerRes) ->
 		_Closed ->
 			terminate(State)
 	end.
+
+%% Only send an error reply if there is no resp_sent message.
+-spec error_terminate(cowboy_http:status(), cowboy_req:req(), #state{}) -> ok.
+error_terminate(Code, Req, State) ->
+	receive
+		{cowboy_req, resp_sent} -> ok
+	after 0 ->
+		_ = cowboy_req:reply(Code, Req),
+		ok
+	end,
+	terminate(State).
 
 %% Only send an error reply if there is no resp_sent message.
 -spec error_terminate(cowboy_http:status(), #state{}) -> ok.
