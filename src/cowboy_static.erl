@@ -238,7 +238,7 @@ rest_init(Req, Opts) ->
 				etag_fun=ETagFunction};
 		ok ->
 			Filepath1 = join_paths(Directory1, Filepath),
-			Fileinfo = file:read_file_info(Filepath1),
+			Fileinfo = file:read_file_info(Filepath1, [{time, universal}]),
 			#state{filepath=Filepath1, fileinfo=Fileinfo, mimetypes=Mimetypes1,
 				etag_fun=ETagFunction}
 	end,
@@ -322,7 +322,21 @@ file_contents(Req, #state{filepath=Filepath,
 		fileinfo={ok, #file_info{size=Filesize}}}=State) ->
 	{ok, Transport, Socket} = cowboy_req:transport(Req),
 	Writefile = content_function(Transport, Socket, Filepath),
-	{{stream, Filesize, Writefile}, Req, State}.
+	% if a data range requested, specify limits
+	% NB: so far we handle only one range
+	{Headers, _Req1} = cowboy_req:headers(Req),
+	Range = cowboy_util:get_ranges(
+			proplists:get_value(<<"range">>, Headers, <<>>),
+			<<"bytes">>, Filesize),
+	case Range of
+		% TODO: Start < 0 or End < Start should result in 416 Requested Range Not Satisfiable
+		[{Start, End}] when Start >= 0, End >= Start ->
+			{{stream, Start, End, Filesize, Writefile}, Req, State};
+		[{Start, End} | _T] when Start >= 0, End >= Start ->
+			{{stream, Start, End, Filesize, Writefile}, Req, State};
+		_ ->
+			{{stream, Filesize, Writefile}, Req, State}
+	end.
 
 
 %% @private Return a function writing the contents of a file to a socket.

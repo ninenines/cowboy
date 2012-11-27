@@ -765,7 +765,7 @@ set_resp_body(Req, State=#state{content_type_a={_Type, Fun}}) ->
 		LastModified when is_atom(LastModified) ->
 			Req4 = Req3;
 		LastModified ->
-			LastModifiedStr = httpd_util:rfc1123_date(LastModified),
+			LastModifiedStr = cowboy_clock:rfc2109_fast(LastModified),
 			Req4 = cowboy_req:set_resp_header(
 				<<"last-modified">>, LastModifiedStr, Req3)
 	end,
@@ -778,6 +778,8 @@ set_resp_body(Req, State=#state{content_type_a={_Type, Fun}}) ->
 			Req7 = case Body of
 				{stream, Len, Fun1} ->
 					cowboy_req:set_resp_body_fun(Len, Fun1, Req6);
+				{stream, Start, End, Length, Fun1} ->
+					cowboy_req:set_resp_body_fun(Start, End, Length, Fun1, Req6);
 				_Contents ->
 					cowboy_req:set_resp_body(Body, Req6)
 			end,
@@ -810,7 +812,7 @@ set_resp_expires(Req, State) ->
 		Expires when is_atom(Expires) ->
 			{Req2, State2};
 		Expires ->
-			ExpiresStr = httpd_util:rfc1123_date(Expires),
+			ExpiresStr = cowboy_clock:rfc2109_fast(Expires),
 			Req3 = cowboy_req:set_resp_header(
 				<<"expires">>, ExpiresStr, Req2),
 			{Req3, State2}

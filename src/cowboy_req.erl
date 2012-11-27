@@ -91,6 +91,7 @@
 -export([set_resp_header/3]).
 -export([set_resp_body/2]).
 -export([set_resp_body_fun/3]).
+-export([set_resp_body_fun/5]).
 -export([has_resp_header/2]).
 -export([has_resp_body/1]).
 -export([delete_resp_header/2]).
@@ -836,6 +837,12 @@ set_resp_body(Body, Req) ->
 set_resp_body_fun(StreamLen, StreamFun, Req) ->
 	Req#http_req{resp_body={StreamLen, StreamFun}}.
 
+%% @see cowboy_req:set_resp_body_fun/3.
+-spec set_resp_body_fun(non_neg_integer(), non_neg_integer(), non_neg_integer(), resp_body_fun(), Req)
+	-> Req when Req::req().
+set_resp_body_fun(StreamStart, StreamEnd, StreamLen, StreamFun, Req) ->
+	Req#http_req{resp_body={StreamStart, StreamEnd, StreamLen, StreamFun}}.
+
 %% @doc Return whether the given header has been set for the response.
 -spec has_resp_header(binary(), req()) -> boolean().
 has_resp_header(Name, #http_req{resp_headers=RespHeaders}) ->
@@ -886,6 +893,19 @@ reply(Status, Headers, Body, Req=#http_req{
 					{<<"server">>, <<"Cowboy">>}
 				|HTTP11Headers], <<>>, Req),
 			if	RespType =/= hook, Method =/= <<"HEAD">> -> BodyFun();
+				true -> ok
+			end;
+		{Start, End, Length, BodyFun} ->
+			% partial response has 206 status
+			Status1 = case Status of 200 -> 206; _ -> Status end,
+			{RespType, Req2} = response(Status1, Headers, RespHeaders, [
+					{<<"content-length">>, integer_to_list(End - Start + 1)},
+					{<<"content-range">>,
+							io_lib:format("~B-~B/~B", [Start, End, Length])},
+					{<<"date">>, cowboy_clock:rfc1123()},
+					{<<"server">>, <<"Cowboy">>}
+				|HTTP11Headers], <<>>, Req),
+			if	RespType =/= hook, Method =/= <<"HEAD">> -> BodyFun(Start, End - Start + 1);
 				true -> ok
 			end;
 		_ ->
