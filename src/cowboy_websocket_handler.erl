@@ -50,6 +50,7 @@
 
 -type opts() :: any().
 -type state() :: any().
+-type payload() :: {text | binary | ping | pong, binary()}.
 -type terminate_reason() :: {normal, closed}
 	| {normal, timeout}
 	| {error, closed}
@@ -66,15 +67,15 @@
 -callback websocket_handle({text | binary | ping | pong, binary()}, Req, State)
 	-> {ok, Req, State}
 	| {ok, Req, State, hibernate}
-	| {reply, {text | binary | ping | pong, binary()}, Req, State}
-	| {reply, {text | binary | ping | pong, binary()}, Req, State, hibernate}
+	| {reply, payload() | [payload()], Req, State}
+	| {reply, payload() | [payload()], Req, State, hibernate}
 	| {shutdown, Req, State}
 	when Req::cowboy_req:req(), State::state().
 -callback websocket_info(any(), Req, State)
 	-> {ok, Req, State}
 	| {ok, Req, State, hibernate}
-	| {reply, {text | binary | ping | pong, binary()}, Req, State}
-	| {reply, {text | binary | ping | pong, binary()}, Req, State, hibernate}
+	| {reply, payload() | [payload()], Req, State}
+	| {reply, payload() | [payload()], Req, State, hibernate}
 	| {shutdown, Req, State}
 	when Req::cowboy_req:req(), State::state().
 -callback websocket_terminate(terminate_reason(), cowboy_req:req(), state())
