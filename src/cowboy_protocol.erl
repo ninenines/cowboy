@@ -495,7 +495,7 @@ handler_init(Req, State=#state{transport=Transport}, Handler, Opts) ->
 	catch Class:Reason ->
 		error_terminate(500, State),
 		error_logger:error_msg(
-			"** Handler ~p terminating in init/3~n"
+			"** Cowboy handler ~p terminating in init/3~n"
 			"   for the reason ~p:~p~n"
 			"** Options were ~p~n"
 			"** Request was ~p~n"
@@ -520,7 +520,7 @@ handler_handle(Req, State, Handler, HandlerState) ->
 			terminate_request(Req2, State, Handler, HandlerState2)
 	catch Class:Reason ->
 		error_logger:error_msg(
-			"** Handler ~p terminating in handle/2~n"
+			"** Cowboy handler ~p terminating in handle/2~n"
 			"   for the reason ~p:~p~n"
 			"** Handler state was ~p~n"
 			"** Request was ~p~n"
@@ -578,7 +578,7 @@ handler_call(Req, State, Handler, HandlerState, Message) ->
 				Handler, HandlerState2)
 	catch Class:Reason ->
 		error_logger:error_msg(
-			"** Handler ~p terminating in info/3~n"
+			"** Cowboy handler ~p terminating in info/3~n"
 			"   for the reason ~p:~p~n"
 			"** Handler state was ~p~n"
 			"** Request was ~p~n"
@@ -595,7 +595,7 @@ handler_terminate(Req, Handler, HandlerState) ->
 		Handler:terminate(cowboy_req:lock(Req), HandlerState)
 	catch Class:Reason ->
 		error_logger:error_msg(
-			"** Handler ~p terminating in terminate/2~n"
+			"** Cowboy handler ~p terminating in terminate/2~n"
 			"   for the reason ~p:~p~n"
 			"** Handler state was ~p~n"
 			"** Request was ~p~n"
