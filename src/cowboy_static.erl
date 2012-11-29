@@ -217,6 +217,7 @@ rest_init(Req, Opts) ->
 	Directory1 = directory_path(Directory),
 	Mimetypes = proplists:get_value(mimetypes, Opts, []),
 	Mimetypes1 = case Mimetypes of
+		{{M, F}, E} -> {fun M:F/2, E};
 		{_, _} -> Mimetypes;
 		[] -> {fun path_to_mimetypes/2, []};
 		[_|_] -> {fun path_to_mimetypes/2, Mimetypes}
