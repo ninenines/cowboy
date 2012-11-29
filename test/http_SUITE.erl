@@ -50,6 +50,8 @@
 -export([pipeline/1]).
 -export([rest_keepalive/1]).
 -export([rest_keepalive_post/1]).
+-export([rest_missing_get_callbacks/1]).
+-export([rest_missing_put_callbacks/1]).
 -export([rest_nodelete/1]).
 -export([rest_resource_etags/1]).
 -export([rest_resource_etags_if_none_match/1]).
@@ -95,6 +97,8 @@ groups() ->
 		pipeline,
 		rest_keepalive,
 		rest_keepalive_post,
+		rest_missing_get_callbacks,
+		rest_missing_put_callbacks,
 		rest_nodelete,
 		rest_resource_etags,
 		rest_resource_etags_if_none_match,
@@ -250,6 +254,8 @@ init_dispatch(Config) ->
 			{[<<"simple">>], rest_simple_resource, []},
 			{[<<"forbidden_post">>], rest_forbidden_resource, [true]},
 			{[<<"simple_post">>], rest_forbidden_resource, [false]},
+			{[<<"missing_get_callbacks">>], rest_missing_callbacks, []},
+			{[<<"missing_put_callbacks">>], rest_missing_callbacks, []},
 			{[<<"nodelete">>], rest_nodelete_resource, []},
 			{[<<"resetags">>], rest_resource_etags, []},
 			{[<<"loop_timeout">>], http_handler_loop_timeout, []},
@@ -690,6 +696,20 @@ rest_keepalive_post_loop(Config, Client, forbidden_post, N) ->
 	{<<"connection">>, <<"keep-alive">>}
 		= lists:keyfind(<<"connection">>, 1, RespHeaders),
 	rest_keepalive_post_loop(Config, Client3, simple_post, N - 1).
+
+rest_missing_get_callbacks(Config) ->
+	Client = ?config(client, Config),
+	{ok, Client2} = cowboy_client:request(<<"GET">>,
+		build_url("/missing_get_callbacks", Config), Client),
+	{ok, 500, _, _} = cowboy_client:response(Client2).
+
+rest_missing_put_callbacks(Config) ->
+	Client = ?config(client, Config),
+	{ok, Client2} = cowboy_client:request(<<"PUT">>,
+		build_url("/missing_put_callbacks", Config),
+		[{<<"content-type">>, <<"application/json">>}],
+		<<"{}">>, Client),
+	{ok, 500, _, _} = cowboy_client:response(Client2).
 
 rest_nodelete(Config) ->
 	Client = ?config(client, Config),

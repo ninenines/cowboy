@@ -726,9 +726,19 @@ put_resource(Req, State, OnTrue) ->
 %% list of content types, otherwise it'll shadow the ones following.
 choose_content_type(Req, State, _OnTrue, _ContentType, []) ->
 	respond(Req, State, 415);
-choose_content_type(Req, State, OnTrue, ContentType, [{Accepted, Fun}|_Tail])
+choose_content_type(Req,
+		State=#state{handler=Handler, handler_state=HandlerState},
+		OnTrue, ContentType, [{Accepted, Fun}|_Tail])
 		when Accepted =:= '*' orelse Accepted =:= ContentType ->
 	case call(Req, State, Fun) of
+		no_call ->
+			error_logger:error_msg(
+				"** Cowboy handler ~p terminating; "
+				"function ~p was not exported~n"
+				"** Request was ~p~n** State was ~p~n~n",
+				[Handler, Fun, cowboy_req:to_list(Req), HandlerState]),
+			{ok, _} = cowboy_req:reply(500, Req),
+			close;
 		{halt, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
 		{true, Req2, HandlerState} ->
@@ -759,19 +769,28 @@ has_resp_body(Req, State) ->
 %% Set the response headers and call the callback found using
 %% content_types_provided/2 to obtain the request body and add
 %% it to the response.
-set_resp_body(Req, State=#state{content_type_a={_Type, Fun}}) ->
+set_resp_body(Req, State=#state{handler=Handler, handler_state=HandlerState,
+		content_type_a={_Type, Fun}}) ->
 	{Req2, State2} = set_resp_etag(Req, State),
 	{LastModified, Req3, State3} = last_modified(Req2, State2),
-	case LastModified of
+	Req4 = case LastModified of
 		LastModified when is_atom(LastModified) ->
-			Req4 = Req3;
+			Req3;
 		LastModified ->
 			LastModifiedStr = httpd_util:rfc1123_date(LastModified),
-			Req4 = cowboy_req:set_resp_header(
+			cowboy_req:set_resp_header(
 				<<"last-modified">>, LastModifiedStr, Req3)
 	end,
 	{Req5, State4} = set_resp_expires(Req4, State3),
 	case call(Req5, State4, Fun) of
+		no_call ->
+			error_logger:error_msg(
+				"** Cowboy handler ~p terminating; "
+				"function ~p was not exported~n"
+				"** Request was ~p~n** State was ~p~n~n",
+				[Handler, Fun, cowboy_req:to_list(Req5), HandlerState]),
+			{ok, _} = cowboy_req:reply(500, Req5),
+			close;
 		{halt, Req6, HandlerState} ->
 			terminate(Req6, State4#state{handler_state=HandlerState});
 		{Body, Req6, HandlerState} ->
