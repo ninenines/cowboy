@@ -48,6 +48,7 @@
 -export([onresponse_crash/1]).
 -export([onresponse_reply/1]).
 -export([pipeline/1]).
+-export([rest_bad_accept/1]).
 -export([rest_keepalive/1]).
 -export([rest_keepalive_post/1]).
 -export([rest_missing_get_callbacks/1]).
@@ -95,6 +96,7 @@ groups() ->
 		nc_rand,
 		nc_zero,
 		pipeline,
+		rest_bad_accept,
 		rest_keepalive,
 		rest_keepalive_post,
 		rest_missing_get_callbacks,
@@ -251,6 +253,7 @@ init_dispatch(Config) ->
 				 {file, <<"test_file.css">>}]},
 			{[<<"multipart">>], http_handler_multipart, []},
 			{[<<"echo">>, <<"body">>], http_handler_echo_body, []},
+			{[<<"bad_accept">>], rest_simple_resource, []},
 			{[<<"simple">>], rest_simple_resource, []},
 			{[<<"forbidden_post">>], rest_forbidden_resource, [true]},
 			{[<<"simple_post">>], rest_forbidden_resource, [false]},
@@ -652,6 +655,14 @@ pipeline(Config) ->
 	{ok, 200, _, Client10} = cowboy_client:response(Client9),
 	{ok, 200, _, Client11} = cowboy_client:response(Client10),
 	{error, closed} = cowboy_client:response(Client11).
+
+rest_bad_accept(Config) ->
+	Client = ?config(client, Config),
+	{ok, Client2} = cowboy_client:request(<<"GET">>,
+		build_url("/bad_accept", Config),
+		[{<<"accept">>, <<"1">>}],
+		Client),
+	{ok, 400, _, _} = cowboy_client:response(Client2).
 
 rest_keepalive(Config) ->
 	Client = ?config(client, Config),

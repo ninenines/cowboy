@@ -211,14 +211,15 @@ content_types_provided(Req, State) ->
 		    CTP2 = [normalize_content_types(P) || P <- CTP],
 			State2 = State#state{
 				handler_state=HandlerState, content_types_p=CTP2},
-			{ok, Accept, Req3} = cowboy_req:parse_header(<<"accept">>, Req2),
-			case Accept of
-				undefined ->
+			case cowboy_req:parse_header(<<"accept">>, Req2) of
+				{error, badarg} ->
+					respond(Req2, State2, 400);
+				{ok, undefined, Req3} ->
 					{PMT, _Fun} = HeadCTP = hd(CTP2),
 					languages_provided(
 						cowboy_req:set_meta(media_type, PMT, Req3),
 						State2#state{content_type_a=HeadCTP});
-				Accept ->
+				{ok, Accept, Req3} ->
 					Accept2 = prioritize_accept(Accept),
 					choose_media_type(Req3, State2, Accept2)
 			end
