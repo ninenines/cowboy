@@ -322,57 +322,9 @@ content_types_provided(Req, #state{filepath=Filepath,
 file_contents(Req, #state{filepath=Filepath,
 		fileinfo={ok, #file_info{size=Filesize}}}=State) ->
 	{ok, Transport, Socket} = cowboy_req:transport(Req),
-	Writefile = content_function(Transport, Socket, Filepath),
+	Writefile = fun() -> Transport:sendfile(Socket, Filepath) end,
 	{{stream, Filesize, Writefile}, Req, State}.
 
-
-%% @private Return a function writing the contents of a file to a socket.
-%% The function returns the number of bytes written to the socket to enable
-%% the calling function to determine if the expected number of bytes were
-%% written to the socket.
--spec content_function(module(), inet:socket(), binary()) ->
-	fun(() -> {sent, non_neg_integer()}).
-content_function(Transport, Socket, Filepath) ->
-	%% `file:sendfile/2' will only work with the `ranch_tcp'
-	%% transport module. SSL or future SPDY transports that require the
-	%% content to be encrypted or framed as the content is sent
-	%% will use the fallback mechanism.
-	case erlang:function_exported(file, sendfile, 2) of
-		false ->
-			fun() -> sfallback(Transport, Socket, Filepath) end;
-		_ when Transport =/= ranch_tcp ->
-			fun() -> sfallback(Transport, Socket, Filepath) end;
-		true ->
-			fun() -> sendfile(Socket, Filepath) end
-	end.
-
-
-%% @private Sendfile fallback function.
--spec sfallback(module(), inet:socket(), binary()) -> {sent, non_neg_integer()}.
-sfallback(Transport, Socket, Filepath) ->
-	{ok, File} = file:open(Filepath, [read,binary,raw]),
-	sfallback(Transport, Socket, File, 0).
-
--spec sfallback(module(), inet:socket(), file:io_device(),
-		non_neg_integer()) -> {sent, non_neg_integer()}.
-sfallback(Transport, Socket, File, Sent) ->
-	case file:read(File, 16#1FFF) of
-		eof ->
-			ok = file:close(File),
-			{sent, Sent};
-		{ok, Bin} ->
-			case Transport:send(Socket, Bin) of
-				ok -> sfallback(Transport, Socket, File, Sent + byte_size(Bin));
-				{error, closed} -> {sent, Sent}
-			end
-	end.
-
-
-%% @private Wrapper for sendfile function.
--spec sendfile(inet:socket(), binary()) -> {sent, non_neg_integer()}.
-sendfile(Socket, Filepath) ->
-	{ok, Sent} = file:sendfile(Filepath, Socket),
-	{sent, Sent}.
 
 -spec directory_path(dirspec()) -> dirpath().
 directory_path({priv_dir, App, []}) ->
