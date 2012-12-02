@@ -21,6 +21,10 @@
 %% Internal.
 -export([handler_loop/4]).
 
+-type frame() :: close | ping | pong
+	| {text | binary | close | ping | pong, binary()}.
+-export_type([frame/0]).
+
 -type opcode() :: 0 | 1 | 2 | 8 | 9 | 10.
 -type mask_key() :: 0..16#ffffffff.
 
@@ -455,6 +459,9 @@ handler_call(State=#state{handler=Handler, opts=Opts}, Req, HandlerState,
 			case websocket_send(Payload, State) of
 				ok ->
 					NextState(State, Req2, HandlerState2, RemainingData);
+				shutdown ->
+					handler_terminate(State, Req2, HandlerState,
+						{normal, shutdown});
 				{error, _} = Error ->
 					handler_terminate(State, Req2, HandlerState2, Error)
 			end;
@@ -464,6 +471,9 @@ handler_call(State=#state{handler=Handler, opts=Opts}, Req, HandlerState,
 				ok ->
 					NextState(State#state{hibernate=true},
 						Req2, HandlerState2, RemainingData);
+				shutdown ->
+					handler_terminate(State, Req2, HandlerState,
+						{normal, shutdown});
 				{error, _} = Error ->
 					handler_terminate(State, Req2, HandlerState2, Error)
 			end;
@@ -472,6 +482,9 @@ handler_call(State=#state{handler=Handler, opts=Opts}, Req, HandlerState,
 			case websocket_send_many(Payload, State) of
 				ok ->
 					NextState(State, Req2, HandlerState2, RemainingData);
+				shutdown ->
+					handler_terminate(State, Req2, HandlerState,
+						{normal, shutdown});
 				{error, _} = Error ->
 					handler_terminate(State, Req2, HandlerState2, Error)
 			end;
@@ -481,6 +494,9 @@ handler_call(State=#state{handler=Handler, opts=Opts}, Req, HandlerState,
 				ok ->
 					NextState(State#state{hibernate=true},
 						Req2, HandlerState2, RemainingData);
+				shutdown ->
+					handler_terminate(State, Req2, HandlerState,
+						{normal, shutdown});
 				{error, _} = Error ->
 					handler_terminate(State, Req2, HandlerState2, Error)
 			end;
@@ -498,8 +514,14 @@ handler_call(State=#state{handler=Handler, opts=Opts}, Req, HandlerState,
 		websocket_close(State, Req, HandlerState, {error, handler})
 	end.
 
--spec websocket_send({text | binary | ping | pong, binary()}, #state{})
-	-> ok | {error, atom()}.
+websocket_opcode(text) -> 1;
+websocket_opcode(binary) -> 2;
+websocket_opcode(close) -> 8;
+websocket_opcode(ping) -> 9;
+websocket_opcode(pong) -> 10.
+
+-spec websocket_send(frame(), #state{})
+	-> ok | shutdown | {error, atom()}.
 %% hixie-76 text frame.
 websocket_send({text, Payload}, #state{
 		socket=Socket, transport=Transport, version=0}) ->
@@ -507,24 +529,42 @@ websocket_send({text, Payload}, #state{
 %% Ignore all unknown frame types for compatibility with hixie 76.
 websocket_send(_Any, #state{version=0}) ->
 	ok;
+websocket_send(Type, #state{socket=Socket, transport=Transport})
+		when Type =:= close ->
+	Opcode = websocket_opcode(Type),
+	case Transport:send(Socket, << 1:1, 0:3, Opcode:4, 0:8 >>) of
+		ok -> shutdown;
+		Error -> Error
+	end;
+websocket_send(Type, #state{socket=Socket, transport=Transport})
+		when Type =:= ping; Type =:= pong ->
+	Opcode = websocket_opcode(Type),
+	Transport:send(Socket, << 1:1, 0:3, Opcode:4, 0:8 >>);
 websocket_send({Type, Payload}, #state{socket=Socket, transport=Transport}) ->
-	Opcode = case Type of
-		text -> 1;
-		binary -> 2;
-		ping -> 9;
-		pong -> 10
+	Opcode = websocket_opcode(Type),
+	Len = iolist_size(Payload),
+	%% Control packets must not be > 125 in length.
+	true = if Type =:= close; Type =:= ping; Type =:= pong ->
+			Len =< 125;
+		true ->
+			true
 	end,
-	Len = hybi_payload_length(iolist_size(Payload)),
-	Transport:send(Socket, [<< 1:1, 0:3, Opcode:4, 0:1, Len/bits >>,
-		Payload]).
+	BinLen = hybi_payload_length(Len),
+	Ret = Transport:send(Socket,
+		[<< 1:1, 0:3, Opcode:4, 0:1, BinLen/bits >>, Payload]),
+	case Type of
+		close -> shutdown;
+		_ -> Ret
+	end.
 
--spec websocket_send_many([{text | binary | ping | pong, binary()}], #state{})
-	-> ok | {error, atom()}.
+-spec websocket_send_many([frame()], #state{})
+	-> ok | shutdown | {error, atom()}.
 websocket_send_many([], _) ->
 	ok;
 websocket_send_many([Frame|Tail], State) ->
 	case websocket_send(Frame, State) of
 		ok -> websocket_send_many(Tail, State);
+		shutdown -> shutdown;
 		Error -> Error
 	end.
 
@@ -534,7 +574,6 @@ websocket_close(State=#state{socket=Socket, transport=Transport, version=0},
 		Req, HandlerState, Reason) ->
 	Transport:send(Socket, << 255, 0 >>),
 	handler_terminate(State, Req, HandlerState, Reason);
-%% @todo Send a Payload? Using Reason is usually good but we're quite careless.
 websocket_close(State=#state{socket=Socket, transport=Transport},
 		Req, HandlerState, Reason) ->
 	Transport:send(Socket, << 1:1, 0:3, 8:4, 0:8 >>),
