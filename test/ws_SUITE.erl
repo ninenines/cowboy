@@ -35,6 +35,7 @@
 -export([ws_send_many/1]).
 -export([ws_text_fragments/1]).
 -export([ws_timeout_hibernate/1]).
+-export([ws_upgrade_with_opts/1]).
 
 %% ct.
 
@@ -52,7 +53,8 @@ groups() ->
 		ws_send_close_payload,
 		ws_send_many,
 		ws_text_fragments,
-		ws_timeout_hibernate
+		ws_timeout_hibernate,
+		ws_upgrade_with_opts
 	],
 	[{ws, [], BaseTests}].
 
@@ -107,7 +109,9 @@ init_dispatch() ->
 					{close, <<"some text!">>},
 					{text, <<"won't be received">>}]}
 			]},
-			{[<<"ws_timeout_hibernate">>], ws_timeout_hibernate_handler, []}
+			{[<<"ws_timeout_hibernate">>], ws_timeout_hibernate_handler, []},
+			{[<<"ws_upgrade_with_opts">>], ws_upgrade_with_opts_handler,
+				<<"failure">>}
 		]}
 	].
 
@@ -498,6 +502,35 @@ ws_timeout_hibernate(Config) ->
 	{'Upgrade', "websocket"} = lists:keyfind('Upgrade', 1, Headers),
 	{"sec-websocket-accept", "s3pPLMBiTxaQ9kYGzzhZRbK+xOo="}
 		= lists:keyfind("sec-websocket-accept", 1, Headers),
+	{ok, << 1:1, 0:3, 8:4, 0:8 >>} = gen_tcp:recv(Socket, 0, 6000),
+	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
+	ok.
+
+ws_upgrade_with_opts(Config) ->
+	{port, Port} = lists:keyfind(port, 1, Config),
+	{ok, Socket} = gen_tcp:connect("localhost", Port,
+		[binary, {active, false}, {packet, raw}]),
+	ok = gen_tcp:send(Socket, [
+		"GET /ws_upgrade_with_opts HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Connection: Upgrade\r\n"
+		"Upgrade: websocket\r\n"
+		"Sec-WebSocket-Origin: http://localhost\r\n"
+		"Sec-WebSocket-Version: 8\r\n"
+		"Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n"
+		"\r\n"]),
+	{ok, Handshake} = gen_tcp:recv(Socket, 0, 6000),
+	{ok, {http_response, {1, 1}, 101, "Switching Protocols"}, Rest}
+		= erlang:decode_packet(http, Handshake, []),
+	[Headers, <<>>] = websocket_headers(
+		erlang:decode_packet(httph, Rest, []), []),
+	{'Connection', "Upgrade"} = lists:keyfind('Connection', 1, Headers),
+	{'Upgrade', "websocket"} = lists:keyfind('Upgrade', 1, Headers),
+	{"sec-websocket-accept", "s3pPLMBiTxaQ9kYGzzhZRbK+xOo="}
+		= lists:keyfind("sec-websocket-accept", 1, Headers),
+	{ok, Response} = gen_tcp:recv(Socket, 9, 6000),
+	<< 1:1, 0:3, 1:4, 0:1, 7:7, "success" >> = Response,
+	ok = gen_tcp:send(Socket, << 1:1, 0:3, 8:4, 0:8 >>), %% close
 	{ok, << 1:1, 0:3, 8:4, 0:8 >>} = gen_tcp:recv(Socket, 0, 6000),
 	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
 	ok.

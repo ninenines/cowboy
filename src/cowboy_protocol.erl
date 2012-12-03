@@ -491,7 +491,9 @@ handler_init(Req, State=#state{transport=Transport}, Handler, Opts) ->
 			handler_terminate(Req2, Handler, HandlerState);
 		%% @todo {upgrade, transport, Module}
 		{upgrade, protocol, Module} ->
-			upgrade_protocol(Req, State, Handler, Opts, Module)
+			upgrade_protocol(Req, State, Handler, Opts, Module);
+		{upgrade, protocol, Module, Req2, Opts2} ->
+			upgrade_protocol(Req2, State, Handler, Opts2, Module)
 	catch Class:Reason ->
 		error_terminate(500, State),
 		error_logger:error_msg(
