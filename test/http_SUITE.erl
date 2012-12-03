@@ -49,6 +49,7 @@
 -export([onresponse_reply/1]).
 -export([pipeline/1]).
 -export([rest_bad_accept/1]).
+-export([rest_expires/1]).
 -export([rest_keepalive/1]).
 -export([rest_keepalive_post/1]).
 -export([rest_missing_get_callbacks/1]).
@@ -97,6 +98,7 @@ groups() ->
 		nc_zero,
 		pipeline,
 		rest_bad_accept,
+		rest_expires,
 		rest_keepalive,
 		rest_keepalive_post,
 		rest_missing_get_callbacks,
@@ -261,6 +263,7 @@ init_dispatch(Config) ->
 			{[<<"missing_put_callbacks">>], rest_missing_callbacks, []},
 			{[<<"nodelete">>], rest_nodelete_resource, []},
 			{[<<"resetags">>], rest_resource_etags, []},
+			{[<<"rest_expires">>], rest_expires, []},
 			{[<<"loop_timeout">>], http_handler_loop_timeout, []},
 			{[], http_handler, []}
 		]}
@@ -663,6 +666,16 @@ rest_bad_accept(Config) ->
 		[{<<"accept">>, <<"1">>}],
 		Client),
 	{ok, 400, _, _} = cowboy_client:response(Client2).
+
+rest_expires(Config) ->
+	Client = ?config(client, Config),
+	{ok, Client2} = cowboy_client:request(<<"GET">>,
+		build_url("/rest_expires", Config), Client),
+	{ok, 200, RespHeaders, _} = cowboy_client:response(Client2),
+	{_, Expires} = lists:keyfind(<<"expires">>, 1, RespHeaders),
+	{_, LastModified} = lists:keyfind(<<"last-modified">>, 1, RespHeaders),
+	Expires = LastModified = <<"Fri, 21 Sep 2012 22:36:14 GMT">>,
+	ok.
 
 rest_keepalive(Config) ->
 	Client = ?config(client, Config),

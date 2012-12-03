@@ -25,6 +25,7 @@
 -export([start_link/0]).
 -export([stop/0]).
 -export([rfc1123/0]).
+-export([rfc1123/1]).
 -export([rfc2109/1]).
 
 %% gen_server.
@@ -61,11 +62,14 @@ stop() ->
 	gen_server:call(?SERVER, stop).
 
 %% @doc Return the current date and time formatted according to RFC-1123.
-%%
-%% This format is used in the <em>date</em> header sent with HTTP responses.
 -spec rfc1123() -> binary().
 rfc1123() ->
 	ets:lookup_element(?TABLE, rfc1123, 2).
+
+%% @doc Return the given date and time formatted according to RFC-1123.
+-spec rfc1123(calendar:datetime()) -> binary().
+rfc1123(DateTime) ->
+	update_rfc1123(<<>>, undefined, DateTime).
 
 %% @doc Return the current date and time formatted according to RFC-2109.
 %%

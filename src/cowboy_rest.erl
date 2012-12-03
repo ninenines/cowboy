@@ -778,9 +778,9 @@ set_resp_body(Req, State=#state{handler=Handler, handler_state=HandlerState,
 		LastModified when is_atom(LastModified) ->
 			Req3;
 		LastModified ->
-			LastModifiedStr = httpd_util:rfc1123_date(LastModified),
+			LastModifiedBin = cowboy_clock:rfc1123(LastModified),
 			cowboy_req:set_resp_header(
-				<<"last-modified">>, LastModifiedStr, Req3)
+				<<"last-modified">>, LastModifiedBin, Req3)
 	end,
 	{Req5, State4} = set_resp_expires(Req4, State3),
 	case call(Req5, State4, Fun) of
@@ -831,9 +831,9 @@ set_resp_expires(Req, State) ->
 		Expires when is_atom(Expires) ->
 			{Req2, State2};
 		Expires ->
-			ExpiresStr = httpd_util:rfc1123_date(Expires),
+			ExpiresBin = cowboy_clock:rfc1123(Expires),
 			Req3 = cowboy_req:set_resp_header(
-				<<"expires">>, ExpiresStr, Req2),
+				<<"expires">>, ExpiresBin, Req2),
 			{Req3, State2}
 	end.
 
