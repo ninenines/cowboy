@@ -30,7 +30,7 @@ echo(undefined, Req) ->
 	cowboy_req:reply(400, [], <<"Missing echo parameter.">>, Req);
 echo(Echo, Req) ->
 	cowboy_req:reply(200,
-		[{<<"Content-Encoding">>, <<"utf-8">>}], Echo, Req).
+		[{<<"content-encoding">>, <<"utf-8">>}], Echo, Req).
 
 terminate(_Req, _State) ->
 	ok.

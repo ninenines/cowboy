@@ -115,7 +115,7 @@ cookie(Key, Value, Options) when is_binary(Key)
 		end,
 	CookieParts = <<Cookie/binary, ExpiresPart/binary, SecurePart/binary,
 		DomainPart/binary, PathPart/binary, HttpOnlyPart/binary>>,
-	{<<"Set-Cookie">>, CookieParts}.
+	{<<"set-cookie">>, CookieParts}.
 
 %% Internal.
 
@@ -358,7 +358,7 @@ parse_cookie_test() ->
 
 domain_test() ->
 	?assertEqual(
-	{<<"Set-Cookie">>,
+	{<<"set-cookie">>,
 		<<"Customer=WILE_E_COYOTE; "
 		"Version=1; "
 		"Domain=acme.com; "
@@ -368,7 +368,7 @@ domain_test() ->
 	ok.
 
 local_time_test() ->
-	{<<"Set-Cookie">>, B} = cookie(<<"Customer">>, <<"WILE_E_COYOTE">>,
+	{<<"set-cookie">>, B} = cookie(<<"Customer">>, <<"WILE_E_COYOTE">>,
 							[{max_age, 111}, {secure, true}]),
 
 	?assertMatch(
@@ -382,7 +382,7 @@ local_time_test() ->
 
 -spec cookie_test() -> no_return(). %% Not actually true, just a bad option.
 cookie_test() ->
-	C1 = {<<"Set-Cookie">>,
+	C1 = {<<"set-cookie">>,
 		<<"Customer=WILE_E_COYOTE; "
 		"Version=1; "
 		"Path=/acme">>},
@@ -391,20 +391,20 @@ cookie_test() ->
 	C1 = cookie(<<"Customer">>, <<"WILE_E_COYOTE">>,
 				[{path, <<"/acme">>}, {badoption, <<"negatory">>}]),
 
-	{<<"Set-Cookie">>,<<"=NoKey; Version=1">>}
+	{<<"set-cookie">>,<<"=NoKey; Version=1">>}
 		= cookie(<<"">>, <<"NoKey">>, []),
-	{<<"Set-Cookie">>,<<"=NoKey; Version=1">>}
+	{<<"set-cookie">>,<<"=NoKey; Version=1">>}
 		= cookie(<<"">>, <<"NoKey">>),
 	LocalTime = calendar:universal_time_to_local_time(
 		{{2007, 5, 15}, {13, 45, 33}}),
-	C2 = {<<"Set-Cookie">>,
+	C2 = {<<"set-cookie">>,
 		<<"Customer=WILE_E_COYOTE; "
 		"Version=1; "
 		"Expires=Tue, 15 May 2007 13:45:33 GMT; "
 		"Max-Age=0">>},
 	C2 = cookie(<<"Customer">>, <<"WILE_E_COYOTE">>,
 				[{max_age, -111}, {local_time, LocalTime}]),
-	C3 = {<<"Set-Cookie">>,
+	C3 = {<<"set-cookie">>,
 		<<"Customer=WILE_E_COYOTE; "
 		"Version=1; "
 		"Expires=Wed, 16 May 2007 13:45:50 GMT; "
