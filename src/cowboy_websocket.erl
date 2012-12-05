@@ -175,7 +175,8 @@ websocket_handshake(State=#state{socket=Socket, transport=Transport,
 			handler_before_loop(State#state{messages=Transport:messages()},
 				Req4, HandlerState, <<>>);
 		_Any ->
-			closed %% If an error happened reading the body, stop there.
+			%% If an error happened reading the body, stop there.
+			handler_terminate(State, Req3, HandlerState, {error, closed})
 	end;
 websocket_handshake(State=#state{transport=Transport, challenge=Challenge},
 		Req, HandlerState) ->
