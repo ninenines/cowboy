@@ -572,9 +572,13 @@ if_modified_since(Req, State, IfModifiedSince) ->
 		no_call ->
 			method(Req2, State2);
 		LastModified ->
-			case LastModified > IfModifiedSince of
-				true -> method(Req2, State2);
-				false -> not_modified(Req2, State2)
+			case calendar:local_time_to_universal_time_dst(LastModified) of
+				[] -> method(Req2, State2);
+				[LastModifiedUtc | _] ->
+					case LastModifiedUtc > IfModifiedSince of
+						true -> method(Req2, State2);
+						false -> not_modified(Req2, State2)
+					end
 			end
 	end.
 
