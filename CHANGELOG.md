@@ -14,6 +14,10 @@ next
     and cowboy:start_https/4 for HTTPS. The proper transport and
     protocol modules will be used.
 
+*   Add a dependency on crypto
+
+*   Remove implicit dependency on inets
+
 *   Shorten the name of many modules
 
     * cowboy_http_protocol becomes cowboy_protocol.
@@ -68,6 +72,13 @@ next
 
 *   Add max_headers option, limiting the number of headers; defaults to 100
 
+*   Enhance the websocket API
+
+    * Change a websocket error from {error, protocol} to {error, badframe}
+    * Allow websocket handlers to reply more than one frame
+    * Check for errors when calling Transport:send/2 to avoid crashes
+    * Add close, {close, Payload}, ping, pong frame types for replies
+
 *   Use -callback in behaviours
 
 *   Add cowboy_protocol:onrequest_fun/0 and :onresponse_fun/0 types
@@ -78,9 +89,19 @@ next
 
 *   Isolate multipart from body reading to fix an issue
 
-*   Change a websocket error from {error, protocol} to {error, badframe}
-
 *   Avoid a duplicate HTTP reply in cowboy_websocket:upgrade_error/1
+
+*   Fix use of the Vary header, was named Variances in the previous code
+
+*   Improve returned status code for HTTP and REST
+
+*   Fix charsets_provided return value
+
+*   Allow passing {M, F} for the mimetype function to cowboy_static
+
+*   Can now upgrade protocols with {upgrade, protocol, P, Req, Opts}
+
+*   Cowboy now only expects universal time, never local time
 
 *   Many, many optimizations for the most critical code path
 
