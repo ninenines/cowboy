@@ -118,6 +118,12 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
+-type cookie_option() :: {max_age, non_neg_integer()}
+	| {domain, binary()} | {path, binary()}
+	| {secure, boolean()} | {http_only, boolean()}.
+-type cookie_opts() :: [cookie_option()].
+-export_type([cookie_opts/0]).
+
 -type resp_body_fun() :: fun(() -> {sent, non_neg_integer()}).
 
 -record(http_req, {
@@ -430,6 +436,8 @@ parse_header(Name, Req, Default) when Name =:= <<"content-length">> ->
 	parse_header(Name, Req, Default, fun cowboy_http:digits/1);
 parse_header(Name, Req, Default) when Name =:= <<"content-type">> ->
 	parse_header(Name, Req, Default, fun cowboy_http:content_type/1);
+parse_header(Name = <<"cookie">>, Req, Default) ->
+	parse_header(Name, Req, Default, fun cowboy_http:cookie_list/1);
 parse_header(Name, Req, Default) when Name =:= <<"expect">> ->
 	parse_header(Name, Req, Default,
 		fun (Value) ->
@@ -481,11 +489,10 @@ cookie(Name, Req) when is_binary(Name) ->
 -spec cookie(binary(), Req, Default)
 	-> {binary() | true | Default, Req} when Req::req(), Default::any().
 cookie(Name, Req=#http_req{cookies=undefined}, Default) when is_binary(Name) ->
-	case header(<<"cookie">>, Req) of
-		{undefined, Req2} ->
+	case parse_header(<<"cookie">>, Req) of
+		{ok, undefined, Req2} ->
 			{Default, Req2#http_req{cookies=[]}};
-		{RawCookie, Req2} ->
-			Cookies = cowboy_cookies:parse_cookie(RawCookie),
+		{ok, Cookies, Req2} ->
 			cookie(Name, Req2#http_req{cookies=Cookies}, Default)
 	end;
 cookie(Name, Req, Default) ->
@@ -497,11 +504,10 @@ cookie(Name, Req, Default) ->
 %% @doc Return the full list of cookie values.
 -spec cookies(Req) -> {list({binary(), binary() | true}), Req} when Req::req().
 cookies(Req=#http_req{cookies=undefined}) ->
-	case header(<<"cookie">>, Req) of
-		{undefined, Req2} ->
+	case parse_header(<<"cookie">>, Req) of
+		{ok, undefined, Req2} ->
 			{[], Req2#http_req{cookies=[]}};
-		{RawCookie, Req2} ->
-			Cookies = cowboy_cookies:parse_cookie(RawCookie),
+		{ok, Cookies, Req2} ->
 			cookies(Req2#http_req{cookies=Cookies})
 	end;
 cookies(Req=#http_req{cookies=Cookies}) ->
@@ -794,11 +800,11 @@ multipart_skip(Req) ->
 %% Response API.
 
 %% @doc Add a cookie header to the response.
--spec set_resp_cookie(binary(), binary(),
-	[cowboy_cookies:cookie_option()], Req) -> Req when Req::req().
-set_resp_cookie(Name, Value, Options, Req) ->
-	{HeaderName, HeaderValue} = cowboy_cookies:cookie(Name, Value, Options),
-	set_resp_header(HeaderName, HeaderValue, Req).
+-spec set_resp_cookie(iodata(), iodata(), cookie_opts(), Req)
+	-> Req when Req::req().
+set_resp_cookie(Name, Value, Opts, Req) ->
+	Cookie = cowboy_http:cookie_to_iodata(Name, Value, Opts),
+	set_resp_header(<<"set-cookie">>, Cookie, Req).
 
 %% @doc Add a header to the response.
 -spec set_resp_header(binary(), iodata(), Req)
