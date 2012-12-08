@@ -106,7 +106,7 @@ init_dispatch() ->
 			{[<<"ws_send_close_payload">>], ws_send_many_handler, [
 				{sequence, [
 					{text, <<"send">>},
-					{close, <<"some text!">>},
+					{close, 1001, <<"some text!">>},
 					{text, <<"won't be received">>}]}
 			]},
 			{[<<"ws_timeout_hibernate">>], ws_timeout_hibernate_handler, []},
@@ -387,9 +387,9 @@ ws_send_close_payload(Config) ->
 	{"sec-websocket-accept", "s3pPLMBiTxaQ9kYGzzhZRbK+xOo="}
 		= lists:keyfind("sec-websocket-accept", 1, Headers),
 	%% We catch all frames at once and check them directly.
-	{ok, Many} = gen_tcp:recv(Socket, 18, 6000),
+	{ok, Many} = gen_tcp:recv(Socket, 20, 6000),
 	<< 1:1, 0:3, 1:4, 0:1, 4:7, "send",
-		1:1, 0:3, 8:4, 0:1, 10:7, "some text!" >> = Many,
+		1:1, 0:3, 8:4, 0:1, 12:7, 1001:16, "some text!" >> = Many,
 	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
 	ok.
 

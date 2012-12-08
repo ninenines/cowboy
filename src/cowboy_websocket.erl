@@ -22,7 +22,8 @@
 -export([handler_loop/4]).
 
 -type frame() :: close | ping | pong
-	| {text | binary | close | ping | pong, binary()}.
+	| {text | binary | close | ping | pong, binary()}
+	| {close, 1000..4999, binary()}.
 -export_type([frame/0]).
 
 -type opcode() :: 0 | 1 | 2 | 8 | 9 | 10.
@@ -541,22 +542,30 @@ websocket_send(Type, #state{socket=Socket, transport=Transport})
 		when Type =:= ping; Type =:= pong ->
 	Opcode = websocket_opcode(Type),
 	Transport:send(Socket, << 1:1, 0:3, Opcode:4, 0:8 >>);
+websocket_send({close, Payload}, State) ->
+	websocket_send({close, 1000, Payload}, State);
+websocket_send({Type = close, StatusCode, Payload}, #state{
+		socket=Socket, transport=Transport}) ->
+	Opcode = websocket_opcode(Type),
+	Len = 2 + iolist_size(Payload),
+	%% Control packets must not be > 125 in length.
+	true = Len =< 125,
+	BinLen = hybi_payload_length(Len),
+	Transport:send(Socket,
+		[<< 1:1, 0:3, Opcode:4, 0:1, BinLen/bits, StatusCode:16 >>, Payload]),
+	shutdown;
 websocket_send({Type, Payload}, #state{socket=Socket, transport=Transport}) ->
 	Opcode = websocket_opcode(Type),
 	Len = iolist_size(Payload),
 	%% Control packets must not be > 125 in length.
-	true = if Type =:= close; Type =:= ping; Type =:= pong ->
+	true = if Type =:= ping; Type =:= pong ->
 			Len =< 125;
 		true ->
 			true
 	end,
 	BinLen = hybi_payload_length(Len),
-	Ret = Transport:send(Socket,
-		[<< 1:1, 0:3, Opcode:4, 0:1, BinLen/bits >>, Payload]),
-	case Type of
-		close -> shutdown;
-		_ -> Ret
-	end.
+	Transport:send(Socket,
+		[<< 1:1, 0:3, Opcode:4, 0:1, BinLen/bits >>, Payload]).
 
 -spec websocket_send_many([frame()], #state{})
 	-> ok | shutdown | {error, atom()}.
