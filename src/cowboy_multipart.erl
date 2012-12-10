@@ -99,7 +99,7 @@ prefixes(<<>>, Acc) ->
 	[Acc].
 
 %% @doc Test if a boundary is a possble suffix.
-%% The patterns are expected to have been returned from `pattern/1`.
+%% The patterns are expected to have been returned from `pattern/1'.
 -spec suffix_match(binary(), patterns()) -> nomatch | {integer(), integer()}.
 suffix_match(Bin, {_Boundary, {Pat, Len}}) ->
 	Size = byte_size(Bin),
