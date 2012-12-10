@@ -45,7 +45,7 @@
 %% <em>PathRules</em> being a list of <em>{Path, HandlerMod, HandlerOpts}</em>.
 %%
 %% <em>Hostname</em> and <em>Path</em> are match rules and can be either the
-%% atom <em>'_'</em>, which matches everything, <<"*">>, which match the
+%% atom <em>'_'</em>, which matches everything, &lt;&lt;"*"&gt;&gt;, which match the
 %% wildcard path, or a list of tokens.
 %%
 %% Each token can be either a binary, the atom <em>'_'</em>,
