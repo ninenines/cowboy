@@ -845,11 +845,11 @@ cookie_to_iodata(Name, Value, Opts) ->
 
 -spec quote(binary()) -> binary().
 quote(Bin) ->
-	quote(Bin, <<>>).
+	quote(Bin, << $" >>).
 
 -spec quote(binary(), binary()) -> binary().
 quote(<<>>, Acc) ->
-	Acc;
+	<< Acc/binary, $" >>;
 quote(<< $", Rest/bits >>, Acc) ->
 	quote(Rest, << Acc/binary, $\\, $" >>);
 quote(<< C, Rest/bits >>, Acc) ->
@@ -1160,14 +1160,14 @@ cookie_to_iodata_test_() ->
 	Tests = [
 		{<<"Customer">>, <<"WILE_E_COYOTE">>,
 			[{http_only, true}, {domain, <<"acme.com">>}],
-			<<"Customer=WILE_E_COYOTE; Version=1; "
-				"Domain=acme.com; HttpOnly">>},
+			<<"Customer=\"WILE_E_COYOTE\"; Version=1; "
+				"Domain=\"acme.com\"; HttpOnly">>},
 		{<<"Customer">>, <<"WILE_E_COYOTE">>,
 			[{path, <<"/acme">>}],
-			<<"Customer=WILE_E_COYOTE; Version=1; Path=/acme">>},
+			<<"Customer=\"WILE_E_COYOTE\"; Version=1; Path=\"/acme\"">>},
 		{<<"Customer">>, <<"WILE_E_COYOTE">>,
 			[{path, <<"/acme">>}, {badoption, <<"negatory">>}],
-			<<"Customer=WILE_E_COYOTE; Version=1; Path=/acme">>}
+			<<"Customer=\"WILE_E_COYOTE\"; Version=1; Path=\"/acme\"">>}
 	],
 	[{R, fun() -> R = iolist_to_binary(cookie_to_iodata(N, V, O)) end}
 		|| {N, V, O, R} <- Tests].
@@ -1177,7 +1177,7 @@ cookie_to_iodata_max_age_test() ->
 		binary:split(iolist_to_binary(
 			cookie_to_iodata(N, V, O)), <<";">>, [global])
 	end,
-	[<<"Customer=WILE_E_COYOTE">>,
+	[<<"Customer=\"WILE_E_COYOTE\"">>,
 		<<" Version=1">>,
 		<<" Expires=", _/binary>>,
 		<<" Max-Age=111">>,
@@ -1186,7 +1186,7 @@ cookie_to_iodata_max_age_test() ->
 	case catch F(<<"Customer">>, <<"WILE_E_COYOTE">>, [{max_age, -111}]) of
 		{'EXIT', {{case_clause, {max_age, -111}}, _}} -> ok
 	end,
-	[<<"Customer=WILE_E_COYOTE">>,
+	[<<"Customer=\"WILE_E_COYOTE\"">>,
 		<<" Version=1">>,
 		<<" Expires=", _/binary>>,
 		<<" Max-Age=86417">>] = F(<<"Customer">>, <<"WILE_E_COYOTE">>,
