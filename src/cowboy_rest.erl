@@ -73,10 +73,10 @@ upgrade(_ListenerPid, Handler, Opts, Req) ->
 	catch Class:Reason ->
 		PLReq = cowboy_req:to_list(Req),
 		error_logger:error_msg(
-			"** Cowboy handler ~p terminating in rest_init/2~n"
+			"** Cowboy handler ~p terminating in ~p/~p~n"
 			"   for the reason ~p:~p~n** Options were ~p~n"
 			"** Request was ~p~n** Stacktrace: ~p~n~n",
-			[Handler, Class, Reason, Opts, PLReq, erlang:get_stacktrace()]),
+			[Handler, rest_init, 2, Class, Reason, Opts, PLReq, erlang:get_stacktrace()]),
 		{ok, _Req2} = cowboy_req:reply(500, Req),
 		close
 	end.
@@ -735,9 +735,9 @@ choose_content_type(Req,
 		no_call ->
 			error_logger:error_msg(
 				"** Cowboy handler ~p terminating; "
-				"function ~p was not exported~n"
+				"function ~p/~p was not exported~n"
 				"** Request was ~p~n** State was ~p~n~n",
-				[Handler, Fun, cowboy_req:to_list(Req), HandlerState]),
+				[Handler, Fun, 2, cowboy_req:to_list(Req), HandlerState]),
 			{ok, _} = cowboy_req:reply(500, Req),
 			close;
 		{halt, Req2, HandlerState} ->
@@ -787,9 +787,9 @@ set_resp_body(Req, State=#state{handler=Handler, handler_state=HandlerState,
 		no_call ->
 			error_logger:error_msg(
 				"** Cowboy handler ~p terminating; "
-				"function ~p was not exported~n"
+				"function ~p/~p was not exported~n"
 				"** Request was ~p~n** State was ~p~n~n",
-				[Handler, Fun, cowboy_req:to_list(Req5), HandlerState]),
+				[Handler, Fun, 2, cowboy_req:to_list(Req5), HandlerState]),
 			{ok, _} = cowboy_req:reply(500, Req5),
 			close;
 		{halt, Req6, HandlerState} ->
