@@ -204,8 +204,8 @@ parse_body(Bin, Pattern = {{P, PSize}, _}) when byte_size(Bin) >= PSize ->
 					%% next input onto tail of current input binary.
 					{body, Bin, fun () -> parse_body(<<>>, Pattern) end};
 				{BoundaryStart, Len} ->
-					PBody = binary:part(Bin, BoundaryStart, Len),
-					Rest = binary:part(Bin, 0, BoundaryStart),
+					PBody = binary:part(Bin, 0, BoundaryStart),
+					Rest = binary:part(Bin, BoundaryStart, Len),
 					{body, PBody, fun () -> parse_body(Rest, Pattern) end}
 			end
 	end;
