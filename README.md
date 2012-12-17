@@ -18,13 +18,6 @@ Because it uses Ranch for managing connections, Cowboy can easily be
 
 No parameterized module. No process dictionary. **Clean** Erlang code.
 
-Quick start
------------
-
- *  Add Cowboy as a rebar dependency to your application
- *  Start Cowboy and add one or more listeners
- *  Write handlers for your application
-
 Getting Started
 ---------------
 
@@ -32,10 +25,17 @@ Getting Started
  *  Look at the examples in the `examples/` directory
  *  Build API documentation with `make docs`; open `doc/index.html`
 
+Support
+-------
+
+ *  Official IRC Channel: #ninenines on irc.freenode.net
+ *  [Mailing Lists](http://lists.ninenines.eu)
+ *  [Commercial Support](http://ninenines.eu/support)
 
 
-Old README
-----------
+
+Old README (deprecated)
+-----------------------
 
 This and all following sections will be removed as soon as their
 equivalent appear in the Cowboy guide.
