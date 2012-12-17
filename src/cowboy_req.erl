@@ -800,6 +800,12 @@ multipart_skip(Req) ->
 %% Response API.
 
 %% @doc Add a cookie header to the response.
+%%
+%% The cookie name cannot contain any of the following characters:
+%%   =,;\s\t\r\n\013\014
+%%
+%% The cookie value cannot contain any of the following characters:
+%%   ,; \t\r\n\013\014
 -spec set_resp_cookie(iodata(), iodata(), cookie_opts(), Req)
 	-> Req when Req::req().
 set_resp_cookie(Name, Value, Opts, Req) ->

@@ -815,9 +815,20 @@ ce_identity(Data) ->
 -spec cookie_to_iodata(iodata(), iodata(), cowboy_req:cookie_opts())
 	-> iodata().
 cookie_to_iodata(Name, Value, Opts) ->
+	case binary:match(Name, [<<$=>>, <<$,>>, <<$;>>,
+			<<$\s>>, <<$\t>>, <<$\r>>, <<$\n>>, <<$\013>>, <<$\014>>]) of
+		nomatch -> ok
+	end,
+	case binary:match(Value, [<<$,>>, <<$;>>,
+			<<$\s>>, <<$\t>>, <<$\r>>, <<$\n>>, <<$\013>>, <<$\014>>]) of
+		nomatch -> ok
+	end,
 	MaxAgeBin = case lists:keyfind(max_age, 1, Opts) of
 		false -> <<>>;
-		{_, MaxAge} when is_integer(MaxAge), MaxAge >= 0 ->
+		{_, 0} ->
+			%% MSIE requires an Expires date in the past to delete a cookie.
+			<<"; Expires=Thu, 01-Jan-1970 00:00:01 GMT; Max-Age=0">>;
+		{_, MaxAge} when is_integer(MaxAge), MaxAge > 0 ->
 			UTC = calendar:universal_time(),
 			Secs = calendar:datetime_to_gregorian_seconds(UTC),
 			Expires = calendar:gregorian_seconds_to_datetime(Secs + MaxAge),
@@ -826,11 +837,11 @@ cookie_to_iodata(Name, Value, Opts) ->
 	end,
 	DomainBin = case lists:keyfind(domain, 1, Opts) of
 		false -> <<>>;
-		{_, Domain} -> [<<"; Domain=">>, quote(Domain)]
+		{_, Domain} -> [<<"; Domain=">>, Domain]
 	end,
 	PathBin = case lists:keyfind(path, 1, Opts) of
 		false -> <<>>;
-		{_, Path} -> [<<"; Path=">>, quote(Path)]
+		{_, Path} -> [<<"; Path=">>, Path]
 	end,
 	SecureBin = case lists:keyfind(secure, 1, Opts) of
 		false -> <<>>;
@@ -840,20 +851,8 @@ cookie_to_iodata(Name, Value, Opts) ->
 		false -> <<>>;
 		{_, true} -> <<"; HttpOnly">>
 	end,
-	[Name, <<"=">>, quote(Value), <<"; Version=1">>,
+	[Name, <<"=">>, Value, <<"; Version=1">>,
 		MaxAgeBin, DomainBin, PathBin, SecureBin, HttpOnlyBin].
-
--spec quote(binary()) -> binary().
-quote(Bin) ->
-	quote(Bin, << $" >>).
-
--spec quote(binary(), binary()) -> binary().
-quote(<<>>, Acc) ->
-	<< Acc/binary, $" >>;
-quote(<< $", Rest/bits >>, Acc) ->
-	quote(Rest, << Acc/binary, $\\, $" >>);
-quote(<< C, Rest/bits >>, Acc) ->
-	quote(Rest, << Acc/binary, C >>).
 
 %% @doc Convert an HTTP version tuple to its binary form.
 -spec version_to_binary(version()) -> binary().
@@ -1160,14 +1159,14 @@ cookie_to_iodata_test_() ->
 	Tests = [
 		{<<"Customer">>, <<"WILE_E_COYOTE">>,
 			[{http_only, true}, {domain, <<"acme.com">>}],
-			<<"Customer=\"WILE_E_COYOTE\"; Version=1; "
-				"Domain=\"acme.com\"; HttpOnly">>},
+			<<"Customer=WILE_E_COYOTE; Version=1; "
+				"Domain=acme.com; HttpOnly">>},
 		{<<"Customer">>, <<"WILE_E_COYOTE">>,
 			[{path, <<"/acme">>}],
-			<<"Customer=\"WILE_E_COYOTE\"; Version=1; Path=\"/acme\"">>},
+			<<"Customer=WILE_E_COYOTE; Version=1; Path=/acme">>},
 		{<<"Customer">>, <<"WILE_E_COYOTE">>,
 			[{path, <<"/acme">>}, {badoption, <<"negatory">>}],
-			<<"Customer=\"WILE_E_COYOTE\"; Version=1; Path=\"/acme\"">>}
+			<<"Customer=WILE_E_COYOTE; Version=1; Path=/acme">>}
 	],
 	[{R, fun() -> R = iolist_to_binary(cookie_to_iodata(N, V, O)) end}
 		|| {N, V, O, R} <- Tests].
@@ -1177,7 +1176,7 @@ cookie_to_iodata_max_age_test() ->
 		binary:split(iolist_to_binary(
 			cookie_to_iodata(N, V, O)), <<";">>, [global])
 	end,
-	[<<"Customer=\"WILE_E_COYOTE\"">>,
+	[<<"Customer=WILE_E_COYOTE">>,
 		<<" Version=1">>,
 		<<" Expires=", _/binary>>,
 		<<" Max-Age=111">>,
@@ -1186,12 +1185,32 @@ cookie_to_iodata_max_age_test() ->
 	case catch F(<<"Customer">>, <<"WILE_E_COYOTE">>, [{max_age, -111}]) of
 		{'EXIT', {{case_clause, {max_age, -111}}, _}} -> ok
 	end,
-	[<<"Customer=\"WILE_E_COYOTE\"">>,
+	[<<"Customer=WILE_E_COYOTE">>,
 		<<" Version=1">>,
 		<<" Expires=", _/binary>>,
 		<<" Max-Age=86417">>] = F(<<"Customer">>, <<"WILE_E_COYOTE">>,
 			 [{max_age, 86417}]),
 	ok.
+
+cookie_to_iodata_failures_test_() ->
+	F = fun(N, V) ->
+		try cookie_to_iodata(N, V, []) of
+			_ ->
+				false
+		catch _:_ ->
+			true
+		end
+	end,
+	Tests = [
+		{<<"Na=me">>, <<"Value">>},
+		{<<"Name;">>, <<"Value">>},
+		{<<"\r\name">>, <<"Value">>},
+		{<<"Name">>, <<"Value;">>},
+		{<<"Name">>, <<"\value">>}
+	],
+	[{iolist_to_binary(io_lib:format("{~p, ~p} failure", [N, V])),
+		fun() -> true = F(N, V) end}
+		|| {N, V} <- Tests].
 
 x_www_form_urlencoded_test_() ->
 	%% {Qs, Result}
