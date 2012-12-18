@@ -113,6 +113,7 @@
 -export([lock/1]).
 -export([to_list/1]).
 -export([transport/1]).
+-export([merge_headers/2]).
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").

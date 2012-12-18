@@ -40,7 +40,7 @@
 	timeout = 5000 :: timeout(), %% @todo Configurable.
 	buffer = <<>> :: binary(),
 	connection = keepalive :: keepalive | close,
-	version = {1, 1} :: cowboy_http:version(),
+	version = {1, 0} :: cowboy_http:version(),
 	response_body = undefined :: undefined | non_neg_integer()
 }).
 
@@ -93,10 +93,11 @@ request(Method, URL, Headers, Body, Client=#client{
 	end,
 	VersionBin = cowboy_http:version_to_binary(Version),
 	%% @todo do keepalive too, allow override...
-	Headers2 = [
+	DefaultHeaders = [
 		{<<"host">>, FullHost},
 		{<<"user-agent">>, <<"Cow">>}
-	|Headers],
+	],
+    Headers2 = cowboy_req:merge_headers(Headers, DefaultHeaders),
 	Headers3 = case iolist_size(Body) of
 		0 -> Headers2;
 		Length -> [{<<"content-length">>, integer_to_list(Length)}|Headers2]
@@ -212,7 +213,6 @@ stream_header(Client=#client{state=State, buffer=Buffer,
 		[<<>>, Rest] ->
 			%% If we have a body, set response_body.
 			Client2 = case RespBody of
-				undefined -> Client#client{state=request};
 				0 -> Client#client{state=request};
 				_ -> Client#client{state=response_body}
 			end,
@@ -241,10 +241,17 @@ stream_header(Client=#client{state=State, buffer=Buffer,
 	end.
 
 stream_body(Client=#client{state=response_body, response_body=RespBody})
-		when RespBody =:= undefined; RespBody =:= 0 ->
-	{done, Client#client{state=request, response_body=undefined}};
-stream_body(Client=#client{state=response_body, buffer=Buffer,
-		response_body=Length}) when is_integer(Length) ->
+		when RespBody =:= done; RespBody =:= 0 ->
+	{done, Client#client{state=request, response_body=done}};
+stream_body(Client=#client{state=response_body, buffer=Buffer, response_body=undefined}) ->
+    case recv(Client) of
+      {ok, Data} ->
+        Buffer2 = << Buffer/binary, Data/binary >>,
+        stream_body(Client#client{buffer=Buffer2});
+      {error, _Reason} ->
+        {ok, Buffer, Client#client{response_body=done}}
+    end;
+stream_body(Client=#client{state=response_body, buffer=Buffer, response_body=Length}) when is_integer(Length) ->
 	case byte_size(Buffer) of
 		0 ->
 			case recv(Client) of
@@ -254,7 +261,7 @@ stream_body(Client=#client{state=response_body, buffer=Buffer,
 				{ok, Data} ->
 					<< Body:Length/binary, Rest/binary >> = Data,
 					{ok, Body, Client#client{buffer=Rest,
-						response_body=undefined}};
+						response_body=done}};
 				{error, Reason} ->
 					{error, Reason}
 			end;
@@ -263,7 +270,7 @@ stream_body(Client=#client{state=response_body, buffer=Buffer,
 			{ok, Buffer, Client#client{buffer= <<>>, response_body=Length2}};
 		_ ->
 			<< Body:Length/binary, Rest/binary >> = Buffer,
-			{ok, Body, Client#client{buffer=Rest, response_body=undefined}}
+			{ok, Body, Client#client{buffer=Rest, response_body=done}}
 	end.
 
 recv(#client{socket=Socket, transport=Transport, timeout=Timeout}) ->
