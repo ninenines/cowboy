@@ -452,15 +452,23 @@ handler_call(State=#state{handler=Handler, opts=Opts}, Req, HandlerState,
 		RemainingData, Callback, Message, NextState) ->
 	try Handler:Callback(Message, Req, HandlerState) of
 		{ok, Req2, HandlerState2} ->
-			NextState(State, Req2, HandlerState2, RemainingData);
+			NextState(State#state{timeout=infinity},
+				Req2, HandlerState2, RemainingData);
 		{ok, Req2, HandlerState2, hibernate} ->
-			NextState(State#state{hibernate=true},
+			NextState(State#state{timeout=infinity, hibernate=true},
+				Req2, HandlerState2, RemainingData);
+		{ok, Req2, HandlerState2, Timeout} ->
+			NextState(State#state{timeout=Timeout},
+				Req2, HandlerState2, RemainingData);
+		{ok, Req2, HandlerState2, Timeout, hibernate} ->
+			NextState(State#state{timeout=Timeout, hibernate=true},
 				Req2, HandlerState2, RemainingData);
 		{reply, Payload, Req2, HandlerState2}
 				when is_tuple(Payload) ->
 			case websocket_send(Payload, State) of
 				ok ->
-					NextState(State, Req2, HandlerState2, RemainingData);
+					NextState(State#state{timeout=infinity,
+						Req2, HandlerState2, RemainingData);
 				shutdown ->
 					handler_terminate(State, Req2, HandlerState,
 						{normal, shutdown});
@@ -471,7 +479,31 @@ handler_call(State=#state{handler=Handler, opts=Opts}, Req, HandlerState,
 				when is_tuple(Payload) ->
 			case websocket_send(Payload, State) of
 				ok ->
-					NextState(State#state{hibernate=true},
+					NextState(State#state{timeout=infinity, hibernate=true},
+						Req2, HandlerState2, RemainingData);
+				shutdown ->
+					handler_terminate(State, Req2, HandlerState,
+						{normal, shutdown});
+				{error, _} = Error ->
+					handler_terminate(State, Req2, HandlerState2, Error)
+			end;
+		{reply, Payload, Req2, HandlerState2, Timeout}
+				when is_tuple(Payload) ->
+			case websocket_send(Payload, State) of
+				ok ->
+					NextState(State#state{timeout=Timeout},
+						Req2, HandlerState2, RemainingData);
+				shutdown ->
+					handler_terminate(State, Req2, HandlerState,
+						{normal, shutdown});
+				{error, _} = Error ->
+					handler_terminate(State, Req2, HandlerState2, Error)
+			end;
+		{reply, Payload, Req2, HandlerState2, Timeout, hibernate}
+				when is_tuple(Payload) ->
+			case websocket_send(Payload, State) of
+				ok ->
+					NextState(State#state{timeout=Timeout, hibernate=true},
 						Req2, HandlerState2, RemainingData);
 				shutdown ->
 					handler_terminate(State, Req2, HandlerState,
@@ -483,7 +515,8 @@ handler_call(State=#state{handler=Handler, opts=Opts}, Req, HandlerState,
 				when is_list(Payload) ->
 			case websocket_send_many(Payload, State) of
 				ok ->
-					NextState(State, Req2, HandlerState2, RemainingData);
+					NextState(State#state{timeout=infinity,
+						Req2, HandlerState2, RemainingData);
 				shutdown ->
 					handler_terminate(State, Req2, HandlerState,
 						{normal, shutdown});
@@ -494,7 +527,31 @@ handler_call(State=#state{handler=Handler, opts=Opts}, Req, HandlerState,
 				when is_list(Payload) ->
 			case websocket_send_many(Payload, State) of
 				ok ->
-					NextState(State#state{hibernate=true},
+					NextState(State#state{timeout=infinity, hibernate=true},
+						Req2, HandlerState2, RemainingData);
+				shutdown ->
+					handler_terminate(State, Req2, HandlerState,
+						{normal, shutdown});
+				{error, _} = Error ->
+					handler_terminate(State, Req2, HandlerState2, Error)
+			end;
+		{reply, Payload, Req2, HandlerState2, Timeout}
+				when is_list(Payload) ->
+			case websocket_send_many(Payload, State) of
+				ok ->
+					NextState(State#state{timeout=Timeout},
+						Req2, HandlerState2, RemainingData);
+				shutdown ->
+					handler_terminate(State, Req2, HandlerState,
+						{normal, shutdown});
+				{error, _} = Error ->
+					handler_terminate(State, Req2, HandlerState2, Error)
+			end;
+		{reply, Payload, Req2, HandlerState2, Timeout, hibernate}
+				when is_list(Payload) ->
+			case websocket_send_many(Payload, State) of
+				ok ->
+					NextState(State#state{timeout=Timeout, hibernate=true},
 						Req2, HandlerState2, RemainingData);
 				shutdown ->
 					handler_terminate(State, Req2, HandlerState,

@@ -30,7 +30,7 @@
 %% here.
 %%
 %% <em>websocket_handle/3</em> receives the data from the socket. It can reply
-%% something, do nothing or close the connection.
+%% something, do nothing or close the connection. 
 %%
 %% <em>websocket_info/3</em> receives messages sent to the process. It has
 %% the same reply format as <em>websocket_handle/3</em> described above. Note
@@ -46,6 +46,8 @@
 %% <em>websocket_info/3</em> can decide to hibernate the process by adding
 %% an extra element to the returned tuple, containing the atom
 %% <em>hibernate</em>. Doing so helps save memory and improve CPU usage.
+%% All of these callbacks may also indicate a timeout value. This will
+%% supersede any existing timeouts.
 -module(cowboy_websocket_handler).
 
 -type opts() :: any().
@@ -66,15 +68,23 @@
 -callback websocket_handle({text | binary | ping | pong, binary()}, Req, State)
 	-> {ok, Req, State}
 	| {ok, Req, State, hibernate}
+	| {ok, Req, State, timeout()}
+	| {ok, Req, State, timeout(), hibernate}
 	| {reply, cowboy_websocket:frame() | [cowboy_websocket:frame()], Req, State}
 	| {reply, cowboy_websocket:frame() | [cowboy_websocket:frame()], Req, State, hibernate}
+	| {reply, cowboy_websocket:frame() | [cowboy_websocket:frame()], Req, State, timeout()}
+	| {reply, cowboy_websocket:frame() | [cowboy_websocket:frame()], Req, State, timeout(), hibernate}
 	| {shutdown, Req, State}
 	when Req::cowboy_req:req(), State::state().
 -callback websocket_info(any(), Req, State)
 	-> {ok, Req, State}
 	| {ok, Req, State, hibernate}
+	| {ok, Req, State, timeout()}
+	| {ok, Req, State, timeout(), hibernate}
 	| {reply, cowboy_websocket:frame() | [cowboy_websocket:frame()], Req, State}
 	| {reply, cowboy_websocket:frame() | [cowboy_websocket:frame()], Req, State, hibernate}
+	| {reply, cowboy_websocket:frame() | [cowboy_websocket:frame()], Req, State, timeout()}
+	| {reply, cowboy_websocket:frame() | [cowboy_websocket:frame()], Req, State, timeout(), hibernate}
 	| {shutdown, Req, State}
 	when Req::cowboy_req:req(), State::state().
 -callback websocket_terminate(terminate_reason(), cowboy_req:req(), state())
