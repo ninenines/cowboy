@@ -139,7 +139,9 @@ split_host(Host, Acc) ->
 %% and part of a path segment.
 -spec split_path(binary()) -> tokens().
 split_path(<< $/, Path/bits >>) ->
-	split_path(Path, []).
+	split_path(Path, []);
+split_path(_) ->
+	badrequest.
 
 split_path(Path, Acc) ->
 	try
