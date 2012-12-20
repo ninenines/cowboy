@@ -859,11 +859,11 @@ ce_identity(Data) ->
 -spec cookie_to_iodata(iodata(), iodata(), cowboy_req:cookie_opts())
 	-> iodata().
 cookie_to_iodata(Name, Value, Opts) ->
-	case binary:match(Name, [<<$=>>, <<$,>>, <<$;>>,
+	case binary:match(iolist_to_binary(Name), [<<$=>>, <<$,>>, <<$;>>,
 			<<$\s>>, <<$\t>>, <<$\r>>, <<$\n>>, <<$\013>>, <<$\014>>]) of
 		nomatch -> ok
 	end,
-	case binary:match(Value, [<<$,>>, <<$;>>,
+	case binary:match(iolist_to_binary(Value), [<<$,>>, <<$;>>,
 			<<$\s>>, <<$\t>>, <<$\r>>, <<$\n>>, <<$\013>>, <<$\014>>]) of
 		nomatch -> ok
 	end,
