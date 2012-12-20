@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<title>Cowboy Cookie Example</title>
+</head>
+
+<body>
+	<h1>Cowboy Cookie Example</h1>
+	<p>Refresh the page to see the next cookie.</p>
+
+	<h2>Cookie Set Server-Side</h2>
+	<p>{{ server }}</p>
+
+	<h2>Cookie Set Client-Side</h2>
+	<p>{{ client }}</p>
+
+	<script type="text/javascript">
+// <![CDATA[
+document.cookie="client=test=";
+// ]]>
+	</script>
+</body>
+</html>
