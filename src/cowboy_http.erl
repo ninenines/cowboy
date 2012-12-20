@@ -121,13 +121,57 @@ cookie_list(Data, Acc) ->
 		fun (<<>>) -> Acc;
 			(<< $,, Rest/binary >>) -> cookie_list(Rest, Acc);
 			(<< $;, Rest/binary >>) -> cookie_list(Rest, Acc);
-			(Rest) -> param(Rest,
+			(Rest) -> cookie(Rest,
 				fun (Rest2, << $$, _/bits >>, _) ->
 						cookie_list(Rest2, Acc);
 					(Rest2, Name, Value) ->
 						cookie_list(Rest2, [{Name, Value}|Acc])
 				end)
 		end).
+
+-spec cookie(binary(), fun()) -> any().
+cookie(Data, Fun) ->
+	whitespace(Data,
+		fun (Rest) ->
+				cookie_name(Rest,
+					fun (_Rest2, <<>>) -> {error, badarg};
+						(<< $=, Rest2/binary >>, Name) ->
+							cookie_value(Rest2,
+								fun (Rest3, Value) ->
+										Fun(Rest3, Name, Value)
+								end);
+						(_Rest2, _Attr) -> {error, badarg}
+					end)
+		end).
+
+-spec cookie_name(binary(), fun()) -> any().
+cookie_name(Data, Fun) ->
+	cookie_name(Data, Fun, <<>>).
+
+-spec cookie_name(binary(), fun(), binary()) -> any().
+cookie_name(<<>>, Fun, Acc) ->
+	Fun(<<>>, Acc);
+cookie_name(Data = << C, _Rest/binary >>, Fun, Acc)
+		when C =:= $=; C =:= $,; C =:= $;; C =:= $\s; C =:= $\t;
+			 C =:= $\r; C =:= $\n; C =:= $\013; C =:= $\014 ->
+	Fun(Data, Acc);
+cookie_name(<< C, Rest/binary >>, Fun, Acc) ->
+	C2 = cowboy_bstr:char_to_lower(C),
+	cookie_name(Rest, Fun, << Acc/binary, C2 >>).
+
+-spec cookie_value(binary(), fun()) -> any().
+cookie_value(Data, Fun) ->
+	cookie_value(Data, Fun, <<>>).
+
+-spec cookie_value(binary(), fun(), binary()) -> any().
+cookie_value(<<>>, Fun, Acc) ->
+	Fun(<<>>, Acc);
+cookie_value(Data = << C, _Rest/binary >>, Fun, Acc)
+		when C =:= $,; C =:= $;; C =:= $\s; C =:= $\t;
+			 C =:= $\r; C =:= $\n; C =:= $\013; C =:= $\014 ->
+	Fun(Data, Acc);
+cookie_value(<< C, Rest/binary >>, Fun, Acc) ->
+	cookie_value(Rest, Fun, << Acc/binary, C >>).
 
 %% @doc Parse a content type.
 -spec content_type(binary()) -> any().
@@ -1016,24 +1060,24 @@ cookie_list_test_() ->
 			{<<"name">>, <<"value">>},
 			{<<"name2">>, <<"value2">>}
 		]},
-		{<<"$Version=\"1\"; Customer=\"WILE_E_COYOTE\"; $Path=\"/acme\"">>, [
+		{<<"$Version=1; Customer=WILE_E_COYOTE; $Path=/acme">>, [
 			{<<"customer">>, <<"WILE_E_COYOTE">>}
 		]},
-		{<<"$Version=\"1\"; Customer=\"WILE_E_COYOTE\"; $Path=\"/acme\"; "
-			"Part_Number=\"Rocket_Launcher_0001\"; $Path=\"/acme\"; "
-			"Shipping=\"FedEx\"; $Path=\"/acme\"">>, [
+		{<<"$Version=1; Customer=WILE_E_COYOTE; $Path=/acme; "
+			"Part_Number=Rocket_Launcher_0001; $Path=/acme; "
+			"Shipping=FedEx; $Path=/acme">>, [
 			{<<"customer">>, <<"WILE_E_COYOTE">>},
 			{<<"part_number">>, <<"Rocket_Launcher_0001">>},
 			{<<"shipping">>, <<"FedEx">>}
 		]},
 		%% Potential edge cases (initially from Mochiweb).
-		{<<"foo=\"\\x\"">>, [{<<"foo">>, <<"x">>}]},
+		{<<"foo=\\x">>, [{<<"foo">>, <<"\\x">>}]},
 		{<<"=">>, {error, badarg}},
 		{<<"  foo ; bar  ">>, {error, badarg}},
-		{<<"foo=;bar=">>, {error, badarg}},
-		{<<"foo=\"\\\";\";bar ">>, {error, badarg}},
-		{<<"foo=\"\\\";\";bar=good ">>,
-			[{<<"foo">>, <<"\";">>}, {<<"bar">>, <<"good">>}]},
+		{<<"foo=;bar=">>, [{<<"foo">>, <<>>}, {<<"bar">>, <<>>}]},
+		{<<"foo=\\\";;bar ">>, {error, badarg}},
+		{<<"foo=\\\";;bar=good ">>,
+			[{<<"foo">>, <<"\\\"">>}, {<<"bar">>, <<"good">>}]},
 		{<<"foo=\"\\\";bar">>, {error, badarg}},
 		{<<"">>, {error, badarg}},
 		{<<"foo=bar , baz=wibble ">>,
