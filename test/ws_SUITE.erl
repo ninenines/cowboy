@@ -36,6 +36,7 @@
 -export([ws_text_fragments/1]).
 -export([ws_timeout_hibernate/1]).
 -export([ws_timeout_cancel/1]).
+-export([ws_timeout_reset/1]).
 -export([ws_upgrade_with_opts/1]).
 
 %% ct.
@@ -56,6 +57,7 @@ groups() ->
 		ws_text_fragments,
 		ws_timeout_hibernate,
 		ws_timeout_cancel,
+		ws_timeout_reset,
 		ws_upgrade_with_opts
 	],
 	[{ws, [], BaseTests}].
@@ -533,6 +535,53 @@ ws_timeout_cancel(Config) ->
 	{"sec-websocket-accept", "s3pPLMBiTxaQ9kYGzzhZRbK+xOo="}
 		= lists:keyfind("sec-websocket-accept", 1, Headers),
 	{ok, << 1:1, 0:3, 8:4, 0:8 >>} = gen_tcp:recv(Socket, 0, 6000),
+	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
+	ok.
+
+ws_timeout_reset(Config) ->
+	%% Erlang messages across a socket should reset the timeout	
+	{port, Port} = lists:keyfind(port, 1, Config),
+	{ok, Socket} = gen_tcp:connect("localhost", Port,
+		[binary, {active, false}, {packet, raw}]),
+	ok = gen_tcp:send(Socket, [
+		"GET /ws_timeout_cancel HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Connection: Upgrade\r\n"
+		"Upgrade: WebSocket\r\n"
+		"Origin: http://localhost\r\n"
+		"Sec-Websocket-Key1: Y\" 4 1Lj!957b8@0H756!i\r\n"
+		"Sec-Websocket-Key2: 1711 M;4\\74  80<6\r\n"
+		"\r\n"]),
+	{ok, Handshake} = gen_tcp:recv(Socket, 0, 6000),
+	{ok, {http_response, {1, 1}, 101, "WebSocket Protocol Handshake"}, Rest}
+		= erlang:decode_packet(http, Handshake, []),
+	[Headers, <<>>] = websocket_headers(
+		erlang:decode_packet(httph, Rest, []), []),
+	{'Connection', "Upgrade"} = lists:keyfind('Connection', 1, Headers),
+	{'Upgrade', "WebSocket"} = lists:keyfind('Upgrade', 1, Headers),
+	{"sec-websocket-location", "ws://localhost/ws_timeout_cancel"}
+		= lists:keyfind("sec-websocket-location", 1, Headers),
+	{"sec-websocket-origin", "http://localhost"}
+		= lists:keyfind("sec-websocket-origin", 1, Headers),
+	ok = gen_tcp:send(Socket, <<15,245,8,18,2,204,133,33>>),
+	{ok, Body} = gen_tcp:recv(Socket, 0, 6000),
+	<<169,244,191,103,146,33,149,59,74,104,67,5,99,118,171,236>> = Body,
+	ok = gen_tcp:send(Socket, << 0, "msg sent", 255 >>),
+	{ok, << 0, "msg sent", 255 >>}
+		= gen_tcp:recv(Socket, 0, 6000),
+	ok = timer:sleep(500),
+	ok = gen_tcp:send(Socket, << 0, "msg sent", 255 >>),
+	{ok, << 0, "msg sent", 255 >>}
+		= gen_tcp:recv(Socket, 0, 6000),
+	ok = timer:sleep(500),
+	ok = gen_tcp:send(Socket, << 0, "msg sent", 255 >>),
+	{ok, << 0, "msg sent", 255 >>}
+		= gen_tcp:recv(Socket, 0, 6000),
+	ok = timer:sleep(500),
+	ok = gen_tcp:send(Socket, << 0, "msg sent", 255 >>),
+	{ok, << 0, "msg sent", 255 >>}
+		= gen_tcp:recv(Socket, 0, 6000),
+	{ok, << 255, 0 >>} = gen_tcp:recv(Socket, 0, 6000),
 	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
 	ok.
 
