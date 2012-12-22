@@ -366,6 +366,7 @@ The document has moved
 		{400, "\r\n\r\n\r\n\r\n\r\n\r\n"},
 		{400, "GET / HTTP/1.1\r\nHost: ninenines.eu\r\n\r\n"},
 		{400, "GET http://proxy/ HTTP/1.1\r\n\r\n"},
+		{400, "GET / HTTP/1.1\r\nHost: localhost:bad_port\r\n\r\n"},
 		{505, ResponsePacket},
 		{408, "GET / HTTP/1.1\r\n"},
 		{408, "GET / HTTP/1.1\r\nHost: localhost"},
