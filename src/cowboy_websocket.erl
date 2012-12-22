@@ -188,7 +188,8 @@ websocket_handshake(State=#state{transport=Transport, challenge=Challenge},
 		Req),
 	%% Flush the resp_sent message before moving on.
 	receive {cowboy_req, resp_sent} -> ok after 0 -> ok end,
-	handler_before_loop(State#state{messages=Transport:messages()},
+	State2 = handler_loop_timeout(State),
+	handler_before_loop(State2#state{messages=Transport:messages()},
 		Req2, HandlerState, <<>>).
 
 -spec handler_before_loop(#state{}, cowboy_req:req(), any(), binary()) -> closed.
@@ -196,15 +197,13 @@ handler_before_loop(State=#state{
 			socket=Socket, transport=Transport, hibernate=true},
 		Req, HandlerState, SoFar) ->
 	Transport:setopts(Socket, [{active, once}]),
-	State2 = handler_loop_timeout(State),
 	catch erlang:hibernate(?MODULE, handler_loop,
-		[State2#state{hibernate=false}, Req, HandlerState, SoFar]),
+		[State#state{hibernate=false}, Req, HandlerState, SoFar]),
 	closed;
 handler_before_loop(State=#state{socket=Socket, transport=Transport},
 		Req, HandlerState, SoFar) ->
 	Transport:setopts(Socket, [{active, once}]),
-	State2 = handler_loop_timeout(State),
-	handler_loop(State2, Req, HandlerState, SoFar).
+	handler_loop(State, Req, HandlerState, SoFar).
 
 -spec handler_loop_timeout(#state{}) -> #state{}.
 handler_loop_timeout(State=#state{timeout=infinity}) ->
@@ -222,7 +221,8 @@ handler_loop(State=#state{
 		Req, HandlerState, SoFar) ->
 	receive
 		{OK, Socket, Data} ->
-			websocket_data(State, Req, HandlerState,
+			State2 = handler_loop_timeout(State),
+			websocket_data(State2, Req, HandlerState,
 				<< SoFar/binary, Data/binary >>);
 		{Closed, Socket} ->
 			handler_terminate(State, Req, HandlerState, {error, closed});
@@ -460,7 +460,8 @@ handler_call(State=#state{handler=Handler, opts=Opts}, Req, HandlerState,
 				when is_tuple(Payload) ->
 			case websocket_send(Payload, State) of
 				ok ->
-					NextState(State, Req2, HandlerState2, RemainingData);
+					State2 = handler_loop_timeout(State),	
+					NextState(State2, Req2, HandlerState2, RemainingData);
 				shutdown ->
 					handler_terminate(State, Req2, HandlerState,
 						{normal, shutdown});
@@ -471,7 +472,8 @@ handler_call(State=#state{handler=Handler, opts=Opts}, Req, HandlerState,
 				when is_tuple(Payload) ->
 			case websocket_send(Payload, State) of
 				ok ->
-					NextState(State#state{hibernate=true},
+					State2 = handler_loop_timeout(State),	
+					NextState(State2#state{hibernate=true},
 						Req2, HandlerState2, RemainingData);
 				shutdown ->
 					handler_terminate(State, Req2, HandlerState,
@@ -483,7 +485,8 @@ handler_call(State=#state{handler=Handler, opts=Opts}, Req, HandlerState,
 				when is_list(Payload) ->
 			case websocket_send_many(Payload, State) of
 				ok ->
-					NextState(State, Req2, HandlerState2, RemainingData);
+					State2 = handler_loop_timeout(State),	
+					NextState(State2, Req2, HandlerState2, RemainingData);
 				shutdown ->
 					handler_terminate(State, Req2, HandlerState,
 						{normal, shutdown});
@@ -494,7 +497,8 @@ handler_call(State=#state{handler=Handler, opts=Opts}, Req, HandlerState,
 				when is_list(Payload) ->
 			case websocket_send_many(Payload, State) of
 				ok ->
-					NextState(State#state{hibernate=true},
+					State2 = handler_loop_timeout(State),	
+					NextState(State2#state{hibernate=true},
 						Req2, HandlerState2, RemainingData);
 				shutdown ->
 					handler_terminate(State, Req2, HandlerState,
