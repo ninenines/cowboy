@@ -317,7 +317,9 @@ fragment(Req) ->
 %%
 %% The URL includes the scheme, host and port only.
 %% @see cowboy_req:url/1
--spec host_url(Req) -> {binary(), Req} when Req::req().
+-spec host_url(Req) -> {undefined | binary(), Req} when Req::req().
+host_url(Req=#http_req{port=undefined}) ->
+	{undefined, Req};
 host_url(Req=#http_req{transport=Transport, host=Host, port=Port}) ->
 	TransportName = Transport:name(),
 	Secure = case TransportName of
@@ -334,9 +336,14 @@ host_url(Req=#http_req{transport=Transport, host=Host, port=Port}) ->
 %% @doc Return the full request URL as a binary.
 %%
 %% The URL includes the scheme, host, port, path, query string and fragment.
--spec url(Req) -> {binary(), Req} when Req::req().
-url(Req=#http_req{path=Path, qs=QS, fragment=Fragment}) ->
+-spec url(Req) -> {undefined | binary(), Req} when Req::req().
+url(Req=#http_req{}) ->
 	{HostURL, Req2} = host_url(Req),
+	url2(HostURL, Req2).
+
+url2(undefined, Req=#http_req{}) ->
+	{undefined, Req};
+url2(HostURL, Req=#http_req{path=Path, qs=QS, fragment=Fragment}) ->
 	QS2 = case QS of
 		<<>> -> <<>>;
 		_ -> << "?", QS/binary >>
@@ -345,7 +352,7 @@ url(Req=#http_req{path=Path, qs=QS, fragment=Fragment}) ->
 		<<>> -> <<>>;
 		_ -> << "#", Fragment/binary >>
 	end,
-	{<< HostURL/binary, Path/binary, QS2/binary, Fragment2/binary >>, Req2}.
+	{<< HostURL/binary, Path/binary, QS2/binary, Fragment2/binary >>, Req}.
 
 %% @equiv binding(Name, Req, undefined)
 -spec binding(atom(), Req) -> {binary() | undefined, Req} when Req::req().
@@ -1299,6 +1306,9 @@ status(B) when is_binary(B) -> B.
 -ifdef(TEST).
 
 url_test() ->
+	{undefined, _} =
+		url(#http_req{transport=ranch_tcp, host= <<>>, port= undefined,
+			path= <<>>, qs= <<>>, fragment= <<>>, pid=self()}),
 	{<<"http://localhost/path">>, _ } =
 		url(#http_req{transport=ranch_tcp, host= <<"localhost">>, port=80,
 			path= <<"/path">>, qs= <<>>, fragment= <<>>, pid=self()}),
