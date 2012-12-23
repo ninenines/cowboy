@@ -544,7 +544,7 @@ meta(Name, Req, Default) ->
 %% If the value already exists it will be overwritten.
 -spec set_meta(atom(), any(), Req) -> Req when Req::req().
 set_meta(Name, Value, Req=#http_req{meta=Meta}) ->
-	Req#http_req{meta=lists:keyreplace(Name, 1, Meta, {Name, Value})}.
+	Req#http_req{meta=[{Name, Value}|lists:keydelete(Name, 1, Meta)]}.
 
 %% Request Body API.
 
