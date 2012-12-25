@@ -605,13 +605,14 @@ init_stream(TransferDecode, TransferState, ContentDecode, Req) ->
 	| {done, Req} | {error, atom()} when Req::req().
 stream_body(Req=#http_req{body_state=waiting,
 		version=Version, transport=Transport, socket=Socket}) ->
-	case parse_header(<<"expect">>, Req) of
-		{ok, [<<"100-continue">>], Req1} ->
+	Req1 = case parse_header(<<"expect">>, Req) of
+		{ok, [<<"100-continue">>], Req0} ->
 			HTTPVer = cowboy_http:version_to_binary(Version),
 			Transport:send(Socket,
-				<< HTTPVer/binary, " ", (status(100))/binary, "\r\n\r\n" >>);
+				<< HTTPVer/binary, " ", (status(100))/binary, "\r\n\r\n" >>),
+			Req0;
 		{ok, undefined, Req1} ->
-			ok
+			Req0
 	end,
 	case parse_header(<<"transfer-encoding">>, Req1) of
 		{ok, [<<"chunked">>], Req2} ->
@@ -895,7 +896,7 @@ reply(Status, Headers, Body, Req=#http_req{
 		{1, 1} -> [{<<"connection">>, atom_to_connection(Connection)}];
 		_ -> []
 	end,
-	case Body of
+	Req3 = case Body of
 		{ContentLength, BodyFun} ->
 			{RespType, Req2} = response(Status, Headers, RespHeaders, [
 					{<<"content-length">>, integer_to_list(ContentLength)},
@@ -904,7 +905,8 @@ reply(Status, Headers, Body, Req=#http_req{
 				|HTTP11Headers], <<>>, Req),
 			if	RespType =/= hook, Method =/= <<"HEAD">> -> BodyFun();
 				true -> ok
-			end;
+			end,
+			Req2;
 		_ ->
 			{_, Req2} = response(Status, Headers, RespHeaders, [
 					{<<"content-length">>, integer_to_list(iolist_size(Body))},
@@ -912,9 +914,10 @@ reply(Status, Headers, Body, Req=#http_req{
 					{<<"server">>, <<"Cowboy">>}
 				|HTTP11Headers],
 				case Method of <<"HEAD">> -> <<>>; _ -> Body end,
-				Req)
+				Req),
+			Req2
 	end,
-	{ok, Req2#http_req{connection=RespConn, resp_state=done,
+	{ok, Req3#http_req{connection=RespConn, resp_state=done,
 		resp_headers=[], resp_body= <<>>}}.
 
 %% @equiv chunked_reply(Status, [], Req)
