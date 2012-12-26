@@ -81,7 +81,6 @@
 -export([stream_body/1]).
 -export([skip_body/1]).
 -export([body/1]).
--export([body/2]).
 -export([body_qs/1]).
 -export([multipart_data/1]).
 -export([multipart_skip/1]).
@@ -698,25 +697,14 @@ content_decode(ContentDecode, Data, Req) ->
 %% @doc Return the full body sent with the request.
 -spec body(Req) -> {ok, binary(), Req} | {error, atom()} when Req::req().
 body(Req) ->
-	read_body(infinity, Req, <<>>).
+	body(Req, <<>>).
 
-%% @doc Return the full body sent with the request as long as the body
-%% length doesn't go over MaxLength.
-%%
-%% This is most useful to quickly be able to get the full body while
-%% avoiding filling your memory with huge request bodies when you're
-%% not expecting it.
--spec body(non_neg_integer() | infinity, Req)
+-spec body(Req, binary())
 	-> {ok, binary(), Req} | {error, atom()} when Req::req().
-body(MaxLength, Req) ->
-	read_body(MaxLength, Req, <<>>).
-
--spec read_body(non_neg_integer() | infinity, Req, binary())
-	-> {ok, binary(), Req} | {error, atom()} when Req::req().
-read_body(MaxLength, Req, Acc) when MaxLength > byte_size(Acc) ->
+body(Req, Acc) ->
 	case stream_body(Req) of
 		{ok, Data, Req2} ->
-			read_body(MaxLength, Req2, << Acc/binary, Data/binary >>);
+			body(Req2, << Acc/binary, Data/binary >>);
 		{done, Req2} ->
 			{ok, Acc, Req2};
 		{error, Reason} ->
