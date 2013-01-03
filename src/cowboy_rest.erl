@@ -1,4 +1,4 @@
-%% Copyright (c) 2011-2012, Loïc Hoguin <essen@ninenines.eu>
+%% Copyright (c) 2011-2013, Loïc Hoguin <essen@ninenines.eu>
 %%
 %% Permission to use, copy, modify, and/or distribute this software for any
 %% purpose with or without fee is hereby granted, provided that the above
@@ -23,6 +23,7 @@
 -export([upgrade/4]).
 
 -record(state, {
+	env :: cowboy_middleware:env(),
 	method = undefined :: binary(),
 
 	%% Handler.
@@ -54,31 +55,31 @@
 %% You do not need to call this function manually. To upgrade to the REST
 %% protocol, you simply need to return <em>{upgrade, protocol, {@module}}</em>
 %% in your <em>cowboy_http_handler:init/3</em> handler function.
--spec upgrade(pid(), module(), any(), Req)
-	-> {ok, Req} | close when Req::cowboy_req:req().
-upgrade(_ListenerPid, Handler, Opts, Req) ->
+-spec upgrade(Req, Env, module(), any())
+	-> {ok, Req, Env} | {error, 500, Req}
+	when Req::cowboy_req:req(), Env::cowboy_middleware:env().
+upgrade(Req, Env, Handler, HandlerOpts) ->
 	try
 		Method = cowboy_req:get(method, Req),
 		case erlang:function_exported(Handler, rest_init, 2) of
 			true ->
-				case Handler:rest_init(Req, Opts) of
+				case Handler:rest_init(Req, HandlerOpts) of
 					{ok, Req2, HandlerState} ->
-						service_available(Req2, #state{method=Method,
+						service_available(Req2, #state{env=Env, method=Method,
 							handler=Handler, handler_state=HandlerState})
 				end;
 			false ->
-				service_available(Req, #state{method=Method,
+				service_available(Req, #state{env=Env, method=Method,
 					handler=Handler})
 		end
 	catch Class:Reason ->
-		PLReq = cowboy_req:to_list(Req),
 		error_logger:error_msg(
 			"** Cowboy handler ~p terminating in ~p/~p~n"
 			"   for the reason ~p:~p~n** Options were ~p~n"
 			"** Request was ~p~n** Stacktrace: ~p~n~n",
-			[Handler, rest_init, 2, Class, Reason, Opts, PLReq, erlang:get_stacktrace()]),
-		{ok, _Req2} = cowboy_req:reply(500, Req),
-		close
+			[Handler, rest_init, 2, Class, Reason, HandlerOpts,
+				cowboy_req:to_list(Req), erlang:get_stacktrace()]),
+		{error, 500, Req}
 	end.
 
 service_available(Req, State) ->
@@ -738,8 +739,7 @@ choose_content_type(Req,
 				"function ~p/~p was not exported~n"
 				"** Request was ~p~n** State was ~p~n~n",
 				[Handler, Fun, 2, cowboy_req:to_list(Req), HandlerState]),
-			{ok, _} = cowboy_req:reply(500, Req),
-			close;
+			{error, 500, Req};
 		{halt, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
 		{true, Req2, HandlerState} ->
@@ -790,8 +790,7 @@ set_resp_body(Req, State=#state{handler=Handler, handler_state=HandlerState,
 				"function ~p/~p was not exported~n"
 				"** Request was ~p~n** State was ~p~n~n",
 				[Handler, Fun, 2, cowboy_req:to_list(Req5), HandlerState]),
-			{ok, _} = cowboy_req:reply(500, Req5),
-			close;
+			{error, 500, Req5};
 		{halt, Req6, HandlerState} ->
 			terminate(Req6, State4#state{handler_state=HandlerState});
 		{Body, Req6, HandlerState} ->
@@ -915,10 +914,11 @@ respond(Req, State, StatusCode) ->
 	{ok, Req2} = cowboy_req:reply(StatusCode, Req),
 	terminate(Req2, State).
 
-terminate(Req, #state{handler=Handler, handler_state=HandlerState}) ->
+terminate(Req, #state{env=Env, handler=Handler,
+		handler_state=HandlerState}) ->
 	case erlang:function_exported(Handler, rest_terminate, 2) of
 		true -> ok = Handler:rest_terminate(
 			cowboy_req:lock(Req), HandlerState);
 		false -> ok
 	end,
-	{ok, Req}.
+	{ok, Req, [{result, ok}|Env]}.

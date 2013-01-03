@@ -43,6 +43,12 @@ Cowboy User Guide
  *  [Hooks](hooks.md)
    *  On request
    *  On response
+ *  [Middlewares](middlewares.md)
+   *  Purpose
+   *  Usage
+   *  Configuration
+   *  Routing middleware
+   *  Handler middleware
  *  [Internals](internals.md)
    *  Architecture
    *  Efficiency considerations

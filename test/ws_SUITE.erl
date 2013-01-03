@@ -79,7 +79,7 @@ end_per_suite(_Config) ->
 init_per_group(ws, Config) ->
 	Port = 33080,
 	cowboy:start_http(ws, 100, [{port, Port}], [
-		{dispatch, init_dispatch()}
+		{env, [{dispatch, init_dispatch()}]}
 	]),
 	[{port, Port}|Config].
 

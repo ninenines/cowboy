@@ -135,18 +135,15 @@ handler to run instead of having to parse the routes repeatedly.
 
 This can be done with a simple call to `cowboy_routing:compile/1`.
 
-@todo Note that the `routes` option will be specified slightly differently
-when middleware support gets in.
-
 ``` erlang
 {ok, Routes} = cowboy_routing:compile([
-    %% {URIHost, list({URIPath, Handler, Opts})}
+    %% {HostMatch, list({PathMatch, Handler, Opts})}
     {'_', [{'_', my_handler, []}]}
 ]),
 %% Name, NbAcceptors, TransOpts, ProtoOpts
 cowboy:start_http(my_http_listener, 100,
     [{port, 8080}],
-    [{routes, Routes}]
+    [{env, [{routes, Routes}]}]
 ).
 ```
 

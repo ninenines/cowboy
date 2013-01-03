@@ -1,4 +1,4 @@
-%% Copyright (c) 2011-2012, Loïc Hoguin <essen@ninenines.eu>
+%% Copyright (c) 2011-2013, Loïc Hoguin <essen@ninenines.eu>
 %% Copyright (c) 2011, Anthony Ramine <nox@dev-extend.eu>
 %%
 %% Permission to use, copy, modify, and/or distribute this software for any
@@ -17,7 +17,8 @@
 %%
 %% The available options are:
 %% <dl>
-%%  <dt>dispatch</dt><dd>The dispatch list for this protocol.</dd>
+%%  <dt>env</dt><dd>The environment passed and optionally modified
+%%   by middlewares.</dd>
 %%  <dt>max_empty_lines</dt><dd>Max number of empty lines before a request.
 %%   Defaults to 5.</dd>
 %%  <dt>max_header_name_length</dt><dd>Max length allowed for header names.
@@ -30,6 +31,8 @@
 %%   keep-alive session. Defaults to infinity.</dd>
 %%  <dt>max_request_line_length</dt><dd>Max length allowed for the request
 %%   line. Defaults to 4096.</dd>
+%%  <dt>middlewares</dt><dd>The list of middlewares to execute when a
+%%   request is received.</dd>
 %%  <dt>onrequest</dt><dd>Optional fun that allows Req interaction before
 %%   any dispatching is done. Host info, path info and bindings are thus
 %%   not available at this point.</dd>
@@ -41,9 +44,6 @@
 %%
 %% Note that there is no need to monitor these processes when using Cowboy as
 %% an application as it already supervises them under the listener supervisor.
-%%
-%% @see cowboy_dispatcher
-%% @see cowboy_http_handler
 -module(cowboy_protocol).
 
 %% API.
@@ -52,20 +52,19 @@
 %% Internal.
 -export([init/4]).
 -export([parse_request/3]).
--export([handler_loop/4]).
+-export([resume/6]).
 
 -type onrequest_fun() :: fun((Req) -> Req).
 -type onresponse_fun() ::
 	fun((cowboy_http:status(), cowboy_http:headers(), iodata(), Req) -> Req).
-
 -export_type([onrequest_fun/0]).
 -export_type([onresponse_fun/0]).
 
 -record(state, {
-	listener :: pid(),
 	socket :: inet:socket(),
 	transport :: module(),
-	dispatch :: cowboy_dispatcher:dispatch_rules(),
+	middlewares :: [module()],
+	env :: cowboy_middleware:env(),
 	onrequest :: undefined | onrequest_fun(),
 	onresponse = undefined :: undefined | onresponse_fun(),
 	max_empty_lines :: non_neg_integer(),
@@ -75,10 +74,7 @@
 	max_header_name_length :: non_neg_integer(),
 	max_header_value_length :: non_neg_integer(),
 	max_headers :: non_neg_integer(),
-	timeout :: timeout(),
-	hibernate = false :: boolean(),
-	loop_timeout = infinity :: timeout(),
-	loop_timeout_ref :: undefined | reference()
+	timeout :: timeout()
 }).
 
 %% API.
@@ -102,19 +98,20 @@ get_value(Key, Opts, Default) ->
 %% @private
 -spec init(pid(), inet:socket(), module(), any()) -> ok.
 init(ListenerPid, Socket, Transport, Opts) ->
-	Dispatch = get_value(dispatch, Opts, []),
 	MaxEmptyLines = get_value(max_empty_lines, Opts, 5),
 	MaxHeaderNameLength = get_value(max_header_name_length, Opts, 64),
 	MaxHeaderValueLength = get_value(max_header_value_length, Opts, 4096),
 	MaxHeaders = get_value(max_headers, Opts, 100),
 	MaxKeepalive = get_value(max_keepalive, Opts, infinity),
 	MaxRequestLineLength = get_value(max_request_line_length, Opts, 4096),
+	Middlewares = get_value(middlewares, Opts, [cowboy_router, cowboy_handler]),
+	Env = [{listener, ListenerPid}|get_value(env, Opts, [])],
 	OnRequest = get_value(onrequest, Opts, undefined),
 	OnResponse = get_value(onresponse, Opts, undefined),
 	Timeout = get_value(timeout, Opts, 5000),
 	ok = ranch:accept_ack(ListenerPid),
-	wait_request(<<>>, #state{listener=ListenerPid, socket=Socket,
-		transport=Transport, dispatch=Dispatch,
+	wait_request(<<>>, #state{socket=Socket, transport=Transport,
+		middlewares=Middlewares, env=Env,
 		max_empty_lines=MaxEmptyLines, max_keepalive=MaxKeepalive,
 		max_request_line_length=MaxRequestLineLength,
 		max_header_name_length=MaxHeaderNameLength,
@@ -442,176 +439,57 @@ request(Buffer, State=#state{socket=Socket, transport=Transport,
 	Req = cowboy_req:new(Socket, Transport, Method, Path, Query, Fragment,
 		Version, Headers, Host, Port, Buffer, ReqKeepalive < MaxKeepalive,
 		OnResponse),
-	onrequest(Req, State, Host).
+	onrequest(Req, State).
 
 %% Call the global onrequest callback. The callback can send a reply,
 %% in which case we consider the request handled and move on to the next
 %% one. Note that since we haven't dispatched yet, we don't know the
 %% handler, host_info, path_info or bindings yet.
--spec onrequest(cowboy_req:req(), #state{}, binary()) -> ok.
-onrequest(Req, State=#state{onrequest=undefined}, Host) ->
-	dispatch(Req, State, Host, cowboy_req:get(path, Req));
-onrequest(Req, State=#state{onrequest=OnRequest}, Host) ->
+-spec onrequest(cowboy_req:req(), #state{}) -> ok.
+onrequest(Req, State=#state{onrequest=undefined}) ->
+	execute(Req, State);
+onrequest(Req, State=#state{onrequest=OnRequest}) ->
 	Req2 = OnRequest(Req),
 	case cowboy_req:get(resp_state, Req2) of
-		waiting -> dispatch(Req2, State, Host, cowboy_req:get(path, Req2));
+		waiting -> execute(Req2, State);
 		_ -> next_request(Req2, State, ok)
 	end.
 
--spec dispatch(cowboy_req:req(), #state{}, binary(), binary()) -> ok.
-dispatch(Req, State=#state{dispatch=Dispatch}, Host, Path) ->
-	case cowboy_dispatcher:match(Dispatch, Host, Path) of
-		{ok, Handler, Opts, Bindings, HostInfo, PathInfo} ->
-			Req2 = cowboy_req:set_bindings(HostInfo, PathInfo, Bindings, Req),
-			handler_init(Req2, State, Handler, Opts);
-		{error, notfound, host} ->
-			error_terminate(400, Req, State);
-		{error, badrequest, path} ->
-			error_terminate(400, Req, State);
-		{error, notfound, path} ->
-			error_terminate(404, Req, State)
-	end.
+-spec execute(cowboy_req:req(), #state{}) -> ok.
+execute(Req, State=#state{middlewares=Middlewares, env=Env}) ->
+	execute(Req, State, Env, Middlewares).
 
--spec handler_init(cowboy_req:req(), #state{}, module(), any()) -> ok.
-handler_init(Req, State=#state{transport=Transport}, Handler, Opts) ->
-	try Handler:init({Transport:name(), http}, Req, Opts) of
-		{ok, Req2, HandlerState} ->
-			handler_handle(Req2, State, Handler, HandlerState);
-		{loop, Req2, HandlerState} ->
-			handler_before_loop(Req2, State#state{hibernate=false},
-				Handler, HandlerState);
-		{loop, Req2, HandlerState, hibernate} ->
-			handler_before_loop(Req2, State#state{hibernate=true},
-				Handler, HandlerState);
-		{loop, Req2, HandlerState, Timeout} ->
-			handler_before_loop(Req2, State#state{loop_timeout=Timeout},
-				Handler, HandlerState);
-		{loop, Req2, HandlerState, Timeout, hibernate} ->
-			handler_before_loop(Req2, State#state{
-				hibernate=true, loop_timeout=Timeout}, Handler, HandlerState);
-		{shutdown, Req2, HandlerState} ->
-			handler_terminate(Req2, Handler, HandlerState);
-		%% @todo {upgrade, transport, Module}
-		{upgrade, protocol, Module} ->
-			upgrade_protocol(Req, State, Handler, Opts, Module);
-		{upgrade, protocol, Module, Req2, Opts2} ->
-			upgrade_protocol(Req2, State, Handler, Opts2, Module)
-	catch Class:Reason ->
-		error_terminate(500, Req, State),
-		error_logger:error_msg(
-			"** Cowboy handler ~p terminating in ~p/~p~n"
-			"   for the reason ~p:~p~n"
-			"** Options were ~p~n"
-			"** Request was ~p~n"
-			"** Stacktrace: ~p~n~n",
-			[Handler, init, 3, Class, Reason, Opts,
-				cowboy_req:to_list(Req), erlang:get_stacktrace()])
-	end.
-
--spec upgrade_protocol(cowboy_req:req(), #state{}, module(), any(), module())
+-spec execute(cowboy_req:req(), #state{}, cowboy_middleware:env(), [module()])
 	-> ok.
-upgrade_protocol(Req, State=#state{listener=ListenerPid},
-		Handler, Opts, Module) ->
-	case Module:upgrade(ListenerPid, Handler, Opts, Req) of
-		{UpgradeRes, Req2} -> next_request(Req2, State, UpgradeRes);
-		_Any -> terminate(State)
+execute(Req, State, Env, []) ->
+	next_request(Req, State, get_value(result, Env, ok));
+execute(Req, State, Env, [Middleware|Tail]) ->
+	case Middleware:execute(Req, Env) of
+		{ok, Req2, Env2} ->
+			execute(Req2, State, Env2, Tail);
+		{suspend, Module, Function, Args} ->
+			erlang:hibernate(?MODULE, resume,
+				[State, Env, Tail, Module, Function, Args]);
+		{halt, Req2} ->
+			next_request(Req2, State, ok);
+		{error, Code, Req2} ->
+			error_terminate(Code, Req2, State)
 	end.
 
--spec handler_handle(cowboy_req:req(), #state{}, module(), any()) -> ok.
-handler_handle(Req, State, Handler, HandlerState) ->
-	try Handler:handle(Req, HandlerState) of
-		{ok, Req2, HandlerState2} ->
-			terminate_request(Req2, State, Handler, HandlerState2)
-	catch Class:Reason ->
-		error_logger:error_msg(
-			"** Cowboy handler ~p terminating in ~p/~p~n"
-			"   for the reason ~p:~p~n"
-			"** Handler state was ~p~n"
-			"** Request was ~p~n"
-			"** Stacktrace: ~p~n~n",
-			[Handler, handle, 2, Class, Reason, HandlerState,
-				cowboy_req:to_list(Req), erlang:get_stacktrace()]),
-		handler_terminate(Req, Handler, HandlerState),
-		error_terminate(500, Req, State)
+-spec resume(#state{}, cowboy_middleware:env(), [module()],
+	module(), module(), [any()]) -> ok.
+resume(State, Env, Tail, Module, Function, Args) ->
+	case apply(Module, Function, Args) of
+		{ok, Req2, Env2} ->
+			execute(Req2, State, Env2, Tail);
+		{suspend, Module2, Function2, Args2} ->
+			erlang:hibernate(?MODULE, resume,
+				[State, Env, Tail, Module2, Function2, Args2]);
+		{halt, Req2} ->
+			next_request(Req2, State, ok);
+		{error, Code, Req2} ->
+			error_terminate(Code, Req2, State)
 	end.
-
-%% We don't listen for Transport closes because that would force us
-%% to receive data and buffer it indefinitely.
--spec handler_before_loop(cowboy_req:req(), #state{}, module(), any()) -> ok.
-handler_before_loop(Req, State=#state{hibernate=true}, Handler, HandlerState) ->
-	State2 = handler_loop_timeout(State),
-	catch erlang:hibernate(?MODULE, handler_loop,
-		[Req, State2#state{hibernate=false}, Handler, HandlerState]),
-	ok;
-handler_before_loop(Req, State, Handler, HandlerState) ->
-	State2 = handler_loop_timeout(State),
-	handler_loop(Req, State2, Handler, HandlerState).
-
-%% Almost the same code can be found in cowboy_websocket.
--spec handler_loop_timeout(#state{}) -> #state{}.
-handler_loop_timeout(State=#state{loop_timeout=infinity}) ->
-	State#state{loop_timeout_ref=undefined};
-handler_loop_timeout(State=#state{loop_timeout=Timeout,
-		loop_timeout_ref=PrevRef}) ->
-	_ = case PrevRef of undefined -> ignore; PrevRef ->
-		erlang:cancel_timer(PrevRef) end,
-	TRef = erlang:start_timer(Timeout, self(), ?MODULE),
-	State#state{loop_timeout_ref=TRef}.
-
-%% @private
--spec handler_loop(cowboy_req:req(), #state{}, module(), any()) -> ok.
-handler_loop(Req, State=#state{loop_timeout_ref=TRef}, Handler, HandlerState) ->
-	receive
-		{timeout, TRef, ?MODULE} ->
-			terminate_request(Req, State, Handler, HandlerState);
-		{timeout, OlderTRef, ?MODULE} when is_reference(OlderTRef) ->
-			handler_loop(Req, State, Handler, HandlerState);
-		Message ->
-			handler_call(Req, State, Handler, HandlerState, Message)
-	end.
-
--spec handler_call(cowboy_req:req(), #state{}, module(), any(), any()) -> ok.
-handler_call(Req, State, Handler, HandlerState, Message) ->
-	try Handler:info(Message, Req, HandlerState) of
-		{ok, Req2, HandlerState2} ->
-			terminate_request(Req2, State, Handler, HandlerState2);
-		{loop, Req2, HandlerState2} ->
-			handler_before_loop(Req2, State, Handler, HandlerState2);
-		{loop, Req2, HandlerState2, hibernate} ->
-			handler_before_loop(Req2, State#state{hibernate=true},
-				Handler, HandlerState2)
-	catch Class:Reason ->
-		error_logger:error_msg(
-			"** Cowboy handler ~p terminating in ~p/~p~n"
-			"   for the reason ~p:~p~n"
-			"** Handler state was ~p~n"
-			"** Request was ~p~n"
-			"** Stacktrace: ~p~n~n",
-			[Handler, info, 3, Class, Reason, HandlerState,
-				cowboy_req:to_list(Req), erlang:get_stacktrace()]),
-		handler_terminate(Req, Handler, HandlerState),
-		error_terminate(500, Req, State)
-	end.
-
--spec handler_terminate(cowboy_req:req(), module(), any()) -> ok.
-handler_terminate(Req, Handler, HandlerState) ->
-	try
-		Handler:terminate(cowboy_req:lock(Req), HandlerState)
-	catch Class:Reason ->
-		error_logger:error_msg(
-			"** Cowboy handler ~p terminating in ~p/~p~n"
-			"   for the reason ~p:~p~n"
-			"** Handler state was ~p~n"
-			"** Request was ~p~n"
-			"** Stacktrace: ~p~n~n",
-			[Handler, terminate, 2, Class, Reason, HandlerState,
-				cowboy_req:to_list(Req), erlang:get_stacktrace()])
-	end.
-
--spec terminate_request(cowboy_req:req(), #state{}, module(), any()) -> ok.
-terminate_request(Req, State, Handler, HandlerState) ->
-	HandlerRes = handler_terminate(Req, Handler, HandlerState),
-	next_request(Req, State, HandlerRes).
 
 -spec next_request(cowboy_req:req(), #state{}, any()) -> ok.
 next_request(Req, State=#state{req_keepalive=Keepalive}, HandlerRes) ->

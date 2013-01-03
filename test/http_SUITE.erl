@@ -153,7 +153,7 @@ init_per_group(http, Config) ->
 	Transport = ranch_tcp,
 	Config1 = init_static_dir(Config),
 	{ok, _} = cowboy:start_http(http, 100, [{port, Port}], [
-		{dispatch, init_dispatch(Config1)},
+		{env, [{dispatch, init_dispatch(Config1)}]},
 		{max_keepalive, 50},
 		{timeout, 500}
 	]),
@@ -172,7 +172,7 @@ init_per_group(https, Config) ->
 	application:start(public_key),
 	application:start(ssl),
 	{ok, _} = cowboy:start_https(https, 100, Opts ++ [{port, Port}], [
-		{dispatch, init_dispatch(Config1)},
+		{env, [{dispatch, init_dispatch(Config1)}]},
 		{max_keepalive, 50},
 		{timeout, 500}
 	]),
@@ -183,7 +183,7 @@ init_per_group(onrequest, Config) ->
 	Port = 33082,
 	Transport = ranch_tcp,
 	{ok, _} = cowboy:start_http(onrequest, 100, [{port, Port}], [
-		{dispatch, init_dispatch(Config)},
+		{env, [{dispatch, init_dispatch(Config)}]},
 		{max_keepalive, 50},
 		{onrequest, fun onrequest_hook/1},
 		{timeout, 500}
@@ -195,7 +195,7 @@ init_per_group(onresponse, Config) ->
 	Port = 33083,
 	Transport = ranch_tcp,
 	{ok, _} = cowboy:start_http(onresponse, 100, [{port, Port}], [
-		{dispatch, init_dispatch(Config)},
+		{env, [{dispatch, init_dispatch(Config)}]},
 		{max_keepalive, 50},
 		{onresponse, fun onresponse_hook/4},
 		{timeout, 500}
@@ -503,8 +503,8 @@ http10_hostless(Config) ->
 	ranch:start_listener(Name, 5,
 		?config(transport, Config), ?config(opts, Config) ++ [{port, Port10}],
 		cowboy_protocol, [
-			{dispatch, [{'_', [
-				{[<<"http1.0">>, <<"hostless">>], http_handler, []}]}]},
+			{env, [{dispatch, [{'_', [
+				{[<<"http1.0">>, <<"hostless">>], http_handler, []}]}]}]},
 			{max_keepalive, 50},
 			{timeout, 500}]
 	),

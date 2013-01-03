@@ -1,4 +1,4 @@
-%% Copyright (c) 2011-2012, Loïc Hoguin <essen@ninenines.eu>
+%% Copyright (c) 2011-2013, Loïc Hoguin <essen@ninenines.eu>
 %%
 %% Permission to use, copy, modify, and/or distribute this software for any
 %% purpose with or without fee is hereby granted, provided that the above
@@ -38,11 +38,12 @@
 	{fin, opcode(), binary()}. %% last fragment has been seen.
 
 -record(state, {
+	env :: cowboy_middleware:env(),
 	socket = undefined :: inet:socket(),
 	transport = undefined :: module(),
 	version :: 0 | 7 | 8 | 13,
 	handler :: module(),
-	opts :: any(),
+	handler_opts :: any(),
 	challenge = undefined :: undefined | binary() | {binary(), binary()},
 	timeout = infinity :: timeout(),
 	timeout_ref = undefined :: undefined | reference(),
@@ -58,15 +59,19 @@
 %% You do not need to call this function manually. To upgrade to the WebSocket
 %% protocol, you simply need to return <em>{upgrade, protocol, {@module}}</em>
 %% in your <em>cowboy_http_handler:init/3</em> handler function.
--spec upgrade(pid(), module(), any(), cowboy_req:req()) -> closed.
-upgrade(ListenerPid, Handler, Opts, Req) ->
+-spec upgrade(Req, Env, module(), any())
+	-> {ok, Req, Env} | {error, 400, Req}
+	| {suspend, module(), atom(), [any()]}
+	when Req::cowboy_req:req(), Env::cowboy_middleware:env().
+upgrade(Req, Env, Handler, HandlerOpts) ->
+	{_, ListenerPid} = lists:keyfind(listener, 1, Env),
 	ranch_listener:remove_connection(ListenerPid),
 	{ok, Transport, Socket} = cowboy_req:transport(Req),
-	State = #state{socket=Socket, transport=Transport,
-		handler=Handler, opts=Opts},
+	State = #state{env=Env, socket=Socket, transport=Transport,
+		handler=Handler, handler_opts=HandlerOpts},
 	case catch websocket_upgrade(State, Req) of
 		{ok, State2, Req2} -> handler_init(State2, Req2);
-		{'EXIT', _Reason} -> upgrade_error(Req)
+		{'EXIT', _Reason} -> upgrade_error(Req, Env)
 	end.
 
 -spec websocket_upgrade(#state{}, Req)
@@ -110,10 +115,13 @@ websocket_upgrade(Version, State, Req)
 	{ok, State#state{version=IntVersion, challenge=Challenge},
 		cowboy_req:set_meta(websocket_version, IntVersion, Req2)}.
 
--spec handler_init(#state{}, cowboy_req:req()) -> closed.
-handler_init(State=#state{transport=Transport, handler=Handler, opts=Opts},
-		Req) ->
-	try Handler:websocket_init(Transport:name(), Req, Opts) of
+-spec handler_init(#state{}, Req)
+	-> {ok, Req, cowboy_middleware:env()} | {error, 400, Req}
+	| {suspend, module(), atom(), [any()]}
+	when Req::cowboy_req:req().
+handler_init(State=#state{env=Env, transport=Transport,
+		handler=Handler, handler_opts=HandlerOpts}, Req) ->
+	try Handler:websocket_init(Transport:name(), Req, HandlerOpts) of
 		{ok, Req2, HandlerState} ->
 			websocket_handshake(State, Req2, HandlerState);
 		{ok, Req2, HandlerState, hibernate} ->
@@ -127,27 +135,31 @@ handler_init(State=#state{transport=Transport, handler=Handler, opts=Opts},
 				hibernate=true}, Req2, HandlerState);
 		{shutdown, Req2} ->
 			cowboy_req:ensure_response(Req2, 400),
-			closed
+			{ok, Req2, [{result, closed}|Env]}
 	catch Class:Reason ->
-		upgrade_error(Req),
 		error_logger:error_msg(
 			"** Cowboy handler ~p terminating in ~p/~p~n"
 			"   for the reason ~p:~p~n** Options were ~p~n"
 			"** Request was ~p~n** Stacktrace: ~p~n~n",
-			[Handler, websocket_init, 3, Class, Reason, Opts,
-				cowboy_req:to_list(Req),erlang:get_stacktrace()])
+			[Handler, websocket_init, 3, Class, Reason, HandlerOpts,
+				cowboy_req:to_list(Req),erlang:get_stacktrace()]),
+		upgrade_error(Req, Env)
 	end.
 
--spec upgrade_error(cowboy_req:req()) -> closed.
-upgrade_error(Req) ->
+-spec upgrade_error(Req, Env) -> {ok, Req, Env} | {error, 400, Req}
+	when Req::cowboy_req:req(), Env::cowboy_middleware:env().
+upgrade_error(Req, Env) ->
 	receive
-		{cowboy_req, resp_sent} -> closed
+		{cowboy_req, resp_sent} ->
+			{ok, Req, [{result, closed}|Env]}
 	after 0 ->
-		_ = cowboy_req:reply(400, [], [], Req),
-		closed
+		{error, 400, Req}
 	end.
 
--spec websocket_handshake(#state{}, cowboy_req:req(), any()) -> closed.
+-spec websocket_handshake(#state{}, Req, any())
+	-> {ok, Req, cowboy_middleware:env()}
+	| {suspend, module(), atom(), [any()]}
+	when Req::cowboy_req:req().
 websocket_handshake(State=#state{socket=Socket, transport=Transport,
 		version=0, origin=Origin, challenge={Key1, Key2}},
 		Req, HandlerState) ->
@@ -192,14 +204,16 @@ websocket_handshake(State=#state{transport=Transport, challenge=Challenge},
 	handler_before_loop(State2#state{messages=Transport:messages()},
 		Req2, HandlerState, <<>>).
 
--spec handler_before_loop(#state{}, cowboy_req:req(), any(), binary()) -> closed.
+-spec handler_before_loop(#state{}, Req, any(), binary())
+	-> {ok, Req, cowboy_middleware:env()}
+	| {suspend, module(), atom(), [any()]}
+	when Req::cowboy_req:req().
 handler_before_loop(State=#state{
 			socket=Socket, transport=Transport, hibernate=true},
 		Req, HandlerState, SoFar) ->
 	Transport:setopts(Socket, [{active, once}]),
-	catch erlang:hibernate(?MODULE, handler_loop,
-		[State#state{hibernate=false}, Req, HandlerState, SoFar]),
-	closed;
+	{suspend, ?MODULE, handler_loop,
+		[State#state{hibernate=false}, Req, HandlerState, SoFar]};
 handler_before_loop(State=#state{socket=Socket, transport=Transport},
 		Req, HandlerState, SoFar) ->
 	Transport:setopts(Socket, [{active, once}]),
@@ -215,7 +229,10 @@ handler_loop_timeout(State=#state{timeout=Timeout, timeout_ref=PrevRef}) ->
 	State#state{timeout_ref=TRef}.
 
 %% @private
--spec handler_loop(#state{}, cowboy_req:req(), any(), binary()) -> closed.
+-spec handler_loop(#state{}, Req, any(), binary())
+	-> {ok, Req, cowboy_middleware:env()}
+	| {suspend, module(), atom(), [any()]}
+	when Req::cowboy_req:req().
 handler_loop(State=#state{
 			socket=Socket, messages={OK, Closed, Error}, timeout_ref=TRef},
 		Req, HandlerState, SoFar) ->
@@ -237,7 +254,10 @@ handler_loop(State=#state{
 				SoFar, websocket_info, Message, fun handler_before_loop/4)
 	end.
 
--spec websocket_data(#state{}, cowboy_req:req(), any(), binary()) -> closed.
+-spec websocket_data(#state{}, Req, any(), binary())
+	-> {ok, Req, cowboy_middleware:env()}
+	| {suspend, module(), atom(), [any()]}
+	when Req::cowboy_req:req().
 %% No more data.
 websocket_data(State, Req, HandlerState, <<>>) ->
 	handler_before_loop(State, Req, HandlerState, <<>>);
@@ -294,9 +314,11 @@ websocket_data(State, Req, HandlerState,
 websocket_data(State, Req, HandlerState, _Data) ->
 	websocket_close(State, Req, HandlerState, {error, badframe}).
 
--spec websocket_data(#state{}, cowboy_req:req(), any(), non_neg_integer(),
+-spec websocket_data(#state{}, Req, any(), non_neg_integer(),
 		non_neg_integer(), non_neg_integer(), non_neg_integer(),
-		non_neg_integer(), binary(), binary()) -> closed.
+		non_neg_integer(), binary(), binary())
+	-> {ok, Req, cowboy_middleware:env()}
+	when Req::cowboy_req:req().
 %% A fragmented message MUST start a non-zero opcode.
 websocket_data(State=#state{frag_state=undefined}, Req, HandlerState,
 		_Fin=0, _Rsv=0, _Opcode=0, _Mask, _PayloadLen, _Rest, _Buffer) ->
@@ -349,8 +371,11 @@ websocket_data(State, Req, HandlerState, _Fin, _Rsv, _Opcode, _Mask,
 		websocket_close(State, Req, HandlerState, {error, badframe}).
 
 %% hybi routing depending on whether unmasking is needed.
--spec websocket_before_unmask(#state{}, cowboy_req:req(), any(), binary(),
-	binary(), opcode(), 0 | 1, non_neg_integer() | undefined) -> closed.
+-spec websocket_before_unmask(#state{}, Req, any(), binary(),
+	binary(), opcode(), 0 | 1, non_neg_integer() | undefined)
+	-> {ok, Req, cowboy_middleware:env()}
+	| {suspend, module(), atom(), [any()]}
+	when Req::cowboy_req:req().
 websocket_before_unmask(State, Req, HandlerState, Data,
 		Rest, Opcode, Mask, PayloadLen) ->
 	case {Mask, PayloadLen} of
@@ -366,15 +391,21 @@ websocket_before_unmask(State, Req, HandlerState, Data,
 	end.
 
 %% hybi unmasking.
--spec websocket_unmask(#state{}, cowboy_req:req(), any(), binary(),
-	opcode(), binary(), mask_key()) -> closed.
+-spec websocket_unmask(#state{}, Req, any(), binary(),
+	opcode(), binary(), mask_key())
+	-> {ok, Req, cowboy_middleware:env()}
+	| {suspend, module(), atom(), [any()]}
+	when Req::cowboy_req:req().
 websocket_unmask(State, Req, HandlerState, RemainingData,
 		Opcode, Payload, MaskKey) ->
 	websocket_unmask(State, Req, HandlerState, RemainingData,
 		Opcode, Payload, MaskKey, <<>>).
 
--spec websocket_unmask(#state{}, cowboy_req:req(), any(), binary(),
-	opcode(), binary(), mask_key(), binary()) -> closed.
+-spec websocket_unmask(#state{}, Req, any(), binary(),
+	opcode(), binary(), mask_key(), binary())
+	-> {ok, Req, cowboy_middleware:env()}
+	| {suspend, module(), atom(), [any()]}
+	when Req::cowboy_req:req().
 websocket_unmask(State, Req, HandlerState, RemainingData,
 		Opcode, << O:32, Rest/bits >>, MaskKey, Acc) ->
 	T = O bxor MaskKey,
@@ -404,8 +435,10 @@ websocket_unmask(State, Req, HandlerState, RemainingData,
 		Opcode, Acc).
 
 %% hybi dispatching.
--spec websocket_dispatch(#state{}, cowboy_req:req(), any(), binary(),
-	opcode(), binary()) -> closed.
+-spec websocket_dispatch(#state{}, Req, any(), binary(), opcode(), binary())
+	-> {ok, Req, cowboy_middleware:env()}
+	| {suspend, module(), atom(), [any()]}
+	when Req::cowboy_req:req().
 %% First frame of a fragmented message unmasked. Expect intermediate or last.
 websocket_dispatch(State=#state{frag_state={nofin, Opcode}}, Req, HandlerState,
 		RemainingData, 0, Payload) ->
@@ -446,10 +479,12 @@ websocket_dispatch(State, Req, HandlerState, RemainingData, 10, Payload) ->
 	handler_call(State, Req, HandlerState, RemainingData,
 		websocket_handle, {pong, Payload}, fun websocket_data/4).
 
--spec handler_call(#state{}, cowboy_req:req(), any(), binary(),
-	atom(), any(), fun()) -> closed.
-handler_call(State=#state{handler=Handler, opts=Opts}, Req, HandlerState,
-		RemainingData, Callback, Message, NextState) ->
+-spec handler_call(#state{}, Req, any(), binary(), atom(), any(), fun())
+	-> {ok, Req, cowboy_middleware:env()}
+	| {suspend, module(), atom(), [any()]}
+	when Req::cowboy_req:req().
+handler_call(State=#state{handler=Handler, handler_opts=HandlerOpts}, Req,
+		HandlerState, RemainingData, Callback, Message, NextState) ->
 	try Handler:Callback(Message, Req, HandlerState) of
 		{ok, Req2, HandlerState2} ->
 			NextState(State, Req2, HandlerState2, RemainingData);
@@ -515,7 +550,7 @@ handler_call(State=#state{handler=Handler, opts=Opts}, Req, HandlerState,
 			"   for the reason ~p:~p~n** Message was ~p~n"
 			"** Options were ~p~n** Handler state was ~p~n"
 			"** Request was ~p~n** Stacktrace: ~p~n~n",
-			[Handler, Callback, 3, Class, Reason, Message, Opts,
+			[Handler, Callback, 3, Class, Reason, Message, HandlerOpts,
 			 HandlerState, PLReq, erlang:get_stacktrace()]),
 		websocket_close(State, Req, HandlerState, {error, handler})
 	end.
@@ -582,8 +617,9 @@ websocket_send_many([Frame|Tail], State) ->
 		Error -> Error
 	end.
 
--spec websocket_close(#state{}, cowboy_req:req(), any(), {atom(), atom()})
-	-> closed.
+-spec websocket_close(#state{}, Req, any(), {atom(), atom()})
+	-> {ok, Req, cowboy_middleware:env()}
+	when Req::cowboy_req:req().
 websocket_close(State=#state{socket=Socket, transport=Transport, version=0},
 		Req, HandlerState, Reason) ->
 	Transport:send(Socket, << 255, 0 >>),
@@ -593,9 +629,10 @@ websocket_close(State=#state{socket=Socket, transport=Transport},
 	Transport:send(Socket, << 1:1, 0:3, 8:4, 0:8 >>),
 	handler_terminate(State, Req, HandlerState, Reason).
 
--spec handler_terminate(#state{}, cowboy_req:req(),
-	any(), atom() | {atom(), atom()}) -> closed.
-handler_terminate(#state{handler=Handler, opts=Opts},
+-spec handler_terminate(#state{}, Req, any(), atom() | {atom(), atom()})
+	-> {ok, Req, cowboy_middleware:env()}
+	when Req::cowboy_req:req().
+handler_terminate(#state{env=Env, handler=Handler, handler_opts=HandlerOpts},
 		Req, HandlerState, TerminateReason) ->
 	try
 		Handler:websocket_terminate(TerminateReason, Req, HandlerState)
@@ -606,10 +643,10 @@ handler_terminate(#state{handler=Handler, opts=Opts},
 			"   for the reason ~p:~p~n** Initial reason was ~p~n"
 			"** Options were ~p~n** Handler state was ~p~n"
 			"** Request was ~p~n** Stacktrace: ~p~n~n",
-			[Handler, websocket_terminate, 3, Class, Reason, TerminateReason, Opts,
-			 HandlerState, PLReq, erlang:get_stacktrace()])
+			[Handler, websocket_terminate, 3, Class, Reason, TerminateReason,
+				HandlerOpts, HandlerState, PLReq, erlang:get_stacktrace()])
 	end,
-	closed.
+	{ok, Req, [{result, closed}|Env]}.
 
 %% hixie-76 specific.
 
