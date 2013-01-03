@@ -71,7 +71,7 @@ rfc1123() ->
 rfc1123(DateTime) ->
 	update_rfc1123(<<>>, undefined, DateTime).
 
-%% @doc Return the current date and time formatted according to RFC-2109.
+%% @doc Return the given date and time formatted according to RFC-2109.
 %%
 %% This format is used in the <em>set-cookie</em> header sent with
 %% HTTP responses.
