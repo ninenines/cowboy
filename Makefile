@@ -2,7 +2,6 @@
 
 PROJECT = cowboy
 
-DIALYZER = dialyzer
 REBAR = rebar
 
 all: app
@@ -37,18 +36,26 @@ deps/proper:
 
 tests: clean deps/proper app eunit ct
 
-inttests: clean deps/proper app eunit intct
-
 eunit:
 	@$(REBAR) -C rebar.tests.config eunit skip_deps=true
 
-ct:
-	@$(REBAR) -C rebar.tests.config ct skip_deps=true suites=http,ws
+CT_RUN = ct_run \
+	-pa ebin deps/*/ebin \
+	-dir test \
+	-logdir logs \
+	-cover test/cover.spec
 
-intct:
-	@$(REBAR) -C rebar.tests.config ct skip_deps=true suites=http,ws,autobahn
+ct:
+	@mkdir -p logs/
+	@$(CT_RUN) -suite http_SUITE ws_SUITE
+
+autobahn:
+	@mkdir -p logs/
+	@$(CT_RUN) -suite autobahn_SUITE
 
 # Dialyzer.
+
+DIALYZER = dialyzer
 
 build-plt:
 	@$(DIALYZER) --build_plt --output_plt .$(PROJECT).plt \
