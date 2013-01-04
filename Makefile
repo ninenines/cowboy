@@ -20,7 +20,7 @@ clean:
 	rm -f erl_crash.dump
 
 docs: clean-docs
-	@$(REBAR) doc skip_deps=true
+	erl -noshell -eval 'edoc:application(cowboy, ".", []), init:stop().'
 
 clean-docs:
 	rm -f doc/*.css
