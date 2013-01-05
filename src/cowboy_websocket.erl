@@ -66,7 +66,7 @@
 upgrade(Req, Env, Handler, HandlerOpts) ->
 	{_, ListenerPid} = lists:keyfind(listener, 1, Env),
 	ranch_listener:remove_connection(ListenerPid),
-	{ok, Transport, Socket} = cowboy_req:transport(Req),
+	[Socket, Transport] = cowboy_req:get([socket, transport], Req),
 	State = #state{env=Env, socket=Socket, transport=Transport,
 		handler=Handler, handler_opts=HandlerOpts},
 	case catch websocket_upgrade(State, Req) of

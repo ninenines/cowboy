@@ -111,7 +111,6 @@
 -export([compact/1]).
 -export([lock/1]).
 -export([to_list/1]).
--export([transport/1]).
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
@@ -1078,18 +1077,6 @@ lock(Req) ->
 -spec to_list(req()) -> [{atom(), any()}].
 to_list(Req) ->
 	lists:zip(record_info(fields, http_req), tl(tuple_to_list(Req))).
-
-%% @doc Return the transport module and socket associated with a request.
-%%
-%% This exposes the same socket interface used internally by the HTTP protocol
-%% implementation to developers that needs low level access to the socket.
-%%
-%% It is preferred to use this in conjuction with the stream function support
-%% in `set_resp_body_fun/3' if this is used to write a response body directly
-%% to the socket. This ensures that the response headers are set correctly.
--spec transport(req()) -> {ok, module(), inet:socket()}.
-transport(#http_req{transport=Transport, socket=Socket}) ->
-	{ok, Transport, Socket}.
 
 %% Internal.
 
