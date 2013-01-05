@@ -123,7 +123,7 @@
 -type cookie_opts() :: [cookie_option()].
 -export_type([cookie_opts/0]).
 
--type resp_body_fun() :: fun(() -> {sent, non_neg_integer()}).
+-type resp_body_fun() :: fun((inet:socket(), module()) -> ok).
 
 -record(http_req, {
 	%% Transport.
@@ -876,6 +876,7 @@ reply(Status, Headers, Req=#http_req{resp_body=Body}) ->
 	iodata() | {non_neg_integer() | resp_body_fun()}, Req)
 	-> {ok, Req} when Req::req().
 reply(Status, Headers, Body, Req=#http_req{
+		socket=Socket, transport=Transport,
 		version=Version, connection=Connection,
 		method=Method, resp_state=waiting, resp_headers=RespHeaders}) ->
 	RespConn = response_connection(Headers, Connection),
@@ -890,7 +891,8 @@ reply(Status, Headers, Body, Req=#http_req{
 					{<<"date">>, cowboy_clock:rfc1123()},
 					{<<"server">>, <<"Cowboy">>}
 				|HTTP11Headers], <<>>, Req),
-			if	RespType =/= hook, Method =/= <<"HEAD">> -> BodyFun();
+			if	RespType =/= hook, Method =/= <<"HEAD">> ->
+					BodyFun(Socket, Transport);
 				true -> ok
 			end;
 		_ ->

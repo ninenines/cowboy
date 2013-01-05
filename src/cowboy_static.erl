@@ -321,8 +321,10 @@ content_types_provided(Req, #state{filepath=Filepath,
 -spec file_contents(cowboy_req:req(), #state{}) -> tuple().
 file_contents(Req, #state{filepath=Filepath,
 		fileinfo={ok, #file_info{size=Filesize}}}=State) ->
-	{ok, Transport, Socket} = cowboy_req:transport(Req),
-	Writefile = fun() -> Transport:sendfile(Socket, Filepath) end,
+	Writefile = fun(Socket, Transport) ->
+		{ok, _} = Transport:sendfile(Socket, Filepath),
+		ok
+	end,
 	{{stream, Filesize, Writefile}, Req, State}.
 
 
