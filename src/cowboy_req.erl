@@ -89,6 +89,7 @@
 -export([set_resp_cookie/4]).
 -export([set_resp_header/3]).
 -export([set_resp_body/2]).
+-export([set_resp_body_fun/2]).
 -export([set_resp_body_fun/3]).
 -export([has_resp_header/2]).
 -export([has_resp_body/1]).
@@ -157,7 +158,8 @@
 	%% Response.
 	resp_state = waiting :: locked | waiting | chunks | done,
 	resp_headers = [] :: cowboy_http:headers(),
-	resp_body = <<>> :: iodata() | {non_neg_integer(), resp_body_fun()},
+	resp_body = <<>> :: iodata() | resp_body_fun()
+		| {non_neg_integer(), resp_body_fun()},
 
 	%% Functions.
 	onresponse = undefined :: undefined | cowboy_protocol:onresponse_fun()
@@ -821,20 +823,33 @@ set_resp_header(Name, Value, Req=#http_req{resp_headers=RespHeaders}) ->
 set_resp_body(Body, Req) ->
 	Req#http_req{resp_body=Body}.
 
+%% @doc Add a body stream function to the response.
+%%
+%% The body set here is ignored if the response is later sent using
+%% anything other than reply/2 or reply/3.
+%%
+%% Setting a response stream function without a length means that the
+%% body will be sent until the connection is closed. Cowboy will make
+%% sure that the connection is closed with no extra step required.
+%%
+%% To inform the client that a body has been sent with this request,
+%% Cowboy will add a "Transfer-Encoding: identity" header to the
+%% response.
+-spec set_resp_body_fun(resp_body_fun(), Req) -> Req when Req::req().
+set_resp_body_fun(StreamFun, Req) ->
+	Req#http_req{resp_body=StreamFun}.
+
 %% @doc Add a body function to the response.
 %%
-%% The response body may also be set to a content-length - stream-function pair.
-%% If the response body is of this type normal response headers will be sent.
-%% After the response headers has been sent the body function is applied.
-%% The body function is expected to write the response body directly to the
-%% socket using the transport module.
+%% The body set here is ignored if the response is later sent using
+%% anything other than reply/2 or reply/3.
 %%
-%% If the body function crashes while writing the response body or writes fewer
-%% bytes than declared the behaviour is undefined. The body set here is ignored
-%% if the response is later sent using anything other than `reply/2' or
-%% `reply/3'.
+%% Cowboy will call the given response stream function after sending the
+%% headers. This function must send the specified number of bytes to the
+%% socket it will receive as argument.
 %%
-%% @see cowboy_req:transport/1.
+%% If the body function crashes while writing the response body or writes
+%% fewer bytes than declared the behaviour is undefined.
 -spec set_resp_body_fun(non_neg_integer(), resp_body_fun(), Req)
 	-> Req when Req::req().
 set_resp_body_fun(StreamLen, StreamFun, Req) ->
@@ -884,7 +899,20 @@ reply(Status, Headers, Body, Req=#http_req{
 		_ -> []
 	end,
 	case Body of
+		BodyFun when is_function(BodyFun) ->
+			%% We stream the response body until we close the connection.
+			{RespType, Req2} = response(Status, Headers, RespHeaders, [
+					{<<"connection">>, <<"close">>},
+					{<<"date">>, cowboy_clock:rfc1123()},
+					{<<"server">>, <<"Cowboy">>},
+					{<<"transfer-encoding">>, <<"identity">>}
+				], <<>>, Req#http_req{connection=close}),
+			if	RespType =/= hook, Method =/= <<"HEAD">> ->
+					BodyFun(Socket, Transport);
+				true -> ok
+			end;
 		{ContentLength, BodyFun} ->
+			%% We stream the response body for ContentLength bytes.
 			{RespType, Req2} = response(Status, Headers, RespHeaders, [
 					{<<"content-length">>, integer_to_list(ContentLength)},
 					{<<"date">>, cowboy_clock:rfc1123()},

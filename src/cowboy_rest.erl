@@ -796,8 +796,10 @@ set_resp_body(Req, State=#state{handler=Handler, handler_state=HandlerState,
 		{Body, Req6, HandlerState} ->
 			State5 = State4#state{handler_state=HandlerState},
 			Req7 = case Body of
-				{stream, Len, Fun1} ->
-					cowboy_req:set_resp_body_fun(Len, Fun1, Req6);
+				{stream, StreamFun} ->
+					cowboy_req:set_resp_body_fun(StreamFun, Req6);
+				{stream, Len, StreamFun} ->
+					cowboy_req:set_resp_body_fun(Len, StreamFun, Req6);
 				_Contents ->
 					cowboy_req:set_resp_body(Body, Req6)
 			end,

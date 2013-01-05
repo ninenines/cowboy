@@ -68,6 +68,7 @@
 -export([static_test_file/1]).
 -export([static_test_file_css/1]).
 -export([stream_body_set_resp/1]).
+-export([stream_body_set_resp_close/1]).
 -export([te_chunked/1]).
 -export([te_chunked_delayed/1]).
 -export([te_identity/1]).
@@ -117,6 +118,7 @@ groups() ->
 		static_test_file,
 		static_test_file_css,
 		stream_body_set_resp,
+		stream_body_set_resp_close,
 		te_chunked,
 		te_chunked_delayed,
 		te_identity
@@ -235,6 +237,10 @@ init_dispatch(Config) ->
 				[{body, <<"A flameless dance does not equal a cycle">>}]},
 			{[<<"stream_body">>, <<"set_resp">>], http_handler_stream_body,
 				[{reply, set_resp}, {body, <<"stream_body_set_resp">>}]},
+			{[<<"stream_body">>, <<"set_resp_close">>],
+				http_handler_stream_body, [
+					{reply, set_resp_close},
+					{body, <<"stream_body_set_resp_close">>}]},
 			{[<<"static">>, '...'], cowboy_static,
 				[{directory, ?config(static_dir, Config)},
 				 {mimetypes, [{<<".css">>, [<<"text/css">>]}]}]},
@@ -891,6 +897,22 @@ stream_body_set_resp(Config) ->
 	{ok, 200, _, Client3} = cowboy_client:response(Client2),
 	{ok, <<"stream_body_set_resp">>, _}
 		= cowboy_client:response_body(Client3).
+
+stream_body_set_resp_close(Config) ->
+	Client = ?config(client, Config),
+	{ok, Client2} = cowboy_client:request(<<"GET">>,
+		build_url("/stream_body/set_resp_close", Config), Client),
+	{ok, 200, _, Client3} = cowboy_client:response(Client2),
+	{ok, Transport, Socket} = cowboy_client:transport(Client3),
+	case element(7, Client3) of
+		<<"stream_body_set_resp_close">> ->
+			ok;
+		Buffer ->
+			{ok, Rest} = Transport:recv(Socket, 26 - size(Buffer), 1000),
+			<<"stream_body_set_resp_close">> = << Buffer/binary, Rest/binary >>,
+			ok
+	end,
+	{error, closed} = Transport:recv(Socket, 0, 1000).
 
 te_chunked(Config) ->
 	Client = ?config(client, Config),
