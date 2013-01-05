@@ -27,5 +27,5 @@
 all() ->
 	[eunit].
 
-eunit(Config) ->
+eunit(_) ->
 	ok = eunit:test({application, cowboy}).
