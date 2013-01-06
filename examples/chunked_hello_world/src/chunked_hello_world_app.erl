@@ -17,7 +17,7 @@ start(_Type, _Args) ->
 		]}
 	],
 	{ok, _} = cowboy:start_http(http, 100, [{port, 8080}], [
-		{dispatch, Dispatch}
+		{env, [{dispatch, Dispatch}]}
 	]),
 	chunked_hello_world_sup:start_link().
 
