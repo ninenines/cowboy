@@ -60,6 +60,8 @@
 -export([set_resp_body/1]).
 -export([set_resp_header/1]).
 -export([set_resp_overwrite/1]).
+-export([slowloris/1]).
+-export([slowloris2/1]).
 -export([static_attribute_etag/1]).
 -export([static_function_etag/1]).
 -export([static_mimetypes_function/1]).
@@ -110,6 +112,8 @@ groups() ->
 		set_resp_body,
 		set_resp_header,
 		set_resp_overwrite,
+		slowloris,
+		slowloris2,
 		static_attribute_etag,
 		static_function_etag,
 		static_mimetypes_function,
@@ -811,6 +815,34 @@ set_resp_overwrite(Config) ->
 	{ok, 200, Headers, _} = cowboy_client:response(Client2),
 	{<<"server">>, <<"DesireDrive/1.0">>}
 		= lists:keyfind(<<"server">>, 1, Headers).
+
+slowloris(Config) ->
+	Client = ?config(client, Config),
+	Transport = ?config(transport, Config),
+	{ok, Client2} = cowboy_client:connect(
+		Transport, "localhost", ?config(port, Config), Client),
+	try
+		[begin
+			{ok, _} = cowboy_client:raw_request([C], Client2),
+			receive after 25 -> ok end
+		end || C <- "GET / HTTP/1.1\r\nHost: localhost\r\n"
+			"User-Agent: Mozilla/5.0 (Windows; U; Windows NT 6.0; en-US)\r\n"
+			"Cookie: name=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\r\n\r\n"],
+		error(failure)
+	catch error:{badmatch, _} ->
+		ok
+	end.
+
+slowloris2(Config) ->
+	Client = ?config(client, Config),
+	Transport = ?config(transport, Config),
+	{ok, Client2} = cowboy_client:connect(
+		Transport, "localhost", ?config(port, Config), Client),
+	{ok, _} = cowboy_client:raw_request("GET / HTTP/1.1\r\n", Client2),
+	receive after 300 -> ok end,
+	{ok, _} = cowboy_client:raw_request("Host: localhost\r\n", Client2),
+	receive after 300 -> ok end,
+	{ok, 408, _, _} = cowboy_client:response(Client2).
 
 static_attribute_etag(Config) ->
 	Client = ?config(client, Config),

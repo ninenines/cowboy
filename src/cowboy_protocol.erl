@@ -38,8 +38,8 @@
 %%   not available at this point.</dd>
 %%  <dt>onresponse</dt><dd>Optional fun that allows replacing a response
 %%   sent by the application.</dd>
-%%  <dt>timeout</dt><dd>Time in milliseconds before an idle
-%%   connection is closed. Defaults to 5000 milliseconds.</dd>
+%%  <dt>timeout</dt><dd>Time in milliseconds a client has to send the
+%%   full request line and headers. Defaults to 5000 milliseconds.</dd>
 %% </dl>
 %%
 %% Note that there is no need to monitor these processes when using Cowboy as
@@ -74,7 +74,8 @@
 	max_header_name_length :: non_neg_integer(),
 	max_header_value_length :: non_neg_integer(),
 	max_headers :: non_neg_integer(),
-	timeout :: timeout()
+	timeout :: timeout(),
+	until :: non_neg_integer() | infinity
 }).
 
 %% API.
@@ -116,7 +117,15 @@ init(ListenerPid, Socket, Transport, Opts) ->
 		max_request_line_length=MaxRequestLineLength,
 		max_header_name_length=MaxHeaderNameLength,
 		max_header_value_length=MaxHeaderValueLength, max_headers=MaxHeaders,
-		timeout=Timeout, onrequest=OnRequest, onresponse=OnResponse}, 0).
+		onrequest=OnRequest, onresponse=OnResponse,
+		timeout=Timeout, until=until(Timeout)}, 0).
+
+-spec until(timeout()) -> non_neg_integer() | infinity.
+until(infinity) ->
+	infinity;
+until(Timeout) ->
+	{Me, S, Mi} = os:timestamp(),
+	Me * 1000000000 + S * 1000 + Mi div 1000 + Timeout.
 
 %% Request parsing.
 %%
@@ -125,10 +134,24 @@ init(ListenerPid, Socket, Transport, Opts) ->
 %% right after the header parsing is finished and the code becomes
 %% more interesting past that point.
 
+-spec recv(inet:socket(), module(), non_neg_integer() | infinity)
+	-> {ok, binary()} | {error, closed | timeout | atom()}.
+recv(Socket, Transport, infinity) ->
+	Transport:recv(Socket, 0, infinity);
+recv(Socket, Transport, Until) ->
+	{Me, S, Mi} = os:timestamp(),
+	Now = Me * 1000000000 + S * 1000 + Mi div 1000,
+	Timeout = Until - Now,
+	if	Timeout < 0 ->
+			{error, timeout};
+		true ->
+			Transport:recv(Socket, 0, Timeout)
+	end.
+
 -spec wait_request(binary(), #state{}, non_neg_integer()) -> ok.
 wait_request(Buffer, State=#state{socket=Socket, transport=Transport,
-		timeout=Timeout}, ReqEmpty) ->
-	case Transport:recv(Socket, 0, Timeout) of
+		until=Until}, ReqEmpty) ->
+	case recv(Socket, Transport, Until) of
 		{ok, Data} ->
 			parse_request(<< Buffer/binary, Data/binary >>, State, ReqEmpty);
 		{error, _} ->
@@ -219,8 +242,8 @@ wait_header(_, State=#state{max_headers=MaxHeaders}, _, _, _, _, _, Headers)
 		when length(Headers) >= MaxHeaders ->
 	error_terminate(400, State);
 wait_header(Buffer, State=#state{socket=Socket, transport=Transport,
-		timeout=Timeout}, M, P, Q, F, V, H) ->
-	case Transport:recv(Socket, 0, Timeout) of
+		until=Until}, M, P, Q, F, V, H) ->
+	case recv(Socket, Transport, Until) of
 		{ok, Data} ->
 			parse_header(<< Buffer/binary, Data/binary >>,
 				State, M, P, Q, F, V, H);
@@ -291,9 +314,9 @@ parse_hd_name_ws(<< C, Rest/bits >>, S, M, P, Q, F, V, H, Name) ->
 	end.
 
 wait_hd_before_value(Buffer, State=#state{
-		socket=Socket, transport=Transport, timeout=Timeout},
+		socket=Socket, transport=Transport, until=Until},
 		M, P, Q, F, V, H, N) ->
-	case Transport:recv(Socket, 0, Timeout) of
+	case recv(Socket, Transport, Until) of
 		{ok, Data} ->
 			parse_hd_before_value(<< Buffer/binary, Data/binary >>,
 				State, M, P, Q, F, V, H, N);
@@ -323,9 +346,9 @@ parse_hd_before_value(Buffer, State=#state{
 %% to change the other arguments' position and trigger costy
 %% operations for no reasons.
 wait_hd_value(_, State=#state{
-		socket=Socket, transport=Transport, timeout=Timeout},
+		socket=Socket, transport=Transport, until=Until},
 		M, P, Q, F, V, H, N, SoFar) ->
-	case Transport:recv(Socket, 0, Timeout) of
+	case recv(Socket, Transport, Until) of
 		{ok, Data} ->
 			parse_hd_value(Data, State, M, P, Q, F, V, H, N, SoFar);
 		{error, timeout} ->
@@ -338,9 +361,9 @@ wait_hd_value(_, State=#state{
 %% to check for multilines allows us to avoid a few tests in
 %% the critical path, but forces us to have a special function.
 wait_hd_value_nl(_, State=#state{
-		socket=Socket, transport=Transport, timeout=Timeout},
+		socket=Socket, transport=Transport, until=Until},
 		M, P, Q, F, V, Headers, Name, SoFar) ->
-	case Transport:recv(Socket, 0, Timeout) of
+	case recv(Socket, Transport, Until) of
 		{ok, << C, Data/bits >>} when C =:= $\s; C =:= $\t  ->
 			parse_hd_value(Data, State, M, P, Q, F, V, Headers, Name, SoFar);
 		{ok, Data} ->
@@ -492,7 +515,8 @@ resume(State, Env, Tail, Module, Function, Args) ->
 	end.
 
 -spec next_request(cowboy_req:req(), #state{}, any()) -> ok.
-next_request(Req, State=#state{req_keepalive=Keepalive}, HandlerRes) ->
+next_request(Req, State=#state{req_keepalive=Keepalive, timeout=Timeout},
+		HandlerRes) ->
 	cowboy_req:ensure_response(Req, 204),
 	{BodyRes, [Buffer, Connection]} = case cowboy_req:skip_body(Req) of
 		{ok, Req2} -> {ok, cowboy_req:get([buffer, connection], Req2)};
@@ -503,7 +527,7 @@ next_request(Req, State=#state{req_keepalive=Keepalive}, HandlerRes) ->
 	case {HandlerRes, BodyRes, Connection} of
 		{ok, ok, keepalive} ->
 			?MODULE:parse_request(Buffer, State#state{
-				req_keepalive=Keepalive + 1}, 0);
+				req_keepalive=Keepalive + 1, until=until(Timeout)}, 0);
 		_Closed ->
 			terminate(State)
 	end.
