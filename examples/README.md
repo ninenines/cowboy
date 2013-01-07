@@ -4,6 +4,9 @@ Cowboy Examples
  *  [chunked_hello_world](./examples/chunked_hello_world):
     demonstrates chunked data transfer with two one-second delays
 
+ *  [compress_response](./examples/compress_response)
+    send a response body compressed if the client supports it
+
  *  [cookie](./examples/cookie):
     set cookies from server and client side
 

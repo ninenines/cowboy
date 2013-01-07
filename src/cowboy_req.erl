@@ -42,7 +42,7 @@
 -module(cowboy_req).
 
 %% Request API.
--export([new/13]).
+-export([new/14]).
 -export([method/1]).
 -export([version/1]).
 -export([peer/1]).
@@ -156,6 +156,7 @@
 	buffer = <<>> :: binary(),
 
 	%% Response.
+	resp_compress = false :: boolean(),
 	resp_state = waiting :: locked | waiting | chunks | done,
 	resp_headers = [] :: cowboy_http:headers(),
 	resp_body = <<>> :: iodata() | resp_body_fun()
@@ -179,16 +180,16 @@
 %% in an optimized way and add the parsed value to p_headers' cache.
 -spec new(inet:socket(), module(), binary(), binary(), binary(), binary(),
 	cowboy_http:version(), cowboy_http:headers(), binary(),
-	inet:port_number() | undefined, binary(), boolean(),
+	inet:port_number() | undefined, binary(), boolean(), boolean(),
 	undefined | cowboy_protocol:onresponse_fun())
 	-> req().
 new(Socket, Transport, Method, Path, Query, Fragment,
 		Version, Headers, Host, Port, Buffer, CanKeepalive,
-		OnResponse) ->
+		Compress, OnResponse) ->
 	Req = #http_req{socket=Socket, transport=Transport, pid=self(),
 		method=Method, path=Path, qs=Query, fragment=Fragment, version=Version,
 		headers=Headers, host=Host, port=Port, buffer=Buffer,
-		onresponse=OnResponse},
+		resp_compress=Compress, onresponse=OnResponse},
 	case CanKeepalive and (Version =:= {1, 1}) of
 		false ->
 			Req#http_req{connection=close};
@@ -892,7 +893,8 @@ reply(Status, Headers, Req=#http_req{resp_body=Body}) ->
 reply(Status, Headers, Body, Req=#http_req{
 		socket=Socket, transport=Transport,
 		version=Version, connection=Connection,
-		method=Method, resp_state=waiting, resp_headers=RespHeaders}) ->
+		method=Method, resp_compress=Compress,
+		resp_state=waiting, resp_headers=RespHeaders}) ->
 	RespConn = response_connection(Headers, Connection),
 	HTTP11Headers = case Version of
 		{1, 1} -> [{<<"connection">>, atom_to_connection(Connection)}];
@@ -922,17 +924,59 @@ reply(Status, Headers, Body, Req=#http_req{
 					BodyFun(Socket, Transport);
 				true -> ok
 			end;
+		_ when Compress ->
+			Req2 = reply_may_compress(Status, Headers, Body, Req,
+				RespHeaders, HTTP11Headers, Method);
 		_ ->
-			{_, Req2} = response(Status, Headers, RespHeaders, [
-					{<<"content-length">>, integer_to_list(iolist_size(Body))},
-					{<<"date">>, cowboy_clock:rfc1123()},
-					{<<"server">>, <<"Cowboy">>}
-				|HTTP11Headers],
-				case Method of <<"HEAD">> -> <<>>; _ -> Body end,
-				Req)
+			Req2 = reply_no_compress(Status, Headers, Body, Req,
+				RespHeaders, HTTP11Headers, Method, iolist_size(Body))
 	end,
 	{ok, Req2#http_req{connection=RespConn, resp_state=done,
 		resp_headers=[], resp_body= <<>>}}.
+
+reply_may_compress(Status, Headers, Body, Req,
+		RespHeaders, HTTP11Headers, Method) ->
+	BodySize = iolist_size(Body),
+	{ok, Encodings, Req2}
+		= cowboy_req:parse_header(<<"accept-encoding">>, Req),
+	CanGzip = (BodySize > 300)
+		andalso (false =:= lists:keyfind(<<"content-encoding">>,
+			1, Headers))
+		andalso (false =:= lists:keyfind(<<"content-encoding">>,
+			1, RespHeaders))
+		andalso (false =:= lists:keyfind(<<"transfer-encoding">>,
+			1, Headers))
+		andalso (false =:= lists:keyfind(<<"transfer-encoding">>,
+			1, RespHeaders))
+		andalso (Encodings =/= undefined)
+		andalso (false =/= lists:keyfind(<<"gzip">>, 1, Encodings)),
+	case CanGzip of
+		true ->
+			GzBody = zlib:gzip(Body),
+			{_, Req3} = response(Status, Headers, RespHeaders, [
+					{<<"content-length">>, integer_to_list(byte_size(GzBody))},
+					{<<"content-encoding">>, <<"gzip">>},
+					{<<"date">>, cowboy_clock:rfc1123()},
+					{<<"server">>, <<"Cowboy">>}
+				|HTTP11Headers],
+				case Method of <<"HEAD">> -> <<>>; _ -> GzBody end,
+				Req2),
+			Req3;
+		false ->
+			reply_no_compress(Status, Headers, Body, Req,
+				RespHeaders, HTTP11Headers, Method, BodySize)
+	end.
+
+reply_no_compress(Status, Headers, Body, Req,
+		RespHeaders, HTTP11Headers, Method, BodySize) ->
+	{_, Req2} = response(Status, Headers, RespHeaders, [
+			{<<"content-length">>, integer_to_list(BodySize)},
+			{<<"date">>, cowboy_clock:rfc1123()},
+			{<<"server">>, <<"Cowboy">>}
+		|HTTP11Headers],
+		case Method of <<"HEAD">> -> <<>>; _ -> Body end,
+		Req),
+	Req2.
 
 %% @equiv chunked_reply(Status, [], Req)
 -spec chunked_reply(cowboy_http:status(), Req) -> {ok, Req} when Req::req().

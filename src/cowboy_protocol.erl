@@ -17,6 +17,8 @@
 %%
 %% The available options are:
 %% <dl>
+%%  <dt>compress</dt><dd>Whether to automatically compress the response
+%%   body when the conditions are met. Disabled by default.</dd>
 %%  <dt>env</dt><dd>The environment passed and optionally modified
 %%   by middlewares.</dd>
 %%  <dt>max_empty_lines</dt><dd>Max number of empty lines before a request.
@@ -64,6 +66,7 @@
 	socket :: inet:socket(),
 	transport :: module(),
 	middlewares :: [module()],
+	compress :: boolean(),
 	env :: cowboy_middleware:env(),
 	onrequest :: undefined | onrequest_fun(),
 	onresponse = undefined :: undefined | onresponse_fun(),
@@ -99,6 +102,7 @@ get_value(Key, Opts, Default) ->
 %% @private
 -spec init(pid(), inet:socket(), module(), any()) -> ok.
 init(ListenerPid, Socket, Transport, Opts) ->
+	Compress = get_value(compress, Opts, false),
 	MaxEmptyLines = get_value(max_empty_lines, Opts, 5),
 	MaxHeaderNameLength = get_value(max_header_name_length, Opts, 64),
 	MaxHeaderValueLength = get_value(max_header_value_length, Opts, 4096),
@@ -112,7 +116,7 @@ init(ListenerPid, Socket, Transport, Opts) ->
 	Timeout = get_value(timeout, Opts, 5000),
 	ok = ranch:accept_ack(ListenerPid),
 	wait_request(<<>>, #state{socket=Socket, transport=Transport,
-		middlewares=Middlewares, env=Env,
+		middlewares=Middlewares, compress=Compress, env=Env,
 		max_empty_lines=MaxEmptyLines, max_keepalive=MaxKeepalive,
 		max_request_line_length=MaxRequestLineLength,
 		max_header_name_length=MaxHeaderNameLength,
@@ -457,11 +461,11 @@ parse_host(<< C, Rest/bits >>, Acc) ->
 
 request(Buffer, State=#state{socket=Socket, transport=Transport,
 		req_keepalive=ReqKeepalive, max_keepalive=MaxKeepalive,
-		onresponse=OnResponse},
+		compress=Compress, onresponse=OnResponse},
 		Method, Path, Query, Fragment, Version, Headers, Host, Port) ->
 	Req = cowboy_req:new(Socket, Transport, Method, Path, Query, Fragment,
 		Version, Headers, Host, Port, Buffer, ReqKeepalive < MaxKeepalive,
-		OnResponse),
+		Compress, OnResponse),
 	onrequest(Req, State).
 
 %% Call the global onrequest callback. The callback can send a reply,
@@ -546,13 +550,13 @@ error_terminate(Code, Req, State) ->
 %% Only send an error reply if there is no resp_sent message.
 -spec error_terminate(cowboy_http:status(), #state{}) -> ok.
 error_terminate(Code, State=#state{socket=Socket, transport=Transport,
-		onresponse=OnResponse}) ->
+		compress=Compress, onresponse=OnResponse}) ->
 	receive
 		{cowboy_req, resp_sent} -> ok
 	after 0 ->
 		_ = cowboy_req:reply(Code, cowboy_req:new(Socket, Transport,
 			<<"GET">>, <<>>, <<>>, <<>>, {1, 1}, [], <<>>, undefined,
-			<<>>, false, OnResponse)),
+			<<>>, false, Compress, OnResponse)),
 		ok
 	end,
 	terminate(State).

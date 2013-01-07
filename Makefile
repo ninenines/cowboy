@@ -67,7 +67,7 @@ autobahn:
 
 build-plt: app
 	@dialyzer --build_plt --output_plt .$(PROJECT).plt \
-		--apps kernel stdlib sasl inets crypto public_key ssl deps/ranch
+		--apps erts kernel stdlib sasl inets crypto public_key ssl deps/ranch
 
 dialyze:
 	@dialyzer --src src --plt .$(PROJECT).plt --no_native \
