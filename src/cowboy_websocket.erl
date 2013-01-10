@@ -12,7 +12,10 @@
 %% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-%% @doc WebSocket protocol implementation.
+%% @doc Websocket protocol implementation.
+%%
+%% Cowboy supports versions 7 through 17 of the Websocket drafts.
+%% It also supports RFC6455, the proposed standard for Websocket.
 -module(cowboy_websocket).
 
 %% API.
@@ -41,22 +44,19 @@
 	env :: cowboy_middleware:env(),
 	socket = undefined :: inet:socket(),
 	transport = undefined :: module(),
-	version :: 0 | 7 | 8 | 13,
 	handler :: module(),
 	handler_opts :: any(),
-	challenge = undefined :: undefined | binary() | {binary(), binary()},
+	key = undefined :: undefined | binary(),
 	timeout = infinity :: timeout(),
 	timeout_ref = undefined :: undefined | reference(),
 	messages = undefined :: undefined | {atom(), atom(), atom()},
 	hibernate = false :: boolean(),
-	eop :: undefined | tuple(), %% hixie-76 specific.
-	origin = undefined :: undefined | binary(), %% hixie-76 specific.
 	frag_state = undefined :: frag_state()
 }).
 
-%% @doc Upgrade a HTTP request to the WebSocket protocol.
+%% @doc Upgrade an HTTP request to the Websocket protocol.
 %%
-%% You do not need to call this function manually. To upgrade to the WebSocket
+%% You do not need to call this function manually. To upgrade to the Websocket
 %% protocol, you simply need to return <em>{upgrade, protocol, {@module}}</em>
 %% in your <em>cowboy_http_handler:init/3</em> handler function.
 -spec upgrade(Req, Env, module(), any())
@@ -84,36 +84,13 @@ websocket_upgrade(State, Req) ->
 	{ok, [<<"websocket">>], Req3}
 		= cowboy_req:parse_header(<<"upgrade">>, Req2),
 	{Version, Req4} = cowboy_req:header(<<"sec-websocket-version">>, Req3),
-	websocket_upgrade(Version, State, Req4).
-
-%% @todo Handle the Sec-Websocket-Protocol header.
-%% @todo Reply a proper error, don't die, if a required header is undefined.
--spec websocket_upgrade(undefined | <<_:8>>, #state{}, Req)
-	-> {ok, #state{}, Req} when Req::cowboy_req:req().
-%% No version given. Assuming hixie-76 draft.
-%%
-%% We need to wait to send a reply back before trying to read the
-%% third part of the challenge key, because proxies will wait for
-%% a reply before sending it. Therefore we calculate the challenge
-%% key only in websocket_handshake/3.
-websocket_upgrade(undefined, State, Req) ->
-	{Origin, Req2} = cowboy_req:header(<<"origin">>, Req),
-	{Key1, Req3} = cowboy_req:header(<<"sec-websocket-key1">>, Req2),
-	{Key2, Req4} = cowboy_req:header(<<"sec-websocket-key2">>, Req3),
-	false = lists:member(undefined, [Origin, Key1, Key2]),
-	EOP = binary:compile_pattern(<< 255 >>),
-	{ok, State#state{version=0, origin=Origin, challenge={Key1, Key2},
-		eop=EOP}, cowboy_req:set_meta(websocket_version, 0, Req4)};
-%% Versions 7 and 8. Implementation follows the hybi 7 through 17 drafts.
-websocket_upgrade(Version, State, Req)
-		when Version =:= <<"7">>; Version =:= <<"8">>;
-			Version =:= <<"13">> ->
-	{Key, Req2} = cowboy_req:header(<<"sec-websocket-key">>, Req),
-	false = Key =:= undefined,
-	Challenge = hybi_challenge(Key),
 	IntVersion = list_to_integer(binary_to_list(Version)),
-	{ok, State#state{version=IntVersion, challenge=Challenge},
-		cowboy_req:set_meta(websocket_version, IntVersion, Req2)}.
+	true = (IntVersion =:= 7) orelse (IntVersion =:= 8)
+		orelse (IntVersion =:= 13),
+	{Key, Req5} = cowboy_req:header(<<"sec-websocket-key">>, Req4),
+	false = Key =:= undefined,
+	{ok, State#state{key=Key},
+		cowboy_req:set_meta(websocket_version, IntVersion, Req5)}.
 
 -spec handler_init(#state{}, Req)
 	-> {ok, Req, cowboy_middleware:env()} | {error, 400, Req}
@@ -160,39 +137,10 @@ upgrade_error(Req, Env) ->
 	-> {ok, Req, cowboy_middleware:env()}
 	| {suspend, module(), atom(), [any()]}
 	when Req::cowboy_req:req().
-websocket_handshake(State=#state{socket=Socket, transport=Transport,
-		version=0, origin=Origin, challenge={Key1, Key2}},
+websocket_handshake(State=#state{transport=Transport, key=Key},
 		Req, HandlerState) ->
-	{<< "http", Location/binary >>, Req1} = cowboy_req:url(Req),
-	{ok, Req2} = cowboy_req:upgrade_reply(
-		<<"101 WebSocket Protocol Handshake">>,
-		[{<<"upgrade">>, <<"WebSocket">>},
-		 {<<"sec-websocket-location">>, << "ws", Location/binary >>},
-		 {<<"sec-websocket-origin">>, Origin}],
-		Req1),
-	%% Flush the resp_sent message before moving on.
-	receive {cowboy_req, resp_sent} -> ok after 0 -> ok end,
-	%% We replied with a proper response. Proxies should be happy enough,
-	%% we can now read the 8 last bytes of the challenge keys and send
-	%% the challenge response directly to the socket.
-	%%
-	%% We use a trick here to read exactly 8 bytes of the body regardless
-	%% of what's in the buffer.
-	{ok, Req3} = cowboy_req:init_stream(
-		fun cowboy_http:te_identity/2, {0, 8},
-		fun cowboy_http:ce_identity/1, Req2),
-	case cowboy_req:body(Req3) of
-		{ok, Key3, Req4} ->
-			Challenge = hixie76_challenge(Key1, Key2, Key3),
-			Transport:send(Socket, Challenge),
-			handler_before_loop(State#state{messages=Transport:messages()},
-				Req4, HandlerState, <<>>);
-		_Any ->
-			%% If an error happened reading the body, stop there.
-			handler_terminate(State, Req3, HandlerState, {error, closed})
-	end;
-websocket_handshake(State=#state{transport=Transport, challenge=Challenge},
-		Req, HandlerState) ->
+	Challenge = base64:encode(crypto:sha(
+		<< Key/binary, "258EAFA5-E914-47DA-95CA-C5AB0DC85B11" >>)),
 	{ok, Req2} = cowboy_req:upgrade_reply(
 		101,
 		[{<<"upgrade">>, <<"websocket">>},
@@ -201,8 +149,8 @@ websocket_handshake(State=#state{transport=Transport, challenge=Challenge},
 	%% Flush the resp_sent message before moving on.
 	receive {cowboy_req, resp_sent} -> ok after 0 -> ok end,
 	State2 = handler_loop_timeout(State),
-	handler_before_loop(State2#state{messages=Transport:messages()},
-		Req2, HandlerState, <<>>).
+	handler_before_loop(State2#state{key=undefined,
+		messages=Transport:messages()}, Req2, HandlerState, <<>>).
 
 -spec handler_before_loop(#state{}, Req, any(), binary())
 	-> {ok, Req, cowboy_middleware:env()}
@@ -261,26 +209,8 @@ handler_loop(State=#state{
 %% No more data.
 websocket_data(State, Req, HandlerState, <<>>) ->
 	handler_before_loop(State, Req, HandlerState, <<>>);
-%% hixie-76 close frame.
-websocket_data(State=#state{version=0}, Req, HandlerState,
-		<< 255, 0, _Rest/binary >>) ->
-	websocket_close(State, Req, HandlerState, {normal, closed});
-%% hixie-76 data frame. We only support the frame type 0, same as the specs.
-websocket_data(State=#state{version=0, eop=EOP}, Req, HandlerState,
-		Data = << 0, _/binary >>) ->
-	case binary:match(Data, EOP) of
-		{Pos, 1} ->
-			Pos2 = Pos - 1,
-			<< 0, Payload:Pos2/binary, 255, Rest/bits >> = Data,
-			handler_call(State, Req, HandlerState,
-				Rest, websocket_handle, {text, Payload}, fun websocket_data/4);
-		nomatch ->
-			%% @todo We probably should allow limiting frame length.
-			handler_before_loop(State, Req, HandlerState, Data)
-	end;
-%% incomplete hybi data frame.
-websocket_data(State=#state{version=Version}, Req, HandlerState, Data)
-		when Version =/= 0, byte_size(Data) =:= 1 ->
+%% Incomplete.
+websocket_data(State, Req, HandlerState, Data) when byte_size(Data) =:= 1 ->
 	handler_before_loop(State, Req, HandlerState, Data);
 %% 7 bit payload length prefix exists
 websocket_data(State, Req, HandlerState,
@@ -361,8 +291,8 @@ websocket_data(State, Req, HandlerState, _Fin, _Rsv, Opcode, _Mask, PayloadLen,
 		_Rest, _Data) when Opcode >= 8, PayloadLen > 125 ->
 	 websocket_close(State, Req, HandlerState, {error, badframe});
 %% unfragmented message. unmask and dispatch the message.
-websocket_data(State=#state{version=Version}, Req, HandlerState, _Fin=1, _Rsv=0,
-		Opcode, Mask, PayloadLen, Rest, Data) when Version =/= 0 ->
+websocket_data(State, Req, HandlerState, _Fin=1, _Rsv=0,
+		Opcode, Mask, PayloadLen, Rest, Data) ->
 	websocket_before_unmask(
 			State, Req, HandlerState, Data, Rest, Opcode, Mask, PayloadLen);
 %% Something was wrong with the frame. Close the connection.
@@ -370,7 +300,7 @@ websocket_data(State, Req, HandlerState, _Fin, _Rsv, _Opcode, _Mask,
 		_PayloadLen, _Rest, _Data) ->
 		websocket_close(State, Req, HandlerState, {error, badframe}).
 
-%% hybi routing depending on whether unmasking is needed.
+%% Routing depending on whether unmasking is needed.
 -spec websocket_before_unmask(#state{}, Req, any(), binary(),
 	binary(), opcode(), 0 | 1, non_neg_integer() | undefined)
 	-> {ok, Req, cowboy_middleware:env()}
@@ -390,7 +320,7 @@ websocket_before_unmask(State, Req, HandlerState, Data,
 				Opcode, Payload, MaskKey)
 	end.
 
-%% hybi unmasking.
+%% Unmasking.
 -spec websocket_unmask(#state{}, Req, any(), binary(),
 	opcode(), binary(), mask_key())
 	-> {ok, Req, cowboy_middleware:env()}
@@ -434,7 +364,7 @@ websocket_unmask(State, Req, HandlerState, RemainingData,
 	websocket_dispatch(State, Req, HandlerState, RemainingData,
 		Opcode, Acc).
 
-%% hybi dispatching.
+%% Dispatching.
 -spec websocket_dispatch(#state{}, Req, any(), binary(), opcode(), binary())
 	-> {ok, Req, cowboy_middleware:env()}
 	| {suspend, module(), atom(), [any()]}
@@ -470,7 +400,7 @@ websocket_dispatch(State, Req, HandlerState, _RemainingData, 8, _Payload) ->
 %% Ping control frame. Send a pong back and forward the ping to the handler.
 websocket_dispatch(State=#state{socket=Socket, transport=Transport},
 		Req, HandlerState, RemainingData, 9, Payload) ->
-	Len = hybi_payload_length(byte_size(Payload)),
+	Len = payload_length_to_binary(byte_size(Payload)),
 	Transport:send(Socket, << 1:1, 0:3, 10:4, 0:1, Len/bits, Payload/binary >>),
 	handler_call(State, Req, HandlerState, RemainingData,
 		websocket_handle, {ping, Payload}, fun websocket_data/4);
@@ -563,13 +493,6 @@ websocket_opcode(pong) -> 10.
 
 -spec websocket_send(frame(), #state{})
 	-> ok | shutdown | {error, atom()}.
-%% hixie-76 text frame.
-websocket_send({text, Payload}, #state{
-		socket=Socket, transport=Transport, version=0}) ->
-	Transport:send(Socket, [0, Payload, 255]);
-%% Ignore all unknown frame types for compatibility with hixie 76.
-websocket_send(_Any, #state{version=0}) ->
-	ok;
 websocket_send(Type, #state{socket=Socket, transport=Transport})
 		when Type =:= close ->
 	Opcode = websocket_opcode(Type),
@@ -589,7 +512,7 @@ websocket_send({Type = close, StatusCode, Payload}, #state{
 	Len = 2 + iolist_size(Payload),
 	%% Control packets must not be > 125 in length.
 	true = Len =< 125,
-	BinLen = hybi_payload_length(Len),
+	BinLen = payload_length_to_binary(Len),
 	Transport:send(Socket,
 		[<< 1:1, 0:3, Opcode:4, 0:1, BinLen/bits, StatusCode:16 >>, Payload]),
 	shutdown;
@@ -602,7 +525,7 @@ websocket_send({Type, Payload}, #state{socket=Socket, transport=Transport}) ->
 		true ->
 			true
 	end,
-	BinLen = hybi_payload_length(Len),
+	BinLen = payload_length_to_binary(Len),
 	Transport:send(Socket,
 		[<< 1:1, 0:3, Opcode:4, 0:1, BinLen/bits >>, Payload]).
 
@@ -620,10 +543,6 @@ websocket_send_many([Frame|Tail], State) ->
 -spec websocket_close(#state{}, Req, any(), {atom(), atom()})
 	-> {ok, Req, cowboy_middleware:env()}
 	when Req::cowboy_req:req().
-websocket_close(State=#state{socket=Socket, transport=Transport, version=0},
-		Req, HandlerState, Reason) ->
-	Transport:send(Socket, << 255, 0 >>),
-	handler_terminate(State, Req, HandlerState, Reason);
 websocket_close(State=#state{socket=Socket, transport=Transport},
 		Req, HandlerState, Reason) ->
 	Transport:send(Socket, << 1:1, 0:3, 8:4, 0:8 >>),
@@ -648,30 +567,9 @@ handler_terminate(#state{env=Env, handler=Handler, handler_opts=HandlerOpts},
 	end,
 	{ok, Req, [{result, closed}|Env]}.
 
-%% hixie-76 specific.
-
--spec hixie76_challenge(binary(), binary(), binary()) -> binary().
-hixie76_challenge(Key1, Key2, Key3) ->
-	IntKey1 = hixie76_key_to_integer(Key1),
-	IntKey2 = hixie76_key_to_integer(Key2),
-	erlang:md5(<< IntKey1:32, IntKey2:32, Key3/binary >>).
-
--spec hixie76_key_to_integer(binary()) -> integer().
-hixie76_key_to_integer(Key) ->
-	Number = list_to_integer([C || << C >> <= Key, C >= $0, C =< $9]),
-	Spaces = length([C || << C >> <= Key, C =:= 32]),
-	Number div Spaces.
-
-%% hybi specific.
-
--spec hybi_challenge(binary()) -> binary().
-hybi_challenge(Key) ->
-	Bin = << Key/binary, "258EAFA5-E914-47DA-95CA-C5AB0DC85B11" >>,
-	base64:encode(crypto:sha(Bin)).
-
--spec hybi_payload_length(0..16#7fffffffffffffff)
+-spec payload_length_to_binary(0..16#7fffffffffffffff)
 	-> << _:7 >> | << _:23 >> | << _:71 >>.
-hybi_payload_length(N) ->
+payload_length_to_binary(N) ->
 	case N of
 		N when N =< 125 -> << N:7 >>;
 		N when N =< 16#ffff -> << 126:7, N:16 >>;

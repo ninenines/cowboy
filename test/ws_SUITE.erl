@@ -122,10 +122,7 @@ init_dispatch() ->
 
 %% ws and wss.
 
-%% This test makes sure the code works even if we wait for a reply
-%% before sending the third challenge key in the GET body.
-%%
-%% This ensures that Cowboy will work fine with proxies on hixie.
+%% We do not support hixie76 anymore.
 ws0(Config) ->
 	{port, Port} = lists:keyfind(port, 1, Config),
 	{ok, Socket} = gen_tcp:connect("localhost", Port,
@@ -140,34 +137,8 @@ ws0(Config) ->
 		"Sec-Websocket-Key2: 1711 M;4\\74  80<6\r\n"
 		"\r\n"),
 	{ok, Handshake} = gen_tcp:recv(Socket, 0, 6000),
-	{ok, {http_response, {1, 1}, 101, "WebSocket Protocol Handshake"}, Rest}
-		= erlang:decode_packet(http, Handshake, []),
-	[Headers, <<>>] = websocket_headers(
-		erlang:decode_packet(httph, Rest, []), []),
-	{'Connection', "Upgrade"} = lists:keyfind('Connection', 1, Headers),
-	{'Upgrade', "WebSocket"} = lists:keyfind('Upgrade', 1, Headers),
-	{"sec-websocket-location", "ws://localhost/websocket"}
-		= lists:keyfind("sec-websocket-location", 1, Headers),
-	{"sec-websocket-origin", "http://localhost"}
-		= lists:keyfind("sec-websocket-origin", 1, Headers),
-	ok = gen_tcp:send(Socket, <<15,245,8,18,2,204,133,33>>),
-	{ok, Body} = gen_tcp:recv(Socket, 0, 6000),
-	<<169,244,191,103,146,33,149,59,74,104,67,5,99,118,171,236>> = Body,
-	ok = gen_tcp:send(Socket, << 0, "client_msg", 255 >>),
-	{ok, << 0, "client_msg", 255 >>} = gen_tcp:recv(Socket, 0, 6000),
-	{ok, << 0, "websocket_init", 255 >>} = gen_tcp:recv(Socket, 0, 6000),
-	{ok, << 0, "websocket_handle", 255 >>} = gen_tcp:recv(Socket, 0, 6000),
-	{ok, << 0, "websocket_handle", 255 >>} = gen_tcp:recv(Socket, 0, 6000),
-	{ok, << 0, "websocket_handle", 255 >>} = gen_tcp:recv(Socket, 0, 6000),
-	%% We try to send another HTTP request to make sure
-	%% the server closed the request.
-	ok = gen_tcp:send(Socket, [
-		<< 255, 0 >>, %% Close websocket command.
-		"GET / HTTP/1.1\r\nHost: localhost\r\n\r\n" %% Server should ignore it.
-	]),
-	{ok, << 255, 0 >>} = gen_tcp:recv(Socket, 0, 6000),
-	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
-	ok.
+	{ok, {http_response, {1, 1}, 400, _}, _}
+		= erlang:decode_packet(http, Handshake, []).
 
 ws8(Config) ->
 	{port, Port} = lists:keyfind(port, 1, Config),
@@ -479,7 +450,6 @@ ws_text_fragments(Config) ->
 		<< 16#9f >>, << 16#4d >>, << 16#51 >>, << 16#58 >>]),
 	{ok, << 1:1, 0:3, 1:4, 0:1, 15:7, "HelloHelloHello" >>}
 		= gen_tcp:recv(Socket, 0, 6000),
-
 	ok = gen_tcp:send(Socket, << 1:1, 0:3, 8:4, 0:8 >>), %% close
 	{ok, << 1:1, 0:3, 8:4, 0:8 >>} = gen_tcp:recv(Socket, 0, 6000),
 	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
@@ -547,41 +517,28 @@ ws_timeout_reset(Config) ->
 		"GET /ws_timeout_cancel HTTP/1.1\r\n"
 		"Host: localhost\r\n"
 		"Connection: Upgrade\r\n"
-		"Upgrade: WebSocket\r\n"
-		"Origin: http://localhost\r\n"
-		"Sec-Websocket-Key1: Y\" 4 1Lj!957b8@0H756!i\r\n"
-		"Sec-Websocket-Key2: 1711 M;4\\74  80<6\r\n"
+		"Upgrade: websocket\r\n"
+		"Sec-WebSocket-Origin: http://localhost\r\n"
+		"Sec-Websocket-Version: 13\r\n"
+		"Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n"
 		"\r\n"]),
 	{ok, Handshake} = gen_tcp:recv(Socket, 0, 6000),
-	{ok, {http_response, {1, 1}, 101, "WebSocket Protocol Handshake"}, Rest}
+	{ok, {http_response, {1, 1}, 101, "Switching Protocols"}, Rest}
 		= erlang:decode_packet(http, Handshake, []),
 	[Headers, <<>>] = websocket_headers(
 		erlang:decode_packet(httph, Rest, []), []),
 	{'Connection', "Upgrade"} = lists:keyfind('Connection', 1, Headers),
-	{'Upgrade', "WebSocket"} = lists:keyfind('Upgrade', 1, Headers),
-	{"sec-websocket-location", "ws://localhost/ws_timeout_cancel"}
-		= lists:keyfind("sec-websocket-location", 1, Headers),
-	{"sec-websocket-origin", "http://localhost"}
-		= lists:keyfind("sec-websocket-origin", 1, Headers),
-	ok = gen_tcp:send(Socket, <<15,245,8,18,2,204,133,33>>),
-	{ok, Body} = gen_tcp:recv(Socket, 0, 6000),
-	<<169,244,191,103,146,33,149,59,74,104,67,5,99,118,171,236>> = Body,
-	ok = gen_tcp:send(Socket, << 0, "msg sent", 255 >>),
-	{ok, << 0, "msg sent", 255 >>}
-		= gen_tcp:recv(Socket, 0, 6000),
-	ok = timer:sleep(500),
-	ok = gen_tcp:send(Socket, << 0, "msg sent", 255 >>),
-	{ok, << 0, "msg sent", 255 >>}
-		= gen_tcp:recv(Socket, 0, 6000),
-	ok = timer:sleep(500),
-	ok = gen_tcp:send(Socket, << 0, "msg sent", 255 >>),
-	{ok, << 0, "msg sent", 255 >>}
-		= gen_tcp:recv(Socket, 0, 6000),
-	ok = timer:sleep(500),
-	ok = gen_tcp:send(Socket, << 0, "msg sent", 255 >>),
-	{ok, << 0, "msg sent", 255 >>}
-		= gen_tcp:recv(Socket, 0, 6000),
-	{ok, << 255, 0 >>} = gen_tcp:recv(Socket, 0, 6000),
+	{'Upgrade', "websocket"} = lists:keyfind('Upgrade', 1, Headers),
+	{"sec-websocket-accept", "s3pPLMBiTxaQ9kYGzzhZRbK+xOo="}
+		= lists:keyfind("sec-websocket-accept", 1, Headers),
+	[begin
+		ok = gen_tcp:send(Socket, << 16#81, 16#85, 16#37, 16#fa, 16#21, 16#3d,
+			16#7f, 16#9f, 16#4d, 16#51, 16#58 >>),
+		{ok, << 1:1, 0:3, 1:4, 0:1, 5:7, "Hello" >>}
+			= gen_tcp:recv(Socket, 0, 6000),
+		ok = timer:sleep(500)
+	end || _ <- [1, 2, 3, 4]],
+	{ok, << 1:1, 0:3, 8:4, 0:8 >>} = gen_tcp:recv(Socket, 0, 6000),
 	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
 	ok.
 
