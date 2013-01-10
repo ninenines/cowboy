@@ -59,7 +59,7 @@ tests: clean app
 	@mkdir -p logs/
 	@$(CT_RUN) -suite eunit_SUITE http_SUITE ws_SUITE
 
-autobahn:
+autobahn: clean app
 	@mkdir -p logs/
 	@$(CT_RUN) -suite autobahn_SUITE
 

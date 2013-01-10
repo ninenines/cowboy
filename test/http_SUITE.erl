@@ -982,7 +982,7 @@ stream_body_set_resp_close(Config) ->
 		<<"stream_body_set_resp_close">> ->
 			ok;
 		Buffer ->
-			{ok, Rest} = Transport:recv(Socket, 26 - size(Buffer), 1000),
+			{ok, Rest} = Transport:recv(Socket, 26 - byte_size(Buffer), 1000),
 			<<"stream_body_set_resp_close">> = << Buffer/binary, Rest/binary >>,
 			ok
 	end,

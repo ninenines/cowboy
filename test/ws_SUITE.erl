@@ -254,7 +254,7 @@ ws8_single_bytes(Config) ->
 	ok = gen_tcp:send(Socket, << 16#81 >>), %% send one byte
 	ok = timer:sleep(100), %% sleep for a period
 	ok = gen_tcp:send(Socket, << 16#85 >>), %% send another and so on
-        ok = timer:sleep(100),
+	ok = timer:sleep(100),
 	ok = gen_tcp:send(Socket, << 16#37 >>),
 	ok = timer:sleep(100),
 	ok = gen_tcp:send(Socket, << 16#fa >>),
