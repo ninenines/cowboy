@@ -78,7 +78,7 @@ Dispatch = [
 %% Name, NbAcceptors, TransOpts, ProtoOpts
 cowboy:start_http(my_http_listener, 100,
 	[{port, 8080}],
-    [{dispatch, Dispatch}]
+    [{env, [{dispatch, Dispatch}]}]
 ).
 ```
 
