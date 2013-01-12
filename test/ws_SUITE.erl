@@ -174,9 +174,9 @@ ws8(Config) ->
 		= gen_tcp:recv(Socket, 0, 6000),
 	{ok, << 1:1, 0:3, 1:4, 0:1, 16:7, "websocket_handle" >>}
 		= gen_tcp:recv(Socket, 0, 6000),
-	ok = gen_tcp:send(Socket, << 1:1, 0:3, 9:4, 0:8 >>), %% ping
+	ok = gen_tcp:send(Socket, << 1:1, 0:3, 9:4, 1:1, 0:7, 0:32 >>), %% ping
 	{ok, << 1:1, 0:3, 10:4, 0:8 >>} = gen_tcp:recv(Socket, 0, 6000), %% pong
-	ok = gen_tcp:send(Socket, << 1:1, 0:3, 8:4, 0:8 >>), %% close
+	ok = gen_tcp:send(Socket, << 1:1, 0:3, 8:4, 1:1, 0:7, 0:32 >>), %% close
 	{ok, << 1:1, 0:3, 8:4, 0:8 >>} = gen_tcp:recv(Socket, 0, 6000),
 	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
 	ok.
@@ -253,9 +253,9 @@ ws8_single_bytes(Config) ->
 		= gen_tcp:recv(Socket, 0, 6000),
 	{ok, << 1:1, 0:3, 1:4, 0:1, 16:7, "websocket_handle" >>}
 		= gen_tcp:recv(Socket, 0, 6000),
-	ok = gen_tcp:send(Socket, << 1:1, 0:3, 9:4, 0:8 >>), %% ping
+	ok = gen_tcp:send(Socket, << 1:1, 0:3, 9:4, 1:1, 0:7, 0:32 >>), %% ping
 	{ok, << 1:1, 0:3, 10:4, 0:8 >>} = gen_tcp:recv(Socket, 0, 6000), %% pong
-	ok = gen_tcp:send(Socket, << 1:1, 0:3, 8:4, 0:8 >>), %% close
+	ok = gen_tcp:send(Socket, << 1:1, 0:3, 8:4, 1:1, 0:7, 0:32 >>), %% close
 	{ok, << 1:1, 0:3, 8:4, 0:8 >>} = gen_tcp:recv(Socket, 0, 6000),
 	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
 	ok.
@@ -288,7 +288,7 @@ ws13(Config) ->
 	{ok, << 1:1, 0:3, 1:4, 0:1, 5:7, "Hello" >>}
 		= gen_tcp:recv(Socket, 0, 6000),
 	%% binary (empty)
-	ok = gen_tcp:send(Socket, << 1:1, 0:3, 2:4, 0:8 >>),
+	ok = gen_tcp:send(Socket, << 1:1, 0:3, 2:4, 1:1, 0:7, 0:32 >>),
 	{ok, << 1:1, 0:3, 2:4, 0:8 >>} = gen_tcp:recv(Socket, 0, 6000),
 	%% binary
 	ok = gen_tcp:send(Socket, << 16#82, 16#85, 16#37, 16#fa, 16#21, 16#3d,
@@ -304,9 +304,9 @@ ws13(Config) ->
 		= gen_tcp:recv(Socket, 0, 6000),
 	{ok, << 1:1, 0:3, 1:4, 0:1, 16:7, "websocket_handle" >>}
 		= gen_tcp:recv(Socket, 0, 6000),
-	ok = gen_tcp:send(Socket, << 1:1, 0:3, 9:4, 0:8 >>), %% ping
+	ok = gen_tcp:send(Socket, << 1:1, 0:3, 9:4, 1:1, 0:7, 0:32 >>), %% ping
 	{ok, << 1:1, 0:3, 10:4, 0:8 >>} = gen_tcp:recv(Socket, 0, 6000), %% pong
-	ok = gen_tcp:send(Socket, << 1:1, 0:3, 8:4, 0:8 >>), %% close
+	ok = gen_tcp:send(Socket, << 1:1, 0:3, 8:4, 1:1, 0:7, 0:32 >>), %% close
 	{ok, << 1:1, 0:3, 8:4, 0:8 >>} = gen_tcp:recv(Socket, 0, 6000),
 	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
 	ok.
