@@ -45,7 +45,8 @@
 	timeout_ref = undefined :: undefined | reference(),
 	messages = undefined :: undefined | {atom(), atom(), atom()},
 	hibernate = false :: boolean(),
-	frag_state = undefined :: frag_state()
+	frag_state = undefined :: frag_state(),
+	utf8_state = <<>> :: binary()
 }).
 
 %% @doc Upgrade an HTTP request to the Websocket protocol.
@@ -285,6 +286,65 @@ websocket_data(State, Req, HandlerState, Opcode, Len, MaskKey, Data, 1) ->
 	-> {ok, Req, cowboy_middleware:env()}
 	| {suspend, module(), atom(), [any()]}
 	when Req::cowboy_req:req().
+%% Text frames must have a payload that is valid UTF-8.
+websocket_payload(State=#state{utf8_state=Incomplete},
+		Req, HandlerState, Opcode=1, Len, MaskKey, Unmasked, Data)
+		when byte_size(Data) < Len ->
+	Unmasked2 = websocket_unmask(Data,
+		rotate_mask_key(MaskKey, byte_size(Unmasked)), <<>>),
+	case is_utf8(<< Incomplete/binary, Unmasked2/binary >>) of
+		false ->
+			websocket_close(State, Req, HandlerState, {error, badframe});
+		Utf8State ->
+			websocket_payload_loop(State#state{utf8_state=Utf8State},
+				Req, HandlerState, Opcode, Len - byte_size(Data), MaskKey,
+				<< Unmasked/binary, Unmasked2/binary >>)
+	end;
+websocket_payload(State=#state{utf8_state=Incomplete},
+		Req, HandlerState, Opcode=1, Len, MaskKey, Unmasked, Data) ->
+	<< End:Len/binary, Rest/bits >> = Data,
+	Unmasked2 = websocket_unmask(End,
+		rotate_mask_key(MaskKey, byte_size(Unmasked)), <<>>),
+	case is_utf8(<< Incomplete/binary, Unmasked2/binary >>) of
+		<<>> ->
+			websocket_dispatch(State#state{utf8_state= <<>>},
+				Req, HandlerState, Rest, Opcode,
+				<< Unmasked/binary, Unmasked2/binary >>);
+		_ ->
+			websocket_close(State, Req, HandlerState, {error, badframe})
+	end;
+%% Fragmented text frames may cut payload in the middle of UTF-8 codepoints.
+websocket_payload(State=#state{frag_state={_, 1, _}, utf8_state=Incomplete},
+		Req, HandlerState, Opcode=0, Len, MaskKey, Unmasked, Data)
+		when byte_size(Data) < Len ->
+	Unmasked2 = websocket_unmask(Data,
+		rotate_mask_key(MaskKey, byte_size(Unmasked)), <<>>),
+	case is_utf8(<< Incomplete/binary, Unmasked2/binary >>) of
+		false ->
+			websocket_close(State, Req, HandlerState, {error, badframe});
+		Utf8State ->
+			websocket_payload_loop(State#state{utf8_state=Utf8State},
+				Req, HandlerState, Opcode, Len - byte_size(Data), MaskKey,
+				<< Unmasked/binary, Unmasked2/binary >>)
+	end;
+websocket_payload(State=#state{frag_state={Fin, 1, _}, utf8_state=Incomplete},
+		Req, HandlerState, Opcode=0, Len, MaskKey, Unmasked, Data) ->
+	<< End:Len/binary, Rest/bits >> = Data,
+	Unmasked2 = websocket_unmask(End,
+		rotate_mask_key(MaskKey, byte_size(Unmasked)), <<>>),
+	case is_utf8(<< Incomplete/binary, Unmasked2/binary >>) of
+		<<>> ->
+			websocket_dispatch(State#state{utf8_state= <<>>},
+				Req, HandlerState, Rest, Opcode,
+				<< Unmasked/binary, Unmasked2/binary >>);
+		Utf8State when is_binary(Utf8State), Fin =:= nofin ->
+			websocket_dispatch(State#state{utf8_state=Utf8State},
+				Req, HandlerState, Rest, Opcode,
+				<< Unmasked/binary, Unmasked2/binary >>);
+		_ ->
+			websocket_close(State, Req, HandlerState, {error, badframe})
+	end;
+%% Other frames have a binary payload.
 websocket_payload(State, Req, HandlerState,
 		Opcode, Len, MaskKey, Unmasked, Data)
 		when byte_size(Data) < Len ->
@@ -324,6 +384,36 @@ rotate_mask_key(MaskKey, UnmaskedLen) ->
 	Left = UnmaskedLen rem 4,
 	Right = 4 - Left,
 	(MaskKey bsl (Left * 8)) + (MaskKey bsr (Right * 8)).
+
+%% Returns <<>> if the argument is valid UTF-8, false if not,
+%% or the incomplete part of the argument if we need more data.
+-spec is_utf8(binary()) -> false | binary().
+is_utf8(Valid = <<>>) ->
+	Valid;
+is_utf8(<< _/utf8, Rest/binary >>) ->
+	is_utf8(Rest);
+%% 2 bytes. Codepages C0 and C1 are invalid; fail early.
+is_utf8(<< 2#1100000:7, _/bits >>) ->
+	false;
+is_utf8(Incomplete = << 2#110:3, _:5 >>) ->
+	Incomplete;
+%% 3 bytes.
+is_utf8(Incomplete = << 2#1110:4, _:4 >>) ->
+	Incomplete;
+is_utf8(Incomplete = << 2#1110:4, _:4, 2#10:2, _:6 >>) ->
+	Incomplete;
+%% 4 bytes. Codepage F4 may have invalid values greater than 0x10FFFF.
+is_utf8(<< 2#11110100:8, 2#10:2, High:6, _/bits >>) when High >= 2#10000 ->
+	false;
+is_utf8(Incomplete = << 2#11110:5, _:3 >>) ->
+	Incomplete;
+is_utf8(Incomplete = << 2#11110:5, _:3, 2#10:2, _:6 >>) ->
+	Incomplete;
+is_utf8(Incomplete = << 2#11110:5, _:3, 2#10:2, _:6, 2#10:2, _:6 >>) ->
+	Incomplete;
+%% Invalid.
+is_utf8(_) ->
+	false.
 
 -spec websocket_payload_loop(#state{}, Req, any(),
 	opcode(), non_neg_integer(), mask_key(), binary())
