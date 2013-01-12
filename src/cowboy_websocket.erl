@@ -31,14 +31,8 @@
 
 -type opcode() :: 0 | 1 | 2 | 8 | 9 | 10.
 -type mask_key() :: 0..16#ffffffff.
-
-%% The websocket_data/4 function may be called multiple times for a message.
-%% The websocket_dispatch/4 function is only called once for each message.
--type frag_state() ::
-	undefined | %% no fragmentation has been seen.
-	{nofin, opcode()} | %% first fragment has been seen.
-	{nofin, opcode(), binary()} | %% first fragment has been unmasked.
-	{fin, opcode(), binary()}. %% last fragment has been seen.
+-type frag_state() :: undefined
+	| {nofin, opcode(), binary()} | {fin, opcode(), binary()}.
 
 -record(state, {
 	env :: cowboy_middleware:env(),
@@ -181,9 +175,8 @@ handler_loop_timeout(State=#state{timeout=Timeout, timeout_ref=PrevRef}) ->
 	-> {ok, Req, cowboy_middleware:env()}
 	| {suspend, module(), atom(), [any()]}
 	when Req::cowboy_req:req().
-handler_loop(State=#state{
-			socket=Socket, messages={OK, Closed, Error}, timeout_ref=TRef},
-		Req, HandlerState, SoFar) ->
+handler_loop(State=#state{socket=Socket, messages={OK, Closed, Error},
+		timeout_ref=TRef}, Req, HandlerState, SoFar) ->
 	receive
 		{OK, Socket, Data} ->
 			State2 = handler_loop_timeout(State),
@@ -202,187 +195,182 @@ handler_loop(State=#state{
 				SoFar, websocket_info, Message, fun handler_before_loop/4)
 	end.
 
+%% All frames passing through this function are considered valid.
 -spec websocket_data(#state{}, Req, any(), binary())
 	-> {ok, Req, cowboy_middleware:env()}
 	| {suspend, module(), atom(), [any()]}
 	when Req::cowboy_req:req().
-%% No more data.
-websocket_data(State, Req, HandlerState, <<>>) ->
-	handler_before_loop(State, Req, HandlerState, <<>>);
-%% Incomplete.
-websocket_data(State, Req, HandlerState, Data) when byte_size(Data) =:= 1 ->
-	handler_before_loop(State, Req, HandlerState, Data);
-%% 7 bit payload length prefix exists
-websocket_data(State, Req, HandlerState,
-		<< Fin:1, Rsv:3, Opcode:4, 1:1, PayloadLen:7, Rest/bits >>
-		= Data) when PayloadLen < 126 ->
-	websocket_data(State, Req, HandlerState,
-		Fin, Rsv, Opcode, PayloadLen, Rest, Data);
-%% 7+16 bits payload length prefix exists
-websocket_data(State, Req, HandlerState,
-		<< Fin:1, Rsv:3, Opcode:4, 1:1, 126:7, PayloadLen:16, Rest/bits >>
-		= Data) when PayloadLen > 125 ->
-	websocket_data(State, Req, HandlerState,
-		Fin, Rsv, Opcode, PayloadLen, Rest, Data);
-%% 7+16 bits payload length prefix missing
-websocket_data(State, Req, HandlerState,
-		<< _Fin:1, _Rsv:3, _Opcode:4, 1:1, 126:7, Rest/bits >>
-		= Data) when byte_size(Rest) < 2 ->
-	handler_before_loop(State, Req, HandlerState, Data);
-%% 7+64 bits payload length prefix exists
-websocket_data(State, Req, HandlerState,
-		<< Fin:1, Rsv:3, Opcode:4, 1:1, 127:7, 0:1, PayloadLen:63,
-		   Rest/bits >> = Data) when PayloadLen > 16#FFFF ->
-	websocket_data(State, Req, HandlerState,
-		Fin, Rsv, Opcode, PayloadLen, Rest, Data);
-%% 7+64 bits payload length prefix missing
-websocket_data(State, Req, HandlerState,
-		<< _Fin:1, _Rsv:3, _Opcode:4, 1:1, 127:7, Rest/bits >>
-		= Data) when byte_size(Rest) < 8 ->
-	handler_before_loop(State, Req, HandlerState, Data);
-%% Invalid payload length or mask bit was not set.
-websocket_data(State, Req, HandlerState, _Data) ->
-	websocket_close(State, Req, HandlerState, {error, badframe}).
-
--spec websocket_data(#state{}, Req, any(), non_neg_integer(),
-		non_neg_integer(), non_neg_integer(),
-		non_neg_integer(), binary(), binary())
-	-> {ok, Req, cowboy_middleware:env()}
-	when Req::cowboy_req:req().
+%% RSV bits MUST be 0 unless an extension is negotiated
+%% that defines meanings for non-zero values.
+websocket_data(State, Req, HandlerState, << _:1, Rsv:3, _/bits >>)
+		when Rsv =/= 0 ->
+	websocket_close(State, Req, HandlerState, {error, badframe});
+%% Control frames MUST NOT be fragmented.
+websocket_data(State, Req, HandlerState, << 0:1, _:3, Opcode:4, _/bits >>)
+		when Opcode >= 8 ->
+	websocket_close(State, Req, HandlerState, {error, badframe});
 %% A fragmented message MUST start a non-zero opcode.
 websocket_data(State=#state{frag_state=undefined}, Req, HandlerState,
-		_Fin=0, _Rsv=0, _Opcode=0, _PayloadLen, _Rest, _Buffer) ->
+		<< 0:1, _:3, 0:4, _/bits >>) ->
 	websocket_close(State, Req, HandlerState, {error, badframe});
-%% A control message MUST NOT be fragmented.
-websocket_data(State, Req, HandlerState, _Fin=0, _Rsv=0, Opcode,
-		_PayloadLen, _Rest, _Buffer) when Opcode >= 8 ->
+%% Non-control opcode when expecting control message or next fragment.
+websocket_data(State=#state{frag_state={nofin, _, _}}, Req, HandlerState,
+		<< _:4, Opcode:4, _/bits >>)
+		when Opcode =/= 0, Opcode < 8 ->
 	websocket_close(State, Req, HandlerState, {error, badframe});
-%% The opcode is only included in the first message fragment.
+%% 7 bits payload length.
+websocket_data(State, Req, HandlerState, << Fin:1, _Rsv:3, Opcode:4, 1:1,
+		Len:7, MaskKey:32, Rest/bits >>)
+		when Len < 126 ->
+	websocket_data(State, Req, HandlerState,
+		Opcode, Len, MaskKey, Rest, Fin);
+%% 16 bits payload length.
+websocket_data(State, Req, HandlerState, << Fin:1, _Rsv:3, Opcode:4, 1:1,
+		126:7, Len:16, MaskKey:32, Rest/bits >>)
+		when Len > 125, Opcode < 8 ->
+	websocket_data(State, Req, HandlerState,
+		Opcode, Len, MaskKey, Rest, Fin);
+%% 63 bits payload length.
+websocket_data(State, Req, HandlerState, << Fin:1, _Rsv:3, Opcode:4, 1:1,
+		127:7, 0:1, Len:63, MaskKey:32, Rest/bits >>)
+		when Len > 16#ffff, Opcode < 8 ->
+	websocket_data(State, Req, HandlerState,
+		Opcode, Len, MaskKey, Rest, Fin);
+%% When payload length is over 63 bits, the most significant bit MUST be 0.
+websocket_data(State, Req, HandlerState, << _:8, 1:1, 127:7, 1:1, _/bits >>) ->
+	websocket_close(State, Req, HandlerState, {error, badframe});
+%% All frames sent from the client to the server are masked.
+websocket_data(State, Req, HandlerState, << _:8, 0:1, _/bits >>) ->
+	websocket_close(State, Req, HandlerState, {error, badframe});
+%% For the next two clauses, it can be one of the following:
+%%
+%%  *  The minimal number of bytes MUST be used to encode the length
+%%  *  All control frames MUST have a payload length of 125 bytes or less
+websocket_data(State, Req, HandlerState, << _:9, 126:7, _:48, _/bits >>) ->
+	websocket_close(State, Req, HandlerState, {error, badframe});
+websocket_data(State, Req, HandlerState, << _:9, 127:7, _:96, _/bits >>) ->
+	websocket_close(State, Req, HandlerState, {error, badframe});
+%% Need more data.
+websocket_data(State, Req, HandlerState, Data) ->
+	handler_before_loop(State, Req, HandlerState, Data).
+
+%% Initialize or update fragmentation state.
+-spec websocket_data(#state{}, Req, any(),
+	opcode(), non_neg_integer(), mask_key(), binary(), 0 | 1)
+	-> {ok, Req, cowboy_middleware:env()}
+	| {suspend, module(), atom(), [any()]}
+	when Req::cowboy_req:req().
+%% The opcode is only included in the first frame fragment.
 websocket_data(State=#state{frag_state=undefined}, Req, HandlerState,
-		_Fin=0, _Rsv=0, Opcode, PayloadLen, Rest, Data) ->
-	websocket_before_unmask(
-		State#state{frag_state={nofin, Opcode}}, Req, HandlerState,
-		Data, Rest, 0, PayloadLen);
-%% non-control opcode when expecting control message or next fragment.
-websocket_data(State=#state{frag_state={nofin, _, _}}, Req, HandlerState, _Fin,
-		_Rsv=0, Opcode, _Ln, _Rest, _Data) when Opcode > 0, Opcode < 8 ->
-	websocket_close(State, Req, HandlerState, {error, badframe});
-%% If the first message fragment was incomplete, retry unmasking.
-websocket_data(State=#state{frag_state={nofin, Opcode}}, Req, HandlerState,
-		_Fin=0, _Rsv=0, Opcode, PayloadLen, Rest, Data) ->
-	websocket_before_unmask(
-		State#state{frag_state={nofin, Opcode}}, Req, HandlerState,
-		Data, Rest, 0, PayloadLen);
-%% if the opcode is zero and the fin flag is zero, unmask and await next.
-websocket_data(State=#state{frag_state={nofin, _Opcode, _Payloads}}, Req,
-		HandlerState, _Fin=0, _Rsv=0, _Opcode2=0, PayloadLen, Rest,
-		Data) ->
-	websocket_before_unmask(
-		State, Req, HandlerState, Data, Rest, 0, PayloadLen);
-%% when the last fragment is seen. Update the fragmentation status.
-websocket_data(State=#state{frag_state={nofin, Opcode, Payloads}}, Req,
-		HandlerState, _Fin=1, _Rsv=0, _Opcode=0, PayloadLen, Rest,
-		Data) ->
-	websocket_before_unmask(
-		State#state{frag_state={fin, Opcode, Payloads}},
-		Req, HandlerState, Data, Rest, 0, PayloadLen);
-%% control messages MUST NOT use 7+16 bits or 7+64 bits payload length prefixes
-websocket_data(State, Req, HandlerState, _Fin, _Rsv, Opcode, PayloadLen,
-		_Rest, _Data) when Opcode >= 8, PayloadLen > 125 ->
-	 websocket_close(State, Req, HandlerState, {error, badframe});
-%% unfragmented message. unmask and dispatch the message.
-websocket_data(State, Req, HandlerState, _Fin=1, _Rsv=0,
-		Opcode, PayloadLen, Rest, Data) ->
-	websocket_before_unmask(
-			State, Req, HandlerState, Data, Rest, Opcode, PayloadLen);
-%% Something was wrong with the frame. Close the connection.
-websocket_data(State, Req, HandlerState, _Fin, _Rsv, _Opcode,
-		_PayloadLen, _Rest, _Data) ->
-	websocket_close(State, Req, HandlerState, {error, badframe}).
+		Opcode, Len, MaskKey, Data, 0) ->
+	websocket_payload(State#state{frag_state={nofin, Opcode, <<>>}},
+		Req, HandlerState, 0, Len, MaskKey, <<>>, Data);
+%% Subsequent frame fragments.
+websocket_data(State=#state{frag_state={nofin, _, _}}, Req, HandlerState,
+		0, Len, MaskKey, Data, 0) ->
+	websocket_payload(State, Req, HandlerState,
+		0, Len, MaskKey, <<>>, Data);
+%% Final frame fragment.
+websocket_data(State=#state{frag_state={nofin, Opcode, SoFar}},
+		Req, HandlerState, 0, Len, MaskKey, Data, 1) ->
+	websocket_payload(State#state{frag_state={fin, Opcode, SoFar}},
+		Req, HandlerState, 0, Len, MaskKey, <<>>, Data);
+%% Unfragmented frame.
+websocket_data(State, Req, HandlerState, Opcode, Len, MaskKey, Data, 1) ->
+	websocket_payload(State, Req, HandlerState,
+		Opcode, Len, MaskKey, <<>>, Data).
 
-%% Routing depending on whether unmasking is needed.
--spec websocket_before_unmask(#state{}, Req, any(), binary(),
-	binary(), opcode(), non_neg_integer() | undefined)
+-spec websocket_payload(#state{}, Req, any(),
+	opcode(), non_neg_integer(), mask_key(), binary(), binary())
 	-> {ok, Req, cowboy_middleware:env()}
 	| {suspend, module(), atom(), [any()]}
 	when Req::cowboy_req:req().
-websocket_before_unmask(State, Req, HandlerState, Data,
-		Rest, Opcode, PayloadLen) ->
-	case PayloadLen of
-		N when N + 4 > byte_size(Rest); N =:= undefined ->
-			%% @todo We probably should allow limiting frame length.
-			handler_before_loop(State, Req, HandlerState, Data);
-		_N ->
-			<< MaskKey:32, Payload:PayloadLen/binary, Rest2/bits >> = Rest,
-			websocket_unmask(State, Req, HandlerState, Rest2,
-				Opcode, Payload, MaskKey)
-	end.
+websocket_payload(State, Req, HandlerState,
+		Opcode, Len, MaskKey, Unmasked, Data)
+		when byte_size(Data) < Len ->
+	Unmasked2 = websocket_unmask(Data,
+		rotate_mask_key(MaskKey, byte_size(Unmasked)), Unmasked),
+	websocket_payload_loop(State, Req, HandlerState,
+		Opcode, Len - byte_size(Data), MaskKey, Unmasked2);
+websocket_payload(State, Req, HandlerState,
+		Opcode, Len, MaskKey, Unmasked, Data) ->
+	<< End:Len/binary, Rest/bits >> = Data,
+	Unmasked2 = websocket_unmask(End,
+		rotate_mask_key(MaskKey, byte_size(Unmasked)), Unmasked),
+	websocket_dispatch(State, Req, HandlerState, Rest, Opcode, Unmasked2).
 
-%% Unmasking.
--spec websocket_unmask(#state{}, Req, any(), binary(),
-	opcode(), binary(), mask_key())
-	-> {ok, Req, cowboy_middleware:env()}
-	| {suspend, module(), atom(), [any()]}
-	when Req::cowboy_req:req().
-websocket_unmask(State, Req, HandlerState, RemainingData,
-		Opcode, Payload, MaskKey) ->
-	websocket_unmask(State, Req, HandlerState, RemainingData,
-		Opcode, Payload, MaskKey, <<>>).
-
--spec websocket_unmask(#state{}, Req, any(), binary(),
-	opcode(), binary(), mask_key(), binary())
-	-> {ok, Req, cowboy_middleware:env()}
-	| {suspend, module(), atom(), [any()]}
-	when Req::cowboy_req:req().
-websocket_unmask(State, Req, HandlerState, RemainingData,
-		Opcode, << O:32, Rest/bits >>, MaskKey, Acc) ->
+-spec websocket_unmask(B, mask_key(), B) -> B when B::binary().
+websocket_unmask(<<>>, _, Unmasked) ->
+	Unmasked;
+websocket_unmask(<< O:32, Rest/bits >>, MaskKey, Acc) ->
 	T = O bxor MaskKey,
-	websocket_unmask(State, Req, HandlerState, RemainingData,
-		Opcode, Rest, MaskKey, << Acc/binary, T:32 >>);
-websocket_unmask(State, Req, HandlerState, RemainingData,
-		Opcode, << O:24 >>, MaskKey, Acc) ->
+	websocket_unmask(Rest, MaskKey, << Acc/binary, T:32 >>);
+websocket_unmask(<< O:24 >>, MaskKey, Acc) ->
 	<< MaskKey2:24, _:8 >> = << MaskKey:32 >>,
 	T = O bxor MaskKey2,
-	websocket_dispatch(State, Req, HandlerState, RemainingData,
-		Opcode, << Acc/binary, T:24 >>);
-websocket_unmask(State, Req, HandlerState, RemainingData,
-		Opcode, << O:16 >>, MaskKey, Acc) ->
+	<< Acc/binary, T:24 >>;
+websocket_unmask(<< O:16 >>, MaskKey, Acc) ->
 	<< MaskKey2:16, _:16 >> = << MaskKey:32 >>,
 	T = O bxor MaskKey2,
-	websocket_dispatch(State, Req, HandlerState, RemainingData,
-		Opcode, << Acc/binary, T:16 >>);
-websocket_unmask(State, Req, HandlerState, RemainingData,
-		Opcode, << O:8 >>, MaskKey, Acc) ->
+	<< Acc/binary, T:16 >>;
+websocket_unmask(<< O:8 >>, MaskKey, Acc) ->
 	<< MaskKey2:8, _:24 >> = << MaskKey:32 >>,
 	T = O bxor MaskKey2,
-	websocket_dispatch(State, Req, HandlerState, RemainingData,
-		Opcode, << Acc/binary, T:8 >>);
-websocket_unmask(State, Req, HandlerState, RemainingData,
-		Opcode, <<>>, _MaskKey, Acc) ->
-	websocket_dispatch(State, Req, HandlerState, RemainingData,
-		Opcode, Acc).
+	<< Acc/binary, T:8 >>.
 
-%% Dispatching.
+%% Because we unmask on the fly we need to continue from the right mask byte.
+-spec rotate_mask_key(mask_key(), non_neg_integer()) -> mask_key().
+rotate_mask_key(MaskKey, UnmaskedLen) ->
+	Left = UnmaskedLen rem 4,
+	Right = 4 - Left,
+	(MaskKey bsl (Left * 8)) + (MaskKey bsr (Right * 8)).
+
+-spec websocket_payload_loop(#state{}, Req, any(),
+	opcode(), non_neg_integer(), mask_key(), binary())
+	-> {ok, Req, cowboy_middleware:env()}
+	| {suspend, module(), atom(), [any()]}
+	when Req::cowboy_req:req().
+websocket_payload_loop(State=#state{socket=Socket, transport=Transport,
+		messages={OK, Closed, Error}, timeout_ref=TRef},
+		Req, HandlerState, Opcode, Len, MaskKey, Unmasked) ->
+	Transport:setopts(Socket, [{active, once}]),
+	receive
+		{OK, Socket, Data} ->
+			State2 = handler_loop_timeout(State),
+			websocket_payload(State2, Req, HandlerState,
+				Opcode, Len, MaskKey, Unmasked, Data);
+		{Closed, Socket} ->
+			handler_terminate(State, Req, HandlerState, {error, closed});
+		{Error, Socket, Reason} ->
+			handler_terminate(State, Req, HandlerState, {error, Reason});
+		{timeout, TRef, ?MODULE} ->
+			websocket_close(State, Req, HandlerState, {normal, timeout});
+		{timeout, OlderTRef, ?MODULE} when is_reference(OlderTRef) ->
+			websocket_payload_loop(State, Req, HandlerState,
+				Opcode, Len, MaskKey, Unmasked);
+		Message ->
+			handler_call(State, Req, HandlerState,
+				<<>>, websocket_info, Message,
+				fun (State2, Req2, HandlerState2, _) ->
+					websocket_payload_loop(State2, Req2, HandlerState2,
+						Opcode, Len, MaskKey, Unmasked)
+				end)
+	end.
+
 -spec websocket_dispatch(#state{}, Req, any(), binary(), opcode(), binary())
 	-> {ok, Req, cowboy_middleware:env()}
 	| {suspend, module(), atom(), [any()]}
 	when Req::cowboy_req:req().
-%% First frame of a fragmented message unmasked. Expect intermediate or last.
-websocket_dispatch(State=#state{frag_state={nofin, Opcode}}, Req, HandlerState,
-		RemainingData, 0, Payload) ->
-	websocket_data(State#state{frag_state={nofin, Opcode, Payload}},
-		Req, HandlerState, RemainingData);
-%% Intermediate frame of a fragmented message unmasked. Add payload to buffer.
-websocket_dispatch(State=#state{frag_state={nofin, Opcode, Payloads}}, Req,
-		HandlerState, RemainingData, 0, Payload) ->
+%% Continuation frame.
+websocket_dispatch(State=#state{frag_state={nofin, Opcode, SoFar}},
+		Req, HandlerState, RemainingData, 0, Payload) ->
 	websocket_data(State#state{frag_state={nofin, Opcode,
-		<<Payloads/binary, Payload/binary>>}}, Req, HandlerState,
-		RemainingData);
-%% Last frame of a fragmented message unmasked. Dispatch to handler.
-websocket_dispatch(State=#state{frag_state={fin, Opcode, Payloads}}, Req,
-		HandlerState, RemainingData, 0, Payload) ->
+		<< SoFar/binary, Payload/binary >>}}, Req, HandlerState, RemainingData);
+%% Last continuation frame.
+websocket_dispatch(State=#state{frag_state={fin, Opcode, SoFar}},
+		Req, HandlerState, RemainingData, 0, Payload) ->
 	websocket_dispatch(State#state{frag_state=undefined}, Req, HandlerState,
-		RemainingData, Opcode, <<Payloads/binary, Payload/binary>>);
+		RemainingData, Opcode, << SoFar/binary, Payload/binary >>);
 %% Text frame.
 websocket_dispatch(State, Req, HandlerState, RemainingData, 1, Payload) ->
 	handler_call(State, Req, HandlerState, RemainingData,
