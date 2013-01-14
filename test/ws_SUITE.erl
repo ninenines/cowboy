@@ -396,7 +396,7 @@ ws_send_many(Config) ->
 	<< 1:1, 0:3, 1:4, 0:1, 3:7, "one",
 		1:1, 0:3, 1:4, 0:1, 3:7, "two",
 		1:1, 0:3, 1:4, 0:1, 6:7, "seven!" >> = Many,
-	ok = gen_tcp:send(Socket, << 1:1, 0:3, 8:4, 0:8 >>), %% close
+	ok = gen_tcp:send(Socket, << 1:1, 0:3, 8:4, 1:1, 0:7, 0:32 >>), %% close
 	{ok, << 1:1, 0:3, 8:4, 0:8 >>} = gen_tcp:recv(Socket, 0, 6000),
 	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
 	ok.
@@ -450,7 +450,7 @@ ws_text_fragments(Config) ->
 		<< 16#9f >>, << 16#4d >>, << 16#51 >>, << 16#58 >>]),
 	{ok, << 1:1, 0:3, 1:4, 0:1, 15:7, "HelloHelloHello" >>}
 		= gen_tcp:recv(Socket, 0, 6000),
-	ok = gen_tcp:send(Socket, << 1:1, 0:3, 8:4, 0:8 >>), %% close
+	ok = gen_tcp:send(Socket, << 1:1, 0:3, 8:4, 1:1, 0:7, 0:32 >>), %% close
 	{ok, << 1:1, 0:3, 8:4, 0:8 >>} = gen_tcp:recv(Socket, 0, 6000),
 	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
 	ok.
@@ -477,7 +477,7 @@ ws_timeout_hibernate(Config) ->
 	{'Upgrade', "websocket"} = lists:keyfind('Upgrade', 1, Headers),
 	{"sec-websocket-accept", "s3pPLMBiTxaQ9kYGzzhZRbK+xOo="}
 		= lists:keyfind("sec-websocket-accept", 1, Headers),
-	{ok, << 1:1, 0:3, 8:4, 0:8 >>} = gen_tcp:recv(Socket, 0, 6000),
+	{ok, << 1:1, 0:3, 8:4, 0:1, 2:7, 1000:16 >>} = gen_tcp:recv(Socket, 0, 6000),
 	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
 	ok.
 
@@ -504,7 +504,7 @@ ws_timeout_cancel(Config) ->
 	{'Upgrade', "websocket"} = lists:keyfind('Upgrade', 1, Headers),
 	{"sec-websocket-accept", "s3pPLMBiTxaQ9kYGzzhZRbK+xOo="}
 		= lists:keyfind("sec-websocket-accept", 1, Headers),
-	{ok, << 1:1, 0:3, 8:4, 0:8 >>} = gen_tcp:recv(Socket, 0, 6000),
+	{ok, << 1:1, 0:3, 8:4, 0:1, 2:7, 1000:16 >>} = gen_tcp:recv(Socket, 0, 6000),
 	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
 	ok.
 
@@ -538,7 +538,7 @@ ws_timeout_reset(Config) ->
 			= gen_tcp:recv(Socket, 0, 6000),
 		ok = timer:sleep(500)
 	end || _ <- [1, 2, 3, 4]],
-	{ok, << 1:1, 0:3, 8:4, 0:8 >>} = gen_tcp:recv(Socket, 0, 6000),
+	{ok, << 1:1, 0:3, 8:4, 0:1, 2:7, 1000:16 >>} = gen_tcp:recv(Socket, 0, 6000),
 	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
 	ok.
 
@@ -566,7 +566,7 @@ ws_upgrade_with_opts(Config) ->
 		= lists:keyfind("sec-websocket-accept", 1, Headers),
 	{ok, Response} = gen_tcp:recv(Socket, 9, 6000),
 	<< 1:1, 0:3, 1:4, 0:1, 7:7, "success" >> = Response,
-	ok = gen_tcp:send(Socket, << 1:1, 0:3, 8:4, 0:8 >>), %% close
+	ok = gen_tcp:send(Socket, << 1:1, 0:3, 8:4, 1:1, 0:7, 0:32 >>), %% close
 	{ok, << 1:1, 0:3, 8:4, 0:8 >>} = gen_tcp:recv(Socket, 0, 6000),
 	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
 	ok.
