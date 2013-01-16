@@ -110,5 +110,5 @@ terminate(Req, State) ->
 ```
 
 The `Req` variable above is the Req object, which allows the developer
-to obtain informations about the request and to perform a reply. Its usage
+to obtain information about the request and to perform a reply. Its usage
 is explained in its respective section of the guide.
