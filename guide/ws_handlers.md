@@ -16,15 +16,28 @@ is implemented by most browsers today, although for backward
 compatibility reasons a solution like [Bullet](https://github.com/extend/bullet)
 might be preferred.
 
-Callbacks
----------
-
-@todo Describe the callbacks.
-
 Usage
 -----
 
-@todo Explain how to use them.
+Websocket handlers are a bridge between the client and your system.
+They can receive data from the client, through `websocket_handle/3`,
+or from the system, through `websocket_info/3`. It is up to the
+handler to decide to process this data, and optionally send a reply
+to the client.
+
+The first thing to do to be able to handle websockets is to tell
+Cowboy that it should upgrade the connection to use the Websocket
+protocol, as follow.
+
+``` erlang
+init({tcp, http}, Req, Opts) ->
+    {upgrade, protocol, cowboy_websocket}.
+```
+
+Cowboy will then switch the protocol and call `websocket_init`,
+followed by zero or more calls to `websocket_data` and
+`websocket_info`. Then, when the connection is shutting down,
+`websocket_terminate` will be called.
 
 The following handler sends a message every second. It also echoes
 back what it receives.

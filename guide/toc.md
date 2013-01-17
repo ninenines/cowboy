@@ -25,7 +25,6 @@ Cowboy User Guide
    *  Usage
  *  [Websocket handlers](ws_handlers.md)
    *  Purpose
-   *  Callbacks
    *  Usage
  *  [REST handlers](rest_handlers.md)
    *  Purpose
