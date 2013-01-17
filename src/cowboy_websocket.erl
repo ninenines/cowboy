@@ -24,9 +24,12 @@
 %% Internal.
 -export([handler_loop/4]).
 
+-type close_code() :: 1000..4999.
+-export_type([close_code/0]).
+
 -type frame() :: close | ping | pong
 	| {text | binary | close | ping | pong, binary()}
-	| {close, 1000..4999, binary()}.
+	| {close, close_code(), binary()}.
 -export_type([frame/0]).
 
 -type opcode() :: 0 | 1 | 2 | 8 | 9 | 10.
@@ -645,7 +648,8 @@ websocket_send_many([Frame|Tail], State) ->
 		Error -> Error
 	end.
 
--spec websocket_close(#state{}, Req, any(), {atom(), atom()})
+-spec websocket_close(#state{}, Req, any(),
+	{atom(), atom()} | {remote, close_code(), binary()})
 	-> {ok, Req, cowboy_middleware:env()}
 	when Req::cowboy_req:req().
 websocket_close(State=#state{socket=Socket, transport=Transport},
