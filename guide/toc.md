@@ -51,4 +51,5 @@ Cowboy User Guide
    *  Handler middleware
  *  [Internals](internals.md)
    *  Architecture
+   *  Lowercase header names
    *  Efficiency considerations
