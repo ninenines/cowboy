@@ -33,7 +33,23 @@ init(_Any, _Req, _Opts) ->
     {upgrade, protocol, my_protocol}.
 ```
 
-The `my_protocol` module will be used for further processing of the
-request. It requires only one callback, `upgrade/4`.
+Cowboy comes with two protocol upgrades: `cowboy_rest` and
+`cowboy_websocket`. Use these values in place of `my_protocol`
+to use them.
 
-@todo Describe `upgrade/4` when the middleware code gets pushed.
+Custom protocol upgrades
+------------------------
+
+The `my_protocol` module above will be used for further processing
+of the request. It requires only one callback, `upgrade/4`.
+
+It receives the request object, the middleware environment, and
+the handler this request has been routed to along with its options.
+
+``` erlang
+upgrade(Req, Env, Handler, HandlerOpts) ->
+    %% ...
+```
+
+This callback is expected to behave like any middleware. Please
+see the corresponding chapter for more information.
