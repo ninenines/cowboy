@@ -41,14 +41,14 @@ this message.
 -export([terminate/2]).
 
 init({tcp, http}, Req, Opts) ->
-	{loop, Req, undefined_state, 60000, hibernate}.
+    {loop, Req, undefined_state, 60000, hibernate}.
 
 info({reply, Body}, Req, State) ->
-	{ok, Req2} = cowboy_req:reply(200, [], Body, Req),
-	{ok, Req2, State};
+    {ok, Req2} = cowboy_req:reply(200, [], Body, Req),
+    {ok, Req2, State};
 info(Message, Req, State) ->
-	{loop, Req, State, hibernate}.
+    {loop, Req, State, hibernate}.
 
 terminate(Req, State) ->
-	ok.
+    ok.
 ```
