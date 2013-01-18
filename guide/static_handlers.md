@@ -11,4 +11,20 @@ proper cache handling.
 Usage
 -----
 
-@todo Describe.
+Static handlers are pre-written REST handlers. They only need
+to be specified in the routing information with the proper options.
+
+The following example routing serves all files found in the
+`priv_dir/static/` directory of the application. It uses a
+mimetypes library to figure out the files' content types.
+
+``` erlang
+Dispatch = [
+	{'_', [
+		{['...'], cowboy_static, [
+			{directory, {priv_dir, static, []}},
+			{mimetypes, {fun mimetypes:path_to_mimes/2, default}}
+		]}
+	]}
+].
+```
