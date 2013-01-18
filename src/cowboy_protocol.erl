@@ -30,7 +30,7 @@
 %%  <dt>max_headers</dt><dd>Max number of headers allowed.
 %%   Defaults to 100.</dd>
 %%  <dt>max_keepalive</dt><dd>Max number of requests allowed in a single
-%%   keep-alive session. Defaults to infinity.</dd>
+%%   keep-alive session. Defaults to 100.</dd>
 %%  <dt>max_request_line_length</dt><dd>Max length allowed for the request
 %%   line. Defaults to 4096.</dd>
 %%  <dt>middlewares</dt><dd>The list of middlewares to execute when a
@@ -107,7 +107,7 @@ init(ListenerPid, Socket, Transport, Opts) ->
 	MaxHeaderNameLength = get_value(max_header_name_length, Opts, 64),
 	MaxHeaderValueLength = get_value(max_header_value_length, Opts, 4096),
 	MaxHeaders = get_value(max_headers, Opts, 100),
-	MaxKeepalive = get_value(max_keepalive, Opts, infinity),
+	MaxKeepalive = get_value(max_keepalive, Opts, 100),
 	MaxRequestLineLength = get_value(max_request_line_length, Opts, 4096),
 	Middlewares = get_value(middlewares, Opts, [cowboy_router, cowboy_handler]),
 	Env = [{listener, ListenerPid}|get_value(env, Opts, [])],
