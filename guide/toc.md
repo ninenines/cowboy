@@ -38,7 +38,7 @@ Cowboy User Guide
    *  Purpose
    *  Request
    *  Request body
-   *  Reply
+   *  Response
  *  [Hooks](hooks.md)
    *  On request
    *  On response
