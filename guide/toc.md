@@ -18,7 +18,6 @@ Cowboy User Guide
    *  Custom protocol upgrades
  *  [HTTP handlers](http_handlers.md)
    *  Purpose
-   *  Callbacks
    *  Usage
  *  [Loop handlers](loop_handlers.md)
    *  Purpose
