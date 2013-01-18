@@ -90,10 +90,12 @@ PathMatch3 = "/path/to/resource/".
 ```
 
 Hosts with and without a trailing dot are equivalent for routing.
+Similarly, hosts with and without a leading dot are also equivalent.
 
 ``` erlang
 HostMatch1 = "cowboy.example.org".
 HostMatch2 = "cowboy.example.org.".
+HostMatch3 = ".cowboy.example.org".
 ```
 
 It is possible to extract segments of the host and path and to store
@@ -115,16 +117,93 @@ segment value where they were defined. For example, the URL
 `http://test.example.org/hats/wild_cowboy_legendary/prices` will
 result in having the value `test` bound to the name `subdomain`
 and the value `wild_cowboy_legendary` bound to the name `hat_name`.
-They can later be retrieved using `cowboy_req:binding/{2,3}`.
+They can later be retrieved using `cowboy_req:binding/{2,3}`. The
+binding name must be given as an atom.
 
-@todo special binding `'_'`
-@todo optional path or segments
-@todo same binding twice (+ optional + host/path)
+There is a special binding name you can use to mimic the underscore
+variable in Erlang. Any match against the `_` binding will succeed
+but the data will be discarded. This is especially useful for
+matching against many domain names in one go.
+
+``` erlang
+HostMatch = "ninenines.:_".
+```
+
+Similarly, it is possible to have optional segments. Anything
+between brackets is optional.
+
+``` erlang
+PathMatch = "/hats/[page/:number]".
+HostMatch = "[www.]ninenines.eu".
+```
+
+You can also have imbricated optional segments.
+
+``` erlang
+PathMatch = "/hats/[page/[:number]]".
+```
+
+You can retrieve the rest of the host or path using `[...]`.
+In the case of hosts it will match anything before, in the case
+of paths anything after the previously matched segments. It is
+a special case of optional segments, in that it can have
+zero, one or many segments. You can then find the segments using
+`cowboy_req:host_info/1` and `cowboy_req:path_info/1` respectively.
+They will be represented as a list of segments.
+
+``` erlang
+PathMatch = "/hats/[...]".
+HostMatch = "[...]ninenines.eu".
+```
+
+Finally, if a binding appears twice in the routing rules, then the
+match will succeed only if they share the same value. This copies
+the Erlang pattern matching behavior.
+
+``` erlang
+PathMatch = "/hats/:name/:name".
+```
+
+This is also true when an optional segment is present. In this
+case the two values must be identical only if the segment is
+available.
+
+``` erlang
+PathMatch = "/hats/:name/[:name]".
+```
+
+If a binding is defined in both the host and path, then they must
+also share the same value.
+
+``` erlang
+PathMatch = "/:user/[...]".
+HostMatch = ":user.github.com".
+```
 
 Constraints
 -----------
 
-@todo Describe constraints.
+After the matching has completed, the resulting bindings can be tested
+against a set of constraints. The match will succeed only if they all
+succeed.
+
+They are always given as a two or three elements tuple, where the first
+element is the name of the binding, the second element is the constraint's
+name, and the optional third element is the constraint's arguments.
+
+The following constraints are currently defined:
+
+ *  {Name, int}
+ *  {Name, function, (fun(Value) -> true | {true, NewValue} | false)}
+
+The `int` constraint will check if the binding is a binary string
+representing an integer, and if it is, will convert the value to integer.
+
+The `function` constraint will pass the binding value to a user specified
+function that receives the binary value as its only argument and must
+return whether it fulfills the constraint, optionally modifying the value.
+
+Note that constraint functions SHOULD be pure and MUST NOT crash.
 
 Compilation
 -----------
