@@ -26,7 +26,7 @@ format the header names with the expected case.
 capitalize_hook(Status, Headers, Body, Req) ->
     Headers2 = [{cowboy_bstr:capitalize_token(N), V}
         || {N, V} <- Headers],
-    {ok, Req2} = cowboy_req:reply(State, Headers2, Body, Req),
+    {ok, Req2} = cowboy_req:reply(Status, Headers2, Body, Req),
     Req2.
 ```
 
