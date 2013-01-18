@@ -21,7 +21,6 @@ Cowboy User Guide
    *  Usage
  *  [Loop handlers](loop_handlers.md)
    *  Purpose
-   *  Callbacks
    *  Usage
  *  [Websocket handlers](ws_handlers.md)
    *  Purpose
