@@ -846,12 +846,6 @@ generate_etag(Req, State=#state{etag=undefined}) ->
 	case call(Req, State, generate_etag) of
 		no_call ->
 			{undefined, Req, State#state{etag=no_call}};
-		%% Previously the return value from the generate_etag/2 callback was set
-		%% as the value of the ETag header in the response. Therefore the only
-		%% valid return type was `binary()'. If a handler returns a `binary()'
-		%% it must be mapped to the expected type or it'll always fail to
-		%% compare equal to any entity tags present in the request headers.
-		%% @todo Remove support for binary return values after 0.6.
 		{Etag, Req2, HandlerState} when is_binary(Etag) ->
 			[Etag2] = cowboy_http:entity_tag_match(Etag),
 			{Etag2, Req2, State#state{handler_state=HandlerState, etag=Etag2}};

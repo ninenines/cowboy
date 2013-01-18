@@ -728,7 +728,6 @@ skip_body(Req) ->
 
 %% @doc Return the full body sent with the request, parsed as an
 %% application/x-www-form-urlencoded string. Essentially a POST query string.
-%% @todo We need an option to limit the size of the body for QS too.
 -spec body_qs(Req)
 	-> {ok, [{binary(), binary() | true}], Req} | {error, atom()}
 	when Req::req().
@@ -765,7 +764,6 @@ multipart_data(Req=#http_req{multipart={Length, Cont}}) ->
 multipart_data(Req=#http_req{body_state=done}) ->
 	{eof, Req}.
 
-%% @todo Typespecs.
 multipart_data(Req, Length, {headers, Headers, Cont}) ->
 	{headers, Headers, Req#http_req{multipart={Length, Cont}}};
 multipart_data(Req, Length, {body, Data, Cont}) ->
