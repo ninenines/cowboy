@@ -12,9 +12,9 @@ init(_Transport, Req, []) ->
 
 handle(Req, State) ->
 	{Method, Req2} = cowboy_req:method(Req),
-	{HasBody, Req3} = cowboy_req:has_body(Req2),
-	{ok, Req4} = maybe_echo(Method, HasBody, Req3),
-	{ok, Req4, State}.
+	HasBody = cowboy_req:has_body(Req2),
+	{ok, Req3} = maybe_echo(Method, HasBody, Req2),
+	{ok, Req3, State}.
 
 maybe_echo(<<"POST">>, true, Req) ->
 	{ok, PostVals, Req2} = cowboy_req:body_qs(Req),

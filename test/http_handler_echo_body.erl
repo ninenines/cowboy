@@ -8,8 +8,8 @@ init({_, http}, Req, _) ->
 	{ok, Req, undefined}.
 
 handle(Req, State) ->
-	{true, Req1} = cowboy_req:has_body(Req),
-	{ok, Body, Req2} = cowboy_req:body(Req1),
+	true = cowboy_req:has_body(Req),
+	{ok, Body, Req2} = cowboy_req:body(Req),
 	{Size, Req3} = cowboy_req:body_length(Req2),
 	Size = byte_size(Body),
 	{ok, Req4} = cowboy_req:reply(200, [], Body, Req3),
