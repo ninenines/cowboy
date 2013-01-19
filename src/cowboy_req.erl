@@ -865,6 +865,8 @@ has_resp_header(Name, #http_req{resp_headers=RespHeaders}) ->
 
 %% @doc Return whether a body has been set for the response.
 -spec has_resp_body(req()) -> boolean().
+has_resp_body(#http_req{resp_body=RespBody}) when is_function(RespBody) ->
+	true;
 has_resp_body(#http_req{resp_body={Length, _}}) ->
 	Length > 0;
 has_resp_body(#http_req{resp_body=RespBody}) ->
