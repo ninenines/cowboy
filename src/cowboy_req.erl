@@ -163,7 +163,8 @@
 		| {non_neg_integer(), resp_body_fun()},
 
 	%% Functions.
-	onresponse = undefined :: undefined | cowboy_protocol:onresponse_fun()
+	onresponse = undefined :: undefined | already_called
+		| cowboy_protocol:onresponse_fun()
 }).
 
 -opaque req() :: #http_req{}.
@@ -1162,13 +1163,17 @@ to_list(Req) ->
 response(Status, Headers, RespHeaders, DefaultHeaders, Body, Req=#http_req{
 		socket=Socket, transport=Transport, version=Version,
 		pid=ReqPid, onresponse=OnResponse}) ->
-	FullHeaders = response_merge_headers(Headers, RespHeaders, DefaultHeaders),
+	FullHeaders = case OnResponse of
+		already_called -> Headers;
+		_ -> response_merge_headers(Headers, RespHeaders, DefaultHeaders)
+	end,
 	Req2 = case OnResponse of
+		already_called -> Req;
 		undefined -> Req;
 		OnResponse -> OnResponse(Status, FullHeaders, Body,
 			%% Don't call 'onresponse' from the hook itself.
 			Req#http_req{resp_headers=[], resp_body= <<>>,
-				onresponse=undefined})
+				onresponse=already_called})
 	end,
 	ReplyType = case Req2#http_req.resp_state of
 		waiting ->

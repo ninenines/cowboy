@@ -45,6 +45,7 @@
 -export([nc_zero/1]).
 -export([onrequest/1]).
 -export([onrequest_reply/1]).
+-export([onresponse_capitalize/1]).
 -export([onresponse_crash/1]).
 -export([onresponse_reply/1]).
 -export([pipeline/1]).
@@ -84,7 +85,8 @@ all() ->
 		{group, http_compress},
 		{group, https_compress},
 		{group, onrequest},
-		{group, onresponse}
+		{group, onresponse},
+		{group, onresponse_capitalize}
 	].
 
 groups() ->
@@ -146,6 +148,9 @@ groups() ->
 		{onresponse, [], [
 			onresponse_crash,
 			onresponse_reply
+		]},
+		{onresponse_capitalize, [], [
+			onresponse_capitalize
 		]}
 	].
 
@@ -246,6 +251,18 @@ init_per_group(onresponse, Config) ->
 		{env, [{dispatch, init_dispatch(Config)}]},
 		{max_keepalive, 50},
 		{onresponse, fun onresponse_hook/4},
+		{timeout, 500}
+	]),
+	{ok, Client} = cowboy_client:init([]),
+	[{scheme, <<"http">>}, {port, Port}, {opts, []},
+		{transport, Transport}, {client, Client}|Config];
+init_per_group(onresponse_capitalize, Config) ->
+	Port = 33086,
+	Transport = ranch_tcp,
+	{ok, _} = cowboy:start_http(onresponse_capitalize, 100, [{port, Port}], [
+		{env, [{dispatch, init_dispatch(Config)}]},
+		{max_keepalive, 50},
+		{onresponse, fun onresponse_capitalize_hook/4},
 		{timeout, 500}
 	]),
 	{ok, Client} = cowboy_client:init([]),
@@ -670,6 +687,21 @@ onrequest_hook(Req) ->
 				200, [], <<"replied!">>, Req2),
 			Req3
 	end.
+
+onresponse_capitalize(Config) ->
+	Client = ?config(client, Config),
+	{ok, Client2} = cowboy_client:request(<<"GET">>,
+		build_url("/", Config), Client),
+	{ok, Transport, Socket} = cowboy_client:transport(Client2),
+	{ok, Data} = Transport:recv(Socket, 0, 1000),
+	false = nomatch =:= binary:match(Data, <<"Content-Length">>).
+
+%% Hook for the above onresponse_capitalize test.
+onresponse_capitalize_hook(Status, Headers, Body, Req) ->
+	Headers2 = [{cowboy_bstr:capitalize_token(N), V}
+		|| {N, V} <- Headers],
+	{ok, Req2} = cowboy_req:reply(Status, Headers2, Body, Req),
+	Req2.
 
 onresponse_crash(Config) ->
 	Client = ?config(client, Config),
