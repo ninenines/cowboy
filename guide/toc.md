@@ -37,7 +37,11 @@ Cowboy User Guide
    *  Purpose
    *  Request
    *  Request body
+   *  Multipart request body
    *  Response
+   *  Chunked response
+   *  Response preconfiguration
+   *  Reducing the memory footprint
  *  [Hooks](hooks.md)
    *  On request
    *  On response
