@@ -475,6 +475,11 @@ parse_header(Name, Req, Default) when Name =:= <<"upgrade">> ->
 		fun (Value) ->
 			cowboy_http:nonempty_list(Value, fun cowboy_http:token_ci/2)
 		end);
+parse_header(Name, Req, Default) when Name =:= <<"authorization">> ->
+	parse_header(Name, Req, Default,
+		fun (Value) ->
+			cowboy_http:token_ci(Value, fun cowboy_http:authorization/2)
+		end);
 parse_header(Name, Req, Default) ->
 	{Value, Req2} = header(Name, Req, Default),
 	{undefined, Value, Req2}.

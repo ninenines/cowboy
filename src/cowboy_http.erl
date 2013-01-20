@@ -50,6 +50,7 @@
 -export([urlencode/1]).
 -export([urlencode/2]).
 -export([x_www_form_urlencoded/1]).
+-export([authorization/2]).
 
 -type version() :: {Major::non_neg_integer(), Minor::non_neg_integer()}.
 -type headers() :: [{binary(), iodata()}].
@@ -997,6 +998,21 @@ x_www_form_urlencoded(Qs) ->
 		[Name, Value] -> {urldecode(Name), urldecode(Value)}
 	end || Token <- Tokens].
 
+%% @doc Parse authorization value according rfc 2617.
+%% Only Basic authorization is supported so far.
+-spec authorization(binary(), binary()) -> {binary(), any()}.
+authorization(UserPass, Type = <<"basic">>) -> 
+	{Type, cowboy_http:whitespace(UserPass, 
+			fun(D) ->
+				cowboy_http:token(base64:decode(D), 
+				fun(<< $:, Pass/binary>>, User) -> 
+					{User, Pass} 
+				end) 
+			end)
+	};
+authorization(String, Type) ->
+	{Type, String}.
+
 %% Tests.
 
 -ifdef(TEST).
@@ -1293,5 +1309,10 @@ urlencode_test_() ->
 	 ?_assertEqual(<<".-~_">>, U(<<".-~_">>, [])),
 	 ?_assertEqual(<<"%ff+">>, urlencode(<<255, " ">>))
 	].
+
+http_authorization_test_() ->
+	?_assertEqual({<<"basic">>, {<<"Alladin">>, <<"open sesame">>}},
+		authorization(<<"QWxsYWRpbjpvcGVuIHNlc2FtZQ==">>, <<"basic">>)). 
+
 
 -endif.
