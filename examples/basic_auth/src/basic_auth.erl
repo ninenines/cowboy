@@ -1,6 +1,6 @@
 %% Feel free to use, reuse and abuse the code in this file.
 
--module(rest_hello_world).
+-module(basic_auth).
 
 %% API.
 -export([start/0]).

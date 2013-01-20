@@ -1000,7 +1000,7 @@ x_www_form_urlencoded(Qs) ->
 
 %% @doc Parse authorization value according rfc 2617.
 %% Only Basic authorization is supported so far.
--spec authorization(binary(), binary()) -> {binary(), any()}
+-spec authorization(binary(), binary()) -> {binary(), any()}.
 authorization(UserPass, Type = <<"basic">>) -> 
 	{Type, cowboy_http:whitespace(UserPass, 
 			fun(D) ->
@@ -1010,7 +1010,7 @@ authorization(UserPass, Type = <<"basic">>) ->
 				end) 
 			end)
 	};
-authrization(String, Type) ->
+authorization(String, Type) ->
 	{Type, String}.
 
 %% Tests.

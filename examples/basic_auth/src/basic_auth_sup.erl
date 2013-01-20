@@ -1,7 +1,7 @@
 %% Feel free to use, reuse and abuse the code in this file.
 
 %% @private
--module(rest_hello_world_sup).
+-module(basic_auth_sup).
 -behaviour(supervisor).
 
 %% API.

@@ -1,7 +1,7 @@
 %% Feel free to use, reuse and abuse the code in this file.
 
 %% @private
--module(rest_hello_world_app).
+-module(basic_auth_app).
 -behaviour(application).
 
 %% API.
@@ -19,7 +19,7 @@ start(_Type, _Args) ->
 	{ok, _} = cowboy:start_http(http, 100, [{port, 8080}], [
 		{env, [{dispatch, Dispatch}]}
 	]),
-	rest_hello_world_sup:start_link().
+	basic_auth_sup:start_link().
 
 stop(_State) ->
 	ok.

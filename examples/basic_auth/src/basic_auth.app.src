@@ -1,7 +1,7 @@
 %% Feel free to use, reuse and abuse the code in this file.
 
-{application, rest_hello_world, [
-	{description, "Cowboy REST Hello World example."},
+{application, basic_auth, [
+	{description, "Cowboy Basic HTTP Authorization example."},
 	{vsn, "1"},
 	{modules, []},
 	{registered, []},
@@ -10,6 +10,6 @@
 		stdlib,
 		cowboy
 	]},
-	{mod, {rest_hello_world_app, []}},
+	{mod, {basic_auth_app, []}},
 	{env, []}
 ]}.
