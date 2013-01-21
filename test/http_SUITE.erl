@@ -586,7 +586,8 @@ keepalive_max(Config) ->
 	URL = build_url("/", Config),
 	ok = keepalive_max_loop(Client, URL, 50).
 
-keepalive_max_loop(_, _, 0) ->
+keepalive_max_loop(Client, _, 0) ->
+	{error, closed} = cowboy_client:response(Client),
 	ok;
 keepalive_max_loop(Client, URL, N) ->
 	Headers = [{<<"connection">>, <<"keep-alive">>}],
@@ -605,7 +606,8 @@ keepalive_nl(Config) ->
 	URL = build_url("/", Config),
 	ok = keepalive_nl_loop(Client, URL, 10).
 
-keepalive_nl_loop(_, _, 0) ->
+keepalive_nl_loop(Client, _, 0) ->
+	{error, closed} = cowboy_client:response(Client),
 	ok;
 keepalive_nl_loop(Client, URL, N) ->
 	Headers = [{<<"connection">>, <<"keep-alive">>}],
