@@ -5,7 +5,7 @@
 
 -export([init/3]).
 -export([handle/2]).
--export([terminate/2]).
+-export([terminate/3]).
 
 init(_Transport, Req, []) ->
 	{ok, Req, undefined}.
@@ -32,5 +32,5 @@ echo(Echo, Req) ->
 	cowboy_req:reply(200,
 		[{<<"content-encoding">>, <<"utf-8">>}], Echo, Req).
 
-terminate(_Req, _State) ->
+terminate(_Reason, _Req, _State) ->
 	ok.

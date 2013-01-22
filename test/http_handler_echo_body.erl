@@ -2,7 +2,7 @@
 
 -module(http_handler_echo_body).
 -behaviour(cowboy_http_handler).
--export([init/3, handle/2, terminate/2]).
+-export([init/3, handle/2, terminate/3]).
 
 init({_, http}, Req, _) ->
 	{ok, Req, undefined}.
@@ -15,5 +15,5 @@ handle(Req, State) ->
 	{ok, Req4} = cowboy_req:reply(200, [], Body, Req3),
 	{ok, Req4, State}.
 
-terminate(_, _) ->
+terminate(_, _, _) ->
 	ok.

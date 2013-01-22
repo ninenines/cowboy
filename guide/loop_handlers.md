@@ -31,7 +31,7 @@ practice is known as server-sent events.
 
 Loop handlers essentially wait for one or more Erlang messages
 and feed these messages to the `info/3` callback. It also features
-the `init/3` and `terminate/2` callbacks which work the same as
+the `init/3` and `terminate/3` callbacks which work the same as
 for plain HTTP handlers.
 
 The following handler waits for a message `{reply, Body}` before
@@ -46,7 +46,7 @@ this message.
 
 -export([init/3]).
 -export([info/3]).
--export([terminate/2]).
+-export([terminate/3]).
 
 init({tcp, http}, Req, Opts) ->
     {loop, Req, undefined_state, 60000, hibernate}.
@@ -57,6 +57,6 @@ info({reply, Body}, Req, State) ->
 info(Message, Req, State) ->
     {loop, Req, State, hibernate}.
 
-terminate(Req, State) ->
+terminate(Reason, Req, State) ->
     ok.
 ```

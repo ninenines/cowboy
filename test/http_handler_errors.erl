@@ -2,7 +2,7 @@
 
 -module(http_handler_errors).
 -behaviour(cowboy_http_handler).
--export([init/3, handle/2, terminate/2]).
+-export([init/3, handle/2, terminate/3]).
 
 init({_Transport, http}, Req, _Opts) ->
     {Case, Req1} = cowboy_req:qs_val(<<"case">>, Req),
@@ -36,5 +36,5 @@ handle(Req, <<"handle_after_reply">> = Case) ->
     {ok, _Req1} = cowboy_req:reply(200, [], "http_handler_crashes", Req),
     erlang:error(Case).
 
-terminate(_Req, _State) ->
+terminate(_, _, _) ->
 	ok.

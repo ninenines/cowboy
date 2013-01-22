@@ -64,7 +64,8 @@ handler_init(Req, State, Handler, HandlerOpts) ->
 			handler_before_loop(Req2, State#state{
 				hibernate=true, loop_timeout=Timeout}, Handler, HandlerState);
 		{shutdown, Req2, HandlerState} ->
-			terminate_request(Req2, State, Handler, HandlerState);
+			terminate_request(Req2, State, Handler, HandlerState,
+				{normal, shutdown});
 		%% @todo {upgrade, transport, Module}
 		{upgrade, protocol, Module} ->
 			upgrade_protocol(Req, State, Handler, HandlerOpts, Module);
@@ -99,7 +100,8 @@ upgrade_protocol(Req, #state{env=Env},
 handler_handle(Req, State, Handler, HandlerState) ->
 	try Handler:handle(Req, HandlerState) of
 		{ok, Req2, HandlerState2} ->
-			terminate_request(Req2, State, Handler, HandlerState2)
+			terminate_request(Req2, State, Handler, HandlerState2,
+				{normal, shutdown})
 	catch Class:Reason ->
 		error_logger:error_msg(
 			"** Cowboy handler ~p terminating in ~p/~p~n"
@@ -109,7 +111,7 @@ handler_handle(Req, State, Handler, HandlerState) ->
 			"** Stacktrace: ~p~n~n",
 			[Handler, handle, 2, Class, Reason, HandlerState,
 				cowboy_req:to_list(Req), erlang:get_stacktrace()]),
-		handler_terminate(Req, Handler, HandlerState),
+		handler_terminate(Req, Handler, HandlerState, Reason),
 		{error, 500, Req}
 	end.
 
@@ -146,7 +148,8 @@ handler_loop_timeout(State=#state{loop_timeout=Timeout,
 handler_loop(Req, State=#state{loop_timeout_ref=TRef}, Handler, HandlerState) ->
 	receive
 		{timeout, TRef, ?MODULE} ->
-			terminate_request(Req, State, Handler, HandlerState);
+			terminate_request(Req, State, Handler, HandlerState,
+				{normal, timeout});
 		{timeout, OlderTRef, ?MODULE} when is_reference(OlderTRef) ->
 			handler_loop(Req, State, Handler, HandlerState);
 		Message ->
@@ -160,7 +163,8 @@ handler_loop(Req, State=#state{loop_timeout_ref=TRef}, Handler, HandlerState) ->
 handler_call(Req, State, Handler, HandlerState, Message) ->
 	try Handler:info(Message, Req, HandlerState) of
 		{ok, Req2, HandlerState2} ->
-			terminate_request(Req2, State, Handler, HandlerState2);
+			terminate_request(Req2, State, Handler, HandlerState2,
+				{normal, shutdown});
 		{loop, Req2, HandlerState2} ->
 			handler_before_loop(Req2, State, Handler, HandlerState2);
 		{loop, Req2, HandlerState2, hibernate} ->
@@ -175,27 +179,29 @@ handler_call(Req, State, Handler, HandlerState, Message) ->
 			"** Stacktrace: ~p~n~n",
 			[Handler, info, 3, Class, Reason, HandlerState,
 				cowboy_req:to_list(Req), erlang:get_stacktrace()]),
-		handler_terminate(Req, Handler, HandlerState),
+		handler_terminate(Req, Handler, HandlerState, Reason),
 		{error, 500, Req}
 	end.
 
--spec terminate_request(Req, #state{}, module(), any()) ->
+-spec terminate_request(Req, #state{}, module(), any(),
+	{normal, timeout | shutdown} | {error, atom()}) ->
 	{ok, Req, cowboy_middleware:env()} when Req::cowboy_req:req().
-terminate_request(Req, #state{env=Env}, Handler, HandlerState) ->
-	HandlerRes = handler_terminate(Req, Handler, HandlerState),
+terminate_request(Req, #state{env=Env}, Handler, HandlerState, Reason) ->
+	HandlerRes = handler_terminate(Req, Handler, HandlerState, Reason),
 	{ok, Req, [{result, HandlerRes}|Env]}.
 
--spec handler_terminate(cowboy_req:req(), module(), any()) -> ok.
-handler_terminate(Req, Handler, HandlerState) ->
+-spec handler_terminate(cowboy_req:req(), module(), any(),
+	{normal, timeout | shutdown} | {error, atom()}) -> ok.
+handler_terminate(Req, Handler, HandlerState, Reason) ->
 	try
-		Handler:terminate(cowboy_req:lock(Req), HandlerState)
-	catch Class:Reason ->
+		Handler:terminate(Reason, cowboy_req:lock(Req), HandlerState)
+	catch Class:Reason2 ->
 		error_logger:error_msg(
 			"** Cowboy handler ~p terminating in ~p/~p~n"
 			"   for the reason ~p:~p~n"
 			"** Handler state was ~p~n"
 			"** Request was ~p~n"
 			"** Stacktrace: ~p~n~n",
-			[Handler, terminate, 2, Class, Reason, HandlerState,
+			[Handler, terminate, 3, Class, Reason2, HandlerState,
 				cowboy_req:to_list(Req), erlang:get_stacktrace()])
 	end.

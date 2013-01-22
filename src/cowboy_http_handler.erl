@@ -22,8 +22,8 @@
 %% <em>handle/2</em> allows you to handle the request. It receives the
 %% state previously defined.
 %%
-%% <em>terminate/2</em> allows you to clean up. It receives the state
-%% previously defined.
+%% <em>terminate/3</em> allows you to clean up. It receives the
+%% termination reason and the state previously defined.
 %%
 %% There is no required operation to perform in any of these callbacks
 %% other than returning the proper values. Make sure you always return
@@ -33,6 +33,9 @@
 
 -type opts() :: any().
 -type state() :: any().
+-type terminate_reason() :: {normal, shutdown}
+	| {normal, timeout} %% Only occurs in loop handlers.
+	| {error, atom()}.
 
 -callback init({atom(), http}, Req, opts())
 	-> {ok, Req, state()}
@@ -45,4 +48,4 @@
 	when Req::cowboy_req:req().
 -callback handle(Req, State) -> {ok, Req, State}
 	when Req::cowboy_req:req(), State::state().
--callback terminate(cowboy_req:req(), state()) -> ok.
+-callback terminate(terminate_reason(), cowboy_req:req(), state()) -> ok.

@@ -87,7 +87,7 @@ handlers, Websocket handlers, REST handlers and static handlers. Their
 usage is documented in the respective sections of the guide.
 
 Most applications use the plain HTTP handler, which has three callback
-functions: init/3, handle/2 and terminate/2. Following is an example of
+functions: init/3, handle/2 and terminate/3. Following is an example of
 a simple handler module.
 
 ``` erlang
@@ -96,7 +96,7 @@ a simple handler module.
 
 -export([init/3]).
 -export([handle/2]).
--export([terminate/2]).
+-export([terminate/3]).
 
 init({tcp, http}, Req, Opts) ->
     {ok, Req, undefined_state}.
@@ -105,7 +105,7 @@ handle(Req, State) ->
     {ok, Req2} = cowboy_req:reply(200, [], <<"Hello World!">>, Req),
     {ok, Req2, State}.
 
-terminate(Req, State) ->
+terminate(Reason, Req, State) ->
     ok.
 ```
 

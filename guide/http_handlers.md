@@ -16,7 +16,7 @@ this should be used for any initialization needs.
 The second callback, `handle/2`, is where most of your code should
 be. As the name explains, this is where you handle the request.
 
-The last callback, `terminate/2`, will be empty most of the time.
+The last callback, `terminate/3`, will be empty most of the time.
 It's used for any needed cleanup. If you used the process dictionary,
 timers, monitors then you most likely want to stop them in this
 callback, as Cowboy might end up reusing this process for subsequent
