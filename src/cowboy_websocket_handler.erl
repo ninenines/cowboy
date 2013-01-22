@@ -50,7 +50,7 @@
 
 -type opts() :: any().
 -type state() :: any().
--type terminate_reason() :: {normal, closed}
+-type terminate_reason() :: {normal, shutdown}
 	| {normal, timeout}
 	| {error, closed}
 	| {error, badframe}
