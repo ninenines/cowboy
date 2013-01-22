@@ -63,7 +63,6 @@ groups() ->
 	[{ws, [], BaseTests}].
 
 init_per_suite(Config) ->
-	application:start(inets),
 	application:start(crypto),
 	application:start(ranch),
 	application:start(cowboy),
@@ -73,7 +72,6 @@ end_per_suite(_Config) ->
 	application:stop(cowboy),
 	application:stop(ranch),
 	application:stop(crypto),
-	application:stop(inets),
 	ok.
 
 init_per_group(ws, Config) ->

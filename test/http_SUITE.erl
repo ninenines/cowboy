@@ -155,7 +155,6 @@ groups() ->
 	].
 
 init_per_suite(Config) ->
-	application:start(inets),
 	application:start(crypto),
 	application:start(ranch),
 	application:start(cowboy),
@@ -165,7 +164,6 @@ end_per_suite(_Config) ->
 	application:stop(cowboy),
 	application:stop(ranch),
 	application:stop(crypto),
-	application:stop(inets),
 	ok.
 
 init_per_group(http, Config) ->
@@ -477,10 +475,16 @@ check_status(Config) ->
 		{Ret, URL}
 	end || {Status, URL} <- Tests].
 
-%% @todo Convert to cowboy_client.
 chunked_response(Config) ->
-	{ok, {{"HTTP/1.1", 200, "OK"}, _, "chunked_handler\r\nworks fine!"}}
-		= httpc:request(binary_to_list(build_url("/chunked_response", Config))).
+	Client = ?config(client, Config),
+	{ok, Client2} = cowboy_client:request(<<"GET">>,
+		build_url("/chunked_response", Config), Client),
+	{ok, 200, Headers, Client3} = cowboy_client:response(Client2),
+	true = lists:keymember(<<"transfer-encoding">>, 1, Headers),
+	{ok, Transport, Socket} = cowboy_client:transport(Client3),
+	{ok, <<"11\r\nchunked_handler\r\n\r\nB\r\nworks fine!\r\n0\r\n\r\n">>}
+		= Transport:recv(Socket, 44, 1000),
+	{error, closed} = cowboy_client:response(Client3).
 
 %% Check if sending requests whose size is around the MTU breaks something.
 echo_body(Config) ->
