@@ -42,3 +42,8 @@ $ curl -sLO http://localhost:8080/test.txt
 $ cat test.txt
 If you read this then the static file server works!
 ```
+
+HTML5 Video Example
+-------------------
+
+Open http://localhost:8080/video.html in your favorite browser.
