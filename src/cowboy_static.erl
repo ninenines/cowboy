@@ -289,7 +289,7 @@ forbidden(Req, #state{fileinfo={ok, #file_info{access=Access}}}=State) ->
 -spec last_modified(Req, #state{})
 	-> {calendar:datetime(), Req, #state{}} when Req::cowboy_req:req().
 last_modified(Req, #state{fileinfo={ok, #file_info{mtime=Modified}}}=State) ->
-	{Modified, Req, State}.
+	{erlang:localtime_to_universaltime(Modified), Req, State}.
 
 
 %% @private Generate the ETag header value for this file.
