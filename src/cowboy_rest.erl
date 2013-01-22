@@ -740,13 +740,13 @@ choose_content_type(Req,
 				"** Request was ~p~n** State was ~p~n~n",
 				[Handler, Fun, 2, cowboy_req:to_list(Req), HandlerState]),
 			{error, 500, Req};
-		{halt, Req2, HandlerState} ->
-			terminate(Req2, State#state{handler_state=HandlerState});
-		{true, Req2, HandlerState} ->
-			State2 = State#state{handler_state=HandlerState},
+		{halt, Req2, HandlerState2} ->
+			terminate(Req2, State#state{handler_state=HandlerState2});
+		{true, Req2, HandlerState2} ->
+			State2 = State#state{handler_state=HandlerState2},
 			next(Req2, State2, OnTrue);
-		{false, Req2, HandlerState} ->
-			State2 = State#state{handler_state=HandlerState},
+		{false, Req2, HandlerState2} ->
+			State2 = State#state{handler_state=HandlerState2},
 			respond(Req2, State2, 500)
 	end;
 choose_content_type(Req, State, OnTrue, ContentType, [_Any|Tail]) ->
@@ -791,10 +791,10 @@ set_resp_body(Req, State=#state{handler=Handler, handler_state=HandlerState,
 				"** Request was ~p~n** State was ~p~n~n",
 				[Handler, Fun, 2, cowboy_req:to_list(Req5), HandlerState]),
 			{error, 500, Req5};
-		{halt, Req6, HandlerState} ->
-			terminate(Req6, State4#state{handler_state=HandlerState});
-		{Body, Req6, HandlerState} ->
-			State5 = State4#state{handler_state=HandlerState},
+		{halt, Req6, HandlerState2} ->
+			terminate(Req6, State4#state{handler_state=HandlerState2});
+		{Body, Req6, HandlerState2} ->
+			State5 = State4#state{handler_state=HandlerState2},
 			Req7 = case Body of
 				{stream, StreamFun} ->
 					cowboy_req:set_resp_body_fun(StreamFun, Req6);
