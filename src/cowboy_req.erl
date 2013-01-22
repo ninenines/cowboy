@@ -137,14 +137,14 @@
 	version = {1, 1} :: cowboy_http:version(),
 	peer = undefined :: undefined | {inet:ip_address(), inet:port_number()},
 	host = undefined :: undefined | binary(),
-	host_info = undefined :: undefined | cowboy_dispatcher:tokens(),
+	host_info = undefined :: undefined | cowboy_router:tokens(),
 	port = undefined :: undefined | inet:port_number(),
 	path = undefined :: binary(),
-	path_info = undefined :: undefined | cowboy_dispatcher:tokens(),
+	path_info = undefined :: undefined | cowboy_router:tokens(),
 	qs = undefined :: binary(),
 	qs_vals = undefined :: undefined | list({binary(), binary() | true}),
 	fragment = undefined :: binary(),
-	bindings = undefined :: undefined | cowboy_dispatcher:bindings(),
+	bindings = undefined :: undefined | cowboy_router:bindings(),
 	headers = [] :: cowboy_http:headers(),
 	p_headers = [] :: [any()], %% @todo Improve those specs.
 	cookies = undefined :: undefined | [{binary(), binary()}],
@@ -256,7 +256,7 @@ host(Req) ->
 %% @doc Return the extra host information obtained from partially matching
 %% the hostname using <em>'...'</em>.
 -spec host_info(Req)
-	-> {cowboy_dispatcher:tokens() | undefined, Req} when Req::req().
+	-> {cowboy_router:tokens() | undefined, Req} when Req::req().
 host_info(Req) ->
 	{Req#http_req.host_info, Req}.
 
@@ -273,7 +273,7 @@ path(Req) ->
 %% @doc Return the extra path information obtained from partially matching
 %% the patch using <em>'...'</em>.
 -spec path_info(Req)
-	-> {cowboy_dispatcher:tokens() | undefined, Req} when Req::req().
+	-> {cowboy_router:tokens() | undefined, Req} when Req::req().
 path_info(Req) ->
 	{Req#http_req.path_info, Req}.
 
@@ -1122,8 +1122,8 @@ set([{transport, Val}|Tail], Req) -> set(Tail, Req#http_req{transport=Val});
 set([{version, Val}|Tail], Req) -> set(Tail, Req#http_req{version=Val}).
 
 %% @private
--spec set_bindings(cowboy_dispatcher:tokens(), cowboy_dispatcher:tokens(),
-	cowboy_dispatcher:bindings(), Req) -> Req when Req::req().
+-spec set_bindings(cowboy_router:tokens(), cowboy_router:tokens(),
+	cowboy_router:bindings(), Req) -> Req when Req::req().
 set_bindings(HostInfo, PathInfo, Bindings, Req) ->
 	Req#http_req{host_info=HostInfo, path_info=PathInfo,
 		bindings=Bindings}.
