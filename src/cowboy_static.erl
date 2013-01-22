@@ -322,8 +322,12 @@ content_types_provided(Req, #state{filepath=Filepath,
 file_contents(Req, #state{filepath=Filepath,
 		fileinfo={ok, #file_info{size=Filesize}}}=State) ->
 	Writefile = fun(Socket, Transport) ->
-		{ok, _} = Transport:sendfile(Socket, Filepath),
-		ok
+		%% Transport:sendfile/2 may return {error, closed}
+		%% if the connection is closed while sending the file.
+		case Transport:sendfile(Socket, Filepath) of
+			{ok, _} -> ok;
+			{error, closed} -> ok
+		end
 	end,
 	{{stream, Filesize, Writefile}, Req, State}.
 
