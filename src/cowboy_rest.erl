@@ -203,7 +203,7 @@ options(Req, State) ->
 content_types_provided(Req, State) ->
 	case call(Req, State, content_types_provided) of
 		no_call ->
-		    Default = {{<<"text">>,<<"html">>,[]},none},
+		    Default = {{<<"text">>, <<"html">>, []}, to_html},
 		    State2 = State#state{content_types_p=Default},
 		    case cowboy_req:parse_header(<<"accept">>, Req) of
 			    {error, badarg} ->
@@ -219,11 +219,10 @@ content_types_provided(Req, State) ->
 		    end;
 		{halt, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
+		{[], Req2, HandlerState} ->
+			not_acceptable(Req2, State#state{handler_state=HandlerState});
 		{CTP, Req2, HandlerState} ->
-			CTP2 = case CTP of
-				[] -> {{<<"text">>,<<"html">>,[]},none};
-				_  -> [normalize_content_types(P) || P <- CTP]
-			end,
+			CTP2 =  [normalize_content_types(P) || P <- CTP],
 			State2 = State#state{
 			        handler_state=HandlerState, content_types_p=CTP2},
 			case cowboy_req:parse_header(<<"accept">>, Req2) of
