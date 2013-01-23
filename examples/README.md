@@ -28,3 +28,6 @@ Cowboy Examples
 
  *  [static](./examples/static):
     an example file server
+
+ *  [static](./examples/websocket):
+    websocket example
