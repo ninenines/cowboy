@@ -61,8 +61,6 @@ environment values to perform.
 Routing middleware
 ------------------
 
-@todo Routing middleware value is renamed very soon.
-
 The routing middleware requires the `dispatch` value. If routing
 succeeds, it will put the handler name and options in the `handler`
 and `handler_opts` values of the environment, respectively.

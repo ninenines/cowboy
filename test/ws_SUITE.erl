@@ -88,35 +88,35 @@ end_per_group(Listener, _Config) ->
 %% Dispatch configuration.
 
 init_dispatch() ->
-	[
-		{[<<"localhost">>], [
-			{[<<"websocket">>], websocket_handler, []},
-			{[<<"ws_echo_handler">>], websocket_echo_handler, []},
-			{[<<"ws_init_shutdown">>], websocket_handler_init_shutdown, []},
-			{[<<"ws_send_many">>], ws_send_many_handler, [
+	cowboy_router:compile([
+		{"localhost", [
+			{"/websocket", websocket_handler, []},
+			{"/ws_echo_handler", websocket_echo_handler, []},
+			{"/ws_init_shutdown", websocket_handler_init_shutdown, []},
+			{"/ws_send_many", ws_send_many_handler, [
 				{sequence, [
 					{text, <<"one">>},
 					{text, <<"two">>},
 					{text, <<"seven!">>}]}
 			]},
-			{[<<"ws_send_close">>], ws_send_many_handler, [
+			{"/ws_send_close", ws_send_many_handler, [
 				{sequence, [
 					{text, <<"send">>},
 					close,
 					{text, <<"won't be received">>}]}
 			]},
-			{[<<"ws_send_close_payload">>], ws_send_many_handler, [
+			{"/ws_send_close_payload", ws_send_many_handler, [
 				{sequence, [
 					{text, <<"send">>},
 					{close, 1001, <<"some text!">>},
 					{text, <<"won't be received">>}]}
 			]},
-			{[<<"ws_timeout_hibernate">>], ws_timeout_hibernate_handler, []},
-			{[<<"ws_timeout_cancel">>], ws_timeout_cancel_handler, []},
-			{[<<"ws_upgrade_with_opts">>], ws_upgrade_with_opts_handler,
+			{"/ws_timeout_hibernate", ws_timeout_hibernate_handler, []},
+			{"/ws_timeout_cancel", ws_timeout_cancel_handler, []},
+			{"/ws_upgrade_with_opts", ws_upgrade_with_opts_handler,
 				<<"failure">>}
 		]}
-	].
+	]).
 
 %% ws and wss.
 

@@ -283,58 +283,58 @@ end_per_group(Name, _) ->
 %% Dispatch configuration.
 
 init_dispatch(Config) ->
-	[
-		{[<<"localhost">>], [
-			{[<<"chunked_response">>], chunked_handler, []},
-			{[<<"init_shutdown">>], http_handler_init_shutdown, []},
-			{[<<"long_polling">>], http_handler_long_polling, []},
-			{[<<"headers">>, <<"dupe">>], http_handler,
+	cowboy_router:compile([
+		{"localhost", [
+			{"/chunked_response", chunked_handler, []},
+			{"/init_shutdown", http_handler_init_shutdown, []},
+			{"/long_polling", http_handler_long_polling, []},
+			{"/headers/dupe", http_handler,
 				[{headers, [{<<"connection">>, <<"close">>}]}]},
-			{[<<"set_resp">>, <<"header">>], http_handler_set_resp,
+			{"/set_resp/header", http_handler_set_resp,
 				[{headers, [{<<"vary">>, <<"Accept">>}]}]},
-			{[<<"set_resp">>, <<"overwrite">>], http_handler_set_resp,
+			{"/set_resp/overwrite", http_handler_set_resp,
 				[{headers, [{<<"server">>, <<"DesireDrive/1.0">>}]}]},
-			{[<<"set_resp">>, <<"body">>], http_handler_set_resp,
+			{"/set_resp/body", http_handler_set_resp,
 				[{body, <<"A flameless dance does not equal a cycle">>}]},
-			{[<<"stream_body">>, <<"set_resp">>], http_handler_stream_body,
+			{"/stream_body/set_resp", http_handler_stream_body,
 				[{reply, set_resp}, {body, <<"stream_body_set_resp">>}]},
-			{[<<"stream_body">>, <<"set_resp_close">>],
+			{"/stream_body/set_resp_close",
 				http_handler_stream_body, [
 					{reply, set_resp_close},
 					{body, <<"stream_body_set_resp_close">>}]},
-			{[<<"static">>, '...'], cowboy_static,
+			{"/static/[...]", cowboy_static,
 				[{directory, ?config(static_dir, Config)},
 				 {mimetypes, [{<<".css">>, [<<"text/css">>]}]}]},
-			{[<<"static_mimetypes_function">>, '...'], cowboy_static,
+			{"/static_mimetypes_function/[...]", cowboy_static,
 				[{directory, ?config(static_dir, Config)},
 				 {mimetypes, {fun(Path, data) when is_binary(Path) ->
 					[<<"text/html">>] end, data}}]},
-			{[<<"handler_errors">>], http_handler_errors, []},
-			{[<<"static_attribute_etag">>, '...'], cowboy_static,
+			{"/handler_errors", http_handler_errors, []},
+			{"/static_attribute_etag/[...]", cowboy_static,
 				[{directory, ?config(static_dir, Config)},
 				 {etag, {attributes, [filepath, filesize, inode, mtime]}}]},
-			{[<<"static_function_etag">>, '...'], cowboy_static,
+			{"/static_function_etag/[...]", cowboy_static,
 				[{directory, ?config(static_dir, Config)},
 				 {etag, {fun static_function_etag/2, etag_data}}]},
-			{[<<"static_specify_file">>, '...'],  cowboy_static,
+			{"/static_specify_file/[...]",  cowboy_static,
 				[{directory, ?config(static_dir, Config)},
 				 {mimetypes, [{<<".css">>, [<<"text/css">>]}]},
 				 {file, <<"test_file.css">>}]},
-			{[<<"multipart">>], http_handler_multipart, []},
-			{[<<"echo">>, <<"body">>], http_handler_echo_body, []},
-			{[<<"bad_accept">>], rest_simple_resource, []},
-			{[<<"simple">>], rest_simple_resource, []},
-			{[<<"forbidden_post">>], rest_forbidden_resource, [true]},
-			{[<<"simple_post">>], rest_forbidden_resource, [false]},
-			{[<<"missing_get_callbacks">>], rest_missing_callbacks, []},
-			{[<<"missing_put_callbacks">>], rest_missing_callbacks, []},
-			{[<<"nodelete">>], rest_nodelete_resource, []},
-			{[<<"resetags">>], rest_resource_etags, []},
-			{[<<"rest_expires">>], rest_expires, []},
-			{[<<"loop_timeout">>], http_handler_loop_timeout, []},
-			{[], http_handler, []}
+			{"/multipart", http_handler_multipart, []},
+			{"/echo/body", http_handler_echo_body, []},
+			{"/bad_accept", rest_simple_resource, []},
+			{"/simple", rest_simple_resource, []},
+			{"/forbidden_post", rest_forbidden_resource, [true]},
+			{"/simple_post", rest_forbidden_resource, [false]},
+			{"/missing_get_callbacks", rest_missing_callbacks, []},
+			{"/missing_put_callbacks", rest_missing_callbacks, []},
+			{"/nodelete", rest_nodelete_resource, []},
+			{"/resetags", rest_resource_etags, []},
+			{"/rest_expires", rest_expires, []},
+			{"/loop_timeout", http_handler_loop_timeout, []},
+			{"/", http_handler, []}
 		]}
-	].
+	]).
 
 init_static_dir(Config) ->
 	Dir = filename:join(?config(priv_dir, Config), "static"),
@@ -576,8 +576,8 @@ http10_hostless(Config) ->
 	ranch:start_listener(Name, 5,
 		?config(transport, Config), ?config(opts, Config) ++ [{port, Port10}],
 		cowboy_protocol, [
-			{env, [{dispatch, [{'_', [
-				{[<<"http1.0">>, <<"hostless">>], http_handler, []}]}]}]},
+			{env, [{dispatch, cowboy_router:compile([
+				{'_', [{"/http1.0/hostless", http_handler, []}]}])}]},
 			{max_keepalive, 50},
 			{timeout, 500}]
 	),

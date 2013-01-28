@@ -1,9 +1,6 @@
 Routing
 =======
 
-@todo Note that this documentation is for the new routing interface
-not available in master at this point.
-
 Purpose
 -------
 
@@ -49,9 +46,9 @@ Finally, each path contains matching rules for the path along with
 optional constraints, and gives us the handler module to be used
 along with options that will be given to it on initialization.
 
-```
-Path1 = {PathMatch, Handler, Module}.
-Path2 = {PathMatch, Constraints, Handler, Module}.
+``` erlang
+Path1 = {PathMatch, Handler, Opts}.
+Path2 = {PathMatch, Constraints, Handler, Opts}.
 ```
 
 Continue reading to learn more about the match syntax and the optional
@@ -112,11 +109,11 @@ HostMatch = ":subdomain.example.org".
 ```
 
 If these two end up matching when routing, you will end up with two
-bindings defined, `subdomain` and `hat_name`, each containing the
+bindings defined, `subdomain` and `name`, each containing the
 segment value where they were defined. For example, the URL
 `http://test.example.org/hats/wild_cowboy_legendary/prices` will
 result in having the value `test` bound to the name `subdomain`
-and the value `wild_cowboy_legendary` bound to the name `hat_name`.
+and the value `wild_cowboy_legendary` bound to the name `name`.
 They can later be retrieved using `cowboy_req:binding/{2,3}`. The
 binding name must be given as an atom.
 
@@ -156,9 +153,9 @@ PathMatch = "/hats/[...]".
 HostMatch = "[...]ninenines.eu".
 ```
 
-Finally, if a binding appears twice in the routing rules, then the
-match will succeed only if they share the same value. This copies
-the Erlang pattern matching behavior.
+If a binding appears twice in the routing rules, then the match
+will succeed only if they share the same value. This copies the
+Erlang pattern matching behavior.
 
 ``` erlang
 PathMatch = "/hats/:name/:name".
@@ -178,6 +175,21 @@ also share the same value.
 ``` erlang
 PathMatch = "/:user/[...]".
 HostMatch = ":user.github.com".
+```
+
+Finally, there are two special match values that can be used. The
+first is the atom `'_'` which will match any host or path.
+
+``` erlang
+PathMatch = '_'.
+HostMatch = '_'.
+```
+
+The second is the special host match `"*"` which will match the
+wildcard path, generally used alongside the `OPTIONS` method.
+
+``` erlang
+HostMatch = "*".
 ```
 
 Constraints
@@ -212,10 +224,10 @@ The structure defined in this chapter needs to be compiled before it is
 passed to Cowboy. This allows Cowboy to efficiently lookup the correct
 handler to run instead of having to parse the routes repeatedly.
 
-This can be done with a simple call to `cowboy_routing:compile/1`.
+This can be done with a simple call to `cowboy_router:compile/1`.
 
 ``` erlang
-{ok, Routes} = cowboy_routing:compile([
+{ok, Routes} = cowboy_router:compile([
     %% {HostMatch, list({PathMatch, Handler, Opts})}
     {'_', [{'_', my_handler, []}]}
 ]),
