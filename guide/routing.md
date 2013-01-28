@@ -207,7 +207,7 @@ name, and the optional third element is the constraint's arguments.
 The following constraints are currently defined:
 
  *  {Name, int}
- *  {Name, function, (fun(Value) -> true | {true, NewValue} | false)}
+ *  {Name, function, fun ((Value) -> true | {true, NewValue} | false)}
 
 The `int` constraint will check if the binding is a binary string
 representing an integer, and if it is, will convert the value to integer.
@@ -215,6 +215,7 @@ representing an integer, and if it is, will convert the value to integer.
 The `function` constraint will pass the binding value to a user specified
 function that receives the binary value as its only argument and must
 return whether it fulfills the constraint, optionally modifying the value.
+The value thus returned can be of any type.
 
 Note that constraint functions SHOULD be pure and MUST NOT crash.
 

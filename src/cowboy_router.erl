@@ -33,7 +33,8 @@
 -export_type([bindings/0]).
 -export_type([tokens/0]).
 
--type constraints() :: [{atom(), int}].
+-type constraints() :: [{atom(), int}
+	| {atom(), function, fun ((binary()) -> true | {true, any()} | false)}].
 -export_type([constraints/0]).
 
 -type route_match() :: binary() | string().
@@ -297,7 +298,9 @@ check_constraints([Constraint|Tail], Bindings) ->
 check_constraint({_, int}, Value) ->
 	try {true, list_to_integer(binary_to_list(Value))}
 	catch _:_ -> false
-	end.
+	end;
+check_constraint({_, function, Fun}, Value) ->
+	Fun(Value).
 
 %% @doc Split a hostname into a list of tokens.
 -spec split_host(binary()) -> tokens().
@@ -524,6 +527,14 @@ match_constraints_test() ->
 		<<"ninenines.eu">>, <<"/path/123/">>),
 	{error, notfound, path} = match(Dispatch,
 		<<"ninenines.eu">>, <<"/path/NaN/">>),
+	Dispatch2 = [{'_', [],
+		[{[<<"path">>, username], [{username, function,
+		fun(Value) -> Value =:= cowboy_bstr:to_lower(Value) end}],
+		match, []}]}],
+	{ok, _, [], [{username, <<"essen">>}], _, _} = match(Dispatch2,
+		<<"ninenines.eu">>, <<"/path/essen">>),
+	{error, notfound, path} = match(Dispatch2,
+		<<"ninenines.eu">>, <<"/path/ESSEN">>),
 	ok.
 
 -endif.
