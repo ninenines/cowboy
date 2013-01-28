@@ -258,14 +258,13 @@ match_path([{<<"*">>, _Constraints, Handler, Opts}|_Tail], HostInfo, <<"*">>, Bi
 	{ok, Handler, Opts, Bindings, HostInfo, undefined};
 match_path([{PathMatch, Constraints, Handler, Opts}|Tail], HostInfo, Tokens,
 		Bindings) when is_list(Tokens) ->
-	case list_match(Tokens, PathMatch, []) of
+	case list_match(Tokens, PathMatch, Bindings) of
 		false ->
 			match_path(Tail, HostInfo, Tokens, Bindings);
 		{true, PathBinds, PathInfo} ->
 			case check_constraints(Constraints, PathBinds) of
 				{ok, PathBinds2} ->
-					{ok, Handler, Opts, Bindings ++ PathBinds2,
-						HostInfo, PathInfo};
+					{ok, Handler, Opts, PathBinds2, HostInfo, PathInfo};
 				nomatch ->
 					match_path(Tail, HostInfo, Tokens, Bindings)
 			end
@@ -357,9 +356,17 @@ list_match([_E|Tail], ['_'|TailMatch], Binds) ->
 %% Both values match, continue.
 list_match([E|Tail], [E|TailMatch], Binds) ->
 	list_match(Tail, TailMatch, Binds);
-%% Bind E to the variable name V and continue.
+%% Bind E to the variable name V and continue,
+%% unless V was already defined and E isn't identical to the previous value.
 list_match([E|Tail], [V|TailMatch], Binds) when is_atom(V) ->
-	list_match(Tail, TailMatch, [{V, E}|Binds]);
+	case lists:keyfind(V, 1, Binds) of
+		{_, E} ->
+			list_match(Tail, TailMatch, Binds);
+		{_, _} ->
+			false;
+		false ->
+			list_match(Tail, TailMatch, [{V, E}|Binds])
+	end;
 %% Match complete.
 list_match([], [], Binds) ->
 	{true, Binds, undefined};
@@ -481,10 +488,7 @@ match_test_() ->
 		{<<"erlang.fr">>, '_',
 			{ok, match_erlang_ext, [], [{ext, <<"fr">>}]}},
 		{<<"any">>, <<"/users/444/friends">>,
-			{ok, match_users_friends, [], [{id, <<"444">>}]}},
-		{<<"ninenines.fr">>, <<"/threads/987">>,
-			{ok, match_duplicate_vars, [we, {expect, two}, var, here],
-				[{var, <<"fr">>}, {var, <<"987">>}]}}
+			{ok, match_users_friends, [], [{id, <<"444">>}]}}
 	],
 	[{lists:flatten(io_lib:format("~p, ~p", [H, P])), fun() ->
 		{ok, Handler, Opts, Binds, undefined, undefined}
@@ -535,6 +539,27 @@ match_constraints_test() ->
 		<<"ninenines.eu">>, <<"/path/essen">>),
 	{error, notfound, path} = match(Dispatch2,
 		<<"ninenines.eu">>, <<"/path/ESSEN">>),
+	ok.
+
+match_same_bindings_test() ->
+	Dispatch = [{[same, same], [], [{'_', [], match, []}]}],
+	{ok, _, [], [{same, <<"eu">>}], _, _} = match(Dispatch,
+		<<"eu.eu">>, <<"/">>),
+	{error, notfound, host} = match(Dispatch,
+		<<"ninenines.eu">>, <<"/">>),
+	Dispatch2 = [{[<<"eu">>, <<"ninenines">>, user], [],
+		[{[<<"path">>, user], [], match, []}]}],
+	{ok, _, [], [{user, <<"essen">>}], _, _} = match(Dispatch2,
+		<<"essen.ninenines.eu">>, <<"/path/essen">>),
+	{ok, _, [], [{user, <<"essen">>}], _, _} = match(Dispatch2,
+		<<"essen.ninenines.eu">>, <<"/path/essen/">>),
+	{error, notfound, path} = match(Dispatch2,
+		<<"essen.ninenines.eu">>, <<"/path/notessen">>),
+	Dispatch3 = [{'_', [], [{[same, same], [], match, []}]}],
+	{ok, _, [], [{same, <<"path">>}], _, _} = match(Dispatch3,
+		<<"ninenines.eu">>, <<"/path/path">>),
+	{error, notfound, path} = match(Dispatch3,
+		<<"ninenines.eu">>, <<"/path/to">>),
 	ok.
 
 -endif.
