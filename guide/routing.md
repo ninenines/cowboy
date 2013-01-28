@@ -196,8 +196,9 @@ Constraints
 -----------
 
 After the matching has completed, the resulting bindings can be tested
-against a set of constraints. The match will succeed only if they all
-succeed.
+against a set of constraints. Constraints are only tested when the
+binding is defined. They run in the order you defined them. The match
+will succeed only if they all succeed.
 
 They are always given as a two or three elements tuple, where the first
 element is the name of the binding, the second element is the constraint's

@@ -33,7 +33,7 @@
 -export_type([bindings/0]).
 -export_type([tokens/0]).
 
--type constraints() :: [].
+-type constraints() :: [{atom(), int}].
 -export_type([constraints/0]).
 
 -type route_match() :: binary() | string().
@@ -222,16 +222,22 @@ match([], _, _) ->
 %% If the host is '_' then there can be no constraints.
 match([{'_', [], PathMatchs}|_Tail], _, Path) ->
 	match_path(PathMatchs, undefined, Path, []);
-match([{HostMatch, _Constraints, PathMatchs}|Tail], Tokens, Path)
+match([{HostMatch, Constraints, PathMatchs}|Tail], Tokens, Path)
 		when is_list(Tokens) ->
 	case list_match(Tokens, HostMatch, []) of
 		false ->
 			match(Tail, Tokens, Path);
-		{true, Bindings, undefined} ->
-			match_path(PathMatchs, undefined, Path, Bindings);
 		{true, Bindings, HostInfo} ->
-			match_path(PathMatchs, lists:reverse(HostInfo),
-				Path, Bindings)
+			HostInfo2 = case HostInfo of
+				undefined -> undefined;
+				_ -> lists:reverse(HostInfo)
+			end,
+			case check_constraints(Constraints, Bindings) of
+				{ok, Bindings2} ->
+					match_path(PathMatchs, HostInfo2, Path, Bindings2);
+				nomatch ->
+					match(Tail, Tokens, Path)
+			end
 	end;
 match(Dispatch, Host, Path) ->
 	match(Dispatch, split_host(Host), Path).
@@ -249,18 +255,49 @@ match_path([{'_', [], Handler, Opts}|_Tail], HostInfo, _, Bindings) ->
 	{ok, Handler, Opts, Bindings, HostInfo, undefined};
 match_path([{<<"*">>, _Constraints, Handler, Opts}|_Tail], HostInfo, <<"*">>, Bindings) ->
 	{ok, Handler, Opts, Bindings, HostInfo, undefined};
-match_path([{PathMatch, _Constraints, Handler, Opts}|Tail], HostInfo, Tokens,
+match_path([{PathMatch, Constraints, Handler, Opts}|Tail], HostInfo, Tokens,
 		Bindings) when is_list(Tokens) ->
 	case list_match(Tokens, PathMatch, []) of
 		false ->
 			match_path(Tail, HostInfo, Tokens, Bindings);
 		{true, PathBinds, PathInfo} ->
-			{ok, Handler, Opts, Bindings ++ PathBinds, HostInfo, PathInfo}
+			case check_constraints(Constraints, PathBinds) of
+				{ok, PathBinds2} ->
+					{ok, Handler, Opts, Bindings ++ PathBinds2,
+						HostInfo, PathInfo};
+				nomatch ->
+					match_path(Tail, HostInfo, Tokens, Bindings)
+			end
 	end;
 match_path(_Dispatch, _HostInfo, badrequest, _Bindings) ->
 	{error, badrequest, path};
 match_path(Dispatch, HostInfo, Path, Bindings) ->
 	match_path(Dispatch, HostInfo, split_path(Path), Bindings).
+
+check_constraints([], Bindings) ->
+	{ok, Bindings};
+check_constraints([Constraint|Tail], Bindings) ->
+	Name = element(1, Constraint),
+	case lists:keyfind(Name, 1, Bindings) of
+		false ->
+			check_constraints(Tail, Bindings);
+		{_, Value} ->
+			case check_constraint(Constraint, Value) of
+				true ->
+					check_constraints(Tail, Bindings);
+				{true, Value2} ->
+					Bindings2 = lists:keyreplace(Name, 1, Bindings,
+						{Name, Value2}),
+					check_constraints(Tail, Bindings2);
+				false ->
+					nomatch
+			end
+	end.
+
+check_constraint({_, int}, Value) ->
+	try {true, list_to_integer(binary_to_list(Value))}
+	catch _:_ -> false
+	end.
 
 %% @doc Split a hostname into a list of tokens.
 -spec split_host(binary()) -> tokens().
@@ -477,5 +514,16 @@ match_info_test_() ->
 	[{lists:flatten(io_lib:format("~p, ~p", [H, P])), fun() ->
 		R = match(Dispatch, H, P)
 	end} || {H, P, R} <- Tests].
+
+match_constraints_test() ->
+	Dispatch = [{'_', [],
+		[{[<<"path">>, value], [{value, int}], match, []}]}],
+	{ok, _, [], [{value, 123}], _, _} = match(Dispatch,
+		<<"ninenines.eu">>, <<"/path/123">>),
+	{ok, _, [], [{value, 123}], _, _} = match(Dispatch,
+		<<"ninenines.eu">>, <<"/path/123/">>),
+	{error, notfound, path} = match(Dispatch,
+		<<"ninenines.eu">>, <<"/path/NaN/">>),
+	ok.
 
 -endif.
