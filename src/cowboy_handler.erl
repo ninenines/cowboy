@@ -29,7 +29,8 @@
 	env :: cowboy_middleware:env(),
 	hibernate = false :: boolean(),
 	loop_timeout = infinity :: timeout(),
-	loop_timeout_ref :: undefined | reference()
+	loop_timeout_ref :: undefined | reference(),
+	resp_sent = false :: boolean()
 }).
 
 %% @private
@@ -80,7 +81,7 @@ handler_init(Req, State, Handler, HandlerOpts) ->
 			"** Stacktrace: ~p~n~n",
 			[Handler, init, 3, Class, Reason, HandlerOpts,
 				cowboy_req:to_list(Req), erlang:get_stacktrace()]),
-		{error, 500, Req}
+		error_terminate(Req, State)
 	end.
 
 -spec upgrade_protocol(Req, #state{}, module(), any(), module())
@@ -112,7 +113,7 @@ handler_handle(Req, State, Handler, HandlerState) ->
 			[Handler, handle, 2, Class, Reason, HandlerState,
 				cowboy_req:to_list(Req), erlang:get_stacktrace()]),
 		handler_terminate(Req, Handler, HandlerState, Reason),
-		{error, 500, Req}
+		error_terminate(Req, State)
 	end.
 
 %% We don't listen for Transport closes because that would force us
@@ -147,6 +148,9 @@ handler_loop_timeout(State=#state{loop_timeout=Timeout,
 	when Req::cowboy_req:req().
 handler_loop(Req, State=#state{loop_timeout_ref=TRef}, Handler, HandlerState) ->
 	receive
+		{cowboy_req, resp_sent} ->
+			handler_loop(Req, State#state{resp_sent=true},
+				Handler, HandlerState);
 		{timeout, TRef, ?MODULE} ->
 			terminate_request(Req, State, Handler, HandlerState,
 				{normal, timeout});
@@ -180,7 +184,7 @@ handler_call(Req, State, Handler, HandlerState, Message) ->
 			[Handler, info, 3, Class, Reason, HandlerState,
 				cowboy_req:to_list(Req), erlang:get_stacktrace()]),
 		handler_terminate(Req, Handler, HandlerState, Reason),
-		{error, 500, Req}
+		error_terminate(Req, State)
 	end.
 
 -spec terminate_request(Req, #state{}, module(), any(),
@@ -205,3 +209,12 @@ handler_terminate(Req, Handler, HandlerState, Reason) ->
 			[Handler, terminate, 3, Class, Reason2, HandlerState,
 				cowboy_req:to_list(Req), erlang:get_stacktrace()])
 	end.
+
+%% Only send an error reply if there is no resp_sent message.
+-spec error_terminate(Req, #state{})
+	-> {error, 500, Req} | {halt, Req} when Req::cowboy_req:req().
+error_terminate(Req, #state{resp_sent=true}) ->
+	%% Close the connection, but do not attempt sending a reply.
+	{halt, cowboy_req:set([{connection, close}, {resp_state, done}], Req)};
+error_terminate(Req, _) ->
+	{error, 500, Req}.

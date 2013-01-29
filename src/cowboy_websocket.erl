@@ -121,6 +121,7 @@ handler_init(State=#state{env=Env, transport=Transport,
 		upgrade_error(Req, Env)
 	end.
 
+%% Only send an error reply if there is no resp_sent message.
 -spec upgrade_error(Req, Env) -> {ok, Req, Env} | {error, 400, Req}
 	when Req::cowboy_req:req(), Env::cowboy_middleware:env().
 upgrade_error(Req, Env) ->
