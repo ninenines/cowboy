@@ -45,6 +45,7 @@
 	| {loop, Req, state(), timeout(), hibernate}
 	| {shutdown, Req, state()}
 	| {upgrade, protocol, module()}
+	| {upgrade, protocol, module(), Req, opts()}
 	when Req::cowboy_req:req().
 -callback handle(Req, State) -> {ok, Req, State}
 	when Req::cowboy_req:req(), State::state().
