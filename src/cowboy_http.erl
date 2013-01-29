@@ -36,6 +36,7 @@
 -export([token/2]).
 -export([token_ci/2]).
 -export([quoted_string/2]).
+-export([authorization/2]).
 
 %% Decoding.
 -export([te_chunked/2]).
@@ -801,6 +802,52 @@ qvalue(<< C, Rest/binary >>, Fun, Q, M)
 qvalue(Data, Fun, Q, _M) ->
 	Fun(Data, Q).
 
+%% @doc Parse user credentials.
+-spec authorization_basic_userid(binary(), fun()) -> any().
+authorization_basic_userid(Data, Fun) ->
+	authorization_basic_userid(Data, Fun, <<>>).
+
+authorization_basic_userid(<<>>, _Fun, _Acc) ->
+	{error, badarg};
+authorization_basic_userid(<<C, _Rest/binary>>, _Fun, Acc)
+		when C < 32; C =:= 127; (C =:=$: andalso Acc =:= <<>>) ->
+	{error, badarg};
+authorization_basic_userid(<<$:, Rest/binary>>, Fun, Acc) ->
+	Fun(Rest, Acc);
+authorization_basic_userid(<<C, Rest/binary>>, Fun, Acc) ->
+	authorization_basic_userid(Rest, Fun, <<Acc/binary, C>>).
+
+-spec authorization_basic_password(binary(), fun()) -> any().
+authorization_basic_password(Data, Fun) ->
+	authorization_basic_password(Data, Fun, <<>>).
+
+authorization_basic_password(<<>>, _Fun, <<>>) ->
+	{error, badarg};
+authorization_basic_password(<<C, _Rest/binary>>, _Fun, _Acc)
+		when C < 32; C=:= 127 ->
+	{error, badarg};
+authorization_basic_password(<<>>, Fun, Acc) ->
+	Fun(Acc);
+authorization_basic_password(<<C, Rest/binary>>, Fun, Acc) ->
+	authorization_basic_password(Rest, Fun, <<Acc/binary, C>>).
+
+%% @doc Parse authorization value according rfc 2617.
+%% Only Basic authorization is supported so far.
+-spec authorization(binary(), binary()) -> {binary(), any()} | {error, badarg}.
+authorization(UserPass, Type = <<"basic">>) -> 
+	cowboy_http:whitespace(UserPass,
+		fun(D) ->
+			authorization_basic_userid(base64:mime_decode(D),
+				fun(Rest, Userid) ->
+					authorization_basic_password(Rest, 
+						fun(Password) -> 
+							{Type, {Userid, Password}}
+						end)
+				end)
+		end);
+authorization(String, Type) ->
+	{Type, String}.
+
 %% Decoding.
 
 %% @doc Decode a stream of chunks.
@@ -1293,5 +1340,17 @@ urlencode_test_() ->
 	 ?_assertEqual(<<".-~_">>, U(<<".-~_">>, [])),
 	 ?_assertEqual(<<"%ff+">>, urlencode(<<255, " ">>))
 	].
+
+http_authorization_test_() ->
+	[?_assertEqual({<<"basic">>, {<<"Alladin">>, <<"open sesame">>}},
+		authorization(<<"QWxsYWRpbjpvcGVuIHNlc2FtZQ==">>, <<"basic">>)),
+	 ?_assertEqual({error, badarg},
+		authorization(<<"dXNlcm5hbWUK">>, <<"basic">>)),
+	 ?_assertEqual({error, badarg},
+		 authorization(<<"_[]@#$%^&*()-AA==">>, <<"basic">>)),
+	 ?_assertEqual({error, badarg},
+		authorization(<<"dXNlcjpwYXNzCA==">>, <<"basic">>))  %% user:pass\010
+	]. 
+
 
 -endif.
