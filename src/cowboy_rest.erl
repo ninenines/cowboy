@@ -91,7 +91,8 @@ known_methods(Req, State=#state{method=Method}) ->
 		no_call when Method =:= <<"HEAD">>; Method =:= <<"GET">>;
 				Method =:= <<"POST">>; Method =:= <<"PUT">>;
 				Method =:= <<"DELETE">>; Method =:= <<"TRACE">>;
-				Method =:= <<"CONNECT">>; Method =:= <<"OPTIONS">> ->
+				Method =:= <<"CONNECT">>; Method =:= <<"OPTIONS">>;
+				Method =:= <<"PATCH">> ->
 			next(Req, State, fun uri_too_long/2);
 		no_call ->
 			next(Req, State, 501);
@@ -644,6 +645,8 @@ method(Req, State=#state{method= <<"POST">>}) ->
 	post_is_create(Req, State);
 method(Req, State=#state{method= <<"PUT">>}) ->
 	is_conflict(Req, State);
+method(Req, State=#state{method= <<"PATCH">>}) ->
+	patch_resource(Req, State);
 method(Req, State=#state{method=Method})
 		when Method =:= <<"GET">>; Method =:= <<"HEAD">> ->
 	set_resp_body(Req, State);
@@ -708,6 +711,9 @@ put_resource(Req, State) ->
 %% may be different from the request path, and is stored as request metadata.
 %% It is always defined past this point. It can be retrieved as demonstrated:
 %%     {PutPath, Req2} = cowboy_req:meta(put_path, Req)
+%%
+%%content_types_accepted SHOULD return a different list
+%% for each HTTP method.
 put_resource(Req, State, OnTrue) ->
 	case call(Req, State, content_types_accepted) of
 		no_call ->
@@ -720,6 +726,27 @@ put_resource(Req, State, OnTrue) ->
 			{ok, ContentType, Req3}
 				= cowboy_req:parse_header(<<"content-type">>, Req2),
 			choose_content_type(Req3, State2, OnTrue, ContentType, CTA2)
+	end.
+
+%% content_types_accepted should return a list of media types and their
+%% associated callback functions in the same format as content_types_provided.
+%%
+%% The callback will then be called and is expected to process the content
+%% pushed to the resource in the request body. 
+%%
+%% content_types_accepted SHOULD return a different list
+%% for each HTTP method.
+patch_resource(Req, State) ->
+	case call(Req, State, content_types_accepted) of
+		no_call ->
+			respond(Req, State, 415);
+		{halt, Req2, HandlerState} ->
+			terminate(Req2, State#state{handler_state=HandlerState});
+		{CTM, Req2, HandlerState} ->
+			State2 = State#state{handler_state=HandlerState},
+			{ok, ContentType, Req3}
+				= cowboy_req:parse_header(<<"content-type">>, Req2),
+			choose_content_type(Req3, State2, 204, ContentType, CTM)
 	end.
 
 %% The special content type '*' will always match. It can be used as a
