@@ -522,18 +522,25 @@ resume(State, Env, Tail, Module, Function, Args) ->
 next_request(Req, State=#state{req_keepalive=Keepalive, timeout=Timeout},
 		HandlerRes) ->
 	cowboy_req:ensure_response(Req, 204),
-	{BodyRes, [Buffer, Connection]} = case cowboy_req:skip_body(Req) of
-		{ok, Req2} -> {ok, cowboy_req:get([buffer, connection], Req2)};
-		{error, _} -> {close, [<<>>, close]}
-	end,
-	%% Flush the resp_sent message before moving on.
-	receive {cowboy_req, resp_sent} -> ok after 0 -> ok end,
-	case {HandlerRes, BodyRes, Connection} of
-		{ok, ok, keepalive} ->
-			?MODULE:parse_request(Buffer, State#state{
-				req_keepalive=Keepalive + 1, until=until(Timeout)}, 0);
-		_Closed ->
-			terminate(State)
+	%% If we are going to close the connection,
+	%% we do not want to attempt to skip the body.
+	case cowboy_req:get(connection, Req) of
+		close ->
+			terminate(State);
+		_ ->
+			Buffer = case cowboy_req:skip_body(Req) of
+				{ok, Req2} -> cowboy_req:get(buffer, Req2);
+				_ -> close
+			end,
+			%% Flush the resp_sent message before moving on.
+			receive {cowboy_req, resp_sent} -> ok after 0 -> ok end,
+			if HandlerRes =:= ok, Buffer =/= close ->
+					?MODULE:parse_request(Buffer,
+						State#state{req_keepalive=Keepalive + 1,
+						until=until(Timeout)}, 0);
+				true ->
+					terminate(State)
+			end
 	end.
 
 %% Only send an error reply if there is no resp_sent message.
