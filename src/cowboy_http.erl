@@ -804,22 +804,23 @@ qvalue(Data, Fun, Q, _M) ->
 %% Decoding.
 
 %% @doc Decode a stream of chunks.
--spec te_chunked(binary(), {non_neg_integer(), non_neg_integer()})
-	-> more | {ok, binary(), {non_neg_integer(), non_neg_integer()}}
-	| {ok, binary(), binary(),  {non_neg_integer(), non_neg_integer()}}
-	| {done, non_neg_integer(), binary()} | {error, badarg}.
-te_chunked(<<>>, _) ->
-	more;
+-spec te_chunked(Bin, TransferState)
+	-> more | {more, non_neg_integer(), Bin, TransferState}
+	| {ok, Bin, TransferState} | {ok, Bin, Bin, TransferState}
+	| {done, non_neg_integer(), Bin} | {error, badarg}
+	when Bin::binary(), TransferState::{non_neg_integer(), non_neg_integer()}.
 te_chunked(<< "0\r\n\r\n", Rest/binary >>, {0, Streamed}) ->
 	{done, Streamed, Rest};
 te_chunked(Data, {0, Streamed}) ->
 	%% @todo We are expecting an hex size, not a general token.
 	token(Data,
-		fun (Rest, _) when byte_size(Rest) < 4 ->
-				more;
-			(<< "\r\n", Rest/binary >>, BinLen) ->
+		fun (<< "\r\n", Rest/binary >>, BinLen) ->
 				Len = list_to_integer(binary_to_list(BinLen), 16),
 				te_chunked(Rest, {Len, Streamed});
+			%% Chunk size shouldn't take too many bytes,
+			%% don't try to stream forever.
+			(Rest, _) when byte_size(Rest) < 16 ->
+				more;
 			(_, _) ->
 				{error, badarg}
 		end);
@@ -827,13 +828,12 @@ te_chunked(Data, {ChunkRem, Streamed}) when byte_size(Data) >= ChunkRem + 2 ->
 	<< Chunk:ChunkRem/binary, "\r\n", Rest/binary >> = Data,
 	{ok, Chunk, Rest, {0, Streamed + byte_size(Chunk)}};
 te_chunked(Data, {ChunkRem, Streamed}) ->
-	Size = byte_size(Data),
-	{ok, Data, {ChunkRem - Size, Streamed + Size}}.
+	{more, ChunkRem + 2, Data, {ChunkRem, Streamed}}.
 
 %% @doc Decode an identity stream.
--spec te_identity(binary(), {non_neg_integer(), non_neg_integer()})
-	-> {ok, binary(), {non_neg_integer(), non_neg_integer()}}
-	| {done, binary(), non_neg_integer(), binary()}.
+-spec te_identity(Bin, TransferState)
+	-> {ok, Bin, TransferState} | {done, Bin, non_neg_integer(), Bin}
+	when Bin::binary(), TransferState::{non_neg_integer(), non_neg_integer()}.
 te_identity(Data, {Streamed, Total})
 		when Streamed + byte_size(Data) < Total ->
 	{ok, Data, {Streamed + byte_size(Data), Total}};

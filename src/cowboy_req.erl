@@ -639,17 +639,18 @@ stream_body(Req=#http_req{buffer=Buffer, body_state={stream, _, _, _}})
 		when Buffer =/= <<>> ->
 	transfer_decode(Buffer, Req#http_req{buffer= <<>>});
 stream_body(Req=#http_req{body_state={stream, _, _, _}}) ->
-	stream_body_recv(Req);
+	stream_body_recv(0, Req);
 stream_body(Req=#http_req{body_state=done}) ->
 	{done, Req}.
 
--spec stream_body_recv(Req)
+-spec stream_body_recv(non_neg_integer(), Req)
 	-> {ok, binary(), Req} | {error, atom()} when Req::req().
-stream_body_recv(Req=#http_req{
+stream_body_recv(Length, Req=#http_req{
 		transport=Transport, socket=Socket, buffer=Buffer}) ->
 	%% @todo Allow configuring the timeout.
-	case Transport:recv(Socket, 0, 5000) of
-		{ok, Data} -> transfer_decode(<< Buffer/binary, Data/binary >>, Req);
+	case Transport:recv(Socket, Length, 5000) of
+		{ok, Data} -> transfer_decode(<< Buffer/binary, Data/binary >>,
+			Req#http_req{buffer= <<>>});
 		{error, Reason} -> {error, Reason}
 	end.
 
@@ -667,7 +668,10 @@ transfer_decode(Data, Req=#http_req{
 				{stream, TransferDecode, TransferState2, ContentDecode}});
 		%% @todo {header(s) for chunked
 		more ->
-			stream_body_recv(Req#http_req{buffer=Data});
+			stream_body_recv(0, Req#http_req{buffer=Data});
+		{more, Length, Rest, TransferState2} ->
+			stream_body_recv(Length, Req#http_req{buffer=Rest, body_state=
+				{stream, TransferDecode, TransferState2, ContentDecode}});
 		{done, Length, Rest} ->
 			Req2 = transfer_decode_done(Length, Rest, Req),
 			{done, Req2};

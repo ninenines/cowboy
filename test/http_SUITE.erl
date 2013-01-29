@@ -73,6 +73,7 @@
 -export([stream_body_set_resp/1]).
 -export([stream_body_set_resp_close/1]).
 -export([te_chunked/1]).
+-export([te_chunked_chopped/1]).
 -export([te_chunked_delayed/1]).
 -export([te_identity/1]).
 
@@ -133,6 +134,7 @@ groups() ->
 		stream_body_set_resp,
 		stream_body_set_resp_close,
 		te_chunked,
+		te_chunked_chopped,
 		te_chunked_delayed,
 		te_identity
 	],
@@ -1034,6 +1036,21 @@ te_chunked(Config) ->
 		build_url("/echo/body", Config),
 		[{<<"transfer-encoding">>, <<"chunked">>}],
 		Chunks, Client),
+	{ok, 200, _, Client3} = cowboy_client:response(Client2),
+	{ok, Body, _} = cowboy_client:response_body(Client3).
+
+te_chunked_chopped(Config) ->
+	Client = ?config(client, Config),
+	Body = list_to_binary(io_lib:format("~p", [lists:seq(1, 100)])),
+	Body2 = iolist_to_binary(body_to_chunks(50, Body, [])),
+	{ok, Client2} = cowboy_client:request(<<"GET">>,
+		build_url("/echo/body", Config),
+		[{<<"transfer-encoding">>, <<"chunked">>}], Client),
+	{ok, Transport, Socket} = cowboy_client:transport(Client2),
+	_ = [begin
+		ok = Transport:send(Socket, << C >>),
+		ok = timer:sleep(10)
+	end || << C >> <= Body2],
 	{ok, 200, _, Client3} = cowboy_client:response(Client2),
 	{ok, Body, _} = cowboy_client:response_body(Client3).
 
