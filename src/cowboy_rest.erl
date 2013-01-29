@@ -793,7 +793,7 @@ choose_content_type(Req,
 			next(Req2, State2, OnTrue);
 		{false, Req2, HandlerState2} ->
 			State2 = State#state{handler_state=HandlerState2},
-			respond(Req2, State2, 500)
+			respond(Req2, State2, 422)
 	end;
 choose_content_type(Req, State, OnTrue, ContentType, [_Any|Tail]) ->
 	choose_content_type(Req, State, OnTrue, ContentType, Tail).
