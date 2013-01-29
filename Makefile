@@ -7,6 +7,19 @@ ERLC_OPTS = -Werror +debug_info +warn_export_all # +bin_opt_info +warn_missing_s
 DEPS_DIR ?= $(CURDIR)/deps
 export DEPS_DIR
 
+# Makefile tweaks.
+
+V ?= 0
+
+appsrc_verbose_0 = @echo " APP   " $(PROJECT).app.src;
+appsrc_verbose = $(appsrc_verbose_$(V))
+
+erlc_verbose_0 = @echo " ERLC  " $(?F);
+erlc_verbose = $(erlc_verbose_$(V))
+
+gen_verbose_0 = @echo " GEN   " $@;
+gen_verbose = $(gen_verbose_$(V))
+
 .PHONY: all clean-all app clean docs clean-docs tests autobahn build-plt dialyze
 
 # Application.
@@ -14,8 +27,7 @@ export DEPS_DIR
 all: app
 
 clean-all: clean clean-docs
-	rm -f .$(PROJECT).plt
-	rm -rf $(DEPS_DIR) logs
+	$(gen_verbose) rm -rf .$(PROJECT).plt $(DEPS_DIR) logs
 
 deps/ranch:
 	@mkdir -p $(DEPS_DIR)
@@ -25,32 +37,28 @@ deps/ranch:
 MODULES = $(shell ls src/*.erl | sed 's/src\///;s/\.erl/,/' | sed '$$s/.$$//')
 
 app: deps/ranch ebin/$(PROJECT).app
-	@cat src/$(PROJECT).app.src \
+	$(appsrc_verbose) cat src/$(PROJECT).app.src \
 		| sed 's/{modules, \[\]}/{modules, \[$(MODULES)\]}/' \
 		> ebin/$(PROJECT).app
 	@$(MAKE) -C $(DEPS_DIR)/ranch
 
 ebin/$(PROJECT).app: src/*.erl
 	@mkdir -p ebin/
-	erlc -v $(ERLC_OPTS) -o ebin/ -pa ebin/ \
+	$(erlc_verbose) erlc -v $(ERLC_OPTS) -o ebin/ -pa ebin/ \
 		src/$(PROJECT)_middleware.erl $?
 
 clean:
 	-@$(MAKE) -C $(DEPS_DIR)/ranch clean
-	rm -rf ebin/
-	rm -f test/*.beam
-	rm -f erl_crash.dump
+	$(gen_verbose) rm -rf ebin/ test/*.beam erl_crash.dump
 
 # Documentation.
 
 docs: clean-docs
-	erl -noshell -eval 'edoc:application($(PROJECT), ".", []), init:stop().'
+	$(gen_verbose) erl -noshell \
+		-eval 'edoc:application($(PROJECT), ".", []), init:stop().'
 
 clean-docs:
-	rm -f doc/*.css
-	rm -f doc/*.html
-	rm -f doc/*.png
-	rm -f doc/edoc-info
+	$(gen_verbose) rm -f doc/*.css doc/*.html doc/*.png doc/edoc-info
 
 # Tests.
 
