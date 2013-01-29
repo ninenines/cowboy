@@ -441,6 +441,11 @@ parse_header(Name, Req, Default) when Name =:= <<"accept-language">> ->
 		fun (Value) ->
 			cowboy_http:nonempty_list(Value, fun cowboy_http:language_range/2)
 		end);
+parse_header(Name, Req, Default) when Name =:= <<"authorization">> ->
+	parse_header(Name, Req, Default,
+		fun (Value) ->
+			cowboy_http:token_ci(Value, fun cowboy_http:authorization/2)
+		end);
 parse_header(Name, Req, Default) when Name =:= <<"content-length">> ->
 	parse_header(Name, Req, Default, fun cowboy_http:digits/1);
 parse_header(Name, Req, Default) when Name =:= <<"content-type">> ->
