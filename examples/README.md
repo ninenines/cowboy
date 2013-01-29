@@ -1,6 +1,9 @@
 Cowboy Examples
 ===============
 
+ *  [basic_auth](./examples/basic_auth):
+    basic HTTP authorization with REST
+
  *  [chunked_hello_world](./examples/chunked_hello_world):
     demonstrates chunked data transfer with two one-second delays
 
