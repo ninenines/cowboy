@@ -11,14 +11,14 @@
 %% API.
 
 start(_Type, _Args) ->
-	Dispatch = [
+	Dispatch = cowboy_router:compile([
 		{'_', [
-			{['...'], cowboy_static, [
+			{"/[...]", cowboy_static, [
 				{directory, {priv_dir, static, []}},
 				{mimetypes, {fun mimetypes:path_to_mimes/2, default}}
 			]} 
 		]}
-	],
+	]),
 	{ok, _} = cowboy:start_http(http, 100, [{port, 8080}], [
 		{env, [{dispatch, Dispatch}]}
 	]),
