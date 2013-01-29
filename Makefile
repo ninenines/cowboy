@@ -24,14 +24,16 @@ deps/ranch:
 
 MODULES = $(shell ls src/*.erl | sed 's/src\///;s/\.erl/,/' | sed '$$s/.$$//')
 
-app: deps/ranch
-	@$(MAKE) -C $(DEPS_DIR)/ranch
-	@mkdir -p ebin/
+app: deps/ranch ebin/$(PROJECT).app
 	@cat src/$(PROJECT).app.src \
 		| sed 's/{modules, \[\]}/{modules, \[$(MODULES)\]}/' \
 		> ebin/$(PROJECT).app
+	@$(MAKE) -C $(DEPS_DIR)/ranch
+
+ebin/$(PROJECT).app: src/*.erl
+	@mkdir -p ebin/
 	erlc -v $(ERLC_OPTS) -o ebin/ -pa ebin/ \
-		src/$(PROJECT)_middleware.erl src/*.erl
+		src/$(PROJECT)_middleware.erl $?
 
 clean:
 	-@$(MAKE) -C $(DEPS_DIR)/ranch clean
