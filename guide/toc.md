@@ -41,6 +41,7 @@ Cowboy User Guide
    *  Response
    *  Chunked response
    *  Response preconfiguration
+   *  Closing the connection
    *  Reducing the memory footprint
  *  [Hooks](hooks.md)
    *  On request

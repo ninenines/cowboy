@@ -176,6 +176,21 @@ override all preset values. This means for example that you
 can set a default body and then override it when you decide
 to send a reply.
 
+Closing the connection
+----------------------
+
+HTTP/1.1 keep-alive allows clients to send more than one request
+on the same connection. This can be useful for speeding up the
+loading of webpages, but is not required. You can tell Cowboy
+explicitly that you want to close the connection by setting the
+`Connection` header to `close`.
+
+``` erlang
+{ok, Req2} = cowboy_req:reply(200,
+    [{<<"connection">>, <<"close">>}],
+    Req).
+```
+
 Reducing the memory footprint
 -----------------------------
 
