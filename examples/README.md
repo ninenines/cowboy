@@ -19,7 +19,6 @@ Cowboy Examples
  *  [echo_post](./examples/echo_post):
     parse and echo a POST parameter
 
-
  *  [hello_world](./examples/hello_world):
     simplest example application
 
@@ -28,3 +27,6 @@ Cowboy Examples
 
  *  [static](./examples/static):
     an example file server
+
+ *  [websocket](./examples/websocket):
+    websocket example
