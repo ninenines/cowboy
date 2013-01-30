@@ -35,7 +35,7 @@ init({tcp, http}, Req, Opts) ->
 ```
 
 Cowboy will then switch the protocol and call `websocket_init`,
-followed by zero or more calls to `websocket_data` and
+followed by zero or more calls to `websocket_handle` and
 `websocket_info`. Then, when the connection is shutting down,
 `websocket_terminate` will be called.
 
