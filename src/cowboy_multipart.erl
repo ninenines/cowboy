@@ -105,7 +105,7 @@ suffix_match(Bin, {_Boundary, {Pat, Len}}) ->
 	Size = byte_size(Bin),
 	suffix_match(Bin, Pat, Size, max(-Size, -Len)).
 
--spec suffix_match(binary(), tuple(), non_neg_integer(), 0|neg_integer()) ->
+-spec suffix_match(binary(), binary:cp(), non_neg_integer(), 0|neg_integer()) ->
 		nomatch | {integer(), integer()}.
 suffix_match(_Bin, _Pat, _Size, _Match=0) ->
 	nomatch;
