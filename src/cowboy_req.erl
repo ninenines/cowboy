@@ -187,7 +187,8 @@
 new(Socket, Transport, Method, Path, Query, Fragment,
 		Version, Headers, Host, Port, Buffer, CanKeepalive,
 		Compress, OnResponse) ->
-	Req = #http_req{socket=Socket, transport=Transport, pid=self(),
+	{ok, Peer} = Transport:peername(Socket),
+	Req = #http_req{socket=Socket, transport=Transport, pid=self(), peer=Peer,
 		method=Method, path=Path, qs=Query, fragment=Fragment, version=Version,
 		headers=Headers, host=Host, port=Port, buffer=Buffer,
 		resp_compress=Compress, onresponse=OnResponse},
@@ -219,9 +220,6 @@ version(Req) ->
 %% @doc Return the peer address and port number of the remote host.
 -spec peer(Req)
 	-> {{inet:ip_address(), inet:port_number()}, Req} when Req::req().
-peer(Req=#http_req{socket=Socket, transport=Transport, peer=undefined}) ->
-	{ok, Peer} = Transport:peername(Socket),
-	{Peer, Req#http_req{peer=Peer}};
 peer(Req) ->
 	{Req#http_req.peer, Req}.
 
