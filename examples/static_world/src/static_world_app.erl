@@ -1,7 +1,7 @@
 %% Feel free to use, reuse and abuse the code in this file.
 
 %% @private
--module(static_app).
+-module(static_world_app).
 -behaviour(application).
 
 %% API.
@@ -14,7 +14,7 @@ start(_Type, _Args) ->
 	Dispatch = cowboy_router:compile([
 		{'_', [
 			{"/[...]", cowboy_static, [
-				{directory, {priv_dir, static, []}},
+				{directory, {priv_dir, static_world, []}},
 				{mimetypes, {fun mimetypes:path_to_mimes/2, default}}
 			]} 
 		]}
@@ -22,7 +22,7 @@ start(_Type, _Args) ->
 	{ok, _} = cowboy:start_http(http, 100, [{port, 8080}], [
 		{env, [{dispatch, Dispatch}]}
 	]),
-	static_sup:start_link().
+	static_world_sup:start_link().
 
 stop(_State) ->
 	ok.

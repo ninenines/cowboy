@@ -1,7 +1,7 @@
 %% Feel free to use, reuse and abuse the code in this file.
 
 %% @private
--module(static_sup).
+-module(static_world_sup).
 -behaviour(supervisor).
 
 %% API.

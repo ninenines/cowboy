@@ -1,4 +1,4 @@
-Cowboy Static Files Server
+Cowboy Static File Handler
 ==========================
 
 To compile this example you need rebar in your PATH.

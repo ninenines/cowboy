@@ -25,8 +25,8 @@ Cowboy Examples
  *  [rest_hello_world](./examples/rest_hello_world):
     return the data type that matches the request type (ex: html, text, json)
 
- *  [static](./examples/static):
-    an example file server
+ *  [static_world](./examples/static_world):
+    static file handler
 
  *  [websocket](./examples/websocket):
     websocket example
