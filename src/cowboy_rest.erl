@@ -940,7 +940,8 @@ expect(Req, State, Callback, Expected, OnTrue, OnFalse) ->
 		{_Unexpected, Req2, HandlerState} ->
 			next(Req2, State#state{handler_state=HandlerState}, OnFalse)
 	end.
-
+call(Req, #state{handler_state=HandlerState}, Fun) when is_function(Fun) ->
+	Fun(Req,HandlerState);
 call(Req, #state{handler=Handler, handler_state=HandlerState}, Fun) ->
 	case erlang:function_exported(Handler, Fun, 2) of
 		true -> Handler:Fun(Req, HandlerState);
