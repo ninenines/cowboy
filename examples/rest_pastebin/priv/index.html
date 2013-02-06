@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>Simple Pastebin</title>
+	</head>
+	<body>
+		<h1>Simple Pastebin</h1>
+		<p>
+			You can paste your text into the text field to submit, or you can
+			capture the output of a command with:
+		</p>
+		<code>
+			<i>command</i> | curl -i --data-urlencode paste@- localhost:8080
+		</code>
+		<form action="/" method="post">
+			<textarea cols="80" rows="15" name="paste"></textarea>
+			<div>
+				<button type="submit">Upload your code</button>
+			</div>
+		</form>
+	</body>
+</html>
