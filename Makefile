@@ -20,27 +20,21 @@ erlc_verbose = $(erlc_verbose_$(V))
 gen_verbose_0 = @echo " GEN   " $@;
 gen_verbose = $(gen_verbose_$(V))
 
-.PHONY: all clean-all app clean docs clean-docs tests autobahn build-plt dialyze
+.PHONY: all clean-all app clean deps clean-deps docs clean-docs tests autobahn build-plt dialyze
 
 # Application.
 
-all: app
+all: deps app
 
-clean-all: clean clean-docs
+clean-all: clean clean-deps clean-docs
 	$(gen_verbose) rm -rf .$(PROJECT).plt $(DEPS_DIR) logs
-
-deps/ranch:
-	@mkdir -p $(DEPS_DIR)
-	git clone -n -- https://github.com/extend/ranch.git $(DEPS_DIR)/ranch
-	cd $(DEPS_DIR)/ranch ; git checkout -q $(RANCH_VSN)
 
 MODULES = $(shell ls src/*.erl | sed 's/src\///;s/\.erl/,/' | sed '$$s/.$$//')
 
-app: deps/ranch ebin/$(PROJECT).app
+app: ebin/$(PROJECT).app
 	$(appsrc_verbose) cat src/$(PROJECT).app.src \
 		| sed 's/{modules, \[\]}/{modules, \[$(MODULES)\]}/' \
 		> ebin/$(PROJECT).app
-	@$(MAKE) -C $(DEPS_DIR)/ranch
 
 ebin/$(PROJECT).app: src/*.erl
 	@mkdir -p ebin/
@@ -48,8 +42,20 @@ ebin/$(PROJECT).app: src/*.erl
 		src/$(PROJECT)_middleware.erl $?
 
 clean:
-	-@$(MAKE) -C $(DEPS_DIR)/ranch clean
 	$(gen_verbose) rm -rf ebin/ test/*.beam erl_crash.dump
+
+# Dependencies.
+
+$(DEPS_DIR)/ranch:
+	@mkdir -p $(DEPS_DIR)
+	git clone -n -- https://github.com/extend/ranch.git $(DEPS_DIR)/ranch
+	cd $(DEPS_DIR)/ranch ; git checkout -q $(RANCH_VSN)
+
+deps: $(DEPS_DIR)/ranch
+	@$(MAKE) -C $(DEPS_DIR)/ranch
+
+clean-deps:
+	-@$(MAKE) -C $(DEPS_DIR)/ranch clean
 
 # Documentation.
 
@@ -69,17 +75,17 @@ CT_RUN = ct_run \
 	-cover test/cover.spec
 
 tests: ERLC_OPTS += -DTEST=1
-tests: clean app
+tests: clean clean-deps deps app
 	@mkdir -p logs/
 	@$(CT_RUN) -suite eunit_SUITE http_SUITE ws_SUITE
 
-autobahn: clean app
+autobahn: clean clean-deps deps app
 	@mkdir -p logs/
 	@$(CT_RUN) -suite autobahn_SUITE
 
 # Dialyzer.
 
-build-plt: app
+build-plt: deps app
 	@dialyzer --build_plt --output_plt .$(PROJECT).plt \
 		--apps erts kernel stdlib crypto public_key ssl $(DEPS_DIR)/ranch
 
