@@ -99,8 +99,9 @@ Source editing
 --------------
 
 The following rules MUST be followed:
- *  Indentation uses horizontal tabs, 1 tab equals the length of 4 space chars
+ *  Indentation uses horizontal tabs (1 tab = 4 columns)
  *  Do NOT align code; only indentation is allowed
+ *  Lines MUST NOT span more than 80 columns
 
 The following rules SHOULD be followed:
  *  Write small functions whenever possible
