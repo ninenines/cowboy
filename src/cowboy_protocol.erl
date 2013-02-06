@@ -463,10 +463,16 @@ request(Buffer, State=#state{socket=Socket, transport=Transport,
 		req_keepalive=ReqKeepalive, max_keepalive=MaxKeepalive,
 		compress=Compress, onresponse=OnResponse},
 		Method, Path, Query, Fragment, Version, Headers, Host, Port) ->
-	Req = cowboy_req:new(Socket, Transport, Method, Path, Query, Fragment,
-		Version, Headers, Host, Port, Buffer, ReqKeepalive < MaxKeepalive,
-		Compress, OnResponse),
-	onrequest(Req, State).
+	case Transport:peername(Socket) of
+		{ok, Peer} ->
+			Req = cowboy_req:new(Socket, Transport, Peer, Method, Path,
+				Query, Fragment, Version, Headers, Host, Port, Buffer,
+				ReqKeepalive < MaxKeepalive, Compress, OnResponse),
+			onrequest(Req, State);
+		{error, _} ->
+			%% Couldn't read the peer address; connection is gone.
+			terminate(State)
+	end.
 
 %% Call the global onrequest callback. The callback can send a reply,
 %% in which case we consider the request handled and move on to the next
@@ -562,8 +568,8 @@ error_terminate(Code, State=#state{socket=Socket, transport=Transport,
 		{cowboy_req, resp_sent} -> ok
 	after 0 ->
 		_ = cowboy_req:reply(Code, cowboy_req:new(Socket, Transport,
-			<<"GET">>, <<>>, <<>>, <<>>, {1, 1}, [], <<>>, undefined,
-			<<>>, false, Compress, OnResponse)),
+			undefined, <<"GET">>, <<>>, <<>>, <<>>, {1, 1}, [], <<>>,
+			undefined, <<>>, false, Compress, OnResponse)),
 		ok
 	end,
 	terminate(State).

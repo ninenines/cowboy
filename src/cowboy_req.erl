@@ -42,7 +42,7 @@
 -module(cowboy_req).
 
 %% Request API.
--export([new/14]).
+-export([new/15]).
 -export([method/1]).
 -export([version/1]).
 -export([peer/1]).
@@ -179,15 +179,16 @@
 %%
 %% Since we always need to parse the Connection header, we do it
 %% in an optimized way and add the parsed value to p_headers' cache.
--spec new(inet:socket(), module(), binary(), binary(), binary(), binary(),
+-spec new(inet:socket(), module(),
+	undefined | {inet:ip_address(), inet:port_number()},
+	binary(), binary(), binary(), binary(),
 	cowboy_http:version(), cowboy_http:headers(), binary(),
 	inet:port_number() | undefined, binary(), boolean(), boolean(),
 	undefined | cowboy_protocol:onresponse_fun())
 	-> req().
-new(Socket, Transport, Method, Path, Query, Fragment,
+new(Socket, Transport, Peer, Method, Path, Query, Fragment,
 		Version, Headers, Host, Port, Buffer, CanKeepalive,
 		Compress, OnResponse) ->
-	{ok, Peer} = Transport:peername(Socket),
 	Req = #http_req{socket=Socket, transport=Transport, pid=self(), peer=Peer,
 		method=Method, path=Path, qs=Query, fragment=Fragment, version=Version,
 		headers=Headers, host=Host, port=Port, buffer=Buffer,
@@ -219,7 +220,8 @@ version(Req) ->
 
 %% @doc Return the peer address and port number of the remote host.
 -spec peer(Req)
-	-> {{inet:ip_address(), inet:port_number()}, Req} when Req::req().
+	-> {undefined | {inet:ip_address(), inet:port_number()}, Req}
+	when Req::req().
 peer(Req) ->
 	{Req#http_req.peer, Req}.
 
