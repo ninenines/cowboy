@@ -1,0 +1,7 @@
+Simple Pastebin
+---------------
+
+You can paste your text into the text field to submit, or you can capture the
+output of a command with:
+
+<command> | curl -i --data-urlencode paste@- localhost:8080

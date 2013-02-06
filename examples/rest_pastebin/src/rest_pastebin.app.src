@@ -1,0 +1,15 @@
+%% Feel free to use, reuse and abuse the code in this file.
+
+{application, rest_pastebin, [
+	{description, "Cowboy REST Pastebin example inspired by sprunge."},
+	{vsn, "1"},
+	{modules, []},
+	{registered, []},
+	{applications, [
+		kernel,
+		stdlib,
+		cowboy
+	]},
+	{mod, {rest_pastebin_app, []}},
+	{env, []}
+]}.
