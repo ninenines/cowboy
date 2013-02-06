@@ -19,6 +19,9 @@ Cowboy Examples
  *  [echo_post](./examples/echo_post):
     parse and echo a POST parameter
 
+ *  [elixir_hello_world](./examples/elixir_hello_world):
+    simplest example application with Elixir
+
  *  [hello_world](./examples/hello_world):
     simplest example application
 
