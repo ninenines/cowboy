@@ -847,7 +847,7 @@ set_resp_body(Body, Req) ->
 %% Cowboy will add a "Transfer-Encoding: identity" header to the
 %% response.
 -spec set_resp_body_fun(resp_body_fun(), Req) -> Req when Req::req().
-set_resp_body_fun(StreamFun, Req) ->
+set_resp_body_fun(StreamFun, Req) when is_function(StreamFun) ->
 	Req#http_req{resp_body=StreamFun}.
 
 %% @doc Add a body function to the response.
@@ -863,7 +863,8 @@ set_resp_body_fun(StreamFun, Req) ->
 %% fewer bytes than declared the behaviour is undefined.
 -spec set_resp_body_fun(non_neg_integer(), resp_body_fun(), Req)
 	-> Req when Req::req().
-set_resp_body_fun(StreamLen, StreamFun, Req) ->
+set_resp_body_fun(StreamLen, StreamFun, Req)
+		when is_integer(StreamLen), is_function(StreamFun) ->
 	Req#http_req{resp_body={StreamLen, StreamFun}}.
 
 %% @doc Return whether the given header has been set for the response.
