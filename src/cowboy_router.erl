@@ -78,7 +78,7 @@ compile([{HostMatch, Constraints, Paths}|Tail], Acc) ->
 	compile(Tail, Hosts ++ Acc).
 
 compile_host(HostMatch) when is_list(HostMatch) ->
-	compile_host(unicode:characters_to_binary(HostMatch));
+	compile_host(list_to_binary(HostMatch));
 compile_host(HostMatch) when is_binary(HostMatch) ->
 	compile_rules(HostMatch, $., [], [], <<>>).
 
@@ -88,7 +88,7 @@ compile_paths([{PathMatch, Handler, Opts}|Tail], Acc) ->
 	compile_paths([{PathMatch, [], Handler, Opts}|Tail], Acc);
 compile_paths([{PathMatch, Constraints, Handler, Opts}|Tail], Acc)
 		when is_list(PathMatch) ->
-	compile_paths([{unicode:characters_to_binary(PathMatch),
+	compile_paths([{list_to_binary(PathMatch),
 		Constraints, Handler, Opts}|Tail], Acc);
 compile_paths([{'_', Constraints, Handler, Opts}|Tail], Acc) ->
 	compile_paths(Tail, [{'_', Constraints, Handler, Opts}] ++ Acc);
@@ -391,10 +391,14 @@ compile_test_() ->
 				{[<<"path">>, <<"to">>, <<"resource">>], [], hb, ob}]}]},
 		{[{'_', [{"/path/to/resource/", h, o}]}],
 			[{'_', [], [{[<<"path">>, <<"to">>, <<"resource">>], [], h, o}]}]},
+		{[{'_', [{"/путь/к/ресурсу/", h, o}]}],
+			[{'_', [], [{[<<"путь">>, <<"к">>, <<"ресурсу">>], [], h, o}]}]},
 		{[{"cowboy.example.org.", [{'_', h, o}]}],
 			[{[<<"org">>, <<"example">>, <<"cowboy">>], [], [{'_', [], h, o}]}]},
 		{[{".cowboy.example.org", [{'_', h, o}]}],
 			[{[<<"org">>, <<"example">>, <<"cowboy">>], [], [{'_', [], h, o}]}]},
+		{[{"некий.сайт.рф.", [{'_', h, o}]}],
+			[{[<<"рф">>, <<"сайт">>, <<"некий">>], [], [{'_', [], h, o}]}]},
 		{[{":subdomain.example.org", [{"/hats/:name/prices", h, o}]}],
 			[{[<<"org">>, <<"example">>, subdomain], [], [
 				{[<<"hats">>, name, <<"prices">>], [], h, o}]}]},
@@ -502,6 +506,9 @@ match_info_test_() ->
 		]},
 		{[<<"eu">>, <<"ninenines">>, '...'], [], [
 			{'_', [], match_any, []}
+		]},
+		{[<<"рф">>, <<"сайт">>], [], [
+			{[<<"путь">>, '...'], [], match_path, []}
 		]}
 	],
 	Tests = [
@@ -516,7 +523,9 @@ match_info_test_() ->
 		{<<"www.ninenines.eu">>, <<"/pathinfo/is/next/path_info">>,
 			{ok, match_path, [], [], undefined, [<<"path_info">>]}},
 		{<<"www.ninenines.eu">>, <<"/pathinfo/is/next/foo/bar">>,
-			{ok, match_path, [], [], undefined, [<<"foo">>, <<"bar">>]}}
+			{ok, match_path, [], [], undefined, [<<"foo">>, <<"bar">>]}},
+		{<<"сайт.рф">>, <<"/путь/домой">>,
+			{ok, match_path, [], [], undefined, [<<"домой">>]}}
 	],
 	[{lists:flatten(io_lib:format("~p, ~p", [H, P])), fun() ->
 		R = match(Dispatch, H, P)
