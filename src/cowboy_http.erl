@@ -817,7 +817,7 @@ authorization(UserPass, Type = <<"basic">>) ->
 				end)
 		end);
 authorization(String, Type) ->
-	{Type, String}.
+	cowboy_http:whitespace(String, fun(Rest) -> {Type, Rest} end).
 
 %% @doc Parse user credentials.
 -spec authorization_basic_userid(binary(), fun()) -> any().
@@ -1347,9 +1347,11 @@ http_authorization_test_() ->
 	 ?_assertEqual({error, badarg},
 		authorization(<<"dXNlcm5hbWUK">>, <<"basic">>)),
 	 ?_assertEqual({error, badarg},
-		 authorization(<<"_[]@#$%^&*()-AA==">>, <<"basic">>)),
+		authorization(<<"_[]@#$%^&*()-AA==">>, <<"basic">>)),
 	 ?_assertEqual({error, badarg},
-		authorization(<<"dXNlcjpwYXNzCA==">>, <<"basic">>))  %% user:pass\010
+		authorization(<<"dXNlcjpwYXNzCA==">>, <<"basic">>)), %% user:pass\010
+	 ?_assertEqual({<<"bearer">>,<<"some_secret_key">>},
+		authorization(<<" some_secret_key">>, <<"bearer">>))
 	].
 
 -endif.
