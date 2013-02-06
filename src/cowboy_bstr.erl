@@ -18,6 +18,7 @@
 %% Binary strings.
 -export([capitalize_token/1]).
 -export([to_lower/1]).
+-export([to_upper/1]).
 
 %% Characters.
 -export([char_to_lower/1]).
@@ -50,6 +51,11 @@ capitalize_token(<< C, Rest/bits >>, false, Acc) ->
 -spec to_lower(B) -> B when B::binary().
 to_lower(B) ->
 	<< << (char_to_lower(C)) >> || << C >> <= B >>.
+
+%% @doc Convert a binary string to uppercase.
+-spec to_upper(B) -> B when B::binary().
+to_upper(B) ->
+	<< << (char_to_upper(C)) >> || << C >> <= B >>.
 
 %% @doc Convert [A-Z] characters to lowercase.
 %% @end
