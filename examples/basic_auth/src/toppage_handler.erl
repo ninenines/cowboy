@@ -18,7 +18,7 @@ is_authorized(Req, S) ->
 		{<<"basic">>, {User = <<"Alladin">>, <<"open sesame">>}} ->
 			{true, Req1, User};
 		_ ->
-			{{false, <<"Restricted">>}, Req1, S}
+			{{false, <<"Basic realm=\"cowboy\"">>}, Req1, S}
 	end.
 
 content_types_provided(Req, State) ->
