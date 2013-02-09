@@ -1,38 +1,38 @@
 Cowboy Examples
 ===============
 
- *  [basic_auth](./examples/basic_auth):
+ *  [basic_auth](./basic_auth):
     basic HTTP authorization with REST
 
- *  [chunked_hello_world](./examples/chunked_hello_world):
+ *  [chunked_hello_world](./chunked_hello_world):
     demonstrates chunked data transfer with two one-second delays
 
- *  [compress_response](./examples/compress_response)
+ *  [compress_response](./compress_response)
     send a response body compressed if the client supports it
 
- *  [cookie](./examples/cookie):
+ *  [cookie](./cookie):
     set cookies from server and client side
 
- *  [echo_get](./examples/echo_get):
+ *  [echo_get](./echo_get):
     parse and echo a GET query string
 
- *  [echo_post](./examples/echo_post):
+ *  [echo_post](./echo_post):
     parse and echo a POST parameter
 
- *  [elixir_hello_world](./examples/elixir_hello_world):
+ *  [elixir_hello_world](./elixir_hello_world):
     simplest example application with Elixir
 
- *  [hello_world](./examples/hello_world):
+ *  [hello_world](./hello_world):
     simplest example application
 
- *  [rest_hello_world](./examples/rest_hello_world):
+ *  [rest_hello_world](./rest_hello_world):
     return the data type that matches the request type (ex: html, text, json)
 
- *  [rest_pastebin](./examples/rest_pastebin):
+ *  [rest_pastebin](./rest_pastebin):
     create text objects and return the data type that matches the request type (html, text)
 
- *  [static_world](./examples/static_world):
+ *  [static_world](./static_world):
     static file handler
 
- *  [websocket](./examples/websocket):
+ *  [websocket](./websocket):
     websocket example
