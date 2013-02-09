@@ -25,6 +25,9 @@ Cowboy Examples
  *  [hello_world](./hello_world):
     simplest example application
 
+ *  [markdown_middleware](./markdown_middleware):
+    static file handler with markdown preprocessor
+
  *  [rest_hello_world](./rest_hello_world):
     return the data type that matches the request type (ex: html, text, json)
 
