@@ -1,0 +1,15 @@
+%% Feel free to use, reuse and abuse the code in this file.
+
+{application, markdown_middleware, [
+	{description, "Cowboy static file handler example with middleware component."},
+	{vsn, "1"},
+	{modules, []},
+	{registered, []},
+	{applications, [
+		kernel,
+		stdlib,
+		cowboy
+	]},
+	{mod, {markdown_middleware_app, []}},
+	{env, []}
+]}.
