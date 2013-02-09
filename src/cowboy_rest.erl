@@ -695,7 +695,7 @@ created_path(Req, State) ->
 			{HostURL, Req3} = cowboy_req:host_url(Req2),
 			State2 = State#state{handler_state=HandlerState},
 			Req4 = cowboy_req:set_resp_header(
-				<<"Location">>, << HostURL/binary, Path/binary >>, Req3),
+				<<"location">>, << HostURL/binary, Path/binary >>, Req3),
 			respond(cowboy_req:set_meta(put_path, Path, Req4),
 				State2, 303)
 	end.
