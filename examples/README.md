@@ -34,6 +34,9 @@ Cowboy Examples
  *  [rest_pastebin](./rest_pastebin):
     create text objects and return the data type that matches the request type (html, text)
 
+ *  [rest_stream_response](./rest_stream_response):
+    stream results from a data store
+
  *  [static_world](./static_world):
     static file handler
 
