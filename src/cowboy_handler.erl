@@ -18,6 +18,16 @@
 %% environment values. The result of this execution is added to the
 %% environment under the <em>result</em> value.
 %%
+%% When using loop handlers, we are receiving data from the socket because we
+%% want to know when the socket gets closed. This is generally not an issue
+%% because these kinds of requests are generally not pipelined, and don't have
+%% a body. If they do have a body, this body is often read in the
+%% <em>init/3</em> callback and this is no problem. Otherwise, this data
+%% accumulates in a buffer until we reach a certain threshold of 5000 bytes
+%% by default. This can be configured through the <em>loop_max_buffer</em>
+%% environment value. The request will be terminated with an
+%% <em>{error, overflow}</em> reason if this threshold is reached.
+%%
 %% @see cowboy_http_handler
 -module(cowboy_handler).
 -behaviour(cowboy_middleware).
@@ -28,8 +38,10 @@
 -record(state, {
 	env :: cowboy_middleware:env(),
 	hibernate = false :: boolean(),
+	loop_buffer_size = 0 :: non_neg_integer(),
+	loop_max_buffer = 5000 :: non_neg_integer() | infinity,
 	loop_timeout = infinity :: timeout(),
-	loop_timeout_ref :: undefined | reference(),
+	loop_timeout_ref = undefined :: undefined | reference(),
 	resp_sent = false :: boolean()
 }).
 
@@ -41,7 +53,12 @@
 execute(Req, Env) ->
 	{_, Handler} = lists:keyfind(handler, 1, Env),
 	{_, HandlerOpts} = lists:keyfind(handler_opts, 1, Env),
-	handler_init(Req, #state{env=Env}, Handler, HandlerOpts).
+	case lists:keyfind(loop_max_buffer, 1, Env) of
+		false -> MaxBuffer = 5000, ok;
+		{_, MaxBuffer} -> ok
+	end,
+	handler_init(Req, #state{env=Env, loop_max_buffer=MaxBuffer},
+		Handler, HandlerOpts).
 
 -spec handler_init(Req, #state{}, module(), any())
 	-> {ok, Req, cowboy_middleware:env()}
@@ -53,17 +70,17 @@ handler_init(Req, State, Handler, HandlerOpts) ->
 		{ok, Req2, HandlerState} ->
 			handler_handle(Req2, State, Handler, HandlerState);
 		{loop, Req2, HandlerState} ->
-			handler_before_loop(Req2, State#state{hibernate=false},
-				Handler, HandlerState);
+			handler_before_loop(Req2, State, Handler, HandlerState);
 		{loop, Req2, HandlerState, hibernate} ->
 			handler_before_loop(Req2, State#state{hibernate=true},
 				Handler, HandlerState);
 		{loop, Req2, HandlerState, Timeout} ->
-			handler_before_loop(Req2, State#state{loop_timeout=Timeout},
-				Handler, HandlerState);
+			State2 = handler_loop_timeout(State#state{loop_timeout=Timeout}),
+			handler_before_loop(Req2, State2, Handler, HandlerState);
 		{loop, Req2, HandlerState, Timeout, hibernate} ->
-			handler_before_loop(Req2, State#state{
-				hibernate=true, loop_timeout=Timeout}, Handler, HandlerState);
+			State2 = handler_loop_timeout(State#state{
+				hibernate=true, loop_timeout=Timeout}),
+			handler_before_loop(Req2, State2, Handler, HandlerState);
 		{shutdown, Req2, HandlerState} ->
 			terminate_request(Req2, State, Handler, HandlerState,
 				{normal, shutdown});
@@ -123,12 +140,14 @@ handler_handle(Req, State, Handler, HandlerState) ->
 	| {error, 500, Req} | {suspend, module(), function(), [any()]}
 	when Req::cowboy_req:req().
 handler_before_loop(Req, State=#state{hibernate=true}, Handler, HandlerState) ->
-	State2 = handler_loop_timeout(State),
+	[Socket, Transport] = cowboy_req:get([socket, transport], Req),
+	Transport:setopts(Socket, [{active, once}]),
 	{suspend, ?MODULE, handler_loop,
-		[Req, State2#state{hibernate=false}, Handler, HandlerState]};
+		[Req, State#state{hibernate=false}, Handler, HandlerState]};
 handler_before_loop(Req, State, Handler, HandlerState) ->
-	State2 = handler_loop_timeout(State),
-	handler_loop(Req, State2, Handler, HandlerState).
+	[Socket, Transport] = cowboy_req:get([socket, transport], Req),
+	Transport:setopts(Socket, [{active, once}]),
+	handler_loop(Req, State, Handler, HandlerState).
 
 %% Almost the same code can be found in cowboy_websocket.
 -spec handler_loop_timeout(#state{}) -> #state{}.
@@ -136,8 +155,10 @@ handler_loop_timeout(State=#state{loop_timeout=infinity}) ->
 	State#state{loop_timeout_ref=undefined};
 handler_loop_timeout(State=#state{loop_timeout=Timeout,
 		loop_timeout_ref=PrevRef}) ->
-	_ = case PrevRef of undefined -> ignore; PrevRef ->
-		erlang:cancel_timer(PrevRef) end,
+	_ = case PrevRef of
+		undefined -> ignore;
+		PrevRef -> erlang:cancel_timer(PrevRef)
+	end,
 	TRef = erlang:start_timer(Timeout, self(), ?MODULE),
 	State#state{loop_timeout_ref=TRef}.
 
@@ -146,16 +167,38 @@ handler_loop_timeout(State=#state{loop_timeout=Timeout,
 	-> {ok, Req, cowboy_middleware:env()}
 	| {error, 500, Req} | {suspend, module(), function(), [any()]}
 	when Req::cowboy_req:req().
-handler_loop(Req, State=#state{loop_timeout_ref=TRef}, Handler, HandlerState) ->
+handler_loop(Req, State=#state{loop_buffer_size=NbBytes,
+		loop_max_buffer=Threshold, loop_timeout_ref=TRef},
+		Handler, HandlerState) ->
+	[Socket, Transport] = cowboy_req:get([socket, transport], Req),
+	{OK, Closed, Error} = Transport:messages(),
 	receive
+		{OK, Socket, Data} ->
+			NbBytes2 = NbBytes + byte_size(Data),
+			if	NbBytes2 > Threshold ->
+					_ = handler_terminate(Req, Handler, HandlerState,
+						{error, overflow}),
+					error_terminate(Req, State);
+				true ->
+					Req2 = cowboy_req:append_buffer(Data, Req),
+					State2 = handler_loop_timeout(State#state{
+						loop_buffer_size=NbBytes2}),
+					handler_loop(Req2, State2, Handler, HandlerState)
+			end;
+		{Closed, Socket} ->
+			terminate_request(Req, State, Handler, HandlerState,
+				{error, closed});
+		{Error, Socket, Reason} ->
+			terminate_request(Req, State, Handler, HandlerState,
+				{error, Reason});
 		{cowboy_req, resp_sent} ->
-			handler_loop(Req, State#state{resp_sent=true},
+			handler_before_loop(Req, State#state{resp_sent=true},
 				Handler, HandlerState);
 		{timeout, TRef, ?MODULE} ->
 			terminate_request(Req, State, Handler, HandlerState,
 				{normal, timeout});
 		{timeout, OlderTRef, ?MODULE} when is_reference(OlderTRef) ->
-			handler_loop(Req, State, Handler, HandlerState);
+			handler_before_loop(Req, State, Handler, HandlerState);
 		Message ->
 			handler_call(Req, State, Handler, HandlerState, Message)
 	end.

@@ -19,4 +19,6 @@ info(timeout, Req, State) ->
 	{loop, Req, State - 1, hibernate}.
 
 terminate({normal, shutdown}, _, _) ->
+	ok;
+terminate({error, overflow}, _, _) ->
 	ok.
