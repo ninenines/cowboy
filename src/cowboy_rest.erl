@@ -50,6 +50,16 @@
 	expires :: undefined | no_call | calendar:datetime()
 }).
 
+-define(LOG_ERROR_TERMINATE(Function,Class,Reason,Req,State),
+	error_logger:error_msg(
+	  "** Cowboy handler ~p terminating in ~p/~p~n"
+	  "   for the reason ~p:~p~n** Handler state was ~p~n"
+	  "** Request was ~p~n** Stacktrace: ~p~n~n",
+			[State#state.handler, Function, 2,
+			 Class, Reason, State#state.handler_state,
+			 cowboy_req:to_list(Req), erlang:get_stacktrace()])
+	).
+
 %% @doc Upgrade a HTTP request to the REST protocol.
 %%
 %% You do not need to call this function manually. To upgrade to the REST
@@ -476,13 +486,7 @@ variances(Req, State=#state{content_types_p=CTP,
 					resource_exists(Req3, State2)
 			end
 	catch Class:Reason ->
-		error_logger:error_msg(
-			"** Cowboy handler ~p terminating in ~p/~p~n"
-			"   for the reason ~p:~p~n** Handler state was ~p~n"
-			"** Request was ~p~n** Stacktrace: ~p~n~n",
-			[State#state.handler, variances, 2,
-				Class, Reason, State#state.handler_state,
-				cowboy_req:to_list(Req), erlang:get_stacktrace()]),
+		?LOG_ERROR_TERMINATE(variances,Class,Reason,Req,State),
 		error_terminate(Req, State)
 	end.
 
@@ -518,13 +522,7 @@ if_match(Req, State, EtagsList) ->
 				false -> precondition_failed(Req2, State2)
 			end
 	catch Class:Reason ->
-		error_logger:error_msg(
-			"** Cowboy handler ~p terminating in ~p/~p~n"
-			"   for the reason ~p:~p~n** Handler state was ~p~n"
-			"** Request was ~p~n** Stacktrace: ~p~n~n",
-			[State#state.handler, generate_etag, 2,
-				Class, Reason, State#state.handler_state,
-				cowboy_req:to_list(Req), erlang:get_stacktrace()]),
+		?LOG_ERROR_TERMINATE(generate_etag,Class,Reason,Req,State),
 		error_terminate(Req, State)
 	end.
 
@@ -553,13 +551,7 @@ if_unmodified_since(Req, State, IfUnmodifiedSince) ->
 				false -> if_none_match_exists(Req2, State2)
 			end
 	catch Class:Reason ->
-		error_logger:error_msg(
-			"** Cowboy handler ~p terminating in ~p/~p~n"
-			"   for the reason ~p:~p~n** Handler state was ~p~n"
-			"** Request was ~p~n** Stacktrace: ~p~n~n",
-			[State#state.handler, last_modified, 2,
-				Class, Reason, State#state.handler_state,
-				cowboy_req:to_list(Req), erlang:get_stacktrace()]),
+		?LOG_ERROR_TERMINATE(last_modified,Class,Reason,Req,State),
 		error_terminate(Req, State)
 	end.
 
@@ -586,13 +578,7 @@ if_none_match(Req, State, EtagsList) ->
 					end
 			end
 	catch Class:Reason ->
-		error_logger:error_msg(
-			"** Cowboy handler ~p terminating in ~p/~p~n"
-			"   for the reason ~p:~p~n** Handler state was ~p~n"
-			"** Request was ~p~n** Stacktrace: ~p~n~n",
-			[State#state.handler, generate_etag, 2,
-				Class, Reason, State#state.handler_state,
-				cowboy_req:to_list(Req), erlang:get_stacktrace()]),
+		?LOG_ERROR_TERMINATE(generate_etag,Class,Reason,Req,State),
 		error_terminate(Req, State)
 	end.
 
@@ -628,13 +614,7 @@ if_modified_since(Req, State, IfModifiedSince) ->
 				false -> not_modified(Req2, State2)
 			end
 	catch Class:Reason ->
-		error_logger:error_msg(
-			"** Cowboy handler ~p terminating in ~p/~p~n"
-			"   for the reason ~p:~p~n** Handler state was ~p~n"
-			"** Request was ~p~n** Stacktrace: ~p~n~n",
-			[State#state.handler, last_modified, 2,
-				Class, Reason, State#state.handler_state,
-				cowboy_req:to_list(Req), erlang:get_stacktrace()]),
+		?LOG_ERROR_TERMINATE(last_modified,Class,Reason,Req,State),
 		error_terminate(Req, State)
 	end.
 
@@ -646,23 +626,11 @@ not_modified(Req, State) ->
 				{Req4, State3} ->
 					respond(Req4, State3, 304)
 			catch Class:Reason ->
-				error_logger:error_msg(
-					"** Cowboy handler ~p terminating in ~p/~p~n"
-					"   for the reason ~p:~p~n** Handler state was ~p~n"
-					"** Request was ~p~n** Stacktrace: ~p~n~n",
-					[State#state.handler, expires, 2,
-						Class, Reason, State#state.handler_state,
-						cowboy_req:to_list(Req), erlang:get_stacktrace()]),
+				?LOG_ERROR_TERMINATE(expires,Class,Reason,Req,State),
 				error_terminate(Req2, State)
 			end
 	catch Class:Reason ->
-		error_logger:error_msg(
-			"** Cowboy handler ~p terminating in ~p/~p~n"
-			"   for the reason ~p:~p~n** Handler state was ~p~n"
-			"** Request was ~p~n** Stacktrace: ~p~n~n",
-			[State#state.handler, generate_etag, 2,
-				Class, Reason, State#state.handler_state,
-				cowboy_req:to_list(Req), erlang:get_stacktrace()]),
+		?LOG_ERROR_TERMINATE(generate_etag,Class,Reason,Req,State),
 		error_terminate(Req2, State)
 	end.
 
@@ -899,13 +867,7 @@ set_resp_body_etag(Req, State) ->
 		{Req2, State2} ->
 			set_resp_body_last_modified(Req2, State2)
 	catch Class:Reason ->
-		error_logger:error_msg(
-			"** Cowboy handler ~p terminating in ~p/~p~n"
-			"   for the reason ~p:~p~n** Handler state was ~p~n"
-			"** Request was ~p~n** Stacktrace: ~p~n~n",
-			[State#state.handler, generate_etag, 2,
-				Class, Reason, State#state.handler_state,
-				cowboy_req:to_list(Req), erlang:get_stacktrace()]),
+		?LOG_ERROR_TERMINATE(generate_etag,Class,Reason,Req,State),
 		error_terminate(Req, State)
 	end.
 
@@ -923,13 +885,7 @@ set_resp_body_last_modified(Req, State) ->
 					set_resp_body_expires(Req3, State2)
 			end
 	catch Class:Reason ->
-		error_logger:error_msg(
-			"** Cowboy handler ~p terminating in ~p/~p~n"
-			"   for the reason ~p:~p~n** Handler state was ~p~n"
-			"** Request was ~p~n** Stacktrace: ~p~n~n",
-			[State#state.handler, last_modified, 2,
-				Class, Reason, State#state.handler_state,
-				cowboy_req:to_list(Req), erlang:get_stacktrace()]),
+		?LOG_ERROR_TERMINATE(last_modified,Class,Reason,Req,State),
 		error_terminate(Req, State)
 	end.
 
@@ -939,13 +895,7 @@ set_resp_body_expires(Req, State) ->
 		{Req2, State2} ->
 			set_resp_body(Req2, State2)
 	catch Class:Reason ->
-		error_logger:error_msg(
-			"** Cowboy handler ~p terminating in ~p/~p~n"
-			"   for the reason ~p:~p~n** Handler state was ~p~n"
-			"** Request was ~p~n** Stacktrace: ~p~n~n",
-			[State#state.handler, expires, 2,
-				Class, Reason, State#state.handler_state,
-				cowboy_req:to_list(Req), erlang:get_stacktrace()]),
+		?LOG_ERROR_TERMINATE(expires,Class,Reason,Req,State),
 		error_terminate(Req, State)
 	end.
 
@@ -1073,12 +1023,7 @@ call(Req, State=#state{handler=Handler, handler_state=HandlerState},
 			try
 				Handler:Callback(Req, HandlerState)
 			catch Class:Reason ->
-				error_logger:error_msg(
-					"** Cowboy handler ~p terminating in ~p/~p~n"
-					"   for the reason ~p:~p~n** Handler state was ~p~n"
-					"** Request was ~p~n** Stacktrace: ~p~n~n",
-					[Handler, Callback, 2, Class, Reason, HandlerState,
-						cowboy_req:to_list(Req), erlang:get_stacktrace()]),
+				?LOG_ERROR_TERMINATE(Callback,Class,Reason,Req,State),
 				error_terminate(Req, State)
 			end;
 		false ->
