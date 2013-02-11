@@ -73,14 +73,14 @@ handler_init(Req, State, Handler, HandlerOpts) ->
 		{upgrade, protocol, Module, Req2, HandlerOpts2} ->
 			upgrade_protocol(Req2, State, Handler, HandlerOpts2, Module)
 	catch Class:Reason ->
-		error_logger:error_msg(
+		handler_error_msg(
 			"** Cowboy handler ~p terminating in ~p/~p~n"
 			"   for the reason ~p:~p~n"
 			"** Options were ~p~n"
 			"** Request was ~p~n"
 			"** Stacktrace: ~p~n~n",
-			[Handler, init, 3, Class, Reason, HandlerOpts,
-				cowboy_req:to_list(Req), erlang:get_stacktrace()]),
+			Handler, handle, 2, Class, Reason,
+			HandlerOpts, Req),
 		error_terminate(Req, State)
 	end.
 
@@ -104,14 +104,8 @@ handler_handle(Req, State, Handler, HandlerState) ->
 			terminate_request(Req2, State, Handler, HandlerState2,
 				{normal, shutdown})
 	catch Class:Reason ->
-		error_logger:error_msg(
-			"** Cowboy handler ~p terminating in ~p/~p~n"
-			"   for the reason ~p:~p~n"
-			"** Handler state was ~p~n"
-			"** Request was ~p~n"
-			"** Stacktrace: ~p~n~n",
-			[Handler, handle, 2, Class, Reason, HandlerState,
-				cowboy_req:to_list(Req), erlang:get_stacktrace()]),
+		handler_error_msg(Handler, handle, 2, Class, Reason,
+			HandlerState, Req),
 		handler_terminate(Req, Handler, HandlerState, Reason),
 		error_terminate(Req, State)
 	end.
@@ -175,14 +169,8 @@ handler_call(Req, State, Handler, HandlerState, Message) ->
 			handler_before_loop(Req2, State#state{hibernate=true},
 				Handler, HandlerState2)
 	catch Class:Reason ->
-		error_logger:error_msg(
-			"** Cowboy handler ~p terminating in ~p/~p~n"
-			"   for the reason ~p:~p~n"
-			"** Handler state was ~p~n"
-			"** Request was ~p~n"
-			"** Stacktrace: ~p~n~n",
-			[Handler, info, 3, Class, Reason, HandlerState,
-				cowboy_req:to_list(Req), erlang:get_stacktrace()]),
+		handler_error_msg(Handler, info, 3, Class, Reason,
+			HandlerState, Req),
 		handler_terminate(Req, Handler, HandlerState, Reason),
 		error_terminate(Req, State)
 	end.
@@ -200,15 +188,35 @@ handler_terminate(Req, Handler, HandlerState, Reason) ->
 	try
 		Handler:terminate(Reason, cowboy_req:lock(Req), HandlerState)
 	catch Class:Reason2 ->
-		error_logger:error_msg(
-			"** Cowboy handler ~p terminating in ~p/~p~n"
-			"   for the reason ~p:~p~n"
-			"** Handler state was ~p~n"
-			"** Request was ~p~n"
-			"** Stacktrace: ~p~n~n",
-			[Handler, terminate, 3, Class, Reason2, HandlerState,
-				cowboy_req:to_list(Req), erlang:get_stacktrace()])
+		handler_error_msg(Handler, terminate, 3, Class, Reason2,
+			HandlerState, Req)
 	end.
+
+%% Pretty print error messages if eunit_lib is available
+handler_error_msg(Handler, Fun, Arity, Class, Reason, HandlerState, Req) ->
+	handler_error_msg(
+		"** Cowboy handler ~p terminating in ~p/~p~n"
+		"   for the reason ~p:~p~n"
+		"** Handler state was ~p~n"
+		"** Request was ~p~n"
+		"** Stacktrace: ~s~n~n",
+		Handler, Fun, Arity, Class, Reason, HandlerState, Req).
+
+handler_error_msg(Msg, Handler, Fun, Arity, Class, Reason, HandlerState, Req) ->
+	_ = code:ensure_loaded(eunit_lib),
+	case erlang:function_exported(eunit_lib, format_exception, 1) of
+		false ->
+			error_logger:error_msg(Msg,
+				[Handler, Fun, Arity, Class, Reason, HandlerState,
+					cowboy_req:to_list(Req), erlang:get_stacktrace()]);
+		true ->
+			error_logger:error_msg(Msg,
+				[Handler, Fun, Arity, Class, Reason, HandlerState,
+					cowboy_req:to_list(Req), <<"...">>]),
+			error_logger:error_msg(eunit_lib:format_exception(
+				{Class,Reason,erlang:get_stacktrace()}))
+	end.
+
 
 %% Only send an error reply if there is no resp_sent message.
 -spec error_terminate(Req, #state{})
