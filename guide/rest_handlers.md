@@ -12,17 +12,22 @@ REST is implemented in Cowboy as a protocol upgrade. Once upgraded,
 the request is handled as a state machine with many optional callbacks
 describing the resource and modifying the machine's behavior.
 
+As the REST handler is still subject to change, the documentation is
+still thin. This state of affair will be improved in the coming weeks.
+
 Flow diagram
 ------------
 
-@todo Add the beautiful flow diagram here.
+Not done yet. Feel free to use the one that is currently being worked on.
+
+ *  https://github.com/extend/cowboy/pull/364
 
 Callbacks
 ---------
 
-@todo Describe the callbacks.
+Please see the Webmachine documentation at this time.
 
 Usage
 -----
 
-@todo Explain how to use them.
+Please see the examples at this time.
