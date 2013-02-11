@@ -21,7 +21,7 @@ mimetypes library to figure out the files' content types.
 ``` erlang
 Dispatch = [
 	{'_', [
-		{['...'], cowboy_static, [
+		{"/[...]", cowboy_static, [
 			{directory, {priv_dir, static, []}},
 			{mimetypes, {fun mimetypes:path_to_mimes/2, default}}
 		]}
