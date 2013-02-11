@@ -41,6 +41,8 @@ are not ordered.
     Cowboy. The server code should be reviewed and tested
     to ensure compatibility with remaining HTTP/1.0 products.
 
+ *  Continue improving the REST API
+
  *  SPDY support
 
 The following items pertain to Ranch.
