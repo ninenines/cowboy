@@ -509,6 +509,7 @@ execute(Req, State, Env, [Middleware|Tail]) ->
 			error_terminate(Code, Req2, State)
 	end.
 
+%% @private
 -spec resume(#state{}, cowboy_middleware:env(), [module()],
 	module(), module(), [any()]) -> ok.
 resume(State, Env, Tail, Module, Function, Args) ->
