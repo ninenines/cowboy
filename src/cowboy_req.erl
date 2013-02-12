@@ -910,7 +910,6 @@ reply(Status, Headers, Body, Req=#http_req{
 		version=Version, connection=Connection,
 		method=Method, resp_compress=Compress,
 		resp_state=waiting, resp_headers=RespHeaders}) ->
-	RespConn = response_connection(Headers, Connection),
 	HTTP11Headers = case Version of
 		{1, 1} -> [{<<"connection">>, atom_to_connection(Connection)}];
 		_ -> []
@@ -918,18 +917,20 @@ reply(Status, Headers, Body, Req=#http_req{
 	case Body of
 		BodyFun when is_function(BodyFun) ->
 			%% We stream the response body until we close the connection.
+			RespConn = close,
 			{RespType, Req2} = response(Status, Headers, RespHeaders, [
 					{<<"connection">>, <<"close">>},
 					{<<"date">>, cowboy_clock:rfc1123()},
 					{<<"server">>, <<"Cowboy">>},
 					{<<"transfer-encoding">>, <<"identity">>}
-				], <<>>, Req#http_req{connection=close}),
+				], <<>>, Req),
 			if	RespType =/= hook, Method =/= <<"HEAD">> ->
 					BodyFun(Socket, Transport);
 				true -> ok
 			end;
 		{ContentLength, BodyFun} ->
 			%% We stream the response body for ContentLength bytes.
+			RespConn = response_connection(Headers, Connection),
 			{RespType, Req2} = response(Status, Headers, RespHeaders, [
 					{<<"content-length">>, integer_to_list(ContentLength)},
 					{<<"date">>, cowboy_clock:rfc1123()},
@@ -940,9 +941,11 @@ reply(Status, Headers, Body, Req=#http_req{
 				true -> ok
 			end;
 		_ when Compress ->
+			RespConn = response_connection(Headers, Connection),
 			Req2 = reply_may_compress(Status, Headers, Body, Req,
 				RespHeaders, HTTP11Headers, Method);
 		_ ->
+			RespConn = response_connection(Headers, Connection),
 			Req2 = reply_no_compress(Status, Headers, Body, Req,
 				RespHeaders, HTTP11Headers, Method, iolist_size(Body))
 	end,
