@@ -123,7 +123,7 @@ cookie_list(Data, Acc) ->
 			(<< $,, Rest/binary >>) -> cookie_list(Rest, Acc);
 			(<< $;, Rest/binary >>) -> cookie_list(Rest, Acc);
 			(Rest) -> cookie(Rest,
-				fun (Rest2, << $$, _/bits >>, _) ->
+				fun (Rest2, << $$, _/binary >>, _) ->
 						cookie_list(Rest2, Acc);
 					(Rest2, Name, Value) ->
 						cookie_list(Rest2, [{Name, Value}|Acc])
