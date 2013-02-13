@@ -53,6 +53,9 @@
 -type terminate_reason() :: {normal, shutdown}
 	| {normal, timeout}
 	| {error, closed}
+	| {remote, closed}
+	| {remote, cowboy_websocket:close_code(), binary()}
+	| {error, badencoding}
 	| {error, badframe}
 	| {error, atom()}.
 
