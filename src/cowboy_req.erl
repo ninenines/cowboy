@@ -104,7 +104,6 @@
 -export([ensure_response/2]).
 
 %% Private setter/getter API.
--export([append_buffer/2]).
 -export([get/2]).
 -export([set/2]).
 -export([set_bindings/4]).
@@ -564,9 +563,14 @@ set_meta(Name, Value, Req=#http_req{meta=Meta}) ->
 %% @doc Return whether the request message has a body.
 -spec has_body(cowboy_req:req()) -> boolean().
 has_body(Req) ->
-	(lists:keymember(<<"content-length">>, 1, Req#http_req.headers) orelse
-		lists:keymember(<<"transfer-encoding">>, 1, Req#http_req.headers)) and
-		(element(2, lists:keyfind(<<"content-length">>, 1, Req#http_req.headers)) /= <<"0">>).
+	case lists:keyfind(<<"content-length">>, 1, Req#http_req.headers) of
+		{_, <<"0">>} ->
+			false;
+		{_, _} ->
+			true;
+		_ ->
+			lists:keymember(<<"transfer-encoding">>, 1, Req#http_req.headers)
+	end.
 
 %% @doc Return the request message body length, if known.
 %%
@@ -912,6 +916,7 @@ reply(Status, Headers, Body, Req=#http_req{
 		version=Version, connection=Connection,
 		method=Method, resp_compress=Compress,
 		resp_state=waiting, resp_headers=RespHeaders}) ->
+	RespConn = response_connection(Headers, Connection),
 	HTTP11Headers = case Version of
 		{1, 1} -> [{<<"connection">>, atom_to_connection(Connection)}];
 		_ -> []
@@ -919,20 +924,18 @@ reply(Status, Headers, Body, Req=#http_req{
 	case Body of
 		BodyFun when is_function(BodyFun) ->
 			%% We stream the response body until we close the connection.
-			RespConn = close,
 			{RespType, Req2} = response(Status, Headers, RespHeaders, [
 					{<<"connection">>, <<"close">>},
 					{<<"date">>, cowboy_clock:rfc1123()},
 					{<<"server">>, <<"Cowboy">>},
 					{<<"transfer-encoding">>, <<"identity">>}
-				], <<>>, Req),
+				], <<>>, Req#http_req{connection=close}),
 			if	RespType =/= hook, Method =/= <<"HEAD">> ->
 					BodyFun(Socket, Transport);
 				true -> ok
 			end;
 		{ContentLength, BodyFun} ->
 			%% We stream the response body for ContentLength bytes.
-			RespConn = response_connection(Headers, Connection),
 			{RespType, Req2} = response(Status, Headers, RespHeaders, [
 					{<<"content-length">>, integer_to_list(ContentLength)},
 					{<<"date">>, cowboy_clock:rfc1123()},
@@ -943,11 +946,9 @@ reply(Status, Headers, Body, Req=#http_req{
 				true -> ok
 			end;
 		_ when Compress ->
-			RespConn = response_connection(Headers, Connection),
 			Req2 = reply_may_compress(Status, Headers, Body, Req,
 				RespHeaders, HTTP11Headers, Method);
 		_ ->
-			RespConn = response_connection(Headers, Connection),
 			Req2 = reply_no_compress(Status, Headers, Body, Req,
 				RespHeaders, HTTP11Headers, Method, iolist_size(Body))
 	end,
@@ -1069,11 +1070,6 @@ ensure_response(#http_req{socket=Socket, transport=Transport,
 	ok.
 
 %% Private setter/getter API.
-
-%% @private
--spec append_buffer(binary(), Req) -> Req when Req::req().
-append_buffer(Suffix, Req=#http_req{buffer=Buffer}) ->
-	Req#http_req{buffer= << Buffer/binary, Suffix/binary >>}.
 
 %% @private
 -spec get(atom(), req()) -> any(); ([atom()], req()) -> any().
@@ -1464,3 +1460,4 @@ merge_headers_test() ->
   ok.
 
 -endif.
+
