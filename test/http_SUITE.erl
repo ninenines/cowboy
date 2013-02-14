@@ -56,6 +56,7 @@
 -export([rest_missing_get_callbacks/1]).
 -export([rest_missing_put_callbacks/1]).
 -export([rest_nodelete/1]).
+-export([rest_postonly/1]).
 -export([rest_resource_etags/1]).
 -export([rest_resource_etags_if_none_match/1]).
 -export([set_resp_body/1]).
@@ -116,6 +117,7 @@ groups() ->
 		rest_missing_get_callbacks,
 		rest_missing_put_callbacks,
 		rest_nodelete,
+		rest_postonly,
 		rest_resource_etags,
 		rest_resource_etags_if_none_match,
 		set_resp_body,
@@ -331,6 +333,7 @@ init_dispatch(Config) ->
 			{[<<"missing_get_callbacks">>], rest_missing_callbacks, []},
 			{[<<"missing_put_callbacks">>], rest_missing_callbacks, []},
 			{[<<"nodelete">>], rest_nodelete_resource, []},
+			{[<<"postonly">>], rest_postonly_resource, []},
 			{[<<"resetags">>], rest_resource_etags, []},
 			{[<<"rest_expires">>], rest_expires, []},
 			{[<<"loop_timeout">>], http_handler_loop_timeout, []},
@@ -827,6 +830,15 @@ rest_nodelete(Config) ->
 	{ok, Client2} = cowboy_client:request(<<"DELETE">>,
 		build_url("/nodelete", Config), Client),
 	{ok, 500, _, _} = cowboy_client:response(Client2).
+
+rest_postonly(Config) ->
+	Client = ?config(client, Config),
+	Headers = [
+		{<<"content-type">>, <<"text/plain">>}
+	],
+	{ok, Client2} = cowboy_client:request(<<"POST">>,
+		build_url("/postonly", Config), Headers, "12345", Client),
+	{ok, 303, _, _} = cowboy_client:response(Client2).
 
 rest_resource_get_etag(Config, Type) ->
 	rest_resource_get_etag(Config, Type, []).

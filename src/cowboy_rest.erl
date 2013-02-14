@@ -204,14 +204,14 @@ content_types_provided(Req, State) ->
 	case call(Req, State, content_types_provided) of
 		no_call ->
 			State2 = State#state{
-				content_types_p={{<<"text">>, <<"html">>, []}, to_html}},
+				content_types_p=[{{<<"text">>, <<"html">>, []}, to_html}]},
 			case cowboy_req:parse_header(<<"accept">>, Req) of
 				{error, badarg} ->
 					respond(Req, State2, 400);
 				{ok, undefined, Req2} ->
 					languages_provided(
 						cowboy_req:set_meta(media_type, {<<"text">>, <<"html">>, []}, Req2),
-						State2#state{content_type_a={<<"text">>, <<"html">>, []}});
+						State2#state{content_type_a={{<<"text">>, <<"html">>, []}, to_html}});
 				{ok, Accept, Req2} ->
 					Accept2 = prioritize_accept(Accept),
 					choose_media_type(Req2, State2, Accept2)
@@ -223,7 +223,7 @@ content_types_provided(Req, State) ->
 		{CTP, Req2, HandlerState} ->
 			CTP2 =  [normalize_content_types(P) || P <- CTP],
 			State2 = State#state{
-			        handler_state=HandlerState, content_types_p=CTP2},
+			handler_state=HandlerState, content_types_p=CTP2},
 			case cowboy_req:parse_header(<<"accept">>, Req2) of
 				{error, badarg} ->
 					respond(Req2, State2, 400);
