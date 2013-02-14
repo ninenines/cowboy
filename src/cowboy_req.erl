@@ -564,8 +564,9 @@ set_meta(Name, Value, Req=#http_req{meta=Meta}) ->
 %% @doc Return whether the request message has a body.
 -spec has_body(cowboy_req:req()) -> boolean().
 has_body(Req) ->
-	lists:keymember(<<"content-length">>, 1, Req#http_req.headers) orelse
-		lists:keymember(<<"transfer-encoding">>, 1, Req#http_req.headers).
+	(lists:keymember(<<"content-length">>, 1, Req#http_req.headers) orelse
+		lists:keymember(<<"transfer-encoding">>, 1, Req#http_req.headers)) and
+		(element(2, lists:keyfind(<<"content-length">>, 1, Req#http_req.headers)) /= <<"0">>).
 
 %% @doc Return the request message body length, if known.
 %%
