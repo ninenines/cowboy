@@ -256,7 +256,7 @@ websocket_data(State, Req, HandlerState, << Fin:1, _Rsv:3, Opcode:4, 1:1,
 	websocket_data(State, Req, HandlerState,
 		Opcode, Len, MaskKey, Rest, Fin);
 %% When payload length is over 63 bits, the most significant bit MUST be 0.
-websocket_data(State, Req, HandlerState, << _:8, 1:1, 127:7, 1:1, _/bits >>) ->
+websocket_data(State, Req, HandlerState, << _:8, 1:1, 127:7, 1:1, _:7, _/binary >>) ->
 	websocket_close(State, Req, HandlerState, {error, badframe});
 %% All frames sent from the client to the server are masked.
 websocket_data(State, Req, HandlerState, << _:8, 0:1, _/bits >>) ->
