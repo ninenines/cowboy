@@ -536,7 +536,7 @@ handler_call(State=#state{handler=Handler, handler_opts=HandlerOpts}, Req,
 				ok ->
 					NextState(State, Req2, HandlerState2, RemainingData);
 				shutdown ->
-					handler_terminate(State, Req2, HandlerState,
+					handler_terminate(State, Req2, HandlerState2,
 						{normal, shutdown});
 				{error, _} = Error ->
 					handler_terminate(State, Req2, HandlerState2, Error)
@@ -548,7 +548,7 @@ handler_call(State=#state{handler=Handler, handler_opts=HandlerOpts}, Req,
 					NextState(State#state{hibernate=true},
 						Req2, HandlerState2, RemainingData);
 				shutdown ->
-					handler_terminate(State, Req2, HandlerState,
+					handler_terminate(State, Req2, HandlerState2,
 						{normal, shutdown});
 				{error, _} = Error ->
 					handler_terminate(State, Req2, HandlerState2, Error)
@@ -559,7 +559,7 @@ handler_call(State=#state{handler=Handler, handler_opts=HandlerOpts}, Req,
 				ok ->
 					NextState(State, Req2, HandlerState2, RemainingData);
 				shutdown ->
-					handler_terminate(State, Req2, HandlerState,
+					handler_terminate(State, Req2, HandlerState2,
 						{normal, shutdown});
 				{error, _} = Error ->
 					handler_terminate(State, Req2, HandlerState2, Error)
@@ -571,7 +571,7 @@ handler_call(State=#state{handler=Handler, handler_opts=HandlerOpts}, Req,
 					NextState(State#state{hibernate=true},
 						Req2, HandlerState2, RemainingData);
 				shutdown ->
-					handler_terminate(State, Req2, HandlerState,
+					handler_terminate(State, Req2, HandlerState2,
 						{normal, shutdown});
 				{error, _} = Error ->
 					handler_terminate(State, Req2, HandlerState2, Error)
