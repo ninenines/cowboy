@@ -41,7 +41,8 @@ Custom protocol upgrades
 ------------------------
 
 The `my_protocol` module above will be used for further processing
-of the request. It requires only one callback, `upgrade/4`.
+of the request. It should use the `cowboy_sub_protocol` behaviour,
+which requires only one callback, `upgrade/4`.
 
 It receives the request object, the middleware environment, and
 the handler this request has been routed to along with its options.
