@@ -19,6 +19,7 @@
 %% documentation available at http://wiki.basho.com/Webmachine.html
 %% at the time of writing.
 -module(cowboy_rest).
+-behaviour(cowboy_sub_protocol).
 
 -export([upgrade/4]).
 
