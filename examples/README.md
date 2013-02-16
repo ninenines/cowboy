@@ -22,6 +22,9 @@ Cowboy Examples
  *  [elixir_hello_world](./elixir_hello_world):
     simplest example application with Elixir
 
+ *  [eventsource](./eventsource):
+    eventsource emitter and consumer
+
  *  [hello_world](./hello_world):
     simplest example application
 
