@@ -1,0 +1,1 @@
+If you read this then the static file server works!
