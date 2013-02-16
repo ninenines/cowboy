@@ -40,5 +40,8 @@ Cowboy Examples
  *  [static_world](./static_world):
     static file handler
 
+ *  [web_sever](./web_server):
+    serves files with lists directory entries
+
  *  [websocket](./websocket):
     websocket example
