@@ -89,6 +89,7 @@ file_exists(Name) ->
 
 valid_path(<<>>) -> true;
 valid_path(<<$., _T/binary>>) -> false;
+valid_path(<<$/, _T/binary>>) -> false;
 valid_path(<<_Char, T/binary>>) -> valid_path(T).
 
 new_paste_id() ->
