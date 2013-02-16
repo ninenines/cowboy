@@ -195,7 +195,7 @@ handler_loop(Req, State=#state{loop_buffer_size=NbBytes,
 			handler_before_loop(Req, State#state{resp_sent=true},
 				Handler, HandlerState);
 		{timeout, TRef, ?MODULE} ->
-			terminate_request(Req, State, Handler, HandlerState,
+			handler_after_loop(Req, State, Handler, HandlerState,
 				{normal, timeout});
 		{timeout, OlderTRef, ?MODULE} when is_reference(OlderTRef) ->
 			handler_before_loop(Req, State, Handler, HandlerState);
@@ -210,7 +210,7 @@ handler_loop(Req, State=#state{loop_buffer_size=NbBytes,
 handler_call(Req, State, Handler, HandlerState, Message) ->
 	try Handler:info(Message, Req, HandlerState) of
 		{ok, Req2, HandlerState2} ->
-			terminate_request(Req2, State, Handler, HandlerState2,
+			handler_after_loop(Req2, State, Handler, HandlerState2,
 				{normal, shutdown});
 		{loop, Req2, HandlerState2} ->
 			handler_before_loop(Req2, State, Handler, HandlerState2);
@@ -229,6 +229,25 @@ handler_call(Req, State, Handler, HandlerState, Message) ->
 		handler_terminate(Req, Handler, HandlerState, Reason),
 		error_terminate(Req, State)
 	end.
+
+%% It is sometimes important to make a socket passive as it was initially
+%% and as it is expected to be by cowboy_protocol, right after we're done
+%% with loop handling. The browser may freely pipeline a bunch of requests
+%% if previous one was, say, a JSONP long-polling request.
+-spec handler_after_loop(Req, #state{}, module(), any(),
+	{normal, timeout | shutdown} | {error, atom()}) ->
+	{ok, Req, cowboy_middleware:env()} when Req::cowboy_req:req().
+handler_after_loop(Req, State, Handler, HandlerState, Reason) ->
+	[Socket, Transport] = cowboy_req:get([socket, transport], Req),
+	Transport:setopts(Socket, [{active, false}]),
+	{OK, _Closed, _Error} = Transport:messages(),
+	Req2 = receive
+		{OK, Socket, Data} ->
+			cowboy_req:append_buffer(Data, Req)
+	after 0 ->
+		Req
+	end,
+	terminate_request(Req2, State, Handler, HandlerState, Reason).
 
 -spec terminate_request(Req, #state{}, module(), any(),
 	{normal, timeout | shutdown} | {error, atom()}) ->
