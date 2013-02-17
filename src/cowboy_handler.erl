@@ -62,7 +62,7 @@ execute(Req, Env) ->
 
 -spec handler_init(Req, #state{}, module(), any())
 	-> {ok, Req, cowboy_middleware:env()}
-	| {error, 500, Req} | {suspend, module(), function(), [any()]}
+	| {error, 500, Req} | {suspend, module(), atom(), [any()]}
 	when Req::cowboy_req:req().
 handler_init(Req, State, Handler, HandlerOpts) ->
 	Transport = cowboy_req:get(transport, Req),
@@ -137,7 +137,7 @@ handler_handle(Req, State, Handler, HandlerState) ->
 %% to receive data and buffer it indefinitely.
 -spec handler_before_loop(Req, #state{}, module(), any())
 	-> {ok, Req, cowboy_middleware:env()}
-	| {error, 500, Req} | {suspend, module(), function(), [any()]}
+	| {error, 500, Req} | {suspend, module(), atom(), [any()]}
 	when Req::cowboy_req:req().
 handler_before_loop(Req, State=#state{hibernate=true}, Handler, HandlerState) ->
 	[Socket, Transport] = cowboy_req:get([socket, transport], Req),
@@ -165,7 +165,7 @@ handler_loop_timeout(State=#state{loop_timeout=Timeout,
 %% @private
 -spec handler_loop(Req, #state{}, module(), any())
 	-> {ok, Req, cowboy_middleware:env()}
-	| {error, 500, Req} | {suspend, module(), function(), [any()]}
+	| {error, 500, Req} | {suspend, module(), atom(), [any()]}
 	when Req::cowboy_req:req().
 handler_loop(Req, State=#state{loop_buffer_size=NbBytes,
 		loop_max_buffer=Threshold, loop_timeout_ref=TRef},
@@ -205,7 +205,7 @@ handler_loop(Req, State=#state{loop_buffer_size=NbBytes,
 
 -spec handler_call(Req, #state{}, module(), any(), any())
 	-> {ok, Req, cowboy_middleware:env()}
-	| {error, 500, Req} | {suspend, module(), function(), [any()]}
+	| {error, 500, Req} | {suspend, module(), atom(), [any()]}
 	when Req::cowboy_req:req().
 handler_call(Req, State, Handler, HandlerState, Message) ->
 	try Handler:info(Message, Req, HandlerState) of
