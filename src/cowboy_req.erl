@@ -122,6 +122,8 @@
 -export_type([cookie_opts/0]).
 
 -type resp_body_fun() :: fun((inet:socket(), module()) -> ok).
+-type send_chunk_fun() :: fun((iodata()) -> ok | {error, atom()}).
+-type resp_chunked_fun() :: fun((send_chunk_fun()) -> ok).
 
 -record(http_req, {
 	%% Transport.
@@ -159,7 +161,8 @@
 	resp_state = waiting :: locked | waiting | chunks | done,
 	resp_headers = [] :: cowboy_http:headers(),
 	resp_body = <<>> :: iodata() | resp_body_fun()
-		| {non_neg_integer(), resp_body_fun()},
+		| {non_neg_integer(), resp_body_fun()}
+		| {chunked, resp_chunked_fun()},
 
 	%% Functions.
 	onresponse = undefined :: undefined | already_called
@@ -892,10 +895,15 @@ set_resp_body_fun(StreamFun, Req) when is_function(StreamFun) ->
 %% If the body function crashes while writing the response body or writes
 %% fewer bytes than declared the behaviour is undefined.
 -spec set_resp_body_fun(non_neg_integer(), resp_body_fun(), Req)
+	-> Req when Req::req();
+	(chunked, resp_chunked_fun(), Req)
 	-> Req when Req::req().
 set_resp_body_fun(StreamLen, StreamFun, Req)
 		when is_integer(StreamLen), is_function(StreamFun) ->
-	Req#http_req{resp_body={StreamLen, StreamFun}}.
+	Req#http_req{resp_body={StreamLen, StreamFun}};
+set_resp_body_fun(chunked, StreamFun, Req)
+		when is_function(StreamFun) ->
+	Req#http_req{resp_body={chunked, StreamFun}}.
 
 %% @doc Return whether the given header has been set for the response.
 -spec has_resp_header(binary(), req()) -> boolean().
@@ -905,6 +913,8 @@ has_resp_header(Name, #http_req{resp_headers=RespHeaders}) ->
 %% @doc Return whether a body has been set for the response.
 -spec has_resp_body(req()) -> boolean().
 has_resp_body(#http_req{resp_body=RespBody}) when is_function(RespBody) ->
+	true;
+has_resp_body(#http_req{resp_body={chunked, _}}) ->
 	true;
 has_resp_body(#http_req{resp_body={Length, _}}) ->
 	Length > 0;
@@ -957,6 +967,20 @@ reply(Status, Headers, Body, Req=#http_req{
 				true -> ok
 			end,
 			Req2#http_req{connection=RespConn};
+		{chunked, BodyFun} ->
+			%% We stream the response body in chunks.
+			{RespType, Req2} = chunked_response(Status, Headers, Req),
+			if	RespType =/= hook, Method =/= <<"HEAD">> ->
+					ChunkFun = fun(IoData) -> chunk(IoData, Req2) end,
+					BodyFun(ChunkFun),
+					%% Terminate the chunked body for HTTP/1.1 only.
+					_ = case Version of
+						{1, 0} -> ok;
+						_ -> Transport:send(Socket, <<"0\r\n\r\n">>)
+					end;
+				true -> ok
+			end,
+			Req2;
 		{ContentLength, BodyFun} ->
 			%% We stream the response body for ContentLength bytes.
 			RespConn = response_connection(Headers, Connection),
@@ -1035,22 +1059,9 @@ chunked_reply(Status, Req) ->
 %% @see cowboy_req:chunk/2
 -spec chunked_reply(cowboy_http:status(), cowboy_http:headers(), Req)
 	-> {ok, Req} when Req::req().
-chunked_reply(Status, Headers, Req=#http_req{
-		version=Version, connection=Connection,
-		resp_state=waiting, resp_headers=RespHeaders}) ->
-	RespConn = response_connection(Headers, Connection),
-	HTTP11Headers = case Version of
-		{1, 1} -> [
-			{<<"connection">>, atom_to_connection(Connection)},
-			{<<"transfer-encoding">>, <<"chunked">>}];
-		_ -> []
-	end,
-	{_, Req2} = response(Status, Headers, RespHeaders, [
-		{<<"date">>, cowboy_clock:rfc1123()},
-		{<<"server">>, <<"Cowboy">>}
-	|HTTP11Headers], <<>>, Req),
-	{ok, Req2#http_req{connection=RespConn, resp_state=chunks,
-		resp_headers=[], resp_body= <<>>}}.
+chunked_reply(Status, Headers, Req) ->
+	{_, Req2} = chunked_response(Status, Headers, Req),
+	{ok, Req2}.
 
 %% @doc Send a chunk of data.
 %%
@@ -1204,6 +1215,25 @@ to_list(Req) ->
 	lists:zip(record_info(fields, http_req), tl(tuple_to_list(Req))).
 
 %% Internal.
+
+-spec chunked_response(cowboy_http:status(), cowboy_http:headers(), Req) ->
+	{normal | hook, Req} when Req::req().
+chunked_response(Status, Headers, Req=#http_req{
+		version=Version, connection=Connection,
+		resp_state=waiting, resp_headers=RespHeaders}) ->
+	RespConn = response_connection(Headers, Connection),
+	HTTP11Headers = case Version of
+		{1, 1} -> [
+			{<<"connection">>, atom_to_connection(Connection)},
+			{<<"transfer-encoding">>, <<"chunked">>}];
+		_ -> []
+	end,
+	{RespType, Req2} = response(Status, Headers, RespHeaders, [
+		{<<"date">>, cowboy_clock:rfc1123()},
+		{<<"server">>, <<"Cowboy">>}
+	|HTTP11Headers], <<>>, Req),
+	{RespType, Req2#http_req{connection=RespConn, resp_state=chunks,
+			resp_headers=[], resp_body= <<>>}}.
 
 -spec response(cowboy_http:status(), cowboy_http:headers(),
 	cowboy_http:headers(), cowboy_http:headers(), iodata(), Req)
