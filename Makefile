@@ -1,7 +1,7 @@
 # See LICENSE for licensing information.
 
 PROJECT = cowboy
-RANCH_VSN = 0.6.0
+RANCH_VSN = 0.6.1
 ERLC_OPTS = -Werror +debug_info +warn_export_all # +bin_opt_info +warn_missing_spec
 
 DEPS_DIR ?= $(CURDIR)/deps
