@@ -8,10 +8,11 @@ Cowboy User Guide
    *  Getting started
  *  [Routing](routing.md)
    *  Purpose
-   *  Dispatch list
-   *  Match rules
-   *  Bindings
+   *  Structure
+   *  Match syntax
    *  Constraints
+   *  Compilation
+   *  Live update
  *  [Handlers](handlers.md)
    *  Purpose
    *  Protocol upgrades

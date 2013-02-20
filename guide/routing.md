@@ -242,3 +242,17 @@ cowboy:start_http(my_http_listener, 100,
 
 Note that this function will return `{error, badarg}` if the structure
 given is incorrect.
+
+Live update
+-----------
+
+You can use the `cowboy:set_env/3` function for updating the dispatch
+list used by routing. This will apply to all new connections accepted
+by the listener.
+
+``` erlang
+cowboy:set_env(my_http_listener, dispatch,
+    cowboy_router:compile(Dispatch)).
+```
+
+Note that you need to compile the routes before updating.
