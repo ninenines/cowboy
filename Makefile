@@ -39,7 +39,7 @@ app: ebin/$(PROJECT).app
 ebin/$(PROJECT).app: src/*.erl
 	@mkdir -p ebin/
 	$(erlc_verbose) erlc -v $(ERLC_OPTS) -o ebin/ -pa ebin/ \
-		src/$(PROJECT)_middleware.erl $?
+		src/$(PROJECT)_middleware.erl  src/$(PROJECT)_sub_protocol.erl $?
 
 clean:
 	$(gen_verbose) rm -rf ebin/ test/*.beam erl_crash.dump
