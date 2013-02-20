@@ -36,10 +36,12 @@ app: ebin/$(PROJECT).app
 		| sed 's/{modules, \[\]}/{modules, \[$(MODULES)\]}/' \
 		> ebin/$(PROJECT).app
 
+COMPILE_FIRST = src/cowboy_middleware.erl src/cowboy_sub_protocol.erl
+
 ebin/$(PROJECT).app: src/*.erl
 	@mkdir -p ebin/
 	$(erlc_verbose) erlc -v $(ERLC_OPTS) -o ebin/ -pa ebin/ \
-		src/$(PROJECT)_middleware.erl $?
+		$(COMPILE_FIRST) $?
 
 clean:
 	$(gen_verbose) rm -rf ebin/ test/*.beam erl_crash.dump
