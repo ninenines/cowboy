@@ -61,6 +61,7 @@
 -export([rest_patch/1]).
 -export([rest_resource_etags/1]).
 -export([rest_resource_etags_if_none_match/1]).
+-export([set_env_dispatch/1]).
 -export([set_resp_body/1]).
 -export([set_resp_header/1]).
 -export([set_resp_overwrite/1]).
@@ -90,7 +91,8 @@ all() ->
 		{group, https_compress},
 		{group, onrequest},
 		{group, onresponse},
-		{group, onresponse_capitalize}
+		{group, onresponse_capitalize},
+		{group, set_env}
 	].
 
 groups() ->
@@ -159,6 +161,9 @@ groups() ->
 		]},
 		{onresponse_capitalize, [], [
 			onresponse_capitalize
+		]},
+		{set_env, [], [
+			set_env_dispatch
 		]}
 	].
 
@@ -269,6 +274,17 @@ init_per_group(onresponse_capitalize, Config) ->
 		{env, [{dispatch, init_dispatch(Config)}]},
 		{max_keepalive, 50},
 		{onresponse, fun onresponse_capitalize_hook/4},
+		{timeout, 500}
+	]),
+	{ok, Client} = cowboy_client:init([]),
+	[{scheme, <<"http">>}, {port, Port}, {opts, []},
+		{transport, Transport}, {client, Client}|Config];
+init_per_group(set_env, Config) ->
+	Port = 33087,
+	Transport = ranch_tcp,
+	{ok, _} = cowboy:start_http(set_env, 100, [{port, Port}], [
+		{env, [{dispatch, []}]},
+		{max_keepalive, 50},
 		{timeout, 500}
 	]),
 	{ok, Client} = cowboy_client:init([]),
@@ -922,6 +938,17 @@ rest_resource_etags_if_none_match(Config) ->
 			[{<<"if-none-match">>, ETag}]),
 		{Ret, Type}
 	end || {Status, ETag, Type} <- Tests].
+
+set_env_dispatch(Config) ->
+	Client = ?config(client, Config),
+	{ok, Client2} = cowboy_client:request(<<"GET">>,
+		build_url("/", Config), Client),
+	{ok, 400, _, _} = cowboy_client:response(Client2),
+	ok = cowboy:set_env(set_env, dispatch,
+		cowboy_router:compile([{'_', [{"/", http_handler, []}]}])),
+	{ok, Client3} = cowboy_client:request(<<"GET">>,
+		build_url("/", Config), Client),
+	{ok, 200, _, _} = cowboy_client:response(Client3).
 
 set_resp_body(Config) ->
 	Client = ?config(client, Config),

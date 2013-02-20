@@ -58,6 +58,9 @@ will not process any subsequent requests on this connection.
 The middlewares that come with Cowboy may define or require other
 environment values to perform.
 
+You can update the environment by calling the `cowboy:set_env/3`
+convenience function, adding or replacing a value in the environment.
+
 Routing middleware
 ------------------
 
