@@ -53,9 +53,9 @@
 execute(Req, Env) ->
 	{_, Handler} = lists:keyfind(handler, 1, Env),
 	{_, HandlerOpts} = lists:keyfind(handler_opts, 1, Env),
-	case lists:keyfind(loop_max_buffer, 1, Env) of
-		false -> MaxBuffer = 5000, ok;
-		{_, MaxBuffer} -> ok
+	MaxBuffer = case lists:keyfind(loop_max_buffer, 1, Env) of
+		false -> 5000;
+		{_, MaxBuffer0} -> MaxBuffer0
 	end,
 	handler_init(Req, #state{env=Env, loop_max_buffer=MaxBuffer},
 		Handler, HandlerOpts).
