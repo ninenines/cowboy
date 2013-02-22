@@ -623,12 +623,13 @@ init_stream(TransferDecode, TransferState, ContentDecode, Req) ->
 	| {done, Req} | {error, atom()} when Req::req().
 stream_body(Req=#http_req{body_state=waiting,
 		version=Version, transport=Transport, socket=Socket}) ->
-	case parse_header(<<"expect">>, Req) of
-		{ok, [<<"100-continue">>], Req1} ->
+	{ok, ExpectHeader, Req1} = parse_header(<<"expect">>, Req),
+	case ExpectHeader of
+		[<<"100-continue">>] ->
 			HTTPVer = cowboy_http:version_to_binary(Version),
 			Transport:send(Socket,
 				<< HTTPVer/binary, " ", (status(100))/binary, "\r\n\r\n" >>);
-		{ok, undefined, Req1} ->
+		undefined ->
 			ok
 	end,
 	case parse_header(<<"transfer-encoding">>, Req1) of
@@ -921,7 +922,7 @@ reply(Status, Headers, Body, Req=#http_req{
 		{1, 1} -> [{<<"connection">>, atom_to_connection(Connection)}];
 		_ -> []
 	end,
-	case Body of
+	Req3 = case Body of
 		BodyFun when is_function(BodyFun) ->
 			%% We stream the response body until we close the connection.
 			RespConn = close,
@@ -934,7 +935,8 @@ reply(Status, Headers, Body, Req=#http_req{
 			if	RespType =/= hook, Method =/= <<"HEAD">> ->
 					BodyFun(Socket, Transport);
 				true -> ok
-			end;
+			end,
+			Req2#http_req{connection=RespConn};
 		{ContentLength, BodyFun} ->
 			%% We stream the response body for ContentLength bytes.
 			RespConn = response_connection(Headers, Connection),
@@ -946,18 +948,20 @@ reply(Status, Headers, Body, Req=#http_req{
 			if	RespType =/= hook, Method =/= <<"HEAD">> ->
 					BodyFun(Socket, Transport);
 				true -> ok
-			end;
+			end,
+			Req2#http_req{connection=RespConn};
 		_ when Compress ->
 			RespConn = response_connection(Headers, Connection),
 			Req2 = reply_may_compress(Status, Headers, Body, Req,
-				RespHeaders, HTTP11Headers, Method);
+				RespHeaders, HTTP11Headers, Method),
+			Req2#http_req{connection=RespConn};
 		_ ->
 			RespConn = response_connection(Headers, Connection),
 			Req2 = reply_no_compress(Status, Headers, Body, Req,
-				RespHeaders, HTTP11Headers, Method, iolist_size(Body))
+				RespHeaders, HTTP11Headers, Method, iolist_size(Body)),
+			Req2#http_req{connection=RespConn}
 	end,
-	{ok, Req2#http_req{connection=RespConn, resp_state=done,
-		resp_headers=[], resp_body= <<>>}}.
+	{ok, Req3#http_req{resp_state=done,resp_headers=[], resp_body= <<>>}}.
 
 reply_may_compress(Status, Headers, Body, Req,
 		RespHeaders, HTTP11Headers, Method) ->
