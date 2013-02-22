@@ -70,17 +70,17 @@ handler_init(Req, State, Handler, HandlerOpts) ->
 		{ok, Req2, HandlerState} ->
 			handler_handle(Req2, State, Handler, HandlerState);
 		{loop, Req2, HandlerState} ->
-			handler_before_loop(Req2, State, Handler, HandlerState);
+			handler_after_callback(Req2, State, Handler, HandlerState);
 		{loop, Req2, HandlerState, hibernate} ->
-			handler_before_loop(Req2, State#state{hibernate=true},
+			handler_after_callback(Req2, State#state{hibernate=true},
 				Handler, HandlerState);
 		{loop, Req2, HandlerState, Timeout} ->
 			State2 = handler_loop_timeout(State#state{loop_timeout=Timeout}),
-			handler_before_loop(Req2, State2, Handler, HandlerState);
+			handler_after_callback(Req2, State2, Handler, HandlerState);
 		{loop, Req2, HandlerState, Timeout, hibernate} ->
 			State2 = handler_loop_timeout(State#state{
 				hibernate=true, loop_timeout=Timeout}),
-			handler_before_loop(Req2, State2, Handler, HandlerState);
+			handler_after_callback(Req2, State2, Handler, HandlerState);
 		{shutdown, Req2, HandlerState} ->
 			terminate_request(Req2, State, Handler, HandlerState,
 				{normal, shutdown});
@@ -132,6 +132,23 @@ handler_handle(Req, State, Handler, HandlerState) ->
 		handler_terminate(Req, Handler, HandlerState, Reason),
 		error_terminate(Req, State)
 	end.
+
+%% Update the state if the response was sent in the callback.
+-spec handler_after_callback(Req, #state{}, module(), any())
+	-> {ok, Req, cowboy_middleware:env()}
+	| {error, 500, Req} | {suspend, module(), atom(), [any()]}
+	when Req::cowboy_req:req().
+handler_after_callback(Req, State=#state{resp_sent=false}, Handler,
+		HandlerState) ->
+	receive
+		{cowboy_req, resp_sent} ->
+			handler_before_loop(Req, State#state{resp_sent=true}, Handler,
+				HandlerState)
+	after 0 ->
+		handler_before_loop(Req, State, Handler, HandlerState)
+	end;
+handler_after_callback(Req, State, Handler, HandlerState) ->
+	handler_before_loop(Req, State, Handler, HandlerState).
 
 %% We don't listen for Transport closes because that would force us
 %% to receive data and buffer it indefinitely.
@@ -191,9 +208,6 @@ handler_loop(Req, State=#state{loop_buffer_size=NbBytes,
 		{Error, Socket, Reason} ->
 			terminate_request(Req, State, Handler, HandlerState,
 				{error, Reason});
-		{cowboy_req, resp_sent} ->
-			handler_before_loop(Req, State#state{resp_sent=true},
-				Handler, HandlerState);
 		{timeout, TRef, ?MODULE} ->
 			handler_after_loop(Req, State, Handler, HandlerState,
 				{normal, timeout});
@@ -213,9 +227,9 @@ handler_call(Req, State, Handler, HandlerState, Message) ->
 			handler_after_loop(Req2, State, Handler, HandlerState2,
 				{normal, shutdown});
 		{loop, Req2, HandlerState2} ->
-			handler_before_loop(Req2, State, Handler, HandlerState2);
+			handler_after_callback(Req2, State, Handler, HandlerState2);
 		{loop, Req2, HandlerState2, hibernate} ->
-			handler_before_loop(Req2, State#state{hibernate=true},
+			handler_after_callback(Req2, State#state{hibernate=true},
 				Handler, HandlerState2)
 	catch Class:Reason ->
 		error_logger:error_msg(
