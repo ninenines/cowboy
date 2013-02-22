@@ -1,6 +1,27 @@
 CHANGELOG
 =========
 
+0.8.1
+-----
+
+ *  Add eventsource, web_server examples; improve rest_pastebin example
+
+ *  Add cowboy:set_env/3 to more conveniently update the dispatch list
+
+ *  Add cowboy_sub_protocol behaviour
+
+ *  Fix cowboy_req:has_body/1 when Content-Length == 0
+
+ *  Fix passing of state to websocket_terminate/3 on server close
+
+ *  Fix compilation with +native
+
+ *  Compile with more warnings enabled by default; fix warnings
+
+ *  Set the socket in passive mode after the loop handler terminates
+
+ *  Improve typespecs
+
 0.8.0
 -----
 
