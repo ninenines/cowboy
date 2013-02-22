@@ -103,7 +103,7 @@ new_paste_id(Bin, Rem) ->
 	new_paste_id(<<Bin/binary, Next>>, Rem - 1).
 
 format_html(Paste, plain) ->
-	Text = escape_html_chars(read_file(Paste)),
+	Text = cowboy_bstr:html_escape(read_file(Paste)),
 	<<"<!DOCTYPE html><html>",
 	"<head><title>paste</title></head>",
 	"<body><pre><code>", Text/binary, "</code></pre></body></html>\n">>;
@@ -122,12 +122,3 @@ highlight(Path, Lang, Type) ->
 		" --doc-title=paste ",
 		" --out-format=", Type,
 		" --include-style ", Path1]).
-
-% Escape some HTML characters that might make a fuss
-escape_html_chars(Bin) ->
-	<< <<(escape_html_char(B))/binary>> || <<B>> <= Bin >>.
-
-escape_html_char($<) -> <<"&lt;">>;
-escape_html_char($>) -> <<"&gt;">>;
-escape_html_char($&) -> <<"&amp;">>;
-escape_html_char(C) -> <<C>>.

@@ -17,12 +17,14 @@
 
 %% Binary strings.
 -export([capitalize_token/1]).
+-export([html_escape/1]).
 -export([to_lower/1]).
 -export([to_upper/1]).
 
 %% Characters.
 -export([char_to_lower/1]).
 -export([char_to_upper/1]).
+-export([html_escape_char/1]).
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
@@ -46,6 +48,14 @@ capitalize_token(<< C, Rest/bits >>, true, Acc) ->
 	capitalize_token(Rest, false, << Acc/binary, (char_to_upper(C)) >>);
 capitalize_token(<< C, Rest/bits >>, false, Acc) ->
 	capitalize_token(Rest, false, << Acc/binary, (char_to_lower(C)) >>).
+
+%% @doc Escape HTML special characters in a binary string.
+%%
+%% Removes [<>"&] and replaces them with the appropriate HTML escape
+%% sequences.
+-spec html_escape(B) -> B when B::binary().
+html_escape(B) ->
+	<< << (html_escape_char(C))/binary >> || << C >> <= B >>.
 
 %% @doc Convert a binary string to lowercase.
 -spec to_lower(B) -> B when B::binary().
@@ -119,6 +129,17 @@ char_to_upper($y) -> $Y;
 char_to_upper($z) -> $Z;
 char_to_upper(Ch) -> Ch.
 
+%% @doc Escape a single HTML character.
+%%
+%% Removes [<>"&] and replaces them with the appropriate HTML escape
+%% sequence.
+-spec html_escape_char(char()) -> binary().
+html_escape_char($<) -> <<"&lt;">>;
+html_escape_char($>) -> <<"&gt;">>;
+html_escape_char($&) -> <<"&amp;">>;
+html_escape_char($") -> <<"&quot;">>;
+html_escape_char(C) -> <<C>>.
+
 %% Tests.
 
 -ifdef(TEST).
@@ -135,5 +156,14 @@ capitalize_token_test_() ->
 		{<<"Sec-WebSocket---Version">>, <<"Sec-Websocket---Version">>}
 	],
 	[{H, fun() -> R = capitalize_token(H) end} || {H, R} <- Tests].
+
+html_escape_test_() ->
+	%% {Unsafe, Safe}
+	Tests = [
+		{<<"<script>">>, <<"&lt;script&gt;">>},
+		{<<"&foo;">>, <<"&amp;foo;">>},
+		{<<"\"hello\"">>, <<"&quot;hello&quot;">>}
+	],
+	[{H, fun() -> R = html_escape(H) end} || {H, R} <- Tests].
 
 -endif.
