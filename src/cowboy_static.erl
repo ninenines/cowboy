@@ -204,11 +204,9 @@
 	etag_fun  :: {fun(([etagarg()], T) ->
 		undefined | {strong | weak, binary()}), T}}).
 
-
 %% @private Upgrade from HTTP handler to REST handler.
 init({_Transport, http}, _Req, _Opts) ->
 	{upgrade, protocol, cowboy_rest}.
-
 
 %% @private Set up initial state of REST handler.
 -spec rest_init(Req, list()) -> {ok, Req, #state{}} when Req::cowboy_req:req().
@@ -245,7 +243,6 @@ rest_init(Req, Opts) ->
 	end,
 	{ok, Req1, State}.
 
-
 %% @private Only allow GET and HEAD requests on files.
 -spec allowed_methods(Req, #state{})
 	-> {[binary()], Req, #state{}} when Req::cowboy_req:req().
@@ -260,7 +257,6 @@ malformed_request(Req, #state{filepath=error}=State) ->
 malformed_request(Req, State) ->
 	{false, Req, State}.
 
-
 %% @private Check if the resource exists under the document root.
 -spec resource_exists(Req, #state{})
 	-> {boolean(), Req, #state{}} when Req::cowboy_req:req().
@@ -268,7 +264,6 @@ resource_exists(Req, #state{fileinfo={error, _}}=State) ->
 	{false, Req, State};
 resource_exists(Req, #state{fileinfo={ok, Fileinfo}}=State) ->
 	{Fileinfo#file_info.type =:= regular, Req, State}.
-
 
 %% @private
 %% Access to a file resource is forbidden if it exists and the local node does
@@ -284,13 +279,11 @@ forbidden(Req, #state{fileinfo={error, _}}=State) ->
 forbidden(Req, #state{fileinfo={ok, #file_info{access=Access}}}=State) ->
 	{not (Access =:= read orelse Access =:= read_write), Req, State}.
 
-
 %% @private Read the time a file system system object was last modified.
 -spec last_modified(Req, #state{})
 	-> {calendar:datetime(), Req, #state{}} when Req::cowboy_req:req().
 last_modified(Req, #state{fileinfo={ok, #file_info{mtime=Modified}}}=State) ->
 	{erlang:localtime_to_universaltime(Modified), Req, State}.
-
 
 %% @private Generate the ETag header value for this file.
 %% The ETag header value is only generated if the resource is a file that
@@ -307,7 +300,6 @@ generate_etag(Req, #state{fileinfo={_, #file_info{type=regular, inode=INode,
 generate_etag(Req, State) ->
 	{undefined, Req, State}.
 
-
 %% @private Return the content type of a file.
 -spec content_types_provided(cowboy_req:req(), #state{}) -> tuple().
 content_types_provided(Req, #state{filepath=Filepath,
@@ -315,7 +307,6 @@ content_types_provided(Req, #state{filepath=Filepath,
 	Mimetypes = [{T, file_contents}
 		|| T <- MimetypesFun(Filepath, MimetypesData)],
 	{Mimetypes, Req, State}.
-
 
 %% @private Return a function that writes a file directly to the socket.
 -spec file_contents(cowboy_req:req(), #state{}) -> tuple().
@@ -330,7 +321,6 @@ file_contents(Req, #state{filepath=Filepath,
 		end
 	end,
 	{{stream, Filesize, Writefile}, Req, State}.
-
 
 -spec directory_path(dirspec()) -> dirpath().
 directory_path({priv_dir, App, []}) ->
@@ -366,7 +356,6 @@ check_path([H|T]) ->
 		nomatch -> check_path(T)
 	end.
 
-
 %% @private Join the the directory and request paths.
 -spec join_paths(dirpath(), [binary()]) -> binary().
 join_paths([H|_]=Dirpath, Filepath) when is_integer(H) ->
@@ -377,7 +366,6 @@ join_paths(Dirpath, Filepath) when is_binary(Dirpath) ->
 	filename:join([Dirpath] ++ Filepath);
 join_paths([], Filepath) ->
 	filename:join(Filepath).
-
 
 %% @private Return the path to the priv/ directory of an application.
 -spec priv_dir_path(atom()) -> string().
@@ -393,7 +381,6 @@ priv_dir_mod(Mod) ->
 		File when not is_list(File) -> "../priv";
 		File -> filename:join([filename:dirname(File),"../priv"])
 	end.
-
 
 %% @private Use application/octet-stream as the default mimetype.
 %% If a list of extension - mimetype pairs are provided as the mimetypes
@@ -419,7 +406,6 @@ path_to_mimetypes_(Ext, Extensions) ->
 default_mimetype() ->
 	[{<<"application">>, <<"octet-stream">>, []}].
 
-
 %% @private Do not send ETag headers in the default configuration.
 -spec no_etag_function([etagarg()], undefined) -> undefined.
 no_etag_function(_Args, undefined) ->
@@ -434,7 +420,6 @@ attr_etag_function(Args, Attrs) ->
 		[$-|integer_to_list(erlang:phash2(Pair, 1 bsl 32), 16)]
 	end || Attr <- Attrs],
 	{strong, list_to_binary([H|T])}.
-
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
