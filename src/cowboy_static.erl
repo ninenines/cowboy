@@ -102,10 +102,10 @@
 %% header is generated.
 %%
 %% If a strong ETag is required a user defined function for generating the
-%% header value can be supplied. The function must accept a proplist of the
-%% file attributes as the first argument and a second argument containing any
-%% additional data that the function requires. The function must return a term
-%% of the type `{weak | strong, binary()}' or `undefined'.
+%% header value can be supplied. The function must accept a list of key/values
+%% of the file attributes as the first argument and a second argument
+%% containing any additional data that the function requires. The function
+%% must return a term of the type `{weak | strong, binary()}' or `undefined'.
 %%
 %% ====  Examples ====
 %% ```
@@ -202,7 +202,8 @@
 	fileinfo  :: {ok, #file_info{}} | {error, _} | error,
 	mimetypes :: {fun((binary(), T) -> [mimedef()]), T} | undefined,
 	etag_fun  :: {fun(([etagarg()], T) ->
-		undefined | {strong | weak, binary()}), T}}).
+		undefined | {strong | weak, binary()}), T}
+}).
 
 %% @private Upgrade from HTTP handler to REST handler.
 init({_Transport, http}, _Req, _Opts) ->
@@ -211,37 +212,41 @@ init({_Transport, http}, _Req, _Opts) ->
 %% @private Set up initial state of REST handler.
 -spec rest_init(Req, list()) -> {ok, Req, #state{}} when Req::cowboy_req:req().
 rest_init(Req, Opts) ->
-	Directory = proplists:get_value(directory, Opts),
-	Directory1 = directory_path(Directory),
-	Mimetypes = proplists:get_value(mimetypes, Opts, []),
-	Mimetypes1 = case Mimetypes of
-		{{M, F}, E} -> {fun M:F/2, E};
-		{_, _} -> Mimetypes;
-		[] -> {fun path_to_mimetypes/2, []};
-		[_|_] -> {fun path_to_mimetypes/2, Mimetypes}
+	{_, DirectoryOpt} = lists:keyfind(directory, 1, Opts),
+	Directory = directory_path(DirectoryOpt),
+	case lists:keyfind(file, 1, Opts) of
+		false ->
+			{Filepath, Req2} = cowboy_req:path_info(Req),
+			case check_path(Filepath) of
+				ok ->
+					Filepath2 = join_paths(Directory, Filepath),
+					rest_init(Req2, Opts, Filepath2);
+				error ->
+					{ok, Req2, #state{filepath=error, fileinfo=error,
+						mimetypes=undefined, etag_fun=undefined}}
+			end;
+		{_, FileOpt} ->
+			Filepath = join_paths(Directory, filepath_path(FileOpt)),
+			rest_init(Req, Opts, Filepath)
+	end.
+
+rest_init(Req, Opts, Filepath) ->
+	Fileinfo = file:read_file_info(Filepath),
+	Mimetypes = case lists:keyfind(mimetypes, 1, Opts) of
+		false -> {fun path_to_mimetypes/2, []};
+		{_, {{M, F}, E}} -> {fun M:F/2, E};
+		{_, Mtypes} when is_tuple(Mtypes) -> Mtypes;
+		{_, Mtypes} when is_list(Mtypes) -> {fun path_to_mimetypes/2, Mtypes}
 	end,
-	ETagFunction = case proplists:get_value(etag, Opts) of
-		default -> {fun no_etag_function/2, undefined};
-		undefined -> {fun no_etag_function/2, undefined};
-		{attributes, []} -> {fun no_etag_function/2, undefined};
-		{attributes, Attrs} -> {fun attr_etag_function/2, Attrs};
-		{_, _}=ETagFunction1 -> ETagFunction1
+	EtagFun = case lists:keyfind(etag, 1, Opts) of
+		false -> {fun no_etag_function/2, undefined};
+		{_, default} -> {fun no_etag_function/2, undefined};
+		{_, {attributes, []}} -> {fun no_etag_function/2, undefined};
+		{_, {attributes, Attrs}} -> {fun attr_etag_function/2, Attrs};
+		{_, EtagOpt} -> EtagOpt
 	end,
-	{Filepath, Req1} = case lists:keyfind(file, 1, Opts) of
-		{_, Filepath2} -> {filepath_path(Filepath2), Req};
-		false -> cowboy_req:path_info(Req)
-	end,
-	State = case check_path(Filepath) of
-		error ->
-			#state{filepath=error, fileinfo=error, mimetypes=undefined,
-				etag_fun=ETagFunction};
-		ok ->
-			Filepath1 = join_paths(Directory1, Filepath),
-			Fileinfo = file:read_file_info(Filepath1),
-			#state{filepath=Filepath1, fileinfo=Fileinfo, mimetypes=Mimetypes1,
-				etag_fun=ETagFunction}
-	end,
-	{ok, Req1, State}.
+	{ok, Req, #state{filepath=Filepath, fileinfo=Fileinfo,
+		mimetypes=Mimetypes, etag_fun=EtagFun}}.
 
 %% @private Only allow GET and HEAD requests on files.
 -spec allowed_methods(Req, #state{})
