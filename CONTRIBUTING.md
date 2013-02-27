@@ -20,12 +20,26 @@ repository `upstream` refers to the official repository for this project.
 Following this document will ensure prompt merging of your work in the
 `master` branch of the project.
 
-Planning
---------
+Reporting bugs
+--------------
 
-Upon identifying a bug, you SHOULD submit a ticket, regardless of your
-plans for fixing it. If you plan to fix the bug, you SHOULD discuss your
-plans to avoid having your work rejected.
+Upon identifying a bug or a DoS vulnerability, you SHOULD submit a ticket,
+regardless of your plans for fixing it. If you plan to fix the bug, you
+SHOULD discuss your plans to avoid having your work rejected.
+
+Upon identifying a security vulnerability in Erlang/OTP that leaves Cowboy
+vulnerable to attack, you SHOULD consult privately with the Erlang/OTP team
+to get the issue resolved.
+
+Upon identifying a security vulnerability in Cowboy's `cowboy_static` module,
+you SHOULD submit a ticket, regardless of your plans for fixing it. Please
+ensure that all necessary details to reproduce are listed. You then SHOULD
+inform users on the mailing list about the issue, advising that they use
+another means for sending static files until the issue is resolved.
+
+Upon identifying a security vulnerability in any other part of Cowboy, you
+SHOULD contact us directly by email. Please ensure that all necessary details
+to reproduce are listed.
 
 Before implementing a new feature, you SHOULD submit a ticket for discussion
 on your plans. The feature might have been rejected already, or the
