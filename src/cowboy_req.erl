@@ -81,8 +81,11 @@
 -export([stream_body/1]).
 -export([skip_body/1]).
 -export([body/1]).
+-export([body/2]).
 -export([body_qs/1]).
+-export([body_qs/2]).
 -export([multipart_data/1]).
+-export([multipart_data/2]).
 -export([multipart_skip/1]).
 
 %% Response API.
@@ -170,6 +173,9 @@
 
 -opaque req() :: #http_req{}.
 -export_type([req/0]).
+
+% 3MBs is the default maximum body length
+-define(MAX_BODY_LENGTH, 3145728).
 
 %% Request API.
 
@@ -721,14 +727,23 @@ content_decode(ContentDecode, Data, Req) ->
 %% @doc Return the full body sent with the request.
 -spec body(Req) -> {ok, binary(), Req} | {error, atom()} when Req::req().
 body(Req) ->
-	body(Req, <<>>).
+	body(Req, ?MAX_BODY_LENGTH).
 
--spec body(Req, binary())
+-spec body(Req, non_neg_integer())
 	-> {ok, binary(), Req} | {error, atom()} when Req::req().
-body(Req, Acc) ->
+body(Req, MaxBodyLength) ->
+	case body_length(Req) of
+		{Length, _} when Length > MaxBodyLength -> {error, badlength};
+		{_, Req2} -> read_body(Req2, <<>>);
+		undefined -> {error, chunked}
+	end.
+
+-spec read_body(Req, binary())
+	-> {ok, binary(), Req} | {error, atom()} when Req::req().
+read_body(Req, Acc) ->
 	case stream_body(Req) of
 		{ok, Data, Req2} ->
-			body(Req2, << Acc/binary, Data/binary >>);
+			read_body(Req2, << Acc/binary, Data/binary >>);
 		{done, Req2} ->
 			{ok, Acc, Req2};
 		{error, Reason} ->
@@ -749,7 +764,16 @@ skip_body(Req) ->
 	-> {ok, [{binary(), binary() | true}], Req} | {error, atom()}
 	when Req::req().
 body_qs(Req) ->
-	case body(Req) of
+	body_qs(Req, ?MAX_BODY_LENGTH).
+
+%% @doc Return the full body sent with the request, parsed as an
+%% application/x-www-form-urlencoded string, parsing request up to
+%% MaxBodyLength bytes
+-spec body_qs(Req, non_neg_integer())
+	-> {ok, [{binary(), binary() | true}], Req} | {error, atom()}
+	when Req::req().
+body_qs(Req, MaxBodyLength) ->
+	case body(Req, MaxBodyLength) of
 		{ok, Body, Req2} ->
 			{ok, cowboy_http:x_www_form_urlencoded(Body), Req2};
 		{error, Reason} ->
@@ -767,15 +791,27 @@ body_qs(Req) ->
 %%
 %% If the request Content-Type is not a multipart one, <em>{error, badarg}</em>
 %% is returned.
--spec multipart_data(Req)
+-spec multipart_data(Req, non_neg_integer())
 	-> {headers, cowboy_http:headers(), Req} | {body, binary(), Req}
-		| {end_of_part | eof, Req} when Req::req().
-multipart_data(Req=#http_req{body_state=waiting}) ->
+		| {end_of_part | eof, Req} | {error, badarg} 
+		| {error, chunked} | {error, badlength} when Req::req().
+multipart_data(Req=#http_req{body_state=waiting}, MaxBodyLength) ->
 	{ok, {<<"multipart">>, _SubType, Params}, Req2} =
 		parse_header(<<"content-type">>, Req),
 	{_, Boundary} = lists:keyfind(<<"boundary">>, 1, Params),
-	{ok, Length, Req3} = parse_header(<<"content-length">>, Req2),
-	multipart_data(Req3, Length, {more, cowboy_multipart:parser(Boundary)});
+	case body_length(Req2) of
+        {Length, _} when Length > MaxBodyLength -> {error, badlength};
+        {Length, Req3} -> multipart_data(Req3, Length, {more, cowboy_multipart:parser(Boundary)});
+        undefined -> {error, chunked}
+    end.
+
+
+-spec multipart_data(Req)
+	-> {headers, cowboy_http:headers(), Req} | {body, binary(), Req}
+		| {end_of_part | eof, Req} | {error, badarg} 
+		| {error, chunked} | {error, badlength} when Req::req().
+multipart_data(Req=#http_req{body_state=waiting}) ->
+	multipart_data(Req, ?MAX_BODY_LENGTH);
 multipart_data(Req=#http_req{multipart={Length, Cont}}) ->
 	multipart_data(Req, Length, Cont());
 multipart_data(Req=#http_req{body_state=done}) ->
