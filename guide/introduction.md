@@ -32,6 +32,21 @@ downloading and building instructions. Please look up the environment
 variables documentation of your system for details on how to update the
 $PATH information.
 
+Supported platforms
+-------------------
+
+Cowboy is tested and supported on Linux.
+
+Cowboy has been reported to work on other platforms, but we make no
+guarantee that the experience will be safe and smooth. You are advised
+to perform the necessary testing and security audits prior to deploying
+on other platforms.
+
+Cowboy is developed for Erlang R15B+.
+
+Cowboy may be compiled on earlier Erlang versions with small source code
+modifications but there is no guarantee that it will work as expected.
+
 Conventions
 -----------
 
