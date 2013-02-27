@@ -130,8 +130,8 @@ compile_rules(<< $], _/binary >>, _, _, _, _) ->
 compile_rules(<< C, Rest/binary >>, S, Segments, Rules, Acc) ->
 	compile_rules(Rest, S, Segments, Rules, << Acc/binary, C >>).
 
-%% Everything past $: until $. or $[ or $] or end of binary
-%% is the binding name.
+%% Everything past $: until the segment separator ($. for hosts,
+%% $/ for paths) or $[ or $] or end of binary is the binding name.
 compile_binding(<<>>, _, <<>>) ->
 	erlang:error(badarg);
 compile_binding(Rest = <<>>, _, Acc) ->
