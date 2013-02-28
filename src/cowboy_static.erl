@@ -32,10 +32,10 @@
 %% under and the path to a directory to read files from. The request path prefix
 %% is defined in the path pattern of the cowboy dispatch rule for the handler.
 %% The request path pattern must end with a `...' token.
+%%
 %% The directory path can be set to either an absolute or relative path in the
 %% form of a list or binary string representation of a file system path. A list
-%% of binary path segments, as is used throughout cowboy, is also a valid
-%% directory path.
+%% of binary path segments is also a valid directory path.
 %%
 %% The directory path can also be set to a relative path within the `priv/'
 %% directory of an application. This is configured by setting the value of the
@@ -213,21 +213,23 @@ init({_Transport, http}, _Req, _Opts) ->
 -spec rest_init(Req, list()) -> {ok, Req, #state{}} when Req::cowboy_req:req().
 rest_init(Req, Opts) ->
 	{_, DirectoryOpt} = lists:keyfind(directory, 1, Opts),
-	Directory = directory_path(DirectoryOpt),
+	Directory = fullpath(filename:absname(directory_path(DirectoryOpt))),
 	case lists:keyfind(file, 1, Opts) of
 		false ->
-			{Filepath, Req2} = cowboy_req:path_info(Req),
-			case check_path(Filepath) of
-				ok ->
-					Filepath2 = join_paths(Directory, Filepath),
-					rest_init(Req2, Opts, Filepath2);
-				error ->
+			{PathInfo, Req2} = cowboy_req:path_info(Req),
+			Filepath = filename:join([Directory|PathInfo]),
+			Len = byte_size(Directory),
+			case fullpath(Filepath) of
+				<< Directory:Len/binary, $/, _/binary >> ->
+					rest_init(Req2, Opts, Filepath);
+				_ ->
 					{ok, Req2, #state{filepath=error, fileinfo=error,
 						mimetypes=undefined, etag_fun=undefined}}
 			end;
 		{_, FileOpt} ->
-			Filepath = join_paths(Directory, filepath_path(FileOpt)),
-			rest_init(Req, Opts, Filepath)
+			Filepath = filepath_path(FileOpt),
+			Filepath2 = << Directory/binary, $/, Filepath/binary >>,
+			rest_init(Req, Opts, Filepath2)
 	end.
 
 rest_init(Req, Opts, Filepath) ->
@@ -327,65 +329,57 @@ file_contents(Req, #state{filepath=Filepath,
 	end,
 	{{stream, Filesize, Writefile}, Req, State}.
 
+%% Internal.
+
 -spec directory_path(dirspec()) -> dirpath().
 directory_path({priv_dir, App, []}) ->
 	priv_dir_path(App);
-directory_path({priv_dir, App, [H|_]=Path}) when is_integer(H) ->
-	filename:join(priv_dir_path(App), Path);
 directory_path({priv_dir, App, [H|_]=Path}) when is_binary(H) ->
-	filename:join(filename:split(priv_dir_path(App)) ++ Path);
-directory_path({priv_dir, App, Path}) when is_binary(Path) ->
+	filename:join(priv_dir_path(App), filename:join(Path));
+directory_path({priv_dir, App, Path}) ->
 	filename:join(priv_dir_path(App), Path);
-directory_path(Path) ->
+directory_path([H|_]=Path) when is_binary(H) ->
+	filename:join(Path);
+directory_path([H|_]=Path) when is_integer(H) ->
+	list_to_binary(Path);
+directory_path(Path) when is_binary(Path) ->
 	Path.
-
-%% @private Ensure that a file path is of the same type as a request path.
--spec filepath_path(dirpath()) -> Path::[binary()].
-filepath_path([H|_]=Path) when is_integer(H) ->
-	filename:split(list_to_binary(Path));
-filepath_path(Path) when is_binary(Path) ->
-	filename:split(Path);
-filepath_path([H|_]=Path) when is_binary(H) ->
-	Path.
-
-%% @private Validate a request path for unsafe characters.
-%% There is no way to escape special characters in a filesystem path.
--spec check_path(Path::[binary()]) -> ok | error.
-check_path([]) -> ok;
-check_path([<<"">>|_T]) -> error;
-check_path([<<".">>|_T]) -> error;
-check_path([<<"..">>|_T]) -> error;
-check_path([H|T]) ->
-	case binary:match(H, <<"/">>) of
-		{_, _} -> error;
-		nomatch -> check_path(T)
-	end.
-
-%% @private Join the the directory and request paths.
--spec join_paths(dirpath(), [binary()]) -> binary().
-join_paths([H|_]=Dirpath, Filepath) when is_integer(H) ->
-	filename:join(filename:split(Dirpath) ++ Filepath);
-join_paths([H|_]=Dirpath, Filepath) when is_binary(H) ->
-	filename:join(Dirpath ++ Filepath);
-join_paths(Dirpath, Filepath) when is_binary(Dirpath) ->
-	filename:join([Dirpath] ++ Filepath);
-join_paths([], Filepath) ->
-	filename:join(Filepath).
 
 %% @private Return the path to the priv/ directory of an application.
 -spec priv_dir_path(atom()) -> string().
 priv_dir_path(App) ->
 	case code:priv_dir(App) of
 		{error, bad_name} -> priv_dir_mod(App);
-		Dir -> Dir
+		Dir -> list_to_binary(Dir)
 	end.
 
 -spec priv_dir_mod(atom()) -> string().
 priv_dir_mod(Mod) ->
 	case code:which(Mod) of
-		File when not is_list(File) -> "../priv";
-		File -> filename:join([filename:dirname(File),"../priv"])
+		File when not is_list(File) -> <<"../priv">>;
+		File -> filename:join(filename:dirname(File), <<"../priv">>)
 	end.
+
+%% @private Ensure that a file path is of the same type as a request path.
+filepath_path(Path) when is_binary(Path) ->
+	Path;
+filepath_path([H|_]=Path) when is_binary(H) ->
+	filename:join(Path);
+filepath_path([H|_]=Path) when is_integer(H) ->
+	list_to_binary(Path).
+
+fullpath(Path) when is_binary(Path) ->
+	fullpath(filename:split(Path), []).
+fullpath([], Acc) ->
+	filename:join(lists:reverse(Acc));
+fullpath([<<".">>|Tail], Acc) ->
+	fullpath(Tail, Acc);
+fullpath([<<"..">>|Tail], Acc=[_]) ->
+	fullpath(Tail, Acc);
+fullpath([<<"..">>|Tail], [_|Acc]) ->
+	fullpath(Tail, Acc);
+fullpath([Segment|Tail], Acc) ->
+	fullpath(Tail, [Segment|Acc]).
 
 %% @private Use application/octet-stream as the default mimetype.
 %% If a list of extension - mimetype pairs are provided as the mimetypes
@@ -430,44 +424,123 @@ attr_etag_function(Args, Attrs) ->
 -include_lib("eunit/include/eunit.hrl").
 -define(_eq(E, I), ?_assertEqual(E, I)).
 
-check_path_test_() ->
-	C = fun check_path/1,
-	[?_eq(error, C([<<>>])),
-	 ?_eq(ok, C([<<"abc">>])),
-	 ?_eq(error, C([<<".">>])),
-	 ?_eq(error, C([<<"..">>])),
-	 ?_eq(error, C([<<"/">>]))
-	].
-
-join_paths_test_() ->
-	P = fun join_paths/2,
-	[?_eq(<<"a">>, P([], [<<"a">>])),
-	 ?_eq(<<"a/b/c">>, P(<<"a/b">>, [<<"c">>])),
-	 ?_eq(<<"a/b/c">>, P("a/b", [<<"c">>])),
-	 ?_eq(<<"a/b/c">>, P([<<"a">>, <<"b">>], [<<"c">>]))
-	].
-
 directory_path_test_() ->
-	P = fun directory_path/1,
-	PL = fun(I) -> length(filename:split(P(I))) end,
+	PL = fun(D) -> length(filename:split(directory_path(D))) end,
 	Base = PL({priv_dir, cowboy, []}),
-	[?_eq(Base + 1, PL({priv_dir, cowboy, "a"})),
-	 ?_eq(Base + 1, PL({priv_dir, cowboy, <<"a">>})),
-	 ?_eq(Base + 1, PL({priv_dir, cowboy, [<<"a">>]})),
-	 ?_eq(Base + 2, PL({priv_dir, cowboy, "a/b"})),
-	 ?_eq(Base + 2, PL({priv_dir, cowboy, <<"a/b">>})),
-	 ?_eq(Base + 2, PL({priv_dir, cowboy, [<<"a">>, <<"b">>]})),
-	 ?_eq("a/b", P("a/b"))
-	].
+	LengthTests = [
+		Base + 1, {priv_dir, cowboy, "a"},
+		Base + 1, {priv_dir, cowboy, <<"a">>},
+		Base + 1, {priv_dir, cowboy, [<<"a">>]},
+		Base + 2, {priv_dir, cowboy, "a/b"},
+		Base + 2, {priv_dir, cowboy, <<"a/b">>},
+		Base + 2, {priv_dir, cowboy, [<<"a">>, <<"b">>]}
+	],
+	TypeTests = [
+		{priv_dir, cowboy, []},
+		{priv_dir, cowboy, "a"},
+		{priv_dir, cowboy, <<"a">>},
+		{priv_dir, cowboy, [<<"a">>]},
+		"a",
+		<<"a">>,
+		[<<"a">>]
+	],
+	[{lists:flatten(io_lib:format("~p", [D])),
+		fun() -> R = PL(D) end} || {R, D} <- LengthTests]
+	++ [{lists:flatten(io_lib:format("~p", [D])),
+		fun() -> is_binary(directory_path(D)) end} || D <- TypeTests].
 
 filepath_path_test_() ->
-	P = fun filepath_path/1,
-	[?_eq([<<"a">>], P("a")),
-	 ?_eq([<<"a">>], P(<<"a">>)),
-	 ?_eq([<<"a">>], P([<<"a">>])),
-	 ?_eq([<<"a">>, <<"b">>], P("a/b")),
-	 ?_eq([<<"a">>, <<"b">>], P(<<"a/b">>)),
-	 ?_eq([<<"a">>, <<"b">>], P([<<"a">>, <<"b">>]))
-	].
+	Tests = [
+		{<<"a">>, "a"},
+		{<<"a">>, <<"a">>},
+		{<<"a">>, [<<"a">>]},
+		{<<"a/b">>, "a/b"},
+		{<<"a/b">>, <<"a/b">>},
+		{<<"a/b">>, [<<"a">>, <<"b">>]}
+	],
+	[{lists:flatten(io_lib:format("~p", [F])),
+		fun() -> R = filepath_path(F) end} || {R, F} <- Tests].
+
+fullpath_test_() ->
+	Tests = [
+		{<<"/home/cowboy">>, <<"/home/cowboy">>},
+		{<<"/home/cowboy">>, <<"/home/cowboy/">>},
+		{<<"/home/cowboy">>, <<"/home/cowboy/./">>},
+		{<<"/home/cowboy">>, <<"/home/cowboy/./././././.">>},
+		{<<"/home/cowboy">>, <<"/home/cowboy/abc/..">>},
+		{<<"/home/cowboy">>, <<"/home/cowboy/abc/../">>},
+		{<<"/home/cowboy">>, <<"/home/cowboy/abc/./../.">>},
+		{<<"/">>, <<"/home/cowboy/../../../../../..">>},
+		{<<"/etc/passwd">>, <<"/home/cowboy/../../etc/passwd">>}
+	],
+	[{P, fun() -> R = fullpath(P) end} || {R, P} <- Tests].
+
+good_path_check_test_() ->
+	Tests = [
+		<<"/home/cowboy/file">>,
+		<<"/home/cowboy/file/">>,
+		<<"/home/cowboy/./file">>,
+		<<"/home/cowboy/././././././file">>,
+		<<"/home/cowboy/abc/../file">>,
+		<<"/home/cowboy/abc/../file">>,
+		<<"/home/cowboy/abc/./.././file">>
+	],
+	[{P, fun() ->
+		case fullpath(P) of
+			<< "/home/cowboy/", _/binary >> -> ok
+		end
+	end} || P <- Tests].
+
+bad_path_check_test_() ->
+	Tests = [
+		<<"/home/cowboy/../../../../../../file">>,
+		<<"/home/cowboy/../../etc/passwd">>
+	],
+	[{P, fun() ->
+		error = case fullpath(P) of
+			<< "/home/cowboy/", _/binary >> -> ok;
+			_ -> error
+		end
+	end} || P <- Tests].
+
+good_path_win32_check_test_() ->
+	Tests = case os:type() of
+		{unix, _} ->
+			[];
+		{win32, _} ->
+			[
+				<<"c:/home/cowboy/file">>,
+				<<"c:/home/cowboy/file/">>,
+				<<"c:/home/cowboy/./file">>,
+				<<"c:/home/cowboy/././././././file">>,
+				<<"c:/home/cowboy/abc/../file">>,
+				<<"c:/home/cowboy/abc/../file">>,
+				<<"c:/home/cowboy/abc/./.././file">>
+			]
+	end,
+	[{P, fun() ->
+		case fullpath(P) of
+			<< "c:/home/cowboy/", _/binary >> -> ok
+		end
+	end} || P <- Tests].
+
+bad_path_win32_check_test_() ->
+	Tests = case os:type() of
+		{unix, _} ->
+			[];
+		{win32, _} ->
+			[
+				<<"c:/home/cowboy/../../secretfile.bat">>,
+				<<"c:/home/cowboy/c:/secretfile.bat">>,
+				<<"c:/home/cowboy/..\\..\\secretfile.bat">>,
+				<<"c:/home/cowboy/c:\\secretfile.bat">>
+			]
+	end,
+	[{P, fun() ->
+		error = case fullpath(P) of
+			<< "c:/home/cowboy/", _/binary >> -> ok;
+			_ -> error
+		end
+	end} || P <- Tests].
 
 -endif.
