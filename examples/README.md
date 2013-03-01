@@ -40,6 +40,9 @@ Cowboy Examples
  *  [rest_stream_response](./rest_stream_response):
     stream results from a data store
 
+ *  [ssl_hello_world](./ssl_hello_world):
+    simplest SSL application
+
  *  [static_world](./static_world):
     static file handler
 
