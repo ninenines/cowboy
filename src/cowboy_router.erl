@@ -37,12 +37,12 @@
 	| {atom(), function, fun ((binary()) -> true | {true, any()} | false)}].
 -export_type([constraints/0]).
 
--type route_match() :: binary() | string().
+-type route_match() :: '_' | binary() | string().
 -type route_path() :: {Path::route_match(), Handler::module(), Opts::any()}
 	| {Path::route_match(), constraints(), Handler::module(), Opts::any()}.
 -type route_rule() :: {Host::route_match(), Paths::[route_path()]}
 	| {Host::route_match(), constraints(), Paths::[route_path()]}.
--opaque routes() :: [route_rule()].
+-type routes() :: [route_rule()].
 -export_type([routes/0]).
 
 -type dispatch_match() :: '_' | <<_:8>> | [binary() | '_' | '...' | atom()].
