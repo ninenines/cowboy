@@ -781,19 +781,16 @@ created_path(Req, State) ->
 				State2, 303)
 	end.
 
-%% process_post should return true when the POST body could be processed
-%% and false when it hasn't, in which case a 500 error is sent.
+%% content_types_accepted should return a list of media types and their
+%% associated callback functions in the same format as content_types_provided.
+%%
+%% The callback will then be called and is expected to process the content
+%% pushed to the resource in the request body. 
+%%
+%% content_types_accepted SHOULD return a different list
+%% for each HTTP method.
 process_post(Req, State) ->
-	case call(Req, State, process_post) of
-		{halt, Req2, HandlerState} ->
-			terminate(Req2, State#state{handler_state=HandlerState});
-		{true, Req2, HandlerState} ->
-			State2 = State#state{handler_state=HandlerState},
-			next(Req2, State2, fun is_new_resource/2);
-		{false, Req2, HandlerState} ->
-			State2 = State#state{handler_state=HandlerState},
-			respond(Req2, State2, 500)
-	end.
+        put_resource(Req,State,fun has_resp_body/2).
 
 is_conflict(Req, State) ->
 	expect(Req, State, is_conflict, false, fun put_resource/2, 409).
@@ -812,7 +809,7 @@ put_resource(Req, State) ->
 %% It is always defined past this point. It can be retrieved as demonstrated:
 %%     {PutPath, Req2} = cowboy_req:meta(put_path, Req)
 %%
-%%content_types_accepted SHOULD return a different list
+%% content_types_accepted SHOULD return a different list
 %% for each HTTP method.
 put_resource(Req, State, OnTrue) ->
 	case call(Req, State, content_types_accepted) of

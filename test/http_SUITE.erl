@@ -59,6 +59,7 @@
 -export([rest_missing_put_callbacks/1]).
 -export([rest_nodelete/1]).
 -export([rest_patch/1]).
+-export([rest_post/1]).
 -export([rest_resource_etags/1]).
 -export([rest_resource_etags_if_none_match/1]).
 -export([set_env_dispatch/1]).
@@ -354,6 +355,7 @@ init_dispatch(Config) ->
 			{"/missing_put_callbacks", rest_missing_callbacks, []},
 			{"/nodelete", rest_nodelete_resource, []},
 			{"/patch", rest_patch_resource, []},
+                        {"/post",  rest_post_process, []},
 			{"/created_path", rest_created_path_resource, []},
 			{"/resetags", rest_resource_etags, []},
 			{"/rest_expires", rest_expires, []},
@@ -895,6 +897,20 @@ rest_patch(Config) ->
 	_ = [begin
 		{ok, Client2} = cowboy_client:request(<<"PATCH">>,
 			build_url("/patch", Config), Headers, Body, Client),
+		{ok, Status, _, _} = cowboy_client:response(Client2),
+		ok
+	end || {Status, Headers, Body} <- Tests].
+rest_post(Config) ->
+	Tests = [
+		{204, [{<<"content-type">>, <<"text/plain">>}], <<"whatever">>},
+		{422, [{<<"content-type">>, <<"text/plain">>}], <<"false">>},
+		{400, [{<<"content-type">>, <<"text/plain">>}], <<"halt">>},
+		{415, [{<<"content-type">>, <<"application/json">>}], <<"bad_content_type">>}
+	],
+	Client = ?config(client, Config),
+	_ = [begin
+		{ok, Client2} = cowboy_client:request(<<"PATCH">>,
+			build_url("/post", Config), Headers, Body, Client),
 		{ok, Status, _, _} = cowboy_client:response(Client2),
 		ok
 	end || {Status, Headers, Body} <- Tests].
