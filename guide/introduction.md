@@ -86,10 +86,10 @@ The dispatch list is explained in greater details in the Routing section
 of the guide.
 
 ``` erlang
-Dispatch = [
+Dispatch = cowboy_router:compile([
     %% {URIHost, list({URIPath, Handler, Opts})}
     {'_', [{'_', my_handler, []}]}
-],
+]),
 %% Name, NbAcceptors, TransOpts, ProtoOpts
 cowboy:start_http(my_http_listener, 100,
     [{port, 8080}],
