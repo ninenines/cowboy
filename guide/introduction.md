@@ -77,6 +77,12 @@ The `cowboy:start_http/4` function starts a listener for HTTP connections
 using the TCP transport. The `cowboy:start_https/4` function starts a
 listener for HTTPS connections using the SSL transport.
 
+Listeners are a group of processes that are used to accept and manage
+connections. The processes used specifically for accepting connections
+are called acceptors. The number of acceptor processes is unrelated to
+the maximum number of connections Cowboy can handle. Please refer to
+the Ranch guide for in-depth information.
+
 Listeners are named. They spawn a given number of acceptors, listen for
 connections using the given transport options and pass along the protocol
 options to the connection processes. The protocol options must include
