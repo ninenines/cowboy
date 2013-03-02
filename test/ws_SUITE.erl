@@ -75,10 +75,10 @@ end_per_suite(_Config) ->
 	ok.
 
 init_per_group(ws, Config) ->
-	Port = 33080,
-	cowboy:start_http(ws, 100, [{port, Port}], [
+	cowboy:start_http(ws, 100, [{port, 0}], [
 		{env, [{dispatch, init_dispatch()}]}
 	]),
+	Port = ranch:get_port(ws),
 	[{port, Port}|Config].
 
 end_per_group(Listener, _Config) ->

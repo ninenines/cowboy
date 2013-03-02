@@ -180,19 +180,18 @@ end_per_suite(_Config) ->
 	ok.
 
 init_per_group(http, Config) ->
-	Port = 33080,
 	Transport = ranch_tcp,
 	Config1 = init_static_dir(Config),
-	{ok, _} = cowboy:start_http(http, 100, [{port, Port}], [
+	{ok, _} = cowboy:start_http(http, 100, [{port, 0}], [
 		{env, [{dispatch, init_dispatch(Config1)}]},
 		{max_keepalive, 50},
 		{timeout, 500}
 	]),
+	Port = ranch:get_port(http),
 	{ok, Client} = cowboy_client:init([]),
 	[{scheme, <<"http">>}, {port, Port}, {opts, []},
 		{transport, Transport}, {client, Client}|Config1];
 init_per_group(https, Config) ->
-	Port = 33081,
 	Transport = ranch_ssl,
 	Opts = [
 		{certfile, ?config(data_dir, Config) ++ "cert.pem"},
@@ -202,29 +201,29 @@ init_per_group(https, Config) ->
 	Config1 = init_static_dir(Config),
 	application:start(public_key),
 	application:start(ssl),
-	{ok, _} = cowboy:start_https(https, 100, Opts ++ [{port, Port}], [
+	{ok, _} = cowboy:start_https(https, 100, Opts ++ [{port, 0}], [
 		{env, [{dispatch, init_dispatch(Config1)}]},
 		{max_keepalive, 50},
 		{timeout, 500}
 	]),
+	Port = ranch:get_port(https),
 	{ok, Client} = cowboy_client:init(Opts),
 	[{scheme, <<"https">>}, {port, Port}, {opts, Opts},
 		{transport, Transport}, {client, Client}|Config1];
 init_per_group(http_compress, Config) ->
-	Port = 33082,
 	Transport = ranch_tcp,
 	Config1 = init_static_dir(Config),
-	{ok, _} = cowboy:start_http(http_compress, 100, [{port, Port}], [
+	{ok, _} = cowboy:start_http(http_compress, 100, [{port, 0}], [
 		{compress, true},
 		{env, [{dispatch, init_dispatch(Config1)}]},
 		{max_keepalive, 50},
 		{timeout, 500}
 	]),
+	Port = ranch:get_port(http_compress),
 	{ok, Client} = cowboy_client:init([]),
 	[{scheme, <<"http">>}, {port, Port}, {opts, []},
 		{transport, Transport}, {client, Client}|Config1];
 init_per_group(https_compress, Config) ->
-	Port = 33083,
 	Transport = ranch_ssl,
 	Opts = [
 		{certfile, ?config(data_dir, Config) ++ "cert.pem"},
@@ -234,59 +233,60 @@ init_per_group(https_compress, Config) ->
 	Config1 = init_static_dir(Config),
 	application:start(public_key),
 	application:start(ssl),
-	{ok, _} = cowboy:start_https(https_compress, 100, Opts ++ [{port, Port}], [
+	{ok, _} = cowboy:start_https(https_compress, 100, Opts ++ [{port, 0}], [
 		{compress, true},
 		{env, [{dispatch, init_dispatch(Config1)}]},
 		{max_keepalive, 50},
 		{timeout, 500}
 	]),
+	Port = ranch:get_port(https_compress),
 	{ok, Client} = cowboy_client:init(Opts),
 	[{scheme, <<"https">>}, {port, Port}, {opts, Opts},
 		{transport, Transport}, {client, Client}|Config1];
 init_per_group(onrequest, Config) ->
-	Port = 33084,
 	Transport = ranch_tcp,
-	{ok, _} = cowboy:start_http(onrequest, 100, [{port, Port}], [
+	{ok, _} = cowboy:start_http(onrequest, 100, [{port, 0}], [
 		{env, [{dispatch, init_dispatch(Config)}]},
 		{max_keepalive, 50},
 		{onrequest, fun onrequest_hook/1},
 		{timeout, 500}
 	]),
+	Port = ranch:get_port(onrequest),
 	{ok, Client} = cowboy_client:init([]),
 	[{scheme, <<"http">>}, {port, Port}, {opts, []},
 		{transport, Transport}, {client, Client}|Config];
 init_per_group(onresponse, Config) ->
-	Port = 33085,
 	Transport = ranch_tcp,
-	{ok, _} = cowboy:start_http(onresponse, 100, [{port, Port}], [
+	{ok, _} = cowboy:start_http(onresponse, 100, [{port, 0}], [
 		{env, [{dispatch, init_dispatch(Config)}]},
 		{max_keepalive, 50},
 		{onresponse, fun onresponse_hook/4},
 		{timeout, 500}
 	]),
+	Port = ranch:get_port(onresponse),
 	{ok, Client} = cowboy_client:init([]),
 	[{scheme, <<"http">>}, {port, Port}, {opts, []},
 		{transport, Transport}, {client, Client}|Config];
 init_per_group(onresponse_capitalize, Config) ->
-	Port = 33086,
 	Transport = ranch_tcp,
-	{ok, _} = cowboy:start_http(onresponse_capitalize, 100, [{port, Port}], [
+	{ok, _} = cowboy:start_http(onresponse_capitalize, 100, [{port, 0}], [
 		{env, [{dispatch, init_dispatch(Config)}]},
 		{max_keepalive, 50},
 		{onresponse, fun onresponse_capitalize_hook/4},
 		{timeout, 500}
 	]),
+	Port = ranch:get_port(onresponse_capitalize),
 	{ok, Client} = cowboy_client:init([]),
 	[{scheme, <<"http">>}, {port, Port}, {opts, []},
 		{transport, Transport}, {client, Client}|Config];
 init_per_group(set_env, Config) ->
-	Port = 33087,
 	Transport = ranch_tcp,
-	{ok, _} = cowboy:start_http(set_env, 100, [{port, Port}], [
+	{ok, _} = cowboy:start_http(set_env, 100, [{port, 0}], [
 		{env, [{dispatch, []}]},
 		{max_keepalive, 50},
 		{timeout, 500}
 	]),
+	Port = ranch:get_port(set_env),
 	{ok, Client} = cowboy_client:init([]),
 	[{scheme, <<"http">>}, {port, Port}, {opts, []},
 		{transport, Transport}, {client, Client}|Config].
