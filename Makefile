@@ -2,7 +2,7 @@
 
 PROJECT = cowboy
 RANCH_VSN = 0.6.1
-ERLC_OPTS = -Werror +debug_info +warn_export_all +warn_export_vars \
+ERLC_OPTS ?= -Werror +debug_info +warn_export_all +warn_export_vars \
    +warn_shadow_vars +warn_obsolete_guard # +bin_opt_info +warn_missing_spec
 
 DEPS_DIR ?= $(CURDIR)/deps
