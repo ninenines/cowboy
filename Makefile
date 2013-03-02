@@ -72,6 +72,7 @@ clean-docs:
 # Tests.
 
 CT_RUN = ct_run \
+	-noshell \
 	-pa ebin $(DEPS_DIR)/*/ebin \
 	-dir test \
 	-logdir logs \
