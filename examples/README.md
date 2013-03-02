@@ -22,6 +22,9 @@ Cowboy Examples
  *  [elixir_hello_world](./elixir_hello_world):
     simplest example application with Elixir
 
+ *  [error_hook](./error_hook):
+    provide custom error pages
+
  *  [eventsource](./eventsource):
     eventsource emitter and consumer
 
