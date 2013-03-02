@@ -75,8 +75,8 @@ CT_RUN = ct_run \
 	-noshell \
 	-pa ebin $(DEPS_DIR)/*/ebin \
 	-dir test \
-	-logdir logs \
-	-cover test/cover.spec
+	-logdir logs
+#	-cover test/cover.spec
 
 tests: ERLC_OPTS += -DTEST=1
 tests: clean clean-deps deps app
