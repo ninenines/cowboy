@@ -48,7 +48,8 @@ or for modifying the response headers or body. The best example is
 providing custom error pages.
 
 Note that like the `onrequest` hook, this function MUST NOT crash.
-Cowboy may or may not send a reply if this function crashes.
+Cowboy may or may not send a reply if this function crashes. If a reply
+is sent, the hook MUST explicitly provide all headers that are needed.
 
 You can specify the `onresponse` hook when creating the listener also.
 
@@ -68,7 +69,10 @@ the default response otherwise.
 
 ``` erlang
 custom_404_hook(404, Headers, <<>>, Req) ->
-    {ok, Req2} = cowboy_req:reply(404, Headers, <<"404 Not Found.">>, Req),
+    Body = <<"404 Not Found.">>,
+    Headers2 = lists:keyreplace(<<"content-length">>, 1, Headers,
+        {<<"content-length">>, integer_to_list(byte_size(Body))}),
+    {ok, Req2} = cowboy_req:reply(404, Headers2, Body, Req),
     Req2;
 custom_404_hook(_, _, _, Req) ->
     Req.
