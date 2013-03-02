@@ -108,8 +108,10 @@ handlers, Websocket handlers, REST handlers and static handlers. Their
 usage is documented in the respective sections of the guide.
 
 Most applications use the plain HTTP handler, which has three callback
-functions: init/3, handle/2 and terminate/3. Following is an example of
-a simple handler module.
+functions: init/3, handle/2 and terminate/3. You can find more information
+about the arguments and possible return values of these callbacks in the
+HTTP handlers section of this guide. Following is an example of a simple
+HTTP handler module.
 
 ``` erlang
 -module(my_handler).
