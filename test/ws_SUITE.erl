@@ -60,7 +60,7 @@ groups() ->
 		ws_timeout_reset,
 		ws_upgrade_with_opts
 	],
-	[{ws, [], BaseTests}].
+	[{ws, [parallel], BaseTests}].
 
 init_per_suite(Config) ->
 	application:start(crypto),

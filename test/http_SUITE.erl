@@ -147,19 +147,19 @@ groups() ->
 		te_identity
 	],
 	[
-		{http, [], Tests},
-		{https, [], Tests},
-		{http_compress, [], Tests},
-		{https_compress, [], Tests},
-		{onrequest, [], [
+		{http, [parallel], Tests},
+		{https, [parallel], Tests},
+		{http_compress, [parallel], Tests},
+		{https_compress, [parallel], Tests},
+		{onrequest, [parallel], [
 			onrequest,
 			onrequest_reply
 		]},
-		{onresponse, [], [
+		{onresponse, [parallel], [
 			onresponse_crash,
 			onresponse_reply
 		]},
-		{onresponse_capitalize, [], [
+		{onresponse_capitalize, [parallel], [
 			onresponse_capitalize
 		]},
 		{set_env, [], [
