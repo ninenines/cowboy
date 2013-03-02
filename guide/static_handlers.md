@@ -8,6 +8,10 @@ Static handlers are a built-in REST handler for serving files. They
 are available as a convenience and provide fast file serving with
 proper cache handling.
 
+It is recommended to use a Content Distribution Network (CDN) or at
+least a dedicated file server running on a dedicated cookie-less
+hostname for serving your application's static files in production.
+
 Usage
 -----
 
