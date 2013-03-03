@@ -223,7 +223,7 @@ content_types_provided(Req, State) ->
 		{CTP, Req2, HandlerState} ->
 			CTP2 =  [normalize_content_types(P) || P <- CTP],
 			State2 = State#state{
-			handler_state=HandlerState, content_types_p=CTP2},
+			  handler_state=HandlerState, content_types_p=CTP2},
 			case cowboy_req:parse_header(<<"accept">>, Req2) of
 				{error, badarg} ->
 					respond(Req2, State2, 400);
