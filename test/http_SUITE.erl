@@ -58,6 +58,7 @@
 -export([rest_missing_get_callbacks/1]).
 -export([rest_missing_put_callbacks/1]).
 -export([rest_nodelete/1]).
+-export([rest_param_all/1]).
 -export([rest_patch/1]).
 -export([rest_resource_etags/1]).
 -export([rest_resource_etags_if_none_match/1]).
@@ -124,6 +125,7 @@ groups() ->
 		rest_missing_get_callbacks,
 		rest_missing_put_callbacks,
 		rest_nodelete,
+		rest_param_all,
 		rest_patch,
 		rest_resource_etags,
 		rest_resource_etags_if_none_match,
@@ -346,6 +348,7 @@ init_dispatch(Config) ->
 				 {file, <<"test_file.css">>}]},
 			{"/multipart", http_handler_multipart, []},
 			{"/echo/body", http_handler_echo_body, []},
+			{"/param_all", rest_param_all, []},
 			{"/bad_accept", rest_simple_resource, []},
 			{"/simple", rest_simple_resource, []},
 			{"/forbidden_post", rest_forbidden_resource, [true]},
@@ -789,6 +792,45 @@ pipeline_long_polling(Config) ->
 	{ok, 102, _, Client4} = cowboy_client:response(Client3),
 	{ok, 102, _, Client5} = cowboy_client:response(Client4),
 	{error, closed} = cowboy_client:response(Client5).
+
+rest_param_all(Config) ->
+	Client = ?config(client, Config),
+	URL = build_url("/param_all", Config),
+	% Accept without param
+	{ok, Client2} = cowboy_client:request(<<"GET">>, URL,
+		[{<<"accept">>, <<"text/plain">>}], Client),
+	Client3 = check_response(Client2, <<"[]">>),
+	% Accept with param
+	{ok, Client4} = cowboy_client:request(<<"GET">>, URL,
+		[{<<"accept">>, <<"text/plain;level=1">>}], Client3),
+	Client5 = check_response(Client4, <<"level=1">>),
+	% Accept with param and quality
+	{ok, Client6} = cowboy_client:request(<<"GET">>, URL,
+		[{<<"accept">>,
+			<<"text/plain;level=1;q=0.8, text/plain;level=2;q=0.5">>}],
+		Client5),
+	Client7 = check_response(Client6, <<"level=1">>),
+	{ok, Client8} = cowboy_client:request(<<"GET">>, URL,
+		[{<<"accept">>,
+			<<"text/plain;level=1;q=0.5, text/plain;level=2;q=0.8">>}],
+		Client7),
+	Client9 = check_response(Client8, <<"level=2">>),
+	% Without Accept
+	{ok, Client10} = cowboy_client:request(<<"GET">>, URL, [], Client9),
+	Client11 = check_response(Client10, <<"'*'">>),
+	% Content-Type without param
+	{ok, Client12} = cowboy_client:request(<<"PUT">>, URL,
+		[{<<"content-type">>, <<"text/plain">>}], Client11),
+	{ok, 204, _, Client13} = cowboy_client:response(Client12),
+	% Content-Type with param
+	{ok, Client14} = cowboy_client:request(<<"PUT">>, URL,
+		[{<<"content-type">>, <<"text/plain; charset=utf-8">>}], Client13),
+	{ok, 204, _, _} = cowboy_client:response(Client14).
+
+check_response(Client, Body) ->
+	{ok, 200, _, Client2} = cowboy_client:response(Client),
+	{ok, Body, Client3} = cowboy_client:response_body(Client2),
+	Client3.
 
 rest_bad_accept(Config) ->
 	Client = ?config(client, Config),
