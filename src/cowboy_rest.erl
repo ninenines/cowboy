@@ -33,9 +33,11 @@
 
 	%% Media type.
 	content_types_p = [] ::
-		[{binary() | {binary(), binary(), [{binary(), binary()}]}, atom()}],
+		[{binary() | {binary(), binary(), [{binary(), binary()}] | '*'},
+			atom()}],
 	content_type_a :: undefined
-		| {binary() | {binary(), binary(), [{binary(), binary()}]}, atom()},
+		| {binary() | {binary(), binary(), [{binary(), binary()}] | '*'},
+			atom()},
 
 	%% Language.
 	languages_p = [] :: [binary()],
@@ -286,6 +288,12 @@ match_media_type(Req, State, Accept,
 match_media_type(Req, State, Accept, [_Any|Tail], MediaType) ->
 	match_media_type(Req, State, Accept, Tail, MediaType).
 
+match_media_type_params(Req, State, _Accept,
+		[Provided = {{TP, STP, '*'}, _Fun}|_Tail],
+		{{_TA, _STA, Params_A}, _QA, _APA}) ->
+	PMT = {TP, STP, Params_A},
+	languages_provided(cowboy_req:set_meta(media_type, PMT, Req),
+		State#state{content_type_a=Provided});
 match_media_type_params(Req, State, Accept,
 		[Provided = {PMT = {_TP, _STP, Params_P}, _Fun}|Tail],
 		MediaType = {{_TA, _STA, Params_A}, _QA, _APA}) ->
@@ -426,6 +434,8 @@ set_content_type(Req, State=#state{
 	Req2 = cowboy_req:set_resp_header(<<"content-type">>, ContentType2, Req),
 	encodings_provided(cowboy_req:set_meta(charset, Charset, Req2), State).
 
+set_content_type_build_params('*', []) ->
+	<<>>;
 set_content_type_build_params([], []) ->
 	<<>>;
 set_content_type_build_params([], Acc) ->
@@ -855,10 +865,24 @@ patch_resource(Req, State) ->
 %% list of content types, otherwise it'll shadow the ones following.
 choose_content_type(Req, State, _OnTrue, _ContentType, []) ->
 	respond(Req, State, 415);
-choose_content_type(Req,
+choose_content_type(Req, State, OnTrue, ContentType, [{Accepted, Fun}|_Tail])
+		when Accepted =:= '*'; Accepted =:= ContentType ->
+	process_content_type(Req, State, OnTrue, Fun);
+%% The special parameter '*' will always match any kind of content type
+%% parameters.
+%% Note that because it will always match, it should be the last of the
+%% list for specific content type, otherwise it'll shadow the ones following.
+choose_content_type(Req, State, OnTrue,
+		{Type, SubType, Param},
+		[{{Type, SubType, AcceptedParam}, Fun}|_Tail])
+		when AcceptedParam =:= '*'; AcceptedParam =:= Param ->
+	process_content_type(Req, State, OnTrue, Fun);
+choose_content_type(Req, State, OnTrue, ContentType, [_Any|Tail]) ->
+	choose_content_type(Req, State, OnTrue, ContentType, Tail).
+
+process_content_type(Req,
 		State=#state{handler=Handler, handler_state=HandlerState},
-		OnTrue, ContentType, [{Accepted, Fun}|_Tail])
-		when Accepted =:= '*' orelse Accepted =:= ContentType ->
+		OnTrue, Fun) ->
 	case call(Req, State, Fun) of
 		no_call ->
 			error_logger:error_msg(
@@ -875,9 +899,7 @@ choose_content_type(Req,
 		{false, Req2, HandlerState2} ->
 			State2 = State#state{handler_state=HandlerState2},
 			respond(Req2, State2, 422)
-	end;
-choose_content_type(Req, State, OnTrue, ContentType, [_Any|Tail]) ->
-	choose_content_type(Req, State, OnTrue, ContentType, Tail).
+	end.
 
 %% Whether we created a new resource, either through PUT or POST.
 %% This is easily testable because we would have set the Location
