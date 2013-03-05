@@ -853,7 +853,7 @@ authorization_basic_password(<<C, Rest/binary>>, Fun, Acc) ->
 %% @doc Decode a stream of chunks.
 -spec te_chunked(Bin, TransferState)
 	-> more | {more, non_neg_integer(), Bin, TransferState}
-	| {ok, Bin, TransferState} | {ok, Bin, Bin, TransferState}
+	| {ok, Bin, Bin, TransferState}
 	| {done, non_neg_integer(), Bin} | {error, badarg}
 	when Bin::binary(), TransferState::{non_neg_integer(), non_neg_integer()}.
 te_chunked(<< "0\r\n\r\n", Rest/binary >>, {0, Streamed}) ->
@@ -879,11 +879,13 @@ te_chunked(Data, {ChunkRem, Streamed}) ->
 
 %% @doc Decode an identity stream.
 -spec te_identity(Bin, TransferState)
-	-> {ok, Bin, TransferState} | {done, Bin, non_neg_integer(), Bin}
+	-> {more, non_neg_integer(), Bin, TransferState}
+	| {done, Bin, non_neg_integer(), Bin}
 	when Bin::binary(), TransferState::{non_neg_integer(), non_neg_integer()}.
 te_identity(Data, {Streamed, Total})
 		when Streamed + byte_size(Data) < Total ->
-	{ok, Data, {Streamed + byte_size(Data), Total}};
+	Streamed2 = Streamed + byte_size(Data),
+	{more, Total - Streamed2, Data, {Streamed2, Total}};
 te_identity(Data, {Streamed, Total}) ->
 	Size = Total - Streamed,
 	<< Data2:Size/binary, Rest/binary >> = Data,

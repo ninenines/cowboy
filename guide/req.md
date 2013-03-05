@@ -94,7 +94,8 @@ If you know the request contains a body, and that it is
 of appropriate size, then you can read it directly with
 either `body/1` or `body_qs/1`. Otherwise, you will want
 to stream it with `stream_body/1` and `skip_body/1`, with
-the streaming process optionally initialized using `init_stream/4`.
+the streaming process optionally initialized using `init_stream/4`
+or `init_stream/5`.
 
 Multipart request body
 ----------------------
