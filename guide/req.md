@@ -91,10 +91,22 @@ was passed in the request, then Cowboy will return a size
 of `undefined`, as it has no way of knowing it.
 
 If you know the request contains a body, and that it is
-of appropriate size, then you can read it directly with
-either `body/1` or `body_qs/1`. Otherwise, you will want
-to stream it with `stream_body/1` and `skip_body/1`, with
-the streaming process optionally initialized using `init_stream/4`.
+within 8MB (for `body/1`) or 16KB (for `body_qs/1`) bytes,
+then you can read it directly with either `body/1` or `body_qs/1`.
+If you want to override the default size limits of `body/1`
+or `body_qs/1`, you can pass the maximum body length byte
+size as first parameter to `body/2` and `body_qs/2` or pass
+atom `infinity` to ignore size limits.
+
+If the request contains bigger body than allowed default sizes
+or supplied maximum body length, `body/1`, `body/2`, `body_qs/1`
+and `body_qs/2` will return `{error, badlength}`. If the request
+contains chunked body, `body/1`, `body/2`, `body_qs/1`
+and `body_qs/2` will return `{error, chunked}`.
+If you get either of the above two errors, you will want to
+handle the body of the request using `stream_body/1` and
+`skip_body/1`, with the streaming process optionally
+initialized using `init_stream/4`.
 
 Multipart request body
 ----------------------

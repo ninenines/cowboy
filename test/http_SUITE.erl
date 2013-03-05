@@ -30,6 +30,9 @@
 -export([check_status/1]).
 -export([chunked_response/1]).
 -export([echo_body/1]).
+-export([echo_body_max_length/1]).
+-export([echo_body_qs/1]).
+-export([echo_body_qs_max_length/1]).
 -export([error_chain_handle_after_reply/1]).
 -export([error_chain_handle_before_reply/1]).
 -export([error_handle_after_reply/1]).
@@ -101,6 +104,9 @@ groups() ->
 		check_status,
 		chunked_response,
 		echo_body,
+		echo_body_max_length,
+		echo_body_qs,
+		echo_body_qs_max_length,
 		error_chain_handle_after_reply,
 		error_chain_handle_before_reply,
 		error_handle_after_reply,
@@ -346,6 +352,7 @@ init_dispatch(Config) ->
 				 {file, <<"test_file.css">>}]},
 			{"/multipart", http_handler_multipart, []},
 			{"/echo/body", http_handler_echo_body, []},
+			{"/echo/body_qs", http_handler_body_qs, []},
 			{"/bad_accept", rest_simple_resource, []},
 			{"/simple", rest_simple_resource, []},
 			{"/forbidden_post", rest_forbidden_resource, [true]},
@@ -529,6 +536,41 @@ echo_body(Config) ->
 		{ok, 200, _, Client3} = cowboy_client:response(Client2),
 		{ok, Body, _} = cowboy_client:response_body(Client3)
 	end || Size <- lists:seq(MTU - 500, MTU)].
+
+%% Check if sending request whose size is bigger than 1000000 bytes causes 413
+echo_body_max_length(Config) ->
+	Client = ?config(client, Config),
+	Body = <<$a:8000008>>,
+	{ok, Client2} = cowboy_client:request(<<"POST">>,
+		build_url("/echo/body", Config),
+		[{<<"connection">>, <<"close">>}],
+		Body, Client),
+	{ok, 413, _, _} = cowboy_client:response(Client2).
+
+% check if body_qs echo's back results
+echo_body_qs(Config) ->
+	Client = ?config(client, Config),
+	Body = <<"echo=67890">>,
+	{ok, Client2} = cowboy_client:request(<<"POST">>,
+		build_url("/echo/body_qs", Config),
+		[{<<"connection">>, <<"close">>}],
+		Body, Client),
+	{ok, 200, _, Client3} = cowboy_client:response(Client2),
+	{ok, <<"67890">>, _} = cowboy_client:response_body(Client3).
+
+%% Check if sending request whose size is bigger 16000 bytes causes 413
+echo_body_qs_max_length(Config) ->
+	Client = ?config(client, Config),
+	DefaultMaxBodyQsLength = 16000,
+	% subtract "echo=" minus 1 byte from max to hit the limit
+	Bits = (DefaultMaxBodyQsLength - 4) * 8,
+	AppendedBody = <<$a:Bits>>,
+	Body = <<"echo=", AppendedBody/binary>>,
+	{ok, Client2} = cowboy_client:request(<<"POST">>,
+		build_url("/echo/body_qs", Config),
+		[{<<"connection">>, <<"close">>}],
+		Body, Client),
+	{ok, 413, _, _} = cowboy_client:response(Client2).
 
 error_chain_handle_after_reply(Config) ->
 	Client = ?config(client, Config),

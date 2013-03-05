@@ -81,7 +81,9 @@
 -export([stream_body/1]).
 -export([skip_body/1]).
 -export([body/1]).
+-export([body/2]).
 -export([body_qs/1]).
+-export([body_qs/2]).
 -export([multipart_data/1]).
 -export([multipart_skip/1]).
 
@@ -718,17 +720,40 @@ content_decode(ContentDecode, Data, Req) ->
 		{error, Reason} -> {error, Reason}
 	end.
 
-%% @doc Return the full body sent with the request.
+%% @equiv body(8000000, Req)
 -spec body(Req) -> {ok, binary(), Req} | {error, atom()} when Req::req().
 body(Req) ->
-	body(Req, <<>>).
+	body(8000000, Req).
 
--spec body(Req, binary())
+%% @doc Return the full body sent with the request.
+-spec body(non_neg_integer() | atom(), Req)
 	-> {ok, binary(), Req} | {error, atom()} when Req::req().
-body(Req, Acc) ->
+body(infinity, Req) ->
+	case parse_header(<<"transfer-encoding">>, Req) of
+		{ok, [<<"identity">>], Req2} ->
+			read_body(Req2, <<>>);
+		{ok, _, _} ->
+			{error, chunked}
+	end;
+body(MaxBodyLength, Req) when is_integer(MaxBodyLength) ->
+	case parse_header(<<"transfer-encoding">>, Req) of
+		{ok, [<<"identity">>], Req2} ->
+			{ok, Length, Req3} = parse_header(<<"content-length">>, Req2, 0),
+			if 	Length > MaxBodyLength ->
+					{error, badlength};
+				true ->
+					read_body(Req3, <<>>)
+			end;
+		{ok, _, _} ->
+			{error, chunked}
+	end.
+
+-spec read_body(Req, binary())
+	-> {ok, binary(), Req} | {error, atom()} when Req::req().
+read_body(Req, Acc) ->
 	case stream_body(Req) of
 		{ok, Data, Req2} ->
-			body(Req2, << Acc/binary, Data/binary >>);
+			read_body(Req2, << Acc/binary, Data/binary >>);
 		{done, Req2} ->
 			{ok, Acc, Req2};
 		{error, Reason} ->
@@ -743,13 +768,28 @@ skip_body(Req) ->
 		{error, Reason} -> {error, Reason}
 	end.
 
-%% @doc Return the full body sent with the request, parsed as an
-%% application/x-www-form-urlencoded string. Essentially a POST query string.
+%% @equiv body_qs(16000, Req)
 -spec body_qs(Req)
 	-> {ok, [{binary(), binary() | true}], Req} | {error, atom()}
 	when Req::req().
 body_qs(Req) ->
-	case body(Req) of
+	body_qs(16000, Req).
+
+%% @doc Return the full body sent with the request, parsed as an
+%% application/x-www-form-urlencoded string, parsing request up to
+%% MaxBodyLength bytes. Essentially a POST query string.
+-spec body_qs(non_neg_integer() | atom(), Req)
+	-> {ok, [{binary(), binary() | true}], Req} | {error, atom()}
+	when Req::req().
+body_qs(infinity, Req) ->
+	case body(infinity, Req) of
+		{ok, Body, Req2} ->
+			{ok, cowboy_http:x_www_form_urlencoded(Body), Req2};
+		{error, Reason} ->
+			{error, Reason}
+	end;
+body_qs(MaxBodyLength, Req) when is_integer(MaxBodyLength) ->
+	case body(MaxBodyLength, Req) of
 		{ok, Body, Req2} ->
 			{ok, cowboy_http:x_www_form_urlencoded(Body), Req2};
 		{error, Reason} ->
