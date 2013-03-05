@@ -579,12 +579,12 @@ has_body(Req) ->
 %% and the body hasn't been read at the time of the call.
 -spec body_length(Req) -> {undefined | non_neg_integer(), Req} when Req::req().
 body_length(Req) ->
-	case lists:keymember(<<"transfer-encoding">>, 1, Req#http_req.headers) of
-		true ->
-			{undefined, Req};
-		false ->
-			{ok, Length, Req2} = parse_header(<<"content-length">>, Req, 0),
-			{Length, Req2}
+	case parse_header(<<"transfer-encoding">>, Req) of
+		{ok, [<<"identity">>], Req2} ->
+			{ok, Length, Req3} = parse_header(<<"content-length">>, Req2, 0),
+			{Length, Req3};
+		{ok, _, Req2} ->
+			{undefined, Req2}
 	end.
 
 %% @doc Initialize body streaming and set custom decoding functions.
