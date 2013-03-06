@@ -60,7 +60,7 @@ groups() ->
 		ws_timeout_reset,
 		ws_upgrade_with_opts
 	],
-	[{ws, [parallel], BaseTests}].
+	[{ws, [], BaseTests}].
 
 init_per_suite(Config) ->
 	application:start(crypto),
@@ -75,10 +75,10 @@ end_per_suite(_Config) ->
 	ok.
 
 init_per_group(ws, Config) ->
-	cowboy:start_http(ws, 100, [{port, 0}], [
+	Port = 33080,
+	cowboy:start_http(ws, 100, [{port, Port}], [
 		{env, [{dispatch, init_dispatch()}]}
 	]),
-	Port = ranch:get_port(ws),
 	[{port, Port}|Config].
 
 end_per_group(Listener, _Config) ->

@@ -32,21 +32,6 @@ downloading and building instructions. Please look up the environment
 variables documentation of your system for details on how to update the
 $PATH information.
 
-Supported platforms
--------------------
-
-Cowboy is tested and supported on Linux.
-
-Cowboy has been reported to work on other platforms, but we make no
-guarantee that the experience will be safe and smooth. You are advised
-to perform the necessary testing and security audits prior to deploying
-on other platforms.
-
-Cowboy is developed for Erlang R15B+.
-
-Cowboy may be compiled on earlier Erlang versions with small source code
-modifications but there is no guarantee that it will work as expected.
-
 Conventions
 -----------
 
@@ -77,12 +62,6 @@ The `cowboy:start_http/4` function starts a listener for HTTP connections
 using the TCP transport. The `cowboy:start_https/4` function starts a
 listener for HTTPS connections using the SSL transport.
 
-Listeners are a group of processes that are used to accept and manage
-connections. The processes used specifically for accepting connections
-are called acceptors. The number of acceptor processes is unrelated to
-the maximum number of connections Cowboy can handle. Please refer to
-the Ranch guide for in-depth information.
-
 Listeners are named. They spawn a given number of acceptors, listen for
 connections using the given transport options and pass along the protocol
 options to the connection processes. The protocol options must include
@@ -92,10 +71,10 @@ The dispatch list is explained in greater details in the Routing section
 of the guide.
 
 ``` erlang
-Dispatch = cowboy_router:compile([
+Dispatch = [
     %% {URIHost, list({URIPath, Handler, Opts})}
     {'_', [{'_', my_handler, []}]}
-]),
+],
 %% Name, NbAcceptors, TransOpts, ProtoOpts
 cowboy:start_http(my_http_listener, 100,
     [{port, 8080}],
@@ -108,10 +87,8 @@ handlers, Websocket handlers, REST handlers and static handlers. Their
 usage is documented in the respective sections of the guide.
 
 Most applications use the plain HTTP handler, which has three callback
-functions: init/3, handle/2 and terminate/3. You can find more information
-about the arguments and possible return values of these callbacks in the
-HTTP handlers section of this guide. Following is an example of a simple
-HTTP handler module.
+functions: init/3, handle/2 and terminate/3. Following is an example of
+a simple handler module.
 
 ``` erlang
 -module(my_handler).
