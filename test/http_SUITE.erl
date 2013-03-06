@@ -29,6 +29,8 @@
 -export([check_raw_status/1]).
 -export([check_status/1]).
 -export([chunked_response/1]).
+-export([connect_nohost/1]).
+-export([connect_request/1]).
 -export([echo_body/1]).
 -export([echo_body_max_length/1]).
 -export([echo_body_qs/1]).
@@ -98,6 +100,7 @@ all() ->
 		{group, https},
 		{group, http_compress},
 		{group, https_compress},
+		{group, http_connect},
 		{group, onrequest},
 		{group, onresponse},
 		{group, onresponse_capitalize},
@@ -169,6 +172,10 @@ groups() ->
 		{https, [parallel], Tests},
 		{http_compress, [parallel], Tests},
 		{https_compress, [parallel], Tests},
+		{http_connect, [], [
+			connect_request,
+			connect_nohost
+		]},
 		{onrequest, [parallel], [
 			onrequest,
 			onrequest_reply
@@ -236,6 +243,18 @@ init_per_group(http_compress, Config) ->
 		{timeout, 500}
 	]),
 	Port = ranch:get_port(http_compress),
+	{ok, Client} = cowboy_client:init([]),
+	[{scheme, <<"http">>}, {port, Port}, {opts, []},
+		{transport, Transport}, {client, Client}|Config];
+init_per_group(http_connect, Config) ->
+	Transport = ranch_tcp,
+	{ok, _} = cowboy:start_http(http_connect, 100, [{port, 0}], [
+		{env, [{dispatch, cowboy_router:compile([
+				{'_', [{'_', connect_handler, []}]}])}]},
+		{max_keepalive, 50},
+		{timeout, 500}
+	]),
+	Port = ranch:get_port(http_connect),
 	{ok, Client} = cowboy_client:init([]),
 	[{scheme, <<"http">>}, {port, Port}, {opts, []},
 		{transport, Transport}, {client, Client}|Config];
@@ -513,6 +532,27 @@ chunked_response(Config) ->
 	{ok, <<"11\r\nchunked_handler\r\n\r\nB\r\nworks fine!\r\n0\r\n\r\n">>}
 		= Transport:recv(Socket, 44, 1000),
 	{error, closed} = cowboy_client:response(Client3).
+
+%% Check that CONNECT request gets the right Host
+connect_request(Config) ->
+	Client = ?config(client, Config),
+	Transport = ?config(transport, Config),
+	{ok, Client2} = cowboy_client:connect(
+		Transport, "localhost", ?config(port, Config), Client),
+	Data = "CONNECT fake.domain.com:80 HTTP/1.1\r\nHost: fake.domain.com\r\n\r\n",
+	{ok, Client3} = cowboy_client:raw_request(Data, Client2),
+	{ok, 200, _, Client4} = cowboy_client:response(Client3),
+	{ok, <<"CONNECTfake.domain.com">>, _} = cowboy_client:response_body(Client4).
+
+connect_nohost(Config) ->
+	Client = ?config(client, Config),
+	Transport = ?config(transport, Config),
+	{ok, Client2} = cowboy_client:connect(
+		Transport, "localhost", ?config(port, Config), Client),
+	Data = "CONNECT fake.domain.com:80 HTTP/1.1\r\n\r\n",
+	{ok, Client3} = cowboy_client:raw_request(Data, Client2),
+	{ok, 200, _, Client4} = cowboy_client:response(Client3),
+	{ok, <<"CONNECTfake.domain.com">>, _} = cowboy_client:response_body(Client4).
 
 %% Check if sending requests whose size is around the MTU breaks something.
 echo_body(Config) ->
