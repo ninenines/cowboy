@@ -171,19 +171,26 @@ parse_request(<< $\n, _/binary >>, State, _) ->
 %% reading from the socket and eventually crashing.
 parse_request(Buffer, State=#state{max_request_line_length=MaxLength,
 		max_empty_lines=MaxEmpty}, ReqEmpty) ->
-	case binary:match(Buffer, <<"\n">>) of
+	case match_eol(Buffer, 0) of
 		nomatch when byte_size(Buffer) > MaxLength ->
 			error_terminate(414, State);
 		nomatch ->
 			wait_request(Buffer, State, ReqEmpty);
-		{1, _} when ReqEmpty =:= MaxEmpty ->
+		1 when ReqEmpty =:= MaxEmpty ->
 			error_terminate(400, State);
-		{1, _} ->
+		1 ->
 			<< _:16, Rest/binary >> = Buffer,
 			parse_request(Rest, State, ReqEmpty + 1);
-		{_, _} ->
+		_ ->
 			parse_method(Buffer, State, <<>>)
 	end.
+
+match_eol(<< $\n, _/bits >>, N) ->
+	N;
+match_eol(<< _, Rest/bits >>, N) ->
+	match_eol(Rest, N + 1);
+match_eol(_, _) ->
+	nomatch.
 
 parse_method(<< C, Rest/bits >>, State, SoFar) ->
 	case C of
@@ -261,14 +268,21 @@ parse_header(<< $\r, $\n, Rest/bits >>, S, M, P, Q, F, V, Headers) ->
 	request(Rest, S, M, P, Q, F, V, lists:reverse(Headers));
 parse_header(Buffer, State=#state{max_header_name_length=MaxLength},
 		M, P, Q, F, V, H) ->
-	case binary:match(Buffer, <<":">>) of
+	case match_colon(Buffer, 0) of
 		nomatch when byte_size(Buffer) > MaxLength ->
 			error_terminate(400, State);
 		nomatch ->
 			wait_header(Buffer, State, M, P, Q, F, V, H);
-		{_, _} ->
+		_ ->
 			parse_hd_name(Buffer, State, M, P, Q, F, V, H, <<>>)
 	end.
+
+match_colon(<< $:, _/bits >>, N) ->
+	N;
+match_colon(<< _, Rest/bits >>, N) ->
+	match_colon(Rest, N + 1);
+match_colon(_, _) ->
+	nomatch.
 
 %% I know, this isn't exactly pretty. But this is the most critical
 %% code path and as such needs to be optimized to death.
@@ -336,12 +350,12 @@ parse_hd_before_value(<< $\t, Rest/bits >>, S, M, P, Q, F, V, H, N) ->
 	parse_hd_before_value(Rest, S, M, P, Q, F, V, H, N);
 parse_hd_before_value(Buffer, State=#state{
 		max_header_value_length=MaxLength}, M, P, Q, F, V, H, N) ->
-	case binary:match(Buffer, <<"\n">>) of
+	case match_eol(Buffer, 0) of
 		nomatch when byte_size(Buffer) > MaxLength ->
 			error_terminate(400, State);
 		nomatch ->
 			wait_hd_before_value(Buffer, State, M, P, Q, F, V, H, N);
-		{_, _} ->
+		_ ->
 			parse_hd_value(Buffer, State, M, P, Q, F, V, H, N, <<>>)
 	end.
 
