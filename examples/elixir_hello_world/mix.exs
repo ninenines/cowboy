@@ -14,7 +14,7 @@ defmodule ElixirHelloWorld.Mixfile do
   end
 
   defp deps do
-    [ {:ranch,  github: "extend/ranch", tag: "0.6.1"},
+    [ {:ranch,  github: "extend/ranch", tag: "0.6.2"},
       {:cowboy, github: "extend/cowboy"} ]
   end
 end
