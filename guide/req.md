@@ -106,7 +106,7 @@ and `body_qs/2` will return `{error, chunked}`.
 If you get either of the above two errors, you will want to
 handle the body of the request using `stream_body/1` and
 `skip_body/1`, with the streaming process optionally
-initialized using `init_stream/4`.
+initialized using `init_stream/4` or `init_stream/5`.
 
 Multipart request body
 ----------------------
