@@ -105,7 +105,7 @@ new_paste_id(Bin, Rem) ->
 format_html(Paste, plain) ->
 	Text = escape_html_chars(read_file(Paste)),
 	<<"<!DOCTYPE html><html>",
-	"<head><title>paste</title></head>",
+	"<head><title>paste</title><meta charset=\"utf-8\"></head>",
 	"<body><pre><code>", Text/binary, "</code></pre></body></html>\n">>;
 format_html(Paste, Lang) ->
 	highlight(full_path(Paste), Lang, "html").
