@@ -43,6 +43,9 @@ Cowboy Examples
  *  [rest_stream_response](./rest_stream_response):
     stream results from a data store
 
+ *  [session_cookie](./session_cookie):
+    keep track of seesions with a cookie
+
  *  [ssl_hello_world](./ssl_hello_world):
     simplest SSL application
 
