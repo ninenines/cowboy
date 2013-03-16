@@ -5,7 +5,7 @@ defmodule ElixirWebsocket do
     dispatch = :cowboy_router.compile([
                  {:_, [
                         {"/", ElixirWebsocket.TopPageHandler, []},
-                        {"/websocket", ElixirWebsocket.SocketHandler, []},
+                        {"/websocket", ElixirWebsocket.WebsocketHandler, []},
                         {"/static/[...]", :cowboy_static, [
                           {:directory, {:priv_dir, :websocket, [<<"static">>]}},
                           {:mimetypes, {function(:mimetypes, :path_to_mimes, 2), :default}}

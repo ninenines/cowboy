@@ -12,7 +12,7 @@ defmodule ElixirWebsocket.WebsocketHandler do
 	end
 
 	def websocket_handle({:text, msg}, req, state) do
-		{:reply, {:text, << "That's what she said! ">> ++ msg}, req, state}
+		{:reply, {:text, << "That's what she said! ">> <> msg}, req, state}
 	end
 	def websocket_handle(_data, req, state) do
 		{:ok, req, state}
