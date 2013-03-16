@@ -7,7 +7,7 @@ defmodule ElixirWebsocket do
                         {"/", ElixirWebsocket.TopPageHandler, []},
                         {"/websocket", ElixirWebsocket.WebsocketHandler, []},
                         {"/static/[...]", :cowboy_static, [
-                          {:directory, {:priv_dir, :websocket, [<<"static">>]}},
+                          {:directory, {:priv_dir, :elixir_websocket, [<<"static">>]}},
                           {:mimetypes, {function(:mimetypes, :path_to_mimes, 2), :default}}
                         ]}
                       ]}
