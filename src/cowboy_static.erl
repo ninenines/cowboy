@@ -154,17 +154,17 @@
 %% ```
 %% %% Serve cowboy/priv/www/index.html as http://example.com/
 %% {"/", cowboy_static,
-%%     [{directory, {priv_dir, cowboy, [<<"www">>]}}
+%%     [{directory, {priv_dir, cowboy, [<<"www">>]}},
 %%      {file, <<"index.html">>}]}
 %%
 %% %% Serve cowboy/priv/www/page.html under http://example.com/*/page
 %% {"/:_/page", cowboy_static,
-%%     [{directory, {priv_dir, cowboy, [<<"www">>]}}
+%%     [{directory, {priv_dir, cowboy, [<<"www">>]}},
 %%      {file, <<"page.html">>}]}.
 %%
 %% %% Always serve cowboy/priv/www/other.html under http://example.com/other
 %% {"/other/[...]", cowboy_static,
-%%     [{directory, {priv_dir, cowboy, [<<"www">>]}}
+%%     [{directory, {priv_dir, cowboy, [<<"www">>]}},
 %%      {file, "other.html"}]}
 %% '''
 -module(cowboy_static).
