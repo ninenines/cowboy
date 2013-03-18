@@ -80,6 +80,7 @@
 -export([static_test_file_css/1]).
 -export([stream_body_set_resp/1]).
 -export([stream_body_set_resp_close/1]).
+-export([streamed_response/1]).
 -export([te_chunked/1]).
 -export([te_chunked_chopped/1]).
 -export([te_chunked_delayed/1]).
@@ -149,6 +150,7 @@ groups() ->
 		static_test_file_css,
 		stream_body_set_resp,
 		stream_body_set_resp_close,
+		streamed_response,
 		te_chunked,
 		te_chunked_chopped,
 		te_chunked_delayed,
@@ -318,6 +320,7 @@ init_dispatch(Config) ->
 	cowboy_router:compile([
 		{"localhost", [
 			{"/chunked_response", chunked_handler, []},
+     	                {"/streamed_response", streamed_handler, []},
 			{"/init_shutdown", http_handler_init_shutdown, []},
 			{"/long_polling", http_handler_long_polling, []},
 			{"/headers/dupe", http_handler,
@@ -524,6 +527,17 @@ chunked_response(Config) ->
 	{ok, Transport, Socket} = cowboy_client:transport(Client3),
 	{ok, <<"11\r\nchunked_handler\r\n\r\nB\r\nworks fine!\r\n0\r\n\r\n">>}
 		= Transport:recv(Socket, 44, 1000),
+	{error, closed} = cowboy_client:response(Client3).
+
+streamed_response(Config) ->
+	Client = ?config(client, Config),
+	{ok, Client2} = cowboy_client:request(<<"GET">>,
+		build_url("/streamed_response", Config), Client),
+	{ok, 200, Headers, Client3} = cowboy_client:response(Client2),
+        false = lists:keymember(<<"transfer-encoding">>, 1, Headers),
+	{ok, Transport, Socket} = cowboy_client:transport(Client3),
+	{ok, <<"streamed_handler\r\nworks fine!">>}
+		= Transport:recv(Socket, 29, 1000),
 	{error, closed} = cowboy_client:response(Client3).
 
 %% Check if sending requests whose size is around the MTU breaks something.
