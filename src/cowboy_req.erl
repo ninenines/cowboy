@@ -1151,6 +1151,8 @@ ensure_response(Req=#http_req{resp_state=waiting}, Status) ->
 %% Terminate the chunked body for HTTP/1.1 only.
 ensure_response(#http_req{method= <<"HEAD">>, resp_state=chunks}, _) ->
 	ok;
+ensure_response(#http_req{resp_state=streamed}, _) ->
+	ok;
 ensure_response(#http_req{version={1, 0}, resp_state=chunks}, _) ->
 	ok;
 ensure_response(#http_req{socket=Socket, transport=Transport,
