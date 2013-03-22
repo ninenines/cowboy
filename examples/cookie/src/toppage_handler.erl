@@ -5,7 +5,7 @@
 
 -export([init/3]).
 -export([handle/2]).
--export([terminate/2]).
+-export([terminate/3]).
 
 init(_Transport, Req, []) ->
 	{ok, Req, undefined}.
@@ -25,5 +25,5 @@ handle(Req, State) ->
 		Body, Req4),
 	{ok, Req5, State}.
 
-terminate(_Req, _State) ->
+terminate(_Reason, _Req, _State) ->
 	ok.

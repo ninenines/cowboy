@@ -1,4 +1,4 @@
-%% Copyright (c) 2011-2012, Loïc Hoguin <essen@ninenines.eu>
+%% Copyright (c) 2011-2013, Loïc Hoguin <essen@ninenines.eu>
 %%
 %% Permission to use, copy, modify, and/or distribute this software for any
 %% purpose with or without fee is hereby granted, provided that the above
@@ -50,9 +50,12 @@
 
 -type opts() :: any().
 -type state() :: any().
--type terminate_reason() :: {normal, closed}
+-type terminate_reason() :: {normal, shutdown}
 	| {normal, timeout}
 	| {error, closed}
+	| {remote, closed}
+	| {remote, cowboy_websocket:close_code(), binary()}
+	| {error, badencoding}
 	| {error, badframe}
 	| {error, atom()}.
 

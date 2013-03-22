@@ -2,7 +2,7 @@
 
 -module(http_handler_long_polling).
 -behaviour(cowboy_http_handler).
--export([init/3, handle/2, info/3, terminate/2]).
+-export([init/3, handle/2, info/3, terminate/3]).
 
 init({_Transport, http}, Req, _Opts) ->
 	erlang:send_after(500, self(), timeout),
@@ -18,5 +18,7 @@ info(timeout, Req, State) ->
 	erlang:send_after(500, self(), timeout),
 	{loop, Req, State - 1, hibernate}.
 
-terminate(_Req, _State) ->
+terminate({normal, shutdown}, _, _) ->
+	ok;
+terminate({error, overflow}, _, _) ->
 	ok.

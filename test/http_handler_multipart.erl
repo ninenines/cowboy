@@ -2,7 +2,7 @@
 
 -module(http_handler_multipart).
 -behaviour(cowboy_http_handler).
--export([init/3, handle/2, terminate/2]).
+-export([init/3, handle/2, terminate/3]).
 
 init({_Transport, http}, Req, []) ->
 	{ok, Req, {}}.
@@ -12,7 +12,7 @@ handle(Req, State) ->
 	{ok, Req3} = cowboy_req:reply(200, [], term_to_binary(Result), Req2),
 	{ok, Req3, State}.
 
-terminate(_Req, _State) ->
+terminate(_, _, _) ->
 	ok.
 
 acc_multipart(Req) ->

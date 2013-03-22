@@ -2,7 +2,7 @@
 
 -module(http_handler_loop_timeout).
 -behaviour(cowboy_loop_handler).
--export([init/3, info/3, terminate/2]).
+-export([init/3, info/3, terminate/3]).
 
 init({_, http}, Req, _) ->
 	erlang:send_after(1000, self(), error_timeout),
@@ -12,5 +12,5 @@ info(error_timeout, Req, State) ->
 	{ok, Req2} = cowboy_req:reply(500, Req),
 	{ok, Req2, State}.
 
-terminate(_, _) ->
+terminate({normal, timeout}, _, _) ->
 	ok.

@@ -2,7 +2,7 @@
 
 -module(http_handler_set_resp).
 -behaviour(cowboy_http_handler).
--export([init/3, handle/2, terminate/2]).
+-export([init/3, handle/2, terminate/3]).
 
 init({_Transport, http}, Req, Opts) ->
 	Headers = proplists:get_value(headers, Opts, []),
@@ -27,5 +27,5 @@ handle(Req, State) ->
 			end
 	end.
 
-terminate(_Req, _State) ->
+terminate(_, _, _) ->
 	ok.

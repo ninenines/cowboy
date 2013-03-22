@@ -1,22 +1,116 @@
 CHANGELOG
 =========
 
-next
-----
+0.8.2
+-----
+
+ *  Add error_hook and ssl_hello_world example
+
+ *  Greatly improve the performance of body reading operations
+
+    The streamed chunk size is now configurable through the new
+    function cowboy_req:init_stream/5.
+
+ *  Add cowboy_req:body/2 and cowboy_req:body_qs/2
+
+    These functions take an additional argument indicating the
+    maximum size of the body. They will return {error, badlength}
+    if the size is too large, or {error, chunked} if the body
+    was sent using the chunked Transfer-Encoding and its size
+    cannot be determined.
+
+    The function body/1 is now an alias to body/2 with a maximum
+    body size of 8MB. Likewise, the function body_qs/1 is an alias
+    of body_qs/2 with a maximum body size of 16KB.
+
+ *  Properly handle explicit identity Transfer-Encoding in body_length/1
+
+ *  Small but noticeable performance improvement in the critical path
+
+    We stopped using binary:match/2 in favor of custom functions.
+    This makes Cowboy 0.5ms faster per request.
+
+ *  Prevent loop handlers from awakening after sending a response
+
+ *  Optimize cowboy_static initialization code
+
+ *  Make path checks in cowboy_static cross-platform
+
+ *  Allow '*' for REST content types parameters in content_types_provided
+
+ *  Fix cowboy_router types
+
+ *  Update Ranch to 0.6.2; adds support for two new SSL options
+
+ *  Improve documentation
+
+0.8.1
+-----
+
+ *  Add eventsource, web_server examples; improve rest_pastebin example
+
+ *  Add cowboy:set_env/3 to more conveniently update the dispatch list
+
+ *  Add cowboy_sub_protocol behaviour
+
+ *  Fix cowboy_req:has_body/1 when Content-Length == 0
+
+ *  Fix passing of state to websocket_terminate/3 on server close
+
+ *  Fix compilation with +native
+
+ *  Compile with more warnings enabled by default; fix warnings
+
+ *  Set the socket in passive mode after the loop handler terminates
+
+ *  Improve typespecs
+
+0.8.0
+-----
 
  *  This release drops R14 compatibility
 
+    Behaviours now use the -callback attribute which is supported only
+    since R15B.
+
+ *  Add a user guide
+
+ *  Add or update many examples
+
+    Add basic_auth, compress_response, cookie, elixir_hello_world,
+    markdown_middleware, rest_pastebin, rest_stream_response
+    and websocket examples.
+
+    Rename the static example to static_world for clarity.
+
  *  Add CONTRIBUTING.md file
 
- *  Use Ranch for connection handling
+ *  Use Ranch 0.6.1 for connection handling
 
     To start listeners you can now use cowboy:start_http/4 for HTTP,
     and cowboy:start_https/4 for HTTPS. The proper transport and
     protocol modules will be used.
 
- *  Add a dependency on crypto
+ *  Add protection against slowloris vulnerability
 
- *  Remove implicit dependency on inets
+    This protection is always enabled and has no impact on the performance
+    of the system.
+
+ *  Add a better routing syntax
+
+ *  If a binding is used twice in routing, values must now be identical
+
+ *  Add support for a configurable chain of middlewares
+
+    Routing and handling are now two separate middlewares that can be
+    replaced as needed.
+
+ *  Fix application dependencies
+
+    The crypto application must be started before Cowboy.
+
+    The inets application is no longer needed. A few functions from
+    that application were used by mistake in the REST code.
 
  *  Shorten the name of many modules
    *  cowboy_http_protocol becomes cowboy_protocol
@@ -30,7 +124,7 @@ next
     The include/http.hrl file was removed. Users are expected to use
     the cowboy_req API to access or modify the Req object.
 
-    This required a lot of changes so cleanup and optimization were
+    This required a lot of changes so cleanup and optimizations were
     performed where possible.
 
  *  Add many cowboy_req functions
@@ -40,11 +134,18 @@ next
    *  cowboy_req:fragment/1 returns the request URL fragment
    *  cowboy_req:host_url/1 returns the request URL without the path or qs
    *  cowboy_req:url/1 returns the full request URL
+   *  cowboy_req:set_resp_body_fun/2 for body streaming with no known length
+
+ *  Improve the body streaming interface in cowboy_req
+
+    The function now receives the Transport and Socket directly as arguments.
 
  *  Rename or drop many cowboy_req functions
-   *  Replace cowboy_req:host/1 with cowboy_req:raw_host/1
-   *  Replace cowboy_req:path/1 with cowboy_req:raw_path/1
+   *  cowboy_req:raw_host/1 becomes cowboy_req:host/1, old function dropped
+   *  cowboy_req:raw_path/1 becomes cowboy_req:path/1, old function dropped
    *  cowboy_req:raw_qs/1 becomes cowboy_req:qs/1
+   *  Remove cowboy_req:body/2
+   *  Remove cowboy_req:transport/1
 
  *  Change the signature of many cowboy_req functions
    *  parse_header now returns {ok, any(), Req} instead of {any(), Req}
@@ -53,6 +154,13 @@ next
       {{headers, Headers}, Req} and {body, Body, Req} instead of
       {{body, Body}, Req}
    *  set_resp_* functions now return Req instead of {ok, Req}
+   *  has_body now returns boolean()
+
+ *  Rewrote cookie code
+
+    In short we now do the same thing as PHP when setting cookies. This
+    allows us to be fairly confident that our code will work on the vast
+    majority of browsers.
 
  *  Fix consistency issues caused by erlang:decode_packet/3
    *  The method is now always a case sensitive binary string
@@ -66,21 +174,50 @@ next
 
  *  Add max_headers option, limiting the number of headers; defaults to 100
 
- *  Enhance the websocket API
+ *  The max_keepalive option now defaults to 100 instead of infinity
+
+ *  Change terminate/2 to terminate/3 in the HTTP handler interface
+
+ *  Enhance the loop handler API
+   *  Connection close is now better detected
+   *  Fix an internal message leak
+
+ *  Enhance the Websocket API
    *  Change a websocket error from {error, protocol} to {error, badframe}
    *  Allow websocket handlers to reply more than one frame
    *  Check for errors when calling Transport:send/2 to avoid crashes
-   *  Add close, {close, Payload}, ping, pong frame types for replies
+   *  Add close, {close, Payload}, {close, StatusCode, Payload},
+      ping, pong frame types for replies
+   *  Ensure websocket_terminate is always called
+   *  Improve timeout handling
+   *  Remove support for the old hixie76 protocol
+   *  Add parsing support for Sec-Websocket-Protocol
+   *  Check for UTF-8 correctness of text frames
+   *  Perform unmasking and UTF-8 validation on the fly
+   *  Reject clients that send unmasked frames
+   *  Add cowboy_websocket:close_code/0 type
 
- *  Use -callback in behaviours
+ *  Enhance the REST API
+   *  Fix charset handling
+   *  Add PATCH support
+   *  Add created_path callback, used if create_path was not defined
+   *  Make sure rest_terminate is always called
+
+ *  Improved HTTP standard compatibility
+   *  Revised status code used in responses
+   *  Implement authorization header parsing
+   *  Add opt-in automatic response body compression
+
+ *  Improve lager compatibility
+
+    We format errors in a special way so that lager can recognize Cowboy
+    errors and put them on a single line.
+
+ *  Remove the urldecode cowboy_protocol option
 
  *  Add cowboy_protocol:onrequest_fun/0 and :onresponse_fun/0 types
 
  *  Add the body data to onresponse_fun/0 callback
-
- *  Remove the urldecode cowboy_protocol option
-
- *  Isolate multipart from body reading to fix an issue
 
  *  Avoid a duplicate HTTP reply in cowboy_websocket:upgrade_error/1
 
@@ -95,6 +232,10 @@ next
  *  Can now upgrade protocols with {upgrade, protocol, P, Req, Opts}
 
  *  Cowboy now only expects universal time, never local time
+
+ *  Do not try skipping the body if the connection is to be closed
+
+ *  Add cowboy_bstr:to_upper/1, cowboy_bstr:capitalize_token/1
 
  *  Many, many optimizations for the most critical code path
 

@@ -1,4 +1,4 @@
-%% Copyright (c) 2011-2012, Loïc Hoguin <essen@ninenines.eu>
+%% Copyright (c) 2011-2013, Loïc Hoguin <essen@ninenines.eu>
 %%
 %% Permission to use, copy, modify, and/or distribute this software for any
 %% purpose with or without fee is hereby granted, provided that the above
@@ -23,8 +23,8 @@
 %% receive. It receives the message and the state previously defined.
 %% It can decide to stop the receive loop or continue receiving.
 %%
-%% <em>terminate/2</em> allows you to clean up. It receives the state
-%% previously defined.
+%% <em>terminate/3</em> allows you to clean up. It receives the
+%% termination reason and the state previously defined.
 %%
 %% There is no required operation to perform in any of these callbacks
 %% other than returning the proper values. Make sure you always return
@@ -39,6 +39,9 @@
 
 -type opts() :: any().
 -type state() :: any().
+-type terminate_reason() :: {normal, shutdown}
+	| {normal, timeout}
+	| {error, atom()}.
 
 -callback init({atom(), http}, Req, opts())
 	-> {ok, Req, state()}
@@ -48,10 +51,11 @@
 	| {loop, Req, state(), timeout(), hibernate}
 	| {shutdown, Req, state()}
 	| {upgrade, protocol, module()}
+	| {upgrade, protocol, module(), Req, opts()}
 	when Req::cowboy_req:req().
 -callback info(any(), Req, State)
 	-> {ok, Req, State}
 	| {loop, Req, State}
 	| {loop, Req, State, hibernate}
 	when Req::cowboy_req:req(), State::state().
--callback terminate(cowboy_req:req(), state()) -> ok.
+-callback terminate(terminate_reason(), cowboy_req:req(), state()) -> ok.

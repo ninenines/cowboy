@@ -10,7 +10,7 @@ AB_TESTS_PRIV = os.getenv("AB_TESTS_PRIV")
 
 VIRTUALENV_URL = 'https://raw.github.com/pypa/virtualenv/master/virtualenv.py'
 VIRTUALENV_BIN = os.path.join(AB_TESTS_ENV, "virtualenv.py")
-PIP_BIN = os.path.join(AB_TESTS_ENV, "bin", "pip")
+INSTALL_BIN = os.path.join(AB_TESTS_ENV, "bin", "easy_install")
 
 
 def activate_env(env):
@@ -29,7 +29,7 @@ def install_env(env):
     subprocess.check_call(["curl", "-sS", VIRTUALENV_URL, "-o", VIRTUALENV_BIN])
     subprocess.check_call(["python", VIRTUALENV_BIN, env])
     activate_env(env)
-    subprocess.check_call([PIP_BIN, "install", "AutobahnTestSuite"])
+    subprocess.check_call([INSTALL_BIN, "http://pypi.python.org/packages/2.7/a/autobahntestsuite/autobahntestsuite-0.5.2-py2.7.egg#md5=f7480d4ca6ce4954ac05f59778de4bda"])
 
 def client_config():
     """

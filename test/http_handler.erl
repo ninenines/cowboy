@@ -2,7 +2,7 @@
 
 -module(http_handler).
 -behaviour(cowboy_http_handler).
--export([init/3, handle/2, terminate/2]).
+-export([init/3, handle/2, terminate/3]).
 
 -record(state, {headers, body}).
 
@@ -15,5 +15,5 @@ handle(Req, State=#state{headers=Headers, body=Body}) ->
 	{ok, Req2} = cowboy_req:reply(200, Headers, Body, Req),
 	{ok, Req2, State}.
 
-terminate(_Req, _State) ->
+terminate(_, _, _) ->
 	ok.

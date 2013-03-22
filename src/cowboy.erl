@@ -1,4 +1,4 @@
-%% Copyright (c) 2011-2012, Loïc Hoguin <essen@ninenines.eu>
+%% Copyright (c) 2011-2013, Loïc Hoguin <essen@ninenines.eu>
 %%
 %% Permission to use, copy, modify, and/or distribute this software for any
 %% purpose with or without fee is hereby granted, provided that the above
@@ -18,6 +18,7 @@
 -export([start_http/4]).
 -export([start_https/4]).
 -export([stop_listener/1]).
+-export([set_env/3]).
 
 %% @doc Start an HTTP listener.
 -spec start_http(any(), non_neg_integer(), any(), any()) -> {ok, pid()}.
@@ -37,3 +38,16 @@ start_https(Ref, NbAcceptors, TransOpts, ProtoOpts)
 -spec stop_listener(any()) -> ok.
 stop_listener(Ref) ->
 	ranch:stop_listener(Ref).
+
+%% @doc Convenience function for setting an environment value.
+%%
+%% Allows you to update live an environment value used by middlewares.
+%% This function is primarily intended to simplify updating the dispatch
+%% list used for routing.
+-spec set_env(any(), atom(), any()) -> ok.
+set_env(Ref, Name, Value) ->
+	Opts = ranch:get_protocol_options(Ref),
+	{_, Env} = lists:keyfind(env, 1, Opts),
+	Env2 = [{Name, Value}|lists:keydelete(Name, 1, Env)],
+	Opts2 = lists:keyreplace(env, 1, Opts, {env, Env2}),
+	ok = ranch:set_protocol_options(Ref, Opts2).

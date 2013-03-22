@@ -5,7 +5,7 @@
 
 -export([init/3]).
 -export([handle/2]).
--export([terminate/2]).
+-export([terminate/3]).
 
 init(_Transport, Req, []) ->
 	{ok, Req, undefined}.
@@ -25,5 +25,5 @@ echo(_, _, Req) ->
 	%% Method not allowed.
 	cowboy_req:reply(405, Req).
 
-terminate(_Req, _State) ->
+terminate(_Reason, _Req, _State) ->
 	ok.

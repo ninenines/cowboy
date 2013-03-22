@@ -6,43 +6,55 @@ Cowboy User Guide
    *  Prerequisites
    *  Conventions
    *  Getting started
- *  Routing
+ *  [Routing](routing.md)
    *  Purpose
-   *  Dispatch list
-   *  Match rules
-   *  Bindings
+   *  Structure
+   *  Match syntax
    *  Constraints
- *  Handlers
+   *  Compilation
+   *  Live update
+ *  [Handlers](handlers.md)
    *  Purpose
    *  Protocol upgrades
- *  HTTP handlers
+   *  Custom protocol upgrades
+ *  [HTTP handlers](http_handlers.md)
    *  Purpose
-   *  Callbacks
    *  Usage
- *  Loop handlers
+ *  [Loop handlers](loop_handlers.md)
    *  Purpose
-   *  Callbacks
    *  Usage
- *  Websocket handlers
+ *  [Websocket handlers](ws_handlers.md)
    *  Purpose
-   *  Callbacks
    *  Usage
- *  REST handlers
+ *  [REST handlers](rest_handlers.md)
    *  Purpose
    *  Flow diagram
    *  Callbacks
    *  Usage
- *  Static handlers
+ *  [Static handlers](static_handlers.md)
    *  Purpose
    *  Usage
- *  Request object
+ *  [Request object](req.md)
    *  Purpose
    *  Request
    *  Request body
-   *  Reply
- *  Hooks
+   *  Multipart request body
+   *  Response
+   *  Chunked response
+   *  Response preconfiguration
+   *  Closing the connection
+   *  Reducing the memory footprint
+ *  [Hooks](hooks.md)
    *  On request
    *  On response
- *  Internals
+ *  [Middlewares](middlewares.md)
+   *  Purpose
+   *  Usage
+   *  Configuration
+   *  Routing middleware
+   *  Handler middleware
+ *  [Internals](internals.md)
    *  Architecture
-   *  Efficiency considerations
+   *  One process for many requests
+   *  Lowercase header names
+   *  Improving performance

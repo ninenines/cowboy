@@ -32,10 +32,10 @@
 %% under and the path to a directory to read files from. The request path prefix
 %% is defined in the path pattern of the cowboy dispatch rule for the handler.
 %% The request path pattern must end with a `...' token.
+%%
 %% The directory path can be set to either an absolute or relative path in the
 %% form of a list or binary string representation of a file system path. A list
-%% of binary path segments, as is used throughout cowboy, is also a valid
-%% directory path.
+%% of binary path segments is also a valid directory path.
 %%
 %% The directory path can also be set to a relative path within the `priv/'
 %% directory of an application. This is configured by setting the value of the
@@ -44,15 +44,15 @@
 %% ==== Examples ====
 %% ```
 %% %% Serve files from /var/www/ under http://example.com/static/
-%% {[<<"static">>, '...'], cowboy_static,
+%% {"/static/[...]", cowboy_static,
 %%     [{directory, "/var/www"}]}
 %%
 %% %% Serve files from the current working directory under http://example.com/static/
-%% {[<<"static">>, '...'], cowboy_static,
+%% {"/static/[...]", cowboy_static,
 %%     [{directory, <<"./">>}]}
 %%
 %% %% Serve files from cowboy/priv/www under http://example.com/
-%% {['...'], cowboy_static,
+%% {"/[...]", cowboy_static,
 %%     [{directory, {priv_dir, cowboy, [<<"www">>]}}]}
 %% '''
 %%
@@ -74,14 +74,14 @@
 %% ==== Example ====
 %% ```
 %% %% Use a static list of content types.
-%% {[<<"static">>, '...'], cowboy_static,
+%% {"/static/[...]", cowboy_static,
 %%     [{directory, {priv_dir, cowboy, []}},
 %%      {mimetypes, [
 %%          {<<".css">>, [<<"text/css">>]},
 %%          {<<".js">>, [<<"application/javascript">>]}]}]}
 %%
 %% %% Use the default database in the mimetypes application.
-%% {[<<"static">>, '...'], cowboy_static,
+%% {"/static/[...]", cowboy_static,
 %%     [{directory, {priv_dir, cowboy, []}},
 %%      {mimetypes, {fun mimetypes:path_to_mimes/2, default}}]}
 %% '''
@@ -102,25 +102,25 @@
 %% header is generated.
 %%
 %% If a strong ETag is required a user defined function for generating the
-%% header value can be supplied. The function must accept a proplist of the
-%% file attributes as the first argument and a second argument containing any
-%% additional data that the function requires. The function must return a term
-%% of the type `{weak | strong, binary()}' or `undefined'.
+%% header value can be supplied. The function must accept a list of key/values
+%% of the file attributes as the first argument and a second argument
+%% containing any additional data that the function requires. The function
+%% must return a term of the type `{weak | strong, binary()}' or `undefined'.
 %%
 %% ====  Examples ====
 %% ```
 %% %% A value of default is equal to not specifying the option.
-%% {[<<"static">>, '...'], cowboy_static,
+%% {"static/[...]", cowboy_static,
 %%     [{directory, {priv_dir, cowboy, []}},
 %%      {etag, default}]}
 %%
 %% %% Use all avaliable ETag function arguments to generate a header value.
-%% {[<<"static">>, '...'], cowboy_static,
+%% {"static/[...]", cowboy_static,
 %%     [{directory, {priv_dir, cowboy, []}},
 %%      {etag, {attributes, [filepath, filesize, inode, mtime]}}]}
 %%
 %% %% Use a user defined function to generate a strong ETag header value.
-%% {[<<"static">>, '...'], cowboy_static,
+%% {"static/[...]", cowboy_static,
 %%     [{directory, {priv_dir, cowboy, []}},
 %%      {etag, {fun generate_strong_etag/2, strong_etag_extra}}]}
 %%
@@ -153,17 +153,17 @@
 %%
 %% ```
 %% %% Serve cowboy/priv/www/index.html as http://example.com/
-%% {[], cowboy_static,
+%% {"/", cowboy_static,
 %%     [{directory, {priv_dir, cowboy, [<<"www">>]}}
 %%      {file, <<"index.html">>}]}
 %%
 %% %% Serve cowboy/priv/www/page.html under http://example.com/*/page
-%% {['_', <<"page">>], cowboy_static,
+%% {"/:_/page", cowboy_static,
 %%     [{directory, {priv_dir, cowboy, [<<"www">>]}}
 %%      {file, <<"page.html">>}]}.
 %%
 %% %% Always serve cowboy/priv/www/other.html under http://example.com/other
-%% {[<<"other">>, '...'], cowboy_static,
+%% {"/other/[...]", cowboy_static,
 %%     [{directory, {priv_dir, cowboy, [<<"www">>]}}
 %%      {file, "other.html"}]}
 %% '''
@@ -202,49 +202,53 @@
 	fileinfo  :: {ok, #file_info{}} | {error, _} | error,
 	mimetypes :: {fun((binary(), T) -> [mimedef()]), T} | undefined,
 	etag_fun  :: {fun(([etagarg()], T) ->
-		undefined | {strong | weak, binary()}), T}}).
-
+		undefined | {strong | weak, binary()}), T}
+}).
 
 %% @private Upgrade from HTTP handler to REST handler.
 init({_Transport, http}, _Req, _Opts) ->
 	{upgrade, protocol, cowboy_rest}.
 
-
 %% @private Set up initial state of REST handler.
 -spec rest_init(Req, list()) -> {ok, Req, #state{}} when Req::cowboy_req:req().
 rest_init(Req, Opts) ->
-	Directory = proplists:get_value(directory, Opts),
-	Directory1 = directory_path(Directory),
-	Mimetypes = proplists:get_value(mimetypes, Opts, []),
-	Mimetypes1 = case Mimetypes of
-		{{M, F}, E} -> {fun M:F/2, E};
-		{_, _} -> Mimetypes;
-		[] -> {fun path_to_mimetypes/2, []};
-		[_|_] -> {fun path_to_mimetypes/2, Mimetypes}
-	end,
-	ETagFunction = case proplists:get_value(etag, Opts) of
-		default -> {fun no_etag_function/2, undefined};
-		undefined -> {fun no_etag_function/2, undefined};
-		{attributes, []} -> {fun no_etag_function/2, undefined};
-		{attributes, Attrs} -> {fun attr_etag_function/2, Attrs};
-		{_, _}=ETagFunction1 -> ETagFunction1
-	end,
-	{Filepath, Req1} = case lists:keyfind(file, 1, Opts) of
-		{_, Filepath2} -> {filepath_path(Filepath2), Req};
-		false -> cowboy_req:path_info(Req)
-	end,
-	State = case check_path(Filepath) of
-		error ->
-			#state{filepath=error, fileinfo=error, mimetypes=undefined,
-				etag_fun=ETagFunction};
-		ok ->
-			Filepath1 = join_paths(Directory1, Filepath),
-			Fileinfo = file:read_file_info(Filepath1),
-			#state{filepath=Filepath1, fileinfo=Fileinfo, mimetypes=Mimetypes1,
-				etag_fun=ETagFunction}
-	end,
-	{ok, Req1, State}.
+	{_, DirectoryOpt} = lists:keyfind(directory, 1, Opts),
+	Directory = fullpath(filename:absname(directory_path(DirectoryOpt))),
+	case lists:keyfind(file, 1, Opts) of
+		false ->
+			{PathInfo, Req2} = cowboy_req:path_info(Req),
+			Filepath = filename:join([Directory|PathInfo]),
+			Len = byte_size(Directory),
+			case fullpath(Filepath) of
+				<< Directory:Len/binary, $/, _/binary >> ->
+					rest_init(Req2, Opts, Filepath);
+				_ ->
+					{ok, Req2, #state{filepath=error, fileinfo=error,
+						mimetypes=undefined, etag_fun=undefined}}
+			end;
+		{_, FileOpt} ->
+			Filepath = filepath_path(FileOpt),
+			Filepath2 = << Directory/binary, $/, Filepath/binary >>,
+			rest_init(Req, Opts, Filepath2)
+	end.
 
+rest_init(Req, Opts, Filepath) ->
+	Fileinfo = file:read_file_info(Filepath),
+	Mimetypes = case lists:keyfind(mimetypes, 1, Opts) of
+		false -> {fun path_to_mimetypes/2, []};
+		{_, {{M, F}, E}} -> {fun M:F/2, E};
+		{_, Mtypes} when is_tuple(Mtypes) -> Mtypes;
+		{_, Mtypes} when is_list(Mtypes) -> {fun path_to_mimetypes/2, Mtypes}
+	end,
+	EtagFun = case lists:keyfind(etag, 1, Opts) of
+		false -> {fun no_etag_function/2, undefined};
+		{_, default} -> {fun no_etag_function/2, undefined};
+		{_, {attributes, []}} -> {fun no_etag_function/2, undefined};
+		{_, {attributes, Attrs}} -> {fun attr_etag_function/2, Attrs};
+		{_, EtagOpt} -> EtagOpt
+	end,
+	{ok, Req, #state{filepath=Filepath, fileinfo=Fileinfo,
+		mimetypes=Mimetypes, etag_fun=EtagFun}}.
 
 %% @private Only allow GET and HEAD requests on files.
 -spec allowed_methods(Req, #state{})
@@ -260,7 +264,6 @@ malformed_request(Req, #state{filepath=error}=State) ->
 malformed_request(Req, State) ->
 	{false, Req, State}.
 
-
 %% @private Check if the resource exists under the document root.
 -spec resource_exists(Req, #state{})
 	-> {boolean(), Req, #state{}} when Req::cowboy_req:req().
@@ -268,7 +271,6 @@ resource_exists(Req, #state{fileinfo={error, _}}=State) ->
 	{false, Req, State};
 resource_exists(Req, #state{fileinfo={ok, Fileinfo}}=State) ->
 	{Fileinfo#file_info.type =:= regular, Req, State}.
-
 
 %% @private
 %% Access to a file resource is forbidden if it exists and the local node does
@@ -284,13 +286,11 @@ forbidden(Req, #state{fileinfo={error, _}}=State) ->
 forbidden(Req, #state{fileinfo={ok, #file_info{access=Access}}}=State) ->
 	{not (Access =:= read orelse Access =:= read_write), Req, State}.
 
-
 %% @private Read the time a file system system object was last modified.
 -spec last_modified(Req, #state{})
 	-> {calendar:datetime(), Req, #state{}} when Req::cowboy_req:req().
 last_modified(Req, #state{fileinfo={ok, #file_info{mtime=Modified}}}=State) ->
-	{Modified, Req, State}.
-
+	{erlang:localtime_to_universaltime(Modified), Req, State}.
 
 %% @private Generate the ETag header value for this file.
 %% The ETag header value is only generated if the resource is a file that
@@ -307,7 +307,6 @@ generate_etag(Req, #state{fileinfo={_, #file_info{type=regular, inode=INode,
 generate_etag(Req, State) ->
 	{undefined, Req, State}.
 
-
 %% @private Return the content type of a file.
 -spec content_types_provided(cowboy_req:req(), #state{}) -> tuple().
 content_types_provided(Req, #state{filepath=Filepath,
@@ -316,78 +315,71 @@ content_types_provided(Req, #state{filepath=Filepath,
 		|| T <- MimetypesFun(Filepath, MimetypesData)],
 	{Mimetypes, Req, State}.
 
-
 %% @private Return a function that writes a file directly to the socket.
 -spec file_contents(cowboy_req:req(), #state{}) -> tuple().
 file_contents(Req, #state{filepath=Filepath,
 		fileinfo={ok, #file_info{size=Filesize}}}=State) ->
-	{ok, Transport, Socket} = cowboy_req:transport(Req),
-	Writefile = fun() -> Transport:sendfile(Socket, Filepath) end,
+	Writefile = fun(Socket, Transport) ->
+		%% Transport:sendfile/2 may return {error, closed}
+		%% if the connection is closed while sending the file.
+		case Transport:sendfile(Socket, Filepath) of
+			{ok, _} -> ok;
+			{error, closed} -> ok
+		end
+	end,
 	{{stream, Filesize, Writefile}, Req, State}.
 
+%% Internal.
 
 -spec directory_path(dirspec()) -> dirpath().
 directory_path({priv_dir, App, []}) ->
 	priv_dir_path(App);
-directory_path({priv_dir, App, [H|_]=Path}) when is_integer(H) ->
-	filename:join(priv_dir_path(App), Path);
 directory_path({priv_dir, App, [H|_]=Path}) when is_binary(H) ->
-	filename:join(filename:split(priv_dir_path(App)) ++ Path);
-directory_path({priv_dir, App, Path}) when is_binary(Path) ->
+	filename:join(priv_dir_path(App), filename:join(Path));
+directory_path({priv_dir, App, Path}) ->
 	filename:join(priv_dir_path(App), Path);
-directory_path(Path) ->
+directory_path([H|_]=Path) when is_binary(H) ->
+	filename:join(Path);
+directory_path([H|_]=Path) when is_integer(H) ->
+	list_to_binary(Path);
+directory_path(Path) when is_binary(Path) ->
 	Path.
-
-%% @private Ensure that a file path is of the same type as a request path.
--spec filepath_path(dirpath()) -> Path::[binary()].
-filepath_path([H|_]=Path) when is_integer(H) ->
-	filename:split(list_to_binary(Path));
-filepath_path(Path) when is_binary(Path) ->
-	filename:split(Path);
-filepath_path([H|_]=Path) when is_binary(H) ->
-	Path.
-
-%% @private Validate a request path for unsafe characters.
-%% There is no way to escape special characters in a filesystem path.
--spec check_path(Path::[binary()]) -> ok | error.
-check_path([]) -> ok;
-check_path([<<"">>|_T]) -> error;
-check_path([<<".">>|_T]) -> error;
-check_path([<<"..">>|_T]) -> error;
-check_path([H|T]) ->
-	case binary:match(H, <<"/">>) of
-		{_, _} -> error;
-		nomatch -> check_path(T)
-	end.
-
-
-%% @private Join the the directory and request paths.
--spec join_paths(dirpath(), [binary()]) -> binary().
-join_paths([H|_]=Dirpath, Filepath) when is_integer(H) ->
-	filename:join(filename:split(Dirpath) ++ Filepath);
-join_paths([H|_]=Dirpath, Filepath) when is_binary(H) ->
-	filename:join(Dirpath ++ Filepath);
-join_paths(Dirpath, Filepath) when is_binary(Dirpath) ->
-	filename:join([Dirpath] ++ Filepath);
-join_paths([], Filepath) ->
-	filename:join(Filepath).
-
 
 %% @private Return the path to the priv/ directory of an application.
 -spec priv_dir_path(atom()) -> string().
 priv_dir_path(App) ->
 	case code:priv_dir(App) of
 		{error, bad_name} -> priv_dir_mod(App);
-		Dir -> Dir
+		Dir -> list_to_binary(Dir)
 	end.
 
 -spec priv_dir_mod(atom()) -> string().
 priv_dir_mod(Mod) ->
 	case code:which(Mod) of
-		File when not is_list(File) -> "../priv";
-		File -> filename:join([filename:dirname(File),"../priv"])
+		File when not is_list(File) -> <<"../priv">>;
+		File -> filename:join(filename:dirname(File), <<"../priv">>)
 	end.
 
+%% @private Ensure that a file path is of the same type as a request path.
+filepath_path(Path) when is_binary(Path) ->
+	Path;
+filepath_path([H|_]=Path) when is_binary(H) ->
+	filename:join(Path);
+filepath_path([H|_]=Path) when is_integer(H) ->
+	list_to_binary(Path).
+
+fullpath(Path) when is_binary(Path) ->
+	fullpath(filename:split(Path), []).
+fullpath([], Acc) ->
+	filename:join(lists:reverse(Acc));
+fullpath([<<".">>|Tail], Acc) ->
+	fullpath(Tail, Acc);
+fullpath([<<"..">>|Tail], Acc=[_]) ->
+	fullpath(Tail, Acc);
+fullpath([<<"..">>|Tail], [_|Acc]) ->
+	fullpath(Tail, Acc);
+fullpath([Segment|Tail], Acc) ->
+	fullpath(Tail, [Segment|Acc]).
 
 %% @private Use application/octet-stream as the default mimetype.
 %% If a list of extension - mimetype pairs are provided as the mimetypes
@@ -413,7 +405,6 @@ path_to_mimetypes_(Ext, Extensions) ->
 default_mimetype() ->
 	[{<<"application">>, <<"octet-stream">>, []}].
 
-
 %% @private Do not send ETag headers in the default configuration.
 -spec no_etag_function([etagarg()], undefined) -> undefined.
 no_etag_function(_Args, undefined) ->
@@ -429,49 +420,127 @@ attr_etag_function(Args, Attrs) ->
 	end || Attr <- Attrs],
 	{strong, list_to_binary([H|T])}.
 
-
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -define(_eq(E, I), ?_assertEqual(E, I)).
 
-check_path_test_() ->
-	C = fun check_path/1,
-	[?_eq(error, C([<<>>])),
-	 ?_eq(ok, C([<<"abc">>])),
-	 ?_eq(error, C([<<".">>])),
-	 ?_eq(error, C([<<"..">>])),
-	 ?_eq(error, C([<<"/">>]))
-	].
-
-join_paths_test_() ->
-	P = fun join_paths/2,
-	[?_eq(<<"a">>, P([], [<<"a">>])),
-	 ?_eq(<<"a/b/c">>, P(<<"a/b">>, [<<"c">>])),
-	 ?_eq(<<"a/b/c">>, P("a/b", [<<"c">>])),
-	 ?_eq(<<"a/b/c">>, P([<<"a">>, <<"b">>], [<<"c">>]))
-	].
-
 directory_path_test_() ->
-	P = fun directory_path/1,
-	PL = fun(I) -> length(filename:split(P(I))) end,
+	PL = fun(D) -> length(filename:split(directory_path(D))) end,
 	Base = PL({priv_dir, cowboy, []}),
-	[?_eq(Base + 1, PL({priv_dir, cowboy, "a"})),
-	 ?_eq(Base + 1, PL({priv_dir, cowboy, <<"a">>})),
-	 ?_eq(Base + 1, PL({priv_dir, cowboy, [<<"a">>]})),
-	 ?_eq(Base + 2, PL({priv_dir, cowboy, "a/b"})),
-	 ?_eq(Base + 2, PL({priv_dir, cowboy, <<"a/b">>})),
-	 ?_eq(Base + 2, PL({priv_dir, cowboy, [<<"a">>, <<"b">>]})),
-	 ?_eq("a/b", P("a/b"))
-	].
+	LengthTests = [
+		Base + 1, {priv_dir, cowboy, "a"},
+		Base + 1, {priv_dir, cowboy, <<"a">>},
+		Base + 1, {priv_dir, cowboy, [<<"a">>]},
+		Base + 2, {priv_dir, cowboy, "a/b"},
+		Base + 2, {priv_dir, cowboy, <<"a/b">>},
+		Base + 2, {priv_dir, cowboy, [<<"a">>, <<"b">>]}
+	],
+	TypeTests = [
+		{priv_dir, cowboy, []},
+		{priv_dir, cowboy, "a"},
+		{priv_dir, cowboy, <<"a">>},
+		{priv_dir, cowboy, [<<"a">>]},
+		"a",
+		<<"a">>,
+		[<<"a">>]
+	],
+	[{lists:flatten(io_lib:format("~p", [D])),
+		fun() -> R = PL(D) end} || {R, D} <- LengthTests]
+	++ [{lists:flatten(io_lib:format("~p", [D])),
+		fun() -> is_binary(directory_path(D)) end} || D <- TypeTests].
 
 filepath_path_test_() ->
-	P = fun filepath_path/1,
-	[?_eq([<<"a">>], P("a")),
-	 ?_eq([<<"a">>], P(<<"a">>)),
-	 ?_eq([<<"a">>], P([<<"a">>])),
-	 ?_eq([<<"a">>, <<"b">>], P("a/b")),
-	 ?_eq([<<"a">>, <<"b">>], P(<<"a/b">>)),
-	 ?_eq([<<"a">>, <<"b">>], P([<<"a">>, <<"b">>]))
-	].
+	Tests = [
+		{<<"a">>, "a"},
+		{<<"a">>, <<"a">>},
+		{<<"a">>, [<<"a">>]},
+		{<<"a/b">>, "a/b"},
+		{<<"a/b">>, <<"a/b">>},
+		{<<"a/b">>, [<<"a">>, <<"b">>]}
+	],
+	[{lists:flatten(io_lib:format("~p", [F])),
+		fun() -> R = filepath_path(F) end} || {R, F} <- Tests].
+
+fullpath_test_() ->
+	Tests = [
+		{<<"/home/cowboy">>, <<"/home/cowboy">>},
+		{<<"/home/cowboy">>, <<"/home/cowboy/">>},
+		{<<"/home/cowboy">>, <<"/home/cowboy/./">>},
+		{<<"/home/cowboy">>, <<"/home/cowboy/./././././.">>},
+		{<<"/home/cowboy">>, <<"/home/cowboy/abc/..">>},
+		{<<"/home/cowboy">>, <<"/home/cowboy/abc/../">>},
+		{<<"/home/cowboy">>, <<"/home/cowboy/abc/./../.">>},
+		{<<"/">>, <<"/home/cowboy/../../../../../..">>},
+		{<<"/etc/passwd">>, <<"/home/cowboy/../../etc/passwd">>}
+	],
+	[{P, fun() -> R = fullpath(P) end} || {R, P} <- Tests].
+
+good_path_check_test_() ->
+	Tests = [
+		<<"/home/cowboy/file">>,
+		<<"/home/cowboy/file/">>,
+		<<"/home/cowboy/./file">>,
+		<<"/home/cowboy/././././././file">>,
+		<<"/home/cowboy/abc/../file">>,
+		<<"/home/cowboy/abc/../file">>,
+		<<"/home/cowboy/abc/./.././file">>
+	],
+	[{P, fun() ->
+		case fullpath(P) of
+			<< "/home/cowboy/", _/binary >> -> ok
+		end
+	end} || P <- Tests].
+
+bad_path_check_test_() ->
+	Tests = [
+		<<"/home/cowboy/../../../../../../file">>,
+		<<"/home/cowboy/../../etc/passwd">>
+	],
+	[{P, fun() ->
+		error = case fullpath(P) of
+			<< "/home/cowboy/", _/binary >> -> ok;
+			_ -> error
+		end
+	end} || P <- Tests].
+
+good_path_win32_check_test_() ->
+	Tests = case os:type() of
+		{unix, _} ->
+			[];
+		{win32, _} ->
+			[
+				<<"c:/home/cowboy/file">>,
+				<<"c:/home/cowboy/file/">>,
+				<<"c:/home/cowboy/./file">>,
+				<<"c:/home/cowboy/././././././file">>,
+				<<"c:/home/cowboy/abc/../file">>,
+				<<"c:/home/cowboy/abc/../file">>,
+				<<"c:/home/cowboy/abc/./.././file">>
+			]
+	end,
+	[{P, fun() ->
+		case fullpath(P) of
+			<< "c:/home/cowboy/", _/binary >> -> ok
+		end
+	end} || P <- Tests].
+
+bad_path_win32_check_test_() ->
+	Tests = case os:type() of
+		{unix, _} ->
+			[];
+		{win32, _} ->
+			[
+				<<"c:/home/cowboy/../../secretfile.bat">>,
+				<<"c:/home/cowboy/c:/secretfile.bat">>,
+				<<"c:/home/cowboy/..\\..\\secretfile.bat">>,
+				<<"c:/home/cowboy/c:\\secretfile.bat">>
+			]
+	end,
+	[{P, fun() ->
+		error = case fullpath(P) of
+			<< "c:/home/cowboy/", _/binary >> -> ok;
+			_ -> error
+		end
+	end} || P <- Tests].
 
 -endif.
