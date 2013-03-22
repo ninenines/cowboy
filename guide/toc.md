@@ -58,3 +58,7 @@ Cowboy User Guide
    *  One process for many requests
    *  Lowercase header names
    *  Improving performance
+ *  [Resources](resources.md)
+   *  Frameworks
+   *  Helper libraries
+   *  Articles
