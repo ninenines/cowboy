@@ -104,9 +104,9 @@ and `body_qs/2` will return `{error, badlength}`. If the request
 contains chunked body, `body/1`, `body/2`, `body_qs/1`
 and `body_qs/2` will return `{error, chunked}`.
 If you get either of the above two errors, you will want to
-handle the body of the request using `stream_body/1` and
-`skip_body/1`, with the streaming process optionally
-initialized using `init_stream/4` or `init_stream/5`.
+handle the body of the request using `stream_body/1`,
+`stream_body/2` and `skip_body/1`, with the streaming process
+optionally initialized using `init_stream/4`.
 
 Multipart request body
 ----------------------
