@@ -1,6 +1,18 @@
 CHANGELOG
 =========
 
+0.8.3
+-----
+
+ *  Remove init_stream/5, add stream_body/2
+
+    It's better to allow configuring the streamed chunk size on
+    a per chunk basis. Also easier to use.
+
+ *  Update Ranch to 0.8.0
+
+    Much faster. Also improved stability.
+
 0.8.2
 -----
 
