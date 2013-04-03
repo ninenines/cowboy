@@ -48,7 +48,7 @@ the routing information. It is a list of tuples with the first
 element being an atom and the second any Erlang term.
 
 Two values in the environment are reserved:
- *  `listener` contains the pid of the listener process
+ *  `listener` contains the name of the listener
  *  `result` contains the result of the processing
 
 The `listener` value is always defined. The `result` value can be

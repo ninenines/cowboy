@@ -63,8 +63,8 @@
 	| {suspend, module(), atom(), [any()]}
 	when Req::cowboy_req:req(), Env::cowboy_middleware:env().
 upgrade(Req, Env, Handler, HandlerOpts) ->
-	{_, ListenerPid} = lists:keyfind(listener, 1, Env),
-	ranch_listener:remove_connection(ListenerPid),
+	{_, Ref} = lists:keyfind(listener, 1, Env),
+	ranch:remove_connection(Ref),
 	[Socket, Transport] = cowboy_req:get([socket, transport], Req),
 	State = #state{env=Env, socket=Socket, transport=Transport,
 		handler=Handler, handler_opts=HandlerOpts},

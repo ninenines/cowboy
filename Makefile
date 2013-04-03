@@ -1,7 +1,7 @@
 # See LICENSE for licensing information.
 
 PROJECT = cowboy
-RANCH_VSN = 0.6.2
+RANCH_VSN = 0.8.0
 ERLC_OPTS ?= -Werror +debug_info +warn_export_all +warn_export_vars \
    +warn_shadow_vars +warn_obsolete_guard # +bin_opt_info +warn_missing_spec
 
