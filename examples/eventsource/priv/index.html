@@ -15,18 +15,22 @@
 				var source = new EventSource('/eventsource');
 
 				source.addEventListener('message', function(event) {
-					addStatus("server sent the following: '" + event.data + "'");
-					}, false);
+					addStatus("message: " + event.lastEventId + ": '" + event.data + "'");
+				}, false);
 
-					source.addEventListener('open', function(event) {
-						addStatus('eventsource connected.')
-					}, false);
+				source.addEventListener('special', function(event) {
+					addStatus("special delivery: " + event.lastEventId + ": '" + event.data + "'");
+				}, false);
 
-					source.addEventListener('error', function(event) {
-						if (event.eventPhase == EventSource.CLOSED) {
-							addStatus('eventsource was closed.')
-						}
-					}, false);
+				source.addEventListener('open', function(event) {
+					addStatus('eventsource connected.')
+				}, false);
+
+				source.addEventListener('error', function(event) {
+					if (event.eventPhase == EventSource.CLOSED) {
+						addStatus('eventsource was closed.')
+					}
+				}, false);
 			}
 
 			function addStatus(text) {
