@@ -90,7 +90,7 @@ $ git stash pop
 ```
 
 You SHOULD use these commands both before working on your patch and before
-submitting the pull request. If conflicts arise it is your responsability
+submitting the pull request. If conflicts arise it is your responsibility
 to deal with them.
 
 You MUST create a new branch for your work. First, ensure you are on `master`.
