@@ -9,7 +9,7 @@ Frameworks
 Helper libraries
 ----------------
 
- *  Please send a pull request!
+ *  [eventsource](https://github.com/jdavisp3/eventsource)
 
 Articles
 --------
