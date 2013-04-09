@@ -613,11 +613,11 @@ init_stream(TransferDecode, TransferState, ContentDecode, Req) ->
 	{ok, Req#http_req{body_state=
 		{stream, 0, TransferDecode, TransferState, ContentDecode}}}.
 
-%% @equiv stream_body(Req, 1000000)
+%% @equiv stream_body(1000000, Req)
 -spec stream_body(Req) -> {ok, binary(), Req}
 	| {done, Req} | {error, atom()} when Req::req().
 stream_body(Req) ->
-	stream_body(Req, 1000000).
+	stream_body(1000000, Req).
 
 %% @doc Stream the request's body.
 %%
@@ -633,10 +633,10 @@ stream_body(Req) ->
 %%
 %% You can limit the size of the chunks being returned by using the
 %% second argument which is the size in bytes. It defaults to 1000000 bytes.
--spec stream_body(Req, non_neg_integer()) -> {ok, binary(), Req}
+-spec stream_body(non_neg_integer(), Req) -> {ok, binary(), Req}
 	| {done, Req} | {error, atom()} when Req::req().
-stream_body(Req=#http_req{body_state=waiting, version=Version,
-		transport=Transport, socket=Socket}, MaxLength) ->
+stream_body(MaxLength, Req=#http_req{body_state=waiting, version=Version,
+		transport=Transport, socket=Socket}) ->
 	{ok, ExpectHeader, Req1} = parse_header(<<"expect">>, Req),
 	case ExpectHeader of
 		[<<"100-continue">>] ->
@@ -648,37 +648,35 @@ stream_body(Req=#http_req{body_state=waiting, version=Version,
 	end,
 	case parse_header(<<"transfer-encoding">>, Req1) of
 		{ok, [<<"chunked">>], Req2} ->
-			stream_body(Req2#http_req{body_state=
+			stream_body(MaxLength, Req2#http_req{body_state=
 				{stream, 0,
 					fun cowboy_http:te_chunked/2, {0, 0},
-					fun cowboy_http:ce_identity/1}},
-				MaxLength);
+					fun cowboy_http:ce_identity/1}});
 		{ok, [<<"identity">>], Req2} ->
 			{Length, Req3} = body_length(Req2),
 			case Length of
 				0 ->
 					{done, Req3#http_req{body_state=done}};
 				Length ->
-					stream_body(Req3#http_req{body_state=
+					stream_body(MaxLength, Req3#http_req{body_state=
 						{stream, Length,
 							fun cowboy_http:te_identity/2, {0, Length},
-							fun cowboy_http:ce_identity/1}},
-						MaxLength)
+							fun cowboy_http:ce_identity/1}})
 			end
 	end;
-stream_body(Req=#http_req{body_state=done}, _) ->
+stream_body(_, Req=#http_req{body_state=done}) ->
 	{done, Req};
-stream_body(Req=#http_req{buffer=Buffer}, _)
+stream_body(_, Req=#http_req{buffer=Buffer})
 		when Buffer =/= <<>> ->
 	transfer_decode(Buffer, Req#http_req{buffer= <<>>});
-stream_body(Req, MaxLength) ->
-	stream_body_recv(Req, MaxLength).
+stream_body(MaxLength, Req) ->
+	stream_body_recv(MaxLength, Req).
 
--spec stream_body_recv(Req, non_neg_integer())
+-spec stream_body_recv(non_neg_integer(), Req)
 	-> {ok, binary(), Req} | {error, atom()} when Req::req().
-stream_body_recv(Req=#http_req{
+stream_body_recv(MaxLength, Req=#http_req{
 		transport=Transport, socket=Socket, buffer=Buffer,
-		body_state={stream, Length, _, _, _}}, MaxLength) ->
+		body_state={stream, Length, _, _, _}}) ->
 	%% @todo Allow configuring the timeout.
 	case Transport:recv(Socket, min(Length, MaxLength), 5000) of
 		{ok, Data} -> transfer_decode(<< Buffer/binary, Data/binary >>,
@@ -697,8 +695,8 @@ transfer_decode(Data, Req=#http_req{body_state={stream, _,
 				TransferDecode, TransferState2, ContentDecode}});
 		%% @todo {header(s) for chunked
 		more ->
-			stream_body_recv(Req#http_req{buffer=Data, body_state={stream,
-				0, TransferDecode, TransferState, ContentDecode}}, 0);
+			stream_body_recv(0, Req#http_req{buffer=Data, body_state={stream,
+				0, TransferDecode, TransferState, ContentDecode}});
 		{more, Length, Data2, TransferState2} ->
 			content_decode(ContentDecode, Data2,
 				Req#http_req{body_state={stream, Length,
