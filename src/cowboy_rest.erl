@@ -96,9 +96,8 @@ known_methods(Req, State=#state{method=Method}) ->
 	case call(Req, State, known_methods) of
 		no_call when Method =:= <<"HEAD">>; Method =:= <<"GET">>;
 				Method =:= <<"POST">>; Method =:= <<"PUT">>;
-				Method =:= <<"DELETE">>; Method =:= <<"TRACE">>;
-				Method =:= <<"CONNECT">>; Method =:= <<"OPTIONS">>;
-				Method =:= <<"PATCH">> ->
+				Method =:= <<"PATCH">>; Method =:= <<"DELETE">>;
+				Method =:= <<"OPTIONS">> ->
 			next(Req, State, fun uri_too_long/2);
 		no_call ->
 			next(Req, State, 501);
