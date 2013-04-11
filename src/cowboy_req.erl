@@ -566,7 +566,7 @@ set_meta(Name, Value, Req=#http_req{meta=Meta}) ->
 %% Request Body API.
 
 %% @doc Return whether the request message has a body.
--spec has_body(cowboy_req:req()) -> boolean().
+-spec has_body(req()) -> boolean().
 has_body(Req) ->
 	case lists:keyfind(<<"content-length">>, 1, Req#http_req.headers) of
 		{_, <<"0">>} ->
@@ -1013,8 +1013,7 @@ reply(Status, Headers, Body, Req=#http_req{
 reply_may_compress(Status, Headers, Body, Req,
 		RespHeaders, HTTP11Headers, Method) ->
 	BodySize = iolist_size(Body),
-	{ok, Encodings, Req2}
-		= cowboy_req:parse_header(<<"accept-encoding">>, Req),
+	{ok, Encodings, Req2} = parse_header(<<"accept-encoding">>, Req),
 	CanGzip = (BodySize > 300)
 		andalso (false =:= lists:keyfind(<<"content-encoding">>,
 			1, Headers))
