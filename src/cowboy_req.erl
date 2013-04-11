@@ -426,61 +426,59 @@ parse_header_default(_Name) -> undefined.
 -spec parse_header(binary(), Req, any())
 	-> {ok, any(), Req} | {undefined, binary(), Req}
 	| {error, badarg} when Req::req().
-parse_header(Name, Req, Default) when Name =:= <<"accept">> ->
+parse_header(Name = <<"accept">>, Req, Default) ->
 	parse_header(Name, Req, Default,
 		fun (Value) ->
 			cowboy_http:list(Value, fun cowboy_http:media_range/2)
 		end);
-parse_header(Name, Req, Default) when Name =:= <<"accept-charset">> ->
+parse_header(Name = <<"accept-charset">>, Req, Default) ->
 	parse_header(Name, Req, Default,
 		fun (Value) ->
 			cowboy_http:nonempty_list(Value, fun cowboy_http:conneg/2)
 		end);
-parse_header(Name, Req, Default) when Name =:= <<"accept-encoding">> ->
+parse_header(Name = <<"accept-encoding">>, Req, Default) ->
 	parse_header(Name, Req, Default,
 		fun (Value) ->
 			cowboy_http:list(Value, fun cowboy_http:conneg/2)
 		end);
-parse_header(Name, Req, Default) when Name =:= <<"accept-language">> ->
+parse_header(Name = <<"accept-language">>, Req, Default) ->
 	parse_header(Name, Req, Default,
 		fun (Value) ->
 			cowboy_http:nonempty_list(Value, fun cowboy_http:language_range/2)
 		end);
-parse_header(Name, Req, Default) when Name =:= <<"authorization">> ->
+parse_header(Name = <<"authorization">>, Req, Default) ->
 	parse_header(Name, Req, Default,
 		fun (Value) ->
 			cowboy_http:token_ci(Value, fun cowboy_http:authorization/2)
 		end);
-parse_header(Name, Req, Default) when Name =:= <<"content-length">> ->
+parse_header(Name = <<"content-length">>, Req, Default) ->
 	parse_header(Name, Req, Default, fun cowboy_http:digits/1);
-parse_header(Name, Req, Default) when Name =:= <<"content-type">> ->
+parse_header(Name = <<"content-type">>, Req, Default) ->
 	parse_header(Name, Req, Default, fun cowboy_http:content_type/1);
 parse_header(Name = <<"cookie">>, Req, Default) ->
 	parse_header(Name, Req, Default, fun cowboy_http:cookie_list/1);
-parse_header(Name, Req, Default) when Name =:= <<"expect">> ->
+parse_header(Name = <<"expect">>, Req, Default) ->
 	parse_header(Name, Req, Default,
 		fun (Value) ->
 			cowboy_http:nonempty_list(Value, fun cowboy_http:expectation/2)
 		end);
 parse_header(Name, Req, Default)
-		when Name =:= <<"if-match">>; Name =:= <<"if-none-match">> ->
+		when Name =:= <<"if-match">>;
+			Name =:= <<"if-none-match">> ->
 	parse_header(Name, Req, Default, fun cowboy_http:entity_tag_match/1);
 parse_header(Name, Req, Default)
 		when Name =:= <<"if-modified-since">>;
 			Name =:= <<"if-unmodified-since">> ->
 	parse_header(Name, Req, Default, fun cowboy_http:http_date/1);
-parse_header(Name, Req, Default) when Name =:= <<"sec-websocket-protocol">> ->
+parse_header(Name = <<"sec-websocket-protocol">>, Req, Default) ->
 	parse_header(Name, Req, Default,
 		fun (Value) ->
 			cowboy_http:nonempty_list(Value, fun cowboy_http:token/2)
 		end);
 %% @todo Extension parameters.
-parse_header(Name, Req, Default) when Name =:= <<"transfer-encoding">> ->
-	parse_header(Name, Req, Default,
-		fun (Value) ->
-			cowboy_http:nonempty_list(Value, fun cowboy_http:token_ci/2)
-		end);
-parse_header(Name, Req, Default) when Name =:= <<"upgrade">> ->
+parse_header(Name, Req, Default)
+		when Name =:= <<"transfer-encoding">>;
+			Name =:= <<"upgrade">> ->
 	parse_header(Name, Req, Default,
 		fun (Value) ->
 			cowboy_http:nonempty_list(Value, fun cowboy_http:token_ci/2)
