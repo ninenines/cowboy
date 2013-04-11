@@ -46,7 +46,6 @@
 -export([method/1]).
 -export([version/1]).
 -export([peer/1]).
--export([peer_addr/1]).
 -export([host/1]).
 -export([host_info/1]).
 -export([port/1]).
@@ -229,29 +228,6 @@ version(Req) ->
 	when Req::req().
 peer(Req) ->
 	{Req#http_req.peer, Req}.
-
-%% @doc Returns the peer address calculated from headers.
--spec peer_addr(Req) -> {inet:ip_address(), Req} when Req::req().
-peer_addr(Req = #http_req{}) ->
-	{RealIp, Req1} = header(<<"x-real-ip">>, Req),
-	{ForwardedForRaw, Req2} = header(<<"x-forwarded-for">>, Req1),
-	{{PeerIp, _PeerPort}, Req3} = peer(Req2),
-	ForwardedFor = case ForwardedForRaw of
-		undefined ->
-			undefined;
-		ForwardedForRaw ->
-			case re:run(ForwardedForRaw, "^(?<first_ip>[^\\,]+)",
-					[{capture, [first_ip], binary}]) of
-				{match, [FirstIp]} -> FirstIp;
-				_Any -> undefined
-			end
-	end,
-	{ok, PeerAddr} = if
-		is_binary(RealIp) -> inet_parse:address(binary_to_list(RealIp));
-		is_binary(ForwardedFor) -> inet_parse:address(binary_to_list(ForwardedFor));
-		true -> {ok, PeerIp}
-	end,
-	{PeerAddr, Req3}.
 
 %% @doc Return the host binary string.
 -spec host(Req) -> {binary(), Req} when Req::req().

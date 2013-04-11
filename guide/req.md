@@ -33,7 +33,6 @@ The following access functions are defined in `cowboy_req`:
  *  `method/1`: the request method (`<<"GET">>`, `<<"POST">>`...)
  *  `version/1`: the HTTP version (`{1,0}` or `{1,1}`)
  *  `peer/1`: the peer address and port number
- *  `peer_addr/1`: the peer address guessed using the request headers
  *  `host/1`: the hostname requested
  *  `host_info/1`: the result of the `[...]` match on the host
  *  `port/1`: the port number used for the connection
