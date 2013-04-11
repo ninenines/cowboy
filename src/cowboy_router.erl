@@ -37,7 +37,7 @@
 	| {atom(), function, fun ((binary()) -> true | {true, any()} | false)}].
 -export_type([constraints/0]).
 
--type route_match() :: '_' | binary() | string().
+-type route_match() :: '_' | iodata().
 -type route_path() :: {Path::route_match(), Handler::module(), Opts::any()}
 	| {Path::route_match(), constraints(), Handler::module(), Opts::any()}.
 -type route_rule() :: {Host::route_match(), Paths::[route_path()]}
@@ -88,7 +88,7 @@ compile_paths([{PathMatch, Handler, Opts}|Tail], Acc) ->
 	compile_paths([{PathMatch, [], Handler, Opts}|Tail], Acc);
 compile_paths([{PathMatch, Constraints, Handler, Opts}|Tail], Acc)
 		when is_list(PathMatch) ->
-	compile_paths([{list_to_binary(PathMatch),
+	compile_paths([{iolist_to_binary(PathMatch),
 		Constraints, Handler, Opts}|Tail], Acc);
 compile_paths([{'_', Constraints, Handler, Opts}|Tail], Acc) ->
 	compile_paths(Tail, [{'_', Constraints, Handler, Opts}] ++ Acc);
