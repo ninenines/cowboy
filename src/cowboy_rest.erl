@@ -236,8 +236,8 @@ content_types_provided(Req, State) ->
 normalize_content_types({ContentType, Callback})
 		when is_binary(ContentType) ->
     {cowboy_http:content_type(ContentType), Callback};
-normalize_content_types(Provided) ->
-	Provided.
+normalize_content_types(Normalized) ->
+	Normalized.
 
 prioritize_accept(Accept) ->
 	lists:sort(
@@ -728,16 +728,18 @@ is_post_to_missing_resource(Req, State, OnFalse) ->
 	respond(Req, State, OnFalse).
 
 allow_missing_post(Req, State, OnFalse) ->
-	expect(Req, State, allow_missing_post, true, fun post_is_create/2, OnFalse).
+	expect(Req, State, allow_missing_post, true, fun post_resource/2, OnFalse).
+
+post_resource(Req, State) ->
+	accept_resource(Req, State, 204).
 
 method(Req, State=#state{method= <<"DELETE">>}) ->
 	delete_resource(Req, State);
-method(Req, State=#state{method= <<"POST">>}) ->
-	post_is_create(Req, State);
 method(Req, State=#state{method= <<"PUT">>}) ->
 	is_conflict(Req, State);
-method(Req, State=#state{method= <<"PATCH">>}) ->
-	patch_resource(Req, State);
+method(Req, State=#state{method=Method})
+		when Method =:= <<"POST">>; Method =:= <<"PATCH">> ->
+	accept_resource(Req, State, 204);
 method(Req, State=#state{method=Method})
 		when Method =:= <<"GET">>; Method =:= <<"HEAD">> ->
 	set_resp_body_etag(Req, State);
@@ -752,79 +754,21 @@ delete_resource(Req, State) ->
 delete_completed(Req, State) ->
 	expect(Req, State, delete_completed, true, fun has_resp_body/2, 202).
 
-%% post_is_create/2 indicates whether the POST method can create new resources.
-post_is_create(Req, State) ->
-	expect(Req, State, post_is_create, false, fun process_post/2, fun create_path/2).
-
-%% When the POST method can create new resources, create_path/2 will be called
-%% and is expected to return the full path to the new resource
-%% (including the leading /).
-create_path(Req, State) ->
-	case call(Req, State, create_path) of
-		no_call ->
-			put_resource(Req, State, fun created_path/2);
-		{halt, Req2, HandlerState} ->
-			terminate(Req2, State#state{handler_state=HandlerState});
-		{Path, Req2, HandlerState} ->
-			{HostURL, Req3} = cowboy_req:host_url(Req2),
-			State2 = State#state{handler_state=HandlerState},
-			Req4 = cowboy_req:set_resp_header(
-				<<"location">>, << HostURL/binary, Path/binary >>, Req3),
-			put_resource(cowboy_req:set_meta(put_path, Path, Req4),
-				State2, 303)
-	end.
-
-%% Called after content_types_accepted is called for POST methods
-%% when create_path did not exist. Expects the full path to
-%% be returned and MUST exist in the case that create_path
-%% does not.
-created_path(Req, State) ->
-	case call(Req, State, created_path) of
-		{halt, Req2, HandlerState} ->
-			terminate(Req2, State#state{handler_state=HandlerState});
-		{Path, Req2, HandlerState} ->
-			{HostURL, Req3} = cowboy_req:host_url(Req2),
-			State2 = State#state{handler_state=HandlerState},
-			Req4 = cowboy_req:set_resp_header(
-				<<"location">>, << HostURL/binary, Path/binary >>, Req3),
-			respond(cowboy_req:set_meta(put_path, Path, Req4),
-				State2, 303)
-	end.
-
-%% process_post should return true when the POST body could be processed
-%% and false when it hasn't, in which case a 500 error is sent.
-process_post(Req, State) ->
-	case call(Req, State, process_post) of
-		{halt, Req2, HandlerState} ->
-			terminate(Req2, State#state{handler_state=HandlerState});
-		{true, Req2, HandlerState} ->
-			State2 = State#state{handler_state=HandlerState},
-			next(Req2, State2, fun is_new_resource/2);
-		{false, Req2, HandlerState} ->
-			State2 = State#state{handler_state=HandlerState},
-			respond(Req2, State2, 500)
-	end.
-
 is_conflict(Req, State) ->
 	expect(Req, State, is_conflict, false, fun put_resource/2, 409).
 
 put_resource(Req, State) ->
-	Path = cowboy_req:get(path, Req),
-	put_resource(cowboy_req:set_meta(put_path, Path, Req),
-		State, fun is_new_resource/2).
+	accept_resource(Req, State, fun is_new_resource/2).
 
 %% content_types_accepted should return a list of media types and their
 %% associated callback functions in the same format as content_types_provided.
 %%
 %% The callback will then be called and is expected to process the content
-%% pushed to the resource in the request body. The path to the new resource
-%% may be different from the request path, and is stored as request metadata.
-%% It is always defined past this point. It can be retrieved as demonstrated:
-%%     {PutPath, Req2} = cowboy_req:meta(put_path, Req)
+%% pushed to the resource in the request body.
 %%
-%%content_types_accepted SHOULD return a different list
+%% content_types_accepted SHOULD return a different list
 %% for each HTTP method.
-put_resource(Req, State, OnTrue) ->
+accept_resource(Req, State, OnTrue) ->
 	case call(Req, State, content_types_accepted) of
 		no_call ->
 			respond(Req, State, 415);
@@ -836,27 +780,6 @@ put_resource(Req, State, OnTrue) ->
 			{ok, ContentType, Req3}
 				= cowboy_req:parse_header(<<"content-type">>, Req2),
 			choose_content_type(Req3, State2, OnTrue, ContentType, CTA2)
-	end.
-
-%% content_types_accepted should return a list of media types and their
-%% associated callback functions in the same format as content_types_provided.
-%%
-%% The callback will then be called and is expected to process the content
-%% pushed to the resource in the request body. 
-%%
-%% content_types_accepted SHOULD return a different list
-%% for each HTTP method.
-patch_resource(Req, State) ->
-	case call(Req, State, content_types_accepted) of
-		no_call ->
-			respond(Req, State, 415);
-		{halt, Req2, HandlerState} ->
-			terminate(Req2, State#state{handler_state=HandlerState});
-		{CTM, Req2, HandlerState} ->
-			State2 = State#state{handler_state=HandlerState},
-			{ok, ContentType, Req3}
-				= cowboy_req:parse_header(<<"content-type">>, Req2),
-			choose_content_type(Req3, State2, 204, ContentType, CTM)
 	end.
 
 %% The special content type '*' will always match. It can be used as a
@@ -880,9 +803,8 @@ choose_content_type(Req, State, OnTrue,
 choose_content_type(Req, State, OnTrue, ContentType, [_Any|Tail]) ->
 	choose_content_type(Req, State, OnTrue, ContentType, Tail).
 
-process_content_type(Req,
-		State=#state{handler=Handler, handler_state=HandlerState},
-		OnTrue, Fun) ->
+process_content_type(Req, State=#state{method=Method,
+		handler=Handler, handler_state=HandlerState}, OnTrue, Fun) ->
 	case call(Req, State, Fun) of
 		no_call ->
 			error_logger:error_msg(
@@ -898,7 +820,12 @@ process_content_type(Req,
 			next(Req2, State2, OnTrue);
 		{false, Req2, HandlerState2} ->
 			State2 = State#state{handler_state=HandlerState2},
-			respond(Req2, State2, 422)
+			respond(Req2, State2, 422);
+		{ResURL, Req2, HandlerState2} when Method =:= <<"POST">> ->
+			State2 = State#state{handler_state=HandlerState2},
+			Req3 = cowboy_req:set_resp_header(
+				<<"location">>, ResURL, Req2),
+			respond(Req3, State2, 303)
 	end.
 
 %% Whether we created a new resource, either through PUT or POST.

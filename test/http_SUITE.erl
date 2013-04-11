@@ -54,7 +54,6 @@
 -export([pipeline/1]).
 -export([pipeline_long_polling/1]).
 -export([rest_bad_accept/1]).
--export([rest_created_path/1]).
 -export([rest_expires/1]).
 -export([rest_keepalive/1]).
 -export([rest_keepalive_post/1]).
@@ -124,7 +123,6 @@ groups() ->
 		pipeline,
 		pipeline_long_polling,
 		rest_bad_accept,
-		rest_created_path,
 		rest_expires,
 		rest_keepalive,
 		rest_keepalive_post,
@@ -364,7 +362,6 @@ init_dispatch(Config) ->
 			{"/missing_put_callbacks", rest_missing_callbacks, []},
 			{"/nodelete", rest_nodelete_resource, []},
 			{"/patch", rest_patch_resource, []},
-			{"/created_path", rest_created_path_resource, []},
 			{"/resetags", rest_resource_etags, []},
 			{"/rest_expires", rest_expires, []},
 			{"/loop_timeout", http_handler_loop_timeout, []},
@@ -881,18 +878,6 @@ rest_bad_accept(Config) ->
 		[{<<"accept">>, <<"1">>}],
 		Client),
 	{ok, 400, _, _} = cowboy_client:response(Client2).
-
-rest_created_path(Config) ->
-	Headers = [{<<"content-type">>, <<"text/plain">>}],
-	Body = <<"Whatever">>,
-	Client = ?config(client, Config),
-	URL = build_url("/created_path", Config),
-	{ok, Client2} = cowboy_client:request(<<"POST">>, URL, Headers,
-		Body, Client),
-	{ok, 303, ResHeaders, _} = cowboy_client:response(Client2),
-	{<<"location">>, _Location} =
-		lists:keyfind(<<"location">>, 1, ResHeaders),
-	ok.
 
 rest_expires(Config) ->
 	Client = ?config(client, Config),
