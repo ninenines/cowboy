@@ -102,6 +102,9 @@
 -export([chunked_reply/2]).
 -export([chunked_reply/3]).
 -export([chunk/2]).
+-export([streamed_reply/2]).
+-export([streamed_reply/3]).
+-export([stream/2]).
 -export([upgrade_reply/3]).
 -export([ensure_response/2]).
 
@@ -161,7 +164,7 @@
 
 	%% Response.
 	resp_compress = false :: boolean(),
-	resp_state = waiting :: locked | waiting | chunks | done,
+	resp_state = waiting :: locked | waiting | chunks | streamed | done,
 	resp_headers = [] :: cowboy_http:headers(),
 	resp_body = <<>> :: iodata() | resp_body_fun()
 		| {non_neg_integer(), resp_body_fun()},
@@ -1067,6 +1070,40 @@ chunk(Data, #http_req{socket=Socket, transport=Transport, resp_state=chunks}) ->
 	Transport:send(Socket, [integer_to_list(iolist_size(Data), 16),
 		<<"\r\n">>, Data, <<"\r\n">>]).
 
+%% @equiv streamed_reply(Status, [], Req)
+-spec streamed_reply(cowboy_http:status(), Req) -> {ok, Req} when Req::req().
+streamed_reply(Status, Req) ->
+	streamed_reply(Status, [], Req).
+
+%% @doc Initiate the sending of a streamed reply to the client.
+%% @see cowboy_req:stream/2
+-spec streamed_reply(cowboy_http:status(), cowboy_http:headers(), Req)
+	-> {ok, Req} when Req::req().
+streamed_reply(Status, Headers, Req=#http_req{
+		version=Version, connection=Connection,
+		resp_state=waiting, resp_headers=RespHeaders}) ->
+	RespConn = response_connection(Headers, Connection),
+	HTTP11Headers = case Version of
+		{1, 1} -> [
+			{<<"connection">>, atom_to_connection(Connection)}];
+		_ -> []
+	end,
+	{_, Req2} = response(Status, Headers, RespHeaders, [
+		{<<"date">>, cowboy_clock:rfc1123()},
+		{<<"server">>, <<"Cowboy">>}
+	|HTTP11Headers], <<>>, Req),
+	{ok, Req2#http_req{connection=RespConn, resp_state=streamed,
+		resp_headers=[], resp_body= <<>>}}.
+
+%% @doc Send a block of data.
+%%
+%% A streamed reply must have been initiated before calling this function.
+-spec stream(iodata(), req()) -> ok | {error, atom()}.
+stream(_Data, #http_req{method= <<"HEAD">>}) ->
+	ok;
+stream(Data, #http_req{socket=Socket, transport=Transport}) ->
+	Transport:send(Socket, Data).
+
 %% @doc Send an upgrade reply.
 %% @private
 -spec upgrade_reply(cowboy_http:status(), cowboy_http:headers(), Req)
@@ -1091,6 +1128,8 @@ ensure_response(Req=#http_req{resp_state=waiting}, Status) ->
 	ok;
 %% Terminate the chunked body for HTTP/1.1 only.
 ensure_response(#http_req{method= <<"HEAD">>, resp_state=chunks}, _) ->
+	ok;
+ensure_response(#http_req{resp_state=streamed}, _) ->
 	ok;
 ensure_response(#http_req{version={1, 0}, resp_state=chunks}, _) ->
 	ok;

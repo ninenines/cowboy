@@ -169,6 +169,33 @@ As you can see the call to `chunk/2` does not return a modified
 request object. It may return an error, however, so you should
 make sure that you match the return value on `ok`.
 
+Streamed response
+----------------
+
+For those clients that claim to be HTTP 1.1 compliant yet still
+don't support chunked responses there is an equivalent API to 
+allow you to stream blocks of data without wrapping them in 
+chunked reponse headers.
+
+As with chunked responses, you must first initiate the response
+by calling `streamed_reply/{2,3}` and then calling `stream/2`
+as many times as needed as in the following snippet.  Note some 
+use cases could also be handle by calling `set_resp_body_fun/{2,3}`
+and making direct writes to the connection socket, but these
+functions are particularly useful when working with 
+[loop handlers](loop_handlers.md)
+
+``` erlang
+{ok, Req2} = cowboy_req:streamed_reply(200, Req),
+ok = cowboy_req:stream("Hello...", Req2),
+ok = cowboy_req:stream("streamed...", Req2),
+ok = cowboy_req:stream("world!!", Req2).
+```
+
+Again, the call to `stream/2` does not return a modified
+request object. It may return an error, however, so you should
+make sure that you match the return value on `ok`.
+
 Response preconfiguration
 -------------------------
 
