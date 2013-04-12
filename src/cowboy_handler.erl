@@ -214,7 +214,18 @@ handler_loop(Req, State=#state{loop_buffer_size=NbBytes,
 		{timeout, OlderTRef, ?MODULE} when is_reference(OlderTRef) ->
 			handler_before_loop(Req, State, Handler, HandlerState);
 		Message ->
-			handler_call(Req, State, Handler, HandlerState, Message)
+			%% We set the socket back to {active, false} mode in case
+			%% the handler is going to call recv. We also flush any
+			%% data received after that and put it into the buffer.
+			%% We do not check the size here, if data keeps coming
+			%% we'll error out on the next packet received.
+			Transport:setopts(Socket, [{active, false}]),
+			Req2 = receive {OK, Socket, Data} ->
+				cowboy_req:append_buffer(Data, Req)
+			after 0 ->
+				Req
+			end,
+			handler_call(Req2, State, Handler, HandlerState, Message)
 	end.
 
 -spec handler_call(Req, #state{}, module(), any(), any())

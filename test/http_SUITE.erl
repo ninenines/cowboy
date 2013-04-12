@@ -367,6 +367,7 @@ init_dispatch(Config) ->
 			{"/patch", rest_patch_resource, []},
 			{"/resetags", rest_resource_etags, []},
 			{"/rest_expires", rest_expires, []},
+			{"/loop_recv", http_handler_loop_recv, []},
 			{"/loop_timeout", http_handler_loop_timeout, []},
 			{"/", http_handler, []}
 		]}
@@ -466,6 +467,8 @@ The document has moved
 			"Set-Cookie: ", HugeCookie, "\r\n\r\n"]},
 		{200, "\r\n\r\n\r\n\r\n\r\nGET / HTTP/1.1\r\nHost: localhost\r\n\r\n"},
 		{200, "GET http://proxy/ HTTP/1.1\r\nHost: localhost\r\n\r\n"},
+		{200, <<"POST /loop_recv HTTP/1.1\r\nHost: localhost\r\n"
+			"Content-Length: 100000\r\n\r\n", 0:100000/unit:8 >>},
 		{400, "\n"},
 		{400, "Garbage\r\n\r\n"},
 		{400, "\r\n\r\n\r\n\r\n\r\n\r\n"},
