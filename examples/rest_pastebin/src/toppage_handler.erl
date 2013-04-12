@@ -46,12 +46,12 @@ resource_exists(Req, _State) ->
 	end.
 
 create_paste(Req, State) ->
-	{<<$/, PasteID/binary>>, Req2} = cowboy_req:meta(put_path, Req),
-	{ok, [{<<"paste">>, Paste}], Req3} = cowboy_req:body_qs(Req2),
+	PasteID = new_paste_id(),
+	{ok, [{<<"paste">>, Paste}], Req3} = cowboy_req:body_qs(Req),
 	ok = file:write_file(full_path(PasteID), Paste),
 	case cowboy_req:method(Req3) of
 		{<<"POST">>, Req4} ->
-			{<<$/, (new_paste_id())/binary>>, Req4, State};
+			{<<$/, PasteID/binary>>, Req4, State};
 		{_, Req4} ->
 			{true, Req4, State}
 	end.
