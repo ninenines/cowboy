@@ -200,7 +200,7 @@ handler_loop(Req, State=#state{loop_buffer_size=NbBytes,
 					Req2 = cowboy_req:append_buffer(Data, Req),
 					State2 = handler_loop_timeout(State#state{
 						loop_buffer_size=NbBytes2}),
-					handler_loop(Req2, State2, Handler, HandlerState)
+					handler_before_loop(Req2, State2, Handler, HandlerState)
 			end;
 		{Closed, Socket} ->
 			terminate_request(Req, State, Handler, HandlerState,
