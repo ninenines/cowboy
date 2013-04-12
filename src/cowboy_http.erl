@@ -808,7 +808,8 @@ qvalue(Data, Fun, Q, _M) ->
 authorization(UserPass, Type = <<"basic">>) ->
 	cowboy_http:whitespace(UserPass,
 		fun(D) ->
-			authorization_basic_userid(base64:mime_decode(D),
+			authorization_basic_userid(
+				try base64:mime_decode(D) of Any -> Any catch _:_ -> <<>> end,
 				fun(Rest, Userid) ->
 					authorization_basic_password(Rest,
 						fun(Password) ->
