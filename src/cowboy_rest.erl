@@ -31,6 +31,9 @@
 	handler :: atom(),
 	handler_state :: any(),
 
+	%% Allowed methods. Only used for OPTIONS requests.
+	allowed_methods :: [binary()],
+
 	%% Media type.
 	content_types_p = [] ::
 		[{binary() | {binary(), binary(), [{binary(), binary()}] | '*'},
@@ -119,32 +122,43 @@ allowed_methods(Req, State=#state{method=Method}) ->
 	case call(Req, State, allowed_methods) of
 		no_call when Method =:= <<"HEAD">>; Method =:= <<"GET">> ->
 			next(Req, State, fun malformed_request/2);
+		no_call when Method =:= <<"OPTIONS">> ->
+			next(Req, State#state{allowed_methods=
+				[<<"HEAD">>, <<"GET">>, <<"OPTIONS">>]},
+				fun malformed_request/2);
 		no_call ->
-			method_not_allowed(Req, State, [<<"GET">>, <<"HEAD">>]);
+			method_not_allowed(Req, State,
+				[<<"HEAD">>, <<"GET">>, <<"OPTIONS">>]);
 		{halt, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
 		{List, Req2, HandlerState} ->
 			State2 = State#state{handler_state=HandlerState},
 			case lists:member(Method, List) of
-				true -> next(Req2, State2, fun malformed_request/2);
-				false -> method_not_allowed(Req2, State2, List)
+				true when Method =:= <<"OPTIONS">> ->
+					next(Req2, State2#state{allowed_methods=
+						[<<"HEAD">>, <<"GET">>, <<"OPTIONS">>]},
+						fun malformed_request/2);
+				true ->
+					next(Req2, State2, fun malformed_request/2);
+				false ->
+					method_not_allowed(Req2, State2, List)
 			end
 	end.
 
 method_not_allowed(Req, State, Methods) ->
 	Req2 = cowboy_req:set_resp_header(
-		<<"allow">>, method_not_allowed_build(Methods, []), Req),
+		<<"allow">>, build_allow_header(Methods, []), Req),
 	respond(Req2, State, 405).
 
-method_not_allowed_build([], []) ->
+build_allow_header([], []) ->
 	<<>>;
-method_not_allowed_build([], [_Ignore|Acc]) ->
+build_allow_header([], [_Ignore|Acc]) ->
 	lists:reverse(Acc);
-method_not_allowed_build([Method|Tail], Acc) when is_atom(Method) ->
+build_allow_header([Method|Tail], Acc) when is_atom(Method) ->
 	Method2 = list_to_binary(atom_to_list(Method)),
-	method_not_allowed_build(Tail, [<<", ">>, Method2|Acc]);
-method_not_allowed_build([Method|Tail], Acc) ->
-	method_not_allowed_build(Tail, [<<", ">>, Method|Acc]).
+	build_allow_header(Tail, [<<", ">>, Method2|Acc]);
+build_allow_header([Method|Tail], Acc) ->
+	build_allow_header(Tail, [<<", ">>, Method|Acc]).
 
 malformed_request(Req, State) ->
 	expect(Req, State, malformed_request, false, fun is_authorized/2, 400).
@@ -180,8 +194,12 @@ valid_entity_length(Req, State) ->
 
 %% If you need to add additional headers to the response at this point,
 %% you should do it directly in the options/2 call using set_resp_headers.
-options(Req, State=#state{method= <<"OPTIONS">>}) ->
+options(Req, State=#state{allowed_methods=Allow, method= <<"OPTIONS">>}) ->
 	case call(Req, State, options) of
+		no_call ->
+			Req2 = cowboy_req:set_resp_header(<<"allow">>,
+				build_allow_header(Allow, []), Req),
+			respond(Req2, State, 200);
 		{halt, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
 		{ok, Req2, HandlerState} ->

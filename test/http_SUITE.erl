@@ -61,6 +61,7 @@
 -export([rest_missing_get_callbacks/1]).
 -export([rest_missing_put_callbacks/1]).
 -export([rest_nodelete/1]).
+-export([rest_options_default/1]).
 -export([rest_param_all/1]).
 -export([rest_patch/1]).
 -export([rest_resource_etags/1]).
@@ -131,6 +132,7 @@ groups() ->
 		rest_missing_get_callbacks,
 		rest_missing_put_callbacks,
 		rest_nodelete,
+		rest_options_default,
 		rest_param_all,
 		rest_patch,
 		rest_resource_etags,
@@ -367,6 +369,7 @@ init_dispatch(Config) ->
 			{"/patch", rest_patch_resource, []},
 			{"/resetags", rest_resource_etags, []},
 			{"/rest_expires", rest_expires, []},
+			{"/rest_empty_resource", rest_empty_resource, []},
 			{"/loop_recv", http_handler_loop_recv, []},
 			{"/loop_timeout", http_handler_loop_timeout, []},
 			{"/", http_handler, []}
@@ -966,6 +969,13 @@ rest_nodelete(Config) ->
 	{ok, Client2} = cowboy_client:request(<<"DELETE">>,
 		build_url("/nodelete", Config), Client),
 	{ok, 500, _, _} = cowboy_client:response(Client2).
+
+rest_options_default(Config) ->
+	Client = ?config(client, Config),
+	{ok, Client2} = cowboy_client:request(<<"OPTIONS">>,
+		build_url("/rest_empty_resource", Config), Client),
+	{ok, 200, Headers, _} = cowboy_client:response(Client2),
+	{_, <<"HEAD, GET, OPTIONS">>} = lists:keyfind(<<"allow">>, 1, Headers).
 
 rest_patch(Config) ->
 	Tests = [

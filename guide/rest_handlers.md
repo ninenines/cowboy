@@ -77,7 +77,7 @@ empty column means there is no default value for this callback.
 | moved_permanently      | `false`                   |
 | moved_temporarily      | `false`                   |
 | multiple_choices       | `false`                   |
-| options                |                           |
+| options                | `ok`                      |
 | previously_existed     | `false`                   |
 | resource_exists        | `true`                    |
 | service_available      | `true`                    |
