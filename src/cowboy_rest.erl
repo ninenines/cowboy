@@ -776,9 +776,12 @@ accept_resource(Req, State, OnTrue) ->
 		{CTA, Req2, HandlerState} ->
 		    CTA2 = [normalize_content_types(P) || P <- CTA],
 			State2 = State#state{handler_state=HandlerState},
-			{ok, ContentType, Req3}
-				= cowboy_req:parse_header(<<"content-type">>, Req2),
-			choose_content_type(Req3, State2, OnTrue, ContentType, CTA2)
+			case cowboy_req:parse_header(<<"content-type">>, Req2) of
+				{ok, ContentType, Req3} ->
+					choose_content_type(Req3, State2, OnTrue, ContentType, CTA2);
+				{error, badarg} ->
+					respond(Req2, State2, 415)
+			end
 	end.
 
 %% The special content type '*' will always match. It can be used as a
