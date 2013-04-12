@@ -54,6 +54,7 @@
 -export([pipeline/1]).
 -export([pipeline_long_polling/1]).
 -export([rest_bad_accept/1]).
+-export([rest_bad_content_type/1]).
 -export([rest_expires/1]).
 -export([rest_keepalive/1]).
 -export([rest_keepalive_post/1]).
@@ -123,6 +124,7 @@ groups() ->
 		pipeline,
 		pipeline_long_polling,
 		rest_bad_accept,
+		rest_bad_content_type,
 		rest_expires,
 		rest_keepalive,
 		rest_keepalive_post,
@@ -355,6 +357,7 @@ init_dispatch(Config) ->
 			{"/echo/body_qs", http_handler_body_qs, []},
 			{"/param_all", rest_param_all, []},
 			{"/bad_accept", rest_simple_resource, []},
+			{"/bad_content_type", rest_patch_resource, []},
 			{"/simple", rest_simple_resource, []},
 			{"/forbidden_post", rest_forbidden_resource, [true]},
 			{"/simple_post", rest_forbidden_resource, [false]},
@@ -878,6 +881,14 @@ rest_bad_accept(Config) ->
 		[{<<"accept">>, <<"1">>}],
 		Client),
 	{ok, 400, _, _} = cowboy_client:response(Client2).
+
+rest_bad_content_type(Config) ->
+	Client = ?config(client, Config),
+	{ok, Client2} = cowboy_client:request(<<"PATCH">>,
+		build_url("/bad_content_type", Config),
+		[{<<"content-type">>, <<"text/plain, text/html">>}],
+		<<"Whatever">>, Client),
+	{ok, 415, _, _} = cowboy_client:response(Client2).
 
 rest_expires(Config) ->
 	Client = ?config(client, Config),
