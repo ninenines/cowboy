@@ -146,19 +146,9 @@ allowed_methods(Req, State=#state{method=Method}) ->
 	end.
 
 method_not_allowed(Req, State, Methods) ->
-	Req2 = cowboy_req:set_resp_header(
-		<<"allow">>, build_allow_header(Methods, []), Req),
+	<< ", ", Allow/binary >> = << << ", ", M/binary >> || M <- Methods >>,
+	Req2 = cowboy_req:set_resp_header(<<"allow">>, Allow, Req),
 	respond(Req2, State, 405).
-
-build_allow_header([], []) ->
-	<<>>;
-build_allow_header([], [_Ignore|Acc]) ->
-	lists:reverse(Acc);
-build_allow_header([Method|Tail], Acc) when is_atom(Method) ->
-	Method2 = list_to_binary(atom_to_list(Method)),
-	build_allow_header(Tail, [<<", ">>, Method2|Acc]);
-build_allow_header([Method|Tail], Acc) ->
-	build_allow_header(Tail, [<<", ">>, Method|Acc]).
 
 malformed_request(Req, State) ->
 	expect(Req, State, malformed_request, false, fun is_authorized/2, 400).
@@ -194,11 +184,12 @@ valid_entity_length(Req, State) ->
 
 %% If you need to add additional headers to the response at this point,
 %% you should do it directly in the options/2 call using set_resp_headers.
-options(Req, State=#state{allowed_methods=Allow, method= <<"OPTIONS">>}) ->
+options(Req, State=#state{allowed_methods=Methods, method= <<"OPTIONS">>}) ->
 	case call(Req, State, options) of
 		no_call ->
-			Req2 = cowboy_req:set_resp_header(<<"allow">>,
-				build_allow_header(Allow, []), Req),
+			<< ", ", Allow/binary >>
+				= << << ", ", M/binary >> || M <- Methods >>,
+			Req2 = cowboy_req:set_resp_header(<<"allow">>, Allow, Req),
 			respond(Req2, State, 200);
 		{halt, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
