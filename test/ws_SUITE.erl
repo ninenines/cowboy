@@ -30,6 +30,7 @@
 -export([ws8_init_shutdown/1]).
 -export([ws8_single_bytes/1]).
 -export([ws13/1]).
+-export([ws_deflate/1]).
 -export([ws_send_close/1]).
 -export([ws_send_close_payload/1]).
 -export([ws_send_many/1]).
@@ -51,6 +52,7 @@ groups() ->
 		ws8_init_shutdown,
 		ws8_single_bytes,
 		ws13,
+		ws_deflate,
 		ws_send_close,
 		ws_send_close_payload,
 		ws_send_many,
@@ -76,7 +78,8 @@ end_per_suite(_Config) ->
 
 init_per_group(ws, Config) ->
 	cowboy:start_http(ws, 100, [{port, 0}], [
-		{env, [{dispatch, init_dispatch()}]}
+		{env, [{dispatch, init_dispatch()}]},
+		{compress, true}
 	]),
 	Port = ranch:get_port(ws),
 	[{port, Port}|Config].
@@ -304,6 +307,58 @@ ws13(Config) ->
 		= gen_tcp:recv(Socket, 0, 6000),
 	ok = gen_tcp:send(Socket, << 1:1, 0:3, 9:4, 1:1, 0:7, 0:32 >>), %% ping
 	{ok, << 1:1, 0:3, 10:4, 0:8 >>} = gen_tcp:recv(Socket, 0, 6000), %% pong
+	ok = gen_tcp:send(Socket, << 1:1, 0:3, 8:4, 1:1, 0:7, 0:32 >>), %% close
+	{ok, << 1:1, 0:3, 8:4, 0:8 >>} = gen_tcp:recv(Socket, 0, 6000),
+	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
+	ok.
+
+ws_deflate(Config) ->
+	{port, Port} = lists:keyfind(port, 1, Config),
+	{ok, Socket} = gen_tcp:connect("localhost", Port,
+		[binary, {active, false}, {packet, raw}]),
+	ok = gen_tcp:send(Socket, [
+		"GET /ws_echo HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Connection: Upgrade\r\n"
+		"Upgrade: websocket\r\n"
+		"Sec-WebSocket-Origin: http://localhost\r\n"
+		"Sec-WebSocket-Version: 8\r\n"
+		"Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n"
+		"Sec-WebSocket-Extensions: x-webkit-deflate-frame\r\n"
+		"\r\n"]),
+	{ok, Handshake} = gen_tcp:recv(Socket, 0, 6000),
+	{ok, {http_response, {1, 1}, 101, "Switching Protocols"}, Rest}
+		= erlang:decode_packet(http, Handshake, []),
+	[Headers, <<>>] = websocket_headers(
+		erlang:decode_packet(httph, Rest, []), []),
+	{'Connection', "Upgrade"} = lists:keyfind('Connection', 1, Headers),
+	{'Upgrade', "websocket"} = lists:keyfind('Upgrade', 1, Headers),
+	{"sec-websocket-accept", "s3pPLMBiTxaQ9kYGzzhZRbK+xOo="}
+		= lists:keyfind("sec-websocket-accept", 1, Headers),
+	{"sec-websocket-extensions", "x-webkit-deflate-frame"}
+		= lists:keyfind("sec-websocket-extensions", 1, Headers),
+
+	% send uncompressed text frame containing the Hello string
+	ok = gen_tcp:send(Socket, << 16#81, 16#85, 16#37, 16#fa, 16#21, 16#3d,
+		16#7f, 16#9f, 16#4d, 16#51, 16#58 >>),
+	% receive compressed text frame containing the Hello string
+	{ok, << 1:1, 1:1, 0:2, 1:4, 0:1, 7:7, 242, 72, 205, 201, 201, 7, 0 >>}
+		= gen_tcp:recv(Socket, 0, 6000),
+
+	% send uncompressed text frame containing the HelloHello string
+	% as 2 separate fragments
+	ok = gen_tcp:send(Socket, [
+		<< 0:1, 0:3, 1:4, 1:1, 5:7 >>,
+		<< 16#37 >>, << 16#fa >>, << 16#21 >>, << 16#3d >>, << 16#7f >>,
+		<< 16#9f >>, << 16#4d >>, << 16#51 >>, << 16#58 >>]),
+	ok = gen_tcp:send(Socket, [
+		<< 1:1, 0:3, 0:4, 1:1, 5:7 >>,
+		<< 16#37 >>, << 16#fa >>, << 16#21 >>, << 16#3d >>, << 16#7f >>,
+		<< 16#9f >>, << 16#4d >>, << 16#51 >>, << 16#58 >>]),
+	% receive compressed text frame containing the HelloHello string
+	{ok, << 1:1, 1:1, 0:2, 1:4, 0:1, 5:7, 242, 128, 19, 0, 0 >>}
+		= gen_tcp:recv(Socket, 0, 6000),
+
 	ok = gen_tcp:send(Socket, << 1:1, 0:3, 8:4, 1:1, 0:7, 0:32 >>), %% close
 	{ok, << 1:1, 0:3, 8:4, 0:8 >>} = gen_tcp:recv(Socket, 0, 6000),
 	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
