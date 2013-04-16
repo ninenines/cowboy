@@ -37,6 +37,7 @@
 -export([token_ci/2]).
 -export([quoted_string/2]).
 -export([authorization/2]).
+-export([range/2]).
 
 %% Decoding.
 -export([te_chunked/2]).
@@ -848,6 +849,46 @@ authorization_basic_password(<<>>, Fun, Acc) ->
 authorization_basic_password(<<C, Rest/binary>>, Fun, Acc) ->
 	authorization_basic_password(Rest, Fun, <<Acc/binary, C>>).
 
+%% @doc Parse range header according rfc 2616.
+-spec range(binary(), Unit) -> {Unit, [Range]} | {error,badarg} when
+		Unit :: binary(),
+		Range :: {non_neg_integer(), non_neg_integer() | infinity} | neg_integer().
+range(<<"=", Rest/binary>>, Token) ->
+	case cowboy_http:list(Rest, fun range_beginning/2) of
+		{error, badarg} ->
+			{error, badarg};
+		Ranges ->
+			{Token, Ranges}
+	end;
+range(_,_) ->
+	{error,badarg}.
+
+range_beginning(Data, Fun) ->
+	range_digits(Data, undefined,
+		     fun(D, RangeBeginning) ->
+				     range_ending(D, Fun, RangeBeginning)
+		     end).
+
+range_ending(<<"-", R/binary>>, Fun, RangeBeginning) ->
+	case RangeBeginning of
+		undefined ->
+			digits(R, fun(D, RangeEnding) -> Fun(D, -RangeEnding) end);
+		_ ->
+			range_digits(R, infinity,
+				     fun(D, RangeEnding) ->
+						     Fun(D, {RangeBeginning,RangeEnding})
+				     end)
+	end;
+range_ending(<<>>, _Fun, _RangeEnding) ->
+	{error, badarg}.
+
+-spec range_digits(binary(), any(), fun()) -> any().
+range_digits(<< C, Rest/binary >>, _Default, Fun)
+		when C >= $0, C =< $9 ->
+	digits(Rest, Fun, C - $0);
+range_digits(Data, Default, Fun) ->
+	Fun(Data, Default).
+
 %% Decoding.
 
 %% @doc Decode a stream of chunks.
@@ -1352,6 +1393,25 @@ http_authorization_test_() ->
 		authorization(<<"dXNlcjpwYXNzCA==">>, <<"basic">>)), %% user:pass\010
 	 ?_assertEqual({<<"bearer">>,<<"some_secret_key">>},
 		authorization(<<" some_secret_key">>, <<"bearer">>))
+	].
+
+http_range_test_() ->
+	[?_assertEqual({<<"bytes">>, [{1, 20}]},
+		range(<<"=1-20">>, <<"bytes">>)),
+	 ?_assertEqual({<<"bytes">>, [-100]},
+		range(<<"=-100">>, <<"bytes">>)),
+	 ?_assertEqual({<<"bytes">>, [{1, infinity}]},
+		range(<<"=1-">>, <<"bytes">>)),
+	 ?_assertEqual({<<"bytes">>, [{1, 20}, {30, 40}, {50, infinity}]},
+		range(<<"=1-20,30-40,50-">>, <<"bytes">>)),
+	 ?_assertEqual({<<"bytes">>, [{1, 20}, -500, {30, 40}]},
+		range(<<"=1-20,-500,30-40">>, <<"bytes">>)),
+	 ?_assertEqual({<<"test">>, [{1, 20}, -500, {30, 40}]},
+		range(<<"=1-20,-500,30-40">>, <<"test">>)),
+	 ?_assertEqual({error, badarg},
+		range(<<"=-">>, <<"bytes">>)),
+	 ?_assertEqual({error, badarg},
+		range(<<"=-30,-">>, <<"bytes">>))
 	].
 
 -endif.

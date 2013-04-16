@@ -465,6 +465,11 @@ parse_header(Name, Req, Default)
 		when Name =:= <<"if-modified-since">>;
 			Name =:= <<"if-unmodified-since">> ->
 	parse_header(Name, Req, Default, fun cowboy_http:http_date/1);
+parse_header(Name, Req, Default) when Name =:= <<"range">> ->
+	parse_header(Name, Req, Default,
+		fun (Value) ->
+			cowboy_http:token_ci(Value, fun cowboy_http:range/2)
+		end);
 parse_header(Name, Req, Default) when Name =:= <<"sec-websocket-protocol">> ->
 	parse_header(Name, Req, Default,
 		fun (Value) ->
