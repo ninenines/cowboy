@@ -60,10 +60,6 @@
 -export_type([headers/0]).
 -export_type([status/0]).
 
--ifdef(TEST).
--include_lib("eunit/include/eunit.hrl").
--endif.
-
 %% Parsing.
 
 %% @doc Parse a non-empty list of the given type.
@@ -1319,40 +1315,53 @@ x_www_form_urlencoded_test_() ->
 	[{Qs, fun() -> R = x_www_form_urlencoded(Qs) end} || {Qs, R} <- Tests].
 
 urldecode_test_() ->
-	U = fun urldecode/2,
-	[?_assertEqual(<<" ">>, U(<<"%20">>, crash)),
-	 ?_assertEqual(<<" ">>, U(<<"+">>, crash)),
-	 ?_assertEqual(<<0>>, U(<<"%00">>, crash)),
-	 ?_assertEqual(<<255>>, U(<<"%fF">>, crash)),
-	 ?_assertEqual(<<"123">>, U(<<"123">>, crash)),
-	 ?_assertEqual(<<"%i5">>, U(<<"%i5">>, skip)),
-	 ?_assertEqual(<<"%5">>, U(<<"%5">>, skip)),
-	 ?_assertError(badarg, U(<<"%i5">>, crash)),
-	 ?_assertError(badarg, U(<<"%5">>, crash))
-	].
+	F = fun(Qs, O) ->
+		try urldecode(Qs, O) of
+			R ->
+				{ok, R}
+		catch _:E ->
+			{error, E}
+		end
+	end,
+	Tests = [
+		{<<"%20">>, crash, {ok, <<" ">>}},
+		{<<"+">>, crash, {ok, <<" ">>}},
+		{<<"%00">>, crash, {ok, <<0>>}},
+		{<<"%fF">>, crash, {ok, <<255>>}},
+		{<<"123">>, crash, {ok, <<"123">>}},
+		{<<"%i5">>, skip, {ok, <<"%i5">>}},
+		{<<"%5">>, skip, {ok, <<"%5">>}},
+		{<<"%i5">>, crash, {error, badarg}},
+		{<<"%5">>, crash, {error, badarg}}
+	],
+	[{Qs, fun() -> R = F(Qs,O) end} || {Qs, O, R} <- Tests].
 
 urlencode_test_() ->
-	U = fun urlencode/2,
-	[?_assertEqual(<<"%ff%00">>, U(<<255,0>>, [])),
-	 ?_assertEqual(<<"%FF%00">>, U(<<255,0>>, [upper])),
-	 ?_assertEqual(<<"+">>, U(<<" ">>, [])),
-	 ?_assertEqual(<<"%20">>, U(<<" ">>, [noplus])),
-	 ?_assertEqual(<<"aBc">>, U(<<"aBc">>, [])),
-	 ?_assertEqual(<<".-~_">>, U(<<".-~_">>, [])),
-	 ?_assertEqual(<<"%ff+">>, urlencode(<<255, " ">>))
-	].
+	Tests = [
+		{<<255,0>>, [], <<"%ff%00">>},
+		{<<255,0>>, [upper], <<"%FF%00">>},
+		{<<" ">>, [], <<"+">>},
+		{<<" ">>, [noplus], <<"%20">>},
+		{<<"aBc">>, [], <<"aBc">>},
+		{<<".-~_">>, [], <<".-~_">>}
+	],
+	Tests2 = [{<<255, " ">>,<<"%ff+">>}],
+	[{V, fun() -> R = urlencode(V, O) end} || {V, O, R} <- Tests] ++
+	[{V, fun() -> R = urlencode(V) end} || {V, R} <- Tests2].
 
 http_authorization_test_() ->
-	[?_assertEqual({<<"basic">>, {<<"Alladin">>, <<"open sesame">>}},
-		authorization(<<"QWxsYWRpbjpvcGVuIHNlc2FtZQ==">>, <<"basic">>)),
-	 ?_assertEqual({error, badarg},
-		authorization(<<"dXNlcm5hbWUK">>, <<"basic">>)),
-	 ?_assertEqual({error, badarg},
-		authorization(<<"_[]@#$%^&*()-AA==">>, <<"basic">>)),
-	 ?_assertEqual({error, badarg},
-		authorization(<<"dXNlcjpwYXNzCA==">>, <<"basic">>)), %% user:pass\010
-	 ?_assertEqual({<<"bearer">>,<<"some_secret_key">>},
-		authorization(<<" some_secret_key">>, <<"bearer">>))
-	].
+	Tests = [
+		{<<"basic">>, <<"QWxsYWRpbjpvcGVuIHNlc2FtZQ==">>,
+			{<<"basic">>, {<<"Alladin">>, <<"open sesame">>}}},
+		{<<"basic">>, <<"dXNlcm5hbWUK">>,
+			{error, badarg}},
+		{<<"basic">>, <<"_[]@#$%^&*()-AA==">>,
+			{error, badarg}},
+		{<<"basic">>, <<"dXNlcjpwYXNzCA==">>,
+			{error, badarg}},
+		{<<"bearer">>, <<" some_secret_key">>,
+			{<<"bearer">>,<<"some_secret_key">>}}
+	],
+	[{V, fun() -> R = authorization(V,T) end} || {T, V, R} <- Tests].
 
 -endif.
