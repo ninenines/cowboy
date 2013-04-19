@@ -22,6 +22,15 @@ Not done yet. Feel free to use the one that is currently being worked on.
 
  *  https://github.com/extend/cowboy/pull/364
 
+Methods
+-------
+
+The REST component has code for handling the following HTTP methods:
+HEAD, GET, POST, PATCH, PUT, DELETE and OPTIONS.
+
+Other methods can be accepted, however they have no specific callback
+defined for them at this time.
+
 Callbacks
 ---------
 
