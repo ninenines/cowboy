@@ -50,6 +50,9 @@
 	charsets_p = [] :: [{binary(), integer()}],
 	charset_a :: undefined | binary(),
 
+	%% Whether the resource exists.
+	exists = false :: boolean(),
+
 	%% Cached resource calls.
 	etag :: undefined | no_call | {strong | weak, binary()},
 	last_modified :: undefined | no_call | calendar:datetime(),
@@ -519,13 +522,14 @@ resource_exists(Req, State) ->
 		fun if_match_exists/2, fun if_match_must_not_exist/2).
 
 if_match_exists(Req, State) ->
+	State2 = State#state{exists=true},
 	case cowboy_req:parse_header(<<"if-match">>, Req) of
 		{ok, undefined, Req2} ->
-			if_unmodified_since_exists(Req2, State);
+			if_unmodified_since_exists(Req2, State2);
 		{ok, '*', Req2} ->
-			if_unmodified_since_exists(Req2, State);
+			if_unmodified_since_exists(Req2, State2);
 		{ok, ETagsList, Req2} ->
-			if_match(Req2, State, ETagsList)
+			if_match(Req2, State2, ETagsList)
 	end.
 
 if_match(Req, State, EtagsList) ->
@@ -736,10 +740,7 @@ is_post_to_missing_resource(Req, State, OnFalse) ->
 	respond(Req, State, OnFalse).
 
 allow_missing_post(Req, State, OnFalse) ->
-	expect(Req, State, allow_missing_post, true, fun post_resource/2, OnFalse).
-
-post_resource(Req, State) ->
-	accept_resource(Req, State, 204).
+	expect(Req, State, allow_missing_post, true, fun accept_resource/2, OnFalse).
 
 method(Req, State=#state{method= <<"DELETE">>}) ->
 	delete_resource(Req, State);
@@ -747,7 +748,7 @@ method(Req, State=#state{method= <<"PUT">>}) ->
 	is_conflict(Req, State);
 method(Req, State=#state{method=Method})
 		when Method =:= <<"POST">>; Method =:= <<"PATCH">> ->
-	accept_resource(Req, State, 204);
+	accept_resource(Req, State);
 method(Req, State=#state{method=Method})
 		when Method =:= <<"GET">>; Method =:= <<"HEAD">> ->
 	set_resp_body_etag(Req, State);
@@ -763,10 +764,7 @@ delete_completed(Req, State) ->
 	expect(Req, State, delete_completed, true, fun has_resp_body/2, 202).
 
 is_conflict(Req, State) ->
-	expect(Req, State, is_conflict, false, fun put_resource/2, 409).
-
-put_resource(Req, State) ->
-	accept_resource(Req, State, fun is_new_resource/2).
+	expect(Req, State, is_conflict, false, fun accept_resource/2, 409).
 
 %% content_types_accepted should return a list of media types and their
 %% associated callback functions in the same format as content_types_provided.
@@ -776,7 +774,7 @@ put_resource(Req, State) ->
 %%
 %% content_types_accepted SHOULD return a different list
 %% for each HTTP method.
-accept_resource(Req, State, OnTrue) ->
+accept_resource(Req, State) ->
 	case call(Req, State, content_types_accepted) of
 		no_call ->
 			respond(Req, State, 415);
@@ -787,7 +785,7 @@ accept_resource(Req, State, OnTrue) ->
 			State2 = State#state{handler_state=HandlerState},
 			case cowboy_req:parse_header(<<"content-type">>, Req2) of
 				{ok, ContentType, Req3} ->
-					choose_content_type(Req3, State2, OnTrue, ContentType, CTA2);
+					choose_content_type(Req3, State2, ContentType, CTA2);
 				{error, badarg} ->
 					respond(Req2, State2, 415)
 			end
@@ -797,25 +795,25 @@ accept_resource(Req, State, OnTrue) ->
 %% catch-all content type for accepting any kind of request content.
 %% Note that because it will always match, it should be the last of the
 %% list of content types, otherwise it'll shadow the ones following.
-choose_content_type(Req, State, _OnTrue, _ContentType, []) ->
+choose_content_type(Req, State, _ContentType, []) ->
 	respond(Req, State, 415);
-choose_content_type(Req, State, OnTrue, ContentType, [{Accepted, Fun}|_Tail])
+choose_content_type(Req, State, ContentType, [{Accepted, Fun}|_Tail])
 		when Accepted =:= '*'; Accepted =:= ContentType ->
-	process_content_type(Req, State, OnTrue, Fun);
+	process_content_type(Req, State, Fun);
 %% The special parameter '*' will always match any kind of content type
 %% parameters.
 %% Note that because it will always match, it should be the last of the
 %% list for specific content type, otherwise it'll shadow the ones following.
-choose_content_type(Req, State, OnTrue,
-		{Type, SubType, Param},
+choose_content_type(Req, State, {Type, SubType, Param},
 		[{{Type, SubType, AcceptedParam}, Fun}|_Tail])
 		when AcceptedParam =:= '*'; AcceptedParam =:= Param ->
-	process_content_type(Req, State, OnTrue, Fun);
-choose_content_type(Req, State, OnTrue, ContentType, [_Any|Tail]) ->
-	choose_content_type(Req, State, OnTrue, ContentType, Tail).
+	process_content_type(Req, State, Fun);
+choose_content_type(Req, State, ContentType, [_Any|Tail]) ->
+	choose_content_type(Req, State, ContentType, Tail).
 
 process_content_type(Req, State=#state{method=Method,
-		handler=Handler, handler_state=HandlerState}, OnTrue, Fun) ->
+		handler=Handler, handler_state=HandlerState,
+		exists=Exists}, Fun) ->
 	case call(Req, State, Fun) of
 		no_call ->
 			error_logger:error_msg(
@@ -826,9 +824,12 @@ process_content_type(Req, State=#state{method=Method,
 			{error, 500, Req};
 		{halt, Req2, HandlerState2} ->
 			terminate(Req2, State#state{handler_state=HandlerState2});
+		{true, Req2, HandlerState2} when Exists ->
+			State2 = State#state{handler_state=HandlerState2},
+			next(Req2, State2, fun has_resp_body/2);
 		{true, Req2, HandlerState2} ->
 			State2 = State#state{handler_state=HandlerState2},
-			next(Req2, State2, OnTrue);
+			next(Req2, State2, fun maybe_created/2);
 		{false, Req2, HandlerState2} ->
 			State2 = State#state{handler_state=HandlerState2},
 			respond(Req2, State2, 422);
@@ -836,13 +837,15 @@ process_content_type(Req, State=#state{method=Method,
 			State2 = State#state{handler_state=HandlerState2},
 			Req3 = cowboy_req:set_resp_header(
 				<<"location">>, ResURL, Req2),
-			respond(Req3, State2, 303)
+			if
+				Exists -> respond(Req3, State2, 303);
+				true -> respond(Req3, State2, 201)
+			end
 	end.
 
-%% Whether we created a new resource, either through PUT or POST.
-%% This is easily testable because we would have set the Location
-%% header by this point if we did so.
-is_new_resource(Req, State) ->
+%% If the resource is new and has been created at another location
+%% we send a 201. Otherwise we continue as normal.
+maybe_created(Req, State) ->
 	case cowboy_req:has_resp_header(<<"location">>, Req) of
 		true -> respond(Req, State, 201);
 		false -> has_resp_body(Req, State)
