@@ -12,12 +12,10 @@
 %% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-%% @doc Experimental REST protocol implementation.
+%% @doc REST protocol implementation.
 %%
-%% Based on the Webmachine Diagram from Alan Dean and Justin Sheehy, which
-%% can be found in the Webmachine source tree, and on the Webmachine
-%% documentation available at http://wiki.basho.com/Webmachine.html
-%% at the time of writing.
+%% Originally based on the Webmachine Diagram from Alan Dean and
+%% Justin Sheehy.
 -module(cowboy_rest).
 -behaviour(cowboy_sub_protocol).
 
