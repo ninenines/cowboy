@@ -29,8 +29,7 @@
 %% </dl>
 %%
 %% Exceptions include <em>chunk/2</em> which always returns <em>'ok'</em>,
-%% <em>to_list/1</em> which returns a list of key/values,
-%% and <em>transport/1</em> which returns <em>{ok, Transport, Socket}</em>.
+%% and <em>to_list/1</em> which returns a list of key/values.
 %%
 %% Also note that all body reading functions perform actions, as Cowboy
 %% doesn't read the request body until they are called.
