@@ -21,7 +21,8 @@ erlc_verbose = $(erlc_verbose_$(V))
 gen_verbose_0 = @echo " GEN   " $@;
 gen_verbose = $(gen_verbose_$(V))
 
-.PHONY: all clean-all app clean deps clean-deps docs clean-docs tests autobahn build-plt dialyze
+.PHONY: all clean-all app clean deps clean-deps docs clean-docs \
+	build-tests tests autobahn build-plt dialyze
 
 # Application.
 
@@ -71,7 +72,12 @@ clean-docs:
 
 # Tests.
 
+build-tests:
+	$(gen_verbose) erlc -v $(ERLC_OPTS) \
+		-o test/ test/*.erl test/*/*.erl -pa ebin/
+
 CT_RUN = ct_run \
+	-no_auto_compile \
 	-noshell \
 	-pa ebin $(DEPS_DIR)/*/ebin \
 	-dir test \
@@ -79,11 +85,12 @@ CT_RUN = ct_run \
 #	-cover test/cover.spec
 
 tests: ERLC_OPTS += -DTEST=1
-tests: clean clean-deps deps app
+tests: clean clean-deps deps app build-tests
 	@mkdir -p logs/
 	@$(CT_RUN) -suite eunit_SUITE http_SUITE ws_SUITE
+	$(gen_verbose) rm -f test/*.beam
 
-autobahn: clean clean-deps deps app
+autobahn: clean clean-deps deps app build-tests
 	@mkdir -p logs/
 	@$(CT_RUN) -suite autobahn_SUITE
 
