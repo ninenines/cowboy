@@ -204,8 +204,8 @@ init_per_group(http, Config) ->
 init_per_group(https, Config) ->
 	Transport = ranch_ssl,
 	Opts = [
-		{certfile, ?config(data_dir, Config) ++ "cert.pem"},
-		{keyfile, ?config(data_dir, Config) ++ "key.pem"},
+		{certfile, ?config(data_dir, Config) ++ "ssl/cert.pem"},
+		{keyfile, ?config(data_dir, Config) ++ "ssl/key.pem"},
 		{password, "cowboy"}
 	],
 	Config1 = init_static_dir(Config),
@@ -236,8 +236,8 @@ init_per_group(http_compress, Config) ->
 init_per_group(https_compress, Config) ->
 	Transport = ranch_ssl,
 	Opts = [
-		{certfile, ?config(data_dir, Config) ++ "cert.pem"},
-		{keyfile, ?config(data_dir, Config) ++ "key.pem"},
+		{certfile, ?config(data_dir, Config) ++ "ssl/cert.pem"},
+		{keyfile, ?config(data_dir, Config) ++ "ssl/key.pem"},
 		{password, "cowboy"}
 	],
 	Config1 = init_static_dir(Config),
