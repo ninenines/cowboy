@@ -445,6 +445,8 @@ parse_header(Name, Req, Default)
 		when Name =:= <<"if-modified-since">>;
 			Name =:= <<"if-unmodified-since">> ->
 	parse_header(Name, Req, Default, fun cowboy_http:http_date/1);
+parse_header(Name = <<"range">>, Req, Default) ->
+	parse_header(Name, Req, Default, fun cowboy_http:range/1);
 parse_header(Name, Req, Default)
 		when Name =:= <<"sec-websocket-protocol">>;
 			Name =:= <<"x-forwarded-for">> ->
