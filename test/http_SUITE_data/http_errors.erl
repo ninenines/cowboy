@@ -1,6 +1,6 @@
 %% Feel free to use, reuse and abuse the code in this file.
 
--module(http_handler_errors).
+-module(http_errors).
 -behaviour(cowboy_http_handler).
 -export([init/3, handle/2, terminate/3]).
 

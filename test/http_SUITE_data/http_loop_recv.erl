@@ -1,6 +1,6 @@
 %% Feel free to use, reuse and abuse the code in this file.
 
--module(http_handler_loop_recv).
+-module(http_loop_recv).
 -behaviour(cowboy_loop_handler).
 -export([init/3, info/3, terminate/3]).
 

@@ -319,21 +319,21 @@ end_per_group(Name, _) ->
 init_dispatch(Config) ->
 	cowboy_router:compile([
 		{"localhost", [
-			{"/chunked_response", chunked_handler, []},
-			{"/init_shutdown", http_handler_init_shutdown, []},
-			{"/long_polling", http_handler_long_polling, []},
+			{"/chunked_response", http_chunked, []},
+			{"/init_shutdown", http_init_shutdown, []},
+			{"/long_polling", http_long_polling, []},
 			{"/headers/dupe", http_handler,
 				[{headers, [{<<"connection">>, <<"close">>}]}]},
-			{"/set_resp/header", http_handler_set_resp,
+			{"/set_resp/header", http_set_resp,
 				[{headers, [{<<"vary">>, <<"Accept">>}]}]},
-			{"/set_resp/overwrite", http_handler_set_resp,
+			{"/set_resp/overwrite", http_set_resp,
 				[{headers, [{<<"server">>, <<"DesireDrive/1.0">>}]}]},
-			{"/set_resp/body", http_handler_set_resp,
+			{"/set_resp/body", http_set_resp,
 				[{body, <<"A flameless dance does not equal a cycle">>}]},
-			{"/stream_body/set_resp", http_handler_stream_body,
+			{"/stream_body/set_resp", http_stream_body,
 				[{reply, set_resp}, {body, <<"stream_body_set_resp">>}]},
 			{"/stream_body/set_resp_close",
-				http_handler_stream_body, [
+				http_stream_body, [
 					{reply, set_resp_close},
 					{body, <<"stream_body_set_resp_close">>}]},
 			{"/static/[...]", cowboy_static,
@@ -343,7 +343,7 @@ init_dispatch(Config) ->
 				[{directory, ?config(static_dir, Config)},
 				 {mimetypes, {fun(Path, data) when is_binary(Path) ->
 					[<<"text/html">>] end, data}}]},
-			{"/handler_errors", http_handler_errors, []},
+			{"/handler_errors", http_errors, []},
 			{"/static_attribute_etag/[...]", cowboy_static,
 				[{directory, ?config(static_dir, Config)},
 				 {etag, {attributes, [filepath, filesize, inode, mtime]}}]},
@@ -354,9 +354,9 @@ init_dispatch(Config) ->
 				[{directory, ?config(static_dir, Config)},
 				 {mimetypes, [{<<".css">>, [<<"text/css">>]}]},
 				 {file, <<"test_file.css">>}]},
-			{"/multipart", http_handler_multipart, []},
-			{"/echo/body", http_handler_echo_body, []},
-			{"/echo/body_qs", http_handler_body_qs, []},
+			{"/multipart", http_multipart, []},
+			{"/echo/body", http_echo_body, []},
+			{"/echo/body_qs", http_body_qs, []},
 			{"/param_all", rest_param_all, []},
 			{"/bad_accept", rest_simple_resource, []},
 			{"/bad_content_type", rest_patch_resource, []},
@@ -370,8 +370,8 @@ init_dispatch(Config) ->
 			{"/resetags", rest_resource_etags, []},
 			{"/rest_expires", rest_expires, []},
 			{"/rest_empty_resource", rest_empty_resource, []},
-			{"/loop_recv", http_handler_loop_recv, []},
-			{"/loop_timeout", http_handler_loop_timeout, []},
+			{"/loop_recv", http_loop_recv, []},
+			{"/loop_timeout", http_loop_timeout, []},
 			{"/", http_handler, []}
 		]}
 	]).
