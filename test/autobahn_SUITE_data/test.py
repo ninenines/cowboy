@@ -39,13 +39,10 @@ def client_config():
         'options': {'failByDrop': False},
         'enable-ssl': False,
         'servers': [{
-             'agent': 'Cowboy/10',
+             'agent': 'Cowboy',
              'url': 'ws://localhost:33080/echo',
-             'options': {'version': 10}}, # hybi-10
-            {'agent': 'Cowboy/18',
-             'url': 'ws://localhost:33080/echo',
-             'options': {'version': 18}} # RFC6455
-        ],
+             'options': {'version': 18} # RFC6455
+        }],
         'cases': ['*'],
         'exclude-cases': [] }
     return base
