@@ -157,8 +157,7 @@ cookie_name(Data = << C, _Rest/binary >>, Fun, Acc)
 			 C =:= $\r; C =:= $\n; C =:= $\013; C =:= $\014 ->
 	Fun(Data, Acc);
 cookie_name(<< C, Rest/binary >>, Fun, Acc) ->
-	C2 = cowboy_bstr:char_to_lower(C),
-	cookie_name(Rest, Fun, << Acc/binary, C2 >>).
+	cookie_name(Rest, Fun, << Acc/binary, C >>).
 
 -spec cookie_value(binary(), fun()) -> any().
 cookie_value(Data, Fun) ->
@@ -1110,14 +1109,14 @@ cookie_list_test_() ->
 			{<<"name2">>, <<"value2">>}
 		]},
 		{<<"$Version=1; Customer=WILE_E_COYOTE; $Path=/acme">>, [
-			{<<"customer">>, <<"WILE_E_COYOTE">>}
+			{<<"Customer">>, <<"WILE_E_COYOTE">>}
 		]},
 		{<<"$Version=1; Customer=WILE_E_COYOTE; $Path=/acme; "
 			"Part_Number=Rocket_Launcher_0001; $Path=/acme; "
 			"Shipping=FedEx; $Path=/acme">>, [
-			{<<"customer">>, <<"WILE_E_COYOTE">>},
-			{<<"part_number">>, <<"Rocket_Launcher_0001">>},
-			{<<"shipping">>, <<"FedEx">>}
+			{<<"Customer">>, <<"WILE_E_COYOTE">>},
+			{<<"Part_Number">>, <<"Rocket_Launcher_0001">>},
+			{<<"Shipping">>, <<"FedEx">>}
 		]},
 		%% Potential edge cases (initially from Mochiweb).
 		{<<"foo=\\x">>, [{<<"foo">>, <<"\\x">>}]},
