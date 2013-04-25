@@ -106,6 +106,19 @@ each function. For example, `from_html` and `to_html` indicate
 in the first case that we're accepting a resource given as HTML,
 and in the second case that we send one as HTML.
 
+Cowboy will set informative meta values at various points of the
+execution. You can retrieve them using `cowboy_req:meta/{2,3}`.
+The values are defined in the following table.
+
+| Meta key   | Details                                              |
+| -----------| ---------------------------------------------------- |
+| media_type | The content-type negotiated for the response entity. |
+| language   | The language negotiated for the response entity.     |
+| charset    | The charset negotiated for the response entity.      |
+
+They can be used to reply a response entity to a request with
+an idempotent method (`POST`, `PUT`, `PATCH`, `DELETE`).
+
 Usage
 -----
 
