@@ -34,6 +34,7 @@ Cowboy User Guide
  *  [Static handlers](static_handlers.md)
    *  Purpose
    *  Usage
+   *  MIME type
  *  [Request object](req.md)
    *  Purpose
    *  Request
