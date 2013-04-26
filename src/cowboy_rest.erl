@@ -237,7 +237,7 @@ content_types_provided(Req, State) ->
 		{[], Req2, HandlerState} ->
 			not_acceptable(Req2, State#state{handler_state=HandlerState});
 		{CTP, Req2, HandlerState} ->
-		    CTP2 = [normalize_content_types(P) || P <- CTP],
+			CTP2 = [normalize_content_types(P) || P <- CTP],
 			State2 = State#state{
 				handler_state=HandlerState, content_types_p=CTP2},
 			case cowboy_req:parse_header(<<"accept">>, Req2) of
@@ -256,7 +256,7 @@ content_types_provided(Req, State) ->
 
 normalize_content_types({ContentType, Callback})
 		when is_binary(ContentType) ->
-    {cowboy_http:content_type(ContentType), Callback};
+	{cowboy_http:content_type(ContentType), Callback};
 normalize_content_types(Normalized) ->
 	Normalized.
 
@@ -791,7 +791,7 @@ accept_resource(Req, State) ->
 		{halt, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
 		{CTA, Req2, HandlerState} ->
-		    CTA2 = [normalize_content_types(P) || P <- CTA],
+			CTA2 = [normalize_content_types(P) || P <- CTA],
 			State2 = State#state{handler_state=HandlerState},
 			case cowboy_req:parse_header(<<"content-type">>, Req2) of
 				{ok, ContentType, Req3} ->
