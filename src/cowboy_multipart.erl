@@ -30,10 +30,6 @@
 -type end_of_part() :: {end_of_part, cont(more(part_result()))}.
 -type disposition() :: {binary(), [{binary(), binary()}]}.
 
--ifdef(TEST).
--include_lib("eunit/include/eunit.hrl").
--endif.
-
 %% API.
 
 %% @doc Return a multipart parser for the given boundary.
@@ -298,8 +294,7 @@ title(Bin) ->
 	iolist_to_binary(Title).
 
 suffix_test_() ->
-	[?_assertEqual(Part, suffix_match(Packet, pattern(Boundary))) ||
-		{Part, Packet, Boundary} <- [
+	Tests = [
 		{nomatch, <<>>, <<"ABC">>},
 		{{0, 1}, <<"\r">>, <<"ABC">>},
 		{{0, 2}, <<"\r\n">>, <<"ABC">>},
@@ -311,6 +306,8 @@ suffix_test_() ->
 		{{1, 1}, <<"1\r">>, <<"ABC">>},
 		{{2, 2}, <<"12\r\n">>, <<"ABC">>},
 		{{3, 4}, <<"123\r\n--">>, <<"ABC">>}
-	]].
+	],
+	[fun() -> Part = suffix_match(Packet, pattern(Boundary)) end ||
+		{Part, Packet, Boundary} <- Tests].
 
 -endif.

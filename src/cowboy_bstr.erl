@@ -24,10 +24,6 @@
 -export([char_to_lower/1]).
 -export([char_to_upper/1]).
 
--ifdef(TEST).
--include_lib("eunit/include/eunit.hrl").
--endif.
-
 %% @doc Capitalize a token.
 %%
 %% The first letter and all letters after a dash are capitalized.

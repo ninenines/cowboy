@@ -84,7 +84,7 @@ CT_RUN = ct_run \
 	-logdir logs
 #	-cover test/cover.spec
 
-tests: ERLC_OPTS += -DTEST=1
+tests: ERLC_OPTS += -DTEST=1  +'{parse_transform, eunit_autoexport}'
 tests: clean clean-deps deps app build-tests
 	@mkdir -p logs/
 	@$(CT_RUN) -suite eunit_SUITE http_SUITE ws_SUITE
