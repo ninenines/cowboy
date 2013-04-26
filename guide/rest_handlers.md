@@ -81,7 +81,7 @@ empty column means there is no default value for this callback.
 
 | Callback name          | Default value             |
 | ---------------------- | ------------------------- |
-| allowed_methods        | `[<<"GET">>, <<"HEAD">>]` |
+| allowed_methods        | `[<<"GET">>, <<"HEAD">>, <<"OPTIONS">>]` |
 | allow_missing_post     | `true`                    |
 | charsets_provided      | skip                      |
 | content_types_accepted |                           |
