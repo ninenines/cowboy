@@ -1,6 +1,66 @@
 CHANGELOG
 =========
 
+0.8.4
+-----
+
+ *  Cookie names are now back to being case sensitive
+
+    This should be more in line with what browsers do and what
+    users would expect.
+
+ *  REST is no longer experimental and is documented
+
+ *  REST behavior fixed when used with the POST method
+
+    Removes process_post, post_is_create, create_path, created_path
+    callbacks. It is up to the resource accept callback to decide
+    what to do when the POST method is used. Depending on the return
+    value Cowboy will determine if the resource was created or not.
+
+ *  Removes the put_path meta value in REST
+
+ *  Fix an issue in REST with the PATCH method
+
+    Content-types were not normalized as expected, preventing the
+    use of the binary form for content-types.
+
+ *  Add default operations for the OPTIONS method in REST
+
+    The default will be to set the Allow header in the response
+    based on the return value from allowed_methods.
+
+ *  Add default content_types_provided "text/html" maps to to_html
+
+    This allows non-HEAD/GET methods to work without defining
+    the callback explicitly.
+
+ *  Reject invalid content-types explicitly in REST
+
+ *  Don't accept TRACE or CONNECT methods by default in REST
+
+ *  Remove cowboy_req:peer_addr/1
+
+    Because each server's proxy situation differs, it is better
+    that this function is implemented by the application directly.
+
+    The X-Forwarded-For header can now be parsed using
+    cowboy_req:parse_header/2.
+
+ *  Switch the arguments to cowboy_req:stream_body/2
+
+    They were in the wrong order compared to the rest of the module.
+
+ *  Add parser for the Range header
+
+ *  Do not crash if connection times out while sending a file using sendfile
+
+ *  Ensure we can fetch the body in the info/3 function of loop handlers
+
+ *  Update Ranch to 0.8.1
+
+ *  Reorganize and optimize the test suites
+
 0.8.3
 -----
 
