@@ -37,6 +37,7 @@
 -export([token_ci/2]).
 -export([quoted_string/2]).
 -export([authorization/2]).
+-export([range/1]).
 
 %% Decoding.
 -export([te_chunked/2]).
@@ -843,6 +844,64 @@ authorization_basic_password(<<>>, Fun, Acc) ->
 authorization_basic_password(<<C, Rest/binary>>, Fun, Acc) ->
 	authorization_basic_password(Rest, Fun, <<Acc/binary, C>>).
 
+%% @doc Parse range header according rfc 2616.
+-spec range(binary()) -> {Unit, [Range]} | {error, badarg} when
+		Unit :: binary(),
+		Range :: {non_neg_integer(), non_neg_integer() | infinity} | neg_integer().
+range(Data) ->
+	cowboy_http:token_ci(Data, fun range/2).
+
+range(Data, Token) ->
+	whitespace(Data,
+		fun(<<"=", Rest/binary>>) ->
+			case cowboy_http:list(Rest, fun range_beginning/2) of
+				{error, badarg} ->
+					{error, badarg};
+				Ranges ->
+					{Token, Ranges}
+			end;
+		   (_) ->
+			{error, badarg}
+		end).
+
+range_beginning(Data, Fun) ->
+	range_digits(Data, suffix,
+		fun(D, RangeBeginning) ->
+			range_ending(D, Fun, RangeBeginning)
+		end).
+
+range_ending(Data, Fun, RangeBeginning) ->
+	whitespace(Data,
+		fun(<<"-", R/binary>>) ->
+			case RangeBeginning of
+				suffix ->
+					range_digits(R, fun(D, RangeEnding) -> Fun(D, -RangeEnding) end);
+				_ ->
+					range_digits(R, infinity,
+						fun(D, RangeEnding) ->
+							Fun(D, {RangeBeginning, RangeEnding})
+						end)
+			end;
+		   (_) ->
+			{error, badarg}
+		end).
+
+-spec range_digits(binary(), fun()) -> any().
+range_digits(Data, Fun) ->
+	whitespace(Data,
+		fun(D) ->
+			digits(D, Fun)
+		end).
+
+-spec range_digits(binary(), any(), fun()) -> any().
+range_digits(Data, Default, Fun) ->
+	whitespace(Data,
+		fun(<< C, Rest/binary >>) when C >= $0, C =< $9 ->
+			digits(Rest, Fun, C - $0);
+		   (_) ->
+			Fun(Data, Default)
+		end).
+
 %% Decoding.
 
 %% @doc Decode a stream of chunks.
@@ -1363,5 +1422,28 @@ http_authorization_test_() ->
 			{<<"bearer">>,<<"some_secret_key">>}}
 	],
 	[{V, fun() -> R = authorization(V,T) end} || {T, V, R} <- Tests].
+
+http_range_test_() ->
+	Tests = [
+		{<<"bytes=1-20">>,
+			{<<"bytes">>, [{1, 20}]}},
+		{<<"bytes=-100">>,
+			{<<"bytes">>, [-100]}},
+		{<<"bytes=1-">>,
+			{<<"bytes">>, [{1, infinity}]}},
+		{<<"bytes=1-20,30-40,50-">>,
+			{<<"bytes">>, [{1, 20}, {30, 40}, {50, infinity}]}},
+		{<<"bytes = 1 - 20 , 50 - , - 300 ">>,
+			{<<"bytes">>, [{1, 20}, {50, infinity}, -300]}},
+		{<<"bytes=1-20,-500,30-40">>,
+			{<<"bytes">>, [{1, 20}, -500, {30, 40}]}},
+		{<<"test=1-20,-500,30-40">>,
+			{<<"test">>, [{1, 20}, -500, {30, 40}]}},
+		{<<"bytes=-">>,
+			{error, badarg}},
+		{<<"bytes=-30,-">>,
+			{error, badarg}}
+	],
+	[fun() -> R = range(V) end ||{V, R} <- Tests].
 
 -endif.
