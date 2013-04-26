@@ -499,7 +499,8 @@ The document has moved
 	_ = [{Status, Packet} = begin
 		Ret = quick_raw(Packet, Config),
 		{Ret, Packet}
-	end || {Status, Packet} <- Tests].
+	end || {Status, Packet} <- Tests],
+	ok.
 
 check_status(Config) ->
 	Tests = [
@@ -539,7 +540,7 @@ chunked_response(Config) ->
 echo_body(Config) ->
 	Client = ?config(client, Config),
 	{ok, [{mtu, MTU}]} = inet:ifget("lo", [mtu]),
-	[begin
+	_ = [begin
 		Body = list_to_binary(lists:duplicate(Size, $a)),
 		{ok, Client2} = cowboy_client:request(<<"POST">>,
 			build_url("/echo/body", Config),
@@ -547,7 +548,8 @@ echo_body(Config) ->
 			Body, Client),
 		{ok, 200, _, Client3} = cowboy_client:response(Client2),
 		{ok, Body, _} = cowboy_client:response_body(Client3)
-	end || Size <- lists:seq(MTU - 500, MTU)].
+	end || Size <- lists:seq(MTU - 500, MTU)],
+	ok.
 
 %% Check if sending request whose size is bigger than 1000000 bytes causes 413
 echo_body_max_length(Config) ->
