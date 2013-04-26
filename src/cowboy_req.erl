@@ -115,10 +115,6 @@
 -export([lock/1]).
 -export([to_list/1]).
 
--ifdef(TEST).
--include_lib("eunit/include/eunit.hrl").
--endif.
-
 -type cookie_option() :: {max_age, non_neg_integer()}
 	| {domain, binary()} | {path, binary()}
 	| {secure, boolean()} | {http_only, boolean()}.
@@ -1471,26 +1467,20 @@ connection_to_atom_test_() ->
 	[{lists:flatten(io_lib:format("~p", [T])),
 		fun() -> R = connection_to_atom(T) end} || {T, R} <- Tests].
 
-merge_headers_test() ->
-  Left0  = [{<<"content-length">>,<<"13">>},{<<"server">>,<<"Cowboy">>}],
-  Right0 = [{<<"set-cookie">>,<<"foo=bar">>},{<<"content-length">>,<<"11">>}],
-
-  ?assertMatch(
-  [{<<"set-cookie">>,<<"foo=bar">>},
-   {<<"content-length">>,<<"13">>},
-   {<<"server">>,<<"Cowboy">>}],
-  merge_headers(Left0, Right0)),
-
-  Left1  = [{<<"content-length">>,<<"13">>},{<<"server">>,<<"Cowboy">>}],
-  Right1 = [{<<"set-cookie">>,<<"foo=bar">>},{<<"set-cookie">>,<<"bar=baz">>}],
-
-  ?assertMatch(
-  [{<<"set-cookie">>,<<"bar=baz">>},
-   {<<"set-cookie">>,<<"foo=bar">>},
-   {<<"content-length">>,<<"13">>},
-   {<<"server">>,<<"Cowboy">>}],
-  merge_headers(Left1, Right1)),
-
-  ok.
+merge_headers_test_() ->
+	Tests = [
+		{[{<<"content-length">>,<<"13">>},{<<"server">>,<<"Cowboy">>}],
+		 [{<<"set-cookie">>,<<"foo=bar">>},{<<"content-length">>,<<"11">>}],
+		 [{<<"set-cookie">>,<<"foo=bar">>},
+		  {<<"content-length">>,<<"13">>},
+		  {<<"server">>,<<"Cowboy">>}]},
+		{[{<<"content-length">>,<<"13">>},{<<"server">>,<<"Cowboy">>}],
+		 [{<<"set-cookie">>,<<"foo=bar">>},{<<"set-cookie">>,<<"bar=baz">>}],
+		 [{<<"set-cookie">>,<<"bar=baz">>},
+		  {<<"set-cookie">>,<<"foo=bar">>},
+		  {<<"content-length">>,<<"13">>},
+		  {<<"server">>,<<"Cowboy">>}]}
+	],
+	[fun() -> Res = merge_headers(L,R) end || {L, R, Res} <- Tests].
 
 -endif.

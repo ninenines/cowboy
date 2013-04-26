@@ -422,8 +422,6 @@ attr_etag_function(Args, Attrs) ->
 	{strong, list_to_binary([H|T])}.
 
 -ifdef(TEST).
--include_lib("eunit/include/eunit.hrl").
--define(_eq(E, I), ?_assertEqual(E, I)).
 
 directory_path_test_() ->
 	PL = fun(D) -> length(filename:split(directory_path(D))) end,
