@@ -28,9 +28,12 @@ Cowboy User Guide
    *  Usage
  *  [REST handlers](rest_handlers.md)
    *  Purpose
-   *  Flow diagram
-   *  Callbacks
    *  Usage
+   *  Flow diagram
+   *  Methods
+   *  Callbacks
+   *  Meta data
+   *  Response headers
  *  [Static handlers](static_handlers.md)
    *  Purpose
    *  Usage
