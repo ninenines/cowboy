@@ -82,6 +82,8 @@
 -export([static_test_file_css/1]).
 -export([stream_body_set_resp/1]).
 -export([stream_body_set_resp_close/1]).
+-export([stream_body_set_resp_chunked/1]).
+-export([stream_body_set_resp_chunked10/1]).
 -export([te_chunked/1]).
 -export([te_chunked_chopped/1]).
 -export([te_chunked_delayed/1]).
@@ -153,6 +155,8 @@ groups() ->
 		static_test_file_css,
 		stream_body_set_resp,
 		stream_body_set_resp_close,
+		stream_body_set_resp_chunked,
+		stream_body_set_resp_chunked10,
 		te_chunked,
 		te_chunked_chopped,
 		te_chunked_delayed,
@@ -338,6 +342,10 @@ init_dispatch(Config) ->
 				http_stream_body, [
 					{reply, set_resp_close},
 					{body, <<"stream_body_set_resp_close">>}]},
+			{"/stream_body/set_resp_chunked",
+				http_stream_body, [
+					{reply, set_resp_chunked},
+					{body, [<<"stream_body">>, <<"_set_resp_chunked">>]}]},
 			{"/static/[...]", cowboy_static,
 				[{directory, ?config(static_dir, Config)},
 				 {mimetypes, [{<<".css">>, [<<"text/css">>]}]}]},
@@ -1207,6 +1215,45 @@ stream_body_set_resp_close(Config) ->
 		Buffer ->
 			{ok, Rest} = Transport:recv(Socket, 26 - byte_size(Buffer), 1000),
 			<<"stream_body_set_resp_close">> = << Buffer/binary, Rest/binary >>,
+			ok
+	end,
+	{error, closed} = Transport:recv(Socket, 0, 1000).
+
+stream_body_set_resp_chunked(Config) ->
+	Client = ?config(client, Config),
+	{ok, Client2} = cowboy_client:request(<<"GET">>,
+		build_url("/stream_body/set_resp_chunked", Config), Client),
+	{ok, 200, Headers, Client3} = cowboy_client:response(Client2),
+	{_, <<"chunked">>} = lists:keyfind(<<"transfer-encoding">>, 1, Headers),
+	{ok, Transport, Socket} = cowboy_client:transport(Client3),
+	case element(7, Client3) of
+		<<"B\r\nstream_body\r\n11\r\n_set_resp_chunked\r\n0\r\n\r\n">> ->
+			ok;
+		Buffer ->
+			{ok, Rest} = Transport:recv(Socket, 44 - byte_size(Buffer), 1000),
+			<<"B\r\nstream_body\r\n11\r\n_set_resp_chunked\r\n0\r\n\r\n">>
+				= <<Buffer/binary, Rest/binary>>,
+			ok
+	end.
+
+stream_body_set_resp_chunked10(Config) ->
+	Client = ?config(client, Config),
+	Transport = ?config(transport, Config),
+	{ok, Client2} = cowboy_client:connect(
+		Transport, "localhost", ?config(port, Config), Client),
+	Data = ["GET /stream_body/set_resp_chunked HTTP/1.0\r\n",
+		"Host: localhost\r\n\r\n"],
+	{ok, Client3} = cowboy_client:raw_request(Data, Client2),
+	{ok, 200, Headers, Client4} = cowboy_client:response(Client3),
+	false = lists:keymember(<<"transfer-encoding">>, 1, Headers),
+	{ok, Transport, Socket} = cowboy_client:transport(Client4),
+	case element(7, Client4) of
+		<<"stream_body_set_resp_chunked">> ->
+			ok;
+		Buffer ->
+			{ok, Rest} = Transport:recv(Socket, 28 - byte_size(Buffer), 1000),
+			<<"stream_body_set_resp_chunked">>
+				= <<Buffer/binary, Rest/binary>>,
 			ok
 	end,
 	{error, closed} = Transport:recv(Socket, 0, 1000).

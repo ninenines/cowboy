@@ -945,6 +945,8 @@ set_resp_body(Req, State=#state{handler=Handler, handler_state=HandlerState,
 					cowboy_req:set_resp_body_fun(StreamFun, Req2);
 				{stream, Len, StreamFun} ->
 					cowboy_req:set_resp_body_fun(Len, StreamFun, Req2);
+				{chunked, StreamFun} ->
+					cowboy_req:set_resp_body_fun(chunked, StreamFun, Req2);
 				_Contents ->
 					cowboy_req:set_resp_body(Body, Req2)
 			end,
