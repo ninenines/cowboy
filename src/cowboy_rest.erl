@@ -136,8 +136,7 @@ allowed_methods(Req, State=#state{method=Method}) ->
 			State2 = State#state{handler_state=HandlerState},
 			case lists:member(Method, List) of
 				true when Method =:= <<"OPTIONS">> ->
-					next(Req2, State2#state{allowed_methods=
-						[<<"HEAD">>, <<"GET">>, <<"OPTIONS">>]},
+					next(Req2, State2#state{allowed_methods=List},
 						fun malformed_request/2);
 				true ->
 					next(Req2, State2, fun malformed_request/2);
