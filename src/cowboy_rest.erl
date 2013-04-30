@@ -145,6 +145,9 @@ allowed_methods(Req, State=#state{method=Method}) ->
 			end
 	end.
 
+method_not_allowed(Req, State, []) ->
+	Req2 = cowboy_req:set_resp_header(<<"allow">>, <<>>, Req),
+	respond(Req2, State, 405);
 method_not_allowed(Req, State, Methods) ->
 	<< ", ", Allow/binary >> = << << ", ", M/binary >> || M <- Methods >>,
 	Req2 = cowboy_req:set_resp_header(<<"allow">>, Allow, Req),
@@ -186,6 +189,9 @@ valid_entity_length(Req, State) ->
 %% you should do it directly in the options/2 call using set_resp_headers.
 options(Req, State=#state{allowed_methods=Methods, method= <<"OPTIONS">>}) ->
 	case call(Req, State, options) of
+		no_call when Methods =:= [] ->
+			Req2 = cowboy_req:set_resp_header(<<"allow">>, <<>>, Req),
+			respond(Req2, State, 200);
 		no_call ->
 			<< ", ", Allow/binary >>
 				= << << ", ", M/binary >> || M <- Methods >>,
