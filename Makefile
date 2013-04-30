@@ -1,12 +1,21 @@
 # See LICENSE for licensing information.
 
 PROJECT = cowboy
-RANCH_VSN = 0.8.1
 ERLC_OPTS ?= -Werror +debug_info +warn_export_all +warn_export_vars \
    +warn_shadow_vars +warn_obsolete_guard # +bin_opt_info +warn_missing_spec
 
+# Dependencies.
+
+dep_ranch = https://github.com/extend/ranch.git 0.8.1
+
 DEPS_DIR ?= $(CURDIR)/deps
 export DEPS_DIR
+
+define get_dep =
+	@mkdir -p $(DEPS_DIR)
+	git clone -n -- $(word 1,$(dep_$(1))) $(DEPS_DIR)/$(1)
+	cd $(DEPS_DIR)/$(1) ; git checkout -q $(word 2,$(dep_$(1)))
+endef
 
 # Makefile tweaks.
 
@@ -51,9 +60,7 @@ clean:
 # Dependencies.
 
 $(DEPS_DIR)/ranch:
-	@mkdir -p $(DEPS_DIR)
-	git clone -n -- https://github.com/extend/ranch.git $(DEPS_DIR)/ranch
-	cd $(DEPS_DIR)/ranch ; git checkout -q $(RANCH_VSN)
+	$(call get_dep,ranch)
 
 deps: $(DEPS_DIR)/ranch
 	@$(MAKE) -C $(DEPS_DIR)/ranch
