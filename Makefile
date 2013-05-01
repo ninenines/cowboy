@@ -11,7 +11,9 @@ PLT_APPS = crypto public_key ssl
 # Dependencies.
 
 DEPS = ranch
-dep_ranch = https://github.com/extend/ranch.git 0.8.1
+TEST_DEPS = ct_helper
+dep_ranch = https://github.com/extend/ranch.git 0.8.2
+dep_ct_helper = https://github.com/extend/ct_helper.git master
 
 # Standard targets.
 

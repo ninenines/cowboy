@@ -209,11 +209,8 @@ init_per_group(http, Config) ->
 		{transport, Transport}, {client, Client}|Config1];
 init_per_group(https, Config) ->
 	Transport = ranch_ssl,
-	Opts = [
-		{certfile, ?config(data_dir, Config) ++ "ssl/cert.pem"},
-		{keyfile, ?config(data_dir, Config) ++ "ssl/key.pem"},
-		{password, "cowboy"}
-	],
+	{_, Cert, Key} = ct_helper:make_certs(),
+	Opts = [{cert, Cert}, {key, Key}],
 	Config1 = init_static_dir(Config),
 	application:start(public_key),
 	application:start(ssl),
@@ -241,11 +238,8 @@ init_per_group(http_compress, Config) ->
 		{transport, Transport}, {client, Client}|Config1];
 init_per_group(https_compress, Config) ->
 	Transport = ranch_ssl,
-	Opts = [
-		{certfile, ?config(data_dir, Config) ++ "ssl/cert.pem"},
-		{keyfile, ?config(data_dir, Config) ++ "ssl/key.pem"},
-		{password, "cowboy"}
-	],
+	{_, Cert, Key} = ct_helper:make_certs(),
+	Opts = [{cert, Cert}, {key, Key}],
 	Config1 = init_static_dir(Config),
 	application:start(public_key),
 	application:start(ssl),
