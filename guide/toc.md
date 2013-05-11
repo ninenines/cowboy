@@ -28,12 +28,16 @@ Cowboy User Guide
    *  Usage
  *  [REST handlers](rest_handlers.md)
    *  Purpose
-   *  Flow diagram
-   *  Callbacks
    *  Usage
+   *  Flow diagram
+   *  Methods
+   *  Callbacks
+   *  Meta data
+   *  Response headers
  *  [Static handlers](static_handlers.md)
    *  Purpose
    *  Usage
+   *  MIME type
  *  [Request object](req.md)
    *  Purpose
    *  Request
@@ -58,3 +62,7 @@ Cowboy User Guide
    *  One process for many requests
    *  Lowercase header names
    *  Improving performance
+ *  [Resources](resources.md)
+   *  Frameworks
+   *  Helper libraries
+   *  Articles

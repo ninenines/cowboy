@@ -29,7 +29,7 @@ def install_env(env):
     subprocess.check_call(["curl", "-sS", VIRTUALENV_URL, "-o", VIRTUALENV_BIN])
     subprocess.check_call(["python", VIRTUALENV_BIN, env])
     activate_env(env)
-    subprocess.check_call([INSTALL_BIN, "http://pypi.python.org/packages/2.7/a/autobahntestsuite/autobahntestsuite-0.5.2-py2.7.egg#md5=f7480d4ca6ce4954ac05f59778de4bda"])
+    subprocess.check_call([INSTALL_BIN, "http://pypi.python.org/packages/2.7/a/autobahntestsuite/autobahntestsuite-0.5.3-py2.7.egg"])
 
 def client_config():
     """
@@ -39,13 +39,10 @@ def client_config():
         'options': {'failByDrop': False},
         'enable-ssl': False,
         'servers': [{
-             'agent': 'Cowboy/10',
+             'agent': 'Cowboy',
              'url': 'ws://localhost:33080/echo',
-             'options': {'version': 10}}, # hybi-10
-            {'agent': 'Cowboy/18',
-             'url': 'ws://localhost:33080/echo',
-             'options': {'version': 18}} # RFC6455
-        ],
+             'options': {'version': 18} # RFC6455
+        }],
         'cases': ['*'],
         'exclude-cases': [] }
     return base

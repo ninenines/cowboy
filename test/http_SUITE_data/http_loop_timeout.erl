@@ -1,6 +1,6 @@
 %% Feel free to use, reuse and abuse the code in this file.
 
--module(http_handler_loop_timeout).
+-module(http_loop_timeout).
 -behaviour(cowboy_loop_handler).
 -export([init/3, info/3, terminate/3]).
 

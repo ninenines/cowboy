@@ -1,6 +1,6 @@
 %% Feel free to use, reuse and abuse the code in this file.
 
--module(http_handler_multipart).
+-module(http_multipart).
 -behaviour(cowboy_http_handler).
 -export([init/3, handle/2, terminate/3]).
 

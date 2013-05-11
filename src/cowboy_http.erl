@@ -37,6 +37,7 @@
 -export([token_ci/2]).
 -export([quoted_string/2]).
 -export([authorization/2]).
+-export([range/1]).
 
 %% Decoding.
 -export([te_chunked/2]).
@@ -59,10 +60,6 @@
 -export_type([version/0]).
 -export_type([headers/0]).
 -export_type([status/0]).
-
--ifdef(TEST).
--include_lib("eunit/include/eunit.hrl").
--endif.
 
 %% Parsing.
 
@@ -157,8 +154,7 @@ cookie_name(Data = << C, _Rest/binary >>, Fun, Acc)
 			 C =:= $\r; C =:= $\n; C =:= $\013; C =:= $\014 ->
 	Fun(Data, Acc);
 cookie_name(<< C, Rest/binary >>, Fun, Acc) ->
-	C2 = cowboy_bstr:char_to_lower(C),
-	cookie_name(Rest, Fun, << Acc/binary, C2 >>).
+	cookie_name(Rest, Fun, << Acc/binary, C >>).
 
 -spec cookie_value(binary(), fun()) -> any().
 cookie_value(Data, Fun) ->
@@ -848,6 +844,64 @@ authorization_basic_password(<<>>, Fun, Acc) ->
 authorization_basic_password(<<C, Rest/binary>>, Fun, Acc) ->
 	authorization_basic_password(Rest, Fun, <<Acc/binary, C>>).
 
+%% @doc Parse range header according rfc 2616.
+-spec range(binary()) -> {Unit, [Range]} | {error, badarg} when
+		Unit :: binary(),
+		Range :: {non_neg_integer(), non_neg_integer() | infinity} | neg_integer().
+range(Data) ->
+	cowboy_http:token_ci(Data, fun range/2).
+
+range(Data, Token) ->
+	whitespace(Data,
+		fun(<<"=", Rest/binary>>) ->
+			case cowboy_http:list(Rest, fun range_beginning/2) of
+				{error, badarg} ->
+					{error, badarg};
+				Ranges ->
+					{Token, Ranges}
+			end;
+		   (_) ->
+			{error, badarg}
+		end).
+
+range_beginning(Data, Fun) ->
+	range_digits(Data, suffix,
+		fun(D, RangeBeginning) ->
+			range_ending(D, Fun, RangeBeginning)
+		end).
+
+range_ending(Data, Fun, RangeBeginning) ->
+	whitespace(Data,
+		fun(<<"-", R/binary>>) ->
+			case RangeBeginning of
+				suffix ->
+					range_digits(R, fun(D, RangeEnding) -> Fun(D, -RangeEnding) end);
+				_ ->
+					range_digits(R, infinity,
+						fun(D, RangeEnding) ->
+							Fun(D, {RangeBeginning, RangeEnding})
+						end)
+			end;
+		   (_) ->
+			{error, badarg}
+		end).
+
+-spec range_digits(binary(), fun()) -> any().
+range_digits(Data, Fun) ->
+	whitespace(Data,
+		fun(D) ->
+			digits(D, Fun)
+		end).
+
+-spec range_digits(binary(), any(), fun()) -> any().
+range_digits(Data, Default, Fun) ->
+	whitespace(Data,
+		fun(<< C, Rest/binary >>) when C >= $0, C =< $9 ->
+			digits(Rest, Fun, C - $0);
+		   (_) ->
+			Fun(Data, Default)
+		end).
+
 %% Decoding.
 
 %% @doc Decode a stream of chunks.
@@ -1110,14 +1164,14 @@ cookie_list_test_() ->
 			{<<"name2">>, <<"value2">>}
 		]},
 		{<<"$Version=1; Customer=WILE_E_COYOTE; $Path=/acme">>, [
-			{<<"customer">>, <<"WILE_E_COYOTE">>}
+			{<<"Customer">>, <<"WILE_E_COYOTE">>}
 		]},
 		{<<"$Version=1; Customer=WILE_E_COYOTE; $Path=/acme; "
 			"Part_Number=Rocket_Launcher_0001; $Path=/acme; "
 			"Shipping=FedEx; $Path=/acme">>, [
-			{<<"customer">>, <<"WILE_E_COYOTE">>},
-			{<<"part_number">>, <<"Rocket_Launcher_0001">>},
-			{<<"shipping">>, <<"FedEx">>}
+			{<<"Customer">>, <<"WILE_E_COYOTE">>},
+			{<<"Part_Number">>, <<"Rocket_Launcher_0001">>},
+			{<<"Shipping">>, <<"FedEx">>}
 		]},
 		%% Potential edge cases (initially from Mochiweb).
 		{<<"foo=\\x">>, [{<<"foo">>, <<"\\x">>}]},
@@ -1320,40 +1374,76 @@ x_www_form_urlencoded_test_() ->
 	[{Qs, fun() -> R = x_www_form_urlencoded(Qs) end} || {Qs, R} <- Tests].
 
 urldecode_test_() ->
-	U = fun urldecode/2,
-	[?_assertEqual(<<" ">>, U(<<"%20">>, crash)),
-	 ?_assertEqual(<<" ">>, U(<<"+">>, crash)),
-	 ?_assertEqual(<<0>>, U(<<"%00">>, crash)),
-	 ?_assertEqual(<<255>>, U(<<"%fF">>, crash)),
-	 ?_assertEqual(<<"123">>, U(<<"123">>, crash)),
-	 ?_assertEqual(<<"%i5">>, U(<<"%i5">>, skip)),
-	 ?_assertEqual(<<"%5">>, U(<<"%5">>, skip)),
-	 ?_assertError(badarg, U(<<"%i5">>, crash)),
-	 ?_assertError(badarg, U(<<"%5">>, crash))
-	].
+	F = fun(Qs, O) ->
+		try urldecode(Qs, O) of
+			R ->
+				{ok, R}
+		catch _:E ->
+			{error, E}
+		end
+	end,
+	Tests = [
+		{<<"%20">>, crash, {ok, <<" ">>}},
+		{<<"+">>, crash, {ok, <<" ">>}},
+		{<<"%00">>, crash, {ok, <<0>>}},
+		{<<"%fF">>, crash, {ok, <<255>>}},
+		{<<"123">>, crash, {ok, <<"123">>}},
+		{<<"%i5">>, skip, {ok, <<"%i5">>}},
+		{<<"%5">>, skip, {ok, <<"%5">>}},
+		{<<"%i5">>, crash, {error, badarg}},
+		{<<"%5">>, crash, {error, badarg}}
+	],
+	[{Qs, fun() -> R = F(Qs,O) end} || {Qs, O, R} <- Tests].
 
 urlencode_test_() ->
-	U = fun urlencode/2,
-	[?_assertEqual(<<"%ff%00">>, U(<<255,0>>, [])),
-	 ?_assertEqual(<<"%FF%00">>, U(<<255,0>>, [upper])),
-	 ?_assertEqual(<<"+">>, U(<<" ">>, [])),
-	 ?_assertEqual(<<"%20">>, U(<<" ">>, [noplus])),
-	 ?_assertEqual(<<"aBc">>, U(<<"aBc">>, [])),
-	 ?_assertEqual(<<".-~_">>, U(<<".-~_">>, [])),
-	 ?_assertEqual(<<"%ff+">>, urlencode(<<255, " ">>))
-	].
+	Tests = [
+		{<<255,0>>, [], <<"%ff%00">>},
+		{<<255,0>>, [upper], <<"%FF%00">>},
+		{<<" ">>, [], <<"+">>},
+		{<<" ">>, [noplus], <<"%20">>},
+		{<<"aBc">>, [], <<"aBc">>},
+		{<<".-~_">>, [], <<".-~_">>}
+	],
+	Tests2 = [{<<255, " ">>,<<"%ff+">>}],
+	[{V, fun() -> R = urlencode(V, O) end} || {V, O, R} <- Tests] ++
+	[{V, fun() -> R = urlencode(V) end} || {V, R} <- Tests2].
 
 http_authorization_test_() ->
-	[?_assertEqual({<<"basic">>, {<<"Alladin">>, <<"open sesame">>}},
-		authorization(<<"QWxsYWRpbjpvcGVuIHNlc2FtZQ==">>, <<"basic">>)),
-	 ?_assertEqual({error, badarg},
-		authorization(<<"dXNlcm5hbWUK">>, <<"basic">>)),
-	 ?_assertEqual({error, badarg},
-		authorization(<<"_[]@#$%^&*()-AA==">>, <<"basic">>)),
-	 ?_assertEqual({error, badarg},
-		authorization(<<"dXNlcjpwYXNzCA==">>, <<"basic">>)), %% user:pass\010
-	 ?_assertEqual({<<"bearer">>,<<"some_secret_key">>},
-		authorization(<<" some_secret_key">>, <<"bearer">>))
-	].
+	Tests = [
+		{<<"basic">>, <<"QWxsYWRpbjpvcGVuIHNlc2FtZQ==">>,
+			{<<"basic">>, {<<"Alladin">>, <<"open sesame">>}}},
+		{<<"basic">>, <<"dXNlcm5hbWUK">>,
+			{error, badarg}},
+		{<<"basic">>, <<"_[]@#$%^&*()-AA==">>,
+			{error, badarg}},
+		{<<"basic">>, <<"dXNlcjpwYXNzCA==">>,
+			{error, badarg}},
+		{<<"bearer">>, <<" some_secret_key">>,
+			{<<"bearer">>,<<"some_secret_key">>}}
+	],
+	[{V, fun() -> R = authorization(V,T) end} || {T, V, R} <- Tests].
+
+http_range_test_() ->
+	Tests = [
+		{<<"bytes=1-20">>,
+			{<<"bytes">>, [{1, 20}]}},
+		{<<"bytes=-100">>,
+			{<<"bytes">>, [-100]}},
+		{<<"bytes=1-">>,
+			{<<"bytes">>, [{1, infinity}]}},
+		{<<"bytes=1-20,30-40,50-">>,
+			{<<"bytes">>, [{1, 20}, {30, 40}, {50, infinity}]}},
+		{<<"bytes = 1 - 20 , 50 - , - 300 ">>,
+			{<<"bytes">>, [{1, 20}, {50, infinity}, -300]}},
+		{<<"bytes=1-20,-500,30-40">>,
+			{<<"bytes">>, [{1, 20}, -500, {30, 40}]}},
+		{<<"test=1-20,-500,30-40">>,
+			{<<"test">>, [{1, 20}, -500, {30, 40}]}},
+		{<<"bytes=-">>,
+			{error, badarg}},
+		{<<"bytes=-30,-">>,
+			{error, badarg}}
+	],
+	[fun() -> R = range(V) end ||{V, R} <- Tests].
 
 -endif.

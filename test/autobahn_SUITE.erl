@@ -76,7 +76,7 @@ end_per_group(Listener, _Config) ->
 
 init_dispatch() ->
 	cowboy_router:compile([{"localhost", [
-		{"/echo", websocket_echo_handler, []}]}]).
+		{"/echo", autobahn_echo, []}]}]).
 
 %% autobahn cases
 

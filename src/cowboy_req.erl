@@ -29,8 +29,7 @@
 %% </dl>
 %%
 %% Exceptions include <em>chunk/2</em> which always returns <em>'ok'</em>,
-%% <em>to_list/1</em> which returns a list of key/values,
-%% and <em>transport/1</em> which returns <em>{ok, Transport, Socket}</em>.
+%% and <em>to_list/1</em> which returns a list of key/values.
 %%
 %% Also note that all body reading functions perform actions, as Cowboy
 %% doesn't read the request body until they are called.
@@ -46,7 +45,6 @@
 -export([method/1]).
 -export([version/1]).
 -export([peer/1]).
--export([peer_addr/1]).
 -export([host/1]).
 -export([host_info/1]).
 -export([port/1]).
@@ -78,8 +76,8 @@
 -export([has_body/1]).
 -export([body_length/1]).
 -export([init_stream/4]).
--export([init_stream/5]).
 -export([stream_body/1]).
+-export([stream_body/2]).
 -export([skip_body/1]).
 -export([body/1]).
 -export([body/2]).
@@ -117,10 +115,6 @@
 -export([lock/1]).
 -export([to_list/1]).
 
--ifdef(TEST).
--include_lib("eunit/include/eunit.hrl").
--endif.
-
 -type cookie_option() :: {max_age, non_neg_integer()}
 	| {domain, binary()} | {path, binary()}
 	| {secure, boolean()} | {http_only, boolean()}.
@@ -128,6 +122,8 @@
 -export_type([cookie_opts/0]).
 
 -type resp_body_fun() :: fun((inet:socket(), module()) -> ok).
+-type send_chunk_fun() :: fun((iodata()) -> ok | {error, atom()}).
+-type resp_chunked_fun() :: fun((send_chunk_fun()) -> ok).
 
 -record(http_req, {
 	%% Transport.
@@ -155,8 +151,8 @@
 	meta = [] :: [{atom(), any()}],
 
 	%% Request body.
-	body_state = waiting :: waiting | done | {stream,
-		non_neg_integer(), non_neg_integer(), fun(), any(), fun()},
+	body_state = waiting :: waiting | done
+		| {stream, non_neg_integer(), fun(), any(), fun()},
 	multipart = undefined :: undefined | {non_neg_integer(), fun()},
 	buffer = <<>> :: binary(),
 
@@ -165,7 +161,8 @@
 	resp_state = waiting :: locked | waiting | chunks | done,
 	resp_headers = [] :: cowboy_http:headers(),
 	resp_body = <<>> :: iodata() | resp_body_fun()
-		| {non_neg_integer(), resp_body_fun()},
+		| {non_neg_integer(), resp_body_fun()}
+		| {chunked, resp_chunked_fun()},
 
 	%% Functions.
 	onresponse = undefined :: undefined | already_called
@@ -229,29 +226,6 @@ version(Req) ->
 	when Req::req().
 peer(Req) ->
 	{Req#http_req.peer, Req}.
-
-%% @doc Returns the peer address calculated from headers.
--spec peer_addr(Req) -> {inet:ip_address(), Req} when Req::req().
-peer_addr(Req = #http_req{}) ->
-	{RealIp, Req1} = header(<<"x-real-ip">>, Req),
-	{ForwardedForRaw, Req2} = header(<<"x-forwarded-for">>, Req1),
-	{{PeerIp, _PeerPort}, Req3} = peer(Req2),
-	ForwardedFor = case ForwardedForRaw of
-		undefined ->
-			undefined;
-		ForwardedForRaw ->
-			case re:run(ForwardedForRaw, "^(?<first_ip>[^\\,]+)",
-					[{capture, [first_ip], binary}]) of
-				{match, [FirstIp]} -> FirstIp;
-				_Any -> undefined
-			end
-	end,
-	{ok, PeerAddr} = if
-		is_binary(RealIp) -> inet_parse:address(binary_to_list(RealIp));
-		is_binary(ForwardedFor) -> inet_parse:address(binary_to_list(ForwardedFor));
-		true -> {ok, PeerIp}
-	end,
-	{PeerAddr, Req3}.
 
 %% @doc Return the host binary string.
 -spec host(Req) -> {binary(), Req} when Req::req().
@@ -426,61 +400,63 @@ parse_header_default(_Name) -> undefined.
 -spec parse_header(binary(), Req, any())
 	-> {ok, any(), Req} | {undefined, binary(), Req}
 	| {error, badarg} when Req::req().
-parse_header(Name, Req, Default) when Name =:= <<"accept">> ->
+parse_header(Name = <<"accept">>, Req, Default) ->
 	parse_header(Name, Req, Default,
 		fun (Value) ->
 			cowboy_http:list(Value, fun cowboy_http:media_range/2)
 		end);
-parse_header(Name, Req, Default) when Name =:= <<"accept-charset">> ->
+parse_header(Name = <<"accept-charset">>, Req, Default) ->
 	parse_header(Name, Req, Default,
 		fun (Value) ->
 			cowboy_http:nonempty_list(Value, fun cowboy_http:conneg/2)
 		end);
-parse_header(Name, Req, Default) when Name =:= <<"accept-encoding">> ->
+parse_header(Name = <<"accept-encoding">>, Req, Default) ->
 	parse_header(Name, Req, Default,
 		fun (Value) ->
 			cowboy_http:list(Value, fun cowboy_http:conneg/2)
 		end);
-parse_header(Name, Req, Default) when Name =:= <<"accept-language">> ->
+parse_header(Name = <<"accept-language">>, Req, Default) ->
 	parse_header(Name, Req, Default,
 		fun (Value) ->
 			cowboy_http:nonempty_list(Value, fun cowboy_http:language_range/2)
 		end);
-parse_header(Name, Req, Default) when Name =:= <<"authorization">> ->
+parse_header(Name = <<"authorization">>, Req, Default) ->
 	parse_header(Name, Req, Default,
 		fun (Value) ->
 			cowboy_http:token_ci(Value, fun cowboy_http:authorization/2)
 		end);
-parse_header(Name, Req, Default) when Name =:= <<"content-length">> ->
+parse_header(Name = <<"content-length">>, Req, Default) ->
 	parse_header(Name, Req, Default, fun cowboy_http:digits/1);
-parse_header(Name, Req, Default) when Name =:= <<"content-type">> ->
+parse_header(Name = <<"content-type">>, Req, Default) ->
 	parse_header(Name, Req, Default, fun cowboy_http:content_type/1);
 parse_header(Name = <<"cookie">>, Req, Default) ->
 	parse_header(Name, Req, Default, fun cowboy_http:cookie_list/1);
-parse_header(Name, Req, Default) when Name =:= <<"expect">> ->
+parse_header(Name = <<"expect">>, Req, Default) ->
 	parse_header(Name, Req, Default,
 		fun (Value) ->
 			cowboy_http:nonempty_list(Value, fun cowboy_http:expectation/2)
 		end);
 parse_header(Name, Req, Default)
-		when Name =:= <<"if-match">>; Name =:= <<"if-none-match">> ->
+		when Name =:= <<"if-match">>;
+			Name =:= <<"if-none-match">> ->
 	parse_header(Name, Req, Default, fun cowboy_http:entity_tag_match/1);
 parse_header(Name, Req, Default)
 		when Name =:= <<"if-modified-since">>;
 			Name =:= <<"if-unmodified-since">> ->
 	parse_header(Name, Req, Default, fun cowboy_http:http_date/1);
-parse_header(Name, Req, Default) when Name =:= <<"sec-websocket-protocol">> ->
+parse_header(Name = <<"range">>, Req, Default) ->
+	parse_header(Name, Req, Default, fun cowboy_http:range/1);
+parse_header(Name, Req, Default)
+		when Name =:= <<"sec-websocket-protocol">>;
+			Name =:= <<"x-forwarded-for">> ->
 	parse_header(Name, Req, Default,
 		fun (Value) ->
 			cowboy_http:nonempty_list(Value, fun cowboy_http:token/2)
 		end);
 %% @todo Extension parameters.
-parse_header(Name, Req, Default) when Name =:= <<"transfer-encoding">> ->
-	parse_header(Name, Req, Default,
-		fun (Value) ->
-			cowboy_http:nonempty_list(Value, fun cowboy_http:token_ci/2)
-		end);
-parse_header(Name, Req, Default) when Name =:= <<"upgrade">> ->
+parse_header(Name, Req, Default)
+		when Name =:= <<"transfer-encoding">>;
+			Name =:= <<"upgrade">> ->
 	parse_header(Name, Req, Default,
 		fun (Value) ->
 			cowboy_http:nonempty_list(Value, fun cowboy_http:token_ci/2)
@@ -566,7 +542,7 @@ set_meta(Name, Value, Req=#http_req{meta=Meta}) ->
 %% Request Body API.
 
 %% @doc Return whether the request message has a body.
--spec has_body(cowboy_req:req()) -> boolean().
+-spec has_body(req()) -> boolean().
 has_body(Req) ->
 	case lists:keyfind(<<"content-length">>, 1, Req#http_req.headers) of
 		{_, <<"0">>} ->
@@ -591,17 +567,11 @@ body_length(Req) ->
 			{undefined, Req2}
 	end.
 
-%% @equiv init_stream(1000000, TransferDecode, TransferState, ContentDecode, Req)
--spec init_stream(fun(), any(), fun(), Req)
-	-> {ok, Req} when Req::req().
-init_stream(TransferDecode, TransferState, ContentDecode, Req) ->
-	init_stream(1000000, TransferDecode, TransferState, ContentDecode, Req).
-
 %% @doc Initialize body streaming and set custom decoding functions.
 %%
 %% Calling this function is optional. It should only be used if you
 %% need to override the default behavior of Cowboy. Otherwise you
-%% should call stream_body/1 directly.
+%% should call stream_body/{1,2} directly.
 %%
 %% Two decodings happen. First a decoding function is applied to the
 %% transferred data, and then another is applied to the actual content.
@@ -613,27 +583,36 @@ init_stream(TransferDecode, TransferState, ContentDecode, Req) ->
 %% Content encoding is generally used for compression.
 %%
 %% Standard encodings can be found in cowboy_http.
--spec init_stream(non_neg_integer(), fun(), any(), fun(), Req)
+-spec init_stream(fun(), any(), fun(), Req)
 	-> {ok, Req} when Req::req().
-init_stream(MaxLength, TransferDecode, TransferState, ContentDecode, Req) ->
+init_stream(TransferDecode, TransferState, ContentDecode, Req) ->
 	{ok, Req#http_req{body_state=
-		{stream, 0, MaxLength, TransferDecode, TransferState, ContentDecode}}}.
+		{stream, 0, TransferDecode, TransferState, ContentDecode}}}.
+
+%% @equiv stream_body(1000000, Req)
+-spec stream_body(Req) -> {ok, binary(), Req}
+	| {done, Req} | {error, atom()} when Req::req().
+stream_body(Req) ->
+	stream_body(1000000, Req).
 
 %% @doc Stream the request's body.
 %%
 %% This is the most low level function to read the request body.
 %%
-%% In most cases, if they weren't defined before using stream_body/4,
+%% In most cases, if they weren't defined before using init_stream/4,
 %% this function will guess which transfer and content encodings were
 %% used for building the request body, and configure the decoding
 %% functions that will be used when streaming.
 %%
 %% It then starts streaming the body, returning {ok, Data, Req}
 %% for each streamed part, and {done, Req} when it's finished streaming.
--spec stream_body(Req) -> {ok, binary(), Req}
+%%
+%% You can limit the size of the chunks being returned by using the
+%% second argument which is the size in bytes. It defaults to 1000000 bytes.
+-spec stream_body(non_neg_integer(), Req) -> {ok, binary(), Req}
 	| {done, Req} | {error, atom()} when Req::req().
-stream_body(Req=#http_req{body_state=waiting,
-		version=Version, transport=Transport, socket=Socket}) ->
+stream_body(MaxLength, Req=#http_req{body_state=waiting, version=Version,
+		transport=Transport, socket=Socket}) ->
 	{ok, ExpectHeader, Req1} = parse_header(<<"expect">>, Req),
 	case ExpectHeader of
 		[<<"100-continue">>] ->
@@ -645,8 +624,8 @@ stream_body(Req=#http_req{body_state=waiting,
 	end,
 	case parse_header(<<"transfer-encoding">>, Req1) of
 		{ok, [<<"chunked">>], Req2} ->
-			stream_body(Req2#http_req{body_state=
-				{stream, 0, 1000000,
+			stream_body(MaxLength, Req2#http_req{body_state=
+				{stream, 0,
 					fun cowboy_http:te_chunked/2, {0, 0},
 					fun cowboy_http:ce_identity/1}});
 		{ok, [<<"identity">>], Req2} ->
@@ -655,25 +634,25 @@ stream_body(Req=#http_req{body_state=waiting,
 				0 ->
 					{done, Req3#http_req{body_state=done}};
 				Length ->
-					stream_body(Req3#http_req{body_state=
-						{stream, Length, 1000000,
+					stream_body(MaxLength, Req3#http_req{body_state=
+						{stream, Length,
 							fun cowboy_http:te_identity/2, {0, Length},
 							fun cowboy_http:ce_identity/1}})
 			end
 	end;
-stream_body(Req=#http_req{body_state=done}) ->
+stream_body(_, Req=#http_req{body_state=done}) ->
 	{done, Req};
-stream_body(Req=#http_req{buffer=Buffer})
+stream_body(_, Req=#http_req{buffer=Buffer})
 		when Buffer =/= <<>> ->
 	transfer_decode(Buffer, Req#http_req{buffer= <<>>});
-stream_body(Req) ->
-	stream_body_recv(Req).
+stream_body(MaxLength, Req) ->
+	stream_body_recv(MaxLength, Req).
 
--spec stream_body_recv(Req)
+-spec stream_body_recv(non_neg_integer(), Req)
 	-> {ok, binary(), Req} | {error, atom()} when Req::req().
-stream_body_recv(Req=#http_req{
+stream_body_recv(MaxLength, Req=#http_req{
 		transport=Transport, socket=Socket, buffer=Buffer,
-		body_state={stream, Length, MaxLength, _, _, _}}) ->
+		body_state={stream, Length, _, _, _}}) ->
 	%% @todo Allow configuring the timeout.
 	case Transport:recv(Socket, min(Length, MaxLength), 5000) of
 		{ok, Data} -> transfer_decode(<< Buffer/binary, Data/binary >>,
@@ -683,20 +662,20 @@ stream_body_recv(Req=#http_req{
 
 -spec transfer_decode(binary(), Req)
 	-> {ok, binary(), Req} | {error, atom()} when Req::req().
-transfer_decode(Data, Req=#http_req{body_state={stream, _, MaxLength,
+transfer_decode(Data, Req=#http_req{body_state={stream, _,
 		TransferDecode, TransferState, ContentDecode}}) ->
 	case TransferDecode(Data, TransferState) of
 		{ok, Data2, Rest, TransferState2} ->
 			content_decode(ContentDecode, Data2,
-				Req#http_req{buffer=Rest, body_state={stream, 0, MaxLength,
+				Req#http_req{buffer=Rest, body_state={stream, 0,
 				TransferDecode, TransferState2, ContentDecode}});
 		%% @todo {header(s) for chunked
 		more ->
-			stream_body_recv(Req#http_req{buffer=Data, body_state={stream,
-				0, MaxLength, TransferDecode, TransferState, ContentDecode}});
+			stream_body_recv(0, Req#http_req{buffer=Data, body_state={stream,
+				0, TransferDecode, TransferState, ContentDecode}});
 		{more, Length, Data2, TransferState2} ->
 			content_decode(ContentDecode, Data2,
-				Req#http_req{body_state={stream, Length, MaxLength,
+				Req#http_req{body_state={stream, Length,
 				TransferDecode, TransferState2, ContentDecode}});
 		{done, Length, Rest} ->
 			Req2 = transfer_decode_done(Length, Rest, Req),
@@ -916,10 +895,15 @@ set_resp_body_fun(StreamFun, Req) when is_function(StreamFun) ->
 %% If the body function crashes while writing the response body or writes
 %% fewer bytes than declared the behaviour is undefined.
 -spec set_resp_body_fun(non_neg_integer(), resp_body_fun(), Req)
+	-> Req when Req::req();
+	(chunked, resp_chunked_fun(), Req)
 	-> Req when Req::req().
 set_resp_body_fun(StreamLen, StreamFun, Req)
 		when is_integer(StreamLen), is_function(StreamFun) ->
-	Req#http_req{resp_body={StreamLen, StreamFun}}.
+	Req#http_req{resp_body={StreamLen, StreamFun}};
+set_resp_body_fun(chunked, StreamFun, Req)
+		when is_function(StreamFun) ->
+	Req#http_req{resp_body={chunked, StreamFun}}.
 
 %% @doc Return whether the given header has been set for the response.
 -spec has_resp_header(binary(), req()) -> boolean().
@@ -929,6 +913,8 @@ has_resp_header(Name, #http_req{resp_headers=RespHeaders}) ->
 %% @doc Return whether a body has been set for the response.
 -spec has_resp_body(req()) -> boolean().
 has_resp_body(#http_req{resp_body=RespBody}) when is_function(RespBody) ->
+	true;
+has_resp_body(#http_req{resp_body={chunked, _}}) ->
 	true;
 has_resp_body(#http_req{resp_body={Length, _}}) ->
 	Length > 0;
@@ -981,6 +967,20 @@ reply(Status, Headers, Body, Req=#http_req{
 				true -> ok
 			end,
 			Req2#http_req{connection=RespConn};
+		{chunked, BodyFun} ->
+			%% We stream the response body in chunks.
+			{RespType, Req2} = chunked_response(Status, Headers, Req),
+			if	RespType =/= hook, Method =/= <<"HEAD">> ->
+					ChunkFun = fun(IoData) -> chunk(IoData, Req2) end,
+					BodyFun(ChunkFun),
+					%% Terminate the chunked body for HTTP/1.1 only.
+					_ = case Version of
+						{1, 0} -> ok;
+						_ -> Transport:send(Socket, <<"0\r\n\r\n">>)
+					end;
+				true -> ok
+			end,
+			Req2;
 		{ContentLength, BodyFun} ->
 			%% We stream the response body for ContentLength bytes.
 			RespConn = response_connection(Headers, Connection),
@@ -1010,8 +1010,7 @@ reply(Status, Headers, Body, Req=#http_req{
 reply_may_compress(Status, Headers, Body, Req,
 		RespHeaders, HTTP11Headers, Method) ->
 	BodySize = iolist_size(Body),
-	{ok, Encodings, Req2}
-		= cowboy_req:parse_header(<<"accept-encoding">>, Req),
+	{ok, Encodings, Req2} = parse_header(<<"accept-encoding">>, Req),
 	CanGzip = (BodySize > 300)
 		andalso (false =:= lists:keyfind(<<"content-encoding">>,
 			1, Headers))
@@ -1060,22 +1059,9 @@ chunked_reply(Status, Req) ->
 %% @see cowboy_req:chunk/2
 -spec chunked_reply(cowboy_http:status(), cowboy_http:headers(), Req)
 	-> {ok, Req} when Req::req().
-chunked_reply(Status, Headers, Req=#http_req{
-		version=Version, connection=Connection,
-		resp_state=waiting, resp_headers=RespHeaders}) ->
-	RespConn = response_connection(Headers, Connection),
-	HTTP11Headers = case Version of
-		{1, 1} -> [
-			{<<"connection">>, atom_to_connection(Connection)},
-			{<<"transfer-encoding">>, <<"chunked">>}];
-		_ -> []
-	end,
-	{_, Req2} = response(Status, Headers, RespHeaders, [
-		{<<"date">>, cowboy_clock:rfc1123()},
-		{<<"server">>, <<"Cowboy">>}
-	|HTTP11Headers], <<>>, Req),
-	{ok, Req2#http_req{connection=RespConn, resp_state=chunks,
-		resp_headers=[], resp_body= <<>>}}.
+chunked_reply(Status, Headers, Req) ->
+	{_, Req2} = chunked_response(Status, Headers, Req),
+	{ok, Req2}.
 
 %% @doc Send a chunk of data.
 %%
@@ -1229,6 +1215,25 @@ to_list(Req) ->
 	lists:zip(record_info(fields, http_req), tl(tuple_to_list(Req))).
 
 %% Internal.
+
+-spec chunked_response(cowboy_http:status(), cowboy_http:headers(), Req) ->
+	{normal | hook, Req} when Req::req().
+chunked_response(Status, Headers, Req=#http_req{
+		version=Version, connection=Connection,
+		resp_state=waiting, resp_headers=RespHeaders}) ->
+	RespConn = response_connection(Headers, Connection),
+	HTTP11Headers = case Version of
+		{1, 1} -> [
+			{<<"connection">>, atom_to_connection(Connection)},
+			{<<"transfer-encoding">>, <<"chunked">>}];
+		_ -> []
+	end,
+	{RespType, Req2} = response(Status, Headers, RespHeaders, [
+		{<<"date">>, cowboy_clock:rfc1123()},
+		{<<"server">>, <<"Cowboy">>}
+	|HTTP11Headers], <<>>, Req),
+	{RespType, Req2#http_req{connection=RespConn, resp_state=chunks,
+			resp_headers=[], resp_body= <<>>}}.
 
 -spec response(cowboy_http:status(), cowboy_http:headers(),
 	cowboy_http:headers(), cowboy_http:headers(), iodata(), Req)
@@ -1494,26 +1499,20 @@ connection_to_atom_test_() ->
 	[{lists:flatten(io_lib:format("~p", [T])),
 		fun() -> R = connection_to_atom(T) end} || {T, R} <- Tests].
 
-merge_headers_test() ->
-  Left0  = [{<<"content-length">>,<<"13">>},{<<"server">>,<<"Cowboy">>}],
-  Right0 = [{<<"set-cookie">>,<<"foo=bar">>},{<<"content-length">>,<<"11">>}],
-
-  ?assertMatch(
-  [{<<"set-cookie">>,<<"foo=bar">>},
-   {<<"content-length">>,<<"13">>},
-   {<<"server">>,<<"Cowboy">>}],
-  merge_headers(Left0, Right0)),
-
-  Left1  = [{<<"content-length">>,<<"13">>},{<<"server">>,<<"Cowboy">>}],
-  Right1 = [{<<"set-cookie">>,<<"foo=bar">>},{<<"set-cookie">>,<<"bar=baz">>}],
-
-  ?assertMatch(
-  [{<<"set-cookie">>,<<"bar=baz">>},
-   {<<"set-cookie">>,<<"foo=bar">>},
-   {<<"content-length">>,<<"13">>},
-   {<<"server">>,<<"Cowboy">>}],
-  merge_headers(Left1, Right1)),
-
-  ok.
+merge_headers_test_() ->
+	Tests = [
+		{[{<<"content-length">>,<<"13">>},{<<"server">>,<<"Cowboy">>}],
+		 [{<<"set-cookie">>,<<"foo=bar">>},{<<"content-length">>,<<"11">>}],
+		 [{<<"set-cookie">>,<<"foo=bar">>},
+		  {<<"content-length">>,<<"13">>},
+		  {<<"server">>,<<"Cowboy">>}]},
+		{[{<<"content-length">>,<<"13">>},{<<"server">>,<<"Cowboy">>}],
+		 [{<<"set-cookie">>,<<"foo=bar">>},{<<"set-cookie">>,<<"bar=baz">>}],
+		 [{<<"set-cookie">>,<<"bar=baz">>},
+		  {<<"set-cookie">>,<<"foo=bar">>},
+		  {<<"content-length">>,<<"13">>},
+		  {<<"server">>,<<"Cowboy">>}]}
+	],
+	[fun() -> Res = merge_headers(L,R) end || {L, R, Res} <- Tests].
 
 -endif.

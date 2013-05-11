@@ -54,15 +54,17 @@
 -export([pipeline/1]).
 -export([pipeline_long_polling/1]).
 -export([rest_bad_accept/1]).
--export([rest_created_path/1]).
+-export([rest_bad_content_type/1]).
 -export([rest_expires/1]).
 -export([rest_keepalive/1]).
 -export([rest_keepalive_post/1]).
 -export([rest_missing_get_callbacks/1]).
 -export([rest_missing_put_callbacks/1]).
 -export([rest_nodelete/1]).
+-export([rest_options_default/1]).
 -export([rest_param_all/1]).
 -export([rest_patch/1]).
+-export([rest_postonly/1]).
 -export([rest_resource_etags/1]).
 -export([rest_resource_etags_if_none_match/1]).
 -export([set_env_dispatch/1]).
@@ -80,6 +82,8 @@
 -export([static_test_file_css/1]).
 -export([stream_body_set_resp/1]).
 -export([stream_body_set_resp_close/1]).
+-export([stream_body_set_resp_chunked/1]).
+-export([stream_body_set_resp_chunked10/1]).
 -export([te_chunked/1]).
 -export([te_chunked_chopped/1]).
 -export([te_chunked_delayed/1]).
@@ -124,15 +128,17 @@ groups() ->
 		pipeline,
 		pipeline_long_polling,
 		rest_bad_accept,
-		rest_created_path,
+		rest_bad_content_type,
 		rest_expires,
 		rest_keepalive,
 		rest_keepalive_post,
 		rest_missing_get_callbacks,
 		rest_missing_put_callbacks,
 		rest_nodelete,
+		rest_options_default,
 		rest_param_all,
 		rest_patch,
+		rest_postonly,
 		rest_resource_etags,
 		rest_resource_etags_if_none_match,
 		set_resp_body,
@@ -149,6 +155,8 @@ groups() ->
 		static_test_file_css,
 		stream_body_set_resp,
 		stream_body_set_resp_close,
+		stream_body_set_resp_chunked,
+		stream_body_set_resp_chunked10,
 		te_chunked,
 		te_chunked_chopped,
 		te_chunked_delayed,
@@ -201,11 +209,8 @@ init_per_group(http, Config) ->
 		{transport, Transport}, {client, Client}|Config1];
 init_per_group(https, Config) ->
 	Transport = ranch_ssl,
-	Opts = [
-		{certfile, ?config(data_dir, Config) ++ "cert.pem"},
-		{keyfile, ?config(data_dir, Config) ++ "key.pem"},
-		{password, "cowboy"}
-	],
+	{_, Cert, Key} = ct_helper:make_certs(),
+	Opts = [{cert, Cert}, {key, Key}],
 	Config1 = init_static_dir(Config),
 	application:start(public_key),
 	application:start(ssl),
@@ -233,11 +238,8 @@ init_per_group(http_compress, Config) ->
 		{transport, Transport}, {client, Client}|Config1];
 init_per_group(https_compress, Config) ->
 	Transport = ranch_ssl,
-	Opts = [
-		{certfile, ?config(data_dir, Config) ++ "cert.pem"},
-		{keyfile, ?config(data_dir, Config) ++ "key.pem"},
-		{password, "cowboy"}
-	],
+	{_, Cert, Key} = ct_helper:make_certs(),
+	Opts = [{cert, Cert}, {key, Key}],
 	Config1 = init_static_dir(Config),
 	application:start(public_key),
 	application:start(ssl),
@@ -317,23 +319,27 @@ end_per_group(Name, _) ->
 init_dispatch(Config) ->
 	cowboy_router:compile([
 		{"localhost", [
-			{"/chunked_response", chunked_handler, []},
-			{"/init_shutdown", http_handler_init_shutdown, []},
-			{"/long_polling", http_handler_long_polling, []},
+			{"/chunked_response", http_chunked, []},
+			{"/init_shutdown", http_init_shutdown, []},
+			{"/long_polling", http_long_polling, []},
 			{"/headers/dupe", http_handler,
 				[{headers, [{<<"connection">>, <<"close">>}]}]},
-			{"/set_resp/header", http_handler_set_resp,
+			{"/set_resp/header", http_set_resp,
 				[{headers, [{<<"vary">>, <<"Accept">>}]}]},
-			{"/set_resp/overwrite", http_handler_set_resp,
+			{"/set_resp/overwrite", http_set_resp,
 				[{headers, [{<<"server">>, <<"DesireDrive/1.0">>}]}]},
-			{"/set_resp/body", http_handler_set_resp,
+			{"/set_resp/body", http_set_resp,
 				[{body, <<"A flameless dance does not equal a cycle">>}]},
-			{"/stream_body/set_resp", http_handler_stream_body,
+			{"/stream_body/set_resp", http_stream_body,
 				[{reply, set_resp}, {body, <<"stream_body_set_resp">>}]},
 			{"/stream_body/set_resp_close",
-				http_handler_stream_body, [
+				http_stream_body, [
 					{reply, set_resp_close},
 					{body, <<"stream_body_set_resp_close">>}]},
+			{"/stream_body/set_resp_chunked",
+				http_stream_body, [
+					{reply, set_resp_chunked},
+					{body, [<<"stream_body">>, <<"_set_resp_chunked">>]}]},
 			{"/static/[...]", cowboy_static,
 				[{directory, ?config(static_dir, Config)},
 				 {mimetypes, [{<<".css">>, [<<"text/css">>]}]}]},
@@ -341,7 +347,7 @@ init_dispatch(Config) ->
 				[{directory, ?config(static_dir, Config)},
 				 {mimetypes, {fun(Path, data) when is_binary(Path) ->
 					[<<"text/html">>] end, data}}]},
-			{"/handler_errors", http_handler_errors, []},
+			{"/handler_errors", http_errors, []},
 			{"/static_attribute_etag/[...]", cowboy_static,
 				[{directory, ?config(static_dir, Config)},
 				 {etag, {attributes, [filepath, filesize, inode, mtime]}}]},
@@ -352,22 +358,25 @@ init_dispatch(Config) ->
 				[{directory, ?config(static_dir, Config)},
 				 {mimetypes, [{<<".css">>, [<<"text/css">>]}]},
 				 {file, <<"test_file.css">>}]},
-			{"/multipart", http_handler_multipart, []},
-			{"/echo/body", http_handler_echo_body, []},
-			{"/echo/body_qs", http_handler_body_qs, []},
+			{"/multipart", http_multipart, []},
+			{"/echo/body", http_echo_body, []},
+			{"/echo/body_qs", http_body_qs, []},
 			{"/param_all", rest_param_all, []},
 			{"/bad_accept", rest_simple_resource, []},
+			{"/bad_content_type", rest_patch_resource, []},
 			{"/simple", rest_simple_resource, []},
 			{"/forbidden_post", rest_forbidden_resource, [true]},
 			{"/simple_post", rest_forbidden_resource, [false]},
 			{"/missing_get_callbacks", rest_missing_callbacks, []},
 			{"/missing_put_callbacks", rest_missing_callbacks, []},
 			{"/nodelete", rest_nodelete_resource, []},
+			{"/postonly", rest_postonly_resource, []},
 			{"/patch", rest_patch_resource, []},
-			{"/created_path", rest_created_path_resource, []},
 			{"/resetags", rest_resource_etags, []},
 			{"/rest_expires", rest_expires, []},
-			{"/loop_timeout", http_handler_loop_timeout, []},
+			{"/rest_empty_resource", rest_empty_resource, []},
+			{"/loop_recv", http_loop_recv, []},
+			{"/loop_timeout", http_loop_timeout, []},
 			{"/", http_handler, []}
 		]}
 	]).
@@ -466,6 +475,8 @@ The document has moved
 			"Set-Cookie: ", HugeCookie, "\r\n\r\n"]},
 		{200, "\r\n\r\n\r\n\r\n\r\nGET / HTTP/1.1\r\nHost: localhost\r\n\r\n"},
 		{200, "GET http://proxy/ HTTP/1.1\r\nHost: localhost\r\n\r\n"},
+		{200, <<"POST /loop_recv HTTP/1.1\r\nHost: localhost\r\n"
+			"Content-Length: 100000\r\n\r\n", 0:100000/unit:8 >>},
 		{400, "\n"},
 		{400, "Garbage\r\n\r\n"},
 		{400, "\r\n\r\n\r\n\r\n\r\n\r\n"},
@@ -490,7 +501,8 @@ The document has moved
 	_ = [{Status, Packet} = begin
 		Ret = quick_raw(Packet, Config),
 		{Ret, Packet}
-	end || {Status, Packet} <- Tests].
+	end || {Status, Packet} <- Tests],
+	ok.
 
 check_status(Config) ->
 	Tests = [
@@ -530,7 +542,7 @@ chunked_response(Config) ->
 echo_body(Config) ->
 	Client = ?config(client, Config),
 	{ok, [{mtu, MTU}]} = inet:ifget("lo", [mtu]),
-	[begin
+	_ = [begin
 		Body = list_to_binary(lists:duplicate(Size, $a)),
 		{ok, Client2} = cowboy_client:request(<<"POST">>,
 			build_url("/echo/body", Config),
@@ -538,7 +550,8 @@ echo_body(Config) ->
 			Body, Client),
 		{ok, 200, _, Client3} = cowboy_client:response(Client2),
 		{ok, Body, _} = cowboy_client:response_body(Client3)
-	end || Size <- lists:seq(MTU - 500, MTU)].
+	end || Size <- lists:seq(MTU - 500, MTU)],
+	ok.
 
 %% Check if sending request whose size is bigger than 1000000 bytes causes 413
 echo_body_max_length(Config) ->
@@ -882,17 +895,13 @@ rest_bad_accept(Config) ->
 		Client),
 	{ok, 400, _, _} = cowboy_client:response(Client2).
 
-rest_created_path(Config) ->
-	Headers = [{<<"content-type">>, <<"text/plain">>}],
-	Body = <<"Whatever">>,
+rest_bad_content_type(Config) ->
 	Client = ?config(client, Config),
-	URL = build_url("/created_path", Config),
-	{ok, Client2} = cowboy_client:request(<<"POST">>, URL, Headers,
-		Body, Client),
-	{ok, 303, ResHeaders, _} = cowboy_client:response(Client2),
-	{<<"location">>, _Location} =
-		lists:keyfind(<<"location">>, 1, ResHeaders),
-	ok.
+	{ok, Client2} = cowboy_client:request(<<"PATCH">>,
+		build_url("/bad_content_type", Config),
+		[{<<"content-type">>, <<"text/plain, text/html">>}],
+		<<"Whatever">>, Client),
+	{ok, 415, _, _} = cowboy_client:response(Client2).
 
 rest_expires(Config) ->
 	Client = ?config(client, Config),
@@ -968,6 +977,13 @@ rest_nodelete(Config) ->
 		build_url("/nodelete", Config), Client),
 	{ok, 500, _, _} = cowboy_client:response(Client2).
 
+rest_options_default(Config) ->
+	Client = ?config(client, Config),
+	{ok, Client2} = cowboy_client:request(<<"OPTIONS">>,
+		build_url("/rest_empty_resource", Config), Client),
+	{ok, 200, Headers, _} = cowboy_client:response(Client2),
+	{_, <<"HEAD, GET, OPTIONS">>} = lists:keyfind(<<"allow">>, 1, Headers).
+
 rest_patch(Config) ->
 	Tests = [
 		{204, [{<<"content-type">>, <<"text/plain">>}], <<"whatever">>},
@@ -982,6 +998,15 @@ rest_patch(Config) ->
 		{ok, Status, _, _} = cowboy_client:response(Client2),
 		ok
 	end || {Status, Headers, Body} <- Tests].
+
+rest_postonly(Config) ->
+	Client = ?config(client, Config),
+	Headers = [
+		{<<"content-type">>, <<"text/plain">>}
+	],
+	{ok, Client2} = cowboy_client:request(<<"POST">>,
+		build_url("/postonly", Config), Headers, "12345", Client),
+	{ok, 204, _, _} = cowboy_client:response(Client2).
 
 rest_resource_get_etag(Config, Type) ->
 	rest_resource_get_etag(Config, Type, []).
@@ -1184,6 +1209,45 @@ stream_body_set_resp_close(Config) ->
 		Buffer ->
 			{ok, Rest} = Transport:recv(Socket, 26 - byte_size(Buffer), 1000),
 			<<"stream_body_set_resp_close">> = << Buffer/binary, Rest/binary >>,
+			ok
+	end,
+	{error, closed} = Transport:recv(Socket, 0, 1000).
+
+stream_body_set_resp_chunked(Config) ->
+	Client = ?config(client, Config),
+	{ok, Client2} = cowboy_client:request(<<"GET">>,
+		build_url("/stream_body/set_resp_chunked", Config), Client),
+	{ok, 200, Headers, Client3} = cowboy_client:response(Client2),
+	{_, <<"chunked">>} = lists:keyfind(<<"transfer-encoding">>, 1, Headers),
+	{ok, Transport, Socket} = cowboy_client:transport(Client3),
+	case element(7, Client3) of
+		<<"B\r\nstream_body\r\n11\r\n_set_resp_chunked\r\n0\r\n\r\n">> ->
+			ok;
+		Buffer ->
+			{ok, Rest} = Transport:recv(Socket, 44 - byte_size(Buffer), 1000),
+			<<"B\r\nstream_body\r\n11\r\n_set_resp_chunked\r\n0\r\n\r\n">>
+				= <<Buffer/binary, Rest/binary>>,
+			ok
+	end.
+
+stream_body_set_resp_chunked10(Config) ->
+	Client = ?config(client, Config),
+	Transport = ?config(transport, Config),
+	{ok, Client2} = cowboy_client:connect(
+		Transport, "localhost", ?config(port, Config), Client),
+	Data = ["GET /stream_body/set_resp_chunked HTTP/1.0\r\n",
+		"Host: localhost\r\n\r\n"],
+	{ok, Client3} = cowboy_client:raw_request(Data, Client2),
+	{ok, 200, Headers, Client4} = cowboy_client:response(Client3),
+	false = lists:keymember(<<"transfer-encoding">>, 1, Headers),
+	{ok, Transport, Socket} = cowboy_client:transport(Client4),
+	case element(7, Client4) of
+		<<"stream_body_set_resp_chunked">> ->
+			ok;
+		Buffer ->
+			{ok, Rest} = Transport:recv(Socket, 28 - byte_size(Buffer), 1000),
+			<<"stream_body_set_resp_chunked">>
+				= <<Buffer/binary, Rest/binary>>,
 			ok
 	end,
 	{error, closed} = Transport:recv(Socket, 0, 1000).

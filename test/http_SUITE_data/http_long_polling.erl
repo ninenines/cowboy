@@ -1,6 +1,6 @@
 %% Feel free to use, reuse and abuse the code in this file.
 
--module(http_handler_long_polling).
+-module(http_long_polling).
 -behaviour(cowboy_http_handler).
 -export([init/3, handle/2, info/3, terminate/3]).
 

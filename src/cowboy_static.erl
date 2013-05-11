@@ -15,10 +15,10 @@
 %% @doc Static resource handler.
 %%
 %% This built in HTTP handler provides a simple file serving capability for
-%% cowboy applications. It should be considered an experimental feature because
-%% of it's dependency on the experimental REST handler. It's recommended to be
-%% used for small or temporary environments where it is not preferrable to set
-%% up a second server just to serve files.
+%% cowboy applications. It is provided as a convenience for small or temporary
+%% environments where it is not preferrable to set up a second server just
+%% to serve files. It is recommended to use a CDN instead for efficiently
+%% handling static files, preferrably on a cookie-less domain name.
 %%
 %% If this handler is used the Erlang node running the cowboy application must
 %% be configured to use an async thread pool. This is configured by adding the
@@ -154,17 +154,17 @@
 %% ```
 %% %% Serve cowboy/priv/www/index.html as http://example.com/
 %% {"/", cowboy_static,
-%%     [{directory, {priv_dir, cowboy, [<<"www">>]}}
+%%     [{directory, {priv_dir, cowboy, [<<"www">>]}},
 %%      {file, <<"index.html">>}]}
 %%
 %% %% Serve cowboy/priv/www/page.html under http://example.com/*/page
 %% {"/:_/page", cowboy_static,
-%%     [{directory, {priv_dir, cowboy, [<<"www">>]}}
+%%     [{directory, {priv_dir, cowboy, [<<"www">>]}},
 %%      {file, <<"page.html">>}]}.
 %%
 %% %% Always serve cowboy/priv/www/other.html under http://example.com/other
 %% {"/other/[...]", cowboy_static,
-%%     [{directory, {priv_dir, cowboy, [<<"www">>]}}
+%%     [{directory, {priv_dir, cowboy, [<<"www">>]}},
 %%      {file, "other.html"}]}
 %% '''
 -module(cowboy_static).
@@ -324,7 +324,8 @@ file_contents(Req, #state{filepath=Filepath,
 		%% if the connection is closed while sending the file.
 		case Transport:sendfile(Socket, Filepath) of
 			{ok, _} -> ok;
-			{error, closed} -> ok
+			{error, closed} -> ok;
+			{error, etimedout} -> ok
 		end
 	end,
 	{{stream, Filesize, Writefile}, Req, State}.
@@ -421,8 +422,6 @@ attr_etag_function(Args, Attrs) ->
 	{strong, list_to_binary([H|T])}.
 
 -ifdef(TEST).
--include_lib("eunit/include/eunit.hrl").
--define(_eq(E, I), ?_assertEqual(E, I)).
 
 directory_path_test_() ->
 	PL = fun(D) -> length(filename:split(directory_path(D))) end,

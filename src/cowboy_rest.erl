@@ -12,12 +12,10 @@
 %% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-%% @doc Experimental REST protocol implementation.
+%% @doc REST protocol implementation.
 %%
-%% Based on the Webmachine Diagram from Alan Dean and Justin Sheehy, which
-%% can be found in the Webmachine source tree, and on the Webmachine
-%% documentation available at http://wiki.basho.com/Webmachine.html
-%% at the time of writing.
+%% Originally based on the Webmachine Diagram from Alan Dean and
+%% Justin Sheehy.
 -module(cowboy_rest).
 -behaviour(cowboy_sub_protocol).
 
@@ -30,6 +28,9 @@
 	%% Handler.
 	handler :: atom(),
 	handler_state :: any(),
+
+	%% Allowed methods. Only used for OPTIONS requests.
+	allowed_methods :: [binary()],
 
 	%% Media type.
 	content_types_p = [] ::
@@ -46,6 +47,9 @@
 	%% Charset.
 	charsets_p = [] :: [{binary(), integer()}],
 	charset_a :: undefined | binary(),
+
+	%% Whether the resource exists.
+	exists = false :: boolean(),
 
 	%% Cached resource calls.
 	etag :: undefined | no_call | {strong | weak, binary()},
@@ -96,9 +100,8 @@ known_methods(Req, State=#state{method=Method}) ->
 	case call(Req, State, known_methods) of
 		no_call when Method =:= <<"HEAD">>; Method =:= <<"GET">>;
 				Method =:= <<"POST">>; Method =:= <<"PUT">>;
-				Method =:= <<"DELETE">>; Method =:= <<"TRACE">>;
-				Method =:= <<"CONNECT">>; Method =:= <<"OPTIONS">>;
-				Method =:= <<"PATCH">> ->
+				Method =:= <<"PATCH">>; Method =:= <<"DELETE">>;
+				Method =:= <<"OPTIONS">> ->
 			next(Req, State, fun uri_too_long/2);
 		no_call ->
 			next(Req, State, 501);
@@ -120,32 +123,32 @@ allowed_methods(Req, State=#state{method=Method}) ->
 	case call(Req, State, allowed_methods) of
 		no_call when Method =:= <<"HEAD">>; Method =:= <<"GET">> ->
 			next(Req, State, fun malformed_request/2);
+		no_call when Method =:= <<"OPTIONS">> ->
+			next(Req, State#state{allowed_methods=
+				[<<"HEAD">>, <<"GET">>, <<"OPTIONS">>]},
+				fun malformed_request/2);
 		no_call ->
-			method_not_allowed(Req, State, [<<"GET">>, <<"HEAD">>]);
+			method_not_allowed(Req, State,
+				[<<"HEAD">>, <<"GET">>, <<"OPTIONS">>]);
 		{halt, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
 		{List, Req2, HandlerState} ->
 			State2 = State#state{handler_state=HandlerState},
 			case lists:member(Method, List) of
-				true -> next(Req2, State2, fun malformed_request/2);
-				false -> method_not_allowed(Req2, State2, List)
+				true when Method =:= <<"OPTIONS">> ->
+					next(Req2, State2#state{allowed_methods=List},
+						fun malformed_request/2);
+				true ->
+					next(Req2, State2, fun malformed_request/2);
+				false ->
+					method_not_allowed(Req2, State2, List)
 			end
 	end.
 
 method_not_allowed(Req, State, Methods) ->
-	Req2 = cowboy_req:set_resp_header(
-		<<"allow">>, method_not_allowed_build(Methods, []), Req),
+	<< ", ", Allow/binary >> = << << ", ", M/binary >> || M <- Methods >>,
+	Req2 = cowboy_req:set_resp_header(<<"allow">>, Allow, Req),
 	respond(Req2, State, 405).
-
-method_not_allowed_build([], []) ->
-	<<>>;
-method_not_allowed_build([], [_Ignore|Acc]) ->
-	lists:reverse(Acc);
-method_not_allowed_build([Method|Tail], Acc) when is_atom(Method) ->
-	Method2 = list_to_binary(atom_to_list(Method)),
-	method_not_allowed_build(Tail, [<<", ">>, Method2|Acc]);
-method_not_allowed_build([Method|Tail], Acc) ->
-	method_not_allowed_build(Tail, [<<", ">>, Method|Acc]).
 
 malformed_request(Req, State) ->
 	expect(Req, State, malformed_request, false, fun is_authorized/2, 400).
@@ -181,8 +184,13 @@ valid_entity_length(Req, State) ->
 
 %% If you need to add additional headers to the response at this point,
 %% you should do it directly in the options/2 call using set_resp_headers.
-options(Req, State=#state{method= <<"OPTIONS">>}) ->
+options(Req, State=#state{allowed_methods=Methods, method= <<"OPTIONS">>}) ->
 	case call(Req, State, options) of
+		no_call ->
+			<< ", ", Allow/binary >>
+				= << << ", ", M/binary >> || M <- Methods >>,
+			Req2 = cowboy_req:set_resp_header(<<"allow">>, Allow, Req),
+			respond(Req2, State, 200);
 		{halt, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
 		{ok, Req2, HandlerState} ->
@@ -210,13 +218,25 @@ options(Req, State) ->
 content_types_provided(Req, State) ->
 	case call(Req, State, content_types_provided) of
 		no_call ->
-			not_acceptable(Req, State);
+			State2 = State#state{
+				content_types_p=[{{<<"text">>, <<"html">>, '*'}, to_html}]},
+			case cowboy_req:parse_header(<<"accept">>, Req) of
+				{error, badarg} ->
+					respond(Req, State2, 400);
+				{ok, undefined, Req2} ->
+					languages_provided(
+						cowboy_req:set_meta(media_type, {<<"text">>, <<"html">>, []}, Req2),
+						State2#state{content_type_a={{<<"text">>, <<"html">>, []}, to_html}});
+				{ok, Accept, Req2} ->
+					Accept2 = prioritize_accept(Accept),
+					choose_media_type(Req2, State2, Accept2)
+			end;
 		{halt, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
 		{[], Req2, HandlerState} ->
 			not_acceptable(Req2, State#state{handler_state=HandlerState});
 		{CTP, Req2, HandlerState} ->
-		    CTP2 = [normalize_content_types(P) || P <- CTP],
+			CTP2 = [normalize_content_types(P) || P <- CTP],
 			State2 = State#state{
 				handler_state=HandlerState, content_types_p=CTP2},
 			case cowboy_req:parse_header(<<"accept">>, Req2) of
@@ -235,9 +255,9 @@ content_types_provided(Req, State) ->
 
 normalize_content_types({ContentType, Callback})
 		when is_binary(ContentType) ->
-    {cowboy_http:content_type(ContentType), Callback};
-normalize_content_types(Provided) ->
-	Provided.
+	{cowboy_http:content_type(ContentType), Callback};
+normalize_content_types(Normalized) ->
+	Normalized.
 
 prioritize_accept(Accept) ->
 	lists:sort(
@@ -511,13 +531,14 @@ resource_exists(Req, State) ->
 		fun if_match_exists/2, fun if_match_must_not_exist/2).
 
 if_match_exists(Req, State) ->
+	State2 = State#state{exists=true},
 	case cowboy_req:parse_header(<<"if-match">>, Req) of
 		{ok, undefined, Req2} ->
-			if_unmodified_since_exists(Req2, State);
+			if_unmodified_since_exists(Req2, State2);
 		{ok, '*', Req2} ->
-			if_unmodified_since_exists(Req2, State);
+			if_unmodified_since_exists(Req2, State2);
 		{ok, ETagsList, Req2} ->
-			if_match(Req2, State, ETagsList)
+			if_match(Req2, State2, ETagsList)
 	end.
 
 if_match(Req, State, EtagsList) ->
@@ -728,16 +749,15 @@ is_post_to_missing_resource(Req, State, OnFalse) ->
 	respond(Req, State, OnFalse).
 
 allow_missing_post(Req, State, OnFalse) ->
-	expect(Req, State, allow_missing_post, true, fun post_is_create/2, OnFalse).
+	expect(Req, State, allow_missing_post, true, fun accept_resource/2, OnFalse).
 
 method(Req, State=#state{method= <<"DELETE">>}) ->
 	delete_resource(Req, State);
-method(Req, State=#state{method= <<"POST">>}) ->
-	post_is_create(Req, State);
 method(Req, State=#state{method= <<"PUT">>}) ->
 	is_conflict(Req, State);
-method(Req, State=#state{method= <<"PATCH">>}) ->
-	patch_resource(Req, State);
+method(Req, State=#state{method=Method})
+		when Method =:= <<"POST">>; Method =:= <<"PATCH">> ->
+	accept_resource(Req, State);
 method(Req, State=#state{method=Method})
 		when Method =:= <<"GET">>; Method =:= <<"HEAD">> ->
 	set_resp_body_etag(Req, State);
@@ -752,137 +772,57 @@ delete_resource(Req, State) ->
 delete_completed(Req, State) ->
 	expect(Req, State, delete_completed, true, fun has_resp_body/2, 202).
 
-%% post_is_create/2 indicates whether the POST method can create new resources.
-post_is_create(Req, State) ->
-	expect(Req, State, post_is_create, false, fun process_post/2, fun create_path/2).
-
-%% When the POST method can create new resources, create_path/2 will be called
-%% and is expected to return the full path to the new resource
-%% (including the leading /).
-create_path(Req, State) ->
-	case call(Req, State, create_path) of
-		no_call ->
-			put_resource(Req, State, fun created_path/2);
-		{halt, Req2, HandlerState} ->
-			terminate(Req2, State#state{handler_state=HandlerState});
-		{Path, Req2, HandlerState} ->
-			{HostURL, Req3} = cowboy_req:host_url(Req2),
-			State2 = State#state{handler_state=HandlerState},
-			Req4 = cowboy_req:set_resp_header(
-				<<"location">>, << HostURL/binary, Path/binary >>, Req3),
-			put_resource(cowboy_req:set_meta(put_path, Path, Req4),
-				State2, 303)
-	end.
-
-%% Called after content_types_accepted is called for POST methods
-%% when create_path did not exist. Expects the full path to
-%% be returned and MUST exist in the case that create_path
-%% does not.
-created_path(Req, State) ->
-	case call(Req, State, created_path) of
-		{halt, Req2, HandlerState} ->
-			terminate(Req2, State#state{handler_state=HandlerState});
-		{Path, Req2, HandlerState} ->
-			{HostURL, Req3} = cowboy_req:host_url(Req2),
-			State2 = State#state{handler_state=HandlerState},
-			Req4 = cowboy_req:set_resp_header(
-				<<"location">>, << HostURL/binary, Path/binary >>, Req3),
-			respond(cowboy_req:set_meta(put_path, Path, Req4),
-				State2, 303)
-	end.
-
-%% process_post should return true when the POST body could be processed
-%% and false when it hasn't, in which case a 500 error is sent.
-process_post(Req, State) ->
-	case call(Req, State, process_post) of
-		{halt, Req2, HandlerState} ->
-			terminate(Req2, State#state{handler_state=HandlerState});
-		{true, Req2, HandlerState} ->
-			State2 = State#state{handler_state=HandlerState},
-			next(Req2, State2, fun is_new_resource/2);
-		{false, Req2, HandlerState} ->
-			State2 = State#state{handler_state=HandlerState},
-			respond(Req2, State2, 500)
-	end.
-
 is_conflict(Req, State) ->
-	expect(Req, State, is_conflict, false, fun put_resource/2, 409).
-
-put_resource(Req, State) ->
-	Path = cowboy_req:get(path, Req),
-	put_resource(cowboy_req:set_meta(put_path, Path, Req),
-		State, fun is_new_resource/2).
+	expect(Req, State, is_conflict, false, fun accept_resource/2, 409).
 
 %% content_types_accepted should return a list of media types and their
 %% associated callback functions in the same format as content_types_provided.
 %%
 %% The callback will then be called and is expected to process the content
-%% pushed to the resource in the request body. The path to the new resource
-%% may be different from the request path, and is stored as request metadata.
-%% It is always defined past this point. It can be retrieved as demonstrated:
-%%     {PutPath, Req2} = cowboy_req:meta(put_path, Req)
+%% pushed to the resource in the request body.
 %%
-%%content_types_accepted SHOULD return a different list
+%% content_types_accepted SHOULD return a different list
 %% for each HTTP method.
-put_resource(Req, State, OnTrue) ->
+accept_resource(Req, State) ->
 	case call(Req, State, content_types_accepted) of
 		no_call ->
 			respond(Req, State, 415);
 		{halt, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
 		{CTA, Req2, HandlerState} ->
-		    CTA2 = [normalize_content_types(P) || P <- CTA],
+			CTA2 = [normalize_content_types(P) || P <- CTA],
 			State2 = State#state{handler_state=HandlerState},
-			{ok, ContentType, Req3}
-				= cowboy_req:parse_header(<<"content-type">>, Req2),
-			choose_content_type(Req3, State2, OnTrue, ContentType, CTA2)
-	end.
-
-%% content_types_accepted should return a list of media types and their
-%% associated callback functions in the same format as content_types_provided.
-%%
-%% The callback will then be called and is expected to process the content
-%% pushed to the resource in the request body. 
-%%
-%% content_types_accepted SHOULD return a different list
-%% for each HTTP method.
-patch_resource(Req, State) ->
-	case call(Req, State, content_types_accepted) of
-		no_call ->
-			respond(Req, State, 415);
-		{halt, Req2, HandlerState} ->
-			terminate(Req2, State#state{handler_state=HandlerState});
-		{CTM, Req2, HandlerState} ->
-			State2 = State#state{handler_state=HandlerState},
-			{ok, ContentType, Req3}
-				= cowboy_req:parse_header(<<"content-type">>, Req2),
-			choose_content_type(Req3, State2, 204, ContentType, CTM)
+			case cowboy_req:parse_header(<<"content-type">>, Req2) of
+				{ok, ContentType, Req3} ->
+					choose_content_type(Req3, State2, ContentType, CTA2);
+				{error, badarg} ->
+					respond(Req2, State2, 415)
+			end
 	end.
 
 %% The special content type '*' will always match. It can be used as a
 %% catch-all content type for accepting any kind of request content.
 %% Note that because it will always match, it should be the last of the
 %% list of content types, otherwise it'll shadow the ones following.
-choose_content_type(Req, State, _OnTrue, _ContentType, []) ->
+choose_content_type(Req, State, _ContentType, []) ->
 	respond(Req, State, 415);
-choose_content_type(Req, State, OnTrue, ContentType, [{Accepted, Fun}|_Tail])
+choose_content_type(Req, State, ContentType, [{Accepted, Fun}|_Tail])
 		when Accepted =:= '*'; Accepted =:= ContentType ->
-	process_content_type(Req, State, OnTrue, Fun);
+	process_content_type(Req, State, Fun);
 %% The special parameter '*' will always match any kind of content type
 %% parameters.
 %% Note that because it will always match, it should be the last of the
 %% list for specific content type, otherwise it'll shadow the ones following.
-choose_content_type(Req, State, OnTrue,
-		{Type, SubType, Param},
+choose_content_type(Req, State, {Type, SubType, Param},
 		[{{Type, SubType, AcceptedParam}, Fun}|_Tail])
 		when AcceptedParam =:= '*'; AcceptedParam =:= Param ->
-	process_content_type(Req, State, OnTrue, Fun);
-choose_content_type(Req, State, OnTrue, ContentType, [_Any|Tail]) ->
-	choose_content_type(Req, State, OnTrue, ContentType, Tail).
+	process_content_type(Req, State, Fun);
+choose_content_type(Req, State, ContentType, [_Any|Tail]) ->
+	choose_content_type(Req, State, ContentType, Tail).
 
-process_content_type(Req,
-		State=#state{handler=Handler, handler_state=HandlerState},
-		OnTrue, Fun) ->
+process_content_type(Req, State=#state{method=Method,
+		handler=Handler, handler_state=HandlerState,
+		exists=Exists}, Fun) ->
 	case call(Req, State, Fun) of
 		no_call ->
 			error_logger:error_msg(
@@ -893,18 +833,28 @@ process_content_type(Req,
 			{error, 500, Req};
 		{halt, Req2, HandlerState2} ->
 			terminate(Req2, State#state{handler_state=HandlerState2});
+		{true, Req2, HandlerState2} when Exists ->
+			State2 = State#state{handler_state=HandlerState2},
+			next(Req2, State2, fun has_resp_body/2);
 		{true, Req2, HandlerState2} ->
 			State2 = State#state{handler_state=HandlerState2},
-			next(Req2, State2, OnTrue);
+			next(Req2, State2, fun maybe_created/2);
 		{false, Req2, HandlerState2} ->
 			State2 = State#state{handler_state=HandlerState2},
-			respond(Req2, State2, 422)
+			respond(Req2, State2, 422);
+		{ResURL, Req2, HandlerState2} when Method =:= <<"POST">> ->
+			State2 = State#state{handler_state=HandlerState2},
+			Req3 = cowboy_req:set_resp_header(
+				<<"location">>, ResURL, Req2),
+			if
+				Exists -> respond(Req3, State2, 303);
+				true -> respond(Req3, State2, 201)
+			end
 	end.
 
-%% Whether we created a new resource, either through PUT or POST.
-%% This is easily testable because we would have set the Location
-%% header by this point if we did so.
-is_new_resource(Req, State) ->
+%% If the resource is new and has been created at another location
+%% we send a 201. Otherwise we continue as normal.
+maybe_created(Req, State) ->
 	case cowboy_req:has_resp_header(<<"location">>, Req) of
 		true -> respond(Req, State, 201);
 		false -> has_resp_body(Req, State)
@@ -994,6 +944,8 @@ set_resp_body(Req, State=#state{handler=Handler, handler_state=HandlerState,
 					cowboy_req:set_resp_body_fun(StreamFun, Req2);
 				{stream, Len, StreamFun} ->
 					cowboy_req:set_resp_body_fun(Len, StreamFun, Req2);
+				{chunked, StreamFun} ->
+					cowboy_req:set_resp_body_fun(chunked, StreamFun, Req2);
 				_Contents ->
 					cowboy_req:set_resp_body(Body, Req2)
 			end,
