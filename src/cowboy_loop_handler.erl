@@ -41,6 +41,8 @@
 -type state() :: any().
 -type terminate_reason() :: {normal, shutdown}
 	| {normal, timeout}
+	| {error, closed}
+	| {error, overflow}
 	| {error, atom()}.
 
 -callback init({atom(), http}, Req, opts())
