@@ -202,7 +202,7 @@ parse_method(<< C, Rest/bits >>, State, SoFar) ->
 parse_uri(<< $\r, _/bits >>, State, _) ->
 	error_terminate(400, State);
 parse_uri(<< "* ", Rest/bits >>, State, Method) ->
-	parse_version(Rest, State, Method, <<"*">>, <<>>, <<>>);
+	parse_version(Rest, State, Method, <<"*">>, <<>>);
 parse_uri(<< "http://", Rest/bits >>, State, Method) ->
 	parse_uri_skip_host(Rest, State, Method);
 parse_uri(<< "https://", Rest/bits >>, State, Method) ->
@@ -220,61 +220,61 @@ parse_uri_skip_host(<< C, Rest/bits >>, State, Method) ->
 parse_uri_path(<< C, Rest/bits >>, State, Method, SoFar) ->
 	case C of
 		$\r -> error_terminate(400, State);
-		$\s -> parse_version(Rest, State, Method, SoFar, <<>>, <<>>);
+		$\s -> parse_version(Rest, State, Method, SoFar, <<>>);
 		$? -> parse_uri_query(Rest, State, Method, SoFar, <<>>);
-		$# -> parse_uri_fragment(Rest, State, Method, SoFar, <<>>, <<>>);
+		$# -> skip_uri_fragment(Rest, State, Method, SoFar, <<>>);
 		_ -> parse_uri_path(Rest, State, Method, << SoFar/binary, C >>)
 	end.
 
 parse_uri_query(<< C, Rest/bits >>, S, M, P, SoFar) ->
 	case C of
 		$\r -> error_terminate(400, S);
-		$\s -> parse_version(Rest, S, M, P, SoFar, <<>>);
-		$# -> parse_uri_fragment(Rest, S, M, P, SoFar, <<>>);
+		$\s -> parse_version(Rest, S, M, P, SoFar);
+		$# -> skip_uri_fragment(Rest, S, M, P, SoFar);
 		_ -> parse_uri_query(Rest, S, M, P, << SoFar/binary, C >>)
 	end.
 
-parse_uri_fragment(<< C, Rest/bits >>, S, M, P, Q, SoFar) ->
+skip_uri_fragment(<< C, Rest/bits >>, S, M, P, Q) ->
 	case C of
 		$\r -> error_terminate(400, S);
-		$\s -> parse_version(Rest, S, M, P, Q, SoFar);
-		_ -> parse_uri_fragment(Rest, S, M, P, Q, << SoFar/binary, C >>)
+		$\s -> parse_version(Rest, S, M, P, Q);
+		_ -> skip_uri_fragment(Rest, S, M, P, Q)
 	end.
 
-parse_version(<< "HTTP/1.1\r\n", Rest/bits >>, S, M, P, Q, F) ->
-	parse_header(Rest, S, M, P, Q, F, {1, 1}, []);
-parse_version(<< "HTTP/1.0\r\n", Rest/bits >>, S, M, P, Q, F) ->
-	parse_header(Rest, S, M, P, Q, F, {1, 0}, []);
-parse_version(_, State, _, _, _, _) ->
+parse_version(<< "HTTP/1.1\r\n", Rest/bits >>, S, M, P, Q) ->
+	parse_header(Rest, S, M, P, Q, {1, 1}, []);
+parse_version(<< "HTTP/1.0\r\n", Rest/bits >>, S, M, P, Q) ->
+	parse_header(Rest, S, M, P, Q, {1, 0}, []);
+parse_version(_, State, _, _, _) ->
 	error_terminate(505, State).
 
 %% Stop receiving data if we have more than allowed number of headers.
-wait_header(_, State=#state{max_headers=MaxHeaders}, _, _, _, _, _, Headers)
+wait_header(_, State=#state{max_headers=MaxHeaders}, _, _, _, _, Headers)
 		when length(Headers) >= MaxHeaders ->
 	error_terminate(400, State);
 wait_header(Buffer, State=#state{socket=Socket, transport=Transport,
-		until=Until}, M, P, Q, F, V, H) ->
+		until=Until}, M, P, Q, V, H) ->
 	case recv(Socket, Transport, Until) of
 		{ok, Data} ->
 			parse_header(<< Buffer/binary, Data/binary >>,
-				State, M, P, Q, F, V, H);
+				State, M, P, Q, V, H);
 		{error, timeout} ->
 			error_terminate(408, State);
 		{error, _} ->
 			terminate(State)
 	end.
 
-parse_header(<< $\r, $\n, Rest/bits >>, S, M, P, Q, F, V, Headers) ->
-	request(Rest, S, M, P, Q, F, V, lists:reverse(Headers));
+parse_header(<< $\r, $\n, Rest/bits >>, S, M, P, Q, V, Headers) ->
+	request(Rest, S, M, P, Q, V, lists:reverse(Headers));
 parse_header(Buffer, State=#state{max_header_name_length=MaxLength},
-		M, P, Q, F, V, H) ->
+		M, P, Q, V, H) ->
 	case match_colon(Buffer, 0) of
 		nomatch when byte_size(Buffer) > MaxLength ->
 			error_terminate(400, State);
 		nomatch ->
-			wait_header(Buffer, State, M, P, Q, F, V, H);
+			wait_header(Buffer, State, M, P, Q, V, H);
 		_ ->
-			parse_hd_name(Buffer, State, M, P, Q, F, V, H, <<>>)
+			parse_hd_name(Buffer, State, M, P, Q, V, H, <<>>)
 	end.
 
 match_colon(<< $:, _/bits >>, N) ->
@@ -290,73 +290,73 @@ match_colon(_, _) ->
 %% ... Sorry for your eyes.
 %%
 %% But let's be honest, that's still pretty readable.
-parse_hd_name(<< C, Rest/bits >>, S, M, P, Q, F, V, H, SoFar) ->
+parse_hd_name(<< C, Rest/bits >>, S, M, P, Q, V, H, SoFar) ->
 	case C of
-		$: -> parse_hd_before_value(Rest, S, M, P, Q, F, V, H, SoFar);
-		$\s -> parse_hd_name_ws(Rest, S, M, P, Q, F, V, H, SoFar);
-		$\t -> parse_hd_name_ws(Rest, S, M, P, Q, F, V, H, SoFar);
-		$A -> parse_hd_name(Rest, S, M, P, Q, F, V, H, << SoFar/binary, $a >>);
-		$B -> parse_hd_name(Rest, S, M, P, Q, F, V, H, << SoFar/binary, $b >>);
-		$C -> parse_hd_name(Rest, S, M, P, Q, F, V, H, << SoFar/binary, $c >>);
-		$D -> parse_hd_name(Rest, S, M, P, Q, F, V, H, << SoFar/binary, $d >>);
-		$E -> parse_hd_name(Rest, S, M, P, Q, F, V, H, << SoFar/binary, $e >>);
-		$F -> parse_hd_name(Rest, S, M, P, Q, F, V, H, << SoFar/binary, $f >>);
-		$G -> parse_hd_name(Rest, S, M, P, Q, F, V, H, << SoFar/binary, $g >>);
-		$H -> parse_hd_name(Rest, S, M, P, Q, F, V, H, << SoFar/binary, $h >>);
-		$I -> parse_hd_name(Rest, S, M, P, Q, F, V, H, << SoFar/binary, $i >>);
-		$J -> parse_hd_name(Rest, S, M, P, Q, F, V, H, << SoFar/binary, $j >>);
-		$K -> parse_hd_name(Rest, S, M, P, Q, F, V, H, << SoFar/binary, $k >>);
-		$L -> parse_hd_name(Rest, S, M, P, Q, F, V, H, << SoFar/binary, $l >>);
-		$M -> parse_hd_name(Rest, S, M, P, Q, F, V, H, << SoFar/binary, $m >>);
-		$N -> parse_hd_name(Rest, S, M, P, Q, F, V, H, << SoFar/binary, $n >>);
-		$O -> parse_hd_name(Rest, S, M, P, Q, F, V, H, << SoFar/binary, $o >>);
-		$P -> parse_hd_name(Rest, S, M, P, Q, F, V, H, << SoFar/binary, $p >>);
-		$Q -> parse_hd_name(Rest, S, M, P, Q, F, V, H, << SoFar/binary, $q >>);
-		$R -> parse_hd_name(Rest, S, M, P, Q, F, V, H, << SoFar/binary, $r >>);
-		$S -> parse_hd_name(Rest, S, M, P, Q, F, V, H, << SoFar/binary, $s >>);
-		$T -> parse_hd_name(Rest, S, M, P, Q, F, V, H, << SoFar/binary, $t >>);
-		$U -> parse_hd_name(Rest, S, M, P, Q, F, V, H, << SoFar/binary, $u >>);
-		$V -> parse_hd_name(Rest, S, M, P, Q, F, V, H, << SoFar/binary, $v >>);
-		$W -> parse_hd_name(Rest, S, M, P, Q, F, V, H, << SoFar/binary, $w >>);
-		$X -> parse_hd_name(Rest, S, M, P, Q, F, V, H, << SoFar/binary, $x >>);
-		$Y -> parse_hd_name(Rest, S, M, P, Q, F, V, H, << SoFar/binary, $y >>);
-		$Z -> parse_hd_name(Rest, S, M, P, Q, F, V, H, << SoFar/binary, $z >>);
-		C -> parse_hd_name(Rest, S, M, P, Q, F, V, H, << SoFar/binary, C >>)
+		$: -> parse_hd_before_value(Rest, S, M, P, Q, V, H, SoFar);
+		$\s -> parse_hd_name_ws(Rest, S, M, P, Q, V, H, SoFar);
+		$\t -> parse_hd_name_ws(Rest, S, M, P, Q, V, H, SoFar);
+		$A -> parse_hd_name(Rest, S, M, P, Q, V, H, << SoFar/binary, $a >>);
+		$B -> parse_hd_name(Rest, S, M, P, Q, V, H, << SoFar/binary, $b >>);
+		$C -> parse_hd_name(Rest, S, M, P, Q, V, H, << SoFar/binary, $c >>);
+		$D -> parse_hd_name(Rest, S, M, P, Q, V, H, << SoFar/binary, $d >>);
+		$E -> parse_hd_name(Rest, S, M, P, Q, V, H, << SoFar/binary, $e >>);
+		$F -> parse_hd_name(Rest, S, M, P, Q, V, H, << SoFar/binary, $f >>);
+		$G -> parse_hd_name(Rest, S, M, P, Q, V, H, << SoFar/binary, $g >>);
+		$H -> parse_hd_name(Rest, S, M, P, Q, V, H, << SoFar/binary, $h >>);
+		$I -> parse_hd_name(Rest, S, M, P, Q, V, H, << SoFar/binary, $i >>);
+		$J -> parse_hd_name(Rest, S, M, P, Q, V, H, << SoFar/binary, $j >>);
+		$K -> parse_hd_name(Rest, S, M, P, Q, V, H, << SoFar/binary, $k >>);
+		$L -> parse_hd_name(Rest, S, M, P, Q, V, H, << SoFar/binary, $l >>);
+		$M -> parse_hd_name(Rest, S, M, P, Q, V, H, << SoFar/binary, $m >>);
+		$N -> parse_hd_name(Rest, S, M, P, Q, V, H, << SoFar/binary, $n >>);
+		$O -> parse_hd_name(Rest, S, M, P, Q, V, H, << SoFar/binary, $o >>);
+		$P -> parse_hd_name(Rest, S, M, P, Q, V, H, << SoFar/binary, $p >>);
+		$Q -> parse_hd_name(Rest, S, M, P, Q, V, H, << SoFar/binary, $q >>);
+		$R -> parse_hd_name(Rest, S, M, P, Q, V, H, << SoFar/binary, $r >>);
+		$S -> parse_hd_name(Rest, S, M, P, Q, V, H, << SoFar/binary, $s >>);
+		$T -> parse_hd_name(Rest, S, M, P, Q, V, H, << SoFar/binary, $t >>);
+		$U -> parse_hd_name(Rest, S, M, P, Q, V, H, << SoFar/binary, $u >>);
+		$V -> parse_hd_name(Rest, S, M, P, Q, V, H, << SoFar/binary, $v >>);
+		$W -> parse_hd_name(Rest, S, M, P, Q, V, H, << SoFar/binary, $w >>);
+		$X -> parse_hd_name(Rest, S, M, P, Q, V, H, << SoFar/binary, $x >>);
+		$Y -> parse_hd_name(Rest, S, M, P, Q, V, H, << SoFar/binary, $y >>);
+		$Z -> parse_hd_name(Rest, S, M, P, Q, V, H, << SoFar/binary, $z >>);
+		C -> parse_hd_name(Rest, S, M, P, Q, V, H, << SoFar/binary, C >>)
 	end.
 
-parse_hd_name_ws(<< C, Rest/bits >>, S, M, P, Q, F, V, H, Name) ->
+parse_hd_name_ws(<< C, Rest/bits >>, S, M, P, Q, V, H, Name) ->
 	case C of
-		$\s -> parse_hd_name_ws(Rest, S, M, P, Q, F, V, H, Name);
-		$\t -> parse_hd_name_ws(Rest, S, M, P, Q, F, V, H, Name);
-		$: -> parse_hd_before_value(Rest, S, M, P, Q, F, V, H, Name)
+		$\s -> parse_hd_name_ws(Rest, S, M, P, Q, V, H, Name);
+		$\t -> parse_hd_name_ws(Rest, S, M, P, Q, V, H, Name);
+		$: -> parse_hd_before_value(Rest, S, M, P, Q, V, H, Name)
 	end.
 
 wait_hd_before_value(Buffer, State=#state{
 		socket=Socket, transport=Transport, until=Until},
-		M, P, Q, F, V, H, N) ->
+		M, P, Q, V, H, N) ->
 	case recv(Socket, Transport, Until) of
 		{ok, Data} ->
 			parse_hd_before_value(<< Buffer/binary, Data/binary >>,
-				State, M, P, Q, F, V, H, N);
+				State, M, P, Q, V, H, N);
 		{error, timeout} ->
 			error_terminate(408, State);
 		{error, _} ->
 			terminate(State)
 	end.
 
-parse_hd_before_value(<< $\s, Rest/bits >>, S, M, P, Q, F, V, H, N) ->
-	parse_hd_before_value(Rest, S, M, P, Q, F, V, H, N);
-parse_hd_before_value(<< $\t, Rest/bits >>, S, M, P, Q, F, V, H, N) ->
-	parse_hd_before_value(Rest, S, M, P, Q, F, V, H, N);
+parse_hd_before_value(<< $\s, Rest/bits >>, S, M, P, Q, V, H, N) ->
+	parse_hd_before_value(Rest, S, M, P, Q, V, H, N);
+parse_hd_before_value(<< $\t, Rest/bits >>, S, M, P, Q, V, H, N) ->
+	parse_hd_before_value(Rest, S, M, P, Q, V, H, N);
 parse_hd_before_value(Buffer, State=#state{
-		max_header_value_length=MaxLength}, M, P, Q, F, V, H, N) ->
+		max_header_value_length=MaxLength}, M, P, Q, V, H, N) ->
 	case match_eol(Buffer, 0) of
 		nomatch when byte_size(Buffer) > MaxLength ->
 			error_terminate(400, State);
 		nomatch ->
-			wait_hd_before_value(Buffer, State, M, P, Q, F, V, H, N);
+			wait_hd_before_value(Buffer, State, M, P, Q, V, H, N);
 		_ ->
-			parse_hd_value(Buffer, State, M, P, Q, F, V, H, N, <<>>)
+			parse_hd_value(Buffer, State, M, P, Q, V, H, N, <<>>)
 	end.
 
 %% We completely ignore the first argument which is always
@@ -365,10 +365,10 @@ parse_hd_before_value(Buffer, State=#state{
 %% operations for no reasons.
 wait_hd_value(_, State=#state{
 		socket=Socket, transport=Transport, until=Until},
-		M, P, Q, F, V, H, N, SoFar) ->
+		M, P, Q, V, H, N, SoFar) ->
 	case recv(Socket, Transport, Until) of
 		{ok, Data} ->
-			parse_hd_value(Data, State, M, P, Q, F, V, H, N, SoFar);
+			parse_hd_value(Data, State, M, P, Q, V, H, N, SoFar);
 		{error, timeout} ->
 			error_terminate(408, State);
 		{error, _} ->
@@ -380,51 +380,51 @@ wait_hd_value(_, State=#state{
 %% the critical path, but forces us to have a special function.
 wait_hd_value_nl(_, State=#state{
 		socket=Socket, transport=Transport, until=Until},
-		M, P, Q, F, V, Headers, Name, SoFar) ->
+		M, P, Q, V, Headers, Name, SoFar) ->
 	case recv(Socket, Transport, Until) of
 		{ok, << C, Data/bits >>} when C =:= $\s; C =:= $\t  ->
-			parse_hd_value(Data, State, M, P, Q, F, V, Headers, Name, SoFar);
+			parse_hd_value(Data, State, M, P, Q, V, Headers, Name, SoFar);
 		{ok, Data} ->
-			parse_header(Data, State, M, P, Q, F, V, [{Name, SoFar}|Headers]);
+			parse_header(Data, State, M, P, Q, V, [{Name, SoFar}|Headers]);
 		{error, timeout} ->
 			error_terminate(408, State);
 		{error, _} ->
 			terminate(State)
 	end.
 
-parse_hd_value(<< $\r, Rest/bits >>, S, M, P, Q, F, V, Headers, Name, SoFar) ->
+parse_hd_value(<< $\r, Rest/bits >>, S, M, P, Q, V, Headers, Name, SoFar) ->
 	case Rest of
 		<< $\n >> ->
-			wait_hd_value_nl(<<>>, S, M, P, Q, F, V, Headers, Name, SoFar);
+			wait_hd_value_nl(<<>>, S, M, P, Q, V, Headers, Name, SoFar);
 		<< $\n, C, Rest2/bits >> when C =:= $\s; C =:= $\t ->
-			parse_hd_value(Rest2, S, M, P, Q, F, V, Headers, Name, SoFar);
+			parse_hd_value(Rest2, S, M, P, Q, V, Headers, Name, SoFar);
 		<< $\n, Rest2/bits >> ->
-			parse_header(Rest2, S, M, P, Q, F, V, [{Name, SoFar}|Headers])
+			parse_header(Rest2, S, M, P, Q, V, [{Name, SoFar}|Headers])
 	end;
-parse_hd_value(<< C, Rest/bits >>, S, M, P, Q, F, V, H, N, SoFar) ->
-	parse_hd_value(Rest, S, M, P, Q, F, V, H, N, << SoFar/binary, C >>);
+parse_hd_value(<< C, Rest/bits >>, S, M, P, Q, V, H, N, SoFar) ->
+	parse_hd_value(Rest, S, M, P, Q, V, H, N, << SoFar/binary, C >>);
 parse_hd_value(<<>>, State=#state{max_header_value_length=MaxLength},
-		_, _, _, _, _, _, _, SoFar) when byte_size(SoFar) > MaxLength ->
+		_, _, _, _, _, _, SoFar) when byte_size(SoFar) > MaxLength ->
 	error_terminate(400, State);
-parse_hd_value(<<>>, S, M, P, Q, F, V, H, N, SoFar) ->
-	wait_hd_value(<<>>, S, M, P, Q, F, V, H, N, SoFar).
+parse_hd_value(<<>>, S, M, P, Q, V, H, N, SoFar) ->
+	wait_hd_value(<<>>, S, M, P, Q, V, H, N, SoFar).
 
-request(B, State=#state{transport=Transport}, M, P, Q, F, Version, Headers) ->
+request(B, State=#state{transport=Transport}, M, P, Q, Version, Headers) ->
 	case lists:keyfind(<<"host">>, 1, Headers) of
 		false when Version =:= {1, 1} ->
 			error_terminate(400, State);
 		false ->
-			request(B, State, M, P, Q, F, Version, Headers,
+			request(B, State, M, P, Q, Version, Headers,
 				<<>>, default_port(Transport:name()));
 		{_, RawHost} ->
 			case catch parse_host(RawHost, <<>>) of
 				{'EXIT', _} ->
 					error_terminate(400, State);
 				{Host, undefined} ->
-					request(B, State, M, P, Q, F, Version, Headers,
+					request(B, State, M, P, Q, Version, Headers,
 						Host, default_port(Transport:name()));
 				{Host, Port} ->
-					request(B, State, M, P, Q, F, Version, Headers,
+					request(B, State, M, P, Q, Version, Headers,
 						Host, Port)
 			end
 	end.
@@ -476,11 +476,11 @@ parse_host(<< C, Rest/bits >>, Acc) ->
 request(Buffer, State=#state{socket=Socket, transport=Transport,
 		req_keepalive=ReqKeepalive, max_keepalive=MaxKeepalive,
 		compress=Compress, onresponse=OnResponse},
-		Method, Path, Query, Fragment, Version, Headers, Host, Port) ->
+		Method, Path, Query, Version, Headers, Host, Port) ->
 	case Transport:peername(Socket) of
 		{ok, Peer} ->
 			Req = cowboy_req:new(Socket, Transport, Peer, Method, Path,
-				Query, Fragment, Version, Headers, Host, Port, Buffer,
+				Query, Version, Headers, Host, Port, Buffer,
 				ReqKeepalive < MaxKeepalive, Compress, OnResponse),
 			onrequest(Req, State);
 		{error, _} ->
@@ -583,7 +583,7 @@ error_terminate(Code, State=#state{socket=Socket, transport=Transport,
 		{cowboy_req, resp_sent} -> ok
 	after 0 ->
 		_ = cowboy_req:reply(Code, cowboy_req:new(Socket, Transport,
-			undefined, <<"GET">>, <<>>, <<>>, <<>>, {1, 1}, [], <<>>,
+			undefined, <<"GET">>, <<>>, <<>>, {1, 1}, [], <<>>,
 			undefined, <<>>, false, Compress, OnResponse)),
 		ok
 	end,
