@@ -480,14 +480,14 @@ parse_header(Name, Req=#http_req{p_headers=PHeaders}, Default, Fun) ->
 
 %% @equiv cookie(Name, Req, undefined)
 -spec cookie(binary(), Req)
-	-> {binary() | true | undefined, Req} when Req::req().
+	-> {binary() | undefined, Req} when Req::req().
 cookie(Name, Req) when is_binary(Name) ->
 	cookie(Name, Req, undefined).
 
 %% @doc Return the cookie value for the given key, or a default if
 %% missing.
 -spec cookie(binary(), Req, Default)
-	-> {binary() | true | Default, Req} when Req::req(), Default::any().
+	-> {binary() | Default, Req} when Req::req(), Default::any().
 cookie(Name, Req=#http_req{cookies=undefined}, Default) when is_binary(Name) ->
 	case parse_header(<<"cookie">>, Req) of
 		{ok, undefined, Req2} ->
@@ -502,7 +502,7 @@ cookie(Name, Req, Default) ->
 	end.
 
 %% @doc Return the full list of cookie values.
--spec cookies(Req) -> {list({binary(), binary() | true}), Req} when Req::req().
+-spec cookies(Req) -> {list({binary(), binary()}), Req} when Req::req().
 cookies(Req=#http_req{cookies=undefined}) ->
 	case parse_header(<<"cookie">>, Req) of
 		{ok, undefined, Req2} ->
