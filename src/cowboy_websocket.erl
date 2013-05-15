@@ -29,8 +29,8 @@
 -export_type([close_code/0]).
 
 -type frame() :: close | ping | pong
-	| {text | binary | close | ping | pong, binary()}
-	| {close, close_code(), binary()}.
+	| {text | binary | close | ping | pong, iodata()}
+	| {close, close_code(), iodata()}.
 -export_type([frame/0]).
 
 -type opcode() :: 0 | 1 | 2 | 8 | 9 | 10.
