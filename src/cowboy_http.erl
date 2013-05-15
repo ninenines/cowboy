@@ -802,7 +802,7 @@ qvalue(Data, Fun, Q, _M) ->
 %% Only Basic authorization is supported so far.
 -spec authorization(binary(), binary()) -> {binary(), any()} | {error, badarg}.
 authorization(UserPass, Type = <<"basic">>) ->
-	cowboy_http:whitespace(UserPass,
+	whitespace(UserPass,
 		fun(D) ->
 			authorization_basic_userid(base64:mime_decode(D),
 				fun(Rest, Userid) ->
@@ -813,7 +813,7 @@ authorization(UserPass, Type = <<"basic">>) ->
 				end)
 		end);
 authorization(String, Type) ->
-	cowboy_http:whitespace(String, fun(Rest) -> {Type, Rest} end).
+	whitespace(String, fun(Rest) -> {Type, Rest} end).
 
 %% @doc Parse user credentials.
 -spec authorization_basic_userid(binary(), fun()) -> any().
@@ -849,12 +849,12 @@ authorization_basic_password(<<C, Rest/binary>>, Fun, Acc) ->
 		Unit :: binary(),
 		Range :: {non_neg_integer(), non_neg_integer() | infinity} | neg_integer().
 range(Data) ->
-	cowboy_http:token_ci(Data, fun range/2).
+	token_ci(Data, fun range/2).
 
 range(Data, Token) ->
 	whitespace(Data,
 		fun(<<"=", Rest/binary>>) ->
-			case cowboy_http:list(Rest, fun range_beginning/2) of
+			case list(Rest, fun range_beginning/2) of
 				{error, badarg} ->
 					{error, badarg};
 				Ranges ->

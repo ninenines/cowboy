@@ -116,7 +116,7 @@ CT_SUITES ?=
 CT_SUITES_FULL = $(addsuffix _SUITE,$(CT_SUITES))
 
 tests: ERLC_OPTS += -DTEST=1 +'{parse_transform, eunit_autoexport}'
-tests: clean clean-deps deps app build-tests
+tests: clean deps app build-tests
 	@mkdir -p logs/
 	@$(CT_RUN) -suite $(CT_SUITES_FULL)
 	$(gen_verbose) rm -f test/*.beam
