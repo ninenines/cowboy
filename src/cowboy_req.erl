@@ -222,7 +222,7 @@ version(Req) ->
 
 %% @doc Return the peer address and port number of the remote host.
 -spec peer(Req)
-	-> {undefined | {inet:ip_address(), inet:port_number()}, Req}
+	-> {{inet:ip_address(), inet:port_number()}, Req}
 	when Req::req().
 peer(Req) ->
 	{Req#http_req.peer, Req}.
