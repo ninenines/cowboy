@@ -58,7 +58,7 @@
 
 -type onrequest_fun() :: fun((Req) -> Req).
 -type onresponse_fun() ::
-	fun((cowboy_http:status(), cowboy:http_headers(), iodata(), Req) -> Req).
+	fun((cowboy:http_status(), cowboy:http_headers(), iodata(), Req) -> Req).
 -export_type([onrequest_fun/0]).
 -export_type([onresponse_fun/0]).
 
@@ -565,7 +565,7 @@ next_request(Req, State=#state{req_keepalive=Keepalive, timeout=Timeout},
 	end.
 
 %% Only send an error reply if there is no resp_sent message.
--spec error_terminate(cowboy_http:status(), cowboy_req:req(), #state{}) -> ok.
+-spec error_terminate(cowboy:http_status(), cowboy_req:req(), #state{}) -> ok.
 error_terminate(Code, Req, State) ->
 	receive
 		{cowboy_req, resp_sent} -> ok
@@ -576,7 +576,7 @@ error_terminate(Code, Req, State) ->
 	terminate(State).
 
 %% Only send an error reply if there is no resp_sent message.
--spec error_terminate(cowboy_http:status(), #state{}) -> ok.
+-spec error_terminate(cowboy:http_status(), #state{}) -> ok.
 error_terminate(Code, State=#state{socket=Socket, transport=Transport,
 		compress=Compress, onresponse=OnResponse}) ->
 	receive

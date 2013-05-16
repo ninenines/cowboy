@@ -925,18 +925,18 @@ delete_resp_header(Name, Req=#http_req{resp_headers=RespHeaders}) ->
 	Req#http_req{resp_headers=RespHeaders2}.
 
 %% @equiv reply(Status, [], [], Req)
--spec reply(cowboy_http:status(), Req) -> {ok, Req} when Req::req().
+-spec reply(cowboy:http_status(), Req) -> {ok, Req} when Req::req().
 reply(Status, Req=#http_req{resp_body=Body}) ->
 	reply(Status, [], Body, Req).
 
 %% @equiv reply(Status, Headers, [], Req)
--spec reply(cowboy_http:status(), cowboy:http_headers(), Req)
+-spec reply(cowboy:http_status(), cowboy:http_headers(), Req)
 	-> {ok, Req} when Req::req().
 reply(Status, Headers, Req=#http_req{resp_body=Body}) ->
 	reply(Status, Headers, Body, Req).
 
 %% @doc Send a reply to the client.
--spec reply(cowboy_http:status(), cowboy:http_headers(),
+-spec reply(cowboy:http_status(), cowboy:http_headers(),
 	iodata() | {non_neg_integer() | resp_body_fun()}, Req)
 	-> {ok, Req} when Req::req().
 reply(Status, Headers, Body, Req=#http_req{
@@ -1047,13 +1047,13 @@ reply_no_compress(Status, Headers, Body, Req,
 	Req2.
 
 %% @equiv chunked_reply(Status, [], Req)
--spec chunked_reply(cowboy_http:status(), Req) -> {ok, Req} when Req::req().
+-spec chunked_reply(cowboy:http_status(), Req) -> {ok, Req} when Req::req().
 chunked_reply(Status, Req) ->
 	chunked_reply(Status, [], Req).
 
 %% @doc Initiate the sending of a chunked reply to the client.
 %% @see cowboy_req:chunk/2
--spec chunked_reply(cowboy_http:status(), cowboy:http_headers(), Req)
+-spec chunked_reply(cowboy:http_status(), cowboy:http_headers(), Req)
 	-> {ok, Req} when Req::req().
 chunked_reply(Status, Headers, Req) ->
 	{_, Req2} = chunked_response(Status, Headers, Req),
@@ -1073,7 +1073,7 @@ chunk(Data, #http_req{socket=Socket, transport=Transport, resp_state=chunks}) ->
 
 %% @doc Send an upgrade reply.
 %% @private
--spec upgrade_reply(cowboy_http:status(), cowboy:http_headers(), Req)
+-spec upgrade_reply(cowboy:http_status(), cowboy:http_headers(), Req)
 	-> {ok, Req} when Req::req().
 upgrade_reply(Status, Headers, Req=#http_req{
 		resp_state=waiting, resp_headers=RespHeaders}) ->
@@ -1084,7 +1084,7 @@ upgrade_reply(Status, Headers, Req=#http_req{
 
 %% @doc Ensure the response has been sent fully.
 %% @private
--spec ensure_response(req(), cowboy_http:status()) -> ok.
+-spec ensure_response(req(), cowboy:http_status()) -> ok.
 %% The response has already been fully sent to the client.
 ensure_response(#http_req{resp_state=done}, _) ->
 	ok;
@@ -1210,7 +1210,7 @@ to_list(Req) ->
 
 %% Internal.
 
--spec chunked_response(cowboy_http:status(), cowboy:http_headers(), Req) ->
+-spec chunked_response(cowboy:http_status(), cowboy:http_headers(), Req) ->
 	{normal | hook, Req} when Req::req().
 chunked_response(Status, Headers, Req=#http_req{
 		version=Version, connection=Connection,
@@ -1229,7 +1229,7 @@ chunked_response(Status, Headers, Req=#http_req{
 	{RespType, Req2#http_req{connection=RespConn, resp_state=chunks,
 			resp_headers=[], resp_body= <<>>}}.
 
--spec response(cowboy_http:status(), cowboy:http_headers(),
+-spec response(cowboy:http_status(), cowboy:http_headers(),
 	cowboy:http_headers(), cowboy:http_headers(), iodata(), Req)
 	-> {normal | hook, Req} when Req::req().
 response(Status, Headers, RespHeaders, DefaultHeaders, Body, Req=#http_req{
@@ -1371,7 +1371,7 @@ connection_to_atom([<<"close">>|_]) ->
 connection_to_atom([_|Tail]) ->
 	connection_to_atom(Tail).
 
--spec status(cowboy_http:status()) -> binary().
+-spec status(cowboy:http_status()) -> binary().
 status(100) -> <<"100 Continue">>;
 status(101) -> <<"101 Switching Protocols">>;
 status(102) -> <<"102 Processing">>;
