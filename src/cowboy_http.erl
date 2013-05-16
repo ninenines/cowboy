@@ -46,14 +46,13 @@
 
 %% Interpretation.
 -export([cookie_to_iodata/3]).
--export([version_to_binary/1]).
 -export([urldecode/1]).
 -export([urldecode/2]).
 -export([urlencode/1]).
 -export([urlencode/2]).
 -export([x_www_form_urlencoded/1]).
 
--type version() :: {Major::non_neg_integer(), Minor::non_neg_integer()}.
+-type version() :: 'HTTP/1.1' | 'HTTP/1.0'.
 -type headers() :: [{binary(), iodata()}].
 -type status() :: non_neg_integer() | binary().
 
@@ -1000,11 +999,6 @@ cookie_to_iodata(Name, Value, Opts) ->
 	end,
 	[Name, <<"=">>, Value, <<"; Version=1">>,
 		MaxAgeBin, DomainBin, PathBin, SecureBin, HttpOnlyBin].
-
-%% @doc Convert an HTTP version tuple to its binary form.
--spec version_to_binary(version()) -> binary().
-version_to_binary({1, 1}) -> <<"HTTP/1.1">>;
-version_to_binary({1, 0}) -> <<"HTTP/1.0">>.
 
 %% @doc Decode a URL encoded binary.
 %% @equiv urldecode(Bin, crash)

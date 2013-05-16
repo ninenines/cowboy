@@ -133,7 +133,7 @@
 	%% Request.
 	pid = undefined :: pid(),
 	method = <<"GET">> :: binary(),
-	version = {1, 1} :: cowboy_http:version(),
+	version = 'HTTP/1.1' :: cowboy_http:version(),
 	peer = undefined :: undefined | {inet:ip_address(), inet:port_number()},
 	host = undefined :: undefined | binary(),
 	host_info = undefined :: undefined | cowboy_router:tokens(),
@@ -193,7 +193,7 @@ new(Socket, Transport, Peer, Method, Path, Query,
 		method=Method, path=Path, qs=Query, version=Version,
 		headers=Headers, host=Host, port=Port, buffer=Buffer,
 		resp_compress=Compress, onresponse=OnResponse},
-	case CanKeepalive and (Version =:= {1, 1}) of
+	case CanKeepalive and (Version =:= 'HTTP/1.1') of
 		false ->
 			Req#http_req{connection=close};
 		true ->
@@ -605,7 +605,7 @@ stream_body(MaxLength, Req=#http_req{body_state=waiting, version=Version,
 	{ok, ExpectHeader, Req1} = parse_header(<<"expect">>, Req),
 	case ExpectHeader of
 		[<<"100-continue">>] ->
-			HTTPVer = cowboy_http:version_to_binary(Version),
+			HTTPVer = atom_to_binary(Version, latin1),
 			Transport:send(Socket,
 				<< HTTPVer/binary, " ", (status(100))/binary, "\r\n\r\n" >>);
 		undefined ->
@@ -935,7 +935,7 @@ reply(Status, Headers, Body, Req=#http_req{
 		method=Method, resp_compress=Compress,
 		resp_state=waiting, resp_headers=RespHeaders}) ->
 	HTTP11Headers = case Version of
-		{1, 1} -> [{<<"connection">>, atom_to_connection(Connection)}];
+		'HTTP/1.1' -> [{<<"connection">>, atom_to_connection(Connection)}];
 		_ -> []
 	end,
 	Req3 = case Body of
@@ -961,7 +961,7 @@ reply(Status, Headers, Body, Req=#http_req{
 					BodyFun(ChunkFun),
 					%% Terminate the chunked body for HTTP/1.1 only.
 					_ = case Version of
-						{1, 0} -> ok;
+						'HTTP/1.0' -> ok;
 						_ -> Transport:send(Socket, <<"0\r\n\r\n">>)
 					end;
 				true -> ok
@@ -1055,7 +1055,7 @@ chunked_reply(Status, Headers, Req) ->
 -spec chunk(iodata(), req()) -> ok | {error, atom()}.
 chunk(_Data, #http_req{method= <<"HEAD">>}) ->
 	ok;
-chunk(Data, #http_req{socket=Socket, transport=Transport, version={1, 0}}) ->
+chunk(Data, #http_req{socket=Socket, transport=Transport, version='HTTP/1.0'}) ->
 	Transport:send(Socket, Data);
 chunk(Data, #http_req{socket=Socket, transport=Transport, resp_state=chunks}) ->
 	Transport:send(Socket, [integer_to_list(iolist_size(Data), 16),
@@ -1086,7 +1086,7 @@ ensure_response(Req=#http_req{resp_state=waiting}, Status) ->
 %% Terminate the chunked body for HTTP/1.1 only.
 ensure_response(#http_req{method= <<"HEAD">>, resp_state=chunks}, _) ->
 	ok;
-ensure_response(#http_req{version={1, 0}, resp_state=chunks}, _) ->
+ensure_response(#http_req{version='HTTP/1.0', resp_state=chunks}, _) ->
 	ok;
 ensure_response(#http_req{socket=Socket, transport=Transport,
 		resp_state=chunks}, _) ->
@@ -1207,7 +1207,7 @@ chunked_response(Status, Headers, Req=#http_req{
 		resp_state=waiting, resp_headers=RespHeaders}) ->
 	RespConn = response_connection(Headers, Connection),
 	HTTP11Headers = case Version of
-		{1, 1} -> [
+		'HTTP/1.1' -> [
 			{<<"connection">>, atom_to_connection(Connection)},
 			{<<"transfer-encoding">>, <<"chunked">>}];
 		_ -> []
@@ -1239,7 +1239,7 @@ response(Status, Headers, RespHeaders, DefaultHeaders, Body, Req=#http_req{
 	end,
 	ReplyType = case Req2#http_req.resp_state of
 		waiting ->
-			HTTPVer = cowboy_http:version_to_binary(Version),
+			HTTPVer = atom_to_binary(Version, latin1),
 			StatusLine = << HTTPVer/binary, " ",
 				(status(Status))/binary, "\r\n" >>,
 			HeaderLines = [[Key, <<": ">>, Value, <<"\r\n">>]

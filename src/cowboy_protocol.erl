@@ -242,9 +242,9 @@ skip_uri_fragment(<< C, Rest/bits >>, S, M, P, Q) ->
 	end.
 
 parse_version(<< "HTTP/1.1\r\n", Rest/bits >>, S, M, P, Q) ->
-	parse_header(Rest, S, M, P, Q, {1, 1}, []);
+	parse_header(Rest, S, M, P, Q, 'HTTP/1.1', []);
 parse_version(<< "HTTP/1.0\r\n", Rest/bits >>, S, M, P, Q) ->
-	parse_header(Rest, S, M, P, Q, {1, 0}, []);
+	parse_header(Rest, S, M, P, Q, 'HTTP/1.0', []);
 parse_version(_, State, _, _, _) ->
 	error_terminate(505, State).
 
@@ -411,7 +411,7 @@ parse_hd_value(<<>>, S, M, P, Q, V, H, N, SoFar) ->
 
 request(B, State=#state{transport=Transport}, M, P, Q, Version, Headers) ->
 	case lists:keyfind(<<"host">>, 1, Headers) of
-		false when Version =:= {1, 1} ->
+		false when Version =:= 'HTTP/1.1' ->
 			error_terminate(400, State);
 		false ->
 			request(B, State, M, P, Q, Version, Headers,
@@ -583,7 +583,7 @@ error_terminate(Code, State=#state{socket=Socket, transport=Transport,
 		{cowboy_req, resp_sent} -> ok
 	after 0 ->
 		_ = cowboy_req:reply(Code, cowboy_req:new(Socket, Transport,
-			undefined, <<"GET">>, <<>>, <<>>, {1, 1}, [], <<>>,
+			undefined, <<"GET">>, <<>>, <<>>, 'HTTP/1.1', [], <<>>,
 			undefined, <<>>, false, Compress, OnResponse)),
 		ok
 	end,

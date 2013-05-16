@@ -31,7 +31,7 @@ request object.
 The following access functions are defined in `cowboy_req`:
 
  *  `method/1`: the request method (`<<"GET">>`, `<<"POST">>`...)
- *  `version/1`: the HTTP version (`{1,0}` or `{1,1}`)
+ *  `version/1`: the HTTP version (`'HTTP/1.0'` or `'HTTP/1.1'`)
  *  `peer/1`: the peer address and port number
  *  `host/1`: the hostname requested
  *  `host_info/1`: the result of the `[...]` match on the host
