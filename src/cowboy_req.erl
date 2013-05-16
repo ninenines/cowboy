@@ -120,6 +120,16 @@
 -type cookie_opts() :: [cookie_option()].
 -export_type([cookie_opts/0]).
 
+-type content_decode_fun() :: fun((binary())
+	-> {ok, binary()}
+	| {error, atom()}).
+-type transfer_decode_fun() :: fun((binary(), any())
+	-> {ok, binary(), binary(), any()}
+	| more | {more, non_neg_integer(), binary(), any()}
+	| {done, non_neg_integer(), binary()}
+	| {done, binary(), non_neg_integer(), binary()}
+	| {error, atom()}).
+
 -type resp_body_fun() :: fun((inet:socket(), module()) -> ok).
 -type send_chunk_fun() :: fun((iodata()) -> ok | {error, atom()}).
 -type resp_chunked_fun() :: fun((send_chunk_fun()) -> ok).
@@ -149,8 +159,8 @@
 	meta = [] :: [{atom(), any()}],
 
 	%% Request body.
-	body_state = waiting :: waiting | done
-		| {stream, non_neg_integer(), fun(), any(), fun()},
+	body_state = waiting :: waiting | done | {stream, non_neg_integer(),
+		transfer_decode_fun(), any(), content_decode_fun()},
 	multipart = undefined :: undefined | {non_neg_integer(), fun()},
 	buffer = <<>> :: binary(),
 
@@ -572,7 +582,7 @@ body_length(Req) ->
 %% Content encoding is generally used for compression.
 %%
 %% Standard encodings can be found in cowboy_http.
--spec init_stream(fun(), any(), fun(), Req)
+-spec init_stream(transfer_decode_fun(), any(), content_decode_fun(), Req)
 	-> {ok, Req} when Req::req().
 init_stream(TransferDecode, TransferState, ContentDecode, Req) ->
 	{ok, Req#http_req{body_state=
@@ -691,7 +701,7 @@ transfer_decode_done(Length, Rest, Req=#http_req{
 		headers=Headers3, p_headers=PHeaders3}.
 
 %% @todo Probably needs a Rest.
--spec content_decode(fun(), binary(), Req)
+-spec content_decode(content_decode_fun(), binary(), Req)
 	-> {ok, binary(), Req} | {error, atom()} when Req::req().
 content_decode(ContentDecode, Data, Req) ->
 	case ContentDecode(Data) of
