@@ -56,6 +56,20 @@
 -export([parse_request/3]).
 -export([resume/6]).
 
+-type opts() :: [{compress, boolean()}
+	| {env, cowboy_middleware:env()}
+	| {max_empty_lines, non_neg_integer()}
+	| {max_header_name_length, non_neg_integer()}
+	| {max_header_value_length, non_neg_integer()}
+	| {max_headers, non_neg_integer()}
+	| {max_keepalive, non_neg_integer()}
+	| {max_request_line_length, non_neg_integer()}
+	| {middlewares, [module()]}
+	| {onrequest, cowboy:onrequest_fun()}
+	| {onresponse, cowboy:onresponse_fun()}
+	| {timeout, timeout()}].
+-export_type([opts/0]).
+
 -record(state, {
 	socket :: inet:socket(),
 	transport :: module(),
@@ -78,7 +92,7 @@
 %% API.
 
 %% @doc Start an HTTP protocol process.
--spec start_link(any(), inet:socket(), module(), any()) -> {ok, pid()}.
+-spec start_link(any(), inet:socket(), module(), opts()) -> {ok, pid()}.
 start_link(Ref, Socket, Transport, Opts) ->
 	Pid = spawn_link(?MODULE, init, [Ref, Socket, Transport, Opts]),
 	{ok, Pid}.
@@ -94,7 +108,7 @@ get_value(Key, Opts, Default) ->
 	end.
 
 %% @private
--spec init(any(), inet:socket(), module(), any()) -> ok.
+-spec init(any(), inet:socket(), module(), opts()) -> ok.
 init(Ref, Socket, Transport, Opts) ->
 	Compress = get_value(compress, Opts, false),
 	MaxEmptyLines = get_value(max_empty_lines, Opts, 5),

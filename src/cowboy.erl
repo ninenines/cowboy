@@ -37,14 +37,16 @@
 -export_type([onresponse_fun/0]).
 
 %% @doc Start an HTTP listener.
--spec start_http(any(), non_neg_integer(), any(), any()) -> {ok, pid()}.
+-spec start_http(any(), non_neg_integer(), any(),
+	cowboy_protocol:opts()) -> {ok, pid()}.
 start_http(Ref, NbAcceptors, TransOpts, ProtoOpts)
 		when is_integer(NbAcceptors), NbAcceptors > 0 ->
 	ranch:start_listener(Ref, NbAcceptors,
 		ranch_tcp, TransOpts, cowboy_protocol, ProtoOpts).
 
 %% @doc Start an HTTPS listener.
--spec start_https(any(), non_neg_integer(), any(), any()) -> {ok, pid()}.
+-spec start_https(any(), non_neg_integer(), any(),
+	cowboy_protocol:opts()) -> {ok, pid()}.
 start_https(Ref, NbAcceptors, TransOpts, ProtoOpts)
 		when is_integer(NbAcceptors), NbAcceptors > 0 ->
 	ranch:start_listener(Ref, NbAcceptors,
