@@ -45,7 +45,7 @@ start_http(Ref, NbAcceptors, TransOpts, ProtoOpts)
 		ranch_tcp, TransOpts, cowboy_protocol, ProtoOpts).
 
 %% @doc Start an HTTPS listener.
--spec start_https(ranch:ref(), non_neg_integer(), any(),
+-spec start_https(ranch:ref(), non_neg_integer(), ranch_ssl:opts(),
 	cowboy_protocol:opts()) -> {ok, pid()}.
 start_https(Ref, NbAcceptors, TransOpts, ProtoOpts)
 		when is_integer(NbAcceptors), NbAcceptors > 0 ->
