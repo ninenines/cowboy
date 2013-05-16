@@ -58,7 +58,7 @@
 
 -type onrequest_fun() :: fun((Req) -> Req).
 -type onresponse_fun() ::
-	fun((cowboy_http:status(), cowboy_http:headers(), iodata(), Req) -> Req).
+	fun((cowboy_http:status(), cowboy:http_headers(), iodata(), Req) -> Req).
 -export_type([onrequest_fun/0]).
 -export_type([onresponse_fun/0]).
 

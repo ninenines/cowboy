@@ -52,10 +52,8 @@
 -export([urlencode/2]).
 -export([x_www_form_urlencoded/1]).
 
--type headers() :: [{binary(), iodata()}].
 -type status() :: non_neg_integer() | binary().
 
--export_type([headers/0]).
 -export_type([status/0]).
 
 %% Parsing.

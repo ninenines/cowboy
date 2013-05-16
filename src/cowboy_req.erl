@@ -153,7 +153,7 @@
 	qs = undefined :: binary(),
 	qs_vals = undefined :: undefined | list({binary(), binary() | true}),
 	bindings = undefined :: undefined | cowboy_router:bindings(),
-	headers = [] :: cowboy_http:headers(),
+	headers = [] :: cowboy:http_headers(),
 	p_headers = [] :: [any()], %% @todo Improve those specs.
 	cookies = undefined :: undefined | [{binary(), binary()}],
 	meta = [] :: [{atom(), any()}],
@@ -167,7 +167,7 @@
 	%% Response.
 	resp_compress = false :: boolean(),
 	resp_state = waiting :: locked | waiting | chunks | done,
-	resp_headers = [] :: cowboy_http:headers(),
+	resp_headers = [] :: cowboy:http_headers(),
 	resp_body = <<>> :: iodata() | resp_body_fun()
 		| {non_neg_integer(), resp_body_fun()}
 		| {chunked, resp_chunked_fun()},
@@ -192,7 +192,7 @@
 -spec new(inet:socket(), module(),
 	undefined | {inet:ip_address(), inet:port_number()},
 	binary(), binary(), binary(),
-	cowboy:http_version(), cowboy_http:headers(), binary(),
+	cowboy:http_version(), cowboy:http_headers(), binary(),
 	inet:port_number() | undefined, binary(), boolean(), boolean(),
 	undefined | cowboy_protocol:onresponse_fun())
 	-> req().
@@ -370,7 +370,7 @@ header(Name, Req, Default) ->
 	end.
 
 %% @doc Return the full list of headers.
--spec headers(Req) -> {cowboy_http:headers(), Req} when Req::req().
+-spec headers(Req) -> {cowboy:http_headers(), Req} when Req::req().
 headers(Req) ->
 	{Req#http_req.headers, Req}.
 
@@ -787,7 +787,7 @@ body_qs(MaxBodyLength, Req) ->
 %% <em>{body, Data}</em> tuples and finally <em>end_of_part</em>. When there
 %% is no part to parse anymore, <em>eof</em> is returned.
 -spec multipart_data(Req)
-	-> {headers, cowboy_http:headers(), Req} | {body, binary(), Req}
+	-> {headers, cowboy:http_headers(), Req} | {body, binary(), Req}
 		| {end_of_part | eof, Req} when Req::req().
 multipart_data(Req=#http_req{body_state=waiting}) ->
 	{ok, {<<"multipart">>, _SubType, Params}, Req2} =
@@ -930,13 +930,13 @@ reply(Status, Req=#http_req{resp_body=Body}) ->
 	reply(Status, [], Body, Req).
 
 %% @equiv reply(Status, Headers, [], Req)
--spec reply(cowboy_http:status(), cowboy_http:headers(), Req)
+-spec reply(cowboy_http:status(), cowboy:http_headers(), Req)
 	-> {ok, Req} when Req::req().
 reply(Status, Headers, Req=#http_req{resp_body=Body}) ->
 	reply(Status, Headers, Body, Req).
 
 %% @doc Send a reply to the client.
--spec reply(cowboy_http:status(), cowboy_http:headers(),
+-spec reply(cowboy_http:status(), cowboy:http_headers(),
 	iodata() | {non_neg_integer() | resp_body_fun()}, Req)
 	-> {ok, Req} when Req::req().
 reply(Status, Headers, Body, Req=#http_req{
@@ -1053,7 +1053,7 @@ chunked_reply(Status, Req) ->
 
 %% @doc Initiate the sending of a chunked reply to the client.
 %% @see cowboy_req:chunk/2
--spec chunked_reply(cowboy_http:status(), cowboy_http:headers(), Req)
+-spec chunked_reply(cowboy_http:status(), cowboy:http_headers(), Req)
 	-> {ok, Req} when Req::req().
 chunked_reply(Status, Headers, Req) ->
 	{_, Req2} = chunked_response(Status, Headers, Req),
@@ -1073,7 +1073,7 @@ chunk(Data, #http_req{socket=Socket, transport=Transport, resp_state=chunks}) ->
 
 %% @doc Send an upgrade reply.
 %% @private
--spec upgrade_reply(cowboy_http:status(), cowboy_http:headers(), Req)
+-spec upgrade_reply(cowboy_http:status(), cowboy:http_headers(), Req)
 	-> {ok, Req} when Req::req().
 upgrade_reply(Status, Headers, Req=#http_req{
 		resp_state=waiting, resp_headers=RespHeaders}) ->
@@ -1210,7 +1210,7 @@ to_list(Req) ->
 
 %% Internal.
 
--spec chunked_response(cowboy_http:status(), cowboy_http:headers(), Req) ->
+-spec chunked_response(cowboy_http:status(), cowboy:http_headers(), Req) ->
 	{normal | hook, Req} when Req::req().
 chunked_response(Status, Headers, Req=#http_req{
 		version=Version, connection=Connection,
@@ -1229,8 +1229,8 @@ chunked_response(Status, Headers, Req=#http_req{
 	{RespType, Req2#http_req{connection=RespConn, resp_state=chunks,
 			resp_headers=[], resp_body= <<>>}}.
 
--spec response(cowboy_http:status(), cowboy_http:headers(),
-	cowboy_http:headers(), cowboy_http:headers(), iodata(), Req)
+-spec response(cowboy_http:status(), cowboy:http_headers(),
+	cowboy:http_headers(), cowboy:http_headers(), iodata(), Req)
 	-> {normal | hook, Req} when Req::req().
 response(Status, Headers, RespHeaders, DefaultHeaders, Body, Req=#http_req{
 		socket=Socket, transport=Transport, version=Version,
@@ -1262,7 +1262,7 @@ response(Status, Headers, RespHeaders, DefaultHeaders, Body, Req=#http_req{
 	end,
 	{ReplyType, Req2}.
 
--spec response_connection(cowboy_http:headers(), keepalive | close)
+-spec response_connection(cowboy:http_headers(), keepalive | close)
 	-> keepalive | close.
 response_connection([], Connection) ->
 	Connection;
@@ -1275,16 +1275,16 @@ response_connection([{Name, Value}|Tail], Connection) ->
 			response_connection(Tail, Connection)
 	end.
 
--spec response_merge_headers(cowboy_http:headers(), cowboy_http:headers(),
-	cowboy_http:headers()) -> cowboy_http:headers().
+-spec response_merge_headers(cowboy:http_headers(), cowboy:http_headers(),
+	cowboy:http_headers()) -> cowboy:http_headers().
 response_merge_headers(Headers, RespHeaders, DefaultHeaders) ->
 	Headers2 = [{Key, Value} || {Key, Value} <- Headers],
 	merge_headers(
 		merge_headers(Headers2, RespHeaders),
 		DefaultHeaders).
 
--spec merge_headers(cowboy_http:headers(), cowboy_http:headers())
-	-> cowboy_http:headers().
+-spec merge_headers(cowboy:http_headers(), cowboy:http_headers())
+	-> cowboy:http_headers().
 
 %% Merge headers by prepending the tuples in the second list to the
 %% first list. It also handles Set-Cookie properly, which supports
