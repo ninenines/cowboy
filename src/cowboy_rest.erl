@@ -426,7 +426,11 @@ prioritize_charsets(AcceptCharsets) ->
 		end, AcceptCharsets),
 	case lists:keymember(<<"*">>, 1, AcceptCharsets2) of
 		true -> AcceptCharsets2;
-		false -> [{<<"iso-8859-1">>, 1000}|AcceptCharsets2]
+		false ->
+			case lists:keymember(<<"iso-8859-1">>, 1, AcceptCharsets2) of
+				true -> AcceptCharsets2;
+				false -> [{<<"iso-8859-1">>, 1000}|AcceptCharsets2]
+			end
 	end.
 
 choose_charset(Req, State, []) ->
