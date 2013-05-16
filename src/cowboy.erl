@@ -37,7 +37,7 @@
 -export_type([onresponse_fun/0]).
 
 %% @doc Start an HTTP listener.
--spec start_http(any(), non_neg_integer(), any(),
+-spec start_http(ranch:ref(), non_neg_integer(), any(),
 	cowboy_protocol:opts()) -> {ok, pid()}.
 start_http(Ref, NbAcceptors, TransOpts, ProtoOpts)
 		when is_integer(NbAcceptors), NbAcceptors > 0 ->
@@ -45,7 +45,7 @@ start_http(Ref, NbAcceptors, TransOpts, ProtoOpts)
 		ranch_tcp, TransOpts, cowboy_protocol, ProtoOpts).
 
 %% @doc Start an HTTPS listener.
--spec start_https(any(), non_neg_integer(), any(),
+-spec start_https(ranch:ref(), non_neg_integer(), any(),
 	cowboy_protocol:opts()) -> {ok, pid()}.
 start_https(Ref, NbAcceptors, TransOpts, ProtoOpts)
 		when is_integer(NbAcceptors), NbAcceptors > 0 ->
@@ -53,7 +53,7 @@ start_https(Ref, NbAcceptors, TransOpts, ProtoOpts)
 		ranch_ssl, TransOpts, cowboy_protocol, ProtoOpts).
 
 %% @doc Stop a listener.
--spec stop_listener(any()) -> ok.
+-spec stop_listener(ranch:ref()) -> ok.
 stop_listener(Ref) ->
 	ranch:stop_listener(Ref).
 
@@ -62,7 +62,7 @@ stop_listener(Ref) ->
 %% Allows you to update live an environment value used by middlewares.
 %% This function is primarily intended to simplify updating the dispatch
 %% list used for routing.
--spec set_env(any(), atom(), any()) -> ok.
+-spec set_env(ranch:ref(), atom(), any()) -> ok.
 set_env(Ref, Name, Value) ->
 	Opts = ranch:get_protocol_options(Ref),
 	{_, Env} = lists:keyfind(env, 1, Opts),

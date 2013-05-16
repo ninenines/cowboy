@@ -92,7 +92,7 @@
 %% API.
 
 %% @doc Start an HTTP protocol process.
--spec start_link(any(), inet:socket(), module(), opts()) -> {ok, pid()}.
+-spec start_link(ranch:ref(), inet:socket(), module(), opts()) -> {ok, pid()}.
 start_link(Ref, Socket, Transport, Opts) ->
 	Pid = spawn_link(?MODULE, init, [Ref, Socket, Transport, Opts]),
 	{ok, Pid}.
@@ -108,7 +108,7 @@ get_value(Key, Opts, Default) ->
 	end.
 
 %% @private
--spec init(any(), inet:socket(), module(), opts()) -> ok.
+-spec init(ranch:ref(), inet:socket(), module(), opts()) -> ok.
 init(Ref, Socket, Transport, Opts) ->
 	Compress = get_value(compress, Opts, false),
 	MaxEmptyLines = get_value(max_empty_lines, Opts, 5),
