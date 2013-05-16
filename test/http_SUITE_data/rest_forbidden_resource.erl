@@ -28,4 +28,4 @@ to_text(Req, State) ->
 
 from_text(Req, State) ->
 	{Path, Req2} = cowboy_req:path(Req),
-	{Path, Req2, State}.
+	{{true, Path}, Req2, State}.
