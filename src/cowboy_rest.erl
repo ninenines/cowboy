@@ -45,7 +45,7 @@
 	language_a :: undefined | binary(),
 
 	%% Charset.
-	charsets_p = [] :: [{binary(), integer()}],
+	charsets_p = [] :: [binary()],
 	charset_a :: undefined | binary(),
 
 	%% Whether the resource exists.
@@ -406,8 +406,7 @@ charsets_provided(Req, State) ->
 				cowboy_req:parse_header(<<"accept-charset">>, Req2),
 			case AcceptCharset of
 				undefined ->
-					set_content_type(Req3, State2#state{
-						charset_a=element(1, hd(CP))});
+					set_content_type(Req3, State2#state{charset_a=hd(CP)});
 				AcceptCharset ->
 					AcceptCharset2 = prioritize_charsets(AcceptCharset),
 					choose_charset(Req3, State2, AcceptCharset2)
@@ -437,7 +436,7 @@ choose_charset(Req, State=#state{charsets_p=CP}, [Charset|Tail]) ->
 
 match_charset(Req, State, Accept, [], _Charset) ->
 	choose_charset(Req, State, Accept);
-match_charset(Req, State, _Accept, [{Provided, _}|_], {Provided, _}) ->
+match_charset(Req, State, _Accept, [Provided|_], {Provided, _}) ->
 	set_content_type(Req, State#state{charset_a=Provided});
 match_charset(Req, State, Accept, [_|Tail], Charset) ->
 	match_charset(Req, State, Accept, Tail, Charset).
