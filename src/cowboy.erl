@@ -37,7 +37,7 @@
 -export_type([onresponse_fun/0]).
 
 %% @doc Start an HTTP listener.
--spec start_http(ranch:ref(), non_neg_integer(), any(),
+-spec start_http(ranch:ref(), non_neg_integer(), ranch_tcp:opts(),
 	cowboy_protocol:opts()) -> {ok, pid()}.
 start_http(Ref, NbAcceptors, TransOpts, ProtoOpts)
 		when is_integer(NbAcceptors), NbAcceptors > 0 ->
