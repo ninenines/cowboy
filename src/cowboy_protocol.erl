@@ -56,10 +56,6 @@
 -export([parse_request/3]).
 -export([resume/6]).
 
--type onresponse_fun() ::
-	fun((cowboy:http_status(), cowboy:http_headers(), iodata(), Req) -> Req).
--export_type([onresponse_fun/0]).
-
 -record(state, {
 	socket :: inet:socket(),
 	transport :: module(),
@@ -67,7 +63,7 @@
 	compress :: boolean(),
 	env :: cowboy_middleware:env(),
 	onrequest :: undefined | cowboy:onrequest_fun(),
-	onresponse = undefined :: undefined | onresponse_fun(),
+	onresponse = undefined :: undefined | cowboy:onresponse_fun(),
 	max_empty_lines :: non_neg_integer(),
 	req_keepalive = 1 :: non_neg_integer(),
 	max_keepalive :: non_neg_integer(),

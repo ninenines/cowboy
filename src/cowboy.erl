@@ -32,6 +32,10 @@
 -type onrequest_fun() :: fun((Req) -> Req).
 -export_type([onrequest_fun/0]).
 
+-type onresponse_fun() ::
+	fun((http_status(), http_headers(), iodata(), Req) -> Req).
+-export_type([onresponse_fun/0]).
+
 %% @doc Start an HTTP listener.
 -spec start_http(any(), non_neg_integer(), any(), any()) -> {ok, pid()}.
 start_http(Ref, NbAcceptors, TransOpts, ProtoOpts)

@@ -174,7 +174,7 @@
 
 	%% Functions.
 	onresponse = undefined :: undefined | already_called
-		| cowboy_protocol:onresponse_fun()
+		| cowboy:onresponse_fun()
 }).
 
 -opaque req() :: #http_req{}.
@@ -194,7 +194,7 @@
 	binary(), binary(), binary(),
 	cowboy:http_version(), cowboy:http_headers(), binary(),
 	inet:port_number() | undefined, binary(), boolean(), boolean(),
-	undefined | cowboy_protocol:onresponse_fun())
+	undefined | cowboy:onresponse_fun())
 	-> req().
 new(Socket, Transport, Peer, Method, Path, Query,
 		Version, Headers, Host, Port, Buffer, CanKeepalive,
