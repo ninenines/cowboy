@@ -143,7 +143,7 @@
 	%% Request.
 	pid = undefined :: pid(),
 	method = <<"GET">> :: binary(),
-	version = 'HTTP/1.1' :: cowboy_http:version(),
+	version = 'HTTP/1.1' :: cowboy:http_version(),
 	peer = undefined :: undefined | {inet:ip_address(), inet:port_number()},
 	host = undefined :: undefined | binary(),
 	host_info = undefined :: undefined | cowboy_router:tokens(),
@@ -192,7 +192,7 @@
 -spec new(inet:socket(), module(),
 	undefined | {inet:ip_address(), inet:port_number()},
 	binary(), binary(), binary(),
-	cowboy_http:version(), cowboy_http:headers(), binary(),
+	cowboy:http_version(), cowboy_http:headers(), binary(),
 	inet:port_number() | undefined, binary(), boolean(), boolean(),
 	undefined | cowboy_protocol:onresponse_fun())
 	-> req().
@@ -224,7 +224,7 @@ method(Req) ->
 	{Req#http_req.method, Req}.
 
 %% @doc Return the HTTP version used for the request.
--spec version(Req) -> {cowboy_http:version(), Req} when Req::req().
+-spec version(Req) -> {cowboy:http_version(), Req} when Req::req().
 version(Req) ->
 	{Req#http_req.version, Req}.
 

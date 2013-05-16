@@ -20,6 +20,9 @@
 -export([stop_listener/1]).
 -export([set_env/3]).
 
+-type http_version() :: 'HTTP/1.1' | 'HTTP/1.0'.
+-export_type([http_version/0]).
+
 %% @doc Start an HTTP listener.
 -spec start_http(any(), non_neg_integer(), any(), any()) -> {ok, pid()}.
 start_http(Ref, NbAcceptors, TransOpts, ProtoOpts)

@@ -40,7 +40,7 @@
 	timeout = 5000 :: timeout(), %% @todo Configurable.
 	buffer = <<>> :: binary(),
 	connection = keepalive :: keepalive | close,
-	version = 'HTTP/1.1' :: cowboy_http:version(),
+	version = 'HTTP/1.1' :: cowboy:http_version(),
 	response_body = undefined :: undefined | non_neg_integer()
 }).
 
