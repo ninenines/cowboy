@@ -236,7 +236,7 @@ rest_init(Req, Opts, Filepath) ->
 	Fileinfo = file:read_file_info(Filepath),
 	Mimetypes = case lists:keyfind(mimetypes, 1, Opts) of
 		false -> {fun path_to_mimetypes/2, []};
-		{_, {{M, F}, E}} -> {fun M:F/2, E};
+		{_, {{M, F}, E}} -> {fun (P1, P2) -> M:F(P1, P2) end, E};
 		{_, Mtypes} when is_tuple(Mtypes) -> Mtypes;
 		{_, Mtypes} when is_list(Mtypes) -> {fun path_to_mimetypes/2, Mtypes}
 	end,
