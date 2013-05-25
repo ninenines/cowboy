@@ -207,7 +207,7 @@ REST callbacks description
 >  *  Value = [{binary() | {Type, SubType, Params}, ProvideResource}]
 >  *  Type = SubType = binary()
 >  *  Params = '*' | [{binary(), binary()}]
->  *  AcceptResource = atom()
+>  *  ProvideResource = atom()
 >
 > Return the list of content-types the resource provides.
 >
