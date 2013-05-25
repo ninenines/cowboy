@@ -291,12 +291,15 @@ REST callbacks description
 ### generate_etag
 
 >  *  Methods: GET, HEAD, POST, PUT, PATCH, DELETE
->  *  Value type: binary()
+>  *  Value type: binary() | {weak | strong, binary()}
 >  *  Default value: undefined
 >
 > Return the entity tag of the resource.
 >
 > This value will be sent as the value of the etag header.
+>
+> If a binary is returned, then the value will be parsed
+> to the tuple form automatically.
 
 ### is_authorized
 
