@@ -54,6 +54,7 @@
 %% Internal.
 -export([init/4]).
 -export([parse_request/3]).
+-export([parse_host/2]).
 -export([resume/6]).
 
 -type opts() :: [{compress, boolean()}

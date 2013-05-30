@@ -17,6 +17,7 @@
 
 -export([start_http/4]).
 -export([start_https/4]).
+-export([start_spdy/4]).
 -export([stop_listener/1]).
 -export([set_env/3]).
 
@@ -51,6 +52,18 @@ start_https(Ref, NbAcceptors, TransOpts, ProtoOpts)
 		when is_integer(NbAcceptors), NbAcceptors > 0 ->
 	ranch:start_listener(Ref, NbAcceptors,
 		ranch_ssl, TransOpts, cowboy_protocol, ProtoOpts).
+
+%% @doc Start a SPDY listener.
+-spec start_spdy(any(), non_neg_integer(), any(), any()) -> {ok, pid()}.
+start_spdy(Ref, NbAcceptors, TransOpts, ProtoOpts)
+		when is_integer(NbAcceptors), NbAcceptors > 0 ->
+	TransOpts2 = [
+		{connection_type, supervisor},
+		{next_protocols_advertised,
+			[<<"spdy/3">>, <<"http/1.1">>, <<"http/1.0">>]}
+	|TransOpts],
+	ranch:start_listener(Ref, NbAcceptors,
+		ranch_ssl, TransOpts2, cowboy_spdy, ProtoOpts).
 
 %% @doc Stop a listener.
 -spec stop_listener(ranch:ref()) -> ok.
