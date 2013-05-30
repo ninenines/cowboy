@@ -247,6 +247,9 @@ control_frame(State=#state{middlewares=Middlewares, env=Env,
 			loop(State#state{last_streamid=StreamID,
 				children=[#child{streamid=StreamID, pid=Pid,
 					input=IsFin, output=nofin}|Children]});
+		{error, badname} ->
+			rst_stream(State, StreamID, protocol_error),
+			loop(State#state{last_streamid=StreamID});
 		{error, special} ->
 			rst_stream(State, StreamID, protocol_error),
 			loop(State#state{last_streamid=StreamID})
@@ -344,6 +347,8 @@ syn_stream_headers(<<>>, 0, Acc, Special=#special_headers{
 		true ->
 			{ok, lists:reverse(Acc), Special}
 	end;
+syn_stream_headers(<< 0:32, _Rest/bits >>, _NbHeaders, _Acc, _Special) ->
+	{error, badname};
 syn_stream_headers(<< NameLen:32, Rest/bits >>, NbHeaders, Acc, Special) ->
 	<< Name:NameLen/binary, ValueLen:32, Rest2/bits >> = Rest,
 	<< Value:ValueLen/binary, Rest3/bits >> = Rest2,
