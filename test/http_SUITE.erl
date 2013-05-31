@@ -64,6 +64,7 @@
 -export([rest_options_default/1]).
 -export([rest_param_all/1]).
 -export([rest_patch/1]).
+-export([rest_post_charset/1]).
 -export([rest_postonly/1]).
 -export([rest_resource_etags/1]).
 -export([rest_resource_etags_if_none_match/1]).
@@ -138,6 +139,7 @@ groups() ->
 		rest_options_default,
 		rest_param_all,
 		rest_patch,
+		rest_post_charset,
 		rest_postonly,
 		rest_resource_etags,
 		rest_resource_etags_if_none_match,
@@ -370,6 +372,7 @@ init_dispatch(Config) ->
 			{"/missing_get_callbacks", rest_missing_callbacks, []},
 			{"/missing_put_callbacks", rest_missing_callbacks, []},
 			{"/nodelete", rest_nodelete_resource, []},
+			{"/post_charset", rest_post_charset_resource, []},
 			{"/postonly", rest_postonly_resource, []},
 			{"/patch", rest_patch_resource, []},
 			{"/resetags", rest_resource_etags, []},
@@ -998,6 +1001,15 @@ rest_patch(Config) ->
 		{ok, Status, _, _} = cowboy_client:response(Client2),
 		ok
 	end || {Status, Headers, Body} <- Tests].
+
+rest_post_charset(Config) ->
+	Client = ?config(client, Config),
+	Headers = [
+		{<<"content-type">>, <<"text/plain;charset=UTF-8">>}
+	],
+	{ok, Client2} = cowboy_client:request(<<"POST">>,
+		build_url("/post_charset", Config), Headers, "12345", Client),
+	{ok, 204, _, _} = cowboy_client:response(Client2).
 
 rest_postonly(Config) ->
 	Client = ?config(client, Config),

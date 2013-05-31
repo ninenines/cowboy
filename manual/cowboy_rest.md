@@ -168,7 +168,9 @@ REST callbacks description
 > Cowboy will select the most appropriate content-type from the list.
 > If any parameter is acceptable, then the tuple form should be used
 > with parameters set to `'*'`. If the parameters value is set to `[]`
-> only content-type values with no parameters will be accepted.
+> only content-type values with no parameters will be accepted. All
+> parameter values are treated in a case sensitive manner except the
+> `charset` parameter, if present, which is case insensitive.
 >
 > This function will be called for POST, PUT and PATCH requests.
 > It is entirely possible to define different callbacks for different
@@ -219,7 +221,9 @@ REST callbacks description
 > Cowboy will select the most appropriate content-type from the list.
 > If any parameter is acceptable, then the tuple form should be used
 > with parameters set to `'*'`. If the parameters value is set to `[]`
-> only content-type values with no parameters will be accepted.
+> only content-type values with no parameters will be accepted. All
+> parameter values are treated in a case sensitive manner except the
+> `charset` parameter, if present, which is case insensitive.
 >
 > The `ProvideResource` value is the name of the callback that will
 > be called if the content-type matches. It is defined as follow.

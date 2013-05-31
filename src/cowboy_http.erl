@@ -162,14 +162,26 @@ cookie_value(<< C, Rest/binary >>, Fun, Acc) ->
 	cookie_value(Rest, Fun, << Acc/binary, C >>).
 
 %% @doc Parse a content type.
+%%
+%% We lowercase the charset header as we know it's case insensitive.
 -spec content_type(binary()) -> any().
 content_type(Data) ->
 	media_type(Data,
 		fun (Rest, Type, SubType) ->
-				params(Rest,
-					fun (<<>>, Params) -> {Type, SubType, Params};
-						(_Rest2, _) -> {error, badarg}
-					end)
+			params(Rest,
+				fun (<<>>, Params) ->
+						case lists:keyfind(<<"charset">>, 1, Params) of
+							false ->
+								{Type, SubType, Params};
+							{_, Charset} ->
+								Charset2 = cowboy_bstr:to_lower(Charset),
+								Params2 = lists:keyreplace(<<"charset">>,
+									1, Params, {<<"charset">>, Charset2}),
+								{Type, SubType, Params2}
+						end;
+					(_Rest2, _) ->
+						{error, badarg}
+				end)
 		end).
 
 %% @doc Parse a media range.

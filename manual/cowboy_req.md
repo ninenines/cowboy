@@ -176,7 +176,7 @@ Request related exports
 > | accept-language        | `[{LanguageTag, Quality}]`                        |
 > | authorization          | `{AuthType, Credentials}`                         |
 > | content-length         | `non_neg_integer()`                               |
-> | content-type           | `{Type, SubType, Params}`                         |
+> | content-type           | `{Type, SubType, ContentTypeParams}`              |
 > | cookie                 | `[{binary(), binary()}]`                          |
 > | expect                 | `[Expect | {Expect, ExpectValue, Params}]`        |
 > | if-match               | `'*' | [{weak | strong, OpaqueTag}]`              |
@@ -192,7 +192,7 @@ Request related exports
 > Types for the above table:
 >  *  Type = SubType = Charset = Encoding = LanguageTag = binary()
 >  *  AuthType = Expect = OpaqueTag = Unit = binary()
->  *  Params = [{binary(), binary()}]
+>  *  Params = ContentTypeParams = [{binary(), binary()}]
 >  *  Quality = 0..1000
 >  *  AcceptExt = [{binary(), binary()} | binary()]
 >  *  Credentials - see below
@@ -201,8 +201,9 @@ Request related exports
 > The cookie names and values, the values of the sec-websocket-protocol
 > and x-forwarded-for headers, the values in `AcceptExt` and `Params`,
 > the authorization `Credentials`, the `ExpectValue` and `OpaqueTag`
-> are case sensitive. All other values are case insensitive and
-> will be returned as lowercase.
+> are case sensitive. All values in `ContentTypeParams` are case sensitive
+> except the value of the charset parameter, which is case insensitive.
+> All other values are case insensitive and will be returned as lowercase.
 >
 > The headers accept, accept-encoding and cookie headers can return
 > an empty list. Others will return `{error, badarg}` if the header
