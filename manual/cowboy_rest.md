@@ -299,7 +299,8 @@ REST callbacks description
 > This value will be sent as the value of the etag header.
 >
 > If a binary is returned, then the value will be parsed
-> to the tuple form automatically.
+> to the tuple form automatically. The value must be in
+> the same format as the etag header, including quotes.
 
 ### is_authorized
 
