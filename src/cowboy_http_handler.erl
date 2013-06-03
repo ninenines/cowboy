@@ -35,6 +35,8 @@
 -type state() :: any().
 -type terminate_reason() :: {normal, shutdown}
 	| {normal, timeout} %% Only occurs in loop handlers.
+	| {error, closed} %% Only occurs in loop handlers.
+	| {error, overflow} %% Only occurs in loop handlers.
 	| {error, atom()}.
 
 -callback init({atom(), http}, Req, opts())

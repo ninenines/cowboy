@@ -1,6 +1,56 @@
 CHANGELOG
 =========
 
+0.8.5
+-----
+
+ *  Add the Cowboy Function Reference
+
+    Everything documented in the function reference is the API
+    that will make it to Cowboy 1.0.
+
+ *  Use erlang.mk
+
+    The project is of course still compatible with rebar
+    and can be used as a dependency just fine.
+
+ *  Update Ranch to 0.8.3
+
+ *  Remove cowboy_req:fragment/1
+
+    No well-written client is sending the fragment with the URL.
+
+ *  Add cowboy_req:set_resp_body_fun(chunked, Fun, Req)
+
+ *  Improve various typespecs
+
+ *  Change the return value of cowboy_req:version/1
+
+    We now have 'HTTP/1.1' instead of {1, 1} and 'HTTP/1.0'
+    instead of {1, 0}.
+
+ *  Change the return value of REST accept callbacks
+
+    The Path return value becomes {true, Path}.
+
+ *  Change the return value of REST charsets_provided/2
+
+    It was incorrectly expecting a list of tuples instead of
+    a list of charsets.
+
+ *  Move various types to the cowboy module
+   *  cowboy_http:version() to cowboy:http_version()
+   *  cowboy_http:headers() to cowboy:http_headers()
+   *  cowboy_http:status() to cowboy:http_status()
+   *  cowboy_protocol:onrequest_fun() to cowboy:onrequest_fun()
+   *  cowboy_protocol:onresponse_fun() to cowboy:onresponse_fun()
+
+ *  Add type cowboy_protocol:opts()
+
+ *  Fix a REST bug with the OPTIONS method
+
+ *  Fix a REST bug where iso-8859-1 would be incoditionally selected
+
 0.8.4
 -----
 

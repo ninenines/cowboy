@@ -31,7 +31,7 @@ request object.
 The following access functions are defined in `cowboy_req`:
 
  *  `method/1`: the request method (`<<"GET">>`, `<<"POST">>`...)
- *  `version/1`: the HTTP version (`{1,0}` or `{1,1}`)
+ *  `version/1`: the HTTP version (`'HTTP/1.0'` or `'HTTP/1.1'`)
  *  `peer/1`: the peer address and port number
  *  `host/1`: the hostname requested
  *  `host_info/1`: the result of the `[...]` match on the host
@@ -41,8 +41,7 @@ The following access functions are defined in `cowboy_req`:
  *  `qs/1`: the entire query string unmodified
  *  `qs_val/{2,3}`: the value for the requested query string key
  *  `qs_vals/1`: all key/values found in the query string
- *  `fragment/1`: the fragment part of the URL (e.g. `#nav-links`)
- *  `host_url/1`: the requested URL without the path, qs and fragment
+ *  `host_url/1`: the requested URL without the path and query string
  *  `url/1`: the requested URL
  *  `binding/{2,3}`: the value for the requested binding found during routing
  *  `bindings/1`: all key/values found during routing

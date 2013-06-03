@@ -31,7 +31,7 @@
 
 -callback upgrade(Req, Env, module(), any())
 	-> {ok, Req, Env}
-	| {suspend, module(), atom(), any()}
+	| {suspend, module(), atom(), [any()]}
 	| {halt, Req}
-	| {error, cowboy_http:status(), Req}
+	| {error, cowboy:http_status(), Req}
 	when Req::cowboy_req:req(), Env::cowboy_middleware:env().

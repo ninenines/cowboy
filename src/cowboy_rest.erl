@@ -45,7 +45,7 @@
 	language_a :: undefined | binary(),
 
 	%% Charset.
-	charsets_p = [] :: [{binary(), integer()}],
+	charsets_p = [] :: [binary()],
 	charset_a :: undefined | binary(),
 
 	%% Whether the resource exists.
@@ -145,6 +145,9 @@ allowed_methods(Req, State=#state{method=Method}) ->
 			end
 	end.
 
+method_not_allowed(Req, State, []) ->
+	Req2 = cowboy_req:set_resp_header(<<"allow">>, <<>>, Req),
+	respond(Req2, State, 405);
 method_not_allowed(Req, State, Methods) ->
 	<< ", ", Allow/binary >> = << << ", ", M/binary >> || M <- Methods >>,
 	Req2 = cowboy_req:set_resp_header(<<"allow">>, Allow, Req),
@@ -186,6 +189,9 @@ valid_entity_length(Req, State) ->
 %% you should do it directly in the options/2 call using set_resp_headers.
 options(Req, State=#state{allowed_methods=Methods, method= <<"OPTIONS">>}) ->
 	case call(Req, State, options) of
+		no_call when Methods =:= [] ->
+			Req2 = cowboy_req:set_resp_header(<<"allow">>, <<>>, Req),
+			respond(Req2, State, 200);
 		no_call ->
 			<< ", ", Allow/binary >>
 				= << << ", ", M/binary >> || M <- Methods >>,
@@ -406,8 +412,7 @@ charsets_provided(Req, State) ->
 				cowboy_req:parse_header(<<"accept-charset">>, Req2),
 			case AcceptCharset of
 				undefined ->
-					set_content_type(Req3, State2#state{
-						charset_a=element(1, hd(CP))});
+					set_content_type(Req3, State2#state{charset_a=hd(CP)});
 				AcceptCharset ->
 					AcceptCharset2 = prioritize_charsets(AcceptCharset),
 					choose_charset(Req3, State2, AcceptCharset2)
@@ -427,7 +432,11 @@ prioritize_charsets(AcceptCharsets) ->
 		end, AcceptCharsets),
 	case lists:keymember(<<"*">>, 1, AcceptCharsets2) of
 		true -> AcceptCharsets2;
-		false -> [{<<"iso-8859-1">>, 1000}|AcceptCharsets2]
+		false ->
+			case lists:keymember(<<"iso-8859-1">>, 1, AcceptCharsets2) of
+				true -> AcceptCharsets2;
+				false -> [{<<"iso-8859-1">>, 1000}|AcceptCharsets2]
+			end
 	end.
 
 choose_charset(Req, State, []) ->
@@ -437,7 +446,7 @@ choose_charset(Req, State=#state{charsets_p=CP}, [Charset|Tail]) ->
 
 match_charset(Req, State, Accept, [], _Charset) ->
 	choose_charset(Req, State, Accept);
-match_charset(Req, State, _Accept, [{Provided, _}|_], {Provided, _}) ->
+match_charset(Req, State, _Accept, [Provided|_], {Provided, _}) ->
 	set_content_type(Req, State#state{charset_a=Provided});
 match_charset(Req, State, Accept, [_|Tail], Charset) ->
 	match_charset(Req, State, Accept, Tail, Charset).
@@ -842,7 +851,7 @@ process_content_type(Req, State=#state{method=Method,
 		{false, Req2, HandlerState2} ->
 			State2 = State#state{handler_state=HandlerState2},
 			respond(Req2, State2, 422);
-		{ResURL, Req2, HandlerState2} when Method =:= <<"POST">> ->
+		{{true, ResURL}, Req2, HandlerState2} when Method =:= <<"POST">> ->
 			State2 = State#state{handler_state=HandlerState2},
 			Req3 = cowboy_req:set_resp_header(
 				<<"location">>, ResURL, Req2),

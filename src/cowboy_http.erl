@@ -46,20 +46,11 @@
 
 %% Interpretation.
 -export([cookie_to_iodata/3]).
--export([version_to_binary/1]).
 -export([urldecode/1]).
 -export([urldecode/2]).
 -export([urlencode/1]).
 -export([urlencode/2]).
 -export([x_www_form_urlencoded/1]).
-
--type version() :: {Major::non_neg_integer(), Minor::non_neg_integer()}.
--type headers() :: [{binary(), iodata()}].
--type status() :: non_neg_integer() | binary().
-
--export_type([version/0]).
--export_type([headers/0]).
--export_type([status/0]).
 
 %% Parsing.
 
@@ -171,14 +162,26 @@ cookie_value(<< C, Rest/binary >>, Fun, Acc) ->
 	cookie_value(Rest, Fun, << Acc/binary, C >>).
 
 %% @doc Parse a content type.
+%%
+%% We lowercase the charset header as we know it's case insensitive.
 -spec content_type(binary()) -> any().
 content_type(Data) ->
 	media_type(Data,
 		fun (Rest, Type, SubType) ->
-				params(Rest,
-					fun (<<>>, Params) -> {Type, SubType, Params};
-						(_Rest2, _) -> {error, badarg}
-					end)
+			params(Rest,
+				fun (<<>>, Params) ->
+						case lists:keyfind(<<"charset">>, 1, Params) of
+							false ->
+								{Type, SubType, Params};
+							{_, Charset} ->
+								Charset2 = cowboy_bstr:to_lower(Charset),
+								Params2 = lists:keyreplace(<<"charset">>,
+									1, Params, {<<"charset">>, Charset2}),
+								{Type, SubType, Params2}
+						end;
+					(_Rest2, _) ->
+						{error, badarg}
+				end)
 		end).
 
 %% @doc Parse a media range.
@@ -802,7 +805,7 @@ qvalue(Data, Fun, Q, _M) ->
 %% Only Basic authorization is supported so far.
 -spec authorization(binary(), binary()) -> {binary(), any()} | {error, badarg}.
 authorization(UserPass, Type = <<"basic">>) ->
-	cowboy_http:whitespace(UserPass,
+	whitespace(UserPass,
 		fun(D) ->
 			authorization_basic_userid(base64:mime_decode(D),
 				fun(Rest, Userid) ->
@@ -813,7 +816,7 @@ authorization(UserPass, Type = <<"basic">>) ->
 				end)
 		end);
 authorization(String, Type) ->
-	cowboy_http:whitespace(String, fun(Rest) -> {Type, Rest} end).
+	whitespace(String, fun(Rest) -> {Type, Rest} end).
 
 %% @doc Parse user credentials.
 -spec authorization_basic_userid(binary(), fun()) -> any().
@@ -849,12 +852,12 @@ authorization_basic_password(<<C, Rest/binary>>, Fun, Acc) ->
 		Unit :: binary(),
 		Range :: {non_neg_integer(), non_neg_integer() | infinity} | neg_integer().
 range(Data) ->
-	cowboy_http:token_ci(Data, fun range/2).
+	token_ci(Data, fun range/2).
 
 range(Data, Token) ->
 	whitespace(Data,
 		fun(<<"=", Rest/binary>>) ->
-			case cowboy_http:list(Rest, fun range_beginning/2) of
+			case list(Rest, fun range_beginning/2) of
 				{error, badarg} ->
 					{error, badarg};
 				Ranges ->
@@ -1000,11 +1003,6 @@ cookie_to_iodata(Name, Value, Opts) ->
 	end,
 	[Name, <<"=">>, Value, <<"; Version=1">>,
 		MaxAgeBin, DomainBin, PathBin, SecureBin, HttpOnlyBin].
-
-%% @doc Convert an HTTP version tuple to its binary form.
--spec version_to_binary(version()) -> binary().
-version_to_binary({1, 1}) -> <<"HTTP/1.1">>;
-version_to_binary({1, 0}) -> <<"HTTP/1.0">>.
 
 %% @doc Decode a URL encoded binary.
 %% @equiv urldecode(Bin, crash)
