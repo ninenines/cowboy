@@ -189,9 +189,13 @@ init_per_suite(Config) ->
 	application:start(crypto),
 	application:start(ranch),
 	application:start(cowboy),
-	Config.
+	Dir = ?config(priv_dir, Config) ++ "/static",
+	ct_helper:create_static_dir(Dir),
+	[{static_dir, Dir}|Config].
 
-end_per_suite(_Config) ->
+end_per_suite(Config) ->
+	Dir = ?config(static_dir, Config),
+	ct_helper:delete_static_dir(Dir),
 	application:stop(cowboy),
 	application:stop(ranch),
 	application:stop(crypto),
@@ -199,62 +203,58 @@ end_per_suite(_Config) ->
 
 init_per_group(http, Config) ->
 	Transport = ranch_tcp,
-	Config1 = init_static_dir(Config),
 	{ok, _} = cowboy:start_http(http, 100, [{port, 0}], [
-		{env, [{dispatch, init_dispatch(Config1)}]},
+		{env, [{dispatch, init_dispatch(Config)}]},
 		{max_keepalive, 50},
 		{timeout, 500}
 	]),
 	Port = ranch:get_port(http),
 	{ok, Client} = cowboy_client:init([]),
 	[{scheme, <<"http">>}, {port, Port}, {opts, []},
-		{transport, Transport}, {client, Client}|Config1];
+		{transport, Transport}, {client, Client}|Config];
 init_per_group(https, Config) ->
 	Transport = ranch_ssl,
 	{_, Cert, Key} = ct_helper:make_certs(),
 	Opts = [{cert, Cert}, {key, Key}],
-	Config1 = init_static_dir(Config),
 	application:start(public_key),
 	application:start(ssl),
 	{ok, _} = cowboy:start_https(https, 100, Opts ++ [{port, 0}], [
-		{env, [{dispatch, init_dispatch(Config1)}]},
+		{env, [{dispatch, init_dispatch(Config)}]},
 		{max_keepalive, 50},
 		{timeout, 500}
 	]),
 	Port = ranch:get_port(https),
 	{ok, Client} = cowboy_client:init(Opts),
 	[{scheme, <<"https">>}, {port, Port}, {opts, Opts},
-		{transport, Transport}, {client, Client}|Config1];
+		{transport, Transport}, {client, Client}|Config];
 init_per_group(http_compress, Config) ->
 	Transport = ranch_tcp,
-	Config1 = init_static_dir(Config),
 	{ok, _} = cowboy:start_http(http_compress, 100, [{port, 0}], [
 		{compress, true},
-		{env, [{dispatch, init_dispatch(Config1)}]},
+		{env, [{dispatch, init_dispatch(Config)}]},
 		{max_keepalive, 50},
 		{timeout, 500}
 	]),
 	Port = ranch:get_port(http_compress),
 	{ok, Client} = cowboy_client:init([]),
 	[{scheme, <<"http">>}, {port, Port}, {opts, []},
-		{transport, Transport}, {client, Client}|Config1];
+		{transport, Transport}, {client, Client}|Config];
 init_per_group(https_compress, Config) ->
 	Transport = ranch_ssl,
 	{_, Cert, Key} = ct_helper:make_certs(),
 	Opts = [{cert, Cert}, {key, Key}],
-	Config1 = init_static_dir(Config),
 	application:start(public_key),
 	application:start(ssl),
 	{ok, _} = cowboy:start_https(https_compress, 100, Opts ++ [{port, 0}], [
 		{compress, true},
-		{env, [{dispatch, init_dispatch(Config1)}]},
+		{env, [{dispatch, init_dispatch(Config)}]},
 		{max_keepalive, 50},
 		{timeout, 500}
 	]),
 	Port = ranch:get_port(https_compress),
 	{ok, Client} = cowboy_client:init(Opts),
 	[{scheme, <<"https">>}, {port, Port}, {opts, Opts},
-		{transport, Transport}, {client, Client}|Config1];
+		{transport, Transport}, {client, Client}|Config];
 init_per_group(onrequest, Config) ->
 	Transport = ranch_tcp,
 	{ok, _} = cowboy:start_http(onrequest, 100, [{port, 0}], [
@@ -303,15 +303,11 @@ init_per_group(set_env, Config) ->
 	[{scheme, <<"http">>}, {port, Port}, {opts, []},
 		{transport, Transport}, {client, Client}|Config].
 
-end_per_group(Group, Config) when Group =:= https; Group =:= https_compress ->
-	cowboy:stop_listener(https),
+end_per_group(Name, _) when Name =:= https; Name =:= https_compress ->
+	cowboy:stop_listener(Name),
 	application:stop(ssl),
 	application:stop(public_key),
-	end_static_dir(Config),
 	ok;
-end_per_group(Group, Config) when Group =:= http; Group =:= http_compress ->
-	cowboy:stop_listener(http),
-	end_static_dir(Config);
 end_per_group(Name, _) ->
 	cowboy:stop_listener(Name),
 	ok.
@@ -359,7 +355,7 @@ init_dispatch(Config) ->
 			{"/static_specify_file/[...]",  cowboy_static,
 				[{directory, ?config(static_dir, Config)},
 				 {mimetypes, [{<<".css">>, [<<"text/css">>]}]},
-				 {file, <<"test_file.css">>}]},
+				 {file, <<"style.css">>}]},
 			{"/multipart", http_multipart, []},
 			{"/echo/body", http_echo_body, []},
 			{"/echo/body_qs", http_body_qs, []},
@@ -383,29 +379,6 @@ init_dispatch(Config) ->
 			{"/", http_handler, []}
 		]}
 	]).
-
-init_static_dir(Config) ->
-	Dir = filename:join(?config(priv_dir, Config), "static"),
-	Level1 = fun(Name) -> filename:join(Dir, Name) end,
-	ok = file:make_dir(Dir),
-	ok = file:write_file(Level1("test_file"), "test_file\n"),
-	ok = file:write_file(Level1("test_file.css"), "test_file.css\n"),
-	ok = file:write_file(Level1("test_noread"), "test_noread\n"),
-	ok = file:change_mode(Level1("test_noread"), 8#0333),
-	ok = file:write_file(Level1("test.html"), "test.html\n"),
-	ok = file:make_dir(Level1("test_dir")),
-	[{static_dir, Dir}|Config].
-
-end_static_dir(Config) ->
-	Dir = ?config(static_dir, Config),
-	Level1 = fun(Name) -> filename:join(Dir, Name) end,
-	ok = file:delete(Level1("test_file")),
-	ok = file:delete(Level1("test_file.css")),
-	ok = file:delete(Level1("test_noread")),
-	ok = file:delete(Level1("test.html")),
-	ok = file:del_dir(Level1("test_dir")),
-	ok = file:del_dir(Dir),
-	Config.
 
 %% Convenience functions.
 
@@ -516,9 +489,9 @@ check_status(Config) ->
 		{400, "/static/%2f"},
 		{400, "/static/%2e"},
 		{400, "/static/%2e%2e"},
-		{403, "/static/test_dir"},
-		{403, "/static/test_dir/"},
-		{403, "/static/test_noread"},
+		{403, "/static/directory"},
+		{403, "/static/directory/"},
+		{403, "/static/unreadable"},
 		{404, "/not/found"},
 		{404, "/static/not_found"},
 		{500, "/handler_errors?case=handler_before_reply"},
@@ -1126,9 +1099,9 @@ slowloris2(Config) ->
 static_attribute_etag(Config) ->
 	Client = ?config(client, Config),
 	{ok, Client2} = cowboy_client:request(<<"GET">>,
-		build_url("/static_attribute_etag/test.html", Config), Client),
+		build_url("/static_attribute_etag/index.html", Config), Client),
 	{ok, Client3} = cowboy_client:request(<<"GET">>,
-		build_url("/static_attribute_etag/test.html", Config), Client2),
+		build_url("/static_attribute_etag/index.html", Config), Client2),
 	{ok, 200, Headers1, Client4} = cowboy_client:response(Client3),
 	{ok, 200, Headers2, _} = cowboy_client:response(Client4),
 	{<<"etag">>, ETag1} = lists:keyfind(<<"etag">>, 1, Headers1),
@@ -1139,9 +1112,9 @@ static_attribute_etag(Config) ->
 static_function_etag(Config) ->
 	Client = ?config(client, Config),
 	{ok, Client2} = cowboy_client:request(<<"GET">>,
-		build_url("/static_function_etag/test.html", Config), Client),
+		build_url("/static_function_etag/index.html", Config), Client),
 	{ok, Client3} = cowboy_client:request(<<"GET">>,
-		build_url("/static_function_etag/test.html", Config), Client2),
+		build_url("/static_function_etag/index.html", Config), Client2),
 	{ok, 200, Headers1, Client4} = cowboy_client:response(Client3),
 	{ok, 200, Headers2, _} = cowboy_client:response(Client4),
 	{<<"etag">>, ETag1} = lists:keyfind(<<"etag">>, 1, Headers1),
@@ -1162,7 +1135,7 @@ static_function_etag(Arguments, etag_data) ->
 static_mimetypes_function(Config) ->
 	Client = ?config(client, Config),
 	{ok, Client2} = cowboy_client:request(<<"GET">>,
-		build_url("/static_mimetypes_function/test.html", Config), Client),
+		build_url("/static_mimetypes_function/index.html", Config), Client),
 	{ok, 200, Headers, _} = cowboy_client:response(Client2),
 	{<<"content-type">>, <<"text/html">>}
 		= lists:keyfind(<<"content-type">>, 1, Headers).
@@ -1174,7 +1147,7 @@ static_specify_file(Config) ->
 	{ok, 200, Headers, Client3} = cowboy_client:response(Client2),
 	{<<"content-type">>, <<"text/css">>}
 		= lists:keyfind(<<"content-type">>, 1, Headers),
-	{ok, <<"test_file.css\n">>, _} = cowboy_client:response_body(Client3).
+	{ok, <<"body{color:red}\n">>, _} = cowboy_client:response_body(Client3).
 
 static_specify_file_catchall(Config) ->
 	Client = ?config(client, Config),
@@ -1183,12 +1156,12 @@ static_specify_file_catchall(Config) ->
 	{ok, 200, Headers, Client3} = cowboy_client:response(Client2),
 	{<<"content-type">>, <<"text/css">>}
 		= lists:keyfind(<<"content-type">>, 1, Headers),
-	{ok, <<"test_file.css\n">>, _} = cowboy_client:response_body(Client3).
+	{ok, <<"body{color:red}\n">>, _} = cowboy_client:response_body(Client3).
 
 static_test_file(Config) ->
 	Client = ?config(client, Config),
 	{ok, Client2} = cowboy_client:request(<<"GET">>,
-		build_url("/static/test_file", Config), Client),
+		build_url("/static/unknown", Config), Client),
 	{ok, 200, Headers, _} = cowboy_client:response(Client2),
 	{<<"content-type">>, <<"application/octet-stream">>}
 		= lists:keyfind(<<"content-type">>, 1, Headers).
@@ -1196,7 +1169,7 @@ static_test_file(Config) ->
 static_test_file_css(Config) ->
 	Client = ?config(client, Config),
 	{ok, Client2} = cowboy_client:request(<<"GET">>,
-		build_url("/static/test_file.css", Config), Client),
+		build_url("/static/style.css", Config), Client),
 	{ok, 200, Headers, _} = cowboy_client:response(Client2),
 	{<<"content-type">>, <<"text/css">>}
 		= lists:keyfind(<<"content-type">>, 1, Headers).
