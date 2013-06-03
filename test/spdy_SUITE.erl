@@ -44,9 +44,13 @@ init_per_suite(Config) ->
 	application:start(cowboy),
 	application:start(public_key),
 	application:start(ssl),
-	Config.
+	Dir = ?config(priv_dir, Config) ++ "/static",
+	ct_helper:create_static_dir(Dir),
+	[{static_dir, Dir}|Config].
 
-end_per_suite(_Config) ->
+end_per_suite(Config) ->
+	Dir = ?config(static_dir, Config),
+	ct_helper:delete_static_dir(Dir),
 	application:stop(ssl),
 	application:stop(public_key),
 	application:stop(cowboy),
@@ -69,9 +73,12 @@ end_per_group(Name, _) ->
 
 %% Dispatch configuration.
 
-init_dispatch(_) ->
+init_dispatch(Config) ->
 	cowboy_router:compile([
 		{"localhost", [
+			{"/static/[...]", cowboy_static,
+				[{directory, ?config(static_dir, Config)},
+				 {mimetypes, [{<<".css">>, [<<"text/css">>]}]}]},
 			{"/chunked", http_chunked, []},
 			{"/", http_handler, []}
 		]}
@@ -152,6 +159,7 @@ check_status(Config) ->
 	Tests = [
 		{200, nofin, "localhost", "/"},
 		{200, nofin, "localhost", "/chunked"},
+		{200, nofin, "localhost", "/static/style.css"},
 		{400, fin, "bad-host", "/"},
 		{400, fin, "localhost", "bad-path"},
 		{404, fin, "localhost", "/this/path/does/not/exist"}

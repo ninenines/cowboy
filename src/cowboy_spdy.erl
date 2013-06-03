@@ -42,6 +42,7 @@
 %% Internal transport functions.
 -export([name/0]).
 -export([send/2]).
+-export([sendfile/2]).
 
 -record(child, {
 	streamid :: non_neg_integer(),
@@ -171,6 +172,14 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 			Child = #child{output=nofin} = lists:keyfind(StreamID,
 				#child.streamid, Children),
 			data(State, fin, StreamID),
+			Children2 = lists:keyreplace(StreamID,
+				#child.streamid, Children, Child#child{output=fin}),
+			loop(State#state{children=Children2});
+		{sendfile, {Pid, StreamID}, Filepath}
+				when Pid =:= self() ->
+			Child = #child{output=nofin} = lists:keyfind(StreamID,
+				#child.streamid, Children),
+			data_from_file(State, StreamID, Filepath),
 			Children2 = lists:keyreplace(StreamID,
 				#child.streamid, Children, Child#child{output=fin}),
 			loop(State#state{children=Children2});
@@ -430,6 +439,27 @@ data(#state{socket=Socket, transport=Transport}, IsFin, StreamID, Data) ->
 		<< 0:1, StreamID:31, Flags:8, Len:24 >>,
 		Data]).
 
+data_from_file(#state{socket=Socket, transport=Transport},
+		StreamID, Filepath) ->
+	{ok, IoDevice} = file:open(Filepath, [read, binary, raw]),
+	data_from_file(Socket, Transport, StreamID, IoDevice).
+
+data_from_file(Socket, Transport, StreamID, IoDevice) ->
+	case file:read(IoDevice, 16#1fff) of
+		eof ->
+			_ = Transport:send(Socket, << 0:1, StreamID:31, 1:8, 0:24 >>),
+			ok;
+		{ok, Data} ->
+			Len = byte_size(Data),
+			Data2 = [<< 0:1, StreamID:31, 0:8, Len:24 >>, Data],
+			case Transport:send(Socket, Data2) of
+				ok ->
+					data_from_file(Socket, Transport, StreamID, IoDevice);
+				{error, _} ->
+					ok
+			end
+	end.
+
 %% Request process.
 
 request_init(Parent, StreamID, Peer,
@@ -535,10 +565,16 @@ stream_close(Socket = {Pid, _}) ->
 	ok.
 
 %% Internal transport functions.
-%% @todo recv, sendfile
+%% @todo recv
 
 name() ->
 	spdy.
 
 send(Socket, Data) ->
 	stream_data(Socket, Data).
+
+%% We don't wait for the result of the actual sendfile call,
+%% therefore we can't know how much was actually sent.
+sendfile(Socket = {Pid, _}, Filepath) ->
+	_ = Pid ! {sendfile, Socket, Filepath},
+	{ok, undefined}.
