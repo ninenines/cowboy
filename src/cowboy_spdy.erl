@@ -221,12 +221,14 @@ system_code_change(Misc, _, _, _) ->
 	{ok, Misc}.
 
 %% We do not support SYN_STREAM with FLAG_UNIDIRECTIONAL set.
-control_frame(State, << _:38, 1:1, _:26, StreamID:31, _/bits >>) ->
+control_frame(State, << 1:1, 3:15, 1:16, _:6, 1:1, _:26,
+		StreamID:31, _/bits >>) ->
 	rst_stream(State, StreamID, internal_error),
 	loop(State);
 %% We do not support Associated-To-Stream-ID and CREDENTIAL Slot.
-control_frame(State, << _:65, StreamID:31, _:1, AssocToStreamID:31,
-		_:8, Slot:8, _/bits >>) when AssocToStreamID =/= 0; Slot =/= 0 ->
+control_frame(State, << 1:1, 3:15, 1:16, _:33, StreamID:31, _:1,
+		AssocToStreamID:31, _:8, Slot:8, _/bits >>)
+		when AssocToStreamID =/= 0; Slot =/= 0 ->
 	rst_stream(State, StreamID, internal_error),
 	loop(State);
 %% SYN_STREAM
