@@ -39,7 +39,7 @@
 
 %% @doc Start an HTTP listener.
 -spec start_http(ranch:ref(), non_neg_integer(), ranch_tcp:opts(),
-	cowboy_protocol:opts()) -> {ok, pid()}.
+	cowboy_protocol:opts()) -> {ok, pid()} | {error, any()}.
 start_http(Ref, NbAcceptors, TransOpts, ProtoOpts)
 		when is_integer(NbAcceptors), NbAcceptors > 0 ->
 	ranch:start_listener(Ref, NbAcceptors,
@@ -47,14 +47,15 @@ start_http(Ref, NbAcceptors, TransOpts, ProtoOpts)
 
 %% @doc Start an HTTPS listener.
 -spec start_https(ranch:ref(), non_neg_integer(), ranch_ssl:opts(),
-	cowboy_protocol:opts()) -> {ok, pid()}.
+	cowboy_protocol:opts()) -> {ok, pid()} | {error, any()}.
 start_https(Ref, NbAcceptors, TransOpts, ProtoOpts)
 		when is_integer(NbAcceptors), NbAcceptors > 0 ->
 	ranch:start_listener(Ref, NbAcceptors,
 		ranch_ssl, TransOpts, cowboy_protocol, ProtoOpts).
 
 %% @doc Start a SPDY listener.
--spec start_spdy(any(), non_neg_integer(), any(), any()) -> {ok, pid()}.
+-spec start_spdy(ranch:ref(), non_neg_integer(), ranch_ssl:opts(),
+	cowboy_spdy:opts()) -> {ok, pid()} | {error, any()}.
 start_spdy(Ref, NbAcceptors, TransOpts, ProtoOpts)
 		when is_integer(NbAcceptors), NbAcceptors > 0 ->
 	TransOpts2 = [
