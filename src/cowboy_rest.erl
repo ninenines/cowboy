@@ -1086,7 +1086,7 @@ terminate(Req, State=#state{env=Env}) ->
 -spec error_terminate(cowboy_req:req(), #state{}) -> no_return().
 error_terminate(Req, State) ->
 	rest_terminate(Req, State),
-	erlang:throw({?MODULE, error}).
+	erlang:raise(throw, {?MODULE, error}, erlang:get_stacktrace()).
 
 rest_terminate(Req, #state{handler=Handler, handler_state=HandlerState}) ->
 	case erlang:function_exported(Handler, rest_terminate, 2) of
