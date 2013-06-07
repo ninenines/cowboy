@@ -233,7 +233,7 @@ rest_init(Req, Opts) ->
 	end.
 
 rest_init(Req, Opts, Filepath) ->
-	Fileinfo = file:read_file_info(Filepath),
+	Fileinfo = file:read_file_info(Filepath, [{time, universal}]),
 	Mimetypes = case lists:keyfind(mimetypes, 1, Opts) of
 		false -> {fun path_to_mimetypes/2, []};
 		{_, {{M, F}, E}} -> {fun M:F/2, E};
@@ -290,7 +290,7 @@ forbidden(Req, #state{fileinfo={ok, #file_info{access=Access}}}=State) ->
 -spec last_modified(Req, #state{})
 	-> {calendar:datetime(), Req, #state{}} when Req::cowboy_req:req().
 last_modified(Req, #state{fileinfo={ok, #file_info{mtime=Modified}}}=State) ->
-	{erlang:localtime_to_universaltime(Modified), Req, State}.
+	{Modified, Req, State}.
 
 %% @private Generate the ETag header value for this file.
 %% The ETag header value is only generated if the resource is a file that
