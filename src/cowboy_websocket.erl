@@ -137,7 +137,7 @@ upgrade_error(Req, Env) ->
 	-> {ok, Req, cowboy_middleware:env()}
 	| {suspend, module(), atom(), [any()]}
 	when Req::cowboy_req:req().
-websocket_handshake(State=#state{transport=Transport, key=Key},
+websocket_handshake(State=#state{transport=Transport, socket=Socket, key=Key},
 		Req, HandlerState) ->
 	Challenge = base64:encode(crypto:sha(
 		<< Key/binary, "258EAFA5-E914-47DA-95CA-C5AB0DC85B11" >>)),
@@ -149,6 +149,7 @@ websocket_handshake(State=#state{transport=Transport, key=Key},
 	%% Flush the resp_sent message before moving on.
 	receive {cowboy_req, resp_sent} -> ok after 0 -> ok end,
 	State2 = handler_loop_timeout(State),
+	Transport:setopts(Socket, [{active, once}]),
 	handler_before_loop(State2#state{key=undefined,
 		messages=Transport:messages()}, Req2, HandlerState, <<>>).
 
@@ -156,15 +157,11 @@ websocket_handshake(State=#state{transport=Transport, key=Key},
 	-> {ok, Req, cowboy_middleware:env()}
 	| {suspend, module(), atom(), [any()]}
 	when Req::cowboy_req:req().
-handler_before_loop(State=#state{
-			socket=Socket, transport=Transport, hibernate=true},
+handler_before_loop(State=#state{hibernate=true},
 		Req, HandlerState, SoFar) ->
-	Transport:setopts(Socket, [{active, once}]),
 	{suspend, ?MODULE, handler_loop,
 		[State#state{hibernate=false}, Req, HandlerState, SoFar]};
-handler_before_loop(State=#state{socket=Socket, transport=Transport},
-		Req, HandlerState, SoFar) ->
-	Transport:setopts(Socket, [{active, once}]),
+handler_before_loop(State, Req, HandlerState, SoFar) ->
 	handler_loop(State, Req, HandlerState, SoFar).
 
 -spec handler_loop_timeout(#state{}) -> #state{}.
@@ -181,10 +178,12 @@ handler_loop_timeout(State=#state{timeout=Timeout, timeout_ref=PrevRef}) ->
 	-> {ok, Req, cowboy_middleware:env()}
 	| {suspend, module(), atom(), [any()]}
 	when Req::cowboy_req:req().
-handler_loop(State=#state{socket=Socket, messages={OK, Closed, Error},
-		timeout_ref=TRef}, Req, HandlerState, SoFar) ->
+handler_loop(State=#state{transport=Transport, socket=Socket, 
+		messages={OK, Closed, Error}, timeout_ref=TRef}, 
+		Req, HandlerState, SoFar) ->
 	receive
 		{OK, Socket, Data} ->
+			Transport:setopts(Socket, [{active, once}]),
 			State2 = handler_loop_timeout(State),
 			websocket_data(State2, Req, HandlerState,
 				<< SoFar/binary, Data/binary >>);
@@ -455,9 +454,9 @@ is_utf8(_) ->
 websocket_payload_loop(State=#state{socket=Socket, transport=Transport,
 		messages={OK, Closed, Error}, timeout_ref=TRef},
 		Req, HandlerState, Opcode, Len, MaskKey, Unmasked) ->
-	Transport:setopts(Socket, [{active, once}]),
 	receive
 		{OK, Socket, Data} ->
+			Transport:setopts(Socket, [{active, once}]),
 			State2 = handler_loop_timeout(State),
 			websocket_payload(State2, Req, HandlerState,
 				Opcode, Len, MaskKey, Unmasked, Data);
@@ -646,12 +645,26 @@ websocket_send_many([Frame|Tail], State) ->
 		Error -> Error
 	end.
 
+%% Turn off {active,once} and clear out any messages that could have
+%% been sent by having the socket in that state.
+-spec websocket_flush(#state{}) -> ok.
+websocket_flush(#state{transport=Transport, socket=Socket, 
+		messages={OK, Closed, Error}}) ->
+	Transport:setopts(Socket, [{active, false}]),
+	receive
+		{OK, Socket, _Data} -> ok;
+		{Closed, Socket} -> ok;
+		{Error, Socket, _Reason} -> ok
+	after 0 -> ok
+	end.
+
 -spec websocket_close(#state{}, Req, any(),
 	{atom(), atom()} | {remote, close_code(), binary()})
 	-> {ok, Req, cowboy_middleware:env()}
 	when Req::cowboy_req:req().
 websocket_close(State=#state{socket=Socket, transport=Transport},
 		Req, HandlerState, Reason) ->
+	websocket_flush(State),
 	case Reason of
 		{normal, _} ->
 			Transport:send(Socket, << 1:1, 0:3, 8:4, 0:1, 2:7, 1000:16 >>);
