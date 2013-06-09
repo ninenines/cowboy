@@ -821,10 +821,10 @@ multipart_data(Req=#http_req{socket=Socket, transport=Transport},
 	%% We just want to skip so no need to stream data here.
 	{ok, _Data} = Transport:recv(Socket, Length, 5000),
 	{eof, Req#http_req{body_state=done, multipart=undefined}};
-multipart_data(Req=#http_req{socket=Socket, transport=Transport}, _, eof) ->
+multipart_data(Req, _, eof) ->
 	%% We just want to skip so no need to stream data here.
-	{ok, _Data} = Transport:recv(Socket, 0, 5000),
-	{eof, Req#http_req{body_state=done, multipart=undefined}};
+	{ok, Req2} = cowboy_req:skip_body(Req),
+	{eof, Req2#http_req{multipart=undefined}};
 
 multipart_data(Req, Length, {more, Parser})
         when Length > 0 orelse Length =:= undefined ->
