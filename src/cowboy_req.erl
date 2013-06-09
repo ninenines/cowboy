@@ -817,16 +817,25 @@ multipart_data(Req, Length, {end_of_part, Cont}) ->
 multipart_data(Req, 0, eof) ->
 	{eof, Req#http_req{body_state=done, multipart=undefined}};
 multipart_data(Req=#http_req{socket=Socket, transport=Transport},
-		Length, eof) ->
+               Length, eof) when is_integer(Length) ->
 	%% We just want to skip so no need to stream data here.
 	{ok, _Data} = Transport:recv(Socket, Length, 5000),
 	{eof, Req#http_req{body_state=done, multipart=undefined}};
-multipart_data(Req, Length, {more, Parser}) when Length > 0 ->
+multipart_data(Req=#http_req{socket=Socket, transport=Transport}, _, eof) ->
+	%% We just want to skip so no need to stream data here.
+	{ok, _Data} = Transport:recv(Socket, 0, 5000),
+	{eof, Req#http_req{body_state=done, multipart=undefined}};
+
+multipart_data(Req, Length, {more, Parser})
+        when Length > 0 orelse Length =:= undefined ->
 	case stream_body(Req) of
+        {ok, Data, Req2} when Length =:= undefined ->
+            multipart_data(Req2, Length, Parser(Data));
 		{ok, << Data:Length/binary, Buffer/binary >>, Req2} ->
 			multipart_data(Req2#http_req{buffer=Buffer}, 0, Parser(Data));
 		{ok, Data, Req2} ->
-			multipart_data(Req2, Length - byte_size(Data), Parser(Data))
+			multipart_data(Req2, Length - byte_size(Data),
+                  Parser(Data))
 	end.
 
 %% @doc Skip a part returned by the multipart parser.
