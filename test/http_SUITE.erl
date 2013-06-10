@@ -422,9 +422,9 @@ body_to_chunks(ChunkSize, Body, Acc) ->
 
 get_mtu() ->
 	{ok, Interfaces} = inet:getiflist(),
-	[LocalInterface | _] = lists:filter(fun
-		("lo" ++ _) -> true;
-		(_) -> false
+	[LocalInterface | _ ] = lists:filter(fun(Interface) ->
+		{ok, [{flags, Flags}]} = inet:ifget(Interface, [flags]),
+		lists:member(loopback, Flags)
 	end, Interfaces),
 	{ok, [{mtu, MTU}]} = inet:ifget(LocalInterface, [mtu]),
 	MTU.
