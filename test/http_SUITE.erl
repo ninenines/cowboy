@@ -420,15 +420,6 @@ body_to_chunks(ChunkSize, Body, Acc) ->
 	body_to_chunks(ChunkSize, Rest,
 		[<< ChunkSizeBin/binary, "\r\n", Chunk/binary, "\r\n" >>|Acc]).
 
-get_mtu() ->
-	{ok, Interfaces} = inet:getiflist(),
-	[LocalInterface | _ ] = lists:filter(fun(Interface) ->
-		{ok, [{flags, Flags}]} = inet:ifget(Interface, [flags]),
-		lists:member(loopback, Flags)
-	end, Interfaces),
-	{ok, [{mtu, MTU}]} = inet:ifget(LocalInterface, [mtu]),
-	MTU.
-
 %% Tests.
 
 check_raw_status(Config) ->
@@ -526,7 +517,7 @@ chunked_response(Config) ->
 %% Check if sending requests whose size is around the MTU breaks something.
 echo_body(Config) ->
 	Client = ?config(client, Config),
-	MTU = get_mtu(),
+	MTU = ct_helper:get_loopback_mtu(),
 	_ = [begin
 		Body = list_to_binary(lists:duplicate(Size, $a)),
 		{ok, Client2} = cowboy_client:request(<<"POST">>,
