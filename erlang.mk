@@ -19,8 +19,11 @@ V ?= 0
 appsrc_verbose_0 = @echo " APP   " $(PROJECT).app.src;
 appsrc_verbose = $(appsrc_verbose_$(V))
 
-erlc_verbose_0 = @echo " ERLC  " $(?F);
+erlc_verbose_0 = @echo " ERLC  " $(filter-out %.dtl,$(?F));
 erlc_verbose = $(erlc_verbose_$(V))
+
+dtl_verbose_0 = @echo " DTL   " $(filter %.dtl,$(?F));
+dtl_verbose = $(dtl_verbose_$(V))
 
 gen_verbose_0 = @echo " GEN   " $@;
 gen_verbose = $(gen_verbose_$(V))
@@ -48,30 +51,48 @@ all: deps app
 clean-all: clean clean-deps clean-docs
 	$(gen_verbose) rm -rf .$(PROJECT).plt $(DEPS_DIR) logs
 
-MODULES = $(shell ls src/*.erl | sed 's/src\///;s/\.erl/,/' | sed '$$s/.$$//')
-
 app: ebin/$(PROJECT).app
+	$(eval MODULES := $(shell find ebin -name \*.beam \
+		| sed 's/ebin\///;s/\.beam/,/' | sed '$$s/.$$//'))
 	$(appsrc_verbose) cat src/$(PROJECT).app.src \
 		| sed 's/{modules, \[\]}/{modules, \[$(MODULES)\]}/' \
 		> ebin/$(PROJECT).app
 
-ebin/$(PROJECT).app: src/*.erl
-	@mkdir -p ebin/
+define compile_erl
 	$(erlc_verbose) ERL_LIBS=deps erlc -v $(ERLC_OPTS) -o ebin/ -pa ebin/ \
-		$(COMPILE_FIRST_PATHS) $?
+		$(COMPILE_FIRST_PATHS) $(1)
+endef
+
+define compile_dtl
+	$(dtl_verbose) erl -noshell -pa ebin/ deps/erlydtl/ebin/ -eval ' \
+		Compile = fun(F) -> \
+			Module = list_to_atom( \
+				string:to_lower(filename:basename(F, ".dtl")) ++ "_dtl"), \
+			erlydtl_compiler:compile(F, Module, [{out_dir, "ebin/"}]) \
+		end, \
+		_ = [Compile(F) || F <- string:tokens("$(1)", " ")], \
+		init:stop()'
+endef
+
+ebin/$(PROJECT).app: src/*.erl $(wildcard src/*.core) $(wildcard templates/*.dtl)
+	@mkdir -p ebin/
+	$(if $(strip $(filter-out %.dtl,$?)), \
+		$(call compile_erl,$(filter-out %.dtl,$?)))
+	$(if $(strip $(filter %.dtl,$?)), \
+		$(call compile_dtl,$(filter %.dtl,$?)))
 
 clean:
 	$(gen_verbose) rm -rf ebin/ test/*.beam erl_crash.dump
 
 # Dependencies.
 
-define get_dep =
+define get_dep
 	@mkdir -p $(DEPS_DIR)
 	git clone -n -- $(word 1,$(dep_$(1))) $(DEPS_DIR)/$(1)
 	cd $(DEPS_DIR)/$(1) ; git checkout -q $(word 2,$(dep_$(1)))
 endef
 
-define dep_target =
+define dep_target
 $(DEPS_DIR)/$(1):
 	$(call get_dep,$(1))
 endef
@@ -101,7 +122,7 @@ build-test-deps: $(ALL_TEST_DEPS_DIRS)
 	@for dep in $(ALL_TEST_DEPS_DIRS) ; do $(MAKE) -C $$dep; done
 
 build-tests: build-test-deps
-	$(gen_verbose) erlc -v $(ERLC_OPTS) -o test/ \
+	$(gen_verbose) ERL_LIBS=deps erlc -v $(ERLC_OPTS) -o test/ \
 		$(wildcard test/*.erl test/*/*.erl) -pa ebin/
 
 CT_RUN = ct_run \
