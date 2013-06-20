@@ -1,6 +1,44 @@
 CHANGELOG
 =========
 
+0.8.6
+-----
+
+ *  Make sure Cowboy compiles on R16B01
+
+ *  Update Ranch to 0.8.4
+
+ *  Add experimental support for the x-webkit-deflate-frame Websocket extension
+
+    This allows Cowboy to handle compressed Websocket frames,
+    lowering the amount of data that needs to be sent over the
+    socket.
+
+    The extension will only be used if compression was enabled
+    using the `compress` protocol option.
+
+ *  Add experimental SPDY support
+
+    SPDY is a new protocol implemented by most browsers. It is
+    the basis for what will become HTTP/2.0.
+
+    To use SPDY, you need to call `start_spdy` where you would
+    have used `start_https` before.
+
+    This protocol is still incomplete. It cannot accept request
+    bodies yet, making most methods other than GET and HEAD
+    not too useful at this point.
+
+ *  Allow an empty method list in allowed_methods
+
+ *  The charset parameter of content-types is now always lowercase
+
+ *  Don't overwrite the stacktrace when a REST handler crashes
+
+ *  Don't crash when the Cookie header is empty
+
+ *  Don't crash on invalid Accept-Encoding header when replying
+
 0.8.5
 -----
 
