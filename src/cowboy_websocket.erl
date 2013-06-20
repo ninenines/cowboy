@@ -37,6 +37,7 @@
 -type mask_key() :: 0..16#ffffffff.
 -type frag_state() :: undefined
 	| {nofin, opcode(), binary()} | {fin, opcode(), binary()}.
+-type rsv() :: << _:3 >>.
 
 -record(state, {
 	env :: cowboy_middleware:env(),
@@ -50,7 +51,11 @@
 	messages = undefined :: undefined | {atom(), atom(), atom()},
 	hibernate = false :: boolean(),
 	frag_state = undefined :: frag_state(),
-	utf8_state = <<>> :: binary()
+	utf8_state = <<>> :: binary(),
+	deflate_frame = false :: boolean(),
+	inflate_state :: any(),
+	inflate_buffer = <<>> :: binary(),
+	deflate_state :: any()
 }).
 
 %% @doc Upgrade an HTTP request to the Websocket protocol.
@@ -88,8 +93,39 @@ websocket_upgrade(State, Req) ->
 		orelse (IntVersion =:= 13),
 	{Key, Req5} = cowboy_req:header(<<"sec-websocket-key">>, Req4),
 	false = Key =:= undefined,
-	{ok, State#state{key=Key},
-		cowboy_req:set_meta(websocket_version, IntVersion, Req5)}.
+	websocket_extensions(State#state{key=Key},
+		cowboy_req:set_meta(websocket_version, IntVersion, Req5)).
+
+-spec websocket_extensions(#state{}, Req)
+	-> {ok, #state{}, Req} when Req::cowboy_req:req().
+websocket_extensions(State, Req) ->
+	case cowboy_req:parse_header(<<"sec-websocket-extensions">>, Req) of
+		{ok, Extensions, Req2} when Extensions =/= undefined ->
+			[Compress] = cowboy_req:get([resp_compress], Req),
+			case lists:keyfind(<<"x-webkit-deflate-frame">>, 1, Extensions) of
+				{<<"x-webkit-deflate-frame">>, []} when Compress =:= true ->
+					Inflate = zlib:open(),
+					Deflate = zlib:open(),
+					% Since we are negotiating an unconstrained deflate-frame
+					% then we must be willing to accept frames using the
+					% maximum window size which is 2^15. The negative value
+					% indicates that zlib headers are not used.
+					ok = zlib:inflateInit(Inflate, -15),
+					% Initialize the deflater with a window size of 2^15 bits and disable
+					% the zlib headers.
+					ok = zlib:deflateInit(Deflate, best_compression, deflated, -15, 8, default),
+					{ok, State#state{
+						deflate_frame = true,
+						inflate_state = Inflate,
+						inflate_buffer = <<>>,
+						deflate_state = Deflate
+					}, Req2};
+				_ ->
+					{ok, State, Req2}
+			end;
+		_ ->
+			{ok, State, Req}
+	end.
 
 -spec handler_init(#state{}, Req)
 	-> {ok, Req, cowboy_middleware:env()} | {error, 400, Req}
@@ -137,14 +173,20 @@ upgrade_error(Req, Env) ->
 	-> {ok, Req, cowboy_middleware:env()}
 	| {suspend, module(), atom(), [any()]}
 	when Req::cowboy_req:req().
-websocket_handshake(State=#state{transport=Transport, key=Key},
+websocket_handshake(State=#state{
+			transport=Transport, key=Key, deflate_frame=DeflateFrame},
 		Req, HandlerState) ->
 	Challenge = base64:encode(crypto:sha(
 		<< Key/binary, "258EAFA5-E914-47DA-95CA-C5AB0DC85B11" >>)),
+	Extensions = case DeflateFrame of
+		false -> [];
+		true -> [{<<"sec-websocket-extensions">>, <<"x-webkit-deflate-frame">>}]
+	end,
 	{ok, Req2} = cowboy_req:upgrade_reply(
 		101,
 		[{<<"upgrade">>, <<"websocket">>},
-		 {<<"sec-websocket-accept">>, Challenge}],
+		 {<<"sec-websocket-accept">>, Challenge}|
+		 Extensions],
 		Req),
 	%% Flush the resp_sent message before moving on.
 	receive {cowboy_req, resp_sent} -> ok after 0 -> ok end,
@@ -211,7 +253,7 @@ handler_loop(State=#state{socket=Socket, messages={OK, Closed, Error},
 %% RSV bits MUST be 0 unless an extension is negotiated
 %% that defines meanings for non-zero values.
 websocket_data(State, Req, HandlerState, << _:1, Rsv:3, _/bits >>)
-		when Rsv =/= 0 ->
+		when Rsv =/= 0, State#state.deflate_frame =:= false ->
 	websocket_close(State, Req, HandlerState, {error, badframe});
 %% Invalid opcode. Note that these opcodes may be used by extensions.
 websocket_data(State, Req, HandlerState, << _:4, Opcode:4, _/bits >>)
@@ -239,23 +281,23 @@ websocket_data(State, Req, HandlerState,
 		when Len > 1, byte_size(Data) < 8 ->
 	handler_before_loop(State, Req, HandlerState, Data);
 %% 7 bits payload length.
-websocket_data(State, Req, HandlerState, << Fin:1, _Rsv:3, Opcode:4, 1:1,
+websocket_data(State, Req, HandlerState, << Fin:1, Rsv:3/bits, Opcode:4, 1:1,
 		Len:7, MaskKey:32, Rest/bits >>)
 		when Len < 126 ->
 	websocket_data(State, Req, HandlerState,
-		Opcode, Len, MaskKey, Rest, Fin);
+		Opcode, Len, MaskKey, Rest, Rsv, Fin);
 %% 16 bits payload length.
-websocket_data(State, Req, HandlerState, << Fin:1, _Rsv:3, Opcode:4, 1:1,
+websocket_data(State, Req, HandlerState, << Fin:1, Rsv:3/bits, Opcode:4, 1:1,
 		126:7, Len:16, MaskKey:32, Rest/bits >>)
 		when Len > 125, Opcode < 8 ->
 	websocket_data(State, Req, HandlerState,
-		Opcode, Len, MaskKey, Rest, Fin);
+		Opcode, Len, MaskKey, Rest, Rsv, Fin);
 %% 63 bits payload length.
-websocket_data(State, Req, HandlerState, << Fin:1, _Rsv:3, Opcode:4, 1:1,
+websocket_data(State, Req, HandlerState, << Fin:1, Rsv:3/bits, Opcode:4, 1:1,
 		127:7, 0:1, Len:63, MaskKey:32, Rest/bits >>)
 		when Len > 16#ffff, Opcode < 8 ->
 	websocket_data(State, Req, HandlerState,
-		Opcode, Len, MaskKey, Rest, Fin);
+		Opcode, Len, MaskKey, Rest, Rsv, Fin);
 %% When payload length is over 63 bits, the most significant bit MUST be 0.
 websocket_data(State, Req, HandlerState, << _:8, 1:1, 127:7, 1:1, _:7, _/binary >>) ->
 	websocket_close(State, Req, HandlerState, {error, badframe});
@@ -276,120 +318,141 @@ websocket_data(State, Req, HandlerState, Data) ->
 
 %% Initialize or update fragmentation state.
 -spec websocket_data(#state{}, Req, any(),
-	opcode(), non_neg_integer(), mask_key(), binary(), 0 | 1)
+	opcode(), non_neg_integer(), mask_key(), binary(), rsv(), 0 | 1)
 	-> {ok, Req, cowboy_middleware:env()}
 	| {suspend, module(), atom(), [any()]}
 	when Req::cowboy_req:req().
 %% The opcode is only included in the first frame fragment.
 websocket_data(State=#state{frag_state=undefined}, Req, HandlerState,
-		Opcode, Len, MaskKey, Data, 0) ->
+		Opcode, Len, MaskKey, Data, Rsv, 0) ->
 	websocket_payload(State#state{frag_state={nofin, Opcode, <<>>}},
-		Req, HandlerState, 0, Len, MaskKey, <<>>, Data);
+		Req, HandlerState, 0, Len, MaskKey, <<>>, Data, Rsv);
 %% Subsequent frame fragments.
 websocket_data(State=#state{frag_state={nofin, _, _}}, Req, HandlerState,
-		0, Len, MaskKey, Data, 0) ->
+		0, Len, MaskKey, Data, Rsv, 0) ->
 	websocket_payload(State, Req, HandlerState,
-		0, Len, MaskKey, <<>>, Data);
+		0, Len, MaskKey, <<>>, Data, Rsv);
 %% Final frame fragment.
 websocket_data(State=#state{frag_state={nofin, Opcode, SoFar}},
-		Req, HandlerState, 0, Len, MaskKey, Data, 1) ->
+		Req, HandlerState, 0, Len, MaskKey, Data, Rsv, 1) ->
 	websocket_payload(State#state{frag_state={fin, Opcode, SoFar}},
-		Req, HandlerState, 0, Len, MaskKey, <<>>, Data);
+		Req, HandlerState, 0, Len, MaskKey, <<>>, Data, Rsv);
 %% Unfragmented frame.
-websocket_data(State, Req, HandlerState, Opcode, Len, MaskKey, Data, 1) ->
+websocket_data(State, Req, HandlerState, Opcode, Len, MaskKey, Data, Rsv, 1) ->
 	websocket_payload(State, Req, HandlerState,
-		Opcode, Len, MaskKey, <<>>, Data).
+		Opcode, Len, MaskKey, <<>>, Data, Rsv).
 
 -spec websocket_payload(#state{}, Req, any(),
-	opcode(), non_neg_integer(), mask_key(), binary(), binary())
+	opcode(), non_neg_integer(), mask_key(), binary(), binary(), rsv())
 	-> {ok, Req, cowboy_middleware:env()}
 	| {suspend, module(), atom(), [any()]}
 	when Req::cowboy_req:req().
 %% Close control frames with a payload MUST contain a valid close code.
 websocket_payload(State, Req, HandlerState,
-		Opcode=8, Len, MaskKey, <<>>, << MaskedCode:2/binary, Rest/bits >>) ->
+		Opcode=8, Len, MaskKey, <<>>, << MaskedCode:2/binary, Rest/bits >>, Rsv) ->
 	Unmasked = << Code:16 >> = websocket_unmask(MaskedCode, MaskKey, <<>>),
 	if	Code < 1000; Code =:= 1004; Code =:= 1005; Code =:= 1006;
 				(Code > 1011) and (Code < 3000); Code > 4999 ->
 			websocket_close(State, Req, HandlerState, {error, badframe});
 		true ->
 			websocket_payload(State, Req, HandlerState,
-				Opcode, Len - 2, MaskKey, Unmasked, Rest)
+				Opcode, Len - 2, MaskKey, Unmasked, Rest, Rsv)
 	end;
 %% Text frames and close control frames MUST have a payload that is valid UTF-8.
 websocket_payload(State=#state{utf8_state=Incomplete},
-		Req, HandlerState, Opcode, Len, MaskKey, Unmasked, Data)
+		Req, HandlerState, Opcode, Len, MaskKey, Unmasked, Data, Rsv)
 		when (byte_size(Data) < Len) andalso ((Opcode =:= 1) orelse
 			((Opcode =:= 8) andalso (Unmasked =/= <<>>))) ->
 	Unmasked2 = websocket_unmask(Data,
 		rotate_mask_key(MaskKey, byte_size(Unmasked)), <<>>),
-	case is_utf8(<< Incomplete/binary, Unmasked2/binary >>) of
+	{Unmasked3, State2} = websocket_inflate_frame(Unmasked2, Rsv, false, State),
+	case is_utf8(<< Incomplete/binary, Unmasked3/binary >>) of
 		false ->
-			websocket_close(State, Req, HandlerState, {error, badencoding});
+			websocket_close(State2, Req, HandlerState, {error, badencoding});
 		Utf8State ->
-			websocket_payload_loop(State#state{utf8_state=Utf8State},
+			websocket_payload_loop(State2#state{utf8_state=Utf8State},
 				Req, HandlerState, Opcode, Len - byte_size(Data), MaskKey,
-				<< Unmasked/binary, Unmasked2/binary >>)
+				<< Unmasked/binary, Unmasked3/binary >>, Rsv)
 	end;
 websocket_payload(State=#state{utf8_state=Incomplete},
-		Req, HandlerState, Opcode, Len, MaskKey, Unmasked, Data)
+		Req, HandlerState, Opcode, Len, MaskKey, Unmasked, Data, Rsv)
 		when Opcode =:= 1; (Opcode =:= 8) and (Unmasked =/= <<>>) ->
 	<< End:Len/binary, Rest/bits >> = Data,
 	Unmasked2 = websocket_unmask(End,
 		rotate_mask_key(MaskKey, byte_size(Unmasked)), <<>>),
-	case is_utf8(<< Incomplete/binary, Unmasked2/binary >>) of
+	{Unmasked3, State2} = websocket_inflate_frame(Unmasked2, Rsv, true, State),
+	case is_utf8(<< Incomplete/binary, Unmasked3/binary >>) of
 		<<>> ->
-			websocket_dispatch(State#state{utf8_state= <<>>},
+			websocket_dispatch(State2#state{utf8_state= <<>>},
 				Req, HandlerState, Rest, Opcode,
-				<< Unmasked/binary, Unmasked2/binary >>);
+				<< Unmasked/binary, Unmasked3/binary >>);
 		_ ->
-			websocket_close(State, Req, HandlerState, {error, badencoding})
+			websocket_close(State2, Req, HandlerState, {error, badencoding})
 	end;
 %% Fragmented text frames may cut payload in the middle of UTF-8 codepoints.
 websocket_payload(State=#state{frag_state={_, 1, _}, utf8_state=Incomplete},
-		Req, HandlerState, Opcode=0, Len, MaskKey, Unmasked, Data)
+		Req, HandlerState, Opcode=0, Len, MaskKey, Unmasked, Data, Rsv)
 		when byte_size(Data) < Len ->
 	Unmasked2 = websocket_unmask(Data,
 		rotate_mask_key(MaskKey, byte_size(Unmasked)), <<>>),
-	case is_utf8(<< Incomplete/binary, Unmasked2/binary >>) of
+	{Unmasked3, State2} = websocket_inflate_frame(Unmasked2, Rsv, false, State),
+	case is_utf8(<< Incomplete/binary, Unmasked3/binary >>) of
 		false ->
-			websocket_close(State, Req, HandlerState, {error, badencoding});
+			websocket_close(State2, Req, HandlerState, {error, badencoding});
 		Utf8State ->
-			websocket_payload_loop(State#state{utf8_state=Utf8State},
+			websocket_payload_loop(State2#state{utf8_state=Utf8State},
 				Req, HandlerState, Opcode, Len - byte_size(Data), MaskKey,
-				<< Unmasked/binary, Unmasked2/binary >>)
+				<< Unmasked/binary, Unmasked3/binary >>, Rsv)
 	end;
 websocket_payload(State=#state{frag_state={Fin, 1, _}, utf8_state=Incomplete},
-		Req, HandlerState, Opcode=0, Len, MaskKey, Unmasked, Data) ->
+		Req, HandlerState, Opcode=0, Len, MaskKey, Unmasked, Data, Rsv) ->
 	<< End:Len/binary, Rest/bits >> = Data,
 	Unmasked2 = websocket_unmask(End,
 		rotate_mask_key(MaskKey, byte_size(Unmasked)), <<>>),
-	case is_utf8(<< Incomplete/binary, Unmasked2/binary >>) of
+	{Unmasked3, State2} = websocket_inflate_frame(Unmasked2, Rsv, true, State),
+	case is_utf8(<< Incomplete/binary, Unmasked3/binary >>) of
 		<<>> ->
-			websocket_dispatch(State#state{utf8_state= <<>>},
+			websocket_dispatch(State2#state{utf8_state= <<>>},
 				Req, HandlerState, Rest, Opcode,
-				<< Unmasked/binary, Unmasked2/binary >>);
+				<< Unmasked/binary, Unmasked3/binary >>);
 		Utf8State when is_binary(Utf8State), Fin =:= nofin ->
-			websocket_dispatch(State#state{utf8_state=Utf8State},
+			websocket_dispatch(State2#state{utf8_state=Utf8State},
 				Req, HandlerState, Rest, Opcode,
-				<< Unmasked/binary, Unmasked2/binary >>);
+				<< Unmasked/binary, Unmasked3/binary >>);
 		_ ->
 			websocket_close(State, Req, HandlerState, {error, badencoding})
 	end;
 %% Other frames have a binary payload.
 websocket_payload(State, Req, HandlerState,
-		Opcode, Len, MaskKey, Unmasked, Data)
+		Opcode, Len, MaskKey, Unmasked, Data, Rsv)
 		when byte_size(Data) < Len ->
 	Unmasked2 = websocket_unmask(Data,
 		rotate_mask_key(MaskKey, byte_size(Unmasked)), Unmasked),
-	websocket_payload_loop(State, Req, HandlerState,
-		Opcode, Len - byte_size(Data), MaskKey, Unmasked2);
+	{Unmasked3, State2} = websocket_inflate_frame(Unmasked2, Rsv, false, State),
+	websocket_payload_loop(State2, Req, HandlerState,
+		Opcode, Len - byte_size(Data), MaskKey, Unmasked3, Rsv);
 websocket_payload(State, Req, HandlerState,
-		Opcode, Len, MaskKey, Unmasked, Data) ->
+		Opcode, Len, MaskKey, Unmasked, Data, Rsv) ->
 	<< End:Len/binary, Rest/bits >> = Data,
 	Unmasked2 = websocket_unmask(End,
 		rotate_mask_key(MaskKey, byte_size(Unmasked)), Unmasked),
-	websocket_dispatch(State, Req, HandlerState, Rest, Opcode, Unmasked2).
+	{Unmasked3, State2} = websocket_inflate_frame(Unmasked2, Rsv, true, State),
+	websocket_dispatch(State2, Req, HandlerState, Rest, Opcode, Unmasked3).
+
+-spec websocket_inflate_frame(binary(), rsv(), boolean(), #state{}) ->
+		{binary(), #state{}}.
+websocket_inflate_frame(Data, << Rsv1:1, _:2 >>, _,
+		#state{deflate_frame = DeflateFrame} = State)
+		when DeflateFrame =:= false orelse Rsv1 =:= 0 ->
+	{Data, State};
+websocket_inflate_frame(Data, << 1:1, _:2 >>, false,
+		#state{inflate_buffer = Buffer} = State) ->
+	{<<>>, State#state{inflate_buffer = << Buffer/binary, Data/binary >>}};
+websocket_inflate_frame(Data, << 1:1, _:2 >>, true,
+		#state{inflate_state = Inflate, inflate_buffer = Buffer} = State) ->
+	Deflated = << Buffer/binary, Data/binary, 0:8, 0:8, 255:8, 255:8 >>,
+	Result = zlib:inflate(Inflate, Deflated),
+	{iolist_to_binary(Result), State#state{inflate_buffer = <<>>}}.
 
 -spec websocket_unmask(B, mask_key(), B) -> B when B::binary().
 websocket_unmask(<<>>, _, Unmasked) ->
@@ -448,19 +511,19 @@ is_utf8(_) ->
 	false.
 
 -spec websocket_payload_loop(#state{}, Req, any(),
-	opcode(), non_neg_integer(), mask_key(), binary())
+		opcode(), non_neg_integer(), mask_key(), binary(), rsv())
 	-> {ok, Req, cowboy_middleware:env()}
 	| {suspend, module(), atom(), [any()]}
 	when Req::cowboy_req:req().
 websocket_payload_loop(State=#state{socket=Socket, transport=Transport,
 		messages={OK, Closed, Error}, timeout_ref=TRef},
-		Req, HandlerState, Opcode, Len, MaskKey, Unmasked) ->
+		Req, HandlerState, Opcode, Len, MaskKey, Unmasked, Rsv) ->
 	Transport:setopts(Socket, [{active, once}]),
 	receive
 		{OK, Socket, Data} ->
 			State2 = handler_loop_timeout(State),
 			websocket_payload(State2, Req, HandlerState,
-				Opcode, Len, MaskKey, Unmasked, Data);
+				Opcode, Len, MaskKey, Unmasked, Data, Rsv);
 		{Closed, Socket} ->
 			handler_terminate(State, Req, HandlerState, {error, closed});
 		{Error, Socket, Reason} ->
@@ -469,13 +532,13 @@ websocket_payload_loop(State=#state{socket=Socket, transport=Transport,
 			websocket_close(State, Req, HandlerState, {normal, timeout});
 		{timeout, OlderTRef, ?MODULE} when is_reference(OlderTRef) ->
 			websocket_payload_loop(State, Req, HandlerState,
-				Opcode, Len, MaskKey, Unmasked);
+				Opcode, Len, MaskKey, Unmasked, Rsv);
 		Message ->
 			handler_call(State, Req, HandlerState,
 				<<>>, websocket_info, Message,
 				fun (State2, Req2, HandlerState2, _) ->
 					websocket_payload_loop(State2, Req2, HandlerState2,
-						Opcode, Len, MaskKey, Unmasked)
+						Opcode, Len, MaskKey, Unmasked, Rsv)
 				end)
 	end.
 
@@ -534,48 +597,48 @@ handler_call(State=#state{handler=Handler, handler_opts=HandlerOpts}, Req,
 		{reply, Payload, Req2, HandlerState2}
 				when is_tuple(Payload) ->
 			case websocket_send(Payload, State) of
-				ok ->
-					NextState(State, Req2, HandlerState2, RemainingData);
-				shutdown ->
-					handler_terminate(State, Req2, HandlerState2,
+				{ok, State2} ->
+					NextState(State2, Req2, HandlerState2, RemainingData);
+				{shutdown, State2} ->
+					handler_terminate(State2, Req2, HandlerState2,
 						{normal, shutdown});
-				{error, _} = Error ->
-					handler_terminate(State, Req2, HandlerState2, Error)
+				{{error, _} = Error, State2} ->
+					handler_terminate(State2, Req2, HandlerState2, Error)
 			end;
 		{reply, Payload, Req2, HandlerState2, hibernate}
 				when is_tuple(Payload) ->
 			case websocket_send(Payload, State) of
-				ok ->
-					NextState(State#state{hibernate=true},
+				{ok, State2} ->
+					NextState(State2#state{hibernate=true},
 						Req2, HandlerState2, RemainingData);
-				shutdown ->
-					handler_terminate(State, Req2, HandlerState2,
+				{shutdown, State2} ->
+					handler_terminate(State2, Req2, HandlerState2,
 						{normal, shutdown});
-				{error, _} = Error ->
-					handler_terminate(State, Req2, HandlerState2, Error)
+				{{error, _} = Error, State2} ->
+					handler_terminate(State2, Req2, HandlerState2, Error)
 			end;
 		{reply, Payload, Req2, HandlerState2}
 				when is_list(Payload) ->
 			case websocket_send_many(Payload, State) of
-				ok ->
-					NextState(State, Req2, HandlerState2, RemainingData);
-				shutdown ->
-					handler_terminate(State, Req2, HandlerState2,
+				{ok, State2} ->
+					NextState(State2, Req2, HandlerState2, RemainingData);
+				{shutdown, State2} ->
+					handler_terminate(State2, Req2, HandlerState2,
 						{normal, shutdown});
-				{error, _} = Error ->
-					handler_terminate(State, Req2, HandlerState2, Error)
+				{{error, _} = Error, State2} ->
+					handler_terminate(State2, Req2, HandlerState2, Error)
 			end;
 		{reply, Payload, Req2, HandlerState2, hibernate}
 				when is_list(Payload) ->
 			case websocket_send_many(Payload, State) of
-				ok ->
-					NextState(State#state{hibernate=true},
+				{ok, State2} ->
+					NextState(State2#state{hibernate=true},
 						Req2, HandlerState2, RemainingData);
-				shutdown ->
-					handler_terminate(State, Req2, HandlerState2,
+				{shutdown, State2} ->
+					handler_terminate(State2, Req2, HandlerState2,
 						{normal, shutdown});
-				{error, _} = Error ->
-					handler_terminate(State, Req2, HandlerState2, Error)
+				{{error, _} = Error, State2} ->
+					handler_terminate(State2, Req2, HandlerState2, Error)
 			end;
 		{shutdown, Req2, HandlerState2} ->
 			websocket_close(State, Req2, HandlerState2, {normal, shutdown})
@@ -597,22 +660,36 @@ websocket_opcode(close) -> 8;
 websocket_opcode(ping) -> 9;
 websocket_opcode(pong) -> 10.
 
+-spec websocket_deflate_frame(opcode(), binary(), #state{}) -> {binary(), <<_:3>>, #state{}}.
+websocket_deflate_frame(Opcode, Payload,
+		State=#state{deflate_frame = DeflateFrame})
+		when DeflateFrame =:= false orelse Opcode >= 8 ->
+	{Payload, <<0:3>>, State};
+websocket_deflate_frame(_, Payload, State=#state{deflate_state = Deflate}) ->
+	Deflated = iolist_to_binary(zlib:deflate(Deflate, Payload, sync)),
+	DeflatedBodyLength = erlang:size(Deflated) - 4,
+	Deflated1 = case Deflated of
+		<<Body:DeflatedBodyLength/binary, 0:8, 0:8, 255:8, 255:8>> -> Body;
+		_ -> Deflated
+	end,
+	{Deflated1, <<1:1, 0:2>>, State}.
+
 -spec websocket_send(frame(), #state{})
-	-> ok | shutdown | {error, atom()}.
-websocket_send(Type, #state{socket=Socket, transport=Transport})
+-> {ok, #state{}} | {shutdown, #state{}} | {{error, atom()}, #state{}}.
+websocket_send(Type, State=#state{socket=Socket, transport=Transport})
 		when Type =:= close ->
 	Opcode = websocket_opcode(Type),
 	case Transport:send(Socket, << 1:1, 0:3, Opcode:4, 0:8 >>) of
-		ok -> shutdown;
-		Error -> Error
+		ok -> {shutdown, State};
+		Error -> {Error, State}
 	end;
-websocket_send(Type, #state{socket=Socket, transport=Transport})
+websocket_send(Type, State=#state{socket=Socket, transport=Transport})
 		when Type =:= ping; Type =:= pong ->
 	Opcode = websocket_opcode(Type),
-	Transport:send(Socket, << 1:1, 0:3, Opcode:4, 0:8 >>);
+	{Transport:send(Socket, << 1:1, 0:3, Opcode:4, 0:8 >>), State};
 websocket_send({close, Payload}, State) ->
 	websocket_send({close, 1000, Payload}, State);
-websocket_send({Type = close, StatusCode, Payload}, #state{
+websocket_send({Type = close, StatusCode, Payload}, State=#state{
 		socket=Socket, transport=Transport}) ->
 	Opcode = websocket_opcode(Type),
 	Len = 2 + iolist_size(Payload),
@@ -621,9 +698,10 @@ websocket_send({Type = close, StatusCode, Payload}, #state{
 	BinLen = payload_length_to_binary(Len),
 	Transport:send(Socket,
 		[<< 1:1, 0:3, Opcode:4, 0:1, BinLen/bits, StatusCode:16 >>, Payload]),
-	shutdown;
-websocket_send({Type, Payload}, #state{socket=Socket, transport=Transport}) ->
+	{shutdown, State};
+websocket_send({Type, Payload0}, State=#state{socket=Socket, transport=Transport}) ->
 	Opcode = websocket_opcode(Type),
+	{Payload, Rsv, State2} = websocket_deflate_frame(Opcode, iolist_to_binary(Payload0), State),
 	Len = iolist_size(Payload),
 	%% Control packets must not be > 125 in length.
 	true = if Type =:= ping; Type =:= pong ->
@@ -632,18 +710,18 @@ websocket_send({Type, Payload}, #state{socket=Socket, transport=Transport}) ->
 			true
 	end,
 	BinLen = payload_length_to_binary(Len),
-	Transport:send(Socket,
-		[<< 1:1, 0:3, Opcode:4, 0:1, BinLen/bits >>, Payload]).
+	{Transport:send(Socket,
+		[<< 1:1, Rsv/bits, Opcode:4, 0:1, BinLen/bits >>, Payload]), State2}.
 
 -spec websocket_send_many([frame()], #state{})
-	-> ok | shutdown | {error, atom()}.
-websocket_send_many([], _) ->
-	ok;
+	-> {ok, #state{}} | {shutdown, #state{}} | {{error, atom()}, #state{}}.
+websocket_send_many([], State) ->
+	{ok, State};
 websocket_send_many([Frame|Tail], State) ->
 	case websocket_send(Frame, State) of
-		ok -> websocket_send_many(Tail, State);
-		shutdown -> shutdown;
-		Error -> Error
+		{ok, State2} -> websocket_send_many(Tail, State2);
+		{shutdown, State2} -> {shutdown, State2};
+		{Error, State2} -> {Error, State2}
 	end.
 
 -spec websocket_close(#state{}, Req, any(),

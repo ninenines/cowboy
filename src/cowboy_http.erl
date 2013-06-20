@@ -38,6 +38,7 @@
 -export([quoted_string/2]).
 -export([authorization/2]).
 -export([range/1]).
+-export([parameterized_tokens/1]).
 
 %% Decoding.
 -export([te_chunked/2]).
@@ -905,6 +906,49 @@ range_digits(Data, Default, Fun) ->
 			Fun(Data, Default)
 		end).
 
+%% @doc Parse a non empty list of tokens followed with optional parameters.
+-spec parameterized_tokens(binary()) -> any().
+parameterized_tokens(Data) ->
+	nonempty_list(Data,
+		fun (D, Fun) ->
+			token(D,
+				fun (_Rest, <<>>) -> {error, badarg};
+					(Rest, Token) ->
+						parameterized_tokens_params(Rest,
+							fun (Rest2, Params) ->
+								Fun(Rest2, {Token, Params})
+							end, [])
+				end)
+		end).
+
+-spec parameterized_tokens_params(binary(), fun(), [binary() | {binary(), binary()}]) -> any().
+parameterized_tokens_params(Data, Fun, Acc) ->
+	whitespace(Data,
+		fun (<< $;, Rest/binary >>) ->
+				parameterized_tokens_param(Rest,
+					fun (Rest2, Param) ->
+							parameterized_tokens_params(Rest2, Fun, [Param|Acc])
+					end);
+			(Rest) ->
+				Fun(Rest, lists:reverse(Acc))
+		end).
+
+-spec parameterized_tokens_param(binary(), fun()) -> any().
+parameterized_tokens_param(Data, Fun) ->
+	whitespace(Data,
+		fun (Rest) ->
+				token(Rest,
+					fun (_Rest2, <<>>) -> {error, badarg};
+						(<< $=, Rest2/binary >>, Attr) ->
+							word(Rest2,
+								fun (Rest3, Value) ->
+										Fun(Rest3, {Attr, Value})
+								end);
+						(Rest2, Attr) ->
+							Fun(Rest2, Attr)
+					end)
+		end).
+
 %% Decoding.
 
 %% @doc Decode a stream of chunks.
@@ -1289,6 +1333,17 @@ content_type_test_() ->
 			]}}
 	],
 	[{V, fun () -> R = content_type(V) end} || {V, R} <- Tests].
+
+parameterized_tokens_test_() ->
+	%% {ParameterizedTokens, Result}
+	Tests = [
+		{<<"foo">>, [{<<"foo">>, []}]},
+		{<<"bar; baz=2">>, [{<<"bar">>, [{<<"baz">>, <<"2">>}]}]},
+		{<<"bar; baz=2;bat">>, [{<<"bar">>, [{<<"baz">>, <<"2">>}, <<"bat">>]}]},
+		{<<"bar; baz=2;bat=\"z=1,2;3\"">>, [{<<"bar">>, [{<<"baz">>, <<"2">>}, {<<"bat">>, <<"z=1,2;3">>}]}]},
+		{<<"foo, bar; baz=2">>, [{<<"foo">>, []}, {<<"bar">>, [{<<"baz">>, <<"2">>}]}]}
+	],
+	[{V, fun () -> R = parameterized_tokens(V) end} || {V, R} <- Tests].
 
 digits_test_() ->
 	%% {Digits, Result}

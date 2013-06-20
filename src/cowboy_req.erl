@@ -460,6 +460,8 @@ parse_header(Name, Req, Default)
 		fun (Value) ->
 			cowboy_http:nonempty_list(Value, fun cowboy_http:token_ci/2)
 		end);
+parse_header(Name = <<"sec-websocket-extensions">>, Req, Default) ->
+	parse_header(Name, Req, Default, fun cowboy_http:parameterized_tokens/1);
 parse_header(Name, Req, Default) ->
 	{Value, Req2} = header(Name, Req, Default),
 	{undefined, Value, Req2}.
@@ -1173,6 +1175,7 @@ g(port, #http_req{port=Ret}) -> Ret;
 g(qs, #http_req{qs=Ret}) -> Ret;
 g(qs_vals, #http_req{qs_vals=Ret}) -> Ret;
 g(resp_body, #http_req{resp_body=Ret}) -> Ret;
+g(resp_compress, #http_req{resp_compress=Ret}) -> Ret;
 g(resp_headers, #http_req{resp_headers=Ret}) -> Ret;
 g(resp_state, #http_req{resp_state=Ret}) -> Ret;
 g(socket, #http_req{socket=Ret}) -> Ret;
