@@ -17,7 +17,7 @@
 	{description, "Small, fast, modular HTTP server."},
 	{sub_description, "Cowboy is also a socket acceptor pool, "
 		"able to accept connections for any kind of TCP protocol."},
-	{vsn, "0.8.5"},
+	{vsn, "0.8.6"},
 	{modules, []},
 	{registered, [cowboy_clock, cowboy_sup]},
 	{applications, [
