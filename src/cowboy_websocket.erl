@@ -21,7 +21,7 @@
 
 %% Ignore the deprecation warning for crypto:sha/1.
 %% @todo Remove when we support only R16B+.
--compile({nowarn_deprecated_function, {crypto, sha, 1}}).
+-compile(nowarn_deprecated_function).
 
 %% API.
 -export([upgrade/4]).
