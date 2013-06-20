@@ -15,7 +15,7 @@ environment this means that they need to be started with the
 application is started.
 
 The `cowboy` application also uses the Erlang applications
-`public_key` and `ssl` when listening for HTTPS connections.
+`asn1`, `public_key` and `ssl` when listening for HTTPS connections.
 These are started automatically if they weren't before.
 
 Environment

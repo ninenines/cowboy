@@ -216,6 +216,7 @@ init_per_group(https, Config) ->
 	Transport = ranch_ssl,
 	{_, Cert, Key} = ct_helper:make_certs(),
 	Opts = [{cert, Cert}, {key, Key}],
+	application:start(asn1),
 	application:start(public_key),
 	application:start(ssl),
 	{ok, _} = cowboy:start_https(https, 100, Opts ++ [{port, 0}], [
@@ -243,6 +244,7 @@ init_per_group(https_compress, Config) ->
 	Transport = ranch_ssl,
 	{_, Cert, Key} = ct_helper:make_certs(),
 	Opts = [{cert, Cert}, {key, Key}],
+	application:start(asn1),
 	application:start(public_key),
 	application:start(ssl),
 	{ok, _} = cowboy:start_https(https_compress, 100, Opts ++ [{port, 0}], [
@@ -307,6 +309,7 @@ end_per_group(Name, _) when Name =:= https; Name =:= https_compress ->
 	cowboy:stop_listener(Name),
 	application:stop(ssl),
 	application:stop(public_key),
+	application:stop(asn1),
 	ok;
 end_per_group(Name, _) ->
 	cowboy:stop_listener(Name),
