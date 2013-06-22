@@ -14,9 +14,9 @@ Cowboy is a high quality project. It has a small code base, is very
 efficient (both in latency and memory use) and can easily be embedded
 in another application.
 
-Cowboy is clean Erlang code. It bans the use of parameterized modules
-and the process dictionary. It includes documentation and typespecs
-for all public interfaces.
+Cowboy is clean Erlang code. It includes hundreds of tests and its code
+is fully compliant with the Dialyzer. It is also well documented and
+features both a Function Reference and a User Guide.
 
 Prerequisites
 -------------
