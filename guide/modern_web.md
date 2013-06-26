@@ -66,7 +66,7 @@ of concerns between the client and the server. They communicate
 by referencing resources. Resources can be identified, but
 also manipulated. A resource representation has a media type
 and information about whether it can be cached and how. Hypermedia
-determines how resources are related and they can be used.
+determines how resources are related and how they can be used.
 REST is also stateless. All requests contain the complete
 information necessary to perform the action.
 
