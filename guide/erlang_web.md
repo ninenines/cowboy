@@ -43,7 +43,7 @@ designed to work in a distributed setting, so it is a
 perfect match.
 
 Or is it? Surely you can find solutions to handle that many
-concurrent connections with my favorite language... But all
+concurrent connections with your favorite language... But all
 these solutions will break down in the next few years. Why?
 Firstly because servers don't get any more powerful, they
 instead get a lot more cores and memory. This is only useful
@@ -90,7 +90,7 @@ The Web is asynchronous
 
 Long ago, the Web was synchronous because HTTP was synchronous.
 You fired a request, and then waited for a response. Not anymore.
-It all started when XmlHttpRequest started being used. It allowed
+It all began when XmlHttpRequest started being used. It allowed
 the client to perform asynchronous calls to the server.
 
 Then Websocket appeared and allowed both the server and the client

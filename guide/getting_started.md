@@ -50,7 +50,7 @@ we will just use the plain HTTP handler, which has three callback
 functions: init/3, handle/2 and terminate/3. You can find more information
 about the arguments and possible return values of these callbacks in the
 [cowboy_http_handler function reference](http://ninenines.eu/docs/en/cowboy/HEAD/manual/cowboy_http_handler).
-Following is an example of a simple HTTP handler module.
+Here is an example of a simple HTTP handler module.
 
 ``` erlang
 -module(my_handler).
