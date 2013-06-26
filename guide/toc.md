@@ -1,11 +1,39 @@
 Cowboy User Guide
 =================
 
+The Cowboy User Guide explores the modern Web and how to make
+best use of Cowboy for writing powerful web applications.
+
+Introducing Cowboy
+------------------
+
  *  [Introduction](introduction.md)
    *  Purpose
    *  Prerequisites
+   *  Supported platforms
    *  Conventions
-   *  Getting started
+ *  [The modern Web](modern_web.md)
+   *  The prehistoric Web
+   *  HTTP/1.1
+   *  REST
+   *  Long-polling
+   *  HTML5
+   *  EventSource
+   *  Websocket
+   *  SPDY
+   *  HTTP/2.0
+ *  [Erlang and the Web](erlang_web.md)
+   *  The Web is concurrent
+   *  The Web is soft real time
+   *  The Web is asynchronous
+   *  The Web is omnipresent
+   *  Erlang is the ideal platform for the Web
+ *  [Erlang for beginners](erlang_beginners.md)
+ *  [Getting started](getting_started.md)
+
+Using Cowboy
+------------
+
  *  [Routing](routing.md)
    *  Purpose
    *  Structure
