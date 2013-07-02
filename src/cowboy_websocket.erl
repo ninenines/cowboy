@@ -662,19 +662,20 @@ websocket_opcode(close) -> 8;
 websocket_opcode(ping) -> 9;
 websocket_opcode(pong) -> 10.
 
--spec websocket_deflate_frame(opcode(), binary(), #state{}) -> {binary(), <<_:3>>, #state{}}.
+-spec websocket_deflate_frame(opcode(), binary(), #state{}) ->
+	{binary(), <<_:3>>, #state{}}.
 websocket_deflate_frame(Opcode, Payload,
 		State=#state{deflate_frame = DeflateFrame})
 		when DeflateFrame =:= false orelse Opcode >= 8 ->
-	{Payload, <<0:3>>, State};
+	{Payload, << 0:3 >>, State};
 websocket_deflate_frame(_, Payload, State=#state{deflate_state = Deflate}) ->
 	Deflated = iolist_to_binary(zlib:deflate(Deflate, Payload, sync)),
 	DeflatedBodyLength = erlang:size(Deflated) - 4,
 	Deflated1 = case Deflated of
-		<<Body:DeflatedBodyLength/binary, 0:8, 0:8, 255:8, 255:8>> -> Body;
+		<< Body:DeflatedBodyLength/binary, 0:8, 0:8, 255:8, 255:8 >> -> Body;
 		_ -> Deflated
 	end,
-	{Deflated1, <<1:1, 0:2>>, State}.
+	{Deflated1, << 1:1, 0:2 >>, State}.
 
 -spec websocket_send(frame(), #state{})
 -> {ok, #state{}} | {shutdown, #state{}} | {{error, atom()}, #state{}}.
