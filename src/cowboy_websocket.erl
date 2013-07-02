@@ -421,7 +421,7 @@ websocket_payload(State=#state{frag_state={Fin, 1, _}, utf8_state=Incomplete},
 	<< End:Len/binary, Rest/bits >> = Data,
 	Unmasked2 = websocket_unmask(End,
 		rotate_mask_key(MaskKey, UnmaskedLen), <<>>),
-	{Unmasked3, State2} = websocket_inflate_frame(Unmasked2, Rsv, true, State),
+	{Unmasked3, State2} = websocket_inflate_frame(Unmasked2, Rsv, Fin =:= fin, State),
 	case is_utf8(<< Incomplete/binary, Unmasked3/binary >>) of
 		<<>> ->
 			websocket_dispatch(State2#state{utf8_state= <<>>},
