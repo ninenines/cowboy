@@ -57,9 +57,8 @@
 	frag_state = undefined :: frag_state(),
 	utf8_state = <<>> :: binary(),
 	deflate_frame = false :: boolean(),
-	inflate_state :: any(),
-	inflate_buffer = <<>> :: binary(),
-	deflate_state :: any()
+	inflate_state :: undefined | port(),
+	deflate_state :: undefined | port()
 }).
 
 %% @doc Upgrade an HTTP request to the Websocket protocol.
@@ -121,7 +120,6 @@ websocket_extensions(State, Req) ->
 					{ok, State#state{
 						deflate_frame = true,
 						inflate_state = Inflate,
-						inflate_buffer = <<>>,
 						deflate_state = Deflate
 					}, Req2};
 				_ ->
@@ -450,14 +448,13 @@ websocket_inflate_frame(Data, << Rsv1:1, _:2 >>, _,
 		#state{deflate_frame = DeflateFrame} = State)
 		when DeflateFrame =:= false orelse Rsv1 =:= 0 ->
 	{Data, State};
-websocket_inflate_frame(Data, << 1:1, _:2 >>, false,
-		#state{inflate_buffer = Buffer} = State) ->
-	{<<>>, State#state{inflate_buffer = << Buffer/binary, Data/binary >>}};
-websocket_inflate_frame(Data, << 1:1, _:2 >>, true,
-		#state{inflate_state = Inflate, inflate_buffer = Buffer} = State) ->
-	Deflated = << Buffer/binary, Data/binary, 0:8, 0:8, 255:8, 255:8 >>,
-	Result = zlib:inflate(Inflate, Deflated),
-	{iolist_to_binary(Result), State#state{inflate_buffer = <<>>}}.
+websocket_inflate_frame(Data, << 1:1, _:2 >>, false, State) ->
+	Result = zlib:inflate(State#state.inflate_state, Data),
+	{iolist_to_binary(Result), State};
+websocket_inflate_frame(Data, << 1:1, _:2 >>, true, State) ->
+	Result = zlib:inflate(State#state.inflate_state,
+		<< Data/binary, 0:8, 0:8, 255:8, 255:8 >>),
+	{iolist_to_binary(Result), State}.
 
 -spec websocket_unmask(B, mask_key(), B) -> B when B::binary().
 websocket_unmask(<<>>, _, Unmasked) ->
