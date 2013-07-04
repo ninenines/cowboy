@@ -535,7 +535,7 @@ streamed_response(Config) ->
 %% Check if sending requests whose size is around the MTU breaks something.
 echo_body(Config) ->
 	Client = ?config(client, Config),
-	{ok, [{mtu, MTU}]} = inet:ifget("lo", [mtu]),
+	MTU = ct_helper:get_loopback_mtu(),
 	_ = [begin
 		Body = list_to_binary(lists:duplicate(Size, $a)),
 		{ok, Client2} = cowboy_client:request(<<"POST">>,
