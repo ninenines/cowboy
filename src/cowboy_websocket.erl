@@ -676,7 +676,7 @@ websocket_opcode(ping) -> 9;
 websocket_opcode(pong) -> 10.
 
 -spec websocket_deflate_frame(opcode(), binary(), #state{}) ->
-	{binary(), <<_:3>>, #state{}}.
+	{binary(), rsv(), #state{}}.
 websocket_deflate_frame(Opcode, Payload,
 		State=#state{deflate_frame = DeflateFrame})
 		when DeflateFrame =:= false orelse Opcode >= 8 ->
