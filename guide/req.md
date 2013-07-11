@@ -106,6 +106,14 @@ handle the body of the request using `stream_body/1`,
 `stream_body/2` and `skip_body/1`, with the streaming process
 optionally initialized using `init_stream/4`.
 
+Stream data are read at 1M (approx.) per 5 secs. Data from a slow client
+could cause alot of problems especially if the slow client is on an
+unstable connection (eg. GSM 2G, EDGE). Cowboy provides
+`set_stream_timeout/2` and `set_stream_size/2` to allow apps
+dictate the timeout period and amount of data expected in that
+timeout peroid respectively.
+
+
 Multipart request body
 ----------------------
 
