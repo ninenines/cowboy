@@ -89,6 +89,8 @@
 -export([te_chunked/1]).
 -export([te_chunked_chopped/1]).
 -export([te_chunked_delayed/1]).
+-export([te_chunked_split_body/1]).
+-export([te_chunked_split_crlf/1]).
 -export([te_identity/1]).
 
 %% ct.
@@ -164,6 +166,8 @@ groups() ->
 		te_chunked,
 		te_chunked_chopped,
 		te_chunked_delayed,
+		te_chunked_split_body,
+		te_chunked_split_crlf,
 		te_identity
 	],
 	[
@@ -1292,6 +1296,52 @@ te_chunked_delayed(Config) ->
 	_ = [begin
 		ok = Transport:send(Socket, Chunk),
 		ok = timer:sleep(10)
+	end || Chunk <- Chunks],
+	{ok, 200, _, Client3} = cowboy_client:response(Client2),
+	{ok, Body, _} = cowboy_client:response_body(Client3).
+
+te_chunked_split_body(Config) ->
+	Client = ?config(client, Config),
+	Body = list_to_binary(io_lib:format("~p", [lists:seq(1, 100)])),
+	Chunks = body_to_chunks(50, Body, []),
+	{ok, Client2} = cowboy_client:request(<<"GET">>,
+		build_url("/echo/body", Config),
+		[{<<"transfer-encoding">>, <<"chunked">>}], Client),
+	{ok, Transport, Socket} = cowboy_client:transport(Client2),
+	_ = [begin
+		case Chunk of
+			%% Final chunk.
+			<<"0\r\n\r\n">> ->
+				ok = Transport:send(Socket, Chunk);
+			_ ->
+				%% Chunk of form <<"9\r\nChunkBody\r\n">>.
+				[Size, ChunkBody, <<>>] =
+					binary:split(Chunk, [<<"\r\n">>], [global]),
+				PartASize = random:uniform(byte_size(ChunkBody)),
+				<<PartA:PartASize/binary, PartB/binary>> = ChunkBody,
+				ok = Transport:send(Socket, [Size, <<"\r\n">>, PartA]),
+				ok = timer:sleep(10),
+				ok = Transport:send(Socket, [PartB, <<"\r\n">>])
+		end
+	end || Chunk <- Chunks],
+	{ok, 200, _, Client3} = cowboy_client:response(Client2),
+	{ok, Body, _} = cowboy_client:response_body(Client3).
+
+te_chunked_split_crlf(Config) ->
+	Client = ?config(client, Config),
+	Body = list_to_binary(io_lib:format("~p", [lists:seq(1, 100)])),
+	Chunks = body_to_chunks(50, Body, []),
+	{ok, Client2} = cowboy_client:request(<<"GET">>,
+		build_url("/echo/body", Config),
+		[{<<"transfer-encoding">>, <<"chunked">>}], Client),
+	{ok, Transport, Socket} = cowboy_client:transport(Client2),
+	_ = [begin
+		%% <<"\r\n">> is last 2 bytes of Chunk split before or after <<"\r">>.
+		Len = byte_size(Chunk) - (random:uniform(2) - 1),
+		<<Chunk2:Len/binary, End/binary>> = Chunk,
+		ok = Transport:send(Socket, Chunk2),
+		ok = timer:sleep(10),
+		ok = Transport:send(Socket, End)
 	end || Chunk <- Chunks],
 	{ok, 200, _, Client3} = cowboy_client:response(Client2),
 	{ok, Body, _} = cowboy_client:response_body(Client3).
