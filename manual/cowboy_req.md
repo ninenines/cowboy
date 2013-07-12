@@ -443,10 +443,7 @@ Response related exports
 >
 > If the request uses HTTP/1.0, the data is sent directly
 > without wrapping it in an HTTP/1.1 chunk, providing
-> compatibility with older clients. You can also force 
-> HTTP/1.0-like behaviour by calling 
-> `cowboy_req:set([{resp_state, waiting_streaming}], Req)`,
-> to allow compatability with some non-compliant clients.
+> compatibility with older clients.
 
 ### chunked_reply(StatusCode, Req) -> chunked_reply(StatusCode, [], Req)
 ### chunked_reply(StatusCode, Headers, Req) -> {ok, Req2}
