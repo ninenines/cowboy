@@ -31,6 +31,8 @@
 -export([ws8_single_bytes/1]).
 -export([ws13/1]).
 -export([ws_deflate/1]).
+-export([ws_deflate_chunks/1]).
+-export([ws_deflate_fragments/1]).
 -export([ws_send_close/1]).
 -export([ws_send_close_payload/1]).
 -export([ws_send_many/1]).
@@ -53,6 +55,8 @@ groups() ->
 		ws8_single_bytes,
 		ws13,
 		ws_deflate,
+		ws_deflate_chunks,
+		ws_deflate_fragments,
 		ws_send_close,
 		ws_send_close_payload,
 		ws_send_many,
@@ -315,7 +319,7 @@ ws13(Config) ->
 ws_deflate(Config) ->
 	{port, Port} = lists:keyfind(port, 1, Config),
 	{ok, Socket} = gen_tcp:connect("localhost", Port,
-		[binary, {active, false}, {packet, raw}]),
+		[binary, {active, false}, {packet, raw}, {nodelay, true}]),
 	ok = gen_tcp:send(Socket, [
 		"GET /ws_echo HTTP/1.1\r\n"
 		"Host: localhost\r\n"
@@ -338,25 +342,104 @@ ws_deflate(Config) ->
 	{"sec-websocket-extensions", "x-webkit-deflate-frame"}
 		= lists:keyfind("sec-websocket-extensions", 1, Headers),
 
-	% send uncompressed text frame containing the Hello string
-	ok = gen_tcp:send(Socket, << 16#81, 16#85, 16#37, 16#fa, 16#21, 16#3d,
-		16#7f, 16#9f, 16#4d, 16#51, 16#58 >>),
+	Mask = 16#11223344,
+	Hello = << 242, 72, 205, 201, 201, 7, 0 >>,
+	MaskedHello = websocket_mask(Hello, Mask, <<>>),
+
+	% send compressed text frame containing the Hello string
+	ok = gen_tcp:send(Socket, << 1:1, 1:1, 0:2, 1:4, 1:1, 7:7, Mask:32,
+		MaskedHello/binary >>),
 	% receive compressed text frame containing the Hello string
-	{ok, << 1:1, 1:1, 0:2, 1:4, 0:1, 7:7, 242, 72, 205, 201, 201, 7, 0 >>}
+	{ok, << 1:1, 1:1, 0:2, 1:4, 0:1, 7:7, Hello/binary >>}
 		= gen_tcp:recv(Socket, 0, 6000),
 
-	% send uncompressed text frame containing the HelloHello string
+	ok = gen_tcp:send(Socket, << 1:1, 0:3, 8:4, 1:1, 0:7, 0:32 >>), %% close
+	{ok, << 1:1, 0:3, 8:4, 0:8 >>} = gen_tcp:recv(Socket, 0, 6000),
+	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
+	ok.
+
+ws_deflate_chunks(Config) ->
+	{port, Port} = lists:keyfind(port, 1, Config),
+	{ok, Socket} = gen_tcp:connect("localhost", Port,
+		[binary, {active, false}, {packet, raw}, {nodelay, true}]),
+	ok = gen_tcp:send(Socket, [
+		"GET /ws_echo HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Connection: Upgrade\r\n"
+		"Upgrade: websocket\r\n"
+		"Sec-WebSocket-Origin: http://localhost\r\n"
+		"Sec-WebSocket-Version: 8\r\n"
+		"Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n"
+		"Sec-WebSocket-Extensions: x-webkit-deflate-frame\r\n"
+		"\r\n"]),
+	{ok, Handshake} = gen_tcp:recv(Socket, 0, 6000),
+	{ok, {http_response, {1, 1}, 101, "Switching Protocols"}, Rest}
+		= erlang:decode_packet(http, Handshake, []),
+	[Headers, <<>>] = websocket_headers(
+		erlang:decode_packet(httph, Rest, []), []),
+	{'Connection', "Upgrade"} = lists:keyfind('Connection', 1, Headers),
+	{'Upgrade', "websocket"} = lists:keyfind('Upgrade', 1, Headers),
+	{"sec-websocket-accept", "s3pPLMBiTxaQ9kYGzzhZRbK+xOo="}
+		= lists:keyfind("sec-websocket-accept", 1, Headers),
+	{"sec-websocket-extensions", "x-webkit-deflate-frame"}
+		= lists:keyfind("sec-websocket-extensions", 1, Headers),
+
+	Mask = 16#11223344,
+	Hello = << 242, 72, 205, 201, 201, 7, 0 >>,
+	MaskedHello = websocket_mask(Hello, Mask, <<>>),
+
+	% send compressed text frame containing the Hello string
+	ok = gen_tcp:send(Socket, << 1:1, 1:1, 0:2, 1:4, 1:1, 7:7, Mask:32,
+		(binary:part(MaskedHello, 0, 4))/binary >>),
+	ok = timer:sleep(100),
+	ok = gen_tcp:send(Socket, binary:part(MaskedHello, 4, 3)),
+
+	% receive compressed text frame containing the Hello string
+	{ok, << 1:1, 1:1, 0:2, 1:4, 0:1, 7:7, Hello/binary >>}
+		= gen_tcp:recv(Socket, 0, 6000),
+
+	ok = gen_tcp:send(Socket, << 1:1, 0:3, 8:4, 1:1, 0:7, 0:32 >>), %% close
+	{ok, << 1:1, 0:3, 8:4, 0:8 >>} = gen_tcp:recv(Socket, 0, 6000),
+	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
+	ok.
+
+ws_deflate_fragments(Config) ->
+	{port, Port} = lists:keyfind(port, 1, Config),
+	{ok, Socket} = gen_tcp:connect("localhost", Port,
+		[binary, {active, false}, {packet, raw}, {nodelay, true}]),
+	ok = gen_tcp:send(Socket, [
+		"GET /ws_echo HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Connection: Upgrade\r\n"
+		"Upgrade: websocket\r\n"
+		"Sec-WebSocket-Origin: http://localhost\r\n"
+		"Sec-WebSocket-Version: 8\r\n"
+		"Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n"
+		"Sec-WebSocket-Extensions: x-webkit-deflate-frame\r\n"
+		"\r\n"]),
+	{ok, Handshake} = gen_tcp:recv(Socket, 0, 6000),
+	{ok, {http_response, {1, 1}, 101, "Switching Protocols"}, Rest}
+		= erlang:decode_packet(http, Handshake, []),
+	[Headers, <<>>] = websocket_headers(
+		erlang:decode_packet(httph, Rest, []), []),
+	{'Connection', "Upgrade"} = lists:keyfind('Connection', 1, Headers),
+	{'Upgrade', "websocket"} = lists:keyfind('Upgrade', 1, Headers),
+	{"sec-websocket-accept", "s3pPLMBiTxaQ9kYGzzhZRbK+xOo="}
+		= lists:keyfind("sec-websocket-accept", 1, Headers),
+	{"sec-websocket-extensions", "x-webkit-deflate-frame"}
+		= lists:keyfind("sec-websocket-extensions", 1, Headers),
+
+	Mask = 16#11223344,
+	Hello = << 242, 72, 205, 201, 201, 7, 0 >>,
+
+	% send compressed text frame containing the Hello string
 	% as 2 separate fragments
-	ok = gen_tcp:send(Socket, [
-		<< 0:1, 0:3, 1:4, 1:1, 5:7 >>,
-		<< 16#37 >>, << 16#fa >>, << 16#21 >>, << 16#3d >>, << 16#7f >>,
-		<< 16#9f >>, << 16#4d >>, << 16#51 >>, << 16#58 >>]),
-	ok = gen_tcp:send(Socket, [
-		<< 1:1, 0:3, 0:4, 1:1, 5:7 >>,
-		<< 16#37 >>, << 16#fa >>, << 16#21 >>, << 16#3d >>, << 16#7f >>,
-		<< 16#9f >>, << 16#4d >>, << 16#51 >>, << 16#58 >>]),
-	% receive compressed text frame containing the HelloHello string
-	{ok, << 1:1, 1:1, 0:2, 1:4, 0:1, 5:7, 242, 128, 19, 0, 0 >>}
+	ok = gen_tcp:send(Socket, << 0:1, 1:1, 0:2, 1:4, 1:1, 4:7, Mask:32,
+		(websocket_mask(binary:part(Hello, 0, 4), Mask, <<>>))/binary >>),
+	ok = gen_tcp:send(Socket, << 1:1, 1:1, 0:2, 0:4, 1:1, 3:7, Mask:32,
+		(websocket_mask(binary:part(Hello, 4, 3), Mask, <<>>))/binary >>),
+	% receive compressed text frame containing the Hello string
+	{ok, << 1:1, 1:1, 0:2, 1:4, 0:1, 7:7, Hello/binary >>}
 		= gen_tcp:recv(Socket, 0, 6000),
 
 	ok = gen_tcp:send(Socket, << 1:1, 0:3, 8:4, 1:1, 0:7, 0:32 >>), %% close
@@ -632,3 +715,21 @@ websocket_headers({ok, {http_header, _I, Key, _R, Value}, Rest}, Acc) ->
 	F = fun(S) when is_atom(S) -> S; (S) -> string:to_lower(S) end,
 	websocket_headers(erlang:decode_packet(httph, Rest, []),
 		[{F(Key), Value}|Acc]).
+
+websocket_mask(<<>>, _, Unmasked) ->
+	Unmasked;
+websocket_mask(<< O:32, Rest/bits >>, MaskKey, Acc) ->
+	T = O bxor MaskKey,
+	websocket_mask(Rest, MaskKey, << Acc/binary, T:32 >>);
+websocket_mask(<< O:24 >>, MaskKey, Acc) ->
+	<< MaskKey2:24, _:8 >> = << MaskKey:32 >>,
+	T = O bxor MaskKey2,
+	<< Acc/binary, T:24 >>;
+websocket_mask(<< O:16 >>, MaskKey, Acc) ->
+	<< MaskKey2:16, _:16 >> = << MaskKey:32 >>,
+	T = O bxor MaskKey2,
+	<< Acc/binary, T:16 >>;
+websocket_mask(<< O:8 >>, MaskKey, Acc) ->
+	<< MaskKey2:8, _:24 >> = << MaskKey:32 >>,
+	T = O bxor MaskKey2,
+	<< Acc/binary, T:8 >>.
