@@ -1,4 +1,3 @@
-%% -*- mode:erlang;tab-width:4;erlang-indent-level:4 -*-
 %% Copyright (c) 2011-2013, Loïc Hoguin <essen@ninenines.eu>
 %% Copyright (c) 2011, Anthony Ramine <nox@dev-extend.eu>
 %%
