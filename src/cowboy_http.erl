@@ -806,9 +806,9 @@ qvalue(Data, Fun, Q, _M) ->
 %% Only Basic authorization is supported so far.
 -spec authorization(binary(), binary()) -> {binary(), any()} | {error, badarg}.
 authorization(UserPass, Type = <<"basic">>) ->
-	whitespace(UserPass,
+	base64_string(UserPass,
 		fun(D) ->
-			authorization_basic_userid(base64:mime_decode(D),
+			authorization_basic_userid(D,
 				fun(Rest, Userid) ->
 					authorization_basic_password(Rest,
 						fun(Password) ->
@@ -847,6 +847,16 @@ authorization_basic_password(<<>>, Fun, Acc) ->
 	Fun(Acc);
 authorization_basic_password(<<C, Rest/binary>>, Fun, Acc) ->
 	authorization_basic_password(Rest, Fun, <<Acc/binary, C>>).
+
+%% @doc Parse a base64 string.
+-spec base64_string(binary(), fun()) -> any() | {error, badarg}.
+base64_string(Base64, Fun) ->
+	try base64:mime_decode(Base64) of
+		Data ->
+			Fun(Data)
+	catch _:_ ->
+		{error, badarg}
+	end.
 
 %% @doc Parse range header according rfc 2616.
 -spec range(binary()) -> {Unit, [Range]} | {error, badarg} when
@@ -1496,6 +1506,8 @@ http_authorization_test_() ->
 		{<<"basic">>, <<"_[]@#$%^&*()-AA==">>,
 			{error, badarg}},
 		{<<"basic">>, <<"dXNlcjpwYXNzCA==">>,
+			{error, badarg}},
+		{<<"basic">>, <<"abc">>,
 			{error, badarg}},
 		{<<"bearer">>, <<" some_secret_key">>,
 			{<<"bearer">>,<<"some_secret_key">>}}
