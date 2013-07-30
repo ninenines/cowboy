@@ -70,6 +70,8 @@
 -export([meta/2]).
 -export([meta/3]).
 -export([set_meta/3]).
+-export([pretty_print/2]).
+-export([pretty_print/3]).
 
 %% Request body API.
 -export([has_body/1]).
@@ -115,53 +117,53 @@
 -export([to_list/1]).
 
 -type cookie_option() :: {max_age, non_neg_integer()}
-	| {domain, binary()} | {path, binary()}
-	| {secure, boolean()} | {http_only, boolean()}.
+       | {domain, binary()} | {path, binary()}
+       | {secure, boolean()} | {http_only, boolean()}.
 -type cookie_opts() :: [cookie_option()].
 -export_type([cookie_opts/0]).
 
 -type content_decode_fun() :: fun((binary())
-	-> {ok, binary()}
-	| {error, atom()}).
+      -> {ok, binary()}
+      | {error, atom()}).
 -type transfer_decode_fun() :: fun((binary(), any())
-	-> {ok, binary(), binary(), any()}
-	| more | {more, non_neg_integer(), binary(), any()}
-	| {done, non_neg_integer(), binary()}
-	| {done, binary(), non_neg_integer(), binary()}
-	| {error, atom()}).
+       -> {ok, binary(), binary(), any()}
+       | more | {more, non_neg_integer(), binary(), any()}
+       | {done, non_neg_integer(), binary()}
+       | {done, binary(), non_neg_integer(), binary()}
+       | {error, atom()}).
 
 -type resp_body_fun() :: fun((any(), module()) -> ok).
 -type send_chunk_fun() :: fun((iodata()) -> ok | {error, atom()}).
 -type resp_chunked_fun() :: fun((send_chunk_fun()) -> ok).
 
 -record(http_req, {
-	%% Transport.
-	socket = undefined :: any(),
-	transport = undefined :: undefined | module(),
-	connection = keepalive :: keepalive | close,
+       %% Transport.
+       socket = undefined :: any(),
+       transport = undefined :: undefined | module(),
+       connection = keepalive :: keepalive | close,
 
-	%% Request.
-	pid = undefined :: pid(),
-	method = <<"GET">> :: binary(),
-	version = 'HTTP/1.1' :: cowboy:http_version(),
-	peer = undefined :: undefined | {inet:ip_address(), inet:port_number()},
-	host = undefined :: undefined | binary(),
-	host_info = undefined :: undefined | cowboy_router:tokens(),
-	port = undefined :: undefined | inet:port_number(),
-	path = undefined :: binary(),
-	path_info = undefined :: undefined | cowboy_router:tokens(),
-	qs = undefined :: binary(),
-	qs_vals = undefined :: undefined | list({binary(), binary() | true}),
-	bindings = undefined :: undefined | cowboy_router:bindings(),
-	headers = [] :: cowboy:http_headers(),
-	p_headers = [] :: [any()], %% @todo Improve those specs.
-	cookies = undefined :: undefined | [{binary(), binary()}],
-	meta = [] :: [{atom(), any()}],
+       %% Request.
+       pid = undefined :: pid(),
+       method = <<"GET">> :: binary(),
+       version = 'HTTP/1.1' :: cowboy:http_version(),
+       peer = undefined :: undefined | {inet:ip_address(), inet:port_number()},
+       host = undefined :: undefined | binary(),
+       host_info = undefined :: undefined | cowboy_router:tokens(),
+       port = undefined :: undefined | inet:port_number(),
+       path = undefined :: binary(),
+       path_info = undefined :: undefined | cowboy_router:tokens(),
+       qs = undefined :: binary(),
+       qs_vals = undefined :: undefined | list({binary(), binary() | true}),
+       bindings = undefined :: undefined | cowboy_router:bindings(),
+       headers = [] :: cowboy:http_headers(),
+       p_headers = [] :: [any()], %% @todo Improve those specs.
+       cookies = undefined :: undefined | [{binary(), binary()}],
+       meta = [] :: [{atom(), any()}],
 
-	%% Request body.
-	body_state = waiting :: waiting | done | {stream, non_neg_integer(),
-		transfer_decode_fun(), any(), content_decode_fun()},
-	multipart = undefined :: undefined | {non_neg_integer(), fun()},
+       %% Request body.
+       body_state = waiting :: waiting | done | {stream, non_neg_integer(),
+               transfer_decode_fun(), any(), content_decode_fun()},
+       multipart = undefined :: undefined | {non_neg_integer(), fun()},
 	buffer = <<>> :: binary(),
 
 	%% Response.
@@ -1487,6 +1489,72 @@ status(507) -> <<"507 Insufficient Storage">>;
 status(510) -> <<"510 Not Extended">>;
 status(511) -> <<"511 Network Authentication Required">>;
 status(B) when is_binary(B) -> B.
+
+pretty_print(Msg, Req) when is_record(Req, http_req) ->
+    pretty_print(Msg, Req, io).
+
+pretty_print(Msg, Req, Mod) when is_record(Req, http_req),
+                                  Mod == io orelse Mod == io_lib ->
+    #http_req{socket = Sock,
+              transport = Trans,
+              connection = Conn,
+              pid = PID,
+              method = Method,
+              version = Vsn,
+              peer = Peer,
+              host = Host,
+              host_info = HostInfo,
+              port = Port,
+              path = Path,
+              path_info = PathInfo,
+              qs = QS,
+              qs_vals = QSVals,
+              bindings = Bindings,
+              headers = Hdrs,
+              p_headers = PHdrs,
+              cookies = Cookies,
+              meta = Meta,
+              body_state = BodyState,
+              multipart = Multipart,
+              buffer = Buffer,
+              resp_compress = RespCompress,
+              resp_state = RespState,
+              resp_headers = RespHdrs,
+              resp_body = RespBody,
+              onresponse = OnResponse} = Req,
+    Mod:format("~p~n" ++
+                   "- Socket        : ~p~n" ++
+                   "- Transport     : ~p~n" ++
+                   "- Connection    : ~p~n" ++
+                   "- PID           : ~p~n" ++
+                   "- Method        : ~p~n" ++
+                   "- Version       : ~p~n" ++
+                   "- Peer          : ~p~n" ++
+                   "- Host          : ~p~n" ++
+                   "- Host Info     : ~p~n" ++
+                   "- Port          : ~p~n" ++
+                   "- Path          : ~p~n" ++
+                   "- Path Info     : ~p~n" ++
+                   "- QS            : ~p~n" ++
+                   "- QS Vals       : ~p~n" ++
+                   "- Bindings      : ~p~n" ++
+                   "- Headers       : ~p~n" ++
+                   "- P Headers     : ~p~n" ++
+                   "- Cookies       : ~p~n" ++
+                   "- Meta          : ~p~n" ++
+                   "- Body State    : ~p~n" ++
+                   "- Multipart     : ~p~n" ++
+                   "- Buffer        : ~p~n" ++
+                   "- Resp Compress : ~p~n" ++
+                   "- Resp State    : ~p~n" ++
+                   "- Resp Headers  : ~p~n" ++
+                   "- Resp Body     : ~p~n" ++
+                   "- OnResponse    : ~p~n",
+               [Msg, Sock, Trans, Conn, PID, Method, Vsn, Peer,
+                Host, HostInfo, Port, Path, PathInfo, QS,
+                QSVals, Bindings, Hdrs, PHdrs, Cookies,
+                Meta, BodyState, Multipart, Buffer, RespCompress,
+                RespState, RespHdrs, RespBody, OnResponse]).
 
 %% Tests.
 
