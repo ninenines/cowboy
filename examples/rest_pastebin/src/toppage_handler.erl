@@ -51,7 +51,7 @@ create_paste(Req, State) ->
 	ok = file:write_file(full_path(PasteID), Paste),
 	case cowboy_req:method(Req3) of
 		{<<"POST">>, Req4} ->
-			{<<$/, PasteID/binary>>, Req4, State};
+			{{true, <<$/, PasteID/binary>>}, Req4, State};
 		{_, Req4} ->
 			{true, Req4, State}
 	end.
