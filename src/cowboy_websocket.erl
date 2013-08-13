@@ -610,8 +610,8 @@ handler_call(State=#state{handler=Handler, handler_opts=HandlerOpts}, Req,
 			NextState(State#state{hibernate=true},
 				Req2, HandlerState2, RemainingData);
 		{reply, Payload, Req2, HandlerState2}
-				when is_tuple(Payload) ->
-			case websocket_send(Payload, State) of
+				when is_list(Payload) ->
+			case websocket_send_many(Payload, State) of
 				{ok, State2} ->
 					NextState(State2, Req2, HandlerState2, RemainingData);
 				{shutdown, State2} ->
@@ -621,8 +621,8 @@ handler_call(State=#state{handler=Handler, handler_opts=HandlerOpts}, Req,
 					handler_terminate(State2, Req2, HandlerState2, Error)
 			end;
 		{reply, Payload, Req2, HandlerState2, hibernate}
-				when is_tuple(Payload) ->
-			case websocket_send(Payload, State) of
+				when is_list(Payload) ->
+			case websocket_send_many(Payload, State) of
 				{ok, State2} ->
 					NextState(State2#state{hibernate=true},
 						Req2, HandlerState2, RemainingData);
@@ -632,9 +632,8 @@ handler_call(State=#state{handler=Handler, handler_opts=HandlerOpts}, Req,
 				{{error, _} = Error, State2} ->
 					handler_terminate(State2, Req2, HandlerState2, Error)
 			end;
-		{reply, Payload, Req2, HandlerState2}
-				when is_list(Payload) ->
-			case websocket_send_many(Payload, State) of
+		{reply, Payload, Req2, HandlerState2} ->
+			case websocket_send(Payload, State) of
 				{ok, State2} ->
 					NextState(State2, Req2, HandlerState2, RemainingData);
 				{shutdown, State2} ->
@@ -643,9 +642,8 @@ handler_call(State=#state{handler=Handler, handler_opts=HandlerOpts}, Req,
 				{{error, _} = Error, State2} ->
 					handler_terminate(State2, Req2, HandlerState2, Error)
 			end;
-		{reply, Payload, Req2, HandlerState2, hibernate}
-				when is_list(Payload) ->
-			case websocket_send_many(Payload, State) of
+		{reply, Payload, Req2, HandlerState2, hibernate} ->
+			case websocket_send(Payload, State) of
 				{ok, State2} ->
 					NextState(State2#state{hibernate=true},
 						Req2, HandlerState2, RemainingData);
