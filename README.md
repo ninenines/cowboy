@@ -18,6 +18,12 @@ Because it uses Ranch for managing connections, Cowboy can easily be
 
 No parameterized module. No process dictionary. **Clean** Erlang code.
 
+Sponsors
+--------
+
+The SPDY protocol development is sponsored
+by [LeoFS Cloud Storage](http://www.leofs.org).
+
 Getting Started
 ---------------
 
