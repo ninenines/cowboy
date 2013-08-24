@@ -125,7 +125,16 @@ Committing
 ----------
 
 You MUST ensure that all commits pass all tests and do not have extra
-Dialyzer warnings.
+Dialyzer warnings.  Tests require Erlang R16B01.
+
+``` bash
+$ make tests
+```
+
+``` bash
+$ make build-plt
+$ make dialyze
+```
 
 You MUST put all the related work in a single commit. Fixing a bug is one
 commit, adding a feature is one commit, adding two features is two commits.
