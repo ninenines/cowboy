@@ -51,6 +51,7 @@
 -export([onresponse_capitalize/1]).
 -export([onresponse_crash/1]).
 -export([onresponse_reply/1]).
+-export([parse_host/1]).
 -export([pipeline/1]).
 -export([pipeline_long_polling/1]).
 -export([rest_bad_accept/1]).
@@ -103,6 +104,7 @@ all() ->
 		{group, onrequest},
 		{group, onresponse},
 		{group, onresponse_capitalize},
+		{group, parse_host},
 		{group, set_env}
 	].
 
@@ -183,6 +185,9 @@ groups() ->
 		]},
 		{onresponse_capitalize, [parallel], [
 			onresponse_capitalize
+		]},
+		{parse_host, [], [
+			parse_host
 		]},
 		{set_env, [], [
 			set_env_dispatch
@@ -294,6 +299,22 @@ init_per_group(onresponse_capitalize, Config) ->
 		{timeout, 500}
 	]),
 	Port = ranch:get_port(onresponse_capitalize),
+	{ok, Client} = cowboy_client:init([]),
+	[{scheme, <<"http">>}, {port, Port}, {opts, []},
+		{transport, Transport}, {client, Client}|Config];
+init_per_group(parse_host, Config) ->
+	Transport = ranch_tcp,
+	Dispatch = cowboy_router:compile([
+		{'_', [
+			{"/req_attr", http_req_attr, []}
+		]}
+	]),
+	{ok, _} = cowboy:start_http(http, 100, [{port, 0}], [
+		{env, [{dispatch, Dispatch}]},
+		{max_keepalive, 50},
+		{timeout, 500}
+	]),
+	Port = ranch:get_port(http),
 	{ok, Client} = cowboy_client:init([]),
 	[{scheme, <<"http">>}, {port, Port}, {opts, []},
 		{transport, Transport}, {client, Client}|Config];
@@ -801,6 +822,29 @@ onresponse_hook(_, Headers, _, Req) ->
 	{ok, Req2} = cowboy_req:reply(
 		<<"777 Lucky">>, [{<<"x-hook">>, <<"onresponse">>}|Headers], Req),
 	Req2.
+
+parse_host(Config) ->
+	Tests = [
+		{<<"example.org\n8080">>, <<"example.org:8080">>},
+		{<<"example.org\n80">>, <<"example.org">>},
+		{<<"192.0.2.1\n8080">>, <<"192.0.2.1:8080">>},
+		{<<"192.0.2.1\n80">>, <<"192.0.2.1">>},
+		{<<"[2001:db8::1]\n8080">>, <<"[2001:db8::1]:8080">>},
+		{<<"[2001:db8::1]\n80">>, <<"[2001:db8::1]">>},
+		{<<"[::ffff:192.0.2.1]\n8080">>, <<"[::ffff:192.0.2.1]:8080">>},
+		{<<"[::ffff:192.0.2.1]\n80">>, <<"[::ffff:192.0.2.1]">>}
+	],
+	[begin
+		Client = ?config(client, Config),
+		{ok, Client2} = cowboy_client:request(<<"GET">>,
+			build_url("/req_attr?attr=host_and_port", Config),
+			[{<<"host">>, Host}],
+			Client),
+		{ok, 200, _, Client3} = cowboy_client:response(Client2),
+		{ok, Value, Client4} = cowboy_client:response_body(Client3),
+		{error, closed} = cowboy_client:response(Client4),
+        Value
+	end || {Value, Host} <- Tests].
 
 pipeline(Config) ->
 	Client = ?config(client, Config),
