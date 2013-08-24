@@ -101,6 +101,7 @@
 -export([chunked_reply/3]).
 -export([chunk/2]).
 -export([upgrade_reply/3]).
+-export([maybe_reply/2]).
 -export([ensure_response/2]).
 
 %% Private setter/getter API.
@@ -1119,6 +1120,19 @@ upgrade_reply(Status, Headers, Req=#http_req{transport=Transport,
 		{<<"connection">>, <<"Upgrade">>}
 	], <<>>, Req),
 	{ok, Req2#http_req{resp_state=done, resp_headers=[], resp_body= <<>>}}.
+
+%% @doc Send a reply if one hasn't been sent already.
+%%
+%% Meant to be used internally for sending errors after crashes.
+%% @private
+-spec maybe_reply(cowboy:http_status(), req()) -> ok.
+maybe_reply(Status, Req) ->
+	receive
+		{cowboy_req, resp_sent} -> ok
+	after 0 ->
+		_ = cowboy_req:reply(Status, Req),
+		ok
+	end.
 
 %% @doc Ensure the response has been sent fully.
 %% @private
