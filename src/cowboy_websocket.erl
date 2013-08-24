@@ -48,7 +48,6 @@
 	socket = undefined :: inet:socket(),
 	transport = undefined :: module(),
 	handler :: module(),
-	handler_opts :: any(),
 	key = undefined :: undefined | binary(),
 	timeout = infinity :: timeout(),
 	timeout_ref = undefined :: undefined | reference(),
@@ -75,10 +74,13 @@ upgrade(Req, Env, Handler, HandlerOpts) ->
 	ranch:remove_connection(Ref),
 	[Socket, Transport] = cowboy_req:get([socket, transport], Req),
 	State = #state{env=Env, socket=Socket, transport=Transport,
-		handler=Handler, handler_opts=HandlerOpts},
-	case catch websocket_upgrade(State, Req) of
-		{ok, State2, Req2} -> handler_init(State2, Req2);
-		{'EXIT', _Reason} -> upgrade_error(Req, Env)
+		handler=Handler},
+	try websocket_upgrade(State, Req) of
+		{ok, State2, Req2} ->
+			handler_init(State2, Req2, HandlerOpts)
+	catch _:_ ->
+		cowboy_req:maybe_reply(400, Req),
+		exit(normal)
 	end.
 
 -spec websocket_upgrade(#state{}, Req)
@@ -129,12 +131,12 @@ websocket_extensions(State, Req) ->
 			{ok, State, Req}
 	end.
 
--spec handler_init(#state{}, Req)
+-spec handler_init(#state{}, Req, any())
 	-> {ok, Req, cowboy_middleware:env()} | {error, 400, Req}
 	| {suspend, module(), atom(), [any()]}
 	when Req::cowboy_req:req().
 handler_init(State=#state{env=Env, transport=Transport,
-		handler=Handler, handler_opts=HandlerOpts}, Req) ->
+		handler=Handler}, Req, HandlerOpts) ->
 	try Handler:websocket_init(Transport:name(), Req, HandlerOpts) of
 		{ok, Req2, HandlerState} ->
 			websocket_handshake(State, Req2, HandlerState);
@@ -151,24 +153,14 @@ handler_init(State=#state{env=Env, transport=Transport,
 			cowboy_req:ensure_response(Req2, 400),
 			{ok, Req2, [{result, closed}|Env]}
 	catch Class:Reason ->
-		error_logger:error_msg(
-			"** Cowboy handler ~p terminating in ~p/~p~n"
-			"   for the reason ~p:~p~n** Options were ~p~n"
-			"** Request was ~p~n** Stacktrace: ~p~n~n",
-			[Handler, websocket_init, 3, Class, Reason, HandlerOpts,
-				cowboy_req:to_list(Req),erlang:get_stacktrace()]),
-		upgrade_error(Req, Env)
-	end.
-
-%% Only send an error reply if there is no resp_sent message.
--spec upgrade_error(Req, Env) -> {ok, Req, Env} | {error, 400, Req}
-	when Req::cowboy_req:req(), Env::cowboy_middleware:env().
-upgrade_error(Req, Env) ->
-	receive
-		{cowboy_req, resp_sent} ->
-			{ok, Req, [{result, closed}|Env]}
-	after 0 ->
-		{error, 400, Req}
+		cowboy_req:maybe_reply(400, Req),
+		erlang:Class([
+			{reason, Reason},
+			{mfa, {Handler, websocket_init, 3}},
+			{stacktrace, erlang:get_stacktrace()},
+			{req, cowboy_req:to_list(Req)},
+			{opts, HandlerOpts}
+		])
 	end.
 
 -spec websocket_handshake(#state{}, Req, any())
@@ -601,8 +593,8 @@ websocket_dispatch(State, Req, HandlerState, RemainingData, 10, Payload) ->
 	-> {ok, Req, cowboy_middleware:env()}
 	| {suspend, module(), atom(), [any()]}
 	when Req::cowboy_req:req().
-handler_call(State=#state{handler=Handler, handler_opts=HandlerOpts}, Req,
-		HandlerState, RemainingData, Callback, Message, NextState) ->
+handler_call(State=#state{handler=Handler}, Req, HandlerState,
+		RemainingData, Callback, Message, NextState) ->
 	try Handler:Callback(Message, Req, HandlerState) of
 		{ok, Req2, HandlerState2} ->
 			NextState(State, Req2, HandlerState2, RemainingData);
@@ -658,15 +650,15 @@ handler_call(State=#state{handler=Handler, handler_opts=HandlerOpts}, Req,
 		{shutdown, Req2, HandlerState2} ->
 			websocket_close(State, Req2, HandlerState2, {normal, shutdown})
 	catch Class:Reason ->
-		PLReq = cowboy_req:to_list(Req),
-		error_logger:error_msg(
-			"** Cowboy handler ~p terminating in ~p/~p~n"
-			"   for the reason ~p:~p~n** Message was ~p~n"
-			"** Options were ~p~n** Handler state was ~p~n"
-			"** Request was ~p~n** Stacktrace: ~p~n~n",
-			[Handler, Callback, 3, Class, Reason, Message, HandlerOpts,
-			 HandlerState, PLReq, erlang:get_stacktrace()]),
-		websocket_close(State, Req, HandlerState, {error, handler})
+		_ = websocket_close(State, Req, HandlerState, {error, handler}),
+		erlang:Class([
+			{reason, Reason},
+			{mfa, {Handler, Callback, 3}},
+			{stacktrace, erlang:get_stacktrace()},
+			{msg, Message},
+			{req, cowboy_req:to_list(Req)},
+			{state, HandlerState}
+		])
 	end.
 
 websocket_opcode(text) -> 1;
@@ -765,19 +757,19 @@ websocket_close(State=#state{socket=Socket, transport=Transport},
 -spec handler_terminate(#state{}, Req, any(), atom() | {atom(), atom()})
 	-> {ok, Req, cowboy_middleware:env()}
 	when Req::cowboy_req:req().
-handler_terminate(#state{env=Env, handler=Handler, handler_opts=HandlerOpts},
+handler_terminate(#state{env=Env, handler=Handler},
 		Req, HandlerState, TerminateReason) ->
 	try
 		Handler:websocket_terminate(TerminateReason, Req, HandlerState)
 	catch Class:Reason ->
-		PLReq = cowboy_req:to_list(Req),
-		error_logger:error_msg(
-			"** Cowboy handler ~p terminating in ~p/~p~n"
-			"   for the reason ~p:~p~n** Initial reason was ~p~n"
-			"** Options were ~p~n** Handler state was ~p~n"
-			"** Request was ~p~n** Stacktrace: ~p~n~n",
-			[Handler, websocket_terminate, 3, Class, Reason, TerminateReason,
-				HandlerOpts, HandlerState, PLReq, erlang:get_stacktrace()])
+		erlang:Class([
+			{reason, Reason},
+			{mfa, {Handler, websocket_terminate, 3}},
+			{stacktrace, erlang:get_stacktrace()},
+			{req, cowboy_req:to_list(Req)},
+			{state, HandlerState},
+			{terminate_reason, TerminateReason}
+		])
 	end,
 	{ok, Req, [{result, closed}|Env]}.
 
