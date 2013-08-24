@@ -593,3 +593,24 @@ error_terminate(Status, Req, State) ->
 terminate(#state{socket=Socket, transport=Transport}) ->
 	Transport:close(Socket),
 	ok.
+
+%% Tests.
+
+-ifdef(TEST).
+
+parse_host(RawHost) ->
+	parse_host(RawHost, false, <<>>).
+
+parse_host_test() ->
+	{<<"example.org">>, 8080} = parse_host(<<"example.org:8080">>),
+	{<<"example.org">>, undefined} = parse_host(<<"example.org">>),
+	{<<"192.0.2.1">>, 8080} = parse_host(<<"192.0.2.1:8080">>),
+	{<<"192.0.2.1">>, undefined} = parse_host(<<"192.0.2.1">>),
+	{<<"[2001:db8::1]">>, 8080} = parse_host(<<"[2001:db8::1]:8080">>),
+	{<<"[2001:db8::1]">>, undefined} = parse_host(<<"[2001:db8::1]">>),
+	{<<"[::ffff:192.0.2.1]">>, 8080} =
+		parse_host(<<"[::ffff:192.0.2.1]:8080">>),
+	{<<"[::ffff:192.0.2.1]">>, undefined} =
+		parse_host(<<"[::ffff:192.0.2.1]">>).
+
+-endif.
