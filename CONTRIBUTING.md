@@ -127,6 +127,26 @@ Committing
 You MUST ensure that all commits pass all tests and do not have extra
 Dialyzer warnings.
 
+Running tests is fairly straightforward.
+
+``` bash
+make tests
+```
+
+Running Dialyzer requires some initial setup. You need to build the PLT
+file that Dialyzer will use for its analysis. This is a one-time operation.
+Dialyzer will take care of updating that file when needed.
+
+``` bash
+make build-plt
+```
+
+Once that is done, you can run Dialyzer.
+
+``` bash
+make dialyze
+```
+
 You MUST put all the related work in a single commit. Fixing a bug is one
 commit, adding a feature is one commit, adding two features is two commits.
 
