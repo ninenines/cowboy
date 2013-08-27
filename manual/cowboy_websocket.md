@@ -28,6 +28,12 @@ Meta values
 >
 > The version of the Websocket protocol being used.
 
+### websocket_compress
+
+> Type: true | false
+>
+> Whether a websocket compression extension in in use.
+
 Exports
 -------
 

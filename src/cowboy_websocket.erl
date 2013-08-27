@@ -123,12 +123,12 @@ websocket_extensions(State, Req) ->
 						deflate_frame = true,
 						inflate_state = Inflate,
 						deflate_state = Deflate
-					}, Req2};
+					}, cowboy_req:set_meta(websocket_compress, true, Req2)};
 				_ ->
-					{ok, State, Req2}
+					{ok, State, cowboy_req:set_meta(websocket_compress, false, Req2)}
 			end;
 		_ ->
-			{ok, State, Req}
+			{ok, State, cowboy_req:set_meta(websocket_compress, false, Req)}
 	end.
 
 -spec handler_init(#state{}, Req, any())
