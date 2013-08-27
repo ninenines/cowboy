@@ -67,6 +67,10 @@
           showScreen('<span style="color: blue;">RESPONSE: ' + evt.data+ '</span>'); 
       };  
 
+      function onError(evt) {
+          showScreen('<span style="color: red;">ERROR: ' + evt.data+ '</span>');
+      };
+
       function showScreen(txt) { 
           $('#output').prepend('<p>' + txt + '</p>');
       };
