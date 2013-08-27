@@ -135,7 +135,7 @@ The values are defined in the following table.
 | charset    | The charset negotiated for the response entity.      |
 
 They can be used to reply a response entity to a request with
-an idempotent method (`POST`, `PUT`, `PATCH`, `DELETE`).
+an idempotent method (`PUT`, `PATCH`, `DELETE`).
 
 Response headers
 ----------------
