@@ -963,8 +963,17 @@ te_chunked(Data, {0, Streamed}) ->
 	%% @todo We are expecting an hex size, not a general token.
 	token(Data,
 		fun (<< "\r\n", Rest/binary >>, BinLen) ->
-				Len = list_to_integer(binary_to_list(BinLen), 16),
-				te_chunked(Rest, {Len, Streamed});
+				case list_to_integer(binary_to_list(BinLen), 16) of
+					%% Final chunk is parsed in one go above. Rest would be
+					%% <<\r\n">> if complete.
+					0 when byte_size(Rest) < 2 ->
+						more;
+					%% Normal chunk. Add 2 to Len for trailing <<"\r\n">>. Note
+					%% that repeated <<"-2\r\n">> would be streamed, and
+					%% accumulated, until out of memory if Len could be -2.
+					Len when Len > 0 ->
+						te_chunked(Rest, {Len + 2, Streamed})
+				end;
 			%% Chunk size shouldn't take too many bytes,
 			%% don't try to stream forever.
 			(Rest, _) when byte_size(Rest) < 16 ->
@@ -972,11 +981,28 @@ te_chunked(Data, {0, Streamed}) ->
 			(_, _) ->
 				{error, badarg}
 		end);
-te_chunked(Data, {ChunkRem, Streamed}) when byte_size(Data) >= ChunkRem + 2 ->
-	<< Chunk:ChunkRem/binary, "\r\n", Rest/binary >> = Data,
-	{ok, Chunk, Rest, {0, Streamed + byte_size(Chunk)}};
+%% <<"\n">> from trailing <<"\r\n">>.
+te_chunked(<< "\n", Rest/binary>>, {1, Streamed}) ->
+	{ok, <<>>, Rest, {0, Streamed}};
+te_chunked(<<>>, State={1, _Streamed}) ->
+	{more, 1, <<>>, State};
+%% Remainder of chunk (if any) and as much of trailing <<"\r\n">> as possible.
+te_chunked(Data, {ChunkRem, Streamed}) when byte_size(Data) >= ChunkRem - 2 ->
+	ChunkSize = ChunkRem - 2,
+	Streamed2 = Streamed + ChunkSize,
+	case Data of
+		<< Chunk:ChunkSize/binary, "\r\n", Rest/binary >> ->
+			{ok, Chunk, Rest, {0, Streamed2}};
+		<< Chunk:ChunkSize/binary, "\r" >> ->
+			{more, 1, Chunk, {1, Streamed2}};
+		<< Chunk:ChunkSize/binary >> ->
+			{more, 2, Chunk, {2, Streamed2}}
+	end;
+%% Incomplete chunk.
 te_chunked(Data, {ChunkRem, Streamed}) ->
-	{more, ChunkRem + 2, Data, {ChunkRem, Streamed}}.
+	ChunkRem2 = ChunkRem - byte_size(Data),
+	Streamed2 = Streamed + byte_size(Data),
+	{more, ChunkRem2, Data, {ChunkRem2, Streamed2}}.
 
 %% @doc Decode an identity stream.
 -spec te_identity(Bin, TransferState)

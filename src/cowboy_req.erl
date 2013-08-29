@@ -103,6 +103,7 @@
 -export([chunked_reply/3]).
 -export([chunk/2]).
 -export([upgrade_reply/3]).
+-export([maybe_reply/2]).
 -export([ensure_response/2]).
 
 %% Private setter/getter API.
@@ -803,9 +804,9 @@ body_qs(MaxBodyLength, Req) ->
 %% @doc Return data from the multipart parser.
 %%
 %% Use this function for multipart streaming. For each part in the request,
-%% this function returns <em>{headers, Headers}</em> followed by a sequence of
-%% <em>{body, Data}</em> tuples and finally <em>end_of_part</em>. When there
-%% is no part to parse anymore, <em>eof</em> is returned.
+%% this function returns <em>{headers, Headers, Req}</em> followed by a sequence of
+%% <em>{body, Data, Req}</em> tuples and finally <em>{end_of_part, Req}</em>. When there
+%% is no part to parse anymore, <em>{eof, Req}</em> is returned.
 -spec multipart_data(Req)
 	-> {headers, cowboy:http_headers(), Req} | {body, binary(), Req}
 		| {end_of_part | eof, Req} when Req::req().
@@ -844,7 +845,7 @@ multipart_data(Req, Length, {more, Parser}) when Length > 0 ->
 %% @doc Skip a part returned by the multipart parser.
 %%
 %% This function repeatedly calls <em>multipart_data/1</em> until
-%% <em>end_of_part</em> or <em>eof</em> is parsed.
+%% <em>{end_of_part, Req}</em> or <em>{eof, Req}</em> is parsed.
 -spec multipart_skip(Req) -> {ok, Req} when Req::req().
 multipart_skip(Req) ->
 	case multipart_data(Req) of
@@ -1131,6 +1132,19 @@ upgrade_reply(Status, Headers, Req=#http_req{transport=Transport,
 		{<<"connection">>, <<"Upgrade">>}
 	], <<>>, Req),
 	{ok, Req2#http_req{resp_state=done, resp_headers=[], resp_body= <<>>}}.
+
+%% @doc Send a reply if one hasn't been sent already.
+%%
+%% Meant to be used internally for sending errors after crashes.
+%% @private
+-spec maybe_reply(cowboy:http_status(), req()) -> ok.
+maybe_reply(Status, Req) ->
+	receive
+		{cowboy_req, resp_sent} -> ok
+	after 0 ->
+		_ = cowboy_req:reply(Status, Req),
+		ok
+	end.
 
 %% @doc Ensure the response has been sent fully.
 %% @private

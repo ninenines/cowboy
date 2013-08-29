@@ -22,6 +22,12 @@ Types
 Meta values
 -----------
 
+### websocket_compress
+
+> Type: true | false
+>
+> Whether a websocket compression extension in in use.
+
 ### websocket_version
 
 > Type: 7 | 8 | 13

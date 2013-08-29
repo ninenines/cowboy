@@ -281,7 +281,7 @@ Request related exports
 >
 > Return the request's query string as a list of tuples.
 >
-> The value `true` will be returned when the name was found
+> The value `true` will be returned when a name was found
 > in the query string without an associated value.
 
 ### set_meta(Name, Value, Req) -> Req2

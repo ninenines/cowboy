@@ -573,29 +573,16 @@ next_request(Req, State=#state{req_keepalive=Keepalive, timeout=Timeout},
 			end
 	end.
 
-%% Only send an error reply if there is no resp_sent message.
--spec error_terminate(cowboy:http_status(), cowboy_req:req(), #state{}) -> ok.
-error_terminate(Code, Req, State) ->
-	receive
-		{cowboy_req, resp_sent} -> ok
-	after 0 ->
-		_ = cowboy_req:reply(Code, Req),
-		ok
-	end,
-	terminate(State).
-
-%% Only send an error reply if there is no resp_sent message.
 -spec error_terminate(cowboy:http_status(), #state{}) -> ok.
-error_terminate(Code, State=#state{socket=Socket, transport=Transport,
+error_terminate(Status, State=#state{socket=Socket, transport=Transport,
 		compress=Compress, onresponse=OnResponse}) ->
-	receive
-		{cowboy_req, resp_sent} -> ok
-	after 0 ->
-		_ = cowboy_req:reply(Code, cowboy_req:new(Socket, Transport,
-			undefined, <<"GET">>, <<>>, <<>>, 'HTTP/1.1', [], <<>>,
-			undefined, <<>>, false, Compress, OnResponse)),
-		ok
-	end,
+	error_terminate(Status, cowboy_req:new(Socket, Transport,
+		undefined, <<"GET">>, <<>>, <<>>, 'HTTP/1.1', [], <<>>,
+		undefined, <<>>, false, Compress, OnResponse), State).
+
+-spec error_terminate(cowboy:http_status(), cowboy_req:req(), #state{}) -> ok.
+error_terminate(Status, Req, State) ->
+	cowboy_req:maybe_reply(Status, Req),
 	terminate(State).
 
 -spec terminate(#state{}) -> ok.

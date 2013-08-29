@@ -520,8 +520,8 @@ execute(Req, Env, [Middleware|Tail]) ->
 				[Env, Tail, Module, Function, Args]);
 		{halt, Req2} ->
 			cowboy_req:ensure_response(Req2, 204);
-		{error, Code, Req2} ->
-			error_terminate(Code, Req2)
+		{error, Status, Req2} ->
+			cowboy_req:maybe_reply(Status, Req2)
 	end.
 
 %% @private
@@ -536,18 +536,8 @@ resume(Env, Tail, Module, Function, Args) ->
 				[Env, Tail, Module2, Function2, Args2]);
 		{halt, Req2} ->
 			cowboy_req:ensure_response(Req2, 204);
-		{error, Code, Req2} ->
-			error_terminate(Code, Req2)
-	end.
-
-%% Only send an error reply if there is no resp_sent message.
--spec error_terminate(cowboy:http_status(), cowboy_req:req()) -> ok.
-error_terminate(Code, Req) ->
-	receive
-		{cowboy_req, resp_sent} -> ok
-	after 0 ->
-		_ = cowboy_req:reply(Code, Req),
-		ok
+		{error, Status, Req2} ->
+			cowboy_req:maybe_reply(Status, Req2)
 	end.
 
 %% Reply functions used by cowboy_req.

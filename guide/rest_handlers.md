@@ -134,8 +134,8 @@ The values are defined in the following table.
 | language   | The language negotiated for the response entity.     |
 | charset    | The charset negotiated for the response entity.      |
 
-They can be used to reply a response entity to a request with
-an idempotent method (`POST`, `PUT`, `PATCH`, `DELETE`).
+They can be used to send a proper body with the response to a
+request that used a method other than HEAD or GET.
 
 Response headers
 ----------------
