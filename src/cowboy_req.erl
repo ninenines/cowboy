@@ -795,48 +795,47 @@ body_qs(MaxBodyLength, Req) ->
 %% <em>{body, Data, Req}</em> tuples and finally <em>{end_of_part, Req}</em>. When there
 %% is no part to parse anymore, <em>{eof, Req}</em> is returned.
 -spec multipart_data(Req)
-	-> {headers, cowboy:http_headers(), Req} | {body, binary(), Req}
-		| {end_of_part | eof, Req} when Req::req().
+    -> {headers, cowboy:http_headers(), Req} | {body, binary(), Req}
+    | {end_of_part | eof, Req} when Req::req().
 multipart_data(Req=#http_req{body_state=waiting}) ->
-	{ok, {<<"multipart">>, _SubType, Params}, Req2} =
-		parse_header(<<"content-type">>, Req),
-	{_, Boundary} = lists:keyfind(<<"boundary">>, 1, Params),
-	{ok, Length, Req3} = parse_header(<<"content-length">>, Req2),
-	multipart_data(Req3, Length, {more, cowboy_multipart:parser(Boundary)});
+    {ok, {<<"multipart">>, _SubType, Params}, Req2} = parse_header(<<"content-type">>, Req),
+    {_, Boundary} = lists:keyfind(<<"boundary">>, 1, Params),
+    {ok, Length, Req3} = parse_header(<<"content-length">>, Req2),
+    multipart_data(Req3, Length, {more, cowboy_multipart:parser(Boundary)});
 multipart_data(Req=#http_req{multipart={Length, Cont}}) ->
-	multipart_data(Req, Length, Cont());
+    multipart_data(Req, Length, Cont());
 multipart_data(Req=#http_req{body_state=done}) ->
-	{eof, Req}.
+    {eof, Req}.
 
 multipart_data(Req, Length, {headers, Headers, Cont}) ->
-	{headers, Headers, Req#http_req{multipart={Length, Cont}}};
+    {headers, Headers, Req#http_req{multipart={Length, Cont}}};
 multipart_data(Req, Length, {body, Data, Cont}) ->
-	{body, Data, Req#http_req{multipart={Length, Cont}}};
+    {body, Data, Req#http_req{multipart={Length, Cont}}};
 multipart_data(Req, Length, {end_of_part, Cont}) ->
-	{end_of_part, Req#http_req{multipart={Length, Cont}}};
+    {end_of_part, Req#http_req{multipart={Length, Cont}}};
 multipart_data(Req, 0, eof) ->
-	{eof, Req#http_req{body_state=done, multipart=undefined}};
+    {eof, Req#http_req{body_state=done, multipart=undefined}};
 multipart_data(Req=#http_req{socket=Socket, transport=Transport},
                Length, eof) when is_integer(Length) ->
-	%% We just want to skip so no need to stream data here.
-	{ok, _Data} = Transport:recv(Socket, Length, 5000),
-	{eof, Req#http_req{body_state=done, multipart=undefined}};
+    %% We just want to skip so no need to stream data here.
+    {ok, _Data} = Transport:recv(Socket, Length, 5000),
+    {eof, Req#http_req{body_state=done, multipart=undefined}};
 multipart_data(Req, _, eof) ->
-	%% We just want to skip so no need to stream data here.
-	{ok, Req2} = cowboy_req:skip_body(Req),
-	{eof, Req2#http_req{multipart=undefined}};
+    %% We just want to skip so no need to stream data here.
+    {ok, Req2} = cowboy_req:skip_body(Req),
+    {eof, Req2#http_req{multipart=undefined}};
 
 multipart_data(Req, Length, {more, Parser})
         when Length > 0 orelse Length =:= undefined ->
-	case stream_body(Req) of
+    case stream_body(Req) of
         {ok, Data, Req2} when Length =:= undefined ->
             multipart_data(Req2, Length, Parser(Data));
-		{ok, << Data:Length/binary, Buffer/binary >>, Req2} ->
-			multipart_data(Req2#http_req{buffer=Buffer}, 0, Parser(Data));
-		{ok, Data, Req2} ->
-			multipart_data(Req2, Length - byte_size(Data),
-                  Parser(Data))
-	end.
+        {ok, << Data:Length/binary, Buffer/binary >>, Req2} ->
+            multipart_data(Req2#http_req{buffer=Buffer}, 0, Parser(Data));
+        {ok, Data, Req2} ->
+            multipart_data(Req2, Length - byte_size(Data),
+                           Parser(Data))
+    end.
 
 %% @doc Skip a part returned by the multipart parser.
 %%
@@ -844,11 +843,11 @@ multipart_data(Req, Length, {more, Parser})
 %% <em>{end_of_part, Req}</em> or <em>{eof, Req}</em> is parsed.
 -spec multipart_skip(Req) -> {ok, Req} when Req::req().
 multipart_skip(Req) ->
-	case multipart_data(Req) of
-		{end_of_part, Req2} -> {ok, Req2};
-		{eof, Req2} -> {ok, Req2};
-		{_, _, Req2} -> multipart_skip(Req2)
-	end.
+    case multipart_data(Req) of
+        {end_of_part, Req2} -> {ok, Req2};
+        {eof, Req2} -> {ok, Req2};
+        {_, _, Req2} -> multipart_skip(Req2)
+    end.
 
 %% Response API.
 
