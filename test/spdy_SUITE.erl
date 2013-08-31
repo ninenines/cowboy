@@ -15,7 +15,6 @@
 -module(spdy_SUITE).
 
 -include_lib("common_test/include/ct.hrl").
--include("../src/cowboy_spdy.hrl").
 
 %% ct.
 -export([all/0]).
@@ -45,6 +44,7 @@ init_per_suite(Config) ->
 	application:start(asn1),
 	application:start(public_key),
 	application:start(ssl),
+	application:start(gun),
 	Dir = ?config(priv_dir, Config) ++ "/static",
 	ct_helper:create_static_dir(Dir),
 	[{static_dir, Dir}|Config].
@@ -52,6 +52,7 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
 	Dir = ?config(static_dir, Config),
 	ct_helper:delete_static_dir(Dir),
+	application:stop(gun),
 	application:stop(ssl),
 	application:stop(public_key),
 	application:stop(asn1),
@@ -88,76 +89,24 @@ init_dispatch(Config) ->
 
 %% Convenience functions.
 
-quick_get(Host, Path, ExpectedFlags, Config) ->
-	{_, Port} = lists:keyfind(port, 1, Config),
-	{ok, Socket} = ssl:connect("localhost", Port, [
-		binary, {active, false},
-		{client_preferred_next_protocols, client, [<<"spdy/3">>]}
-	]),
-	{Zdef, Zinf} = zlib_init(),
-	ReqHeaders = headers_encode(Zdef, [
-		{<<":method">>, <<"GET">>},
-		{<<":path">>, list_to_binary(Path)},
-		{<<":version">>, <<"HTTP/1.1">>},
-		{<<":host">>, list_to_binary(Host)},
-		{<<":scheme">>, <<"https">>}
-	]),
-	ReqLength = 10 + byte_size(ReqHeaders),
-	StreamID = 1,
-	ok = ssl:send(Socket, << 1:1, 3:15, 1:16, 0:8, ReqLength:24,
-		0:1, StreamID:31, 0:1, 0:31, 0:3, 0:5, 0:8, ReqHeaders/binary >>),
-	{ok, Packet} = ssl:recv(Socket, 0, 1000),
-	<< 1:1, 3:15, 2:16, Flags:8, RespLength:24,
-		_:1, StreamID:31, RespHeaders/bits >> = Packet,
-	Flags = ExpectedFlags,
-	RespLength = 4 + byte_size(RespHeaders),
-	[<< NbHeaders:32, Rest/bits >>] = try
-		zlib:inflate(Zinf, RespHeaders)
-	catch _:_ ->
-		ok = zlib:inflateSetDictionary(Zinf, ?ZDICT),
-		zlib:inflate(Zinf, <<>>)
-	end,
-	RespHeaders2 = headers_decode(Zinf, Rest, []),
-	NbHeaders = length(RespHeaders2),
-	{_, << Status:3/binary, _/bits >>}
-		= lists:keyfind(<<":status">>, 1, RespHeaders2),
-	StatusCode = list_to_integer(binary_to_list(Status)),
-	ok = ssl:close(Socket),
-	zlib_terminate(Zdef, Zinf),
-	{StatusCode, RespHeaders2}.
-
-zlib_init() ->
-	Zdef = zlib:open(),
-	ok = zlib:deflateInit(Zdef),
-	_ = zlib:deflateSetDictionary(Zdef, ?ZDICT),
-	Zinf = zlib:open(),
-	ok = zlib:inflateInit(Zinf),
-	{Zdef, Zinf}.
-
-zlib_terminate(Zdef, Zinf) ->
-	zlib:close(Zdef),
-	zlib:close(Zinf).
-
-headers_encode(Zdef, Headers) ->
-	NbHeaders = length(Headers),
-	Headers2 = << << (begin
-		SizeN = byte_size(N),
-		SizeV = byte_size(V),
-		<< SizeN:32, N/binary, SizeV:32, V/binary >>
-	end)/binary >> || {N, V} <- Headers >>,
-	Headers3 = << NbHeaders:32, Headers2/binary >>,
-	iolist_to_binary(zlib:deflate(Zdef, Headers3, full)).
-
-headers_decode(_, <<>>, Acc) ->
-	lists:reverse(Acc);
-headers_decode(Zinf, << SizeN:32, Rest/bits >>, Acc) ->
-	<< Name:SizeN/binary, SizeV:32, Rest2/bits >> = Rest,
-	<< Value:SizeV/binary, Rest3/bits >> = Rest2,
-	headers_decode(Zinf, Rest3, [{Name, Value}|Acc]).
+quick_get(Pid, Host, Path) ->
+	MRef = monitor(process, Pid),
+	StreamRef = gun:get(Pid, Path, [{":host", Host}]),
+	receive
+		{'DOWN', MRef, _, _, Reason} ->
+			error(Reason);
+		{gun_response, Pid, StreamRef, IsFin,
+				<< Status:3/binary, _/bits >>, Headers} ->
+			{IsFin, binary_to_integer(Status), Headers}
+	after 1000 ->
+		error(timeout)
+	end.
 
 %% Tests.
 
 check_status(Config) ->
+	{_, Port} = lists:keyfind(port, 1, Config),
+	{ok, Pid} = gun:open("localhost", Port),
 	Tests = [
 		{200, nofin, "localhost", "/"},
 		{200, nofin, "localhost", "/chunked"},
@@ -167,7 +116,7 @@ check_status(Config) ->
 		{404, fin, "localhost", "/this/path/does/not/exist"}
 	],
 	_ = [{Status, Fin, Host, Path} = begin
-		RespFlags = case Fin of fin -> 1; nofin -> 0 end,
-		{Ret, _} = quick_get(Host, Path, RespFlags, Config),
-		{Ret, Fin, Host, Path}
-	end || {Status, Fin, Host, Path} <- Tests].
+		{IsFin, Ret, _} = quick_get(Pid, Host, Path),
+		{Ret, IsFin, Host, Path}
+	end || {Status, Fin, Host, Path} <- Tests],
+	gun:close(Pid).
