@@ -183,14 +183,26 @@ CT_RUN = ct_run \
 #	-cover test/cover.spec
 
 CT_SUITES ?=
-CT_SUITES_FULL = $(addsuffix _SUITE,$(CT_SUITES))
+
+define test_target
+test_$(1): ERLC_OPTS += -DTEST=1 +'{parse_transform, eunit_autoexport}'
+test_$(1): clean deps app build-tests
+	@if [ -d "test" ] ; \
+	then \
+		mkdir -p logs/ ; \
+		$(CT_RUN) -suite $(addsuffix _SUITE,$(1)) ; \
+	fi
+	$(gen_verbose) rm -f test/*.beam
+endef
+
+$(foreach test,$(CT_SUITES),$(eval $(call test_target,$(test))))
 
 tests: ERLC_OPTS += -DTEST=1 +'{parse_transform, eunit_autoexport}'
 tests: clean deps app build-tests
 	@if [ -d "test" ] ; \
 	then \
 		mkdir -p logs/ ; \
-		$(CT_RUN) -suite $(CT_SUITES_FULL) ; \
+		$(CT_RUN) -suite $(addsuffix _SUITE,$(CT_SUITES)) ; \
 	fi
 	$(gen_verbose) rm -f test/*.beam
 
