@@ -125,7 +125,16 @@ Committing
 ----------
 
 You MUST ensure that all commits pass all tests and do not have extra
-Dialyzer warnings.
+Dialyzer warnings.  Tests require Erlang R16B01.
+
+``` bash
+$ make tests
+```
+
+``` bash
+$ make build-plt
+$ make dialyze
+```
 
 Running tests is fairly straightforward. Note that you need at least
 Erlang/OTP R16B01 for the SSL tests to run.
