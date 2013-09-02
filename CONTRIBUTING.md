@@ -128,7 +128,7 @@ You MUST ensure that all commits pass all tests and do not have extra
 Dialyzer warnings.
 
 Running tests is fairly straightforward. Note that you need at least
-Erlang/OTP R16B01 for the SSL tests to run.
+Erlang/OTP R16B01.
 
 ``` bash
 make tests
