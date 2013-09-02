@@ -346,7 +346,7 @@ data_from_file(Socket, Transport, StreamID, IoDevice) ->
 request_init(FakeSocket, Peer, OnRequest, OnResponse,
 		Env, Middlewares, Method, Host, Path, Version, Headers) ->
 	Version2 = parse_version(Version),
-	{Host2, Port} = cowboy_protocol:parse_host(Host, <<>>),
+	{Host2, Port} = cowboy_protocol:parse_host(Host, false, <<>>),
 	{Path2, Query} = parse_path(Path, <<>>),
 	Req = cowboy_req:new(FakeSocket, ?MODULE, Peer,
 		Method, Path2, Query, Version2, Headers,

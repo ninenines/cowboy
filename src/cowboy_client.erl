@@ -93,16 +93,19 @@ request(Method, URL, Headers, Body, Client=#client{
 	end,
 	VersionBin = atom_to_binary(Version, latin1),
 	%% @todo do keepalive too, allow override...
-	Headers2 = [
-		{<<"host">>, FullHost},
+	Headers2 = case lists:keyfind(<<"host">>, 1, Headers) of
+		false -> [{<<"host">>, FullHost}|Headers];
+		_ -> Headers
+	end,
+	Headers3 = [
 		{<<"user-agent">>, <<"Cow">>}
-	|Headers],
-	Headers3 = case iolist_size(Body) of
-		0 -> Headers2;
-		Length -> [{<<"content-length">>, integer_to_list(Length)}|Headers2]
+	|Headers2],
+	Headers4 = case iolist_size(Body) of
+		0 -> Headers3;
+		Length -> [{<<"content-length">>, integer_to_list(Length)}|Headers3]
 	end,
 	HeadersData = [[Name, <<": ">>, Value, <<"\r\n">>]
-		|| {Name, Value} <- Headers3],
+		|| {Name, Value} <- Headers4],
 	Data = [Method, <<" ">>, Path, <<" ">>, VersionBin, <<"\r\n">>,
 		HeadersData, <<"\r\n">>, Body],
 	raw_request(Data, Client2).

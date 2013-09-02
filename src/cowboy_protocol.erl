@@ -54,7 +54,7 @@
 %% Internal.
 -export([init/4]).
 -export([parse_request/3]).
--export([parse_host/2]).
+-export([parse_host/3]).
 -export([resume/6]).
 
 -type opts() :: [{compress, boolean()}
@@ -426,7 +426,7 @@ request(B, State=#state{transport=Transport}, M, P, Q, Version, Headers) ->
 			request(B, State, M, P, Q, Version, Headers,
 				<<>>, default_port(Transport:name()));
 		{_, RawHost} ->
-			case catch parse_host(RawHost, <<>>) of
+			case catch parse_host(RawHost, false, <<>>) of
 				{'EXIT', _} ->
 					error_terminate(400, State);
 				{Host, undefined} ->
@@ -443,39 +443,43 @@ default_port(ssl) -> 443;
 default_port(_) -> 80.
 
 %% Another hurtful block of code. :)
-parse_host(<<>>, Acc) ->
+parse_host(<< $[, Rest/bits >>, false, <<>>) ->
+	parse_host(Rest, true, << $[ >>);
+parse_host(<<>>, false, Acc) ->
 	{Acc, undefined};
-parse_host(<< $:, Rest/bits >>, Acc) ->
+parse_host(<< $:, Rest/bits >>, false, Acc) ->
 	{Acc, list_to_integer(binary_to_list(Rest))};
-parse_host(<< C, Rest/bits >>, Acc) ->
+parse_host(<< $], Rest/bits >>, true, Acc) ->
+	parse_host(Rest, false, << Acc/binary, $] >>);
+parse_host(<< C, Rest/bits >>, E, Acc) ->
 	case C of
-		$A -> parse_host(Rest, << Acc/binary, $a >>);
-		$B -> parse_host(Rest, << Acc/binary, $b >>);
-		$C -> parse_host(Rest, << Acc/binary, $c >>);
-		$D -> parse_host(Rest, << Acc/binary, $d >>);
-		$E -> parse_host(Rest, << Acc/binary, $e >>);
-		$F -> parse_host(Rest, << Acc/binary, $f >>);
-		$G -> parse_host(Rest, << Acc/binary, $g >>);
-		$H -> parse_host(Rest, << Acc/binary, $h >>);
-		$I -> parse_host(Rest, << Acc/binary, $i >>);
-		$J -> parse_host(Rest, << Acc/binary, $j >>);
-		$K -> parse_host(Rest, << Acc/binary, $k >>);
-		$L -> parse_host(Rest, << Acc/binary, $l >>);
-		$M -> parse_host(Rest, << Acc/binary, $m >>);
-		$N -> parse_host(Rest, << Acc/binary, $n >>);
-		$O -> parse_host(Rest, << Acc/binary, $o >>);
-		$P -> parse_host(Rest, << Acc/binary, $p >>);
-		$Q -> parse_host(Rest, << Acc/binary, $q >>);
-		$R -> parse_host(Rest, << Acc/binary, $r >>);
-		$S -> parse_host(Rest, << Acc/binary, $s >>);
-		$T -> parse_host(Rest, << Acc/binary, $t >>);
-		$U -> parse_host(Rest, << Acc/binary, $u >>);
-		$V -> parse_host(Rest, << Acc/binary, $v >>);
-		$W -> parse_host(Rest, << Acc/binary, $w >>);
-		$X -> parse_host(Rest, << Acc/binary, $x >>);
-		$Y -> parse_host(Rest, << Acc/binary, $y >>);
-		$Z -> parse_host(Rest, << Acc/binary, $z >>);
-		_ -> parse_host(Rest, << Acc/binary, C >>)
+		$A -> parse_host(Rest, E, << Acc/binary, $a >>);
+		$B -> parse_host(Rest, E, << Acc/binary, $b >>);
+		$C -> parse_host(Rest, E, << Acc/binary, $c >>);
+		$D -> parse_host(Rest, E, << Acc/binary, $d >>);
+		$E -> parse_host(Rest, E, << Acc/binary, $e >>);
+		$F -> parse_host(Rest, E, << Acc/binary, $f >>);
+		$G -> parse_host(Rest, E, << Acc/binary, $g >>);
+		$H -> parse_host(Rest, E, << Acc/binary, $h >>);
+		$I -> parse_host(Rest, E, << Acc/binary, $i >>);
+		$J -> parse_host(Rest, E, << Acc/binary, $j >>);
+		$K -> parse_host(Rest, E, << Acc/binary, $k >>);
+		$L -> parse_host(Rest, E, << Acc/binary, $l >>);
+		$M -> parse_host(Rest, E, << Acc/binary, $m >>);
+		$N -> parse_host(Rest, E, << Acc/binary, $n >>);
+		$O -> parse_host(Rest, E, << Acc/binary, $o >>);
+		$P -> parse_host(Rest, E, << Acc/binary, $p >>);
+		$Q -> parse_host(Rest, E, << Acc/binary, $q >>);
+		$R -> parse_host(Rest, E, << Acc/binary, $r >>);
+		$S -> parse_host(Rest, E, << Acc/binary, $s >>);
+		$T -> parse_host(Rest, E, << Acc/binary, $t >>);
+		$U -> parse_host(Rest, E, << Acc/binary, $u >>);
+		$V -> parse_host(Rest, E, << Acc/binary, $v >>);
+		$W -> parse_host(Rest, E, << Acc/binary, $w >>);
+		$X -> parse_host(Rest, E, << Acc/binary, $x >>);
+		$Y -> parse_host(Rest, E, << Acc/binary, $y >>);
+		$Z -> parse_host(Rest, E, << Acc/binary, $z >>);
+		_ -> parse_host(Rest, E, << Acc/binary, C >>)
 	end.
 
 %% End of request parsing.
@@ -589,3 +593,24 @@ error_terminate(Status, Req, State) ->
 terminate(#state{socket=Socket, transport=Transport}) ->
 	Transport:close(Socket),
 	ok.
+
+%% Tests.
+
+-ifdef(TEST).
+
+parse_host(RawHost) ->
+	parse_host(RawHost, false, <<>>).
+
+parse_host_test() ->
+	{<<"example.org">>, 8080} = parse_host(<<"example.org:8080">>),
+	{<<"example.org">>, undefined} = parse_host(<<"example.org">>),
+	{<<"192.0.2.1">>, 8080} = parse_host(<<"192.0.2.1:8080">>),
+	{<<"192.0.2.1">>, undefined} = parse_host(<<"192.0.2.1">>),
+	{<<"[2001:db8::1]">>, 8080} = parse_host(<<"[2001:db8::1]:8080">>),
+	{<<"[2001:db8::1]">>, undefined} = parse_host(<<"[2001:db8::1]">>),
+	{<<"[::ffff:192.0.2.1]">>, 8080} =
+		parse_host(<<"[::ffff:192.0.2.1]:8080">>),
+	{<<"[::ffff:192.0.2.1]">>, undefined} =
+		parse_host(<<"[::ffff:192.0.2.1]">>).
+
+-endif.
