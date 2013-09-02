@@ -50,7 +50,8 @@
 	pid :: pid(),
 	input = nofin :: fin | nofin,
 	in_buffer = <<>> :: binary(),
-	is_recv = false :: {true, non_neg_integer()} | false,
+	is_recv = false :: {true, {non_neg_integer(), pid()},
+		pid(), non_neg_integer()} | false,
 	output = nofin :: fin | nofin
 }).
 
