@@ -26,6 +26,8 @@
 
 %% Tests.
 -export([check_status/1]).
+-export([echo_body/1]).
+-export([echo_body_multi/1]).
 
 %% ct.
 
@@ -34,7 +36,9 @@ all() ->
 
 groups() ->
 	[{spdy, [], [
-		check_status
+		check_status,
+		echo_body,
+		echo_body_multi
 	]}].
 
 init_per_suite(Config) ->
@@ -82,6 +86,7 @@ init_dispatch(Config) ->
 			{"/static/[...]", cowboy_static,
 				[{directory, ?config(static_dir, Config)},
 				 {mimetypes, [{<<".css">>, [<<"text/css">>]}]}]},
+			{"/echo/body", http_echo_body, []},
 			{"/chunked", http_chunked, []},
 			{"/", http_handler, []}
 		]}
@@ -119,4 +124,60 @@ check_status(Config) ->
 		{IsFin, Ret, _} = quick_get(Pid, Host, Path),
 		{Ret, IsFin, Host, Path}
 	end || {Status, Fin, Host, Path} <- Tests],
+	gun:close(Pid).
+
+echo_body(Config) ->
+	{_, Port} = lists:keyfind(port, 1, Config),
+	{ok, Pid} = gun:open("localhost", Port),
+	MRef = monitor(process, Pid),
+	Body = << 0:800000 >>,
+	StreamRef = gun:post(Pid, "/echo/body", [
+		{<<"content-length">>, integer_to_list(byte_size(Body))},
+		{<<"content-type">>, "application/octet-stream"}
+	], Body),
+	receive
+		{'DOWN', MRef, _, _, Reason} ->
+			error(Reason);
+		{gun_response, Pid, StreamRef, nofin, << "200", _/bits >>, _} ->
+			ok
+	after 1000 ->
+		error(response_timeout)
+	end,
+	receive
+		{'DOWN', MRef, _, _, Reason2} ->
+			error({gun_data, Reason2});
+		{gun_data, Pid, StreamRef, fin, Body} ->
+			ok
+	after 1000 ->
+		error(data_timeout)
+	end,
+	gun:close(Pid).
+
+echo_body_multi(Config) ->
+	{_, Port} = lists:keyfind(port, 1, Config),
+	{ok, Pid} = gun:open("localhost", Port),
+	MRef = monitor(process, Pid),
+	BodyChunk = << 0:80000 >>,
+	StreamRef = gun:post(Pid, "/echo/body", [
+		{<<"content-length">>, integer_to_list(byte_size(BodyChunk) * 10)},
+		{<<"content-type">>, "application/octet-stream"}
+	]),
+	_ = [gun:data(Pid, StreamRef, nofin, BodyChunk) || _ <- lists:seq(1, 9)],
+	gun:data(Pid, StreamRef, fin, BodyChunk),
+	receive
+		{'DOWN', MRef, _, _, Reason} ->
+			error(Reason);
+		{gun_response, Pid, StreamRef, nofin, << "200", _/bits >>, _} ->
+			ok
+	after 1000 ->
+		error(response_timeout)
+	end,
+	receive
+		{'DOWN', MRef, _, _, Reason2} ->
+			error({gun_data, Reason2});
+		{gun_data, Pid, StreamRef, fin, << 0:800000 >>} ->
+			ok
+	after 1000 ->
+		error(data_timeout)
+	end,
 	gun:close(Pid).
