@@ -15,7 +15,9 @@
 
 %% @doc Core HTTP parsing API.
 -module(cowboy_http).
+-compile(export_all).
 
+-include_lib("eunit/include/eunit.hrl").
 %% Parsing.
 -export([list/2]).
 -export([nonempty_list/2]).
@@ -98,7 +100,6 @@ list(Data, Fun, Acc) ->
 -spec cookie_list(binary()) -> [{binary(), binary()}] | {error, badarg}.
 cookie_list(Data) ->
 	case cookie_list(Data, []) of
-		{error, badarg} -> {error, badarg};
 		[] -> {error, badarg};
 		L -> lists:reverse(L)
 	end.
@@ -113,6 +114,8 @@ cookie_list(Data, Acc) ->
 			(Rest) -> cookie(Rest,
 				fun (Rest2, << $$, _/binary >>, _) ->
 						cookie_list(Rest2, Acc);
+					(end_of_line, _, _) ->
+						Acc;
 					(Rest2, Name, Value) ->
 						cookie_list(Rest2, [{Name, Value}|Acc])
 				end)
@@ -123,13 +126,17 @@ cookie(Data, Fun) ->
 	whitespace(Data,
 		fun (Rest) ->
 				cookie_name(Rest,
-					fun (_Rest2, <<>>) -> {error, badarg};
+					fun (_Rest2, <<>>) ->% {error, badarg};
+							Fun(end_of_line, a, a);
 						(<< $=, Rest2/binary >>, Name) ->
 							cookie_value(Rest2,
 								fun (Rest3, Value) ->
 										Fun(Rest3, Name, Value)
 								end);
-						(_Rest2, _Attr) -> {error, badarg}
+						(Rest3, _Attr) ->
+							%Bad cookie with invalid value separator,
+							%try to recover by searching for the next separator
+							cookie_skip_until_separator(Rest3, Fun)
 					end)
 		end).
 
@@ -160,6 +167,16 @@ cookie_value(Data = << C, _Rest/binary >>, Fun, Acc)
 	Fun(Data, Acc);
 cookie_value(<< C, Rest/binary >>, Fun, Acc) ->
 	cookie_value(Rest, Fun, << Acc/binary, C >>).
+
+-spec cookie_skip_until_separator(binary(), fun()) -> any().
+cookie_skip_until_separator(<<>>, Fun) ->
+	Fun(end_of_line, a, a);
+cookie_skip_until_separator(<< C, Rest/binary >>, Fun)
+		when C =:= $,; C =:= $; ->
+	cookie(Rest, Fun);
+cookie_skip_until_separator(<< _, Rest/binary >>, Fun) ->
+	cookie_skip_until_separator(Rest, Fun).
+
 
 %% @doc Parse a content type.
 %%
@@ -1173,16 +1190,20 @@ cookie_list_test_() ->
 		]},
 		%% Potential edge cases (initially from Mochiweb).
 		{<<"foo=\\x">>, [{<<"foo">>, <<"\\x">>}]},
-		{<<"=">>, {error, badarg}},
-		{<<"  foo ; bar  ">>, {error, badarg}},
 		{<<"foo=;bar=">>, [{<<"foo">>, <<>>}, {<<"bar">>, <<>>}]},
-		{<<"foo=\\\";;bar ">>, {error, badarg}},
 		{<<"foo=\\\";;bar=good ">>,
 			[{<<"foo">>, <<"\\\"">>}, {<<"bar">>, <<"good">>}]},
-		{<<"foo=\"\\\";bar">>, {error, badarg}},
-		{<<"">>, {error, badarg}},
 		{<<"foo=bar , baz=wibble ">>,
-			[{<<"foo">>, <<"bar">>}, {<<"baz">>, <<"wibble">>}]}
+			[{<<"foo">>, <<"bar">>}, {<<"baz">>, <<"wibble">>}]},
+        {<<"foo=bar,baz; this=good ">>,
+            [{<<"foo">>, <<"bar">>}, {<<"this">>, <<"good">>}]},
+        {<<"name=a,b">>, [{<<"name">>, <<"a">>}]},
+		%% malformed cookies
+		{<<"">>, {error, badarg}},
+		{<<"=">>, {error, badarg}},
+		{<<"  foo ; bar  ">>, {error, badarg}},
+		{<<"foo=\\\";;bar ">>, [{<<"foo">>, <<"\\\"">>}]},
+		{<<"foo=\"\\\";bar;foo2=bar2">>, [{<<"foo">>, <<"\"\\\"">>}, {<<"foo2">>, <<"bar2">>}]}
 	],
 	[{V, fun() -> R = cookie_list(V) end} || {V, R} <- Tests].
 
