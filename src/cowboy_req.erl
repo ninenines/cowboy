@@ -88,6 +88,7 @@
 %% Response API.
 -export([set_resp_cookie/4]).
 -export([set_resp_header/3]).
+-export([resp_body/1]).
 -export([set_resp_body/2]).
 -export([set_resp_body_fun/2]).
 -export([set_resp_body_fun/3]).
@@ -862,6 +863,10 @@ set_resp_cookie(Name, Value, Opts, Req) ->
 	-> Req when Req::req().
 set_resp_header(Name, Value, Req=#http_req{resp_headers=RespHeaders}) ->
 	Req#http_req{resp_headers=[{Name, Value}|RespHeaders]}.
+
+%% @doc Get resp_body.
+resp_body(#http_req{resp_body=Res}) ->
+    Res.
 
 %% @doc Add a body to the response.
 %%
