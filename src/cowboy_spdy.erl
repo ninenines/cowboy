@@ -190,9 +190,9 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 			sys:handle_system_msg(Request, From, Parent, ?MODULE, [], State);
 		%% Calls from the supervisor module.
 		{'$gen_call', {To, Tag}, which_children} ->
-			Children = [{?MODULE, Pid, worker, [?MODULE]}
+			Workers = [{?MODULE, Pid, worker, [?MODULE]}
 				|| #child{pid=Pid} <- Children],
-			To ! {Tag, Children},
+			To ! {Tag, Workers},
 			loop(State);
 		{'$gen_call', {To, Tag}, count_children} ->
 			NbChildren = length(Children),
