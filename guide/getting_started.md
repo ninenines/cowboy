@@ -3,10 +3,12 @@ Getting started
 
 Cowboy does nothing by default.
 
-Cowboy requires the `crypto` and `ranch` applications to be started.
+Cowboy requires the `crypto`, `cowlib` and `ranch` applications to be
+started.
 
 ``` erlang
 ok = application:start(crypto).
+ok = application:start(cowlib).
 ok = application:start(ranch).
 ok = application:start(cowboy).
 ```

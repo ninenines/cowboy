@@ -43,6 +43,7 @@ groups() ->
 
 init_per_suite(Config) ->
 	application:start(crypto),
+	application:start(cowlib),
 	application:start(ranch),
 	application:start(cowboy),
 	application:start(asn1),
@@ -62,6 +63,7 @@ end_per_suite(Config) ->
 	application:stop(asn1),
 	application:stop(cowboy),
 	application:stop(ranch),
+	application:stop(cowlib),
 	application:stop(crypto),
 	ok.
 

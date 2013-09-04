@@ -21,6 +21,7 @@
 		kernel,
 		stdlib,
 		ranch,
+		cowlib,
 		crypto
 	]},
 	{mod, {cowboy_app, []}},

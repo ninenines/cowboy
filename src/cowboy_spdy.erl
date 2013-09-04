@@ -340,11 +340,11 @@ delete_child(Pid, State=#state{children=Children}) ->
 
 request_init(FakeSocket, Peer, OnRequest, OnResponse,
 		Env, Middlewares, Method, Host, Path, Version, Headers) ->
-	Version2 = parse_version(Version),
-	{Host2, Port} = cowboy_protocol:parse_host(Host, false, <<>>),
-	{Path2, Query} = parse_path(Path, <<>>),
+	{Host2, Port} = cow_http:parse_fullhost(Host),
+	{Path2, Qs} = cow_http:parse_fullpath(Path),
+	Version2 = cow_http:parse_version(Version),
 	Req = cowboy_req:new(FakeSocket, ?MODULE, Peer,
-		Method, Path2, Query, Version2, Headers,
+		Method, Path2, Qs, Version2, Headers,
 		Host2, Port, <<>>, true, false, OnResponse),
 	case OnRequest of
 		undefined ->
@@ -356,23 +356,6 @@ request_init(FakeSocket, Peer, OnRequest, OnResponse,
 				_ -> ok
 			end
 	end.
-
-parse_version(<<"HTTP/1.1">>) ->
-	'HTTP/1.1';
-parse_version(<<"HTTP/1.0">>) ->
-	'HTTP/1.0'.
-
-parse_path(<<>>, Path) ->
-	{Path, <<>>};
-parse_path(<< $?, Rest/binary >>, Path) ->
-	parse_query(Rest, Path, <<>>);
-parse_path(<< C, Rest/binary >>, SoFar) ->
-	parse_path(Rest, << SoFar/binary, C >>).
-
-parse_query(<<>>, Path, Query) ->
-	{Path, Query};
-parse_query(<< C, Rest/binary >>, Path, SoFar) ->
-	parse_query(Rest, Path, << SoFar/binary, C >>).
 
 -spec execute(cowboy_req:req(), cowboy_middleware:env(), [module()])
 	-> ok.

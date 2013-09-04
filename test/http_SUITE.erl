@@ -196,6 +196,7 @@ groups() ->
 
 init_per_suite(Config) ->
 	application:start(crypto),
+	application:start(cowlib),
 	application:start(ranch),
 	application:start(cowboy),
 	Dir = ?config(priv_dir, Config) ++ "/static",
@@ -207,6 +208,7 @@ end_per_suite(Config) ->
 	ct_helper:delete_static_dir(Dir),
 	application:stop(cowboy),
 	application:stop(ranch),
+	application:stop(cowlib),
 	application:stop(crypto),
 	ok.
 

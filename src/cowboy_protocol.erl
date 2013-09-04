@@ -54,7 +54,6 @@
 %% Internal.
 -export([init/4]).
 -export([parse_request/3]).
--export([parse_host/3]).
 -export([resume/6]).
 
 -type opts() :: [{compress, boolean()}
@@ -443,6 +442,9 @@ default_port(ssl) -> 443;
 default_port(_) -> 80.
 
 %% Another hurtful block of code. :)
+%%
+%% Same code as cow_http:parse_fullhost/1, but inline because we
+%% really want this to go fast.
 parse_host(<< $[, Rest/bits >>, false, <<>>) ->
 	parse_host(Rest, true, << $[ >>);
 parse_host(<<>>, false, Acc) ->
@@ -593,24 +595,3 @@ error_terminate(Status, Req, State) ->
 terminate(#state{socket=Socket, transport=Transport}) ->
 	Transport:close(Socket),
 	ok.
-
-%% Tests.
-
--ifdef(TEST).
-
-parse_host(RawHost) ->
-	parse_host(RawHost, false, <<>>).
-
-parse_host_test() ->
-	{<<"example.org">>, 8080} = parse_host(<<"example.org:8080">>),
-	{<<"example.org">>, undefined} = parse_host(<<"example.org">>),
-	{<<"192.0.2.1">>, 8080} = parse_host(<<"192.0.2.1:8080">>),
-	{<<"192.0.2.1">>, undefined} = parse_host(<<"192.0.2.1">>),
-	{<<"[2001:db8::1]">>, 8080} = parse_host(<<"[2001:db8::1]:8080">>),
-	{<<"[2001:db8::1]">>, undefined} = parse_host(<<"[2001:db8::1]">>),
-	{<<"[::ffff:192.0.2.1]">>, 8080} =
-		parse_host(<<"[::ffff:192.0.2.1]:8080">>),
-	{<<"[::ffff:192.0.2.1]">>, undefined} =
-		parse_host(<<"[::ffff:192.0.2.1]">>).
-
--endif.

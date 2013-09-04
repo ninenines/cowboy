@@ -11,7 +11,7 @@ PLT_APPS = crypto public_key ssl
 # Dependencies.
 
 DEPS = cowlib ranch
-dep_cowlib = pkg://cowlib master
+dep_cowlib = pkg://cowlib 0.1.0
 dep_ranch = pkg://ranch 0.8.5
 
 TEST_DEPS = ct_helper gun
