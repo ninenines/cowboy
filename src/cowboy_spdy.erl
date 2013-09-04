@@ -131,7 +131,7 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 		{recv, FromSocket = {Pid, StreamID}, FromPid, Length, _Timeout}
 				when Pid =:= self() ->
 			Child = #child{in_buffer=InBuffer, is_recv=false}
-				= lists:keyfind(StreamID, #child.streamid, Children),
+				= get_child(StreamID, State),
 			if
 				Length =:= 0, InBuffer =/= <<>> ->
 					FromPid ! {recv, FromSocket, {ok, InBuffer}},
@@ -152,55 +152,40 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 			end;
 		{reply, {Pid, StreamID}, Status, Headers}
 				when Pid =:= self() ->
-			Child = #child{output=nofin} = lists:keyfind(StreamID,
-				#child.streamid, Children),
+			Child = #child{output=nofin} = get_child(StreamID, State),
 			syn_reply(State, StreamID, true, Status, Headers),
-			Children2 = lists:keyreplace(StreamID,
-				#child.streamid, Children, Child#child{output=fin}),
-			loop(State#state{children=Children2});
+			loop(out_fin_child(Child, State));
 		{reply, {Pid, StreamID}, Status, Headers, Body}
 				when Pid =:= self() ->
-			Child = #child{output=nofin} = lists:keyfind(StreamID,
-				#child.streamid, Children),
+			Child = #child{output=nofin} = get_child(StreamID, State),
 			syn_reply(State, StreamID, false, Status, Headers),
 			data(State, StreamID, true, Body),
-			Children2 = lists:keyreplace(StreamID,
-				#child.streamid, Children, Child#child{output=fin}),
-			loop(State#state{children=Children2});
+			loop(out_fin_child(Child, State));
 		{stream_reply, {Pid, StreamID}, Status, Headers}
 				when Pid =:= self() ->
-			#child{output=nofin} = lists:keyfind(StreamID,
-				#child.streamid, Children),
+			#child{output=nofin} = get_child(StreamID, State),
 			syn_reply(State, StreamID, false, Status, Headers),
 			loop(State);
 		{stream_data, {Pid, StreamID}, Data}
 				when Pid =:= self() ->
-			#child{output=nofin} = lists:keyfind(StreamID,
-				#child.streamid, Children),
+			#child{output=nofin} = get_child(StreamID, State),
 			data(State, StreamID, false, Data),
 			loop(State);
 		{stream_close, {Pid, StreamID}}
 				when Pid =:= self() ->
-			Child = #child{output=nofin} = lists:keyfind(StreamID,
-				#child.streamid, Children),
+			Child = #child{output=nofin} = get_child(StreamID, State),
 			data(State, StreamID, true, <<>>),
-			Children2 = lists:keyreplace(StreamID,
-				#child.streamid, Children, Child#child{output=fin}),
-			loop(State#state{children=Children2});
+			loop(out_fin_child(Child, State));
 		{sendfile, {Pid, StreamID}, Filepath}
 				when Pid =:= self() ->
-			Child = #child{output=nofin} = lists:keyfind(StreamID,
-				#child.streamid, Children),
+			Child = #child{output=nofin} = get_child(StreamID, State),
 			data_from_file(State, StreamID, Filepath),
-			Children2 = lists:keyreplace(StreamID,
-				#child.streamid, Children, Child#child{output=fin}),
-			loop(State#state{children=Children2});
+			loop(out_fin_child(Child, State));
 		{'EXIT', Parent, Reason} ->
 			exit(Reason);
 		{'EXIT', Pid, _} ->
 			%% @todo Report the error if any.
-			Children2 = lists:keydelete(Pid, #child.pid, Children),
-			loop(State#state{children=Children2});
+			loop(delete_child(Pid, State));
 		{system, From, Request} ->
 			sys:handle_system_msg(Request, From, Parent, ?MODULE, [], State);
 		%% Calls from the supervisor module.
@@ -248,17 +233,14 @@ handle_frame(State, {syn_stream, StreamID, AssocToStreamID,
 %% Erlang does not allow us to control the priority of processes
 %% so we ignore that value entirely.
 handle_frame(State=#state{middlewares=Middlewares, env=Env,
-		onrequest=OnRequest, onresponse=OnResponse, peer=Peer,
-		children=Children}, {syn_stream, StreamID, _, IsFin,
-		_, _, Method, _, Host, Path, Version, Headers}) ->
+		onrequest=OnRequest, onresponse=OnResponse, peer=Peer},
+		{syn_stream, StreamID, _, IsFin, _, _,
+		Method, _, Host, Path, Version, Headers}) ->
 	Pid = spawn_link(?MODULE, request_init, [
 		{self(), StreamID}, Peer, OnRequest, OnResponse,
 		Env, Middlewares, Method, Host, Path, Version, Headers
 	]),
-	IsFin2 = if IsFin -> fin; true -> nofin end,
-	loop(State#state{last_streamid=StreamID,
-		children=[#child{streamid=StreamID, pid=Pid,
-		input=IsFin2, output=nofin}|Children]});
+	loop(new_child(State, StreamID, Pid, IsFin));
 %% RST_STREAM.
 handle_frame(State, {rst_stream, StreamID, Status}) ->
 	error_logger:error_msg("Received RST_STREAM frame ~p ~p",
@@ -278,7 +260,7 @@ handle_frame(State=#state{socket=Socket, transport=Transport},
 handle_frame(State=#state{children=Children},
 		{data, StreamID, IsFin, Data}) ->
 	Child = #child{input=nofin, in_buffer=Buffer, is_recv=IsRecv}
-		= lists:keyfind(StreamID, #child.streamid, Children),
+		= get_child(StreamID, State),
 	Data2 = << Buffer/binary, Data/binary >>,
 	IsFin2 = if IsFin -> fin; true -> nofin end,
 	Child2 = case IsRecv of
@@ -341,6 +323,27 @@ data_from_file(Socket, Transport, StreamID, IoDevice) ->
 					ok
 			end
 	end.
+
+%% Children.
+
+new_child(State=#state{children=Children}, StreamID, Pid, IsFin) ->
+	IsFin2 = if IsFin -> fin; true -> nofin end,
+	State#state{last_streamid=StreamID,
+		children=[#child{streamid=StreamID,
+		pid=Pid, input=IsFin2}|Children]}.
+
+delete_child(Pid, State=#state{children=Children}) ->
+	Children2 = lists:keydelete(Pid, #child.pid, Children),
+	State#state{children=Children2}.
+
+get_child(StreamID, #state{children=Children}) ->
+	lists:keyfind(StreamID, #child.streamid, Children).
+
+out_fin_child(Child=#child{streamid=StreamID},
+		State=#state{children=Children}) ->
+	Children2 = lists:keyreplace(StreamID,
+		#child.streamid, Children, Child#child{output=fin}),
+	State#state{children=Children2}.
 
 %% Request process.
 
