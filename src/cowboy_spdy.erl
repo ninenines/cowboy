@@ -135,32 +135,26 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 			if
 				Length =:= 0, InBuffer =/= <<>> ->
 					FromPid ! {recv, FromSocket, {ok, InBuffer}},
-					Children2 = lists:keyreplace(StreamID, #child.streamid,
-						Children, Child#child{in_buffer= <<>>}),
-					loop(State#state{children=Children2});
+					loop(replace_child(Child#child{in_buffer= <<>>}, State));
 				byte_size(InBuffer) >= Length ->
 					<< Data:Length/binary, Rest/binary >> = InBuffer,
 					FromPid ! {recv, FromSocket, {ok, Data}},
-					Children2 = lists:keyreplace(StreamID, #child.streamid,
-						Children, Child#child{in_buffer=Rest}),
-					loop(State#state{children=Children2});
+					loop(replace_child(Child#child{in_buffer=Rest}, State));
 				true ->
-					Children2 = lists:keyreplace(StreamID, #child.streamid,
-						Children, Child#child{is_recv=
-							{true, FromSocket, FromPid, Length}}),
-					loop(State#state{children=Children2})
+					loop(replace_child(Child#child{
+						is_recv={true, FromSocket, FromPid, Length}}, State))
 			end;
 		{reply, {Pid, StreamID}, Status, Headers}
 				when Pid =:= self() ->
 			Child = #child{output=nofin} = get_child(StreamID, State),
 			syn_reply(State, StreamID, true, Status, Headers),
-			loop(out_fin_child(Child, State));
+			loop(replace_child(Child#child{output=fin}, State));
 		{reply, {Pid, StreamID}, Status, Headers, Body}
 				when Pid =:= self() ->
 			Child = #child{output=nofin} = get_child(StreamID, State),
 			syn_reply(State, StreamID, false, Status, Headers),
 			data(State, StreamID, true, Body),
-			loop(out_fin_child(Child, State));
+			loop(replace_child(Child#child{output=fin}, State));
 		{stream_reply, {Pid, StreamID}, Status, Headers}
 				when Pid =:= self() ->
 			#child{output=nofin} = get_child(StreamID, State),
@@ -175,12 +169,12 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 				when Pid =:= self() ->
 			Child = #child{output=nofin} = get_child(StreamID, State),
 			data(State, StreamID, true, <<>>),
-			loop(out_fin_child(Child, State));
+			loop(replace_child(Child#child{output=fin}, State));
 		{sendfile, {Pid, StreamID}, Filepath}
 				when Pid =:= self() ->
 			Child = #child{output=nofin} = get_child(StreamID, State),
 			data_from_file(State, StreamID, Filepath),
-			loop(out_fin_child(Child, State));
+			loop(replace_child(Child#child{output=fin}, State));
 		{'EXIT', Parent, Reason} ->
 			exit(Reason);
 		{'EXIT', Pid, _} ->
@@ -257,8 +251,7 @@ handle_frame(State=#state{socket=Socket, transport=Transport},
 	Transport:send(Socket, cow_spdy:ping(PingID)),
 	loop(State);
 %% Data received for a stream.
-handle_frame(State=#state{children=Children},
-		{data, StreamID, IsFin, Data}) ->
+handle_frame(State, {data, StreamID, IsFin, Data}) ->
 	Child = #child{input=nofin, in_buffer=Buffer, is_recv=IsRecv}
 		= get_child(StreamID, State),
 	Data2 = << Buffer/binary, Data/binary >>,
@@ -274,8 +267,7 @@ handle_frame(State=#state{children=Children},
 		_ ->
 			Child#child{input=IsFin2, in_buffer=Data2}
 	end,
-	Children2 = lists:keyreplace(StreamID, #child.streamid, Children, Child2),
-	loop(State#state{children=Children2});
+	loop(replace_child(Child2, State));
 %% General error, can't recover.
 handle_frame(State, {error, badprotocol}) ->
 	goaway(State, protocol_error),
@@ -332,17 +324,16 @@ new_child(State=#state{children=Children}, StreamID, Pid, IsFin) ->
 		children=[#child{streamid=StreamID,
 		pid=Pid, input=IsFin2}|Children]}.
 
-delete_child(Pid, State=#state{children=Children}) ->
-	Children2 = lists:keydelete(Pid, #child.pid, Children),
-	State#state{children=Children2}.
-
 get_child(StreamID, #state{children=Children}) ->
 	lists:keyfind(StreamID, #child.streamid, Children).
 
-out_fin_child(Child=#child{streamid=StreamID},
+replace_child(Child=#child{streamid=StreamID},
 		State=#state{children=Children}) ->
-	Children2 = lists:keyreplace(StreamID,
-		#child.streamid, Children, Child#child{output=fin}),
+	Children2 = lists:keyreplace(StreamID, #child.streamid, Children, Child),
+	State#state{children=Children2}.
+
+delete_child(Pid, State=#state{children=Children}) ->
+	Children2 = lists:keydelete(Pid, #child.pid, Children),
 	State#state{children=Children2}.
 
 %% Request process.
