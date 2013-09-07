@@ -1,24 +1,28 @@
-Cowboy Basic Authorization Rest Hello World
-===========================================
+Basic authorization example using REST
+======================================
 
-To compile this example you need rebar in your PATH.
+To try this example, you need GNU `make`, `git` and
+[relx](https://github.com/erlware/relx) in your PATH.
 
-Type the following command:
-```
-$ rebar get-deps compile
-```
+To build the example, run the following command:
 
-You can then start the Erlang node with the following command:
-```
-./start.sh
+``` bash
+$ make
 ```
 
-Then run any given command or point your browser to the indicated URL.
+To start the release in the foreground:
 
-Examples
---------
+``` bash
+$ ./_rel/bin/hello_world_example console
+```
 
-### Get 401
+Then point your browser at [http://localhost:8080](http://localhost:8080).
+
+Example output
+--------------
+
+Request with no authentication:
+
 ``` bash
 $ curl -i http://localhost:8080
 HTTP/1.1 401 Unauthorized
@@ -26,10 +30,11 @@ connection: keep-alive
 server: Cowboy
 date: Sun, 20 Jan 2013 14:10:27 GMT
 content-length: 0
-www-authenticate: Restricted
+www-authenticate: Basic realm="cowboy"
 ```
 
-### Get 200
+Request with authentication:
+
 ``` bash
 $ curl -i -u "Alladin:open sesame" http://localhost:8080
 HTTP/1.1 200 OK
