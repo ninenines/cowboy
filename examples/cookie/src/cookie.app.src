@@ -8,7 +8,8 @@
 	{applications, [
 		kernel,
 		stdlib,
-		cowboy
+		cowboy,
+		erlydtl
 	]},
 	{mod, {cookie_app, []}},
 	{env, []}
