@@ -29,8 +29,9 @@ maybe_echo(_, _, Req) ->
 echo(undefined, Req) ->
 	cowboy_req:reply(400, [], <<"Missing echo parameter.">>, Req);
 echo(Echo, Req) ->
-	cowboy_req:reply(200,
-		[{<<"content-encoding">>, <<"utf-8">>}], Echo, Req).
+	cowboy_req:reply(200, [
+		{<<"content-type">>, <<"text/plain; charset=utf-8">>}
+	], Echo, Req).
 
 terminate(_Reason, _Req, _State) ->
 	ok.
