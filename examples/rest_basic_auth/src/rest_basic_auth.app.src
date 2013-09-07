@@ -1,6 +1,6 @@
 %% Feel free to use, reuse and abuse the code in this file.
 
-{application, basic_auth, [
+{application, rest_basic_auth, [
 	{description, "Cowboy Basic HTTP Authorization example."},
 	{vsn, "1"},
 	{modules, []},
@@ -10,6 +10,6 @@
 		stdlib,
 		cowboy
 	]},
-	{mod, {basic_auth_app, []}},
+	{mod, {rest_basic_auth_app, []}},
 	{env, []}
 ]}.

@@ -1,7 +1,7 @@
 %% Feel free to use, reuse and abuse the code in this file.
 
 %% @private
--module(basic_auth_sup).
+-module(rest_basic_auth_sup).
 -behaviour(supervisor).
 
 %% API.

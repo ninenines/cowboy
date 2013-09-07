@@ -1,9 +1,6 @@
 Cowboy Examples
 ===============
 
- *  [basic_auth](./basic_auth):
-    basic HTTP authorization with REST
-
  *  [chunked_hello_world](./chunked_hello_world):
     demonstrates chunked data transfer with two one-second delays
 
@@ -33,6 +30,9 @@ Cowboy Examples
 
  *  [markdown_middleware](./markdown_middleware):
     static file handler with markdown preprocessor
+
+ *  [rest_basic_auth](./rest_basic_auth):
+    basic HTTP authorization with REST
 
  *  [rest_hello_world](./rest_hello_world):
     return the data type that matches the request type (ex: html, text, json)
