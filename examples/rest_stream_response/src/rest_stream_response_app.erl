@@ -26,7 +26,8 @@ start(_Type, _Args) ->
 stop(_State) ->
 	ok.
 
-generate_rows(_Table, 0) -> ok;
+generate_rows(_Table, 0) ->
+	ok;
 generate_rows(Table, N) ->
 	ets:insert(Table, {key(), val(), val()}),
 	generate_rows(Table, N - 1).
