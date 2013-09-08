@@ -3,14 +3,14 @@
 %% @doc Pastebin handler.
 -module(toppage_handler).
 
-%% REST Callbacks
+%% Standard callbacks.
 -export([init/3]).
 -export([allowed_methods/2]).
 -export([content_types_provided/2]).
 -export([content_types_accepted/2]).
 -export([resource_exists/2]).
 
-%% Callback Callbacks
+%% Custom callbacks.
 -export([create_paste/2]).
 -export([paste_html/2]).
 -export([paste_text/2]).
@@ -75,8 +75,7 @@ read_file(Name) ->
 	Binary.
 
 full_path(Name) ->
-	{ok, Cwd} = file:get_cwd(),
-	filename:join([Cwd, "priv", Name]).
+	filename:join([code:priv_dir(rest_pastebin), Name]).
 
 file_exists(Name) ->
 	case file:read_file_info(full_path(Name)) of
