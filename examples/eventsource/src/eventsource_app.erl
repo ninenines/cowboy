@@ -17,7 +17,7 @@ start(_Type, _Args) ->
 			{"/", cowboy_static, [
 				{directory, {priv_dir, eventsource, []}},
 				{file, <<"index.html">>},
-				{mimetypes, {fun mimetypes:path_to_mimes/2, default}}
+				{mimetypes, [{<<".html">>, [<<"text/html">>]}]}
 			]}
 		]}
 	]),
