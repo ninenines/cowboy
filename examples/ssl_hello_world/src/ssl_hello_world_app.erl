@@ -16,11 +16,12 @@ start(_Type, _Args) ->
 			{"/", toppage_handler, []}
 		]}
 	]),
+	PrivDir = code:priv_dir(ssl_hello_world),
 	{ok, _} = cowboy:start_https(https, 100, [
 		{port, 8443},
-		{cacertfile, "priv/ssl/cowboy-ca.crt"},
-		{certfile, "priv/ssl/server.crt"},
-		{keyfile, "priv/ssl/server.key"}
+		{cacertfile, PrivDir ++ "/ssl/cowboy-ca.crt"},
+		{certfile, PrivDir ++ "/ssl/server.crt"},
+		{keyfile, PrivDir ++ "/ssl/server.key"}
 	], [{env, [{dispatch, Dispatch}]}]),
 	ssl_hello_world_sup:start_link().
 
