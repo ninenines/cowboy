@@ -13,7 +13,7 @@ $ make
 To start the release in the foreground:
 
 ``` bash
-$ ./_rel/bin/hello_world_example console
+$ ./_rel/bin/static_world_example console
 ```
 
 The example will serve all the files found in the `priv`
