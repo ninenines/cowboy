@@ -12,11 +12,15 @@
 start(_Type, _Args) ->
 	Dispatch = cowboy_router:compile([
 		{'_', [
-			{"/", toppage_handler, []},
+			{"/", cowboy_static, [
+				{directory, {priv_dir, websocket, []}},
+				{file, <<"index.html">>},
+				{mimetypes, [{<<".html">>, [<<"text/html">>]}]}
+			]},
 			{"/websocket", ws_handler, []},
 			{"/static/[...]", cowboy_static, [
 				{directory, {priv_dir, websocket, [<<"static">>]}},
-				{mimetypes, {fun mimetypes:path_to_mimes/2, default}}
+				{mimetypes, [{<<".js">>, [<<"application/javascript">>]}]}
 			]}
 		]}
 	]),
