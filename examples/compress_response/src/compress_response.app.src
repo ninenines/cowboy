@@ -4,7 +4,7 @@
 	{description, "Cowboy Compress Response example."},
 	{vsn, "1"},
 	{modules, []},
-	{registered, []},
+	{registered, [compress_response_sup]},
 	{applications, [
 		kernel,
 		stdlib,

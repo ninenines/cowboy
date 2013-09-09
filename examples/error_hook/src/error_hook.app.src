@@ -4,7 +4,7 @@
 	{description, "Cowboy error handler example."},
 	{vsn, "1"},
 	{modules, []},
-	{registered, []},
+	{registered, [error_hook_sup]},
 	{applications, [
 		kernel,
 		stdlib,

@@ -4,7 +4,7 @@
 	{description, "Cowboy REST Hello World example."},
 	{vsn, "1"},
 	{modules, []},
-	{registered, []},
+	{registered, [rest_hello_world_sup]},
 	{applications, [
 		kernel,
 		stdlib,

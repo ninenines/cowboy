@@ -4,7 +4,7 @@
 	{description, "Cowboy websocket example."},
 	{vsn, "1"},
 	{modules, []},
-	{registered, []},
+	{registered, [websocket_sup]},
 	{applications, [
 		kernel,
 		stdlib,

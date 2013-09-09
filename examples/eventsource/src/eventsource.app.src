@@ -4,7 +4,7 @@
 	{description, "Cowboy EventSource example."},
 	{vsn, "1"},
 	{modules, []},
-	{registered, []},
+	{registered, [eventsource_sup]},
 	{applications, [
 		kernel,
 		stdlib,

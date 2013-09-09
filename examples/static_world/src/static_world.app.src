@@ -4,7 +4,7 @@
 	{description, "Cowboy static file handler example."},
 	{vsn, "1"},
 	{modules, []},
-	{registered, []},
+	{registered, [static_world_sup]},
 	{applications, [
 		kernel,
 		stdlib,

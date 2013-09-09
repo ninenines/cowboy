@@ -4,7 +4,7 @@
 	{description, "Cowboy Hello World example with SSL."},
 	{vsn, "1"},
 	{modules, []},
-	{registered, []},
+	{registered, [ssl_hello_world_sup]},
 	{applications, [
 		kernel,
 		stdlib,

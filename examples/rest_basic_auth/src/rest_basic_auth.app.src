@@ -4,7 +4,7 @@
 	{description, "Cowboy Basic HTTP Authorization example."},
 	{vsn, "1"},
 	{modules, []},
-	{registered, []},
+	{registered, [rest_basic_auth_sup]},
 	{applications, [
 		kernel,
 		stdlib,

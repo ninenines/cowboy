@@ -4,7 +4,7 @@
 	{description, "Cowboy REST with streaming."},
 	{vsn, "1"},
 	{modules, []},
-	{registered, []},
+	{registered, [rest_stream_response_sup]},
 	{applications, [
 		kernel,
 		stdlib,
