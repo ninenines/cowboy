@@ -33,5 +33,4 @@ valid_path([<<"/", _/binary>> | _T]) -> false;
 valid_path([_H | Rest]) -> valid_path(Rest).
 
 resource_path(Path) ->
-	{ok, Cwd} = file:get_cwd(),
-	filename:join([Cwd, "priv", Path]).
+	filename:join([code:priv_dir(web_server), Path]).

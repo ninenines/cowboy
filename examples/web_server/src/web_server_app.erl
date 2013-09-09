@@ -16,7 +16,12 @@ start(_Type, _Args) ->
 			{"/[...]", cowboy_static, [
 				{directory, {priv_dir, web_server, []}},
 				{dir_handler, directory_handler},
-				{mimetypes, {fun mimetypes:path_to_mimes/2, default}}
+				{mimetypes, [
+					{<<".html">>, [<<"text/html">>]},
+					{<<".txt">>, [<<"text/plain">>]},
+					{<<".mp4">>, [<<"video/mp4">>]},
+					{<<".ogv">>, [<<"video/ogg">>]}
+				]}
 			]}
 		]}
 	]),
