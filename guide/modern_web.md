@@ -199,8 +199,10 @@ the size of requests.
 SPDY is compatible with HTTP/1.1 semantics, and is actually
 just a different way of performing HTTP requests and responses,
 by using binary frames instead of a text-based protocol.
-SPDY also allows the server to send responses without needing
-a request to exist, essentially enabling server push.
+SPDY also allows the server to send extra responses following
+a request. This is meant to allow sending the resources
+associated with the request before the client requests them,
+saving latency when loading websites.
 
 SPDY is an experiment that has proven successful and is used
 as the basis for the HTTP/2.0 standard.
