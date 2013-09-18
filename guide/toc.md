@@ -17,7 +17,6 @@ HTTP
 ----
 
  *  [The life of a request](http_req_life.md)
-<!-- you are here -->
  *  [Routing](routing.md)
  *  [Handling plain HTTP requests](http_handlers.md)
  *  [The Req object](req.md)
