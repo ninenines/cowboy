@@ -1,9 +1,6 @@
 Routing
 =======
 
-Purpose
--------
-
 Cowboy does nothing by default.
 
 To make Cowboy useful, you need to map URLs to Erlang modules that will

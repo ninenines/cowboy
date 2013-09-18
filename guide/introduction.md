@@ -1,9 +1,6 @@
 Introduction
 ============
 
-Purpose
--------
-
 Cowboy is a small, fast and modular HTTP server written in Erlang.
 
 Cowboy aims to provide a complete HTTP stack, including its derivatives
