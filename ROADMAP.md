@@ -6,8 +6,8 @@ list of planned changes and work to be done on the Cowboy
 server. It is intended to be exhaustive but some elements
 might still be missing.
 
-All the following items must be done before Cowboy 1.0 is
-released.
+1.0
+---
 
  *  Parse support for all standard HTTP/1.1 headers
 
@@ -17,12 +17,6 @@ released.
     information, similar to PHP's $_GET, $_POST and $_FILES
 
  *  Add Range support to REST
-
- *  SPDY support
-
-    We are only interested in supporting existing
-    implementations, not the full protocol, as this
-    protocol has been abandoned in favor of HTTP/2.0
 
  *  Complete the user guide
 
@@ -39,3 +33,8 @@ The following items pertain to Ranch, but are equally important.
     checking if its name is 'ssl'. This isn't a very modular
     solution,  adding an API function that returns whether
     a connection is secure would fix that issue
+
+2.0
+---
+
+ *  Support for HTTP/2.0
