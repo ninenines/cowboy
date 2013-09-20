@@ -26,11 +26,14 @@
 -module(cowboy_middleware).
 
 -type env() :: [{atom(), any()}].
--export_type([env/0]).
+-type response() :: {ok, cowboy_req:req(), env()}
+  | {suspend, module(), atom(), [any()]}
+  | {halt, cowboy_req:req()}
+  | {error, cowboy:http_status(), cowboy_req:req()}.
+-type middleware() :: fun((cowboy_req:req(), env()) -> response()).
 
--callback execute(Req, Env)
-	-> {ok, Req, Env}
-	| {suspend, module(), atom(), [any()]}
-	| {halt, Req}
-	| {error, cowboy:http_status(), Req}
+-export_type([env/0]).
+-export_type([middleware/0]).
+
+-callback execute(Req, Env) -> response()
 	when Req::cowboy_req:req(), Env::env().

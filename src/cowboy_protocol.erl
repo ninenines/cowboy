@@ -64,7 +64,7 @@
 	| {max_headers, non_neg_integer()}
 	| {max_keepalive, non_neg_integer()}
 	| {max_request_line_length, non_neg_integer()}
-	| {middlewares, [module()]}
+	| {middlewares, [module() | cowboy_middleware:middleware()]}
 	| {onrequest, cowboy:onrequest_fun()}
 	| {onresponse, cowboy:onresponse_fun()}
 	| {timeout, timeout()}].
@@ -73,7 +73,7 @@
 -record(state, {
 	socket :: inet:socket(),
 	transport :: module(),
-	middlewares :: [module()],
+	middlewares :: [module() | cowboy_middleware:middleware()],
 	compress :: boolean(),
 	env :: cowboy_middleware:env(),
 	onrequest :: undefined | cowboy:onrequest_fun(),
@@ -521,26 +521,29 @@ onrequest(Req, State=#state{onrequest=OnRequest}) ->
 execute(Req, State=#state{middlewares=Middlewares, env=Env}) ->
 	execute(Req, State, Env, Middlewares).
 
--spec execute(cowboy_req:req(), #state{}, cowboy_middleware:env(), [module()])
-	-> ok.
+-spec execute(cowboy_req:req(), #state{}, cowboy_middleware:env(),
+	[module() | cowboy_middleware:middleware()]) -> ok.
 execute(Req, State, Env, []) ->
 	next_request(Req, State, get_value(result, Env, ok));
+execute(Req, State, Env, [Middleware|Tail]) when is_function(Middleware) ->
+	handle_execution(Req, State, Env, Tail, Middleware(Req, Env));
 execute(Req, State, Env, [Middleware|Tail]) ->
-	case Middleware:execute(Req, Env) of
-		{ok, Req2, Env2} ->
-			execute(Req2, State, Env2, Tail);
-		{suspend, Module, Function, Args} ->
-			erlang:hibernate(?MODULE, resume,
-				[State, Env, Tail, Module, Function, Args]);
-		{halt, Req2} ->
-			next_request(Req2, State, ok);
-		{error, Code, Req2} ->
-			error_terminate(Code, Req2, State)
-	end.
+	handle_execution(Req, State, Env, Tail, Middleware:execute(Req, Env)).
+
+handle_execution(_Req, State, _Env, Tail, {ok, Req2, Env2}) ->
+	execute(Req2, State, Env2, Tail);
+handle_execution(_Req, State, Env, Tail, {suspend, Module, Function, Args}) ->
+	erlang:hibernate(?MODULE, resume,
+		[State, Env, Tail, Module, Function, Args]);
+handle_execution(_Req, State, _Env, _Tail, {halt, Req2}) ->
+	next_request(Req2, State, ok);
+handle_execution(_Req, State, _Env, _Tail, {error, Code, Req2}) ->
+	error_terminate(Code, Req2, State).
 
 %% @private
--spec resume(#state{}, cowboy_middleware:env(), [module()],
-	module(), module(), [any()]) -> ok.
+-spec resume(#state{}, cowboy_middleware:env(),
+	[module() | cowboy_middleware:middleware()], module(), module(), [any()])
+	-> ok.
 resume(State, Env, Tail, Module, Function, Args) ->
 	case apply(Module, Function, Args) of
 		{ok, Req2, Env2} ->
