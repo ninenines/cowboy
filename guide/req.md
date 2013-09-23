@@ -1,204 +1,298 @@
-Request object
+The Req object
 ==============
 
-Purpose
--------
+The Req object is this variable that you will use to obtain
+information about a request, read the body of the request
+and send a response.
 
-The request object is a special variable that can be used
-to interact with a request, extracting information from it
-or modifying it, and sending a response.
+A special variable
+------------------
 
-It's a special variable because it contains both immutable
-and mutable state. This means that some operations performed
-on the request object will always return the same result,
-while others will not. For example, obtaining request headers
-can be repeated safely. Obtaining the request body can only
-be done once, as it is read directly from the socket.
+While we call it an "object", it is not an object in the
+OOP sense of the term. In fact it is completely opaque
+to you and the only way you can perform operations using
+it is by calling the functions from the `cowboy_req`
+module.
 
-With few exceptions, all calls to the `cowboy_req` module
-will return an updated request object. You MUST use the new
-request object instead of the old one for all subsequent
-operations.
+Almost all the calls to the `cowboy_req` module will
+return an updated request object. Just like you would
+keep the updated `State` variable in a gen_server,
+you MUST keep the updated `Req` variable in a Cowboy
+handler. Cowboy will use this object to know whether
+a response has been sent when the handler has finished
+executing.
+
+The Req object allows accessing both immutable and
+mutable state. This means that calling some of the
+functions twice will not produce the same result.
+For example, when streaming the request body, the
+function will return the body by chunks, one at a
+time, until there is none left.
+
+It also caches the result of operations performed
+on the immutable state. That means that some calls
+will give a result much faster when called many times.
+
+Overview of the cowboy_req interface
+------------------------------------
+
+The `cowboy_req` interface is divided in four groups
+of functions, each having a well defined return type
+signature common to the entire group.
+
+The first group, access functions, will always return
+`{Value, Req}`. The group includes all the following
+functions: `binding/{2,3}`, `bindings/1`, `body_length/1`,
+`cookie/{2,3}`, `cookies/1`, `header/{2,3}`, `headers/1`,
+`host/1`, `host_info/1`, `host_url/1`, `meta/{2,3}`,
+`method/1`, `path/1`, `path_info/1`, `peer/1`, `port/1`,
+`qs/1`, `qs_val/{2,3}`, `qs_vals/1`, `url/1`, `version/1`.
+
+The second group, question functions, will always return
+a `boolean()`. The group includes the following three
+functions: `has_body/1`, `has_resp_body/1`, `has_resp_header/2`.
+
+The third group contains the functions that manipulate
+the socket or perform operations that may legitimately fail.
+They may return `{Result, Req}`, `{Result, Value, Req}`
+or `{error, atom()}`. This includes the following functions:
+`body/{1,2}`, `body_qs/{1,2}`, `chunked_reply/{2,3}`,
+`init_stream/4`, `parse_header/{2,3}`, `reply/{2,3,4}`,
+`skip_body/1`, `stream_body/{1,2}`. Finally, the group
+also includes the `chunk/2` function which always returns
+`ok`.
+
+The final group modifies the Req object, so it always return
+a new `Req`. It includes the following functions: `compact/1`,
+`delete_resp_header/2`, `set_meta/3`, `set_resp_body/2`,
+`set_resp_body_fun/{2,3}`, `set_resp_cookie/4`, `set_resp_header/3`.
+
+This chapter covers most of the first group, plus a few other
+functions. The next few chapters cover cookies handling, reading
+the request body and sending a response.
 
 Request
 -------
 
-Cowboy allows you to retrieve a lot of information about
-the request. All these calls return a `{Value, Req}` tuple,
-with `Value` the requested value and `Req` the updated
-request object.
+When a client performs a request, it first sends a few required
+values. They are sent differently depending on the protocol
+being used, but the intent is the same. They indicate to the
+server the type of action it wants to do and how to locate
+the resource to perform it on.
 
-The following access functions are defined in `cowboy_req`:
+The method identifies the action. Standard methods include
+GET, HEAD, OPTIONS, PATCH, POST, PUT, DELETE. Method names
+are case sensitive.
 
- *  `method/1`: the request method (`<<"GET">>`, `<<"POST">>`...)
- *  `version/1`: the HTTP version (`'HTTP/1.0'` or `'HTTP/1.1'`)
- *  `peer/1`: the peer address and port number
- *  `host/1`: the hostname requested
- *  `host_info/1`: the result of the `[...]` match on the host
- *  `port/1`: the port number used for the connection
- *  `path/1`: the path requested
- *  `path_info/1`: the result of the `[...]` match on the path
- *  `qs/1`: the entire query string unmodified
- *  `qs_val/{2,3}`: the value for the requested query string key
- *  `qs_vals/1`: all key/values found in the query string
- *  `host_url/1`: the requested URL without the path and query string
- *  `url/1`: the requested URL
- *  `binding/{2,3}`: the value for the requested binding found during routing
- *  `bindings/1`: all key/values found during routing
- *  `header/{2,3}`: the value for the requested header name
- *  `headers/1`: all headers name/value
- *  `cookie/{2,3}`: the value for the requested cookie name
- *  `cookies/1`: all cookies name/value
- *  `meta/{2,3}`: the meta information for the requested key
+``` erlang
+{Method, Req2} = cowboy_req:method(Req).
+```
 
-All the functions above that can take two or three arguments
-take an optional third argument for the default value if
-none is found. Otherwise it will return `undefined`.
+The host, port and path parts of the URL identify the resource
+being accessed. The host and port information may not be
+available if the client uses HTTP/1.0.
 
-In addition, Cowboy allows you to parse headers using the
-`parse_header/{2,3}` function, which takes a header name
-as lowercase binary, the request object, and an optional
-default value. It returns `{ok, ParsedValue, Req}` if it
-could be parsed, `{undefined, RawValue, Req}` if Cowboy
-doesn't know this header, and `{error, badarg}` if Cowboy
-encountered an error while trying to parse it.
+``` erlang
+{Host, Req2} = cowboy_req:host(Req),
+{Port, Req3} = cowboy_req:port(Req2),
+{Path, Req4} = cowboy_req:path(Req3).
+```
 
-Finally, Cowboy allows you to set request meta information
-using the `set_meta/3` function, which takes a name, a value
-and the request object and returns the latter modified.
+The version used by the client can of course also be obtained.
 
-Request body
-------------
+``` erlang
+{Version, Req2} = cowboy_req:version(Req).
+```
 
-Cowboy will not read the request body until you ask it to.
-If you don't, then Cowboy will simply discard it. It will
-not take extra memory space until you start reading it.
+Do note however that clients claiming to implement one version
+of the protocol does not mean they implement it fully, or even
+properly.
 
-Cowboy has a few utility functions for dealing with the
-request body.
-
-The function `has_body/1` will return whether the request
-contains a body. Note that some clients may not send the
-right headers while still sending a body, but as Cowboy has
-no way of detecting it this function will return `false`.
-
-The function `body_length/1` retrieves the size of the
-request body. If the body is compressed, the value returned
-here is the compressed size. If a `Transfer-Encoding` header
-was passed in the request, then Cowboy will return a size
-of `undefined`, as it has no way of knowing it.
-
-If you know the request contains a body, and that it is
-within 8MB (for `body/1`) or 16KB (for `body_qs/1`) bytes,
-then you can read it directly with either `body/1` or `body_qs/1`.
-If you want to override the default size limits of `body/1`
-or `body_qs/1`, you can pass the maximum body length byte
-size as first parameter to `body/2` and `body_qs/2` or pass
-atom `infinity` to ignore size limits.
-
-If the request contains bigger body than allowed default sizes
-or supplied maximum body length, `body/1`, `body/2`, `body_qs/1`
-and `body_qs/2` will return `{error, badlength}`. If the request
-contains chunked body, `body/1`, `body/2`, `body_qs/1`
-and `body_qs/2` will return `{error, chunked}`.
-If you get either of the above two errors, you will want to
-handle the body of the request using `stream_body/1`,
-`stream_body/2` and `skip_body/1`, with the streaming process
-optionally initialized using `init_stream/4`.
-
-Multipart request body
-----------------------
-
-Cowboy provides facilities for dealing with multipart bodies.
-They are typically used for uploading files. You can use two
-functions to process these bodies, `multipart_data/1` and
-`multipart_skip/1`.
-
-Response
+Bindings
 --------
 
-You can send a response by calling the `reply/{2,3,4}` function.
-It takes the status code for the response (usually `200`),
-an optional list of headers, an optional body and the request
-object.
+After routing the request, bindings are available. Bindings
+are these parts of the host or path that you chose to extract
+when defining the routes of your application.
 
-The following snippet sends a simple response with no headers
-specified but with a body.
+You can fetch a single binding. The value will be `undefined`
+if the binding doesn't exist.
 
 ``` erlang
-{ok, Req2} = cowboy_req:reply(200, [], "Hello world!", Req).
+{Binding, Req2} = cowboy_req:binding(my_binding, Req).
 ```
 
-If this is the only line in your handler then make sure to return
-the `Req2` variable to Cowboy so it can know you replied.
-
-If you want to send HTML you'll need to specify the `Content-Type`
-header so the client can properly interpret it.
+If you need a different value when the binding doesn't exist,
+you can change the default.
 
 ``` erlang
-{ok, Req2} = cowboy_req:reply(200,
-    [{<<"content-type">>, <<"text/html">>}],
-	"<html><head>Hello world!</head><body><p>Hats off!</p></body></html>",
-	Req).
+{Binding, Req2} = cowboy_req:binding(my_binding, Req, 42).
 ```
 
-You only need to make sure to follow conventions and to use a
-lowercase header name.
-
-Chunked response
-----------------
-
-You can also send chunked responses using `chunked_reply/{2,3}`.
-Chunked responses allow you to send the body in chunks of various
-sizes. It is the recommended way of performing streaming if the
-client supports it.
-
-You must first initiate the response by calling the aforementioned
-function, then you can call `chunk/2` as many times as needed.
-The following snippet sends a body in three chunks.
+You can also obtain all bindings in one call. They will be
+returned as a list of key/value tuples.
 
 ``` erlang
-{ok, Req2} = cowboy_req:chunked_reply(200, Req),
-ok = cowboy_req:chunk("Hello...", Req2),
-ok = cowboy_req:chunk("chunked...", Req2),
-ok = cowboy_req:chunk("world!!", Req2).
+{AllBindings, Req2} = cowboy_req:bindings(Req).
 ```
 
-As you can see the call to `chunk/2` does not return a modified
-request object. It may return an error, however, so you should
-make sure that you match the return value on `ok`.
-
-Response preconfiguration
--------------------------
-
-Cowboy allows you to set response cookies, headers or body
-in advance without having to send the response at the same time.
-Then, when you decide to send it, all these informations will be
-built into the resulting response.
-
-Some of the functions available for this purpose also give you
-additional functionality, like `set_resp_cookie/4` which will build
-the appropriate `Set-Cookie` header, or `set_resp_body_fun/{2,3}`
-which allows you to stream the response body.
-
-Note that any value given directly to `reply/{2,3,4}` will
-override all preset values. This means for example that you
-can set a default body and then override it when you decide
-to send a reply.
-
-Closing the connection
-----------------------
-
-HTTP/1.1 keep-alive allows clients to send more than one request
-on the same connection. This can be useful for speeding up the
-loading of webpages, but is not required. You can tell Cowboy
-explicitly that you want to close the connection by setting the
-`Connection` header to `close`.
+If you used `...` at the beginning of the route's pattern
+for the host, you can retrieve the matched part of the host.
+The value will be `undefined` otherwise.
 
 ``` erlang
-{ok, Req2} = cowboy_req:reply(200,
-    [{<<"connection">>, <<"close">>}],
-    Req).
+{HostInfo, Req2} = cowboy_req:host_info(Req).
+```
+
+Similarly, if you used `...` at the end of the route's
+pattern for the path, you can retrieve the matched part,
+or get `undefined` otherwise.
+
+``` erlang
+{PathInfo, Req2} = cowboy_req:path_info(Req).
+```
+
+Query string
+------------
+
+The query string can be obtained directly.
+
+``` erlang
+{Qs, Req2} = cowboy_req:qs(Req).
+```
+
+You can also requests only one value.
+
+``` erlang
+{QsVal, Req2} = cowboy_req:qs_val(<<"lang">>, Req).
+```
+
+If that value is optional, you can define a default to simplify
+your task.
+
+``` erlang
+{QsVal, Req2} = cowboy_req:qs_val(<<"lang">>, Req, <<"en">>).
+```
+
+Finally, you can obtain all query string values.
+
+``` erlang
+{AllValues, Req2} = cowboy_req:qs_vals(Req).
+```
+
+Request URL
+-----------
+
+You can reconstruct the full URL of the resource.
+
+``` erlang
+{URL, Req2} = cowboy_req:url(Req).
+```
+
+You can also obtain only the base of the URL, excluding the
+path and query string.
+
+``` erlang
+{BaseURL, Req2} = cowboy_req:host_url(Req).
+```
+
+Headers
+-------
+
+Cowboy allows you to obtain the header values as string,
+or parsed into a more meaningful representation.
+
+This will get the string value of a header.
+
+``` erlang
+{HeaderVal, Req2} = cowboy_req:header(<<"content-type">>, Req).
+```
+
+You can of course set a default in case the header is missing.
+
+``` erlang
+{HeaderVal, Req2}
+    = cowboy_req:header(<<"content-type">>, Req, <<"text/plain">>).
+```
+
+And also obtain all headers.
+
+``` erlang
+{AllHeaders, Req2} = cowboy_req:headers(Req).
+```
+
+To parse the previous header, simply call `parse_header/{2,3}`
+where you would call `header/{2,3}` otherwise. Note that the
+return value changes and includes the result of the operation
+as the first element of the returned tuple. A successful parse
+returns `ok`.
+
+``` erlang
+{ok, ParsedVal, Req2} = cowboy_req:parse_header(<<"content-type">>, Req).
+```
+
+When Cowboy doesn't know how to parse the given header, the
+result of the operation will be `undefined` and the string value
+will be returned instead.
+
+``` erlang
+{undefined, HeaderVal, Req2}
+    = cowboy_req:parse_header(<<"unicorn-header">>, Req).
+```
+
+When parsing fails, `{error, Reason}` is returned instead.
+
+You can of course define a default value. Note that the default
+value you specify here is the parsed value you'd like to get
+by default.
+
+``` erlang
+{ok, ParsedVal, Req2}
+    = cowboy_req:parse_header(<<"content-type">>, Req,
+    {<<"text">>, <<"plain">>, []}).
+```
+
+The list of known headers and default values is defined in the
+manual. Also note that the result of parsing is cached, so
+calling this function multiple times for the same values will
+not have a significant performance impact.
+
+Meta
+----
+
+Cowboy will sometimes associate some meta information with
+the request. Built-in meta values are listed in the manual
+for their respective modules.
+
+This will get a meta value. The returned value will be `undefined`
+if it isn't defined.
+
+``` erlang
+{MetaVal, Req2} = cowboy_req:meta(websocket_version, Req).
+```
+
+You can change the default value if needed.
+
+``` erlang
+{MetaVal, Req2} = cowboy_req:meta(websocket_version, Req, 13).
+```
+
+You can also define your own meta values. The name must be
+an `atom()`.
+
+``` erlang
+Req2 = cowboy_req:set_meta(the_answer, 42, Req).
+```
+
+Peer
+----
+
+You can obtain the peer address and port number. This is
+not necessarily the actual IP and port of the client, but
+rather the one of the machine that connected to the server.
+
+``` erlang
+{{IP, Port}, Req2} = cowboy_req:peer(Req).
 ```
 
 Reducing the memory footprint
@@ -213,3 +307,5 @@ free memory.
 ``` erlang
 Req2 = cowboy_req:compact(Req).
 ```
+
+You will still be able to send a reply if needed.

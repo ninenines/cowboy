@@ -20,8 +20,9 @@ HTTP
  *  [Routing](routing.md)
  *  [Handling plain HTTP requests](http_handlers.md)
  *  [The Req object](req.md)
- *  Reading the request body
- *  Sending a response
+ *  [Reading the request body](req_body.md)
+ *  [Sending a response](resp.md)
+ *  [Using cookies](cookies.md)
 
 Static files
 ------------
