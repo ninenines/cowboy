@@ -185,6 +185,7 @@
 -export([generate_etag/2]).
 -export([content_types_provided/2]).
 -export([file_contents/2]).
+-export([charsets_provided/2]).
 
 %% internal
 -export([path_to_mimetypes/2]).
@@ -200,6 +201,7 @@
 -record(state, {
 	filepath  :: binary() | error,
 	fileinfo  :: {ok, #file_info{}} | {error, _} | error,
+        charset   :: undefined | [binary()],
 	mimetypes :: {fun((binary(), T) -> [mimedef()]), T} | undefined,
 	etag_fun  :: {fun(([etagarg()], T) ->
 		undefined | {strong | weak, binary()}), T}
@@ -247,8 +249,12 @@ rest_init(Req, Opts, Filepath) ->
 		{_, {attributes, Attrs}} -> {fun attr_etag_function/2, Attrs};
 		{_, EtagOpt} -> EtagOpt
 	end,
+        Charset = case lists:keyfind(charset, 1, Opts) of
+                false -> undefined;
+                {_, CS} when is_binary(CS) -> [CS]
+        end,
 	{ok, Req, #state{filepath=Filepath, fileinfo=Fileinfo,
-		mimetypes=Mimetypes, etag_fun=EtagFun}}.
+		mimetypes=Mimetypes, etag_fun=EtagFun, charset=Charset}}.
 
 %% @private Only allow GET and HEAD requests on files.
 -spec allowed_methods(Req, #state{})
@@ -329,6 +335,13 @@ file_contents(Req, #state{filepath=Filepath,
 		end
 	end,
 	{{stream, Filesize, Writefile}, Req, State}.
+
+%% @private Return the charset of a file.
+-spec charsets_provided(cowboy_req:req(), #state{}) -> no_call | tuple().
+charsets_provided(_Req, #state{charset=undefined}=_State) ->
+        no_call;
+charsets_provided(Req, #state{charset=Charset}=State) ->
+        {Charset, Req, State}.
 
 %% Internal.
 
