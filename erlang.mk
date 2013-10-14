@@ -24,7 +24,7 @@ export PKG_FILE
 PKG_FILE_URL ?= https://raw.github.com/extend/erlang.mk/master/packages.v1.tsv
 
 define get_pkg_file
-	wget -O $(PKG_FILE) $(PKG_FILE_URL)
+	wget -O $(PKG_FILE) $(PKG_FILE_URL) || rm $(PKG_FILE)
 endef
 
 # Verbosity and tweaks.
@@ -46,8 +46,35 @@ dtl_verbose = $(dtl_verbose_$(V))
 gen_verbose_0 = @echo " GEN   " $@;
 gen_verbose = $(gen_verbose_$(V))
 
-.PHONY: all clean-all app clean deps clean-deps docs clean-docs \
-	build-tests tests build-plt dialyze
+.PHONY: rel clean-rel all clean-all app clean deps clean-deps \
+	docs clean-docs build-tests tests build-plt dialyze
+
+# Release.
+
+RELX_CONFIG ?= $(CURDIR)/relx.config
+
+ifneq ($(wildcard $(RELX_CONFIG)),)
+
+RELX ?= $(CURDIR)/relx
+export RELX
+
+RELX_URL ?= https://github.com/erlware/relx/releases/download/0.4.0/relx
+
+define get_relx
+	wget -O $(RELX) $(RELX_URL) || rm $(RELX)
+	chmod +x $(RELX)
+endef
+
+rel: clean-rel all $(RELX)
+	@$(RELX)
+
+$(RELX):
+	@$(call get_relx)
+
+clean-rel:
+	@rm -rf _rel
+
+endif
 
 # Deps directory.
 

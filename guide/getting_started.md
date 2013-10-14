@@ -44,6 +44,7 @@ hello_erlang/
         hello_erlang_sup.beam
         hello_handler.beam
     _rel/
+    relx
 ```
 
 As you can probably guess, the `.app.src` file end up becoming
@@ -271,14 +272,11 @@ $ make
 ```
 
 That's not all however, as we want to create a working release.
-For that purpose we will need `relx`. You can download it directly
-[from Github](https://github.com/erlware/relx). After downloading
-it, you will need to build it using `make`, which should give
-you a `relx` executable that you can then put in your `$PATH`.
-You only need to do this once.
+For that purpose, we need to create a `relx.config` file. When
+this file exists, `erlang.mk` will automatically download `relx`
+and build the release when you type `make`.
 
-We are almost ready to build the release. All that's left is
-the `relx.config` file! In it, we only need to tell `relx` that
+In the `relx.config` file, we only need to tell `relx` that
 we want the release to include the `hello_erlang` application,
 and that we want an extended start script for convenience.
 `relx` will figure out which other applications are required
@@ -295,7 +293,7 @@ version, and the applications to be included.
 We can now build and start the release.
 
 ``` bash
-$ relx
+$ make
 $ ./_rel/bin/hello_erlang console
 ```
 
