@@ -54,7 +54,7 @@
 	%% Cached resource calls.
 	etag :: undefined | no_call | {strong | weak, binary()},
 	last_modified :: undefined | no_call | calendar:datetime(),
-	expires :: undefined | no_call | calendar:datetime()
+	expires :: undefined | no_call | 0 | calendar:datetime()
 }).
 
 %% @doc Upgrade a HTTP request to the REST protocol.
@@ -897,6 +897,10 @@ encode_etag({weak, Etag}) -> ["W/\"",Etag,$"].
 set_resp_expires(Req, State) ->
 	{Expires, Req2, State2} = expires(Req, State),
 	case Expires of
+		0 ->
+			Req3 = cowboy_req:set_resp_header(
+				<<"expires">>, <<"0">>, Req2),
+			{Req3, State2};
 		Expires when is_atom(Expires) ->
 			{Req2, State2};
 		Expires ->

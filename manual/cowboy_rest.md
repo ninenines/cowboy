@@ -272,7 +272,7 @@ REST callbacks description
 ### expires
 
 >  *  Methods: GET, HEAD
->  *  Value type: calendar:datetime() | undefined
+>  *  Value type: calendar:datetime() | 0 | undefined
 >  *  Default value: undefined
 >
 > Return the date of expiration of the resource.
