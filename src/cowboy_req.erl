@@ -1297,7 +1297,11 @@ response(Status, Headers, RespHeaders, DefaultHeaders, Body, Req=#http_req{
 		socket=Socket, transport=Transport, version=Version,
 		pid=ReqPid, onresponse=OnResponse}) ->
 	FullHeaders = case OnResponse of
-		already_called -> Headers;
+		already_called ->
+			case RespHeaders of
+				[] -> Headers;
+				_ -> response_merge_headers(Headers, RespHeaders, [])
+			end;
 		_ -> response_merge_headers(Headers, RespHeaders, DefaultHeaders)
 	end,
 	Body2 = case Body of stream -> <<>>; _ -> Body end,
@@ -1307,7 +1311,7 @@ response(Status, Headers, RespHeaders, DefaultHeaders, Body, Req=#http_req{
 		OnResponse ->
 			OnResponse(Status, FullHeaders, Body2,
 				%% Don't call 'onresponse' from the hook itself.
-				Req#http_req{resp_headers=[], resp_body= <<>>,
+				Req#http_req{resp_headers=[],
 					onresponse=already_called})
 	end,
 	ReplyType = case Req2#http_req.resp_state of
