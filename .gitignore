@@ -9,4 +9,5 @@ doc/*.png
 doc/edoc-info
 ebin
 logs
+relx
 test/*.beam
