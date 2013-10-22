@@ -1,8 +1,7 @@
 REST pastebin example
 =====================
 
-To try this example, you need GNU `make`, `git` and
-[relx](https://github.com/erlware/relx) in your PATH.
+To try this example, you need GNU `make` and `git` in your PATH.
 
 To build the example, run the following command:
 
