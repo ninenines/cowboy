@@ -22,8 +22,8 @@ maybe_generate_markdown(Path) ->
 	end.
 
 resource_path(Path) ->
-	{ok, Cwd} = file:get_cwd(),
-	filename:join([Cwd, "priv", Path]).
+	PrivDir = code:priv_dir(markdown_middleware),
+	filename:join([PrivDir, Path]).
 
 source_path(Path) ->
 	<< (filename:rootname(Path))/binary, ".md" >>.

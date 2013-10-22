@@ -15,7 +15,11 @@ start(_Type, _Args) ->
 		{'_', [
 			{"/[...]", cowboy_static, [
 				{directory, {priv_dir, markdown_middleware, []}},
-				{mimetypes, {fun mimetypes:path_to_mimes/2, default}}
+				{mimetypes, [
+					{<<".html">>, [<<"text/html">>]},
+					{<<".mp4">>, [<<"video/mp4">>]},
+					{<<".ogv">>, [<<"video/ogg">>]}
+				]}
 			]}
 		]}
 	]),
