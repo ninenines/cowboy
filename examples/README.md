@@ -1,4 +1,4 @@
-Cowboy Examples
+Cowboy examples
 ===============
 
  *  [chunked_hello_world](./chunked_hello_world):
@@ -15,9 +15,6 @@ Cowboy Examples
 
  *  [echo_post](./echo_post):
     parse and echo a POST parameter
-
- *  [elixir_hello_world](./elixir_hello_world):
-    simplest example application with Elixir
 
  *  [error_hook](./error_hook):
     provide custom error pages
