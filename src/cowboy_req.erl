@@ -115,10 +115,7 @@
 -export([lock/1]).
 -export([to_list/1]).
 
--type cookie_option() :: {max_age, non_neg_integer()}
-	| {domain, binary()} | {path, binary()}
-	| {secure, boolean()} | {http_only, boolean()}.
--type cookie_opts() :: [cookie_option()].
+-type cookie_opts() :: cow_cookie:cookie_opts().
 -export_type([cookie_opts/0]).
 
 -type content_decode_fun() :: fun((binary())
@@ -430,7 +427,7 @@ parse_header(Name = <<"content-length">>, Req, Default) ->
 parse_header(Name = <<"content-type">>, Req, Default) ->
 	parse_header(Name, Req, Default, fun cowboy_http:content_type/1);
 parse_header(Name = <<"cookie">>, Req, Default) ->
-	parse_header(Name, Req, Default, fun cowboy_http:cookie_list/1);
+	parse_header(Name, Req, Default, fun cow_cookie:parse_cookie/1);
 parse_header(Name = <<"expect">>, Req, Default) ->
 	parse_header(Name, Req, Default,
 		fun (Value) ->
@@ -495,10 +492,7 @@ cookie(Name, Req=#http_req{cookies=undefined}, Default) when is_binary(Name) ->
 		{ok, undefined, Req2} ->
 			{Default, Req2#http_req{cookies=[]}};
 		{ok, Cookies, Req2} ->
-			cookie(Name, Req2#http_req{cookies=Cookies}, Default);
-		%% Flash player incorrectly sends an empty Cookie header.
-		{error, badarg} ->
-			{Default, Req#http_req{cookies=[]}}
+			cookie(Name, Req2#http_req{cookies=Cookies}, Default)
 	end;
 cookie(Name, Req, Default) ->
 	case lists:keyfind(Name, 1, Req#http_req.cookies) of
@@ -854,7 +848,7 @@ multipart_skip(Req) ->
 -spec set_resp_cookie(iodata(), iodata(), cookie_opts(), Req)
 	-> Req when Req::req().
 set_resp_cookie(Name, Value, Opts, Req) ->
-	Cookie = cowboy_http:cookie_to_iodata(Name, Value, Opts),
+	Cookie = cow_cookie:setcookie(Name, Value, Opts),
 	set_resp_header(<<"set-cookie">>, Cookie, Req).
 
 %% @doc Add a header to the response.
