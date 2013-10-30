@@ -355,13 +355,13 @@ bindings(Req) ->
 %% @equiv header(Name, Req, undefined)
 -spec header(binary(), Req)
 	-> {binary() | undefined, Req} when Req::req().
-header(Name, Req) ->
+header(Name, Req) when is_binary(Name) ->
 	header(Name, Req, undefined).
 
 %% @doc Return the header value for the given key, or a default if missing.
 -spec header(binary(), Req, Default)
 	-> {binary() | Default, Req} when Req::req(), Default::any().
-header(Name, Req, Default) ->
+header(Name, Req, Default) when is_binary(Name) ->
 	case lists:keyfind(Name, 1, Req#http_req.headers) of
 		{Name, Value} -> {Value, Req};
 		false -> {Default, Req}
