@@ -14,11 +14,7 @@ start(_Type, _Args) ->
 	Dispatch = cowboy_router:compile([
 		{'_', [
 			{"/eventsource", eventsource_handler, []},
-			{"/", cowboy_static, [
-				{directory, {priv_dir, eventsource, []}},
-				{file, <<"index.html">>},
-				{mimetypes, [{<<".html">>, [<<"text/html">>]}]}
-			]}
+			{"/", cowboy_static, {priv_file, eventsource, "index.html"}}
 		]}
 	]),
 	{ok, _} = cowboy:start_http(http, 100, [{port, 8080}], [

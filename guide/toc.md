@@ -27,8 +27,9 @@ HTTP
 Static files
 ------------
 
- *  [Static handlers](static_handlers.md)
+ *  [Static handler](static_handlers.md)
  *  Distributed CDN solutions
+ *  Efficiently serving files
 
 REST
 ----

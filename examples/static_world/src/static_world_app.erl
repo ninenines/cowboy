@@ -13,15 +13,8 @@
 start(_Type, _Args) ->
 	Dispatch = cowboy_router:compile([
 		{'_', [
-			{"/[...]", cowboy_static, [
-				{directory, {priv_dir, static_world, []}},
-				{mimetypes, [
-					{<<".html">>, [<<"text/html">>]},
-					{<<".txt">>, [<<"text/plain">>]},
-					{<<".mp4">>, [<<"video/mp4">>]},
-					{<<".ogv">>, [<<"video/ogg">>]}
-				]}
-			]} 
+			{"/[...]", cowboy_static, {priv_dir, static_world, "",
+				[{mimetypes, cow_mimetypes, all}]}}
 		]}
 	]),
 	{ok, _} = cowboy:start_http(http, 100, [{port, 8080}], [

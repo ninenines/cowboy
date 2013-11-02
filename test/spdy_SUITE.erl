@@ -86,8 +86,7 @@ init_dispatch(Config) ->
 	cowboy_router:compile([
 		{"localhost", [
 			{"/static/[...]", cowboy_static,
-				[{directory, ?config(static_dir, Config)},
-				 {mimetypes, [{<<".css">>, [<<"text/css">>]}]}]},
+				{dir, ?config(static_dir, Config)}},
 			{"/echo/body", http_echo_body, []},
 			{"/chunked", http_chunked, []},
 			{"/", http_handler, []}

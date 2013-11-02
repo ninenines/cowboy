@@ -25,6 +25,10 @@
 -export([init_per_group/2]).
 -export([end_per_group/2]).
 
+%% Callbacks.
+-export([etag_gen/3]).
+-export([mimetypes_text_html/1]).
+
 %% Tests.
 -export([check_raw_status/1]).
 -export([check_status/1]).
@@ -369,23 +373,18 @@ init_dispatch(Config) ->
 					{reply, set_resp_chunked},
 					{body, [<<"stream_body">>, <<"_set_resp_chunked">>]}]},
 			{"/static/[...]", cowboy_static,
-				[{directory, ?config(static_dir, Config)},
-				 {mimetypes, [{<<".css">>, [<<"text/css">>]}]}]},
+				{dir, ?config(static_dir, Config)}},
 			{"/static_mimetypes_function/[...]", cowboy_static,
-				[{directory, ?config(static_dir, Config)},
-				 {mimetypes, {fun(Path, data) when is_binary(Path) ->
-					[<<"text/html">>] end, data}}]},
+				{dir, ?config(static_dir, Config),
+					[{mimetypes, ?MODULE, mimetypes_text_html}]}},
 			{"/handler_errors", http_errors, []},
 			{"/static_attribute_etag/[...]", cowboy_static,
-				[{directory, ?config(static_dir, Config)},
-				 {etag, {attributes, [filepath, filesize, inode, mtime]}}]},
+				{dir, ?config(static_dir, Config)}},
 			{"/static_function_etag/[...]", cowboy_static,
-				[{directory, ?config(static_dir, Config)},
-				 {etag, {fun static_function_etag/2, etag_data}}]},
-			{"/static_specify_file/[...]",  cowboy_static,
-				[{directory, ?config(static_dir, Config)},
-				 {mimetypes, [{<<".css">>, [<<"text/css">>]}]},
-				 {file, <<"style.css">>}]},
+				{dir, ?config(static_dir, Config),
+					[{etag, ?MODULE, etag_gen}]}},
+			{"/static_specify_file/[...]", cowboy_static,
+				{file, ?config(static_dir, Config) ++ "/style.css"}},
 			{"/multipart", http_multipart, []},
 			{"/echo/body", http_echo_body, []},
 			{"/echo/body_qs", http_body_qs, []},
@@ -409,6 +408,12 @@ init_dispatch(Config) ->
 			{"/", http_handler, []}
 		]}
 	]).
+
+etag_gen(_, _, _) ->
+	{strong, <<"etag">>}.
+
+mimetypes_text_html(_) ->
+	<<"text/html">>.
 
 %% Convenience functions.
 
@@ -1174,16 +1179,6 @@ static_function_etag(Config) ->
 	{<<"etag">>, ETag2} = lists:keyfind(<<"etag">>, 1, Headers2),
 	false = ETag1 =:= undefined,
 	ETag1 = ETag2.
-
-%% Callback function for generating the ETag for the above test.
-static_function_etag(Arguments, etag_data) ->
-	{_, Filepath} = lists:keyfind(filepath, 1, Arguments),
-	{_, _Filesize} = lists:keyfind(filesize, 1, Arguments),
-	{_, _INode} = lists:keyfind(inode, 1, Arguments),
-	{_, _Modified} = lists:keyfind(mtime, 1, Arguments),
-	ChecksumCommand = lists:flatten(io_lib:format("sha1sum ~s", [Filepath])),
-	[Checksum|_] = string:tokens(os:cmd(ChecksumCommand), " "),
-	{strong, iolist_to_binary(Checksum)}.
 
 static_mimetypes_function(Config) ->
 	Client = ?config(client, Config),
