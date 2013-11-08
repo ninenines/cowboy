@@ -49,7 +49,6 @@
 -export([urldecode/2]).
 -export([urlencode/1]).
 -export([urlencode/2]).
--export([x_www_form_urlencoded/1]).
 
 %% Parsing.
 
@@ -1037,16 +1036,6 @@ tohexu(C) when C < 17 -> $A + C - 10.
 tohexl(C) when C < 10 -> $0 + C;
 tohexl(C) when C < 17 -> $a + C - 10.
 
--spec x_www_form_urlencoded(binary()) -> list({binary(), binary() | true}).
-x_www_form_urlencoded(<<>>) ->
-	[];
-x_www_form_urlencoded(Qs) ->
-	Tokens = binary:split(Qs, <<"&">>, [global, trim]),
-	[case binary:split(Token, <<"=">>) of
-		[Token] -> {urldecode(Token), true};
-		[Name, Value] -> {urldecode(Name), urldecode(Value)}
-	end || Token <- Tokens].
-
 %% Tests.
 
 -ifdef(TEST).
@@ -1226,20 +1215,6 @@ digits_test_() ->
 		{<<"1337">>, 1337}
 	],
 	[{V, fun() -> R = digits(V) end} || {V, R} <- Tests].
-
-x_www_form_urlencoded_test_() ->
-	%% {Qs, Result}
-	Tests = [
-		{<<"">>, []},
-		{<<"a=b">>, [{<<"a">>, <<"b">>}]},
-		{<<"aaa=bbb">>, [{<<"aaa">>, <<"bbb">>}]},
-		{<<"a&b">>, [{<<"a">>, true}, {<<"b">>, true}]},
-		{<<"a=b&c&d=e">>, [{<<"a">>, <<"b">>},
-			{<<"c">>, true}, {<<"d">>, <<"e">>}]},
-		{<<"a=b=c=d=e&f=g">>, [{<<"a">>, <<"b=c=d=e">>}, {<<"f">>, <<"g">>}]},
-		{<<"a+b=c+d">>, [{<<"a b">>, <<"c d">>}]}
-	],
-	[{Qs, fun() -> R = x_www_form_urlencoded(Qs) end} || {Qs, R} <- Tests].
 
 urldecode_test_() ->
 	F = fun(Qs, O) ->

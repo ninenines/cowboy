@@ -279,7 +279,7 @@ qs_val(Name, Req) when is_binary(Name) ->
 	-> {binary() | true | Default, Req} when Req::req(), Default::any().
 qs_val(Name, Req=#http_req{qs=RawQs, qs_vals=undefined}, Default)
 		when is_binary(Name) ->
-	QsVals = cowboy_http:x_www_form_urlencoded(RawQs),
+	QsVals = cow_qs:parse_qs(RawQs),
 	qs_val(Name, Req#http_req{qs_vals=QsVals}, Default);
 qs_val(Name, Req, Default) ->
 	case lists:keyfind(Name, 1, Req#http_req.qs_vals) of
@@ -290,7 +290,7 @@ qs_val(Name, Req, Default) ->
 %% @doc Return the full list of query string values.
 -spec qs_vals(Req) -> {list({binary(), binary() | true}), Req} when Req::req().
 qs_vals(Req=#http_req{qs=RawQs, qs_vals=undefined}) ->
-	QsVals = cowboy_http:x_www_form_urlencoded(RawQs),
+	QsVals = cow_qs:parse_qs(RawQs),
 	qs_vals(Req#http_req{qs_vals=QsVals});
 qs_vals(Req=#http_req{qs_vals=QsVals}) ->
 	{QsVals, Req}.
@@ -776,7 +776,7 @@ body_qs(Req) ->
 body_qs(MaxBodyLength, Req) ->
 	case body(MaxBodyLength, Req) of
 		{ok, Body, Req2} ->
-			{ok, cowboy_http:x_www_form_urlencoded(Body), Req2};
+			{ok, cow_qs:parse_qs(Body), Req2};
 		{error, Reason} ->
 			{error, Reason}
 	end.
