@@ -164,7 +164,7 @@
 
 	%% Response.
 	resp_compress = false :: boolean(),
-	resp_state = waiting :: locked | waiting | chunks | done,
+	resp_state = waiting :: locked | waiting | waiting_stream | chunks | streamed | done,
 	resp_headers = [] :: cowboy:http_headers(),
 	resp_body = <<>> :: iodata() | resp_body_fun()
 		| {non_neg_integer(), resp_body_fun()}
@@ -946,7 +946,10 @@ reply(Status, Headers, Body, Req=#http_req{
 		socket=Socket, transport=Transport,
 		version=Version, connection=Connection,
 		method=Method, resp_compress=Compress,
-		resp_state=waiting, resp_headers=RespHeaders}) ->
+		resp_state=RespState, resp_headers=RespHeaders}) 
+	when RespState =:= waiting;
+		RespState =:= waiting_stream ->
+
 	HTTP11Headers = if
 		Transport =/= cowboy_spdy, Version =:= 'HTTP/1.1' ->
 			[{<<"connection">>, atom_to_connection(Connection)}];
@@ -1085,8 +1088,10 @@ chunk(_Data, #http_req{method= <<"HEAD">>}) ->
 chunk(Data, #http_req{socket=Socket, transport=cowboy_spdy,
 		resp_state=chunks}) ->
 	cowboy_spdy:stream_data(Socket, Data);
-chunk(Data, #http_req{socket=Socket, transport=Transport,
-		resp_state=chunks, version='HTTP/1.0'}) ->
+chunk(Data, #http_req{socket=Socket, transport=Transport, 
+		version=Version, resp_state=RespState}) 
+	when Version=:='HTTP/1.0';
+		RespState=:=streamed ->
 	Transport:send(Socket, Data);
 chunk(Data, #http_req{socket=Socket, transport=Transport,
 		resp_state=chunks}) ->
@@ -1136,16 +1141,18 @@ ensure_response(#http_req{resp_state=done}, _) ->
 	ok;
 %% No response has been sent but everything apparently went fine.
 %% Reply with the status code found in the second argument.
-ensure_response(Req=#http_req{resp_state=waiting}, Status) ->
+ensure_response(Req=#http_req{resp_state=RespState}, Status)
+	when RespState =:= waiting;
+		RespState =:= waiting_stream ->
 	_ = reply(Status, [], [], Req),
 	ok;
 %% Terminate the chunked body for HTTP/1.1 only.
-ensure_response(#http_req{method= <<"HEAD">>, resp_state=chunks}, _) ->
-	ok;
-ensure_response(#http_req{version='HTTP/1.0', resp_state=chunks}, _) ->
+ensure_response(#http_req{method= <<"HEAD">>}, _) ->
 	ok;
 ensure_response(Req=#http_req{resp_state=chunks}, _) ->
 	_ = last_chunk(Req),
+	ok;
+ensure_response(#http_req{}, _) ->
 	ok.
 
 %% Private setter/getter API.
@@ -1269,19 +1276,25 @@ chunked_response(Status, Headers, Req=#http_req{
 		resp_headers=[], resp_body= <<>>}};
 chunked_response(Status, Headers, Req=#http_req{
 		version=Version, connection=Connection,
-		resp_state=waiting, resp_headers=RespHeaders}) ->
+		resp_state=RespState, resp_headers=RespHeaders}) 
+	when RespState =:= waiting;
+		RespState =:= waiting_stream ->
 	RespConn = response_connection(Headers, Connection),
-	HTTP11Headers = case Version of
-		'HTTP/1.1' -> [
-			{<<"connection">>, atom_to_connection(Connection)},
-			{<<"transfer-encoding">>, <<"chunked">>}];
-		_ -> []
+	{HTTP11Headers, NewRespState} = case {Version, RespState} of
+		{'HTTP/1.1', waiting} -> {[
+					{<<"connection">>, atom_to_connection(Connection)},
+					{<<"transfer-encoding">>, <<"chunked">>}
+				], chunks};
+		{'HTTP/1.1', waiting_stream} -> {[
+				  	{<<"connection">>, atom_to_connection(Connection)}
+				],streamed};
+		_ -> {[], streamed}
 	end,
 	{RespType, Req2} = response(Status, Headers, RespHeaders, [
 		{<<"date">>, cowboy_clock:rfc1123()},
 		{<<"server">>, <<"Cowboy">>}
 	|HTTP11Headers], <<>>, Req),
-	{RespType, Req2#http_req{connection=RespConn, resp_state=chunks,
+	{RespType, Req2#http_req{connection=RespConn, resp_state=NewRespState,
 			resp_headers=[], resp_body= <<>>}}.
 
 -spec response(cowboy:http_status(), cowboy:http_headers(),
@@ -1304,6 +1317,7 @@ response(Status, Headers, RespHeaders, DefaultHeaders, Body, Req=#http_req{
 				Req#http_req{resp_headers=[], resp_body= <<>>,
 					onresponse=already_called})
 	end,
+
 	ReplyType = case Req2#http_req.resp_state of
 		waiting when Transport =:= cowboy_spdy, Body =:= stream ->
 			cowboy_spdy:stream_reply(Socket, status(Status), FullHeaders),
@@ -1313,7 +1327,8 @@ response(Status, Headers, RespHeaders, DefaultHeaders, Body, Req=#http_req{
 			cowboy_spdy:reply(Socket, status(Status), FullHeaders, Body),
 			ReqPid ! {?MODULE, resp_sent},
 			normal;
-		waiting ->
+		WaitingState when WaitingState =:= waiting;
+				WaitingState =:= waiting_stream ->
 			HTTPVer = atom_to_binary(Version, latin1),
 			StatusLine = << HTTPVer/binary, " ",
 				(status(Status))/binary, "\r\n" >>,
@@ -1361,7 +1376,7 @@ response_merge_headers(Headers, RespHeaders, DefaultHeaders) ->
 merge_headers(Headers, []) ->
 	Headers;
 merge_headers(Headers, [{<<"set-cookie">>, Value}|Tail]) ->
-  merge_headers([{<<"set-cookie">>, Value}|Headers], Tail);
+	merge_headers([{<<"set-cookie">>, Value}|Headers], Tail);
 merge_headers(Headers, [{Name, Value}|Tail]) ->
 	Headers2 = case lists:keymember(Name, 1, Headers) of
 		true -> Headers;
