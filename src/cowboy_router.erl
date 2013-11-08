@@ -92,7 +92,9 @@ compile_paths([{<< $/, PathMatch/binary >>, Constraints, Handler, Opts}|Tail],
 		Acc) ->
 	PathRules = compile_rules(PathMatch, $/, [], [], <<>>),
 	Paths = [{lists:reverse(R), Constraints, Handler, Opts} || R <- PathRules],
-	compile_paths(Tail, Paths ++ Acc).
+	compile_paths(Tail, Paths ++ Acc);
+compile_paths([{PathMatch, _, _, _}|_], _) ->
+  error({badarg, "route '" ++ binary_to_list(PathMatch) ++ "' did not start with the required /"}).
 
 compile_rules(<<>>, _, Segments, Rules, <<>>) ->
 	[Segments|Rules];
