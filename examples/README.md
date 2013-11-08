@@ -51,3 +51,8 @@ Cowboy examples
 
  *  [websocket](./websocket):
     websocket example
+
+Other languages
+---------------
+
+ *  [elixir](https://github.com/joshrotenberg/elixir_cowboy_examples)
