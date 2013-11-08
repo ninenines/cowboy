@@ -90,6 +90,7 @@
 -export([stream_body_set_resp_close/1]).
 -export([stream_body_set_resp_chunked/1]).
 -export([stream_body_set_resp_chunked10/1]).
+-export([streamed_response/1]).
 -export([te_chunked/1]).
 -export([te_chunked_chopped/1]).
 -export([te_chunked_delayed/1]).
@@ -167,6 +168,7 @@ groups() ->
 		stream_body_set_resp_close,
 		stream_body_set_resp_chunked,
 		stream_body_set_resp_chunked10,
+		streamed_response,
 		te_chunked,
 		te_chunked_chopped,
 		te_chunked_delayed,
@@ -352,6 +354,7 @@ init_dispatch(Config) ->
 	cowboy_router:compile([
 		{"localhost", [
 			{"/chunked_response", http_chunked, []},
+			{"/streamed_response", http_streamed, []},
 			{"/init_shutdown", http_init_shutdown, []},
 			{"/long_polling", http_long_polling, []},
 			{"/headers/dupe", http_handler,
@@ -1284,6 +1287,17 @@ stream_body_set_resp_chunked10(Config) ->
 			ok
 	end,
 	{error, closed} = Transport:recv(Socket, 0, 1000).
+
+streamed_response(Config) ->
+	Client = ?config(client, Config),
+	{ok, Client2} = cowboy_client:request(<<"GET">>,
+		build_url("/streamed_response", Config), Client),
+	{ok, 200, Headers, Client3} = cowboy_client:response(Client2),
+	false = lists:keymember(<<"transfer-encoding">>, 1, Headers),
+	{ok, Transport, Socket} = cowboy_client:transport(Client3),
+	{ok, <<"streamed_handler\r\nworks fine!">>}
+		= Transport:recv(Socket, 29, 1000),
+	{error, closed} = cowboy_client:response(Client3).
 
 te_chunked(Config) ->
 	Client = ?config(client, Config),
