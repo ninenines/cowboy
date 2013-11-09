@@ -721,13 +721,6 @@ body(Req) ->
 %% @doc Return the body sent with the request.
 -spec body(non_neg_integer() | infinity, Req)
 	-> {ok, binary(), Req} | {error, atom()} when Req::req().
-body(infinity, Req) ->
-	case parse_header(<<"transfer-encoding">>, Req) of
-		{ok, [<<"identity">>], Req2} ->
-			read_body(Req2, <<>>);
-		{ok, _, _} ->
-			{error, chunked}
-	end;
 body(MaxBodyLength, Req) ->
 	case parse_header(<<"transfer-encoding">>, Req) of
 		{ok, [<<"identity">>], Req2} ->
