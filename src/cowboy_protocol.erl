@@ -425,15 +425,15 @@ request(B, State=#state{transport=Transport}, M, P, Q, Version, Headers) ->
 			request(B, State, M, P, Q, Version, Headers,
 				<<>>, default_port(Transport:name()));
 		{_, RawHost} ->
-			case catch parse_host(RawHost, false, <<>>) of
-				{'EXIT', _} ->
-					error_terminate(400, State);
+			try parse_host(RawHost, false, <<>>) of
 				{Host, undefined} ->
 					request(B, State, M, P, Q, Version, Headers,
 						Host, default_port(Transport:name()));
 				{Host, Port} ->
 					request(B, State, M, P, Q, Version, Headers,
 						Host, Port)
+			catch _:_ ->
+				error_terminate(400, State)
 			end
 	end.
 
