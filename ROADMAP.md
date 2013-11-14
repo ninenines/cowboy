@@ -13,28 +13,26 @@ might still be missing.
 
  *  Support for multipart requests and responses
 
- *  Convenience API for extracting query string and body
-    information, similar to PHP's $_GET, $_POST and $_FILES
-
  *  Add Range support to REST
 
  *  Complete the user guide
 
-The following items pertain to Ranch, but are equally important.
+1.1
+---
 
- *  Resizing the acceptor pool
-
-    We should be able to add more acceptors to a pool but also
-    to remove some of them as needed
-
- *  Add Transport:secure/0
-
-    Currently Cowboy checks if a connection is secure by
-    checking if its name is 'ssl'. This isn't a very modular
-    solution,  adding an API function that returns whether
-    a connection is secure would fix that issue
+ *  Check if using maps instead of a record improves performance
 
 2.0
 ---
 
  *  Support for HTTP/2.0
+
+ *  Simplify cowboy_req access functions
+
+    They do not need to return Req. So let's not.
+
+Under consideration
+-------------------
+
+ *  Convenience API for extracting query string and body
+    information, similar to PHP's $_GET, $_POST and $_FILES
