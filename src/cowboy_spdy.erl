@@ -14,10 +14,6 @@
 
 %% @doc SPDY protocol handler.
 %%
-%% The available options are:
-%% <dl>
-%% </dl>
-%%
 %% Note that there is no need to monitor these processes when using Cowboy as
 %% an application as it already supervises them under the listener supervisor.
 -module(cowboy_spdy).
@@ -71,7 +67,10 @@
 	children = [] :: [#child{}]
 }).
 
--type opts() :: [].
+-type opts() :: [{env, cowboy_middleware:env()}
+	| {middlewares, [module()]}
+	| {onrequest, cowboy:onrequest_fun()}
+	| {onresponse, cowboy:onresponse_fun()}].
 -export_type([opts/0]).
 
 %% API.
