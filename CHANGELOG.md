@@ -1,6 +1,61 @@
 CHANGELOG
 =========
 
+0.9.0
+-----
+
+ *  Update Ranch to 0.9.0
+
+ *  SPDY is no longer experimental and is documented
+
+    The SPDY development has been sponsored by the LeoFS project.
+
+ *  Review, improve and document cowboy_static
+   *  Much simplified configuration
+   *  Etag generation is now enabled by default
+   *  Web mimetypes are now detected by default
+   *  Optionally a huge list of mimetypes can also be used
+   *  It not try to magically find the priv directory anymore, use ERL_LIBS
+
+ *  Remove the pretty printing of errors
+
+    Cowboy will no longer print errors, it will instead let the process
+    crash properly, so that links can work with Cowboy. Ranch will catch
+    errors and print a one-liner containing all the error information
+    instead.
+
+ *  Trigger a human readable error when routes lack the starting slash
+
+ *  Add websocket_compress metadata
+
+ *  Fix parsing of hosts given as IPv6 addresses
+
+ *  Fix the decoding of chunked bodies
+
+ *  Fix handling of close, ping and pong Websocket replies
+
+ *  Fix the x-webkit-deflate-frame Websocket extension
+
+ *  Fix PUT behavior in cowboy_rest when creating a resource at the request URL
+
+ *  Fix warnings with the reltool GUI
+
+ *  Start moving code in a new dependency, cowlib
+
+    The code moved there is mostly parsing code and utility functions.
+    Most of it was in the undocumented cowboy_http module before.
+
+ *  Optimize cookie date building and query string building/parsing
+
+ *  Great number of improvements and additions to the user guide
+
+ *  Convert all examples to releases using the erlang.mk+relx combo
+
+    Some examples have also been fixed or slightly improved.
+    The elixir example is now on a separate repository maintained
+    independently. More examples in this language exist in that
+    other repository.
+
 0.8.6
 -----
 
