@@ -39,6 +39,8 @@
 	| {error, overflow} %% Only occurs in loop handlers.
 	| {error, atom()}.
 
+-export_type([terminate_reason/0]).
+
 -callback init({atom(), http}, Req, opts())
 	-> {ok, Req, state()}
 	| {loop, Req, state()}
