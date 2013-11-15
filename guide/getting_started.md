@@ -157,7 +157,7 @@ we will simply map all URLs to our handler `hello_handler`,
 using the wildcard `_` for both the hostname and path parts
 of the URL.
 
-This is how the `hello_erlang_app:start/2` function looks like
+This is what the `hello_erlang_app:start/2` function looks like
 with Cowboy initialized.
 
 ``` erlang
