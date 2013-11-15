@@ -143,7 +143,7 @@ Listeners are a group of processes that are used to accept and manage
 connections. The processes used specifically for accepting connections
 are called acceptors. The number of acceptor processes is unrelated to
 the maximum number of connections Cowboy can handle. Please refer to
-the [Ranch guide](http://ninenines.eu/docs/en/ranch/HEAD/guide/toc)
+the [Ranch guide](http://ninenines.eu/docs/en/ranch/HEAD/guide/)
 for in-depth information.
 
 Listeners are named. They spawn a given number of acceptors, listen for
