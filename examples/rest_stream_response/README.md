@@ -1,26 +1,33 @@
-Cowboy REST Streaming Responses
-===============================
+REST streaming example
+======================
 
-To compile this example you need rebar in your PATH.
+To try this example, you need GNU `make` and `git` in your PATH.
 
-Type the following command:
-```
-$ rebar get-deps compile
+To build the example, run the following command:
+
+``` bash
+$ make
 ```
 
-You can then start the Erlang node with the following command:
+To start the release in the foreground:
+
+``` bash
+$ ./_rel/bin/rest_stream_response_example console
 ```
-./start.sh
-```
+
+Then point your browser at [http://localhost:8080](http://localhost:8080).
+
+About
+-----
 
 This example simulates streaming a large amount of data from a data store one
 record at a time in CSV format. It also uses a constraint to ensure that the
 last segment of the route is an integer.
 
-Examples
---------
+Example output
+--------------
 
-### Get records with a field 2 value of 1
+Fetch records with the second field with value 1:
 
 ``` bash
 $ curl -i localhost:8080
@@ -37,7 +44,7 @@ DAYEFxER,1,18
 ...
 ```
 
-### Get records with a field 2 value of 4
+Fetch records with the second field with value 4:
 
 ``` bash
 $ curl -i localhost:8080/4
@@ -54,7 +61,7 @@ CA8BBhYD,4,10
 ...
 ```
 
-### Get a 404
+Fail to use a proper integer and get an error:
 
 ``` bash
 $ curl -i localhost:8080/foo
@@ -63,4 +70,5 @@ connection: keep-alive
 server: Cowboy
 date: Sun, 10 Feb 2013 19:36:16 GMT
 content-length: 0
+
 ```

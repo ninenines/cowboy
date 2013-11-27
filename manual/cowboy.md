@@ -65,6 +65,17 @@ Exports
 > Start listening for HTTPS connections. Returns the pid for this
 > listener's supervisor.
 
+### start_spdy(Ref, NbAcceptors, TransOpts, ProtoOpts) -> {ok, pid()}
+
+> Types:
+>  *  Ref = ranch:ref()
+>  *  NbAcceptors = non_neg_integer()
+>  *  TransOpts = ranch_ssl:opts()
+>  *  ProtoOpts = cowboy_spdy:opts()
+>
+> Start listening for SPDY connections. Returns the pid for this
+> listener's supervisor.
+
 ### stop_listener(Ref) -> ok
 
 > Types:

@@ -1,23 +1,26 @@
-Cowboy Hello World
-==================
+Hello world example
+===================
 
-To compile this example you need rebar in your PATH.
+To try this example, you need GNU `make` and `git` in your PATH.
 
-Type the following command:
-```
-$ rebar get-deps compile
-```
+To build the example, run the following command:
 
-You can then start the Erlang node with the following command:
-```
-./start.sh
+``` bash
+$ make
 ```
 
-Then point your browser to the indicated URL. You will need to temporarily
-trust the root certificate authority in `priv/ssl/cowboy-ca.crt`.
+To start the release in the foreground:
 
-Example
--------
+``` bash
+$ ./_rel/bin/ssl_hello_world_example console
+```
+
+Then point your browser at [http://localhost:8443](http://localhost:8443).
+You will need to temporarily trust the root certificate authority,
+which can also be found in `priv/ssl/cowboy-ca.crt`.
+
+Example output
+--------------
 
 ``` bash
 $ curl --cacert priv/ssl/cowboy-ca.crt -i https://localhost:8443

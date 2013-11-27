@@ -25,6 +25,10 @@
 -export([init_per_group/2]).
 -export([end_per_group/2]).
 
+%% Callbacks.
+-export([etag_gen/3]).
+-export([mimetypes_text_html/1]).
+
 %% Tests.
 -export([check_raw_status/1]).
 -export([check_status/1]).
@@ -51,6 +55,7 @@
 -export([onresponse_capitalize/1]).
 -export([onresponse_crash/1]).
 -export([onresponse_reply/1]).
+-export([parse_host/1]).
 -export([pipeline/1]).
 -export([pipeline_long_polling/1]).
 -export([rest_bad_accept/1]).
@@ -85,6 +90,7 @@
 -export([stream_body_set_resp_close/1]).
 -export([stream_body_set_resp_chunked/1]).
 -export([stream_body_set_resp_chunked10/1]).
+-export([streamed_response/1]).
 -export([te_chunked/1]).
 -export([te_chunked_chopped/1]).
 -export([te_chunked_delayed/1]).
@@ -103,6 +109,7 @@ all() ->
 		{group, onrequest},
 		{group, onresponse},
 		{group, onresponse_capitalize},
+		{group, parse_host},
 		{group, set_env}
 	].
 
@@ -161,6 +168,7 @@ groups() ->
 		stream_body_set_resp_close,
 		stream_body_set_resp_chunked,
 		stream_body_set_resp_chunked10,
+		streamed_response,
 		te_chunked,
 		te_chunked_chopped,
 		te_chunked_delayed,
@@ -184,6 +192,9 @@ groups() ->
 		{onresponse_capitalize, [parallel], [
 			onresponse_capitalize
 		]},
+		{parse_host, [], [
+			parse_host
+		]},
 		{set_env, [], [
 			set_env_dispatch
 		]}
@@ -191,6 +202,7 @@ groups() ->
 
 init_per_suite(Config) ->
 	application:start(crypto),
+	application:start(cowlib),
 	application:start(ranch),
 	application:start(cowboy),
 	Dir = ?config(priv_dir, Config) ++ "/static",
@@ -202,6 +214,7 @@ end_per_suite(Config) ->
 	ct_helper:delete_static_dir(Dir),
 	application:stop(cowboy),
 	application:stop(ranch),
+	application:stop(cowlib),
 	application:stop(crypto),
 	ok.
 
@@ -297,6 +310,22 @@ init_per_group(onresponse_capitalize, Config) ->
 	{ok, Client} = cowboy_client:init([]),
 	[{scheme, <<"http">>}, {port, Port}, {opts, []},
 		{transport, Transport}, {client, Client}|Config];
+init_per_group(parse_host, Config) ->
+	Transport = ranch_tcp,
+	Dispatch = cowboy_router:compile([
+		{'_', [
+			{"/req_attr", http_req_attr, []}
+		]}
+	]),
+	{ok, _} = cowboy:start_http(http, 100, [{port, 0}], [
+		{env, [{dispatch, Dispatch}]},
+		{max_keepalive, 50},
+		{timeout, 500}
+	]),
+	Port = ranch:get_port(http),
+	{ok, Client} = cowboy_client:init([]),
+	[{scheme, <<"http">>}, {port, Port}, {opts, []},
+		{transport, Transport}, {client, Client}|Config];
 init_per_group(set_env, Config) ->
 	Transport = ranch_tcp,
 	{ok, _} = cowboy:start_http(set_env, 100, [{port, 0}], [
@@ -325,6 +354,7 @@ init_dispatch(Config) ->
 	cowboy_router:compile([
 		{"localhost", [
 			{"/chunked_response", http_chunked, []},
+			{"/streamed_response", http_streamed, []},
 			{"/init_shutdown", http_init_shutdown, []},
 			{"/long_polling", http_long_polling, []},
 			{"/headers/dupe", http_handler,
@@ -346,23 +376,18 @@ init_dispatch(Config) ->
 					{reply, set_resp_chunked},
 					{body, [<<"stream_body">>, <<"_set_resp_chunked">>]}]},
 			{"/static/[...]", cowboy_static,
-				[{directory, ?config(static_dir, Config)},
-				 {mimetypes, [{<<".css">>, [<<"text/css">>]}]}]},
+				{dir, ?config(static_dir, Config)}},
 			{"/static_mimetypes_function/[...]", cowboy_static,
-				[{directory, ?config(static_dir, Config)},
-				 {mimetypes, {fun(Path, data) when is_binary(Path) ->
-					[<<"text/html">>] end, data}}]},
+				{dir, ?config(static_dir, Config),
+					[{mimetypes, ?MODULE, mimetypes_text_html}]}},
 			{"/handler_errors", http_errors, []},
 			{"/static_attribute_etag/[...]", cowboy_static,
-				[{directory, ?config(static_dir, Config)},
-				 {etag, {attributes, [filepath, filesize, inode, mtime]}}]},
+				{dir, ?config(static_dir, Config)}},
 			{"/static_function_etag/[...]", cowboy_static,
-				[{directory, ?config(static_dir, Config)},
-				 {etag, {fun static_function_etag/2, etag_data}}]},
-			{"/static_specify_file/[...]",  cowboy_static,
-				[{directory, ?config(static_dir, Config)},
-				 {mimetypes, [{<<".css">>, [<<"text/css">>]}]},
-				 {file, <<"style.css">>}]},
+				{dir, ?config(static_dir, Config),
+					[{etag, ?MODULE, etag_gen}]}},
+			{"/static_specify_file/[...]", cowboy_static,
+				{file, ?config(static_dir, Config) ++ "/style.css"}},
 			{"/multipart", http_multipart, []},
 			{"/echo/body", http_echo_body, []},
 			{"/echo/body_qs", http_body_qs, []},
@@ -386,6 +411,12 @@ init_dispatch(Config) ->
 			{"/", http_handler, []}
 		]}
 	]).
+
+etag_gen(_, _, _) ->
+	{strong, <<"etag">>}.
+
+mimetypes_text_html(_) ->
+	<<"text/html">>.
 
 %% Convenience functions.
 
@@ -802,6 +833,29 @@ onresponse_hook(_, Headers, _, Req) ->
 		<<"777 Lucky">>, [{<<"x-hook">>, <<"onresponse">>}|Headers], Req),
 	Req2.
 
+parse_host(Config) ->
+	Tests = [
+		{<<"example.org\n8080">>, <<"example.org:8080">>},
+		{<<"example.org\n80">>, <<"example.org">>},
+		{<<"192.0.2.1\n8080">>, <<"192.0.2.1:8080">>},
+		{<<"192.0.2.1\n80">>, <<"192.0.2.1">>},
+		{<<"[2001:db8::1]\n8080">>, <<"[2001:db8::1]:8080">>},
+		{<<"[2001:db8::1]\n80">>, <<"[2001:db8::1]">>},
+		{<<"[::ffff:192.0.2.1]\n8080">>, <<"[::ffff:192.0.2.1]:8080">>},
+		{<<"[::ffff:192.0.2.1]\n80">>, <<"[::ffff:192.0.2.1]">>}
+	],
+	[begin
+		Client = ?config(client, Config),
+		{ok, Client2} = cowboy_client:request(<<"GET">>,
+			build_url("/req_attr?attr=host_and_port", Config),
+			[{<<"host">>, Host}],
+			Client),
+		{ok, 200, _, Client3} = cowboy_client:response(Client2),
+		{ok, Value, Client4} = cowboy_client:response_body(Client3),
+		{error, closed} = cowboy_client:response(Client4),
+        Value
+	end || {Value, Host} <- Tests].
+
 pipeline(Config) ->
 	Client = ?config(client, Config),
 	{ok, Client2} = cowboy_client:request(<<"GET">>,
@@ -1129,16 +1183,6 @@ static_function_etag(Config) ->
 	false = ETag1 =:= undefined,
 	ETag1 = ETag2.
 
-%% Callback function for generating the ETag for the above test.
-static_function_etag(Arguments, etag_data) ->
-	{_, Filepath} = lists:keyfind(filepath, 1, Arguments),
-	{_, _Filesize} = lists:keyfind(filesize, 1, Arguments),
-	{_, _INode} = lists:keyfind(inode, 1, Arguments),
-	{_, _Modified} = lists:keyfind(mtime, 1, Arguments),
-	ChecksumCommand = lists:flatten(io_lib:format("sha1sum ~s", [Filepath])),
-	[Checksum|_] = string:tokens(os:cmd(ChecksumCommand), " "),
-	{strong, iolist_to_binary(Checksum)}.
-
 static_mimetypes_function(Config) ->
 	Client = ?config(client, Config),
 	{ok, Client2} = cowboy_client:request(<<"GET">>,
@@ -1243,6 +1287,17 @@ stream_body_set_resp_chunked10(Config) ->
 			ok
 	end,
 	{error, closed} = Transport:recv(Socket, 0, 1000).
+
+streamed_response(Config) ->
+	Client = ?config(client, Config),
+	{ok, Client2} = cowboy_client:request(<<"GET">>,
+		build_url("/streamed_response", Config), Client),
+	{ok, 200, Headers, Client3} = cowboy_client:response(Client2),
+	false = lists:keymember(<<"transfer-encoding">>, 1, Headers),
+	{ok, Transport, Socket} = cowboy_client:transport(Client3),
+	{ok, <<"streamed_handler\r\nworks fine!">>}
+		= Transport:recv(Socket, 29, 1000),
+	{error, closed} = cowboy_client:response(Client3).
 
 te_chunked(Config) ->
 	Client = ?config(client, Config),

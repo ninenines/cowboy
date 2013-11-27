@@ -19,7 +19,6 @@
 %% Parsing.
 -export([list/2]).
 -export([nonempty_list/2]).
--export([cookie_list/1]).
 -export([content_type/1]).
 -export([media_range/2]).
 -export([conneg/2]).
@@ -46,12 +45,10 @@
 -export([ce_identity/1]).
 
 %% Interpretation.
--export([cookie_to_iodata/3]).
 -export([urldecode/1]).
 -export([urldecode/2]).
 -export([urlencode/1]).
 -export([urlencode/2]).
--export([x_www_form_urlencoded/1]).
 
 %% Parsing.
 
@@ -91,76 +88,6 @@ list(Data, Fun, Acc) ->
 						end)
 				end)
 		end).
-
-%% @doc Parse a list of cookies.
-%%
-%% We need a special function for this because we need to support both
-%% $; and $, as separators as per RFC2109.
--spec cookie_list(binary()) -> [{binary(), binary()}] | {error, badarg}.
-cookie_list(Data) ->
-	case cookie_list(Data, []) of
-		{error, badarg} -> {error, badarg};
-		[] -> {error, badarg};
-		L -> lists:reverse(L)
-	end.
-
--spec cookie_list(binary(), Acc) -> Acc | {error, badarg}
-	when Acc::[{binary(), binary()}].
-cookie_list(Data, Acc) ->
-	whitespace(Data,
-		fun (<<>>) -> Acc;
-			(<< $,, Rest/binary >>) -> cookie_list(Rest, Acc);
-			(<< $;, Rest/binary >>) -> cookie_list(Rest, Acc);
-			(Rest) -> cookie(Rest,
-				fun (Rest2, << $$, _/binary >>, _) ->
-						cookie_list(Rest2, Acc);
-					(Rest2, Name, Value) ->
-						cookie_list(Rest2, [{Name, Value}|Acc])
-				end)
-		end).
-
--spec cookie(binary(), fun()) -> any().
-cookie(Data, Fun) ->
-	whitespace(Data,
-		fun (Rest) ->
-				cookie_name(Rest,
-					fun (_Rest2, <<>>) -> {error, badarg};
-						(<< $=, Rest2/binary >>, Name) ->
-							cookie_value(Rest2,
-								fun (Rest3, Value) ->
-										Fun(Rest3, Name, Value)
-								end);
-						(_Rest2, _Attr) -> {error, badarg}
-					end)
-		end).
-
--spec cookie_name(binary(), fun()) -> any().
-cookie_name(Data, Fun) ->
-	cookie_name(Data, Fun, <<>>).
-
--spec cookie_name(binary(), fun(), binary()) -> any().
-cookie_name(<<>>, Fun, Acc) ->
-	Fun(<<>>, Acc);
-cookie_name(Data = << C, _Rest/binary >>, Fun, Acc)
-		when C =:= $=; C =:= $,; C =:= $;; C =:= $\s; C =:= $\t;
-			 C =:= $\r; C =:= $\n; C =:= $\013; C =:= $\014 ->
-	Fun(Data, Acc);
-cookie_name(<< C, Rest/binary >>, Fun, Acc) ->
-	cookie_name(Rest, Fun, << Acc/binary, C >>).
-
--spec cookie_value(binary(), fun()) -> any().
-cookie_value(Data, Fun) ->
-	cookie_value(Data, Fun, <<>>).
-
--spec cookie_value(binary(), fun(), binary()) -> any().
-cookie_value(<<>>, Fun, Acc) ->
-	Fun(<<>>, Acc);
-cookie_value(Data = << C, _Rest/binary >>, Fun, Acc)
-		when C =:= $,; C =:= $;; C =:= $\s; C =:= $\t;
-			 C =:= $\r; C =:= $\n; C =:= $\013; C =:= $\014 ->
-	Fun(Data, Acc);
-cookie_value(<< C, Rest/binary >>, Fun, Acc) ->
-	cookie_value(Rest, Fun, << Acc/binary, C >>).
 
 %% @doc Parse a content type.
 %%
@@ -1025,55 +952,6 @@ ce_identity(Data) ->
 
 %% Interpretation.
 
-%% @doc Convert a cookie name, value and options to its iodata form.
-%% @end
-%%
-%% Initially from Mochiweb:
-%%   * Copyright 2007 Mochi Media, Inc.
-%% Initial binary implementation:
-%%   * Copyright 2011 Thomas Burdick <thomas.burdick@gmail.com>
--spec cookie_to_iodata(iodata(), iodata(), cowboy_req:cookie_opts())
-	-> iodata().
-cookie_to_iodata(Name, Value, Opts) ->
-	case binary:match(iolist_to_binary(Name), [<<$=>>, <<$,>>, <<$;>>,
-			<<$\s>>, <<$\t>>, <<$\r>>, <<$\n>>, <<$\013>>, <<$\014>>]) of
-		nomatch -> ok
-	end,
-	case binary:match(iolist_to_binary(Value), [<<$,>>, <<$;>>,
-			<<$\s>>, <<$\t>>, <<$\r>>, <<$\n>>, <<$\013>>, <<$\014>>]) of
-		nomatch -> ok
-	end,
-	MaxAgeBin = case lists:keyfind(max_age, 1, Opts) of
-		false -> <<>>;
-		{_, 0} ->
-			%% MSIE requires an Expires date in the past to delete a cookie.
-			<<"; Expires=Thu, 01-Jan-1970 00:00:01 GMT; Max-Age=0">>;
-		{_, MaxAge} when is_integer(MaxAge), MaxAge > 0 ->
-			UTC = calendar:universal_time(),
-			Secs = calendar:datetime_to_gregorian_seconds(UTC),
-			Expires = calendar:gregorian_seconds_to_datetime(Secs + MaxAge),
-			[<<"; Expires=">>, cowboy_clock:rfc2109(Expires),
-				<<"; Max-Age=">>, integer_to_list(MaxAge)]
-	end,
-	DomainBin = case lists:keyfind(domain, 1, Opts) of
-		false -> <<>>;
-		{_, Domain} -> [<<"; Domain=">>, Domain]
-	end,
-	PathBin = case lists:keyfind(path, 1, Opts) of
-		false -> <<>>;
-		{_, Path} -> [<<"; Path=">>, Path]
-	end,
-	SecureBin = case lists:keyfind(secure, 1, Opts) of
-		false -> <<>>;
-		{_, true} -> <<"; Secure">>
-	end,
-	HttpOnlyBin = case lists:keyfind(http_only, 1, Opts) of
-		false -> <<>>;
-		{_, true} -> <<"; HttpOnly">>
-	end,
-	[Name, <<"=">>, Value, <<"; Version=1">>,
-		MaxAgeBin, DomainBin, PathBin, SecureBin, HttpOnlyBin].
-
 %% @doc Decode a URL encoded binary.
 %% @equiv urldecode(Bin, crash)
 -spec urldecode(binary()) -> binary().
@@ -1158,16 +1036,6 @@ tohexu(C) when C < 17 -> $A + C - 10.
 tohexl(C) when C < 10 -> $0 + C;
 tohexl(C) when C < 17 -> $a + C - 10.
 
--spec x_www_form_urlencoded(binary()) -> list({binary(), binary() | true}).
-x_www_form_urlencoded(<<>>) ->
-	[];
-x_www_form_urlencoded(Qs) ->
-	Tokens = binary:split(Qs, <<"&">>, [global, trim]),
-	[case binary:split(Token, <<"=">>) of
-		[Token] -> {urldecode(Token), true};
-		[Name, Value] -> {urldecode(Name), urldecode(Value)}
-	end || Token <- Tokens].
-
 %% Tests.
 
 -ifdef(TEST).
@@ -1223,38 +1091,6 @@ nonempty_token_list_test_() ->
 		{<<"keep-alive, upgrade">>, [<<"keep-alive">>, <<"upgrade">>]}
 	],
 	[{V, fun() -> R = nonempty_list(V, fun token/2) end} || {V, R} <- Tests].
-
-cookie_list_test_() ->
-	%% {Value, Result}.
-	Tests = [
-		{<<"name=value; name2=value2">>, [
-			{<<"name">>, <<"value">>},
-			{<<"name2">>, <<"value2">>}
-		]},
-		{<<"$Version=1; Customer=WILE_E_COYOTE; $Path=/acme">>, [
-			{<<"Customer">>, <<"WILE_E_COYOTE">>}
-		]},
-		{<<"$Version=1; Customer=WILE_E_COYOTE; $Path=/acme; "
-			"Part_Number=Rocket_Launcher_0001; $Path=/acme; "
-			"Shipping=FedEx; $Path=/acme">>, [
-			{<<"Customer">>, <<"WILE_E_COYOTE">>},
-			{<<"Part_Number">>, <<"Rocket_Launcher_0001">>},
-			{<<"Shipping">>, <<"FedEx">>}
-		]},
-		%% Potential edge cases (initially from Mochiweb).
-		{<<"foo=\\x">>, [{<<"foo">>, <<"\\x">>}]},
-		{<<"=">>, {error, badarg}},
-		{<<"  foo ; bar  ">>, {error, badarg}},
-		{<<"foo=;bar=">>, [{<<"foo">>, <<>>}, {<<"bar">>, <<>>}]},
-		{<<"foo=\\\";;bar ">>, {error, badarg}},
-		{<<"foo=\\\";;bar=good ">>,
-			[{<<"foo">>, <<"\\\"">>}, {<<"bar">>, <<"good">>}]},
-		{<<"foo=\"\\\";bar">>, {error, badarg}},
-		{<<"">>, {error, badarg}},
-		{<<"foo=bar , baz=wibble ">>,
-			[{<<"foo">>, <<"bar">>}, {<<"baz">>, <<"wibble">>}]}
-	],
-	[{V, fun() -> R = cookie_list(V) end} || {V, R} <- Tests].
 
 media_range_list_test_() ->
 	%% {Tokens, Result}
@@ -1379,78 +1215,6 @@ digits_test_() ->
 		{<<"1337">>, 1337}
 	],
 	[{V, fun() -> R = digits(V) end} || {V, R} <- Tests].
-
-cookie_to_iodata_test_() ->
-	%% {Name, Value, Opts, Result}
-	Tests = [
-		{<<"Customer">>, <<"WILE_E_COYOTE">>,
-			[{http_only, true}, {domain, <<"acme.com">>}],
-			<<"Customer=WILE_E_COYOTE; Version=1; "
-				"Domain=acme.com; HttpOnly">>},
-		{<<"Customer">>, <<"WILE_E_COYOTE">>,
-			[{path, <<"/acme">>}],
-			<<"Customer=WILE_E_COYOTE; Version=1; Path=/acme">>},
-		{<<"Customer">>, <<"WILE_E_COYOTE">>,
-			[{path, <<"/acme">>}, {badoption, <<"negatory">>}],
-			<<"Customer=WILE_E_COYOTE; Version=1; Path=/acme">>}
-	],
-	[{R, fun() -> R = iolist_to_binary(cookie_to_iodata(N, V, O)) end}
-		|| {N, V, O, R} <- Tests].
-
-cookie_to_iodata_max_age_test() ->
-	F = fun(N, V, O) ->
-		binary:split(iolist_to_binary(
-			cookie_to_iodata(N, V, O)), <<";">>, [global])
-	end,
-	[<<"Customer=WILE_E_COYOTE">>,
-		<<" Version=1">>,
-		<<" Expires=", _/binary>>,
-		<<" Max-Age=111">>,
-		<<" Secure">>] = F(<<"Customer">>, <<"WILE_E_COYOTE">>,
-			[{max_age, 111}, {secure, true}]),
-	case catch F(<<"Customer">>, <<"WILE_E_COYOTE">>, [{max_age, -111}]) of
-		{'EXIT', {{case_clause, {max_age, -111}}, _}} -> ok
-	end,
-	[<<"Customer=WILE_E_COYOTE">>,
-		<<" Version=1">>,
-		<<" Expires=", _/binary>>,
-		<<" Max-Age=86417">>] = F(<<"Customer">>, <<"WILE_E_COYOTE">>,
-			 [{max_age, 86417}]),
-	ok.
-
-cookie_to_iodata_failures_test_() ->
-	F = fun(N, V) ->
-		try cookie_to_iodata(N, V, []) of
-			_ ->
-				false
-		catch _:_ ->
-			true
-		end
-	end,
-	Tests = [
-		{<<"Na=me">>, <<"Value">>},
-		{<<"Name;">>, <<"Value">>},
-		{<<"\r\name">>, <<"Value">>},
-		{<<"Name">>, <<"Value;">>},
-		{<<"Name">>, <<"\value">>}
-	],
-	[{iolist_to_binary(io_lib:format("{~p, ~p} failure", [N, V])),
-		fun() -> true = F(N, V) end}
-		|| {N, V} <- Tests].
-
-x_www_form_urlencoded_test_() ->
-	%% {Qs, Result}
-	Tests = [
-		{<<"">>, []},
-		{<<"a=b">>, [{<<"a">>, <<"b">>}]},
-		{<<"aaa=bbb">>, [{<<"aaa">>, <<"bbb">>}]},
-		{<<"a&b">>, [{<<"a">>, true}, {<<"b">>, true}]},
-		{<<"a=b&c&d=e">>, [{<<"a">>, <<"b">>},
-			{<<"c">>, true}, {<<"d">>, <<"e">>}]},
-		{<<"a=b=c=d=e&f=g">>, [{<<"a">>, <<"b=c=d=e">>}, {<<"f">>, <<"g">>}]},
-		{<<"a+b=c+d">>, [{<<"a b">>, <<"c d">>}]}
-	],
-	[{Qs, fun() -> R = x_www_form_urlencoded(Qs) end} || {Qs, R} <- Tests].
 
 urldecode_test_() ->
 	F = fun(Qs, O) ->

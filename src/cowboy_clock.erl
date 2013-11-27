@@ -26,7 +26,6 @@
 -export([stop/0]).
 -export([rfc1123/0]).
 -export([rfc1123/1]).
--export([rfc2109/1]).
 
 %% gen_server.
 -export([init/1]).
@@ -66,18 +65,6 @@ rfc1123() ->
 -spec rfc1123(calendar:datetime()) -> binary().
 rfc1123(DateTime) ->
 	update_rfc1123(<<>>, undefined, DateTime).
-
-%% @doc Return the given date and time formatted according to RFC-2109.
-%%
-%% This format is used in the <em>set-cookie</em> header sent with
-%% HTTP responses.
--spec rfc2109(calendar:datetime()) -> binary().
-rfc2109({Date = {Y, Mo, D}, {H, Mi, S}}) ->
-	Wday = calendar:day_of_the_week(Date),
-	<< (weekday(Wday))/binary, ", ", (pad_int(D))/binary, "-",
-		(month(Mo))/binary, "-", (list_to_binary(integer_to_list(Y)))/binary,
-		" ", (pad_int(H))/binary, $:, (pad_int(Mi))/binary,
-		$:, (pad_int(S))/binary, " GMT" >>.
 
 %% gen_server.
 
@@ -187,13 +174,6 @@ month(12) -> <<"Dec">>.
 %% Tests.
 
 -ifdef(TEST).
-
-rfc2109_test_() ->
-	Tests = [
-		{<<"Sat, 14-May-2011 14:25:33 GMT">>, {{2011, 5, 14}, {14, 25, 33}}},
-		{<<"Sun, 01-Jan-2012 00:00:00 GMT">>, {{2012, 1,  1}, { 0,  0,  0}}}
-	],
-	[{R, fun() -> R = rfc2109(D) end} || {R, D} <- Tests].
 
 update_rfc1123_test_() ->
 	Tests = [

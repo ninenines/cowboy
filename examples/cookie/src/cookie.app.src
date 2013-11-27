@@ -4,11 +4,12 @@
 	{description, "Cowboy Cookie example."},
 	{vsn, "1"},
 	{modules, []},
-	{registered, []},
+	{registered, [cookie_sup]},
 	{applications, [
 		kernel,
 		stdlib,
-		cowboy
+		cowboy,
+		erlydtl
 	]},
 	{mod, {cookie_app, []}},
 	{env, []}

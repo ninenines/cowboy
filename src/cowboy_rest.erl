@@ -801,8 +801,12 @@ process_content_type(Req, State=#state{method=Method, exists=Exists}, Fun) ->
 		error_terminate(Req, State, Class, Reason, Fun)
 	end.
 
-%% If the resource is new and has been created at another location
-%% we send a 201. Otherwise we continue as normal.
+%% If PUT was used then the resource has been created at the current URL.
+%% Otherwise, if a location header has been set then the resource has been
+%% created at a new URL. If not, send a 200 or 204 as expected from a
+%% POST or PATCH request.
+maybe_created(Req, State=#state{method= <<"PUT">>}) ->
+	respond(Req, State, 201);
 maybe_created(Req, State) ->
 	case cowboy_req:has_resp_header(<<"location">>, Req) of
 		true -> respond(Req, State, 201);

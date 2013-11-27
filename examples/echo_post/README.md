@@ -1,30 +1,27 @@
-Cowboy POST Echo
-================
+POST parameter echo example
+===========================
 
-To compile this example you need rebar in your PATH.
+To try this example, you need GNU `make` and `git` in your PATH.
 
-Type the following command:
-```
-$ rebar get-deps compile
-```
+To build the example, run the following command:
 
-You can then start the Erlang node with the following command:
-```
-./start.sh
+``` bash
+$ make
 ```
 
-Then point your browser to the indicated URL. You can change
-the GET parameter to check that the handler is echoing properly.
+To start the release in the foreground:
 
-Then run the following command, replacing STRING_TO_ECHO by the
-string you want to echo. Check the ```curl_post.sh``` file for details.
-
-```
-./curl_post.sh STRING_TO_ECHO
+``` bash
+$ ./_rel/bin/echo_post_example console
 ```
 
-Example
--------
+As this example echoes a POST parameter, it is a little more
+complex to test. Some browsers feature tools that allow you
+to perform one such request, or you can use the command line
+tool `curl` as we will demonstrate.
+
+Example output
+--------------
 
 ``` bash
 $ curl -i -d echo=echomeplz http://localhost:8080
@@ -33,7 +30,7 @@ connection: keep-alive
 server: Cowboy
 date: Fri, 28 Sep 2012 04:12:36 GMT
 content-length: 9
-Content-Encoding: utf-8
+content-type: text/plain; charset=utf-8
 
 echomeplz
 ```

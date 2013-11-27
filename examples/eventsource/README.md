@@ -1,22 +1,19 @@
-Cowboy EventSource
-==================
+EventSource example
+===================
 
-To compile this example you need rebar in your PATH.
+To try this example, you need GNU `make` and `git` in your PATH.
 
-Type the following command:
-```
-$ rebar get-deps compile
-```
+To build the example, run the following command:
 
-You can then start the Erlang node with the following command:
-```
-./start.sh
+``` bash
+$ make
 ```
 
-Uses Cowboy's loop functionality to continuously send events to the browser.
+To start the release in the foreground:
 
-Example
--------
+``` bash
+$ ./_rel/bin/eventsource_example console
+```
 
-Point your browser to http://localhost:8080 to see EventSource in action with
-any modern browser (not IE).
+Then point your EventSource capable browser at
+[http://localhost:8080](http://localhost:8080).

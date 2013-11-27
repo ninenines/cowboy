@@ -1,8 +1,5 @@
-Cowboy Examples
+Cowboy examples
 ===============
-
- *  [basic_auth](./basic_auth):
-    basic HTTP authorization with REST
 
  *  [chunked_hello_world](./chunked_hello_world):
     demonstrates chunked data transfer with two one-second delays
@@ -19,9 +16,6 @@ Cowboy Examples
  *  [echo_post](./echo_post):
     parse and echo a POST parameter
 
- *  [elixir_hello_world](./elixir_hello_world):
-    simplest example application with Elixir
-
  *  [error_hook](./error_hook):
     provide custom error pages
 
@@ -33,6 +27,9 @@ Cowboy Examples
 
  *  [markdown_middleware](./markdown_middleware):
     static file handler with markdown preprocessor
+
+ *  [rest_basic_auth](./rest_basic_auth):
+    basic HTTP authorization with REST
 
  *  [rest_hello_world](./rest_hello_world):
     return the data type that matches the request type (ex: html, text, json)
@@ -54,3 +51,8 @@ Cowboy Examples
 
  *  [websocket](./websocket):
     websocket example
+
+Other languages
+---------------
+
+ *  [elixir](https://github.com/joshrotenberg/elixir_cowboy_examples)

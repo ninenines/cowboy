@@ -4,7 +4,7 @@
 	{description, "Cowboy static file handler with directory indexes."},
 	{vsn, "1"},
 	{modules, []},
-	{registered, []},
+	{registered, [web_server_sup]},
 	{applications, [
 		kernel,
 		stdlib,

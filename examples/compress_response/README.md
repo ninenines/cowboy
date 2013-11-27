@@ -1,22 +1,26 @@
-Cowboy Compress Response
-========================
+Compressed response example
+===========================
 
-To compile this example you need rebar in your PATH.
+To try this example, you need GNU `make` and `git` in your PATH.
 
-Type the following command:
-```
-$ rebar get-deps compile
-```
+To build the example, run the following command:
 
-You can then start the Erlang node with the following command:
-```
-./start.sh
+``` bash
+$ make
 ```
 
-Then point your browser to the indicated URL.
+To start the release in the foreground:
 
-Example
--------
+``` bash
+$ ./_rel/bin/compress_response_example console
+```
+
+Then point your browser at [http://localhost:8080](http://localhost:8080).
+
+Example output
+--------------
+
+Without compression:
 
 ``` bash
 $ curl -i http://localhost:8080
@@ -38,7 +42,11 @@ have established the ability to work at virtually identical tasks and obtained
 considerable respect for their achievements. There are also cattle handlers
 in many other parts of the world, particularly South America and Australia,
 who perform work similar to the cowboy in their respective nations.
+```
 
+With compression:
+
+```
 $ curl -i --compressed http://localhost:8080
 HTTP/1.1 200 OK
 connection: keep-alive

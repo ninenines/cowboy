@@ -1,29 +1,34 @@
-Cowboy Rest Hello World
-=======================
+REST pastebin example
+=====================
 
-To compile this example you need rebar in your PATH.
+To try this example, you need GNU `make` and `git` in your PATH.
 
-Type the following command:
-```
-$ rebar get-deps compile
-```
+To build the example, run the following command:
 
-You can then start the Erlang node with the following command:
-```
-./start.sh
+``` bash
+$ make
 ```
 
-Then run any given command or point your browser to the indicated URL.
+To start the release in the foreground:
 
-Examples
---------
+``` bash
+$ ./_rel/bin/rest_pastebin_example console
+```
 
-To upload something to the paste application, you can use curl like:
+Then point your browser at [http://localhost:8080](http://localhost:8080).
+
+Usage
+-----
+
+To upload something to the paste application, you can use `curl`:
+
+``` bash
+$ <command> | curl -i --data-urlencode paste@- localhost:8080
 ```
-<command> | curl -i --data-urlencode paste@- localhost:8080
-```
-or to upload my_file:
-```
+
+Or, to upload the file `my_file`:
+
+``` bash
 curl -i --data-urlencode paste@my_file localhost:8080
 ```
 
@@ -33,20 +38,23 @@ the form.
 
 Code that has been pasted can be highlighted with ?lang=<language> option if
 you have [highlight](http://www.andre-simon.de/doku/highlight/en/highlight.html)
-installed (although pygments or any other should work just fine). For example:
-```
+installed (although `pygments` or any other should work just fine).
+
+This will show the contents of the HTML file:
+
+``` bash
 curl -i --data-urlencode paste@priv/index.html localhost:8080
 curl <url from location header>
 ```
 
-Will show the text of the html file. If your terminal supports color
-sequences and highlight is installed:
-```
+If your terminal supports color sequences and `highlight` is installed,
+the following command will show the same contents but with HTML syntax
+highlighting.
+
+``` bash
 curl <url from location header>?lang=html
 ```
 
-Will show a syntax highlighted version of the source file. If you open the
-same URL in your web browser and your web browser tells cowboy that it prefers
-html files, you will see the file highlighted with html/css markup. Firefox is
-known to work.
-
+If you open the same URL in your web browser and your web browser tells
+Cowboy that it prefers HTML files, you will see the file highlighted
+with special HTML markup and CSS. Firefox is known to work.

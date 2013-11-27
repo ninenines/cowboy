@@ -1,5 +1,7 @@
 .cowboy.plt
+.erlang.mk.packages.*
 .eunit
+_rel
 deps
 doc/*.css
 doc/*.html
@@ -7,4 +9,5 @@ doc/*.png
 doc/edoc-info
 ebin
 logs
+relx
 test/*.beam

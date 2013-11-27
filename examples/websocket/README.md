@@ -1,17 +1,18 @@
-Cowboy websocket
-================
+Websocket example
+=================
 
-To compile this example you need rebar in your PATH.
+To try this example, you need GNU `make` and `git` in your PATH.
 
-Type the following command:
-```
-$ rebar get-deps compile
-```
+To build the example, run the following command:
 
-You can then start the Erlang node with the following command:
-```
-./start.sh
+``` bash
+$ make
 ```
 
-Then point your browser to the indicated URL to open a websocket client.
-Not all browsers support websockets. It was tested with Chromium.
+To start the release in the foreground:
+
+``` bash
+$ ./_rel/bin/websocket_example console
+```
+
+Then point your browser at [http://localhost:8080](http://localhost:8080).

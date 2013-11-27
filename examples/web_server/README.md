@@ -1,27 +1,19 @@
-Cowboy Static File Handler with Index Support
-=============================================
+Static file handler example
+===========================
 
-To compile this example you need rebar in your PATH.
+To try this example, you need GNU `make` and `git` in your PATH.
 
-Type the following command:
-```
-$ rebar get-deps compile
-```
+To build the example, run the following command:
 
-You can then start the Erlang node with the following command:
-```
-./start.sh
+``` bash
+$ make
 ```
 
-Cowboy will serve all the files you put in the priv/ directory. You can replace
-the filename given in the example URL with the one of a file you added to this
-directory to receive that file. A middleware has been added that will re-route
-the request to a different handler if the requested path is a directory.
+To start the release in the foreground:
 
-Example
--------
+``` bash
+$ ./_rel/bin/web_server_example console
+```
 
-Point your browser to http://localhost:8080 to see the contents of `priv/`. You
-can click on a link to see that file. If HTML is not preferred, the contents of
-a directory will be listed as a JSON array (e.g. with `curl
-http://localhost:8080`).
+Then point your browser at [http://localhost:8080](http://localhost:8080)
+to browse the contents of the `priv` directory.

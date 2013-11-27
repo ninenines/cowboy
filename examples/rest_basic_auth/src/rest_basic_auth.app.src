@@ -1,0 +1,15 @@
+%% Feel free to use, reuse and abuse the code in this file.
+
+{application, rest_basic_auth, [
+	{description, "Cowboy Basic HTTP Authorization example."},
+	{vsn, "1"},
+	{modules, []},
+	{registered, [rest_basic_auth_sup]},
+	{applications, [
+		kernel,
+		stdlib,
+		cowboy
+	]},
+	{mod, {rest_basic_auth_app, []}},
+	{env, []}
+]}.

@@ -1,24 +1,27 @@
-Cowboy Chunked Hello World
-==========================
+Chunked hello world example
+===========================
 
-To compile this example you need rebar in your PATH.
+To try this example, you need GNU `make` and `git` in your PATH.
 
-Type the following command:
-```
-$ rebar get-deps compile
-```
+To build the example, run the following command:
 
-You can then start the Erlang node with the following command:
-```
-./start.sh
+``` bash
+$ make
 ```
 
-Then run the given command or point your browser to the indicated URL.
+To start the release in the foreground:
 
-Example
--------
+``` bash
+$ ./_rel/bin/chunked_hello_world_example console
+```
 
-```bash
+Then point your browser at [http://localhost:8080](http://localhost:8080),
+or use `curl` to see the chunks arriving one at a time every second.
+
+Example output
+--------------
+
+``` bash
 $ time curl -i http://localhost:8080
 HTTP/1.1 200 OK
 transfer-encoding: chunked

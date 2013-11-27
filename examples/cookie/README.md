@@ -1,18 +1,20 @@
-Cowboy Cookie
-=============
+Cookie example
+==============
 
-To compile this example you need rebar in your PATH.
+To try this example, you need GNU `make` and `git` in your PATH.
 
-Type the following command:
-```
-$ rebar get-deps compile
-```
+To build the example, run the following command:
 
-You can then start the Erlang node with the following command:
-```
-./start.sh
+``` bash
+$ make
 ```
 
-Then point your browser to the indicated URL. This example allows
-you to use any path you want to try to show that cookies are defined
-site-wide. Try it in your browser!
+To start the release in the foreground:
+
+``` bash
+$ ./_rel/bin/cookie_example console
+```
+
+Then point your browser at [http://localhost:8080](http://localhost:8080).
+This example allows you to use any path to show that the cookies
+are defined site-wide. Try it!

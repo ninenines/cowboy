@@ -1,22 +1,24 @@
-Cowboy Hello World
-==================
+Hello world example
+===================
 
-To compile this example you need rebar in your PATH.
+To try this example, you need GNU `make` and `git` in your PATH.
 
-Type the following command:
-```
-$ rebar get-deps compile
-```
+To build the example, run the following command:
 
-You can then start the Erlang node with the following command:
-```
-./start.sh
+``` bash
+$ make
 ```
 
-Then point your browser to the indicated URL.
+To start the release in the foreground:
 
-Example
--------
+``` bash
+$ ./_rel/bin/hello_world_example console
+```
+
+Then point your browser at [http://localhost:8080](http://localhost:8080).
+
+Example output
+--------------
 
 ``` bash
 $ curl -i http://localhost:8080
@@ -25,6 +27,7 @@ connection: keep-alive
 server: Cowboy
 date: Fri, 28 Sep 2012 04:10:25 GMT
 content-length: 12
+content-type: text/plain
 
 Hello world!
 ```

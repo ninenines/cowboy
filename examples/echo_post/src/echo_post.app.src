@@ -4,7 +4,7 @@
 	{description, "Cowboy POST echo example."},
 	{vsn, "1"},
 	{modules, []},
-	{registered, []},
+	{registered, [echo_post_sup]},
 	{applications, [
 		kernel,
 		stdlib,

@@ -1,24 +1,26 @@
-Cowboy Rest Hello World
-=======================
+REST hello world example
+========================
 
-To compile this example you need rebar in your PATH.
+To try this example, you need GNU `make` and `git` in your PATH.
 
-Type the following command:
-```
-$ rebar get-deps compile
-```
+To build the example, run the following command:
 
-You can then start the Erlang node with the following command:
-```
-./start.sh
+``` bash
+$ make
 ```
 
-Then run any given command or point your browser to the indicated URL.
+To start the release in the foreground:
 
-Examples
---------
+``` bash
+$ ./_rel/bin/hello_world_example console
+```
 
-### Get HTML
+Then point your browser at [http://localhost:8080](http://localhost:8080).
+
+Example output
+--------------
+
+Request HTML:
 
 ``` bash
 $ curl -i http://localhost:8080
@@ -27,8 +29,8 @@ connection: keep-alive
 server: Cowboy
 date: Fri, 28 Sep 2012 04:15:52 GMT
 content-length: 136
-Content-Type: text/html
-Vary: Accept
+content-type: text/html
+vary: Accept
 
 <html>
 <head>
@@ -41,7 +43,7 @@ Vary: Accept
 </html>
 ```
 
-### Get JSON
+Request JSON:
 
 ``` bash
 $ curl -i -H "Accept: application/json" http://localhost:8080
@@ -50,13 +52,13 @@ connection: keep-alive
 server: Cowboy
 date: Fri, 28 Sep 2012 04:16:46 GMT
 content-length: 24
-Content-Type: application/json
-Vary: Accept
+content-type: application/json
+vary: Accept
 
 {"rest": "Hello World!"}
 ```
 
-### Get text
+Request plain text:
 
 ``` bash
 $ curl -i -H "Accept: text/plain" http://localhost:8080
@@ -65,13 +67,14 @@ connection: keep-alive
 server: Cowboy
 date: Fri, 28 Sep 2012 04:18:35 GMT
 content-length: 25
-Content-Type: text/plain
-Vary: Accept
+content-type: text/plain
+vary: Accept
 
 REST Hello World as text!
 ```
 
-### Get a 406
+Request a non acceptable content-type:
+
 ``` bash
 $ curl -i -H "Accept: text/css" http://localhost:8080
 HTTP/1.1 406 Not Acceptable

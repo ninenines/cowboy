@@ -1,49 +1,38 @@
-Cowboy Static File Handler
-==========================
+Static file handler example
+===========================
 
-To compile this example you need rebar in your PATH.
+To try this example, you need GNU `make` and `git` in your PATH.
 
-Type the following command:
-```
-$ rebar get-deps compile
-```
+To build the example, run the following command:
 
-You can then start the Erlang node with the following command:
-```
-./start.sh
+``` bash
+$ make
 ```
 
-Cowboy will serve all the files you put in the priv/ directory.
-You can replace the filename given in the example URL with the
-one of a file you added to this directory to receive that file.
+To start the release in the foreground:
 
-Example
--------
+``` bash
+$ ./_rel/bin/static_world_example console
+```
 
-Show that the file is returned as an octet-stream
+The example will serve all the files found in the `priv`
+directory. For example:
+
+ *  [Plain text file](http://localhost:8080/test.txt)
+ *  [HTML5 video demo](http://localhost:8080/video.html)
+
+Example output
+--------------
 
 ``` bash
 $ curl -i http://localhost:8080/test.txt
 HTTP/1.1 200 OK
 connection: keep-alive
 server: Cowboy
-date: Fri, 28 Sep 2012 04:19:40 GMT
+date: Mon, 09 Sep 2013 13:49:50 GMT
 content-length: 52
-Content-Type: application/octet-stream
-Last-Modified: Fri, 28 Sep 2012 04:01:20 GMT
+content-type: text/plain
+last-modified: Fri, 18 Jan 2013 16:33:31 GMT
 
 If you read this then the static file server works!
 ```
-
-Finally download and cat the file to verify
-
-``` bash
-$ curl -sLO http://localhost:8080/test.txt
-$ cat test.txt
-If you read this then the static file server works!
-```
-
-HTML5 Video Example
--------------------
-
-Open http://localhost:8080/video.html in your favorite browser.
