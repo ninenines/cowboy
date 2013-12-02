@@ -7,8 +7,9 @@ Dependencies
 ------------
 
 The `cowboy` application uses the Erlang applications `ranch`
-for listening and accepting TCP connections, and `crypto`
-for establishing Websocket connections. These dependencies must
+for listening and accepting TCP connections, `crypto` for
+establishing Websocket connections, and `cowlib` for parsing and
+building messages for Web protocols. These dependencies must
 be loaded for the `cowboy` application to work. In an embedded
 environment this means that they need to be started with the
 `application:start/{1,2}` function before the `cowboy`
