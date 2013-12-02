@@ -3,7 +3,7 @@ Cowboy documentation
 
 Documentation for Cowboy is available online at the following addresses:
 
- *  [README](http://ninenines.eu/docs/en/cowboy/HEAD/README)
+ *  [README](http://ninenines.eu/docs/en/cowboy/HEAD/index.html)
  *  [User Guide](http://ninenines.eu/docs/en/cowboy/HEAD/guide/introduction)
 
 This folder is used for generating the Reference Manual. You can generate
