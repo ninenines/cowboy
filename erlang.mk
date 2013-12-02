@@ -90,7 +90,13 @@ ALL_TEST_DEPS_DIRS = $(addprefix $(DEPS_DIR)/,$(TEST_DEPS))
 
 # Application.
 
-ERL_LIBS ?= $(DEPS_DIR)
+ifeq ($(filter $(DEPS_DIR),$(subst :, ,$(ERL_LIBS))),)
+ifeq ($(ERL_LIBS),)
+	ERL_LIBS = $(DEPS_DIR)
+else
+	ERL_LIBS := $(ERL_LIBS):$(DEPS_DIR)
+endif
+endif
 export ERL_LIBS
 
 ERLC_OPTS ?= -Werror +debug_info +warn_export_all +warn_export_vars \
