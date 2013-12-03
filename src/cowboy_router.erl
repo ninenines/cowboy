@@ -87,9 +87,11 @@ compile_paths([{PathMatch, Constraints, Handler, Opts}|Tail], Acc)
 	compile_paths([{iolist_to_binary(PathMatch),
 		Constraints, Handler, Opts}|Tail], Acc);
 compile_paths([{'_', Constraints, Handler, Opts}|Tail], Acc) ->
+	check_handler(Handler),
 	compile_paths(Tail, [{'_', Constraints, Handler, Opts}] ++ Acc);
 compile_paths([{<< $/, PathMatch/binary >>, Constraints, Handler, Opts}|Tail],
 		Acc) ->
+	check_handler(Handler),
 	PathRules = compile_rules(PathMatch, $/, [], [], <<>>),
 	Paths = [{lists:reverse(R), Constraints, Handler, Opts} || R <- PathRules],
 	compile_paths(Tail, Paths ++ Acc);
@@ -300,6 +302,24 @@ check_constraint({_, int}, Value) ->
 check_constraint({_, function, Fun}, Value) ->
 	Fun(Value).
 
+-spec check_handler(module()) -> ok | no_return().
+check_handler(Handler) ->
+	case is_handler_valid(Handler) of
+		true -> ok;
+		false ->
+			error({badarg, "The following module is not a valid handler: "
+				++ atom_to_list(Handler)})
+	end.
+
+-spec is_handler_valid(module()) -> boolean().	
+is_handler_valid(Handler) ->
+	case erlang:function_exported(Handler, init, 3) of
+		true -> true;
+		false ->
+			{_, _Module} = code:load_file(Handler),
+			erlang:function_exported(Handler, init, 3)
+	end.
+
 %% @doc Split a hostname into a list of tokens.
 -spec split_host(binary()) -> tokens().
 split_host(Host) ->
@@ -378,48 +398,50 @@ list_match(_List, _Match, _Binds) ->
 -ifdef(TEST).
 
 compile_test_() ->
+	%% Valid Handler
+	H = cowboy_static,
 	%% {Routes, Result}
 	Tests = [
 		%% Match any host and path.
-		{[{'_', [{'_', h, o}]}],
-			[{'_', [], [{'_', [], h, o}]}]},
+		{[{'_', [{'_', H, o}]}],
+			[{'_', [], [{'_', [], H, o}]}]},
 		{[{"cowboy.example.org",
-				[{"/", ha, oa}, {"/path/to/resource", hb, ob}]}],
+				[{"/", H, oa}, {"/path/to/resource", H, ob}]}],
 			[{[<<"org">>, <<"example">>, <<"cowboy">>], [], [
-				{[], [], ha, oa},
-				{[<<"path">>, <<"to">>, <<"resource">>], [], hb, ob}]}]},
-		{[{'_', [{"/path/to/resource/", h, o}]}],
-			[{'_', [], [{[<<"path">>, <<"to">>, <<"resource">>], [], h, o}]}]},
-		{[{'_', [{"/путь/к/ресурсу/", h, o}]}],
-			[{'_', [], [{[<<"путь">>, <<"к">>, <<"ресурсу">>], [], h, o}]}]},
-		{[{"cowboy.example.org.", [{'_', h, o}]}],
-			[{[<<"org">>, <<"example">>, <<"cowboy">>], [], [{'_', [], h, o}]}]},
-		{[{".cowboy.example.org", [{'_', h, o}]}],
-			[{[<<"org">>, <<"example">>, <<"cowboy">>], [], [{'_', [], h, o}]}]},
-		{[{"некий.сайт.рф.", [{'_', h, o}]}],
-			[{[<<"рф">>, <<"сайт">>, <<"некий">>], [], [{'_', [], h, o}]}]},
-		{[{":subdomain.example.org", [{"/hats/:name/prices", h, o}]}],
+				{[], [], H, oa},
+				{[<<"path">>, <<"to">>, <<"resource">>], [], H, ob}]}]},
+		{[{'_', [{"/path/to/resource/", H, o}]}],
+			[{'_', [], [{[<<"path">>, <<"to">>, <<"resource">>], [], H, o}]}]},
+		{[{'_', [{"/путь/к/ресурсу/", H, o}]}],
+			[{'_', [], [{[<<"путь">>, <<"к">>, <<"ресурсу">>], [], H, o}]}]},
+		{[{"cowboy.example.org.", [{'_', H, o}]}],
+			[{[<<"org">>, <<"example">>, <<"cowboy">>], [], [{'_', [], H, o}]}]},
+		{[{".cowboy.example.org", [{'_', H, o}]}],
+			[{[<<"org">>, <<"example">>, <<"cowboy">>], [], [{'_', [], H, o}]}]},
+		{[{"некий.сайт.рф.", [{'_', H, o}]}],
+			[{[<<"рф">>, <<"сайт">>, <<"некий">>], [], [{'_', [], H, o}]}]},
+		{[{":subdomain.example.org", [{"/hats/:name/prices", H, o}]}],
 			[{[<<"org">>, <<"example">>, subdomain], [], [
-				{[<<"hats">>, name, <<"prices">>], [], h, o}]}]},
-		{[{"ninenines.:_", [{"/hats/:_", h, o}]}],
-			[{['_', <<"ninenines">>], [], [{[<<"hats">>, '_'], [], h, o}]}]},
+				{[<<"hats">>, name, <<"prices">>], [], H, o}]}]},
+		{[{"ninenines.:_", [{"/hats/:_", H, o}]}],
+			[{['_', <<"ninenines">>], [], [{[<<"hats">>, '_'], [], H, o}]}]},
 		{[{"[www.]ninenines.eu",
-			[{"/horses", h, o}, {"/hats/[page/:number]", h, o}]}], [
+			[{"/horses", H, o}, {"/hats/[page/:number]", H, o}]}], [
 				{[<<"eu">>, <<"ninenines">>], [], [
-					{[<<"horses">>], [], h, o},
-					{[<<"hats">>], [], h, o},
-					{[<<"hats">>, <<"page">>, number], [], h, o}]},
+					{[<<"horses">>], [], H, o},
+					{[<<"hats">>], [], H, o},
+					{[<<"hats">>, <<"page">>, number], [], H, o}]},
 				{[<<"eu">>, <<"ninenines">>, <<"www">>], [], [
-					{[<<"horses">>], [], h, o},
-					{[<<"hats">>], [], h, o},
-					{[<<"hats">>, <<"page">>, number], [], h, o}]}]},
-		{[{'_', [{"/hats/[page/[:number]]", h, o}]}], [{'_', [], [
-			{[<<"hats">>], [], h, o},
-			{[<<"hats">>, <<"page">>], [], h, o},
-			{[<<"hats">>, <<"page">>, number], [], h, o}]}]},
-		{[{"[...]ninenines.eu", [{"/hats/[...]", h, o}]}],
+					{[<<"horses">>], [], H, o},
+					{[<<"hats">>], [], H, o},
+					{[<<"hats">>, <<"page">>, number], [], H, o}]}]},
+		{[{'_', [{"/hats/[page/[:number]]", H, o}]}], [{'_', [], [
+			{[<<"hats">>], [], H, o},
+			{[<<"hats">>, <<"page">>], [], H, o},
+			{[<<"hats">>, <<"page">>, number], [], H, o}]}]},
+		{[{"[...]ninenines.eu", [{"/hats/[...]", H, o}]}],
 			[{[<<"eu">>, <<"ninenines">>, '...'], [], [
-				{[<<"hats">>, '...'], [], h, o}]}]}
+				{[<<"hats">>, '...'], [], H, o}]}]}
 	],
 	[{lists:flatten(io_lib:format("~p", [Rt])),
 		fun() -> Rs = compile(Rt) end} || {Rt, Rs} <- Tests].
@@ -568,6 +590,20 @@ match_same_bindings_test() ->
 		<<"ninenines.eu">>, <<"/path/path">>),
 	{error, notfound, path} = match(Dispatch3,
 		<<"ninenines.eu">>, <<"/path/to">>),
+	ok.
+
+is_handler_valid_test() ->
+	%% a valid handler
+	true = is_handler_valid(cowboy_static),
+	%% not a valid handler
+	false = is_handler_valid(cowboy_websocket),
+	%% this module doesn't exist
+	false = is_handler_valid(unknown_module),
+	ok.
+
+check_handler_test() ->
+	{'EXIT',{{badarg, _}, _}} = (catch check_handler(cowboy_websocket)),
+	ok = check_handler(cowboy_static),
 	ok.
 
 -endif.
