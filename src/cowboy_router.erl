@@ -446,6 +446,23 @@ compile_test_() ->
 	[{lists:flatten(io_lib:format("~p", [Rt])),
 		fun() -> Rs = compile(Rt) end} || {Rt, Rs} <- Tests].
 
+split_host_test_() ->
+	%% {Host, Result}
+	Tests = [
+		{<<"">>, []},
+		{<<"*">>, [<<"*">>]},
+		{<<"cowboy.ninenines.eu">>,
+			[<<"eu">>, <<"ninenines">>, <<"cowboy">>]},
+		{<<"ninenines.eu">>,
+			[<<"eu">>, <<"ninenines">>]},
+		{<<"a.b.c.d.e.f.g.h.i.j.k.l.m.n.o.p.q.r.s.t.u.v.w.x.y.z">>,
+			[<<"z">>, <<"y">>, <<"x">>, <<"w">>, <<"v">>, <<"u">>, <<"t">>,
+			<<"s">>, <<"r">>, <<"q">>, <<"p">>, <<"o">>, <<"n">>, <<"m">>,
+			<<"l">>, <<"k">>, <<"j">>, <<"i">>, <<"h">>, <<"g">>, <<"f">>,
+			<<"e">>, <<"d">>, <<"c">>, <<"b">>, <<"a">>]}
+	],
+	[{H, fun() -> R = split_host(H) end} || {H, R} <- Tests].
+
 split_path_test_() ->
 	%% {Path, Result, QueryString}
 	Tests = [
