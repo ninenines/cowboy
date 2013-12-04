@@ -312,7 +312,7 @@ host_url(Req=#http_req{transport=Transport, host=Host, port=Port}) ->
 	PortBin = case {TransportName, Port} of
 		{ssl, 443} -> <<>>;
 		{tcp, 80} -> <<>>;
-		_ -> << ":", (list_to_binary(integer_to_list(Port)))/binary >>
+		_ -> << ":", (integer_to_binary(Port))/binary >>
 	end,
 	{<< "http", Secure/binary, "://", Host/binary, PortBin/binary >>, Req}.
 
@@ -695,7 +695,7 @@ transfer_decode(Data, Req=#http_req{body_state={stream, _,
 transfer_decode_done(Length, Rest, Req=#http_req{
 		headers=Headers, p_headers=PHeaders}) ->
 	Headers2 = lists:keystore(<<"content-length">>, 1, Headers,
-		{<<"content-length">>, list_to_binary(integer_to_list(Length))}),
+		{<<"content-length">>, integer_to_binary(Length)}),
 	%% At this point we just assume TEs were all decoded.
 	Headers3 = lists:keydelete(<<"transfer-encoding">>, 1, Headers2),
 	PHeaders2 = lists:keystore(<<"content-length">>, 1, PHeaders,
