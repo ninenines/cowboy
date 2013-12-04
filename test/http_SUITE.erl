@@ -437,7 +437,7 @@ quick_raw(Data, Config) ->
 build_url(Path, Config) ->
 	{scheme, Scheme} = lists:keyfind(scheme, 1, Config),
 	{port, Port} = lists:keyfind(port, 1, Config),
-	PortBin = list_to_binary(integer_to_list(Port)),
+	PortBin = integer_to_binary(Port),
 	PathBin = list_to_binary(Path),
 	<< Scheme/binary, "://localhost:", PortBin/binary, PathBin/binary >>.
 
@@ -457,7 +457,7 @@ body_to_chunks(ChunkSize, Body, Acc) ->
 		false -> ChunkSize
 	end,
 	<< Chunk:ChunkSize2/binary, Rest/binary >> = Body,
-	ChunkSizeBin = list_to_binary(integer_to_list(ChunkSize2, 16)),
+	ChunkSizeBin = integer_to_binary(ChunkSize2, 16),
 	body_to_chunks(ChunkSize, Rest,
 		[<< ChunkSizeBin/binary, "\r\n", Chunk/binary, "\r\n" >>|Acc]).
 
