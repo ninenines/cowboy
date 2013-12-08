@@ -67,6 +67,7 @@
 	| {middlewares, [module()]}
 	| {onrequest, cowboy:onrequest_fun()}
 	| {onresponse, cowboy:onresponse_fun()}
+	| {spawn_opts, [erlang:spawn_option()]}
 	| {timeout, timeout()}].
 -export_type([opts/0]).
 
@@ -94,7 +95,8 @@
 %% @doc Start an HTTP protocol process.
 -spec start_link(ranch:ref(), inet:socket(), module(), opts()) -> {ok, pid()}.
 start_link(Ref, Socket, Transport, Opts) ->
-	Pid = spawn_link(?MODULE, init, [Ref, Socket, Transport, Opts]),
+	SpawnOpts = get_value(spawn_opts, Opts, []),
+	Pid = spawn_opt(?MODULE, init, [Ref, Socket, Transport, Opts], [link] ++ SpawnOpts),
 	{ok, Pid}.
 
 %% Internal.
