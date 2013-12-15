@@ -20,6 +20,7 @@
 -export([malformed_request/2]).
 -export([forbidden/2]).
 -export([content_types_provided/2]).
+-export([extra_headers_provided/2]).
 -export([resource_exists/2]).
 -export([last_modified/2]).
 -export([generate_etag/2]).
@@ -235,6 +236,20 @@ content_types_provided(Req, State={Path, _, Extra}) ->
 		{mimetypes, Type} ->
 			{[{Type, get_file}], Req, State}
 	end.
+
+%% @doc Pass additional HTTP headers, if any
+
+-spec extra_headers_provided(Req, State)
+    -> {cowboy:http_headers(), Req, State}
+    when State::state().
+extra_headers_provided(Req, State={_, _, Extra}) ->
+    case lists:keyfind(headers, 1, Extra) of
+        false ->
+            {[], Req, State};
+        {headers, Headers} ->
+            {Headers, Req, State}
+    end.
+
 
 %% @doc Assume the resource doesn't exist if it's not a regular file.
 
