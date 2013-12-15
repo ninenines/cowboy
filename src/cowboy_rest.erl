@@ -199,7 +199,31 @@ options(Req, State=#state{allowed_methods=Methods, method= <<"OPTIONS">>}) ->
 			respond(Req2, State#state{handler_state=HandlerState}, 200)
 	end;
 options(Req, State) ->
-	content_types_provided(Req, State).
+    extra_headers_provided(Req, State).
+
+
+%% extra_headers_provided should return a list of headers that need to be set
+%% for the response. Note that "Content-Type", "Accept-Charset",
+%% "Accept-Language" and other content-specific headers may be overwritten by
+%% functions content_types_provided/2, charsets_provided/2 and such.
+extra_headers_provided(Req, State) ->
+    NewReq = case call(Req, State, extra_headers_provided) of
+        no_call ->
+            State;
+        {halt, Req2, HandlerState} ->
+            terminate(Req2, State#state{handler_state=HandlerState});
+        {[], _Req2, HandlerState} ->
+            HandlerState;
+        {ExtraHeaders, Req2, _HandlerState} ->
+            lists:foldl(
+                fun ({HeaderName, HeaderValue}, Acc) ->
+                    cowboy_req:set_resp_header(HeaderName, HeaderValue, Acc)
+                end,
+                Req2,
+                ExtraHeaders)
+    end,
+    content_types_provided(NewReq, State).
+
 
 %% content_types_provided/2 should return a list of content types and their
 %% associated callback function as a tuple: {{Type, SubType, Params}, Fun}.
