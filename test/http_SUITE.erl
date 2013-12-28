@@ -535,7 +535,7 @@ check_status(Config) ->
 		{403, "/static/unreadable"},
 		{404, "/not/found"},
 		{404, "/static/not_found"},
-		{500, "/handler_errors?case=handler_before_reply"},
+		{500, "/handler_errors?case=handle_before_reply"},
 		{500, "/handler_errors?case=init_before_reply"},
 		{666, "/init_shutdown"}
 	],
