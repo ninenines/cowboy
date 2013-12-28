@@ -103,7 +103,7 @@ quick_get(Pid, Host, Path) ->
 			error(Reason);
 		{gun_response, Pid, StreamRef, IsFin,
 				<< Status:3/binary, _/bits >>, Headers} ->
-			{IsFin, binary_to_integer(Status), Headers}
+			{IsFin, list_to_integer(binary_to_list(Status)), Headers}
 	after 1000 ->
 		error(timeout)
 	end.
