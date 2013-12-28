@@ -49,17 +49,25 @@ Request related exports
 > Types:
 >  *  Name = atom()
 >  *  Default = any()
->  *  Value = binary() | Default
+>  *  Value = any() | Default
 >
 > Return the value for the given binding.
+>
+> By default the value is a binary, however constraints may change
+> the type of this value (for example automatically converting
+> numbers to integer).
 
 ### bindings(Req) -> {[{Name, Value}], Req2}
 
 > Types:
 >  *  Name = atom()
->  *  Value = binary()
+>  *  Value = any()
 >
 > Return all bindings.
+>
+> By default the value is a binary, however constraints may change
+> the type of this value (for example automatically converting
+> numbers to integer).
 
 ### cookie(Name, Req) -> cookie(Name, Req, undefined)
 ### cookie(Name, Req, Default) -> {Value, Req2}
