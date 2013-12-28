@@ -15,7 +15,7 @@ To start the release in the foreground:
 $ ./_rel/bin/ssl_hello_world_example console
 ```
 
-Then point your browser at [http://localhost:8443](http://localhost:8443).
+Then point your browser at [https://localhost:8443](https://localhost:8443).
 You will need to temporarily trust the root certificate authority,
 which can also be found in `priv/ssl/cowboy-ca.crt`.
 
