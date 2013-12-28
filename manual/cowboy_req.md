@@ -19,6 +19,10 @@ ignore any previous you may have had. This value contains various
 state informations which are necessary for Cowboy to do some lazy
 evaluation or cache results where appropriate.
 
+All functions which perform an action should only be called once.
+This includes reading the request body or replying. Cowboy will
+generally throw an error on the second call.
+
 Types
 -----
 
@@ -329,6 +333,9 @@ Request body related exports
 > body was sent using the chunked transfer-encoding. It will
 > also return `{error, badlength}` if the length of the body
 > exceeds the given `MaxLength`, which is 8MB by default.
+>
+> This function can only be called once. Cowboy will not cache
+> the result of this call.
 
 ### body_length(Req) -> {Length, Req2}
 
@@ -360,6 +367,9 @@ Request body related exports
 > body was sent using the chunked transfer-encoding. It will
 > also return `{error, badlength}` if the length of the body
 > exceeds the given `MaxLength`, which is 16KB by default.
+>
+> This function can only be called once. Cowboy will not cache
+> the result of this call.
 
 ### has_body(Req) -> boolean()
 
@@ -464,6 +474,9 @@ Response related exports
 > If the request uses HTTP/1.0, the data is sent directly
 > without wrapping it in an HTTP/1.1 chunk, providing
 > compatibility with older clients.
+>
+> This function can only be called once, with the exception
+> of overriding the response in the `onresponse` hook.
 
 ### delete_resp_header(Name, Req) -> Req2
 
@@ -516,6 +529,9 @@ Response related exports
 >
 > No more data can be sent to the client after this function
 > returns.
+>
+> This function can only be called once, with the exception
+> of overriding the response in the `onresponse` hook.
 
 ### set_resp_body(Body, Req) -> Req2
 
