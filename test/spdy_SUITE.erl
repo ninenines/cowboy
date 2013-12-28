@@ -42,17 +42,22 @@ groups() ->
 	]}].
 
 init_per_suite(Config) ->
-	application:start(crypto),
-	application:start(cowlib),
-	application:start(ranch),
-	application:start(cowboy),
-	application:start(asn1),
-	application:start(public_key),
-	application:start(ssl),
-	application:start(gun),
-	Dir = ?config(priv_dir, Config) ++ "/static",
-	ct_helper:create_static_dir(Dir),
-	[{static_dir, Dir}|Config].
+	case proplists:get_value(ssl_app, ssl:versions()) of
+		Version when Version < "5.2.1" ->
+			{skip, "No NPN support in SSL application."};
+		_ ->
+			application:start(crypto),
+			application:start(cowlib),
+			application:start(ranch),
+			application:start(cowboy),
+			application:start(asn1),
+			application:start(public_key),
+			application:start(ssl),
+			application:start(gun),
+			Dir = ?config(priv_dir, Config) ++ "/static",
+			ct_helper:create_static_dir(Dir),
+			[{static_dir, Dir}|Config]
+	end.
 
 end_per_suite(Config) ->
 	Dir = ?config(static_dir, Config),
