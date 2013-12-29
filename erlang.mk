@@ -216,13 +216,14 @@ build-tests: build-test-deps
 	$(gen_verbose) erlc -v $(ERLC_OPTS) -o test/ \
 		$(wildcard test/*.erl test/*/*.erl) -pa ebin/
 
+CT_OPTS ?=
 CT_RUN = ct_run \
 	-no_auto_compile \
 	-noshell \
 	-pa $(realpath ebin) $(DEPS_DIR)/*/ebin \
 	-dir test \
-	-logdir logs
-#	-cover test/cover.spec
+	-logdir logs \
+	$(CT_OPTS)
 
 CT_SUITES ?=
 
