@@ -313,10 +313,16 @@ entity_tag(Data, Fun) ->
 
 -spec opaque_tag(binary(), fun(), weak | strong) -> any().
 opaque_tag(Data, Fun, Strength) ->
-	quoted_string(Data,
+	maybe_quoted_string(Data,
 		fun (_Rest, <<>>) -> {error, badarg};
 			(Rest, OpaqueTag) -> Fun(Rest, {Strength, OpaqueTag})
 		end).
+		
+maybe_quoted_string(<< $", _/binary >> = Data, Fun) ->
+    quoted_string(Data, Fun);
+maybe_quoted_string(Data, _Fun) ->
+    [Data].  
+	
 
 %% @doc Parse an expectation.
 -spec expectation(binary(), fun()) -> any().
