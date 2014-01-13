@@ -4,7 +4,6 @@
 -export([content_types_provided/2]).
 -export([get_text_plain/2]).
 -export([expires/2]).
--export([last_modified/2]).
 
 init(_Transport, _Req, _Opts) ->
 	{upgrade, protocol, cowboy_rest}.
