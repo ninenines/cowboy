@@ -659,7 +659,7 @@ alphanumeric(<<>>, Fun, Acc) ->
 	Fun(<<>>, Acc);
 alphanumeric(<< C, Rest/binary >>, Fun, Acc)
 		when C >= $a andalso C =< $z;
-		     C >= $A andalso C =< $Z;
+			 C >= $A andalso C =< $Z;
 			 C >= $0 andalso C =< $9 ->
 	C2 = cowboy_bstr:char_to_lower(C),
 	alphanumeric(Rest, Fun, << Acc/binary, C2 >>);
