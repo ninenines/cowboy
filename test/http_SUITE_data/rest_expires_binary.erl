@@ -18,5 +18,3 @@ get_text_plain(Req, State) ->
 expires(Req, State) ->
 	{<<"0">>, Req, State}.
 
-last_modified(Req, State) ->
-	{{{2012, 9, 21}, {22, 36, 14}}, Req, State}.

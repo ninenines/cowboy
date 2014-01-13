@@ -982,8 +982,7 @@ rest_expires_binary(Config) ->
 	{ok, Client2} = cowboy_client:request(<<"GET">>,
 		build_url("/rest_expires_binary", Config), Client),
 	{ok, 200, RespHeaders, _} = cowboy_client:response(Client2),
-	{_, Expires} = lists:keyfind(<<"expires">>, 1, RespHeaders),
-	Expires = <<"0">>,
+	{_, <<"0">>} = lists:keyfind(<<"expires">>, 1, RespHeaders),
 	ok.
 
 rest_keepalive(Config) ->
