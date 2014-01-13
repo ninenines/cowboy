@@ -54,7 +54,7 @@
 	%% Cached resource calls.
 	etag :: undefined | no_call | {strong | weak, binary()},
 	last_modified :: undefined | no_call | calendar:datetime(),
- 	expires :: undefined | no_call | calendar:datetime() | binary()
+	expires :: undefined | no_call | calendar:datetime() | binary()
 }).
 
 %% @doc Upgrade a HTTP request to the REST protocol.
