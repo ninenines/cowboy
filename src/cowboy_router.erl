@@ -58,7 +58,7 @@ compile(Routes) ->
 	compile(Routes, []).
 
 compile([], Acc) ->
-	lists:reverse(Acc);
+	Acc;
 compile([{Host, Paths}|Tail], Acc) ->
 	compile([{Host, [], Paths}|Tail], Acc);
 compile([{HostMatch, Constraints, Paths}|Tail], Acc) ->
@@ -71,7 +71,7 @@ compile([{HostMatch, Constraints, Paths}|Tail], Acc) ->
 		'_' -> [{'_', Constraints, PathRules}];
 		_ -> [{R, Constraints, PathRules} || R <- HostRules]
 	end,
-	compile(Tail, Hosts ++ Acc).
+	compile(Tail, Acc ++ Hosts).
 
 compile_host(HostMatch) when is_list(HostMatch) ->
 	compile_host(list_to_binary(HostMatch));
