@@ -174,13 +174,16 @@ new(Socket, Transport, Peer, Method, Path, Query,
 		method=Method, path=Path, qs=Query, version=Version,
 		headers=Headers, host=Host, port=Port, buffer=Buffer,
 		resp_compress=Compress, onresponse=OnResponse},
-	case CanKeepalive and (Version =:= 'HTTP/1.1') of
+	case CanKeepalive of
 		false ->
 			Req#http_req{connection=close};
 		true ->
 			case lists:keyfind(<<"connection">>, 1, Headers) of
 				false ->
-					Req; %% keepalive
+					case Version of
+						'HTTP/1.1' -> Req; %% keepalive
+						'HTTP/1.0' -> Req#http_req{connection=close}
+					end;
 				{_, ConnectionHeader} ->
 					Tokens = cow_http_hd:parse_connection(ConnectionHeader),
 					Connection = connection_to_atom(Tokens),
