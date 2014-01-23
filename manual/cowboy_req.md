@@ -419,25 +419,30 @@ Request body related exports
 > read before.
 
 ### stream_body(Req) -> stream_body(1000000, Req)
-### stream_body(MaxSegmentSize, Req) -> {ok, Data, Req2}
+### stream_body(MaxReadSize, Req) -> {ok, Data, Req2}
 	| {done, Req2} | {error, Reason}
 
 > Types:
->  *  MaxSegmentSize = non_neg_integer()
+>  *  MaxReadSize = non_neg_integer()
 >  *  Data = binary()
 >  *  Reason = atom()
 >
 > Stream the request body.
 >
-> This function will return a segment of the request body
-> with a size of up to `MaxSegmentSize`, or 1MB by default.
-> This function can be called repeatedly until a `done` tuple
-> is returned, indicating the body has been fully received.
+> This function will return the next segment of the body.
 >
 > Cowboy will properly handle chunked transfer-encoding by
 > default. If any other transfer-encoding or content-encoding
 > has been used for the request, custom decoding functions
 > can be used. They must be specified using `init_stream/4`.
+>
+> The amount of data returned by this function may vary
+> depending on the current state of the request. If data
+> is already available in the buffer then it is used fully,
+> otherwise Cowboy will read up to `MaxReadSize` bytes from
+> the socket. By default Cowboy will read up to 1MB of data.
+> It is then decoded, which may grow or shrink it, depending
+> on the encoding headers, before it is finally returned.
 >
 > After the body has been streamed fully, Cowboy will remove
 > the transfer-encoding header from the `Req` object, and add
