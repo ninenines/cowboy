@@ -62,6 +62,7 @@
 -export([rest_bad_accept/1]).
 -export([rest_bad_content_type/1]).
 -export([rest_expires/1]).
+-export([rest_expires_binary/1]).
 -export([rest_keepalive/1]).
 -export([rest_keepalive_post/1]).
 -export([rest_missing_get_callbacks/1]).
@@ -142,6 +143,7 @@ groups() ->
 		rest_bad_accept,
 		rest_bad_content_type,
 		rest_expires,
+		rest_expires_binary,
 		rest_keepalive,
 		rest_keepalive_post,
 		rest_missing_get_callbacks,
@@ -407,6 +409,7 @@ init_dispatch(Config) ->
 			{"/patch", rest_patch_resource, []},
 			{"/resetags", rest_resource_etags, []},
 			{"/rest_expires", rest_expires, []},
+			{"/rest_expires_binary", rest_expires_binary, []},
 			{"/rest_empty_resource", rest_empty_resource, []},
 			{"/loop_recv", http_loop_recv, []},
 			{"/loop_stream_recv", http_loop_stream_recv, []},
@@ -972,6 +975,14 @@ rest_expires(Config) ->
 	{_, Expires} = lists:keyfind(<<"expires">>, 1, RespHeaders),
 	{_, LastModified} = lists:keyfind(<<"last-modified">>, 1, RespHeaders),
 	Expires = LastModified = <<"Fri, 21 Sep 2012 22:36:14 GMT">>,
+	ok.
+
+rest_expires_binary(Config) ->
+	Client = ?config(client, Config),
+	{ok, Client2} = cowboy_client:request(<<"GET">>,
+		build_url("/rest_expires_binary", Config), Client),
+	{ok, 200, RespHeaders, _} = cowboy_client:response(Client2),
+	{_, <<"0">>} = lists:keyfind(<<"expires">>, 1, RespHeaders),
 	ok.
 
 rest_keepalive(Config) ->
