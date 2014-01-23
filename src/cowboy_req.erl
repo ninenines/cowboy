@@ -82,6 +82,8 @@
 -export([body/2]).
 -export([body_qs/1]).
 -export([body_qs/2]).
+-export([fetch_body/1]).
+-export([fetch_body/2]).
 -export([multipart_data/1]).
 -export([multipart_skip/1]).
 
@@ -774,6 +776,39 @@ body_qs(MaxBodyLength, Req) ->
 		{error, Reason} ->
 			{error, Reason}
 	end.
+
+%% @doc Fetch the request message body up to a MaximumLength regardless of how 
+%% it's transmitted
+%%
+%% This function will read the request body regardless of the transfer-encoding
+%% used until either all data has been retrieved or MaxLength has been reached. 
+%% Upon sucessful completion, it will remove the transfer-encoding header from 
+%% the Req object and add a content-length header (if not present already). 
+%% If MaxLength is exceeded the function will stop and return 
+%% {error, badlength, Req}. Any other error will return 
+%% {error, Reason, Req}
+-spec fetch_body(Req) -> {ok, binary(), Req}
+    | {error, atom(), Req} when Req::req().
+fetch_body(Req) ->
+    fetch_body(8000000, Req).
+-spec fetch_body(non_neg_integer(), Req) -> {ok, binary(), Req}
+    | {error, atom(), Req} when Req::req().
+fetch_body(MaxLength, Req) ->
+    fetch_body(MaxLength, Req, [], 0).
+
+fetch_body(MaxLength, Req, Acc, Length) when is_integer(MaxLength), 
+                                             is_integer(Length), 
+                                             Length =< MaxLength ->
+    case cowboy_req:stream_body(Req) of
+        {ok, Data, Req2} when is_binary(Data) -> 
+            fetch_body(MaxLength, Req2, [Data|Acc], Length + byte_size(Data));
+        {done, Req2} -> 
+            {ok, binary:list_to_bin(lists:reverse(Acc)), Req2};
+        {error, Reason} -> 
+            {error, Reason, Req}
+    end;
+fetch_body(_, Req, _, _) ->
+    {error, badlength, Req}.
 
 %% Multipart Request API.
 
