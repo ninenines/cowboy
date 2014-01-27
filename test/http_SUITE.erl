@@ -47,6 +47,7 @@
 -export([http10_hostless/1]).
 -export([keepalive_max/1]).
 -export([keepalive_nl/1]).
+-export([keepalive_stream_loop/1]).
 -export([multipart/1]).
 -export([nc_rand/1]).
 -export([nc_zero/1]).
@@ -132,6 +133,7 @@ groups() ->
 		http10_hostless,
 		keepalive_max,
 		keepalive_nl,
+		keepalive_stream_loop,
 		multipart,
 		nc_rand,
 		nc_zero,
@@ -407,6 +409,7 @@ init_dispatch(Config) ->
 			{"/rest_expires", rest_expires, []},
 			{"/rest_empty_resource", rest_empty_resource, []},
 			{"/loop_recv", http_loop_recv, []},
+			{"/loop_stream_recv", http_loop_stream_recv, []},
 			{"/loop_timeout", http_loop_timeout, []},
 			{"/", http_handler, []}
 		]}
@@ -532,7 +535,7 @@ check_status(Config) ->
 		{403, "/static/unreadable"},
 		{404, "/not/found"},
 		{404, "/static/not_found"},
-		{500, "/handler_errors?case=handler_before_reply"},
+		{500, "/handler_errors?case=handle_before_reply"},
 		{500, "/handler_errors?case=init_before_reply"},
 		{666, "/init_shutdown"}
 	],
@@ -724,6 +727,27 @@ keepalive_nl_loop(Client, URL, N) ->
 	{ok, Transport, Socket} = cowboy_client:transport(Client2),
 	ok = Transport:send(Socket, <<"\r\n">>), %% empty line
 	keepalive_nl_loop(Client3, URL, N - 1).
+
+keepalive_stream_loop(Config) ->
+	Client = ?config(client, Config),
+	Transport = ?config(transport, Config),
+	{ok, Client2} = cowboy_client:connect(
+		Transport, "localhost", ?config(port, Config), Client),
+	keepalive_stream_loop(Client2, 10).
+
+keepalive_stream_loop(Client, 0) ->
+	{error, closed} = cowboy_client:response(Client),
+	ok;
+keepalive_stream_loop(Client, N) ->
+	{ok, _} = cowboy_client:raw_request("POST /loop_stream_recv HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Connection: keepalive\r\n"
+		"Transfer-Encoding: chunked\r\n\r\n", Client),
+	_ = [{ok, _} = cowboy_client:raw_request(<<"4\r\n",Id:32,"\r\n">>, Client) ||
+		Id <- lists:seq(1, 250)],
+	{ok, _} = cowboy_client:raw_request(<<"0\r\n\r\n">>, Client),
+	{ok, 200, _, _} = cowboy_client:response(Client),
+	keepalive_stream_loop(Client, N-1).
 
 multipart(Config) ->
 	Client = ?config(client, Config),

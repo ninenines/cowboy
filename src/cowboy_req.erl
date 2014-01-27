@@ -338,14 +338,14 @@ url(HostURL, Req=#http_req{path=Path, qs=QS}) ->
 	{<< HostURL/binary, Path/binary, QS2/binary >>, Req}.
 
 %% @equiv binding(Name, Req, undefined)
--spec binding(atom(), Req) -> {binary() | undefined, Req} when Req::req().
+-spec binding(atom(), Req) -> {any() | undefined, Req} when Req::req().
 binding(Name, Req) when is_atom(Name) ->
 	binding(Name, Req, undefined).
 
 %% @doc Return the binding value for the given key obtained when matching
 %% the host and path against the dispatch list, or a default if missing.
 -spec binding(atom(), Req, Default)
-	-> {binary() | Default, Req} when Req::req(), Default::any().
+	-> {any() | Default, Req} when Req::req(), Default::any().
 binding(Name, Req, Default) when is_atom(Name) ->
 	case lists:keyfind(Name, 1, Req#http_req.bindings) of
 		{Name, Value} -> {Value, Req};
@@ -353,7 +353,7 @@ binding(Name, Req, Default) when is_atom(Name) ->
 	end.
 
 %% @doc Return the full list of binding values.
--spec bindings(Req) -> {list({atom(), binary()}), Req} when Req::req().
+-spec bindings(Req) -> {[{atom(), any()}], Req} when Req::req().
 bindings(Req) ->
 	{Req#http_req.bindings, Req}.
 

@@ -19,6 +19,10 @@ ignore any previous you may have had. This value contains various
 state informations which are necessary for Cowboy to do some lazy
 evaluation or cache results where appropriate.
 
+All functions which perform an action should only be called once.
+This includes reading the request body or replying. Cowboy will
+generally throw an error on the second call.
+
 Types
 -----
 
@@ -45,17 +49,25 @@ Request related exports
 > Types:
 >  *  Name = atom()
 >  *  Default = any()
->  *  Value = binary() | Default
+>  *  Value = any() | Default
 >
 > Return the value for the given binding.
+>
+> By default the value is a binary, however constraints may change
+> the type of this value (for example automatically converting
+> numbers to integer).
 
 ### bindings(Req) -> {[{Name, Value}], Req2}
 
 > Types:
 >  *  Name = atom()
->  *  Value = binary()
+>  *  Value = any()
 >
 > Return all bindings.
+>
+> By default the value is a binary, however constraints may change
+> the type of this value (for example automatically converting
+> numbers to integer).
 
 ### cookie(Name, Req) -> cookie(Name, Req, undefined)
 ### cookie(Name, Req, Default) -> {Value, Req2}
@@ -329,6 +341,9 @@ Request body related exports
 > body was sent using the chunked transfer-encoding. It will
 > also return `{error, badlength}` if the length of the body
 > exceeds the given `MaxLength`, which is 8MB by default.
+>
+> This function can only be called once. Cowboy will not cache
+> the result of this call.
 
 ### body_length(Req) -> {Length, Req2}
 
@@ -360,6 +375,9 @@ Request body related exports
 > body was sent using the chunked transfer-encoding. It will
 > also return `{error, badlength}` if the length of the body
 > exceeds the given `MaxLength`, which is 16KB by default.
+>
+> This function can only be called once. Cowboy will not cache
+> the result of this call.
 
 ### has_body(Req) -> boolean()
 
@@ -401,25 +419,30 @@ Request body related exports
 > read before.
 
 ### stream_body(Req) -> stream_body(1000000, Req)
-### stream_body(MaxSegmentSize, Req) -> {ok, Data, Req2}
+### stream_body(MaxReadSize, Req) -> {ok, Data, Req2}
 	| {done, Req2} | {error, Reason}
 
 > Types:
->  *  MaxSegmentSize = non_neg_integer()
+>  *  MaxReadSize = non_neg_integer()
 >  *  Data = binary()
 >  *  Reason = atom()
 >
 > Stream the request body.
 >
-> This function will return a segment of the request body
-> with a size of up to `MaxSegmentSize`, or 1MB by default.
-> This function can be called repeatedly until a `done` tuple
-> is returned, indicating the body has been fully received.
+> This function will return the next segment of the body.
 >
 > Cowboy will properly handle chunked transfer-encoding by
 > default. If any other transfer-encoding or content-encoding
 > has been used for the request, custom decoding functions
 > can be used. They must be specified using `init_stream/4`.
+>
+> The amount of data returned by this function may vary
+> depending on the current state of the request. If data
+> is already available in the buffer then it is used fully,
+> otherwise Cowboy will read up to `MaxReadSize` bytes from
+> the socket. By default Cowboy will read up to 1MB of data.
+> It is then decoded, which may grow or shrink it, depending
+> on the encoding headers, before it is finally returned.
 >
 > After the body has been streamed fully, Cowboy will remove
 > the transfer-encoding header from the `Req` object, and add
@@ -464,6 +487,9 @@ Response related exports
 > If the request uses HTTP/1.0, the data is sent directly
 > without wrapping it in an HTTP/1.1 chunk, providing
 > compatibility with older clients.
+>
+> This function can only be called once, with the exception
+> of overriding the response in the `onresponse` hook.
 
 ### delete_resp_header(Name, Req) -> Req2
 
@@ -516,6 +542,9 @@ Response related exports
 >
 > No more data can be sent to the client after this function
 > returns.
+>
+> This function can only be called once, with the exception
+> of overriding the response in the `onresponse` hook.
 
 ### set_resp_body(Body, Req) -> Req2
 

@@ -24,7 +24,7 @@ export PKG_FILE
 PKG_FILE_URL ?= https://raw.github.com/extend/erlang.mk/master/packages.v1.tsv
 
 define get_pkg_file
-	wget -O $(PKG_FILE) $(PKG_FILE_URL) || rm $(PKG_FILE)
+	wget --no-check-certificate -O $(PKG_FILE) $(PKG_FILE_URL) || rm $(PKG_FILE)
 endef
 
 # Verbosity and tweaks.
@@ -58,7 +58,8 @@ ifneq ($(wildcard $(RELX_CONFIG)),)
 RELX ?= $(CURDIR)/relx
 export RELX
 
-RELX_URL ?= https://github.com/erlware/relx/releases/download/0.4.0/relx
+RELX_URL ?= https://github.com/erlware/relx/releases/download/v0.5.2/relx
+RELX_OPTS ?=
 
 define get_relx
 	wget -O $(RELX) $(RELX_URL) || rm $(RELX)
@@ -66,7 +67,7 @@ define get_relx
 endef
 
 rel: clean-rel all $(RELX)
-	@$(RELX)
+	@$(RELX) -c $(RELX_CONFIG) $(RELX_OPTS)
 
 $(RELX):
 	@$(call get_relx)
@@ -89,7 +90,13 @@ ALL_TEST_DEPS_DIRS = $(addprefix $(DEPS_DIR)/,$(TEST_DEPS))
 
 # Application.
 
-ERL_LIBS ?= $(DEPS_DIR)
+ifeq ($(filter $(DEPS_DIR),$(subst :, ,$(ERL_LIBS))),)
+ifeq ($(ERL_LIBS),)
+	ERL_LIBS = $(DEPS_DIR)
+else
+	ERL_LIBS := $(ERL_LIBS):$(DEPS_DIR)
+endif
+endif
 export ERL_LIBS
 
 ERLC_OPTS ?= -Werror +debug_info +warn_export_all +warn_export_vars \
@@ -106,7 +113,7 @@ app: ebin/$(PROJECT).app
 	$(eval MODULES := $(shell find ebin -type f -name \*.beam \
 		| sed 's/ebin\///;s/\.beam/,/' | sed '$$s/.$$//'))
 	$(appsrc_verbose) cat src/$(PROJECT).app.src \
-		| sed 's/{modules,\s*\[\]}/{modules, \[$(MODULES)\]}/' \
+		| sed 's/{modules,[[:space:]]*\[\]}/{modules, \[$(MODULES)\]}/' \
 		> ebin/$(PROJECT).app
 
 define compile_erl
@@ -189,9 +196,11 @@ clean-deps:
 
 # Documentation.
 
+EDOC_OPTS ?=
+
 docs: clean-docs
 	$(gen_verbose) erl -noshell \
-		-eval 'edoc:application($(PROJECT), ".", []), init:stop().'
+		-eval 'edoc:application($(PROJECT), ".", [$(EDOC_OPTS)]), init:stop().'
 
 clean-docs:
 	$(gen_verbose) rm -f doc/*.css doc/*.html doc/*.png doc/edoc-info
@@ -207,13 +216,14 @@ build-tests: build-test-deps
 	$(gen_verbose) erlc -v $(ERLC_OPTS) -o test/ \
 		$(wildcard test/*.erl test/*/*.erl) -pa ebin/
 
+CT_OPTS ?=
 CT_RUN = ct_run \
 	-no_auto_compile \
 	-noshell \
 	-pa $(realpath ebin) $(DEPS_DIR)/*/ebin \
 	-dir test \
-	-logdir logs
-#	-cover test/cover.spec
+	-logdir logs \
+	$(CT_OPTS)
 
 CT_SUITES ?=
 

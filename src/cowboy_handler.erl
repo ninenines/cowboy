@@ -211,7 +211,7 @@ handler_loop(Req, State=#state{loop_buffer_size=NbBytes,
 			handler_after_loop(Req, State, Handler, HandlerState,
 				{normal, timeout});
 		{timeout, OlderTRef, ?MODULE} when is_reference(OlderTRef) ->
-			handler_before_loop(Req, State, Handler, HandlerState);
+			handler_loop(Req, State, Handler, HandlerState);
 		Message ->
 			%% We set the socket back to {active, false} mode in case
 			%% the handler is going to call recv. We also flush any
@@ -280,8 +280,14 @@ handler_after_loop(Req, State, Handler, HandlerState, Reason) ->
 -spec terminate_request(Req, #state{}, module(), any(),
 	{normal, timeout | shutdown} | {error, atom()}) ->
 	{ok, Req, cowboy_middleware:env()} when Req::cowboy_req:req().
-terminate_request(Req, #state{env=Env}, Handler, HandlerState, Reason) ->
+terminate_request(Req, #state{env=Env, loop_timeout_ref=TRef},
+		Handler, HandlerState, Reason) ->
 	HandlerRes = handler_terminate(Req, Handler, HandlerState, Reason),
+	_ = case TRef of
+		undefined -> ignore;
+		TRef -> erlang:cancel_timer(TRef)
+	end,
+	flush_timeouts(),
 	{ok, Req, [{result, HandlerRes}|Env]}.
 
 -spec handler_terminate(cowboy_req:req(), module(), any(),
@@ -298,4 +304,13 @@ handler_terminate(Req, Handler, HandlerState, Reason) ->
 			{state, HandlerState},
 			{terminate_reason, Reason}
 		])
+	end.
+
+-spec flush_timeouts() -> ok.
+flush_timeouts() ->
+	receive
+		{timeout, TRef, ?MODULE} when is_reference(TRef) ->
+			flush_timeouts()
+	after 0 ->
+		ok
 	end.
