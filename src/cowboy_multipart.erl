@@ -39,7 +39,7 @@ parser(Boundary) when is_binary(Boundary) ->
 
 %% @doc Parse a content disposition.
 %% @todo Parse the MIME header instead of the HTTP one.
--spec content_disposition(binary()) -> disposition().
+-spec content_disposition(binary()) -> disposition() | {error, badarg}.
 content_disposition(Data) ->
 	cowboy_http:token_ci(Data,
 		fun (_Rest, <<>>) -> {error, badarg};
