@@ -49,6 +49,7 @@
 -export([keepalive_nl/1]).
 -export([keepalive_stream_loop/1]).
 -export([multipart/1]).
+-export([chunked_multipart/1]).
 -export([nc_rand/1]).
 -export([nc_zero/1]).
 -export([onrequest/1]).
@@ -135,6 +136,7 @@ groups() ->
 		keepalive_nl,
 		keepalive_stream_loop,
 		multipart,
+		chunked_multipart,
 		nc_rand,
 		nc_zero,
 		pipeline,
@@ -761,6 +763,28 @@ multipart(Config) ->
 	{ok, Client2} = cowboy_client:request(<<"POST">>,
 		build_url("/multipart", Config),
 		[{<<"content-type">>, <<"multipart/x-makes-no-sense; boundary=OHai">>}],
+		Body, Client),
+	{ok, 200, _, Client3} = cowboy_client:response(Client2),
+	{ok, RespBody, _} = cowboy_client:response_body(Client3),
+	Parts = binary_to_term(RespBody),
+	Parts = [
+		{[{<<"x-name">>, <<"answer">>}], <<"42">>},
+		{[{<<"server">>, <<"Cowboy">>}], <<"It rocks!\r\n">>}
+	].
+
+chunked_multipart(Config) ->
+	Client = ?config(client, Config),
+	Body = <<
+		"This is a preamble."
+		"\r\n--OHai\r\nX-Name:answer\r\n\r\n42"
+		"\r\n--OHai\r\nServer:Cowboy\r\n\r\nIt rocks!\r\n"
+		"\r\n--OHai--"
+		"This is an epiloque."
+	>>,
+	{ok, Client2} = cowboy_client:request(<<"POST">>,
+		build_url("/multipart", Config),
+		[{<<"content-type">>, <<"multipart/x-makes-no-sense; boundary=OHai">>},
+		 {<<"Transfer-Encoding">>, <<"chunked">>}],
 		Body, Client),
 	{ok, 200, _, Client3} = cowboy_client:response(Client2),
 	{ok, RespBody, _} = cowboy_client:response_body(Client3),
