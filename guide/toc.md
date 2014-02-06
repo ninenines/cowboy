@@ -48,7 +48,7 @@ Multipart
 ---------
 
  *  Understanding multipart
- *  Multipart requests
+ *  [Multipart requests](multipart_req.md)
  *  Multipart responses
 
 Server push technologies

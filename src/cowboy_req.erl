@@ -1,4 +1,4 @@
-%% Copyright (c) 2011-2013, Loïc Hoguin <essen@ninenines.eu>
+%% Copyright (c) 2011-2014, Loïc Hoguin <essen@ninenines.eu>
 %% Copyright (c) 2011, Anthony Ramine <nox@dev-extend.eu>
 %%
 %% Permission to use, copy, modify, and/or distribute this software for any
@@ -82,8 +82,11 @@
 -export([body/2]).
 -export([body_qs/1]).
 -export([body_qs/2]).
--export([multipart_data/1]).
--export([multipart_skip/1]).
+
+%% Multipart API.
+-export([part/1]).
+-export([part_body/1]).
+-export([part_body/2]).
 
 %% Response API.
 -export([set_resp_cookie/4]).
@@ -159,8 +162,8 @@
 	%% Request body.
 	body_state = waiting :: waiting | done | {stream, non_neg_integer(),
 		transfer_decode_fun(), any(), content_decode_fun()},
-	multipart = undefined :: undefined | {non_neg_integer(), fun()},
 	buffer = <<>> :: binary(),
+	multipart = undefined :: undefined | {binary(), binary()},
 
 	%% Response.
 	resp_compress = false :: boolean(),
@@ -775,60 +778,77 @@ body_qs(MaxBodyLength, Req) ->
 			{error, Reason}
 	end.
 
-%% Multipart Request API.
+%% Multipart API.
 
-%% @doc Return data from the multipart parser.
-%%
-%% Use this function for multipart streaming. For each part in the request,
-%% this function returns <em>{headers, Headers, Req}</em> followed by a sequence of
-%% <em>{body, Data, Req}</em> tuples and finally <em>{end_of_part, Req}</em>. When there
-%% is no part to parse anymore, <em>{eof, Req}</em> is returned.
--spec multipart_data(Req)
-	-> {headers, cowboy:http_headers(), Req} | {body, binary(), Req}
-		| {end_of_part | eof, Req} when Req::req().
-multipart_data(Req=#http_req{body_state=waiting}) ->
-	{ok, {<<"multipart">>, _SubType, Params}, Req2} =
-		parse_header(<<"content-type">>, Req),
+%% @doc Return the next part's headers.
+-spec part(Req)
+	-> {ok, cow_multipart:headers(), Req} | {done, Req}
+	when Req::req().
+part(Req=#http_req{multipart=undefined}) ->
+	part(init_multipart(Req));
+part(Req) ->
+	{ok, Data, Req2} = stream_multipart(Req),
+	part(Data, Req2).
+
+part(Buffer, Req=#http_req{multipart={Boundary, _}}) ->
+	case cow_multipart:parse_headers(Buffer, Boundary) of
+		more ->
+			{ok, Data, Req2} = stream_multipart(Req),
+			part(<< Buffer/binary, Data/binary >>, Req2);
+		{more, Buffer2} ->
+			{ok, Data, Req2} = stream_multipart(Req),
+			part(<< Buffer2/binary, Data/binary >>, Req2);
+		{ok, Headers, Rest} ->
+			{ok, Headers, Req#http_req{multipart={Boundary, Rest}}};
+		%% Ignore epilogue.
+		{done, _} ->
+			{done, Req#http_req{multipart=undefined}}
+	end.
+
+%% @doc Return the current part's body.
+-spec part_body(Req)
+	-> {ok, binary(), Req} | {more, binary(), Req}
+	when Req::req().
+part_body(Req) ->
+	part_body(8000000, Req).
+
+-spec part_body(non_neg_integer(), Req)
+	-> {ok, binary(), Req} | {more, binary(), Req}
+	when Req::req().
+part_body(MaxLength, Req=#http_req{multipart=undefined}) ->
+	part_body(MaxLength, init_multipart(Req));
+part_body(MaxLength, Req) ->
+	part_body(<<>>, MaxLength, Req, <<>>).
+
+part_body(Buffer, MaxLength, Req=#http_req{multipart={Boundary, _}}, Acc)
+		when byte_size(Acc) > MaxLength ->
+	{more, Acc, Req#http_req{multipart={Boundary, Buffer}}};
+part_body(Buffer, MaxLength, Req=#http_req{multipart={Boundary, _}}, Acc) ->
+	{ok, Data, Req2} = stream_multipart(Req),
+	case cow_multipart:parse_body(<< Buffer/binary, Data/binary >>, Boundary) of
+		{ok, Body} ->
+			part_body(<<>>, MaxLength, Req2, << Acc/binary, Body/binary >>);
+		{ok, Body, Rest} ->
+			part_body(Rest, MaxLength, Req2, << Acc/binary, Body/binary >>);
+		done ->
+			{ok, Acc, Req2};
+		{done, Body} ->
+			{ok, << Acc/binary, Body/binary >>, Req2};
+		{done, Body, Rest} ->
+			{ok, << Acc/binary, Body/binary >>,
+				Req2#http_req{multipart={Boundary, Rest}}}
+	end.
+
+init_multipart(Req) ->
+	{ok, {<<"multipart">>, _, Params}, Req2}
+		= parse_header(<<"content-type">>, Req),
 	{_, Boundary} = lists:keyfind(<<"boundary">>, 1, Params),
-	{ok, Length, Req3} = parse_header(<<"content-length">>, Req2),
-	multipart_data(Req3, Length, {more, cowboy_multipart:parser(Boundary)});
-multipart_data(Req=#http_req{multipart={Length, Cont}}) ->
-	multipart_data(Req, Length, Cont());
-multipart_data(Req=#http_req{body_state=done}) ->
-	{eof, Req}.
+	Req2#http_req{multipart={Boundary, <<>>}}.
 
-multipart_data(Req, Length, {headers, Headers, Cont}) ->
-	{headers, Headers, Req#http_req{multipart={Length, Cont}}};
-multipart_data(Req, Length, {body, Data, Cont}) ->
-	{body, Data, Req#http_req{multipart={Length, Cont}}};
-multipart_data(Req, Length, {end_of_part, Cont}) ->
-	{end_of_part, Req#http_req{multipart={Length, Cont}}};
-multipart_data(Req, 0, eof) ->
-	{eof, Req#http_req{body_state=done, multipart=undefined}};
-multipart_data(Req=#http_req{socket=Socket, transport=Transport},
-		Length, eof) ->
-	%% We just want to skip so no need to stream data here.
-	{ok, _Data} = Transport:recv(Socket, Length, 5000),
-	{eof, Req#http_req{body_state=done, multipart=undefined}};
-multipart_data(Req, Length, {more, Parser}) when Length > 0 ->
-	case stream_body(Req) of
-		{ok, << Data:Length/binary, Buffer/binary >>, Req2} ->
-			multipart_data(Req2#http_req{buffer=Buffer}, 0, Parser(Data));
-		{ok, Data, Req2} ->
-			multipart_data(Req2, Length - byte_size(Data), Parser(Data))
-	end.
-
-%% @doc Skip a part returned by the multipart parser.
-%%
-%% This function repeatedly calls <em>multipart_data/1</em> until
-%% <em>{end_of_part, Req}</em> or <em>{eof, Req}</em> is parsed.
--spec multipart_skip(Req) -> {ok, Req} when Req::req().
-multipart_skip(Req) ->
-	case multipart_data(Req) of
-		{end_of_part, Req2} -> {ok, Req2};
-		{eof, Req2} -> {ok, Req2};
-		{_, _, Req2} -> multipart_skip(Req2)
-	end.
+stream_multipart(Req=#http_req{multipart={_, <<>>}}) ->
+	stream_body(Req);
+stream_multipart(Req=#http_req{multipart={Boundary, Buffer}}) ->
+	{ok, Buffer, Req#http_req{multipart={Boundary, <<>>}}}.
 
 %% Response API.
 
