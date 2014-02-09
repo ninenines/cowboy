@@ -765,8 +765,6 @@ authorization_basic_userid(<<C, Rest/binary>>, Fun, Acc) ->
 authorization_basic_password(Data, Fun) ->
 	authorization_basic_password(Data, Fun, <<>>).
 
-authorization_basic_password(<<>>, _Fun, <<>>) ->
-	{error, badarg};
 authorization_basic_password(<<C, _Rest/binary>>, _Fun, _Acc)
 		when C < 32; C=:= 127 ->
 	{error, badarg};
@@ -1255,6 +1253,8 @@ http_authorization_test_() ->
 	Tests = [
 		{<<"basic">>, <<"QWxsYWRpbjpvcGVuIHNlc2FtZQ==">>,
 			{<<"basic">>, {<<"Alladin">>, <<"open sesame">>}}},
+		{<<"basic">>, <<"dXNlcm5hbWU6">>,
+			{<<"basic">>, {<<"username">>, <<>>}}},
 		{<<"basic">>, <<"dXNlcm5hbWUK">>,
 			{error, badarg}},
 		{<<"basic">>, <<"_[]@#$%^&*()-AA==">>,
