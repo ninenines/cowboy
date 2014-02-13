@@ -177,11 +177,15 @@ websocket_handshake(State=#state{
 		false -> [];
 		true -> [{<<"sec-websocket-extensions">>, <<"x-webkit-deflate-frame">>}]
 	end,
+    SWSExtra = case cowboy_req:header(<<"sec-websocket-protocol">>, Req) of
+        {undefined, _} -> [];
+        {SWSProto,  _} -> [{<<"sec-websocket-protocol">>, SWSProto}]
+    end,
 	{ok, Req2} = cowboy_req:upgrade_reply(
 		101,
 		[{<<"upgrade">>, <<"websocket">>},
 		 {<<"sec-websocket-accept">>, Challenge}|
-		 Extensions],
+		 Extensions ++ SWSExtra],
 		Req),
 	%% Flush the resp_sent message before moving on.
 	receive {cowboy_req, resp_sent} -> ok after 0 -> ok end,
