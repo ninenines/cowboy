@@ -1,4 +1,4 @@
-%% Copyright (c) 2011-2013, Loïc Hoguin <essen@ninenines.eu>
+%% Copyright (c) 2011-2014, Loïc Hoguin <essen@ninenines.eu>
 %% Copyright (c) 2011, Anthony Ramine <nox@dev-extend.eu>
 %%
 %% Permission to use, copy, modify, and/or distribute this software for any
@@ -49,6 +49,7 @@
 -export([keepalive_nl/1]).
 -export([keepalive_stream_loop/1]).
 -export([multipart/1]).
+-export([multipart_large/1]).
 -export([nc_rand/1]).
 -export([nc_zero/1]).
 -export([onrequest/1]).
@@ -135,6 +136,7 @@ groups() ->
 		keepalive_nl,
 		keepalive_stream_loop,
 		multipart,
+		multipart_large,
 		nc_rand,
 		nc_zero,
 		pipeline,
@@ -391,6 +393,7 @@ init_dispatch(Config) ->
 			{"/static_specify_file/[...]", cowboy_static,
 				{file, ?config(static_dir, Config) ++ "/style.css"}},
 			{"/multipart", http_multipart, []},
+			{"/multipart/large", http_multipart_stream, []},
 			{"/echo/body", http_echo_body, []},
 			{"/echo/body_qs", http_body_qs, []},
 			{"/param_all", rest_param_all, []},
@@ -755,8 +758,8 @@ multipart(Config) ->
 		"This is a preamble."
 		"\r\n--OHai\r\nX-Name:answer\r\n\r\n42"
 		"\r\n--OHai\r\nServer:Cowboy\r\n\r\nIt rocks!\r\n"
-		"\r\n--OHai--"
-		"This is an epiloque."
+		"\r\n--OHai--\r\n"
+		"This is an epilogue."
 	>>,
 	{ok, Client2} = cowboy_client:request(<<"POST">>,
 		build_url("/multipart", Config),
@@ -769,6 +772,21 @@ multipart(Config) ->
 		{[{<<"x-name">>, <<"answer">>}], <<"42">>},
 		{[{<<"server">>, <<"Cowboy">>}], <<"It rocks!\r\n">>}
 	].
+
+multipart_large(Config) ->
+	Client = ?config(client, Config),
+	Boundary = "----------",
+	Big = << 0:9000000/unit:8 >>,
+	Bigger = << 0:9999999/unit:8 >>,
+	Body = ["--", Boundary, "\r\ncontent-length: 9000000\r\n\r\n", Big, "\r\n",
+		"--", Boundary, "\r\ncontent-length: 9999999\r\n\r\n", Bigger, "\r\n",
+		"--", Boundary, "--\r\n"],
+	{ok, Client2} = cowboy_client:request(<<"POST">>,
+		build_url("/multipart/large", Config),
+		[{<<"content-type">>, ["multipart/x-large; boundary=", Boundary]}],
+		Body, Client),
+	{ok, 200, _, _} = cowboy_client:response(Client2),
+	ok.
 
 nc_reqs(Config, Input) ->
 	Cat = os:find_executable("cat"),

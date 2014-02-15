@@ -408,6 +408,51 @@ Request body related exports
 > will perform all the required initialization when it is
 > called the first time.
 
+### part(Req) -> {ok, Headers, Req2} | {done, Req2}
+
+> Types:
+>  *  Headers = cow_multipart:headers()
+>
+> Read the headers for the next part of the multipart message.
+>
+> Cowboy will skip any data remaining until the beginning of
+> the next part. This includes the preamble to the multipart
+> message but also the body of a previous part if it hasn't
+> been read. Both are skipped automatically when calling this
+> function.
+>
+> The headers returned are MIME headers, NOT HTTP headers.
+> They can be parsed using the functions from the `cow_multipart`
+> module. In addition, the `cow_multipart:form_data/1` function
+> can be used to quickly figure out `multipart/form-data` messages.
+> It takes the list of headers and returns whether this part is
+> a simple form field or a file being uploaded.
+>
+> Note that once a part has been read, or skipped, it cannot
+> be read again.
+
+### part_body(Req) -> part_body(8000000, Req)
+### part_body(MaxReadSize, Req) -> {ok, Data, Req2} | {more, Data, Req2}
+
+> Types:
+>  *  MaxReadSize = non_neg_integer()
+>  *  Data = binary()
+>
+> Read the body of the current part of the multipart message.
+>
+> This function will read the body up to `MaxReadSize` bytes.
+> This is a soft limit. If there are more data to be read
+> from the socket for this part, the function will return
+> what it could read inside a `more` tuple. Otherwise, it
+> will return an `ok` tuple.
+>
+> Calling this function again after receiving a `more` tuple
+> will return another chunk of body. The last chunk will be
+> returned inside an `ok` tuple.
+>
+> Note that once the body has been read, fully or partially,
+> it cannot be read again.
+
 ### skip_body(Req) -> {ok, Req2} | {error, Reason}
 
 > Types:
