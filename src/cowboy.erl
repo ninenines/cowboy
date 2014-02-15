@@ -15,6 +15,8 @@
 %% @doc Convenience API to start and stop HTTP/HTTPS listeners.
 -module(cowboy).
 
+-export([start_http_over_transport/5]).
+-export([start_spdy_over_transport/5]).
 -export([start_http/4]).
 -export([start_https/4]).
 -export([start_spdy/4]).
@@ -42,16 +44,14 @@
 	cowboy_protocol:opts()) -> {ok, pid()} | {error, any()}.
 start_http(Ref, NbAcceptors, TransOpts, ProtoOpts)
 		when is_integer(NbAcceptors), NbAcceptors > 0 ->
-	ranch:start_listener(Ref, NbAcceptors,
-		ranch_tcp, TransOpts, cowboy_protocol, ProtoOpts).
+  start_http_over_transport(Ref, NbAcceptors, ranch_tcp, TransOpts, ProtoOpts).
 
 %% @doc Start an HTTPS listener.
 -spec start_https(ranch:ref(), non_neg_integer(), ranch_ssl:opts(),
 	cowboy_protocol:opts()) -> {ok, pid()} | {error, any()}.
 start_https(Ref, NbAcceptors, TransOpts, ProtoOpts)
 		when is_integer(NbAcceptors), NbAcceptors > 0 ->
-	ranch:start_listener(Ref, NbAcceptors,
-		ranch_ssl, TransOpts, cowboy_protocol, ProtoOpts).
+  start_http_over_transport(Ref, NbAcceptors, ranch_ssl, TransOpts, ProtoOpts).
 
 %% @doc Start a SPDY listener.
 -spec start_spdy(ranch:ref(), non_neg_integer(), ranch_ssl:opts(),
@@ -63,13 +63,23 @@ start_spdy(Ref, NbAcceptors, TransOpts, ProtoOpts)
 		{next_protocols_advertised,
 			[<<"spdy/3">>, <<"http/1.1">>, <<"http/1.0">>]}
 	|TransOpts],
-	ranch:start_listener(Ref, NbAcceptors,
-		ranch_ssl, TransOpts2, cowboy_spdy, ProtoOpts).
+
+  start_spdy_over_transport(Ref, NbAcceptors, ranch_ssl, TransOpts2, ProtoOpts).
 
 %% @doc Stop a listener.
 -spec stop_listener(ranch:ref()) -> ok.
 stop_listener(Ref) ->
 	ranch:stop_listener(Ref).
+
+
+start_http_over_transport(Ref, NbAcceptors, Transport, TransOpts, ProtoOpts)
+  when is_integer(NbAcceptors), NbAcceptors > 0, is_atom(Transport) ->
+  ranch:start_listener(Ref, NbAcceptors, Transport, TransOpts, cowboy_protocol, ProtoOpts).
+
+
+start_spdy_over_transport(Ref, NbAcceptors, Transport, TransOpts, ProtoOpts)
+  when is_integer(NbAcceptors), NbAcceptors > 0, is_atom(Transport) ->
+  ranch:start_listener(Ref, NbAcceptors, Transport, TransOpts, cowboy_spdy, ProtoOpts).
 
 %% @doc Convenience function for setting an environment value.
 %%
