@@ -789,7 +789,7 @@ process_content_type(Req, State=#state{method=Method, exists=Exists}, Fun) ->
 		{false, Req2, HandlerState2} ->
 			State2 = State#state{handler_state=HandlerState2},
 			respond(Req2, State2, 422);
-		{{true, ResURL}, Req2, HandlerState2} when Method =:= <<"POST">> ->
+		{{true, ResURL}, Req2, HandlerState2} when Method =:= <<"POST">>; Method =:= <<"PUT">> ->
 			State2 = State#state{handler_state=HandlerState2},
 			Req3 = cowboy_req:set_resp_header(
 				<<"location">>, ResURL, Req2),
