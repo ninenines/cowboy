@@ -67,7 +67,7 @@ start_spdy(Ref, NbAcceptors, TransOpts, ProtoOpts)
 		ranch_ssl, TransOpts2, cowboy_spdy, ProtoOpts).
 
 %% @doc Stop a listener.
--spec stop_listener(ranch:ref()) -> ok.
+-spec stop_listener(ranch:ref()) -> ok | {error, not_found}.
 stop_listener(Ref) ->
 	ranch:stop_listener(Ref).
 
