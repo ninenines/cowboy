@@ -76,7 +76,7 @@ Exports
 > Start listening for SPDY connections. Returns the pid for this
 > listener's supervisor.
 
-### stop_listener(Ref) -> ok
+### stop_listener(Ref) -> ok | {error, not_found}
 
 > Types:
 >  *  Ref = ranch:ref()
