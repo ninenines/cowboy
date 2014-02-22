@@ -86,7 +86,12 @@
 	max_header_value_length :: non_neg_integer(),
 	max_headers :: non_neg_integer(),
 	timeout :: timeout(),
-	until :: non_neg_integer() | infinity
+	until :: non_neg_integer() | infinity,
+	is_proxied :: boolean(),
+	proxy_src_host :: inet:ip_address(),
+	proxy_src_port :: inet:port_number(),
+	proxy_dst_host :: inet:ip_address(),
+	proxy_dst_port :: inet:port_number()
 }).
 
 -include_lib("cowlib/include/cow_inline.hrl").
@@ -179,8 +184,12 @@ parse_request(<< $\n, _/binary >>, State, _) ->
 	error_terminate(400, State);
 %% We limit the length of the Request-line to MaxLength to avoid endlessly
 %% reading from the socket and eventually crashing.
-parse_request(Buffer, State=#state{max_request_line_length=MaxLength,
+parse_request(DataBuffer, OState=#state{max_request_line_length=MaxLength,
 		max_empty_lines=MaxEmpty}, ReqEmpty) ->
+
+	%%remove proxy information
+	{Buffer, State} = parse_proxy(DataBuffer, OState),
+
 	case match_eol(Buffer, 0) of
 		nomatch when byte_size(Buffer) > MaxLength ->
 			error_terminate(414, State);
@@ -201,6 +210,121 @@ match_eol(<< _, Rest/bits >>, N) ->
 	match_eol(Rest, N + 1);
 match_eol(_, _) ->
 	nomatch.
+
+%% destination port
+extract_proxy_values(<<$\r,$\n, Rest/binary>>, Sofar, Acc) ->
+  {lists:reverse([ list_to_integer(binary_to_list(Sofar)) | Acc]), Rest};
+
+%% source port
+extract_proxy_values(<<$\s, Rest/binary>>, Sofar, [_,_,_]=Acc) ->
+  extract_proxy_values(Rest, <<>>, [ list_to_integer(binary_to_list(Sofar)) | Acc]);
+
+%% source and destination ips
+extract_proxy_values(<<$\s, Rest/binary>>, Sofar, Acc) when length(Acc) < 3 ->
+  extract_proxy_values(Rest, <<>>, [ element(2,inet:parse_address(binary_to_list(Sofar))) | Acc]);
+
+extract_proxy_values(<<C, Rest/binary>>, Sofar, Acc) ->
+  io:format("HERERE: ~p~n", [C]),
+%%   io:format("~p~n", [Rest]),
+  extract_proxy_values(Rest, <<Sofar/binary, C/binary>>, Acc).
+
+ip_trans(<<>>,Acc) -> list_to_tuple(lists:reverse(Acc));
+ip_trans(<<IP:8/big-unsigned-integer, Rest/bits>>, Acc) -> ip_trans(Rest, [IP | Acc]).
+
+int_to_ip(IP, Size) when is_integer(IP), is_integer(Size) ->
+  ip_trans(<< IP:(8*Size)/big-unsigned-integer >>, []).
+
+%% local request - ignore address use socket info
+parse_v2_proxy(<<0:8, _:8, Len:8/big-unsigned-integer, Rest/bits>>, State) ->
+  L = 8 * Len,
+  << _:L, Rest2/binary >> = Rest,
+  {Rest2, State};
+%%
+parse_v2_proxy(<<1:8, FT:8/big-unsigned-integer, Len:8/big-unsigned-integer, Rest/bits>>, State) ->
+  if
+    FT == 17; FT == 33 ->
+      << SAddr:32/big-unsigned-integer,
+        DAddr:32/big-unsigned-integer,
+          SPort:16/big-unsigned-integer,
+            DPort:16/big-unsigned-integer, Rest2/bits >> = Rest,
+
+
+    {Rest2, State#state {
+      is_proxied = true,
+      proxy_src_host = int_to_ip(SAddr, 4),
+      proxy_dst_host = int_to_ip(DAddr, 4),
+      proxy_dst_port = DPort,
+      proxy_src_port = SPort
+    }};
+
+    FT == 18; FT == 34 ->
+      << SAddr:8/big-unsigned-integer-unit:16,
+        DAddr:8/big-unsigned-integer-unit:16,
+        SPort:16/big-unsigned-integer,
+        DPort:16/big-unsigned-integer, Rest2/bits >> = Rest,
+
+
+    {Rest2, State#state {
+      is_proxied = true,
+      proxy_src_host = int_to_ip(SAddr, 16),
+      proxy_dst_host = int_to_ip(DAddr, 16),
+      proxy_dst_port = DPort,
+      proxy_src_port = SPort
+    }};
+
+    FT == 49; FT == 50 ->
+      << SAddr:(8*108)/binary, DAddr:(8*106)/binary, Rest2/bits >> = Rest,
+      {Rest2, State#state {is_proxied = true, proxy_src_host = SAddr,proxy_dst_host = DAddr}};
+
+    true ->
+      L = 8*(Len-1),
+      << _:L, Rest2/binary >> = Rest,
+      {Rest2, State#state{is_proxied = false}}
+  end;
+
+parse_v2_proxy(Rest, State) ->
+  {Rest, State}.
+
+%% ha-proxy v2 - binary protocol
+parse_proxy(<<"\r\n\r\n\0\r\nQUIT\n",02:8, Rest/bits >>, State) ->
+  parse_v2_proxy(Rest, State);
+
+%% ha-proxy old school proxy protocol
+parse_proxy(<<"PROXY UNKNOWN\r\n", Rest/bits >>, State) ->
+  parse_proxy(Rest, State);
+
+parse_proxy(<<"PROXY UNKNOWN ", Rest/bits >>, S) ->
+  {[SrcIP, DstIP, SrcPort, DstPort], Rest2} = extract_proxy_values(Rest, <<>>, []),
+  parse_proxy(Rest2, S#state{
+    is_proxied = true,
+    proxy_src_host = SrcIP,
+    proxy_dst_host = DstIP,
+    proxy_src_port = SrcPort,
+    proxy_dst_port = DstPort
+  });
+
+parse_proxy(<<"PROXY TCP4 ", Rest/bits >>, State) ->
+  {[SrcIP, DstIP, SrcPort, DstPort], Rest2} = extract_proxy_values(Rest, <<>>, []),
+  parse_proxy(Rest2, State#state{
+    is_proxied = true,
+    proxy_src_host = SrcIP,
+    proxy_dst_host = DstIP,
+    proxy_src_port = SrcPort,
+    proxy_dst_port = DstPort
+  });
+
+parse_proxy(<<"PROXY TCP6 ", Rest/bits >>, State) ->
+  {[SrcIP, DstIP, SrcPort, DstPort], Rest2} = extract_proxy_values(Rest, <<>>, []),
+  parse_proxy(Rest2, State#state{
+    is_proxied = true,
+    proxy_src_host = SrcIP,
+    proxy_dst_host = DstIP,
+    proxy_src_port = SrcPort,
+    proxy_dst_port = DstPort
+  });
+
+parse_proxy(<<_/binary>> = Rest, State) -> {Rest, State}.
+
 
 parse_method(<< C, Rest/bits >>, State, SoFar) ->
 	case C of
@@ -435,7 +559,12 @@ request(Buffer, State=#state{socket=Socket, transport=Transport,
 		compress=Compress, onresponse=OnResponse},
 		Method, Path, Query, Version, Headers, Host, Port) ->
 	case Transport:peername(Socket) of
-		{ok, Peer} ->
+		{ok, SockPeer} ->
+			Peer = if
+				  State#state.is_proxied == true ->
+				    {State#state.proxy_src_host, State#state.proxy_src_port};
+				  true -> SockPeer
+				end,
 			Req = cowboy_req:new(Socket, Transport, Peer, Method, Path,
 				Query, Version, Headers, Host, Port, Buffer,
 				ReqKeepalive < MaxKeepalive, Compress, OnResponse),
