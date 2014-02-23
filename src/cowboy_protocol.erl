@@ -216,17 +216,15 @@ extract_proxy_values(<<$\r,$\n, Rest/binary>>, Sofar, Acc) ->
   {lists:reverse([ list_to_integer(binary_to_list(Sofar)) | Acc]), Rest};
 
 %% source port
-extract_proxy_values(<<$\s, Rest/binary>>, Sofar, [_,_,_]=Acc) ->
+extract_proxy_values(<<$\s, Rest/binary>>, Sofar, [_,_]=Acc) ->
   extract_proxy_values(Rest, <<>>, [ list_to_integer(binary_to_list(Sofar)) | Acc]);
 
 %% source and destination ips
-extract_proxy_values(<<$\s, Rest/binary>>, Sofar, Acc) when length(Acc) < 3 ->
+extract_proxy_values(<<$\s, Rest/binary>>, Sofar, Acc) when length(Acc) < 2 ->
   extract_proxy_values(Rest, <<>>, [ element(2,inet:parse_address(binary_to_list(Sofar))) | Acc]);
 
 extract_proxy_values(<<C, Rest/binary>>, Sofar, Acc) ->
-  io:format("HERERE: ~p~n", [C]),
-%%   io:format("~p~n", [Rest]),
-  extract_proxy_values(Rest, <<Sofar/binary, C/binary>>, Acc).
+  extract_proxy_values(Rest, <<Sofar/binary, C>>, Acc).
 
 ip_trans(<<>>,Acc) -> list_to_tuple(lists:reverse(Acc));
 ip_trans(<<IP:8/big-unsigned-integer, Rest/bits>>, Acc) -> ip_trans(Rest, [IP | Acc]).
