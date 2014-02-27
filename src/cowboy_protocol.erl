@@ -375,7 +375,8 @@ parse_hd_value(<< $\r, Rest/bits >>, S, M, P, Q, V, Headers, Name, SoFar) ->
 		<< $\n >> ->
 			wait_hd_value_nl(<<>>, S, M, P, Q, V, Headers, Name, SoFar);
 		<< $\n, C, Rest2/bits >> when C =:= $\s; C =:= $\t ->
-			parse_hd_value(Rest2, S, M, P, Q, V, Headers, Name, SoFar);
+			parse_hd_value(Rest2, S, M, P, Q, V, Headers, Name,
+				<< SoFar/binary, C >>);
 		<< $\n, Rest2/bits >> ->
 			parse_header(Rest2, S, M, P, Q, V, [{Name, SoFar}|Headers])
 	end;
