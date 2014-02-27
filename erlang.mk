@@ -24,7 +24,7 @@ export PKG_FILE
 PKG_FILE_URL ?= https://raw.github.com/extend/erlang.mk/master/packages.v1.tsv
 
 define get_pkg_file
-	wget --no-check-certificate -O $(PKG_FILE) $(PKG_FILE_URL) || rm $(PKG_FILE)
+	wget -O $(PKG_FILE) $(PKG_FILE_URL) || rm $(PKG_FILE)
 endef
 
 # Verbosity and tweaks.
