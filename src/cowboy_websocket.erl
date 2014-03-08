@@ -42,6 +42,8 @@
 -type frag_state() :: undefined
 	| {nofin, opcode(), binary()} | {fin, opcode(), binary()}.
 -type rsv() :: << _:3 >>.
+-type terminate_reason() :: {normal | error | remote, atom()}
+	| {remote, close_code(), binary()}.
 
 -record(state, {
 	env :: cowboy_middleware:env(),
@@ -730,8 +732,7 @@ websocket_send_many([Frame|Tail], State) ->
 		{Error, State2} -> {Error, State2}
 	end.
 
--spec websocket_close(#state{}, Req, any(),
-	{atom(), atom()} | {remote, close_code(), binary()})
+-spec websocket_close(#state{}, Req, any(), terminate_reason())
 	-> {ok, Req, cowboy_middleware:env()}
 	when Req::cowboy_req:req().
 websocket_close(State=#state{socket=Socket, transport=Transport},
@@ -752,7 +753,7 @@ websocket_close(State=#state{socket=Socket, transport=Transport},
 	end,
 	handler_terminate(State, Req, HandlerState, Reason).
 
--spec handler_terminate(#state{}, Req, any(), atom() | {atom(), atom()})
+-spec handler_terminate(#state{}, Req, any(), terminate_reason())
 	-> {ok, Req, cowboy_middleware:env()}
 	when Req::cowboy_req:req().
 handler_terminate(#state{env=Env, handler=Handler},
