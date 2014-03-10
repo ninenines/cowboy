@@ -332,9 +332,9 @@ split_path(Path, Acc) ->
 	try
 		case binary:match(Path, <<"/">>) of
 			nomatch when Path =:= <<>> ->
-				lists:reverse([cowboy_http:urldecode(S) || S <- Acc]);
+				lists:reverse([cow_qs:urldecode(S) || S <- Acc]);
 			nomatch ->
-				lists:reverse([cowboy_http:urldecode(S) || S <- [Path|Acc]]);
+				lists:reverse([cow_qs:urldecode(S) || S <- [Path|Acc]]);
 			{Pos, _} ->
 				<< Segment:Pos/binary, _:8, Rest/bits >> = Path,
 				split_path(Rest, [Segment|Acc])
