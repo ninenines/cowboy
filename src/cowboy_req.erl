@@ -77,6 +77,7 @@
 -export([init_stream/4]).
 -export([stream_body/1]).
 -export([stream_body/2]).
+-export([buffer_data/3]).
 -export([skip_body/1]).
 -export([body/1]).
 -export([body/2]).
@@ -751,6 +752,38 @@ read_body(Req, Acc) ->
 		{error, Reason} ->
 			{error, Reason}
 	end.
+
+%% @doc Takes the body data from the Transport and stores it in Cowboy's
+%% internal buffer, returning the amount of buffered data.
+-spec buffer_data(non_neg_integer(), timeout(), req()) ->
+	{error, Reason::term()} |
+	{ok, Req::req()}.
+%% A length of 0 means we want any amount of data buffered, including what
+%% is already there
+buffer_data(0, Timeout, Req=#http_req{socket=Socket, transport=Transport,
+		buffer= <<>>}) ->
+	case Transport:recv(Socket, 0, Timeout) of
+		{ok, Data} ->
+			{ok, Req#http_req{buffer=Data}};
+		{error, Reason} ->
+			{error, Reason}
+	end;
+buffer_data(0, _Timeout, Req) -> % data is in the buffer
+	{ok, Req};
+buffer_data(Length, Timeout, Req=#http_req{socket=Socket, transport=Transport,
+		buffer=Buffer}) ->
+	case Length - iolist_size(Buffer) of
+		N when N > 0 ->
+			case Transport:recv(Socket, N, Timeout) of
+				{ok, Data} ->
+					{ok, Req#http_req{buffer= <<Buffer/binary, Data/binary>>}};
+				{error, Reason} ->
+					{error, Reason}
+			end;
+		_ ->
+			{ok, Req}
+	end.
+
 
 -spec skip_body(Req) -> {ok, Req} | {error, atom()} when Req::req().
 skip_body(Req) ->
