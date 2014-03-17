@@ -1,4 +1,4 @@
-%% Copyright (c) 2011-2014, Loïc Hoguin <essen@ninenines.eu>
+%% Copyright (c) 2011-2013, Loïc Hoguin <essen@ninenines.eu>
 %% Copyright (c) 2011, Anthony Ramine <nox@dev-extend.eu>
 %%
 %% Permission to use, copy, modify, and/or distribute this software for any
@@ -70,6 +70,8 @@
 -export([meta/2]).
 -export([meta/3]).
 -export([set_meta/3]).
+-export([set_stream_timeout/2]).
+-export([set_stream_size/2]).
 
 %% Request body API.
 -export([has_body/1]).
@@ -158,6 +160,8 @@
 	p_headers = [] :: [any()], %% @todo Improve those specs.
 	cookies = undefined :: undefined | [{binary(), binary()}],
 	meta = [] :: [{atom(), any()}],
+    timeout = 5000 :: non_neg_integer(),
+    stream_size = 1000000 :: non_neg_integer(),
 
 	%% Request body.
 	body_state = waiting :: waiting | done | {stream, non_neg_integer(),
@@ -545,6 +549,14 @@ meta(Name, Req, Default) ->
 set_meta(Name, Value, Req=#http_req{meta=Meta}) ->
 	Req#http_req{meta=[{Name, Value}|lists:keydelete(Name, 1, Meta)]}.
 
+-spec set_stream_timeout(non_neg_integer(), Req) -> Req when Req::req().
+set_stream_timeout(TimeOut, Req=#http_req{}) ->
+  Req#http_req{timeout=TimeOut}.
+
+-spec set_stream_size(non_neg_integer(), Req) -> Req when Req::req().
+set_stream_size(StreamSize, Req=#http_req{}) ->
+  Req#http_req{stream_size=StreamSize}.
+
 %% Request Body API.
 
 %% @doc Return whether the request message has a body.
@@ -598,8 +610,8 @@ init_stream(TransferDecode, TransferState, ContentDecode, Req) ->
 %% @equiv stream_body(1000000, Req)
 -spec stream_body(Req) -> {ok, binary(), Req}
 	| {done, Req} | {error, atom()} when Req::req().
-stream_body(Req) ->
-	stream_body(1000000, Req).
+stream_body(Req=#http_req{stream_size=StreamSize}) ->
+	stream_body(StreamSize, Req).
 
 %% @doc Stream the request's body.
 %%
@@ -656,11 +668,11 @@ stream_body(MaxLength, Req) ->
 
 -spec stream_body_recv(non_neg_integer(), Req)
 	-> {ok, binary(), Req} | {error, atom()} when Req::req().
-stream_body_recv(MaxLength, Req=#http_req{
+stream_body_recv(MaxLength, Req=#http_req{timeout=TimeOut,
 		transport=Transport, socket=Socket, buffer=Buffer,
 		body_state={stream, Length, _, _, _}}) ->
 	%% @todo Allow configuring the timeout.
-	case Transport:recv(Socket, min(Length, MaxLength), 5000) of
+	case Transport:recv(Socket, min(Length, MaxLength), TimeOut) of
 		{ok, Data} -> transfer_decode(<< Buffer/binary, Data/binary >>,
 			Req#http_req{buffer= <<>>});
 		{error, Reason} -> {error, Reason}
@@ -1206,6 +1218,7 @@ g(resp_headers, #http_req{resp_headers=Ret}) -> Ret;
 g(resp_state, #http_req{resp_state=Ret}) -> Ret;
 g(socket, #http_req{socket=Ret}) -> Ret;
 g(transport, #http_req{transport=Ret}) -> Ret;
+g(timeout, #http_req{timeout =Ret}) -> Ret;
 g(version, #http_req{version=Ret}) -> Ret.
 
 %% @private
@@ -1236,6 +1249,7 @@ set([{resp_headers, Val}|Tail], Req) -> set(Tail, Req#http_req{resp_headers=Val}
 set([{resp_state, Val}|Tail], Req) -> set(Tail, Req#http_req{resp_state=Val});
 set([{socket, Val}|Tail], Req) -> set(Tail, Req#http_req{socket=Val});
 set([{transport, Val}|Tail], Req) -> set(Tail, Req#http_req{transport=Val});
+set([{timeout, Val}|Tail], Req) -> set(Tail, Req#http_req{timeout =Val});
 set([{version, Val}|Tail], Req) -> set(Tail, Req#http_req{version=Val}).
 
 %% @private
