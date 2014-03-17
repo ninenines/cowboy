@@ -7,7 +7,7 @@ Goals
 -----
 
 Cowboy aims to provide a **complete** HTTP stack in a **small** code base.
-It is optimized for **low latency** and **low memory usage**, in parts
+It is optimized for **low latency** and **low memory usage**, in part
 because it uses **binary strings**.
 
 Cowboy provides **routing** capabilities, selectively dispatching requests
