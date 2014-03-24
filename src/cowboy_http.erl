@@ -40,8 +40,6 @@
 -export([parameterized_tokens/1]).
 
 %% Decoding.
--export([te_chunked/2]).
--export([te_identity/2]).
 -export([ce_identity/1]).
 
 %% Parsing.
@@ -872,74 +870,8 @@ parameterized_tokens_param(Data, Fun) ->
 
 %% Decoding.
 
-%% @doc Decode a stream of chunks.
--spec te_chunked(Bin, TransferState)
-	-> more | {more, non_neg_integer(), Bin, TransferState}
-	| {ok, Bin, Bin, TransferState}
-	| {done, non_neg_integer(), Bin} | {error, badarg}
-	when Bin::binary(), TransferState::{non_neg_integer(), non_neg_integer()}.
-te_chunked(<< "0\r\n\r\n", Rest/binary >>, {0, Streamed}) ->
-	{done, Streamed, Rest};
-te_chunked(Data, {0, Streamed}) ->
-	%% @todo We are expecting an hex size, not a general token.
-	token(Data,
-		fun (<< "\r\n", Rest/binary >>, BinLen) ->
-				case list_to_integer(binary_to_list(BinLen), 16) of
-					%% Final chunk is parsed in one go above. Rest would be
-					%% <<\r\n">> if complete.
-					0 when byte_size(Rest) < 2 ->
-						more;
-					%% Normal chunk. Add 2 to Len for trailing <<"\r\n">>. Note
-					%% that repeated <<"-2\r\n">> would be streamed, and
-					%% accumulated, until out of memory if Len could be -2.
-					Len when Len > 0 ->
-						te_chunked(Rest, {Len + 2, Streamed})
-				end;
-			%% Chunk size shouldn't take too many bytes,
-			%% don't try to stream forever.
-			(Rest, _) when byte_size(Rest) < 16 ->
-				more;
-			(_, _) ->
-				{error, badarg}
-		end);
-%% <<"\n">> from trailing <<"\r\n">>.
-te_chunked(<< "\n", Rest/binary>>, {1, Streamed}) ->
-	{ok, <<>>, Rest, {0, Streamed}};
-te_chunked(<<>>, State={1, _Streamed}) ->
-	{more, 1, <<>>, State};
-%% Remainder of chunk (if any) and as much of trailing <<"\r\n">> as possible.
-te_chunked(Data, {ChunkRem, Streamed}) when byte_size(Data) >= ChunkRem - 2 ->
-	ChunkSize = ChunkRem - 2,
-	Streamed2 = Streamed + ChunkSize,
-	case Data of
-		<< Chunk:ChunkSize/binary, "\r\n", Rest/binary >> ->
-			{ok, Chunk, Rest, {0, Streamed2}};
-		<< Chunk:ChunkSize/binary, "\r" >> ->
-			{more, 1, Chunk, {1, Streamed2}};
-		<< Chunk:ChunkSize/binary >> ->
-			{more, 2, Chunk, {2, Streamed2}}
-	end;
-%% Incomplete chunk.
-te_chunked(Data, {ChunkRem, Streamed}) ->
-	ChunkRem2 = ChunkRem - byte_size(Data),
-	Streamed2 = Streamed + byte_size(Data),
-	{more, ChunkRem2, Data, {ChunkRem2, Streamed2}}.
-
-%% @doc Decode an identity stream.
--spec te_identity(Bin, TransferState)
-	-> {more, non_neg_integer(), Bin, TransferState}
-	| {done, Bin, non_neg_integer(), Bin}
-	when Bin::binary(), TransferState::{non_neg_integer(), non_neg_integer()}.
-te_identity(Data, {Streamed, Total})
-		when Streamed + byte_size(Data) < Total ->
-	Streamed2 = Streamed + byte_size(Data),
-	{more, Total - Streamed2, Data, {Streamed2, Total}};
-te_identity(Data, {Streamed, Total}) ->
-	Size = Total - Streamed,
-	<< Data2:Size/binary, Rest/binary >> = Data,
-	{done, Data2, Total, Rest}.
-
 %% @doc Decode an identity content.
+%% @todo Move this to cowlib too I suppose. :-)
 -spec ce_identity(binary()) -> {ok, binary()}.
 ce_identity(Data) ->
 	{ok, Data}.

@@ -632,7 +632,7 @@ stream_body(MaxLength, Req=#http_req{body_state=waiting, version=Version,
 		{ok, [<<"chunked">>], Req2} ->
 			stream_body(MaxLength, Req2#http_req{body_state=
 				{stream, 0,
-					fun cowboy_http:te_chunked/2, {0, 0},
+					fun cow_http_te:stream_chunked/2, {0, 0},
 					fun cowboy_http:ce_identity/1}});
 		{ok, [<<"identity">>], Req2} ->
 			{Length, Req3} = body_length(Req2),
@@ -642,7 +642,7 @@ stream_body(MaxLength, Req=#http_req{body_state=waiting, version=Version,
 				Length ->
 					stream_body(MaxLength, Req3#http_req{body_state=
 						{stream, Length,
-							fun cowboy_http:te_identity/2, {0, Length},
+							fun cow_http_te:stream_identity/2, {0, Length},
 							fun cowboy_http:ce_identity/1}})
 			end
 	end;
@@ -666,31 +666,34 @@ stream_body_recv(MaxLength, Req=#http_req{
 		{error, Reason} -> {error, Reason}
 	end.
 
+%% @todo Handle chunked after-the-facts headers.
+%% @todo Depending on the length returned we might want to 0 or +5 it.
 -spec transfer_decode(binary(), Req)
 	-> {ok, binary(), Req} | {error, atom()} when Req::req().
 transfer_decode(Data, Req=#http_req{body_state={stream, _,
 		TransferDecode, TransferState, ContentDecode}}) ->
 	case TransferDecode(Data, TransferState) of
-		{ok, Data2, Rest, TransferState2} ->
-			content_decode(ContentDecode, Data2,
-				Req#http_req{buffer=Rest, body_state={stream, 0,
-				TransferDecode, TransferState2, ContentDecode}});
-		%% @todo {header(s) for chunked
 		more ->
 			stream_body_recv(0, Req#http_req{buffer=Data, body_state={stream,
 				0, TransferDecode, TransferState, ContentDecode}});
-		{more, Length, Data2, TransferState2} ->
+		{more, Data2, TransferState2} ->
+			content_decode(ContentDecode, Data2,
+				Req#http_req{body_state={stream, 0,
+				TransferDecode, TransferState2, ContentDecode}});
+		{more, Data2, Length, TransferState2} ->
 			content_decode(ContentDecode, Data2,
 				Req#http_req{body_state={stream, Length,
+				TransferDecode, TransferState2, ContentDecode}});
+		{more, Data2, Length, Rest, TransferState2} ->
+			content_decode(ContentDecode, Data2,
+				Req#http_req{buffer=Rest, body_state={stream, Length,
 				TransferDecode, TransferState2, ContentDecode}});
 		{done, Length, Rest} ->
 			Req2 = transfer_decode_done(Length, Rest, Req),
 			{done, Req2};
 		{done, Data2, Length, Rest} ->
 			Req2 = transfer_decode_done(Length, Rest, Req),
-			content_decode(ContentDecode, Data2, Req2);
-		{error, Reason} ->
-			{error, Reason}
+			content_decode(ContentDecode, Data2, Req2)
 	end.
 
 -spec transfer_decode_done(non_neg_integer(), binary(), Req)
