@@ -213,7 +213,7 @@ new(Socket, Transport, Peer, Method, Path, Query,
 				false ->
 					Req; %% keepalive
 				{_, ConnectionHeader} ->
-					Tokens = parse_connection_before(ConnectionHeader, []),
+					Tokens = cow_http_hd:parse_connection(ConnectionHeader),
 					Connection = connection_to_atom(Tokens),
 					Req#http_req{connection=Connection,
 						p_headers=[{<<"connection">>, Tokens}]}
@@ -1360,7 +1360,7 @@ response_connection([], Connection) ->
 response_connection([{Name, Value}|Tail], Connection) ->
 	case Name of
 		<<"connection">> ->
-			Tokens = parse_connection_before(Value, []),
+			Tokens = cow_http_hd:parse_connection(Value),
 			connection_to_atom(Tokens);
 		_ ->
 			response_connection(Tail, Connection)
@@ -1401,54 +1401,6 @@ atom_to_connection(keepalive) ->
 	<<"keep-alive">>;
 atom_to_connection(close) ->
 	<<"close">>.
-
-%% Optimized parsing functions for the Connection header.
-parse_connection_before(<<>>, Acc) ->
-	lists:reverse(Acc);
-parse_connection_before(<< C, Rest/bits >>, Acc)
-		when C =:= $,; C =:= $\s; C =:= $\t ->
-	parse_connection_before(Rest, Acc);
-parse_connection_before(Buffer, Acc) ->
-	parse_connection(Buffer, Acc, <<>>).
-
-%% An evil block of code appeared!
-parse_connection(<<>>, Acc, <<>>) ->
-	lists:reverse(Acc);
-parse_connection(<<>>, Acc, Token) ->
-	lists:reverse([Token|Acc]);
-parse_connection(<< C, Rest/bits >>, Acc, Token)
-		when C =:= $,; C =:= $\s; C =:= $\t ->
-	parse_connection_before(Rest, [Token|Acc]);
-parse_connection(<< C, Rest/bits >>, Acc, Token) ->
-	case C of
-		$A -> parse_connection(Rest, Acc, << Token/binary, $a >>);
-		$B -> parse_connection(Rest, Acc, << Token/binary, $b >>);
-		$C -> parse_connection(Rest, Acc, << Token/binary, $c >>);
-		$D -> parse_connection(Rest, Acc, << Token/binary, $d >>);
-		$E -> parse_connection(Rest, Acc, << Token/binary, $e >>);
-		$F -> parse_connection(Rest, Acc, << Token/binary, $f >>);
-		$G -> parse_connection(Rest, Acc, << Token/binary, $g >>);
-		$H -> parse_connection(Rest, Acc, << Token/binary, $h >>);
-		$I -> parse_connection(Rest, Acc, << Token/binary, $i >>);
-		$J -> parse_connection(Rest, Acc, << Token/binary, $j >>);
-		$K -> parse_connection(Rest, Acc, << Token/binary, $k >>);
-		$L -> parse_connection(Rest, Acc, << Token/binary, $l >>);
-		$M -> parse_connection(Rest, Acc, << Token/binary, $m >>);
-		$N -> parse_connection(Rest, Acc, << Token/binary, $n >>);
-		$O -> parse_connection(Rest, Acc, << Token/binary, $o >>);
-		$P -> parse_connection(Rest, Acc, << Token/binary, $p >>);
-		$Q -> parse_connection(Rest, Acc, << Token/binary, $q >>);
-		$R -> parse_connection(Rest, Acc, << Token/binary, $r >>);
-		$S -> parse_connection(Rest, Acc, << Token/binary, $s >>);
-		$T -> parse_connection(Rest, Acc, << Token/binary, $t >>);
-		$U -> parse_connection(Rest, Acc, << Token/binary, $u >>);
-		$V -> parse_connection(Rest, Acc, << Token/binary, $v >>);
-		$W -> parse_connection(Rest, Acc, << Token/binary, $w >>);
-		$X -> parse_connection(Rest, Acc, << Token/binary, $x >>);
-		$Y -> parse_connection(Rest, Acc, << Token/binary, $y >>);
-		$Z -> parse_connection(Rest, Acc, << Token/binary, $z >>);
-		C -> parse_connection(Rest, Acc, << Token/binary, C >>)
-	end.
 
 %% @doc Walk through a tokens list and return whether
 %% the connection is keepalive or closed.
@@ -1552,17 +1504,6 @@ url_test() ->
 		url(#http_req{transport=ranch_ssl, host= <<"localhost">>, port=8443,
 			path= <<"/path">>, qs= <<"dummy=2785">>, pid=self()}),
 	ok.
-
-parse_connection_test_() ->
-	%% {Binary, Result}
-	Tests = [
-		{<<"close">>, [<<"close">>]},
-		{<<"ClOsE">>, [<<"close">>]},
-		{<<"Keep-Alive">>, [<<"keep-alive">>]},
-		{<<"keep-alive, Upgrade">>, [<<"keep-alive">>, <<"upgrade">>]}
-	],
-	[{B, fun() -> R = parse_connection_before(B, []) end}
-		|| {B, R} <- Tests].
 
 connection_to_atom_test_() ->
 	%% {Tokens, Result}
