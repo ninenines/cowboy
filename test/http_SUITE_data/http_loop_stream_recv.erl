@@ -8,34 +8,27 @@
 init({_, http}, Req, _) ->
 	receive after 100 -> ok end,
 	self() ! stream,
-	{loop, Req, 1, 100}.
+	{loop, Req, undefined, 100}.
 
-info(stream, Req, Id) ->
-	case stream_next(Req) of
-		{ok, Id, Req2} ->
-			info(stream, Req2, Id+1);
+info(stream, Req, undefined) ->
+	stream(Req, 1, <<>>).
+
+stream(Req, ID, Acc) ->
+	case cowboy_req:stream_body(Req) of
+		{ok, Data, Req2} ->
+			parse_id(Req2, ID, << Acc/binary, Data/binary >>);
 		{done, Req2} ->
 			{ok, Req3} = cowboy_req:reply(200, Req2),
-			{ok, Req3, Id}
+			{ok, Req3, undefined}
+	end.
+
+parse_id(Req, ID, Data) ->
+	case Data of
+		<< ID:32, Rest/bits >> ->
+			parse_id(Req, ID + 1, Rest);
+		_ ->
+			stream(Req, ID, Data)
 	end.
 
 terminate({normal, shutdown}, _, _) ->
 	ok.
-
-stream_next(Req) ->
-	stream_next(<<>>, Req).
-
-stream_next(Buffer, Req) ->
-	case cowboy_req:stream_body(Req) of
-		{ok, Packet, Req2} ->
-			case <<Buffer/binary, Packet/binary>> of
-				<<Id:32>> ->
-					{ok, Id, Req2};
-				Buffer2 when byte_size(Buffer2) < 4 ->
-					stream_next(Buffer2, Req2);
-				_InvalidBuffer ->
-					{error, invalid_chunk}
-			end;
-		Other ->
-			Other
-	end.
