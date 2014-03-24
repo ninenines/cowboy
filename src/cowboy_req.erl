@@ -427,7 +427,7 @@ parse_header(Name = <<"authorization">>, Req, Default) ->
 			cowboy_http:token_ci(Value, fun cowboy_http:authorization/2)
 		end);
 parse_header(Name = <<"content-length">>, Req, Default) ->
-	parse_header(Name, Req, Default, fun cowboy_http:digits/1);
+	parse_header(Name, Req, Default, fun cow_http_hd:parse_content_length/1);
 parse_header(Name = <<"content-type">>, Req, Default) ->
 	parse_header(Name, Req, Default, fun cowboy_http:content_type/1);
 parse_header(Name = <<"cookie">>, Req, Default) ->
