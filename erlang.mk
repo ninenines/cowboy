@@ -1,4 +1,4 @@
-# Copyright (c) 2013, Loïc Hoguin <essen@ninenines.eu>
+# Copyright (c) 2013-2014, Loïc Hoguin <essen@ninenines.eu>
 #
 # Permission to use, copy, modify, and/or distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -58,7 +58,7 @@ ifneq ($(wildcard $(RELX_CONFIG)),)
 RELX ?= $(CURDIR)/relx
 export RELX
 
-RELX_URL ?= https://github.com/erlware/relx/releases/download/v0.5.2/relx
+RELX_URL ?= https://github.com/erlware/relx/releases/download/v0.6.0/relx
 RELX_OPTS ?=
 
 define get_relx
@@ -132,7 +132,7 @@ define compile_dtl
 		Compile = fun(F) -> \
 			Module = list_to_atom( \
 				string:to_lower(filename:basename(F, ".dtl")) ++ "_dtl"), \
-			erlydtl_compiler:compile(F, Module, [{out_dir, "ebin/"}]) \
+			erlydtl:compile(F, Module, [{out_dir, "ebin/"}]) \
 		end, \
 		_ = [Compile(F) || F <- string:tokens("$(1)", " ")], \
 		init:stop()'
@@ -209,11 +209,14 @@ clean-docs:
 
 $(foreach dep,$(TEST_DEPS),$(eval $(call dep_target,$(dep))))
 
+TEST_ERLC_OPTS ?= +debug_info +warn_export_vars +warn_shadow_vars +warn_obsolete_guard
+TEST_ERLC_OPTS += -DTEST=1 -DEXTRA=1 +'{parse_transform, eunit_autoexport}'
+
 build-test-deps: $(ALL_TEST_DEPS_DIRS)
 	@for dep in $(ALL_TEST_DEPS_DIRS) ; do $(MAKE) -C $$dep; done
 
 build-tests: build-test-deps
-	$(gen_verbose) erlc -v $(ERLC_OPTS) -o test/ \
+	$(gen_verbose) erlc -v $(TEST_ERLC_OPTS) -o test/ \
 		$(wildcard test/*.erl test/*/*.erl) -pa ebin/
 
 CT_OPTS ?=
@@ -228,7 +231,7 @@ CT_RUN = ct_run \
 CT_SUITES ?=
 
 define test_target
-test_$(1): ERLC_OPTS += -DTEST=1 +'{parse_transform, eunit_autoexport}'
+test_$(1): ERLC_OPTS = $(TEST_ERLC_OPTS)
 test_$(1): clean deps app build-tests
 	@if [ -d "test" ] ; \
 	then \
@@ -240,7 +243,7 @@ endef
 
 $(foreach test,$(CT_SUITES),$(eval $(call test_target,$(test))))
 
-tests: ERLC_OPTS += -DTEST=1 +'{parse_transform, eunit_autoexport}'
+tests: ERLC_OPTS = $(TEST_ERLC_OPTS)
 tests: clean deps app build-tests
 	@if [ -d "test" ] ; \
 	then \
@@ -251,16 +254,18 @@ tests: clean deps app build-tests
 
 # Dialyzer.
 
+DIALYZER_PLT ?= $(CURDIR)/.$(PROJECT).plt
+export DIALYZER_PLT
+
 PLT_APPS ?=
 DIALYZER_OPTS ?= -Werror_handling -Wrace_conditions \
 	-Wunmatched_returns # -Wunderspecs
 
 build-plt: deps app
-	@dialyzer --build_plt --output_plt .$(PROJECT).plt \
-		--apps erts kernel stdlib $(PLT_APPS) $(ALL_DEPS_DIRS)
+	@dialyzer --build_plt --apps erts kernel stdlib $(PLT_APPS) $(ALL_DEPS_DIRS)
 
 dialyze:
-	@dialyzer --src src --plt .$(PROJECT).plt --no_native $(DIALYZER_OPTS)
+	@dialyzer --src src --no_native $(DIALYZER_OPTS)
 
 # Packages.
 
