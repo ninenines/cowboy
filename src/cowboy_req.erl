@@ -454,10 +454,10 @@ parse_header(Name, Req, Default)
 		fun (Value) ->
 			cowboy_http:nonempty_list(Value, fun cowboy_http:token/2)
 		end);
-%% @todo Extension parameters.
-parse_header(Name, Req, Default)
-		when Name =:= <<"transfer-encoding">>;
-			Name =:= <<"upgrade">> ->
+parse_header(Name = <<"transfer-encoding">>, Req, Default) ->
+	parse_header(Name, Req, Default, fun cow_http_hd:parse_transfer_encoding/1);
+%% @todo Product version.
+parse_header(Name = <<"upgrade">>, Req, Default) ->
 	parse_header(Name, Req, Default,
 		fun (Value) ->
 			cowboy_http:nonempty_list(Value, fun cowboy_http:token_ci/2)
