@@ -100,24 +100,19 @@ init_dispatch(Config) ->
 
 %% Convenience functions.
 
-quick_get(Pid, Host, Path) ->
-	MRef = monitor(process, Pid),
-	StreamRef = gun:get(Pid, Path, [{":host", Host}]),
-	receive
-		{'DOWN', MRef, _, _, Reason} ->
-			error(Reason);
-		{gun_response, Pid, StreamRef, IsFin,
-				<< Status:3/binary, _/bits >>, Headers} ->
-			{IsFin, list_to_integer(binary_to_list(Status)), Headers}
-	after 1000 ->
-		error(timeout)
-	end.
+gun_monitor_open(Config) ->
+	{_, Port} = lists:keyfind(port, 1, Config),
+	{ok, ConnPid} = gun:open("localhost", Port, [{retry, 0}]),
+	{ConnPid, monitor(process, ConnPid)}.
+
+quick_get(ConnPid, MRef, Host, Path) ->
+	StreamRef = gun:get(ConnPid, Path, [{":host", Host}]),
+	{response, IsFin, Status, _} = gun:await(ConnPid, StreamRef, MRef),
+	{IsFin, Status}.
 
 %% Tests.
 
 check_status(Config) ->
-	{_, Port} = lists:keyfind(port, 1, Config),
-	{ok, Pid} = gun:open("localhost", Port),
 	Tests = [
 		{200, nofin, "localhost", "/"},
 		{200, nofin, "localhost", "/chunked"},
@@ -126,64 +121,33 @@ check_status(Config) ->
 		{400, fin, "localhost", "bad-path"},
 		{404, fin, "localhost", "/this/path/does/not/exist"}
 	],
+	{ConnPid, MRef} = gun_monitor_open(Config),
 	_ = [{Status, Fin, Host, Path} = begin
-		{IsFin, Ret, _} = quick_get(Pid, Host, Path),
+		{IsFin, Ret} = quick_get(ConnPid, MRef, Host, Path),
 		{Ret, IsFin, Host, Path}
 	end || {Status, Fin, Host, Path} <- Tests],
-	gun:close(Pid).
+	gun:close(ConnPid).
 
 echo_body(Config) ->
-	{_, Port} = lists:keyfind(port, 1, Config),
-	{ok, Pid} = gun:open("localhost", Port),
-	MRef = monitor(process, Pid),
+	{ConnPid, MRef} = gun_monitor_open(Config),
 	Body = << 0:800000 >>,
-	StreamRef = gun:post(Pid, "/echo/body", [
-		{<<"content-length">>, integer_to_list(byte_size(Body))},
+	StreamRef = gun:post(ConnPid, "/echo/body", [
 		{<<"content-type">>, "application/octet-stream"}
 	], Body),
-	receive
-		{'DOWN', MRef, _, _, Reason} ->
-			error(Reason);
-		{gun_response, Pid, StreamRef, nofin, << "200", _/bits >>, _} ->
-			ok
-	after 1000 ->
-		error(response_timeout)
-	end,
-	receive
-		{'DOWN', MRef, _, _, Reason2} ->
-			error({gun_data, Reason2});
-		{gun_data, Pid, StreamRef, fin, Body} ->
-			ok
-	after 1000 ->
-		error(data_timeout)
-	end,
-	gun:close(Pid).
+	{response, nofin, 200, _} = gun:await(ConnPid, StreamRef, MRef),
+	{ok, Body} = gun:await_body(ConnPid, StreamRef, MRef),
+	gun:close(ConnPid).
 
 echo_body_multi(Config) ->
-	{_, Port} = lists:keyfind(port, 1, Config),
-	{ok, Pid} = gun:open("localhost", Port),
-	MRef = monitor(process, Pid),
+	{ConnPid, MRef} = gun_monitor_open(Config),
 	BodyChunk = << 0:80000 >>,
-	StreamRef = gun:post(Pid, "/echo/body", [
+	StreamRef = gun:post(ConnPid, "/echo/body", [
+		%% @todo I'm still unhappy with this. It shouldn't be required...
 		{<<"content-length">>, integer_to_list(byte_size(BodyChunk) * 10)},
 		{<<"content-type">>, "application/octet-stream"}
 	]),
-	_ = [gun:data(Pid, StreamRef, nofin, BodyChunk) || _ <- lists:seq(1, 9)],
-	gun:data(Pid, StreamRef, fin, BodyChunk),
-	receive
-		{'DOWN', MRef, _, _, Reason} ->
-			error(Reason);
-		{gun_response, Pid, StreamRef, nofin, << "200", _/bits >>, _} ->
-			ok
-	after 1000 ->
-		error(response_timeout)
-	end,
-	receive
-		{'DOWN', MRef, _, _, Reason2} ->
-			error({gun_data, Reason2});
-		{gun_data, Pid, StreamRef, fin, << 0:800000 >>} ->
-			ok
-	after 1000 ->
-		error(data_timeout)
-	end,
-	gun:close(Pid).
+	_ = [gun:data(ConnPid, StreamRef, nofin, BodyChunk) || _ <- lists:seq(1, 9)],
+	gun:data(ConnPid, StreamRef, fin, BodyChunk),
+	{response, nofin, 200, _} = gun:await(ConnPid, StreamRef, MRef),
+	{ok, << 0:800000 >>} = gun:await_body(ConnPid, StreamRef, MRef),
+	gun:close(ConnPid).
