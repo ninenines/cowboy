@@ -512,8 +512,8 @@ next_request(Req, State=#state{req_keepalive=Keepalive, timeout=Timeout},
 				_ -> close
 			end,
 			%% Flush the resp_sent message before moving on.
-			receive {cowboy_req, resp_sent} -> ok after 0 -> ok end,
 			if HandlerRes =:= ok, Buffer =/= close ->
+					receive {cowboy_req, resp_sent} -> ok after 0 -> ok end,
 					?MODULE:parse_request(Buffer,
 						State#state{req_keepalive=Keepalive + 1,
 						until=until(Timeout)}, 0);
