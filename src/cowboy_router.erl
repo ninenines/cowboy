@@ -12,7 +12,7 @@
 %% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-%% @doc Routing middleware.
+%% Routing middleware.
 %%
 %% Resolve the handler to be used for the request based on the
 %% routing information found in the <em>dispatch</em> environment value.
@@ -51,8 +51,6 @@
 -opaque dispatch_rules() :: [dispatch_rule()].
 -export_type([dispatch_rules/0]).
 
-%% @doc Compile a list of routes into the dispatch format used
-%% by Cowboy's routing.
 -spec compile(routes()) -> dispatch_rules().
 compile(Routes) ->
 	compile(Routes, []).
@@ -162,7 +160,6 @@ compile_brackets_split(<< $], Rest/binary >>, Acc, 0) ->
 compile_brackets_split(<< C, Rest/binary >>, Acc, N) ->
 	compile_brackets_split(Rest, << Acc/binary, C >>, N).
 
-%% @private
 -spec execute(Req, Env)
 	-> {ok, Req, Env} | {error, 400 | 404, Req}
 	when Req::cowboy_req:req(), Env::cowboy_middleware:env().
@@ -183,7 +180,7 @@ execute(Req, Env) ->
 
 %% Internal.
 
-%% @doc Match hostname tokens and path tokens against dispatch rules.
+%% Match hostname tokens and path tokens against dispatch rules.
 %%
 %% It is typically used for matching tokens for the hostname and path of
 %% the request against a global dispatch rule for your listener.
@@ -300,7 +297,6 @@ check_constraint({_, int}, Value) ->
 check_constraint({_, function, Fun}, Value) ->
 	Fun(Value).
 
-%% @doc Split a hostname into a list of tokens.
 -spec split_host(binary()) -> tokens().
 split_host(Host) ->
 	split_host(Host, []).
@@ -317,8 +313,6 @@ split_host(Host, Acc) ->
 			split_host(Rest, [Segment|Acc])
 	end.
 
-%% @doc Split a path into a list of path segments.
-%%
 %% Following RFC2396, this function may return path segments containing any
 %% character, including <em>/</em> if, and only if, a <em>/</em> was escaped
 %% and part of a path segment.
@@ -376,9 +370,7 @@ list_match(_List, _Match, _Binds) ->
 %% Tests.
 
 -ifdef(TEST).
-
 compile_test_() ->
-	%% {Routes, Result}
 	Tests = [
 		%% Match any host and path.
 		{[{'_', [{'_', h, o}]}],
@@ -433,7 +425,6 @@ compile_test_() ->
 		fun() -> Rs = compile(Rt) end} || {Rt, Rs} <- Tests].
 
 split_host_test_() ->
-	%% {Host, Result}
 	Tests = [
 		{<<"">>, []},
 		{<<"*">>, [<<"*">>]},
@@ -450,7 +441,6 @@ split_host_test_() ->
 	[{H, fun() -> R = split_host(H) end} || {H, R} <- Tests].
 
 split_path_test_() ->
-	%% {Path, Result, QueryString}
 	Tests = [
 		{<<"/">>, []},
 		{<<"/extend//cowboy">>, [<<"extend">>, <<>>, <<"cowboy">>]},
@@ -481,7 +471,6 @@ match_test_() ->
 			{'_', [], match_any, []}
 		]}
 	],
-	%% {Host, Path, Result}
 	Tests = [
 		{<<"any">>, <<"/">>, {ok, match_any, [], []}},
 		{<<"www.any.ninenines.eu">>, <<"/users/42/mails">>,
@@ -580,5 +569,4 @@ match_same_bindings_test() ->
 	{error, notfound, path} = match(Dispatch3,
 		<<"ninenines.eu">>, <<"/path/to">>),
 	ok.
-
 -endif.

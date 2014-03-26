@@ -614,7 +614,8 @@ Response related exports
 >
 > If a `Length` is provided, it will be sent in the
 > content-length header in the response. It is recommended
-> to set the length if it can be known in advance.
+> to set the length if it can be known in advance. Otherwise,
+> the transfer-encoding header will be set to identity.
 >
 > This function will only be called if the response is sent
 > using the `reply/2` or `reply/3` function.

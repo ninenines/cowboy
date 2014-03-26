@@ -12,8 +12,6 @@
 %% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-%% @doc Websocket protocol implementation.
-%%
 %% Cowboy supports versions 7 through 17 of the Websocket drafts.
 %% It also supports RFC6455, the proposed standard for Websocket.
 -module(cowboy_websocket).
@@ -23,10 +21,7 @@
 %% @todo Remove when we support only R16B+.
 -compile(nowarn_deprecated_function).
 
-%% API.
 -export([upgrade/4]).
-
-%% Internal.
 -export([handler_loop/4]).
 
 -type close_code() :: 1000..4999.
@@ -62,11 +57,6 @@
 	deflate_state :: undefined | port()
 }).
 
-%% @doc Upgrade an HTTP request to the Websocket protocol.
-%%
-%% You do not need to call this function manually. To upgrade to the Websocket
-%% protocol, you simply need to return <em>{upgrade, protocol, {@module}}</em>
-%% in your <em>cowboy_http_handler:init/3</em> handler function.
 -spec upgrade(Req, Env, module(), any())
 	-> {ok, Req, Env} | {error, 400, Req}
 	| {suspend, module(), atom(), [any()]}
@@ -215,7 +205,6 @@ handler_loop_timeout(State=#state{timeout=Timeout, timeout_ref=PrevRef}) ->
 	TRef = erlang:start_timer(Timeout, self(), ?MODULE),
 	State#state{timeout_ref=TRef}.
 
-%% @private
 -spec handler_loop(#state{}, Req, any(), binary())
 	-> {ok, Req, cowboy_middleware:env()}
 	| {suspend, module(), atom(), [any()]}

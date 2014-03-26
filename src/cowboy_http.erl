@@ -13,7 +13,7 @@
 %% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-%% @doc Core HTTP parsing API.
+%% Deprecated HTTP parsing API.
 -module(cowboy_http).
 
 %% Parsing.
@@ -44,7 +44,6 @@
 
 %% Parsing.
 
-%% @doc Parse a non-empty list of the given type.
 -spec nonempty_list(binary(), fun()) -> [any(), ...] | {error, badarg}.
 nonempty_list(Data, Fun) ->
 	case list(Data, Fun, []) of
@@ -53,7 +52,6 @@ nonempty_list(Data, Fun) ->
 		L -> lists:reverse(L)
 	end.
 
-%% @doc Parse a list of the given type.
 -spec list(binary(), fun()) -> list() | {error, badarg}.
 list(Data, Fun) ->
 	case list(Data, Fun, []) of
@@ -81,8 +79,6 @@ list(Data, Fun, Acc) ->
 				end)
 		end).
 
-%% @doc Parse a content type.
-%%
 %% We lowercase the charset header as we know it's case insensitive.
 -spec content_type(binary()) -> any().
 content_type(Data) ->
@@ -104,7 +100,6 @@ content_type(Data) ->
 				end)
 		end).
 
-%% @doc Parse a media range.
 -spec media_range(binary(), fun()) -> any().
 media_range(Data, Fun) ->
 	media_type(Data,
@@ -147,7 +142,6 @@ media_range_param_value(Data, Fun, Type, SubType, Acc, Attr) ->
 				Type, SubType, [{Attr, Value}|Acc])
 		end).
 
-%% @doc Parse a media type.
 -spec media_type(binary(), fun()) -> any().
 media_type(Data, Fun) ->
 	token_ci(Data,
@@ -207,8 +201,6 @@ accept_ext_value(Data, Fun, Type, SubType, Params, Quality, Acc, Attr) ->
 					Type, SubType, Params, Quality, [{Attr, Value}|Acc])
 		end).
 
-%% @doc Parse a conneg header (Accept-Charset, Accept-Encoding),
-%% followed by an optional quality value.
 -spec conneg(binary(), fun()) -> any().
 conneg(Data, Fun) ->
 	token_ci(Data,
@@ -220,7 +212,6 @@ conneg(Data, Fun) ->
 					end)
 		end).
 
-%% @doc Parse a language range, followed by an optional quality value.
 -spec language_range(binary(), fun()) -> any().
 language_range(<< $*, Rest/binary >>, Fun) ->
 	language_range_ret(Rest, Fun, '*');
@@ -281,12 +272,10 @@ maybe_qparam(Data, Fun) ->
 				Fun(Rest, 1000)
 		end).
 
-%% @doc Parse a quality parameter string (for example q=0.500).
 -spec qparam(binary(), fun()) -> any().
 qparam(<< Q, $=, Data/binary >>, Fun) when Q =:= $q; Q =:= $Q ->
 	qvalue(Data, Fun).
 
-%% @doc Parse either a list of entity tags or a "*".
 -spec entity_tag_match(binary()) -> any().
 entity_tag_match(<< $*, Rest/binary >>) ->
 	whitespace(Rest,
@@ -296,7 +285,6 @@ entity_tag_match(<< $*, Rest/binary >>) ->
 entity_tag_match(Data) ->
 	nonempty_list(Data, fun entity_tag/2).
 
-%% @doc Parse an entity-tag.
 -spec entity_tag(binary(), fun()) -> any().
 entity_tag(<< "W/", Rest/binary >>, Fun) ->
 	opaque_tag(Rest, Fun, weak);
@@ -310,7 +298,6 @@ opaque_tag(Data, Fun, Strength) ->
 			(Rest, OpaqueTag) -> Fun(Rest, {Strength, OpaqueTag})
 		end).
 
-%% @doc Parse an expectation.
 -spec expectation(binary(), fun()) -> any().
 expectation(Data, Fun) ->
 	token_ci(Data,
@@ -326,7 +313,6 @@ expectation(Data, Fun) ->
 				Fun(Rest, Expectation)
 		end).
 
-%% @doc Parse a list of parameters (a=b;c=d).
 -spec params(binary(), fun()) -> any().
 params(Data, Fun) ->
 	params(Data, Fun, []).
@@ -358,9 +344,6 @@ param(Data, Fun) ->
 					end)
 		end).
 
-%% @doc Parse an HTTP date (RFC1123, RFC850 or asctime date).
-%% @end
-%%
 %% While this may not be the most efficient date parsing we can do,
 %% it should work fine for our purposes because all HTTP dates should
 %% be sent as RFC1123 dates in HTTP/1.1.
@@ -383,7 +366,6 @@ http_date(Data) ->
 			HTTPDate
 	end.
 
-%% @doc Parse an RFC1123 date.
 -spec rfc1123_date(binary()) -> any().
 rfc1123_date(Data) ->
 	wkday(Data,
@@ -403,7 +385,6 @@ rfc1123_date(Data) ->
 				{error, badarg}
 		end).
 
-%% @doc Parse an RFC850 date.
 -spec rfc850_date(binary()) -> any().
 %% From the RFC:
 %% HTTP/1.1 clients and caches SHOULD assume that an RFC-850 date
@@ -427,7 +408,6 @@ rfc850_date(Data) ->
 				{error, badarg}
 		end).
 
-%% @doc Parse an asctime date.
 -spec asctime_date(binary()) -> any().
 asctime_date(Data) ->
 	wkday(Data,
@@ -586,7 +566,6 @@ time(<< H1, H2, ":", M1, M2, ":", S1, S2, Rest/binary >>, Fun)
 			{error, badarg}
 	end.
 
-%% @doc Skip whitespace.
 -spec whitespace(binary(), fun()) -> any().
 whitespace(<< C, Rest/binary >>, Fun)
 		when C =:= $\s; C =:= $\t ->
@@ -594,7 +573,6 @@ whitespace(<< C, Rest/binary >>, Fun)
 whitespace(Data, Fun) ->
 	Fun(Data).
 
-%% @doc Parse a list of digits as a non negative integer.
 -spec digits(binary()) -> non_neg_integer() | {error, badarg}.
 digits(Data) ->
 	digits(Data,
@@ -621,8 +599,6 @@ digits(<< C, Rest/binary >>, Fun, Acc)
 digits(Data, Fun, Acc) ->
 	Fun(Data, Acc).
 
-%% @doc Parse a list of case-insensitive alpha characters.
-%%
 %% Changes all characters to lowercase.
 -spec alpha(binary(), fun()) -> any().
 alpha(Data, Fun) ->
@@ -639,7 +615,6 @@ alpha(<< C, Rest/binary >>, Fun, Acc)
 alpha(Data, Fun, Acc) ->
 	Fun(Data, Acc).
 
-%% @doc Parse either a token or a quoted string.
 -spec word(binary(), fun()) -> any().
 word(Data = << $", _/binary >>, Fun) ->
 	quoted_string(Data, Fun);
@@ -649,14 +624,11 @@ word(Data, Fun) ->
 			(Rest, Token) -> Fun(Rest, Token)
 		end).
 
-%% @doc Parse a case-insensitive token.
-%%
 %% Changes all characters to lowercase.
 -spec token_ci(binary(), fun()) -> any().
 token_ci(Data, Fun) ->
 	token(Data, Fun, ci, <<>>).
 
-%% @doc Parse a token.
 -spec token(binary(), fun()) -> any().
 token(Data, Fun) ->
 	token(Data, Fun, cs, <<>>).
@@ -677,7 +649,6 @@ token(<< C, Rest/binary >>, Fun, Case = ci, Acc) ->
 token(<< C, Rest/binary >>, Fun, Case, Acc) ->
 	token(Rest, Fun, Case, << Acc/binary, C >>).
 
-%% @doc Parse a quoted string.
 -spec quoted_string(binary(), fun()) -> any().
 quoted_string(<< $", Rest/binary >>, Fun) ->
 	quoted_string(Rest, Fun, <<>>).
@@ -692,7 +663,6 @@ quoted_string(<< $\\, C, Rest/binary >>, Fun, Acc) ->
 quoted_string(<< C, Rest/binary >>, Fun, Acc) ->
 	quoted_string(Rest, Fun, << Acc/binary, C >>).
 
-%% @doc Parse a quality value.
 -spec qvalue(binary(), fun()) -> any().
 qvalue(<< $0, $., Rest/binary >>, Fun) ->
 	qvalue(Rest, Fun, 0, 100);
@@ -721,8 +691,7 @@ qvalue(<< C, Rest/binary >>, Fun, Q, M)
 qvalue(Data, Fun, Q, _M) ->
 	Fun(Data, Q).
 
-%% @doc Parse authorization value according rfc 2617.
-%% Only Basic authorization is supported so far.
+%% Only RFC2617 Basic authorization is supported so far.
 -spec authorization(binary(), binary()) -> {binary(), any()} | {error, badarg}.
 authorization(UserPass, Type = <<"basic">>) ->
 	whitespace(UserPass,
@@ -738,7 +707,6 @@ authorization(UserPass, Type = <<"basic">>) ->
 authorization(String, Type) ->
 	whitespace(String, fun(Rest) -> {Type, Rest} end).
 
-%% @doc Parse user credentials.
 -spec authorization_basic_userid(binary(), fun()) -> any().
 authorization_basic_userid(Data, Fun) ->
 	authorization_basic_userid(Data, Fun, <<>>).
@@ -767,7 +735,6 @@ authorization_basic_password(<<>>, Fun, Acc) ->
 authorization_basic_password(<<C, Rest/binary>>, Fun, Acc) ->
 	authorization_basic_password(Rest, Fun, <<Acc/binary, C>>).
 
-%% @doc Parse range header according rfc 2616.
 -spec range(binary()) -> {Unit, [Range]} | {error, badarg} when
 		Unit :: binary(),
 		Range :: {non_neg_integer(), non_neg_integer() | infinity} | neg_integer().
@@ -825,7 +792,6 @@ range_digits(Data, Default, Fun) ->
 			Fun(Data, Default)
 		end).
 
-%% @doc Parse a non empty list of tokens followed with optional parameters.
 -spec parameterized_tokens(binary()) -> any().
 parameterized_tokens(Data) ->
 	nonempty_list(Data,
@@ -870,7 +836,6 @@ parameterized_tokens_param(Data, Fun) ->
 
 %% Decoding.
 
-%% @doc Decode an identity content.
 %% @todo Move this to cowlib too I suppose. :-)
 -spec ce_identity(binary()) -> {ok, binary()}.
 ce_identity(Data) ->
@@ -879,9 +844,7 @@ ce_identity(Data) ->
 %% Tests.
 
 -ifdef(TEST).
-
 nonempty_charset_list_test_() ->
-	%% {Value, Result}
 	Tests = [
 		{<<>>, {error, badarg}},
 		{<<"iso-8859-5, unicode-1-1;q=0.8">>, [
@@ -898,7 +861,6 @@ nonempty_charset_list_test_() ->
 	[{V, fun() -> R = nonempty_list(V, fun conneg/2) end} || {V, R} <- Tests].
 
 nonempty_language_range_list_test_() ->
-	%% {Value, Result}
 	Tests = [
 		{<<"da, en-gb;q=0.8, en;q=0.7">>, [
 			{<<"da">>, 1000},
@@ -917,7 +879,6 @@ nonempty_language_range_list_test_() ->
 		|| {V, R} <- Tests].
 
 nonempty_token_list_test_() ->
-	%% {Value, Result}
 	Tests = [
 		{<<>>, {error, badarg}},
 		{<<" ">>, {error, badarg}},
@@ -933,7 +894,6 @@ nonempty_token_list_test_() ->
 	[{V, fun() -> R = nonempty_list(V, fun token/2) end} || {V, R} <- Tests].
 
 media_range_list_test_() ->
-	%% {Tokens, Result}
 	Tests = [
 		{<<"audio/*; q=0.2, audio/basic">>, [
 			{{<<"audio">>, <<"*">>, []}, 200, []},
@@ -978,7 +938,6 @@ media_range_list_test_() ->
 	[{V, fun() -> R = list(V, fun media_range/2) end} || {V, R} <- Tests].
 
 entity_tag_match_test_() ->
-	%% {Tokens, Result}
 	Tests = [
 		{<<"\"xyzzy\"">>, [{strong, <<"xyzzy">>}]},
 		{<<"\"xyzzy\", W/\"r2d2xxxx\", \"c3piozzzz\"">>,
@@ -990,7 +949,6 @@ entity_tag_match_test_() ->
 	[{V, fun() -> R = entity_tag_match(V) end} || {V, R} <- Tests].
 
 http_date_test_() ->
-	%% {Tokens, Result}
 	Tests = [
 		{<<"Sun, 06 Nov 1994 08:49:37 GMT">>, {{1994, 11, 6}, {8, 49, 37}}},
 		{<<"Sunday, 06-Nov-94 08:49:37 GMT">>, {{1994, 11, 6}, {8, 49, 37}}},
@@ -999,28 +957,24 @@ http_date_test_() ->
 	[{V, fun() -> R = http_date(V) end} || {V, R} <- Tests].
 
 rfc1123_date_test_() ->
-	%% {Tokens, Result}
 	Tests = [
 		{<<"Sun, 06 Nov 1994 08:49:37 GMT">>, {{1994, 11, 6}, {8, 49, 37}}}
 	],
 	[{V, fun() -> R = rfc1123_date(V) end} || {V, R} <- Tests].
 
 rfc850_date_test_() ->
-	%% {Tokens, Result}
 	Tests = [
 		{<<"Sunday, 06-Nov-94 08:49:37 GMT">>, {{1994, 11, 6}, {8, 49, 37}}}
 	],
 	[{V, fun() -> R = rfc850_date(V) end} || {V, R} <- Tests].
 
 asctime_date_test_() ->
-	%% {Tokens, Result}
 	Tests = [
 		{<<"Sun Nov  6 08:49:37 1994">>, {{1994, 11, 6}, {8, 49, 37}}}
 	],
 	[{V, fun() -> R = asctime_date(V) end} || {V, R} <- Tests].
 
 content_type_test_() ->
-	%% {ContentType, Result}
 	Tests = [
 		{<<"text/plain; charset=iso-8859-4">>,
 			{<<"text">>, <<"plain">>, [{<<"charset">>, <<"iso-8859-4">>}]}},
@@ -1037,7 +991,6 @@ content_type_test_() ->
 	[{V, fun () -> R = content_type(V) end} || {V, R} <- Tests].
 
 parameterized_tokens_test_() ->
-	%% {ParameterizedTokens, Result}
 	Tests = [
 		{<<"foo">>, [{<<"foo">>, []}]},
 		{<<"bar; baz=2">>, [{<<"bar">>, [{<<"baz">>, <<"2">>}]}]},
@@ -1048,7 +1001,6 @@ parameterized_tokens_test_() ->
 	[{V, fun () -> R = parameterized_tokens(V) end} || {V, R} <- Tests].
 
 digits_test_() ->
-	%% {Digits, Result}
 	Tests = [
 		{<<"42    ">>, 42},
 		{<<"69\t">>, 69},
@@ -1093,5 +1045,4 @@ http_range_test_() ->
 			{error, badarg}}
 	],
 	[fun() -> R = range(V) end ||{V, R} <- Tests].
-
 -endif.

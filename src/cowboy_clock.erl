@@ -12,8 +12,6 @@
 %% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-%% @doc Date and time related functions.
-%%
 %% While a gen_server process runs in the background to update
 %% the cache of formatted dates every second, all API calls are
 %% local and directly read from the ETS cache table, providing
@@ -41,68 +39,55 @@
 	tref = undefined :: undefined | timer:tref()
 }).
 
--define(SERVER, ?MODULE).
--define(TABLE, ?MODULE).
-
 %% API.
 
-%% @private
 -spec start_link() -> {ok, pid()}.
 start_link() ->
-	gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
+	gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
-%% @private
 -spec stop() -> stopped.
 stop() ->
-	gen_server:call(?SERVER, stop).
+	gen_server:call(?MODULE, stop).
 
-%% @doc Return the current date and time formatted according to RFC-1123.
 -spec rfc1123() -> binary().
 rfc1123() ->
-	ets:lookup_element(?TABLE, rfc1123, 2).
+	ets:lookup_element(?MODULE, rfc1123, 2).
 
-%% @doc Return the given date and time formatted according to RFC-1123.
 -spec rfc1123(calendar:datetime()) -> binary().
 rfc1123(DateTime) ->
 	update_rfc1123(<<>>, undefined, DateTime).
 
 %% gen_server.
 
-%% @private
 init([]) ->
-	?TABLE = ets:new(?TABLE, [set, protected,
+	?MODULE = ets:new(?MODULE, [set, protected,
 		named_table, {read_concurrency, true}]),
 	T = erlang:universaltime(),
 	B = update_rfc1123(<<>>, undefined, T),
 	{ok, TRef} = timer:send_interval(1000, update),
-	ets:insert(?TABLE, {rfc1123, B}),
+	ets:insert(?MODULE, {rfc1123, B}),
 	{ok, #state{universaltime=T, rfc1123=B, tref=TRef}}.
 
-%% @private
 handle_call(stop, _From, State=#state{tref=TRef}) ->
 	{ok, cancel} = timer:cancel(TRef),
 	{stop, normal, stopped, State};
 handle_call(_Request, _From, State) ->
 	{reply, ignored, State}.
 
-%% @private
 handle_cast(_Msg, State) ->
 	{noreply, State}.
 
-%% @private
 handle_info(update, #state{universaltime=Prev, rfc1123=B1, tref=TRef}) ->
 	T = erlang:universaltime(),
 	B2 = update_rfc1123(B1, Prev, T),
-	ets:insert(?TABLE, {rfc1123, B2}),
+	ets:insert(?MODULE, {rfc1123, B2}),
 	{noreply, #state{universaltime=T, rfc1123=B2, tref=TRef}};
 handle_info(_Info, State) ->
 	{noreply, State}.
 
-%% @private
 terminate(_Reason, _State) ->
 	ok.
 
-%% @private
 code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
 
@@ -174,7 +159,6 @@ month(12) -> <<"Dec">>.
 %% Tests.
 
 -ifdef(TEST).
-
 update_rfc1123_test_() ->
 	Tests = [
 		{<<"Sat, 14 May 2011 14:25:33 GMT">>, undefined,
@@ -215,5 +199,4 @@ pad_int_test_() ->
 		{56, <<"56">>}, {57, <<"57">>}, {58, <<"58">>}, {59, <<"59">>}
 	],
 	[{I, fun() -> O = pad_int(I) end} || {I, O} <- Tests].
-
 -endif.

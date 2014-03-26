@@ -12,15 +12,11 @@
 %% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-%% @private
 -module(cowboy_app).
 -behaviour(application).
 
-%% API.
 -export([start/2]).
 -export([stop/1]).
-
-%% API.
 
 start(_Type, _Args) ->
 	cowboy_sup:start_link().

@@ -13,39 +13,6 @@
 %% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-%% @doc HTTP protocol handler.
-%%
-%% The available options are:
-%% <dl>
-%%  <dt>compress</dt><dd>Whether to automatically compress the response
-%%   body when the conditions are met. Disabled by default.</dd>
-%%  <dt>env</dt><dd>The environment passed and optionally modified
-%%   by middlewares.</dd>
-%%  <dt>max_empty_lines</dt><dd>Max number of empty lines before a request.
-%%   Defaults to 5.</dd>
-%%  <dt>max_header_name_length</dt><dd>Max length allowed for header names.
-%%   Defaults to 64.</dd>
-%%  <dt>max_header_value_length</dt><dd>Max length allowed for header values.
-%%   Defaults to 4096.</dd>
-%%  <dt>max_headers</dt><dd>Max number of headers allowed.
-%%   Defaults to 100.</dd>
-%%  <dt>max_keepalive</dt><dd>Max number of requests allowed in a single
-%%   keep-alive session. Defaults to 100.</dd>
-%%  <dt>max_request_line_length</dt><dd>Max length allowed for the request
-%%   line. Defaults to 4096.</dd>
-%%  <dt>middlewares</dt><dd>The list of middlewares to execute when a
-%%   request is received.</dd>
-%%  <dt>onrequest</dt><dd>Optional fun that allows Req interaction before
-%%   any dispatching is done. Host info, path info and bindings are thus
-%%   not available at this point.</dd>
-%%  <dt>onresponse</dt><dd>Optional fun that allows replacing a response
-%%   sent by the application.</dd>
-%%  <dt>timeout</dt><dd>Time in milliseconds a client has to send the
-%%   full request line and headers. Defaults to 5000 milliseconds.</dd>
-%% </dl>
-%%
-%% Note that there is no need to monitor these processes when using Cowboy as
-%% an application as it already supervises them under the listener supervisor.
 -module(cowboy_protocol).
 
 %% API.
@@ -93,7 +60,6 @@
 
 %% API.
 
-%% @doc Start an HTTP protocol process.
 -spec start_link(ranch:ref(), inet:socket(), module(), opts()) -> {ok, pid()}.
 start_link(Ref, Socket, Transport, Opts) ->
 	Pid = spawn_link(?MODULE, init, [Ref, Socket, Transport, Opts]),
@@ -101,15 +67,13 @@ start_link(Ref, Socket, Transport, Opts) ->
 
 %% Internal.
 
-%% @doc Faster alternative to proplists:get_value/3.
-%% @private
+%% Faster alternative to proplists:get_value/3.
 get_value(Key, Opts, Default) ->
 	case lists:keyfind(Key, 1, Opts) of
 		{_, Value} -> Value;
 		_ -> Default
 	end.
 
-%% @private
 -spec init(ranch:ref(), inet:socket(), module(), opts()) -> ok.
 init(Ref, Socket, Transport, Opts) ->
 	Compress = get_value(compress, Opts, false),
@@ -172,7 +136,6 @@ wait_request(Buffer, State=#state{socket=Socket, transport=Transport,
 			terminate(State)
 	end.
 
-%% @private
 -spec parse_request(binary(), #state{}, non_neg_integer()) -> ok.
 %% Empty lines must be using \r\n.
 parse_request(<< $\n, _/binary >>, State, _) ->
@@ -481,7 +444,6 @@ execute(Req, State, Env, [Middleware|Tail]) ->
 			error_terminate(Code, Req2, State)
 	end.
 
-%% @private
 -spec resume(#state{}, cowboy_middleware:env(), [module()],
 	module(), module(), [any()]) -> ok.
 resume(State, Env, Tail, Module, Function, Args) ->

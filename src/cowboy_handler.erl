@@ -12,7 +12,7 @@
 %% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-%% @doc Handler middleware.
+%% Handler middleware.
 %%
 %% Execute the handler given by the <em>handler</em> and <em>handler_opts</em>
 %% environment values. The result of this execution is added to the
@@ -27,8 +27,6 @@
 %% by default. This can be configured through the <em>loop_max_buffer</em>
 %% environment value. The request will be terminated with an
 %% <em>{error, overflow}</em> reason if this threshold is reached.
-%%
-%% @see cowboy_http_handler
 -module(cowboy_handler).
 -behaviour(cowboy_middleware).
 
@@ -45,7 +43,6 @@
 	resp_sent = false :: boolean()
 }).
 
-%% @private
 -spec execute(Req, Env)
 	-> {ok, Req, Env} | {error, 500, Req}
 	| {suspend, ?MODULE, handler_loop, [any()]}
@@ -148,8 +145,6 @@ handler_after_callback(Req, State=#state{resp_sent=false}, Handler,
 handler_after_callback(Req, State, Handler, HandlerState) ->
 	handler_before_loop(Req, State, Handler, HandlerState).
 
-%% We don't listen for Transport closes because that would force us
-%% to receive data and buffer it indefinitely.
 -spec handler_before_loop(Req, #state{}, module(), any())
 	-> {ok, Req, cowboy_middleware:env()}
 	| {error, 500, Req} | {suspend, module(), atom(), [any()]}
@@ -177,7 +172,6 @@ handler_loop_timeout(State=#state{loop_timeout=Timeout,
 	TRef = erlang:start_timer(Timeout, self(), ?MODULE),
 	State#state{loop_timeout_ref=TRef}.
 
-%% @private
 -spec handler_loop(Req, #state{}, module(), any())
 	-> {ok, Req, cowboy_middleware:env()}
 	| {error, 500, Req} | {suspend, module(), atom(), [any()]}

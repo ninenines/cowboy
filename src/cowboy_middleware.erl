@@ -12,17 +12,6 @@
 %% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-%% @doc Behaviour for middlewares.
-%%
-%% Only one function needs to be implemented, <em>execute/2</em>.
-%% It receives the Req and the environment and returns them
-%% optionally modified. It can decide to stop the processing with
-%% or without an error. It is also possible to hibernate the process
-%% if needed.
-%%
-%% A middleware can perform any operation. Make sure you always return
-%% the last modified Req so that Cowboy has the up to date information
-%% about the request.
 -module(cowboy_middleware).
 
 -type env() :: [{atom(), any()}].

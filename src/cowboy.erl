@@ -12,7 +12,6 @@
 %% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-%% @doc Convenience API to start and stop HTTP/HTTPS listeners.
 -module(cowboy).
 
 -export([start_http/4]).
@@ -37,7 +36,6 @@
 	fun((http_status(), http_headers(), iodata(), Req) -> Req).
 -export_type([onresponse_fun/0]).
 
-%% @doc Start an HTTP listener.
 -spec start_http(ranch:ref(), non_neg_integer(), ranch_tcp:opts(),
 	cowboy_protocol:opts()) -> {ok, pid()} | {error, any()}.
 start_http(Ref, NbAcceptors, TransOpts, ProtoOpts)
@@ -45,7 +43,6 @@ start_http(Ref, NbAcceptors, TransOpts, ProtoOpts)
 	ranch:start_listener(Ref, NbAcceptors,
 		ranch_tcp, TransOpts, cowboy_protocol, ProtoOpts).
 
-%% @doc Start an HTTPS listener.
 -spec start_https(ranch:ref(), non_neg_integer(), ranch_ssl:opts(),
 	cowboy_protocol:opts()) -> {ok, pid()} | {error, any()}.
 start_https(Ref, NbAcceptors, TransOpts, ProtoOpts)
@@ -53,7 +50,6 @@ start_https(Ref, NbAcceptors, TransOpts, ProtoOpts)
 	ranch:start_listener(Ref, NbAcceptors,
 		ranch_ssl, TransOpts, cowboy_protocol, ProtoOpts).
 
-%% @doc Start a SPDY listener.
 -spec start_spdy(ranch:ref(), non_neg_integer(), ranch_ssl:opts(),
 	cowboy_spdy:opts()) -> {ok, pid()} | {error, any()}.
 start_spdy(Ref, NbAcceptors, TransOpts, ProtoOpts)
@@ -66,20 +62,14 @@ start_spdy(Ref, NbAcceptors, TransOpts, ProtoOpts)
 	ranch:start_listener(Ref, NbAcceptors,
 		ranch_ssl, TransOpts2, cowboy_spdy, ProtoOpts).
 
-%% @doc Stop a listener.
 -spec stop_listener(ranch:ref()) -> ok | {error, not_found}.
 stop_listener(Ref) ->
 	ranch:stop_listener(Ref).
 
-%% @doc Convenience function for setting an environment value.
-%%
-%% Allows you to update live an environment value used by middlewares.
-%% This function is primarily intended to simplify updating the dispatch
-%% list used for routing.
 -spec set_env(ranch:ref(), atom(), any()) -> ok.
 set_env(Ref, Name, Value) ->
 	Opts = ranch:get_protocol_options(Ref),
 	{_, Env} = lists:keyfind(env, 1, Opts),
-	Env2 = [{Name, Value}|lists:keydelete(Name, 1, Env)],
-	Opts2 = lists:keyreplace(env, 1, Opts, {env, Env2}),
+	Opts2 = lists:keyreplace(env, 1, Opts,
+		{env, lists:keystore(Name, 1, Env, {Name, Value})}),
 	ok = ranch:set_protocol_options(Ref, Opts2).

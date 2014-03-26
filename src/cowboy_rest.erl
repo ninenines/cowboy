@@ -12,8 +12,6 @@
 %% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-%% @doc REST protocol implementation.
-%%
 %% Originally based on the Webmachine Diagram from Alan Dean and
 %% Justin Sheehy.
 -module(cowboy_rest).
@@ -57,11 +55,6 @@
 	expires :: undefined | no_call | calendar:datetime()
 }).
 
-%% @doc Upgrade a HTTP request to the REST protocol.
-%%
-%% You do not need to call this function manually. To upgrade to the REST
-%% protocol, you simply need to return <em>{upgrade, protocol, {@module}}</em>
-%% in your <em>cowboy_http_handler:init/3</em> handler function.
 -spec upgrade(Req, Env, module(), any())
 	-> {ok, Req, Env} | {error, 500, Req}
 	when Req::cowboy_req:req(), Env::cowboy_middleware:env().

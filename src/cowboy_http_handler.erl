@@ -12,23 +12,6 @@
 %% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-%% @doc Behaviour for short-lived HTTP handlers.
-%%
-%% <em>init/3</em> allows you to initialize a state for all subsequent
-%% callbacks, and indicate to Cowboy whether you accept to handle the
-%% request or want to shutdown without handling it, in which case the
-%% <em>handle/2</em> call will simply be skipped.
-%%
-%% <em>handle/2</em> allows you to handle the request. It receives the
-%% state previously defined.
-%%
-%% <em>terminate/3</em> allows you to clean up. It receives the
-%% termination reason and the state previously defined.
-%%
-%% There is no required operation to perform in any of these callbacks
-%% other than returning the proper values. Make sure you always return
-%% the last modified Req so that Cowboy has the up to date information
-%% about the request.
 -module(cowboy_http_handler).
 
 -type opts() :: any().

@@ -12,10 +12,6 @@
 %% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-%% @doc SPDY protocol handler.
-%%
-%% Note that there is no need to monitor these processes when using Cowboy as
-%% an application as it already supervises them under the listener supervisor.
 -module(cowboy_spdy).
 
 %% API.
@@ -75,7 +71,6 @@
 
 %% API.
 
-%% @doc Start a SPDY protocol process.
 -spec start_link(any(), inet:socket(), module(), any()) -> {ok, pid()}.
 start_link(Ref, Socket, Transport, Opts) ->
 	proc_lib:start_link(?MODULE, init,
@@ -83,15 +78,13 @@ start_link(Ref, Socket, Transport, Opts) ->
 
 %% Internal.
 
-%% @doc Faster alternative to proplists:get_value/3.
-%% @private
+%% Faster alternative to proplists:get_value/3.
 get_value(Key, Opts, Default) ->
 	case lists:keyfind(Key, 1, Opts) of
 		{_, Value} -> Value;
 		_ -> Default
 	end.
 
-%% @private
 -spec init(pid(), ranch:ref(), inet:socket(), module(), opts()) -> ok.
 init(Parent, Ref, Socket, Transport, Opts) ->
 	process_flag(trap_exit, true),
@@ -394,7 +387,6 @@ execute(Req, Env, [Middleware|Tail]) ->
 			cowboy_req:maybe_reply(Status, Req2)
 	end.
 
-%% @private
 -spec resume(cowboy_middleware:env(), [module()],
 	module(), module(), [any()]) -> ok.
 resume(Env, Tail, Module, Function, Args) ->

@@ -12,25 +12,15 @@
 %% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-%% @private
 -module(cowboy_sup).
 -behaviour(supervisor).
 
-%% API.
 -export([start_link/0]).
-
-%% supervisor.
 -export([init/1]).
-
--define(SUPERVISOR, ?MODULE).
-
-%% API.
 
 -spec start_link() -> {ok, pid()}.
 start_link() ->
-	supervisor:start_link({local, ?SUPERVISOR}, ?MODULE, []).
-
-%% supervisor.
+	supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 init([]) ->
 	Procs = [{cowboy_clock, {cowboy_clock, start_link, []},
