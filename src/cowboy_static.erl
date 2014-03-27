@@ -39,6 +39,7 @@
 
 -type state() :: {binary(), {ok, #file_info{}} | {error, atom()}, extra()}.
 
+-spec init(_, _, _) -> {upgrade, protocol, cowboy_rest}.
 init(_, _, _) ->
 	{upgrade, protocol, cowboy_rest}.
 

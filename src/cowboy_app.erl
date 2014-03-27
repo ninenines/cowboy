@@ -18,8 +18,10 @@
 -export([start/2]).
 -export([stop/1]).
 
-start(_Type, _Args) ->
+-spec start(_, _) -> {ok, pid()}.
+start(_, _) ->
 	cowboy_sup:start_link().
 
-stop(_State) ->
+-spec stop(_) -> ok.
+stop(_) ->
 	ok.

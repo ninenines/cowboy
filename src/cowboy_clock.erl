@@ -59,6 +59,7 @@ rfc1123(DateTime) ->
 
 %% gen_server.
 
+-spec init([]) -> {ok, #state{}}.
 init([]) ->
 	?MODULE = ets:new(?MODULE, [set, protected,
 		named_table, {read_concurrency, true}]),
@@ -68,15 +69,20 @@ init([]) ->
 	ets:insert(?MODULE, {rfc1123, B}),
 	{ok, #state{universaltime=T, rfc1123=B, tref=TRef}}.
 
+-spec handle_call(any(), _, State)
+	-> {reply, ignored, State} | {stop, normal, stopped, State}
+	when State::#state{}.
 handle_call(stop, _From, State=#state{tref=TRef}) ->
 	{ok, cancel} = timer:cancel(TRef),
 	{stop, normal, stopped, State};
 handle_call(_Request, _From, State) ->
 	{reply, ignored, State}.
 
+-spec handle_cast(_, State) -> {noreply, State} when State::#state{}.
 handle_cast(_Msg, State) ->
 	{noreply, State}.
 
+-spec handle_info(any(), State) -> {noreply, State} when State::#state{}.
 handle_info(update, #state{universaltime=Prev, rfc1123=B1, tref=TRef}) ->
 	T = erlang:universaltime(),
 	B2 = update_rfc1123(B1, Prev, T),
@@ -85,9 +91,11 @@ handle_info(update, #state{universaltime=Prev, rfc1123=B1, tref=TRef}) ->
 handle_info(_Info, State) ->
 	{noreply, State}.
 
+-spec terminate(_, _) -> ok.
 terminate(_Reason, _State) ->
 	ok.
 
+-spec code_change(_, State, _) -> {ok, State} when State::#state{}.
 code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
 
