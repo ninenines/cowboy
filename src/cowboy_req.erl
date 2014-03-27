@@ -100,11 +100,7 @@
 	-> {ok, binary()}
 	| {error, atom()}).
 -type transfer_decode_fun() :: fun((binary(), any())
-	-> {ok, binary(), binary(), any()}
-	| more | {more, non_neg_integer(), binary(), any()}
-	| {done, non_neg_integer(), binary()}
-	| {done, binary(), non_neg_integer(), binary()}
-	| {error, atom()}).
+	-> cow_http_te:decode_ret()).
 
 -type resp_body_fun() :: fun((any(), module()) -> ok).
 -type send_chunk_fun() :: fun((iodata()) -> ok | {error, atom()}).
@@ -571,13 +567,13 @@ transfer_decode(Data, Req=#http_req{body_state={stream, _,
 			content_decode(ContentDecode, Data2,
 				Req#http_req{body_state={stream, 0,
 				TransferDecode, TransferState2, ContentDecode}});
-		{more, Data2, Length, TransferState2} ->
+		{more, Data2, Length, TransferState2} when is_integer(Length) ->
 			content_decode(ContentDecode, Data2,
 				Req#http_req{body_state={stream, Length,
 				TransferDecode, TransferState2, ContentDecode}});
-		{more, Data2, Length, Rest, TransferState2} ->
+		{more, Data2, Rest, TransferState2} ->
 			content_decode(ContentDecode, Data2,
-				Req#http_req{buffer=Rest, body_state={stream, Length,
+				Req#http_req{buffer=Rest, body_state={stream, 0,
 				TransferDecode, TransferState2, ContentDecode}});
 		{done, Length, Rest} ->
 			Req2 = transfer_decode_done(Length, Rest, Req),
