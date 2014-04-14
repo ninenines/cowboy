@@ -21,8 +21,11 @@ No parameterized module. No process dictionary. **Clean** Erlang code.
 Sponsors
 --------
 
-The SPDY protocol development is sponsored
-by [LeoFS Cloud Storage](http://www.leofs.org).
+The SPDY implementation was sponsored by
+[LeoFS Cloud Storage](http://www.leofs.org).
+
+The project is currently sponsored by
+[Kato.im](https://kato.im).
 
 Getting Started
 ---------------
