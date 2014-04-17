@@ -202,7 +202,7 @@ REST callbacks description
 
 ### content_types_provided
 
->  *  Methods: GET, HEAD
+>  *  Methods: GET, HEAD, POST, PUT, PATCH, DELETE
 >  *  Default value: [{{<<"text">>, <<"html">>, '*'}, to_html}]
 >
 > Types:
@@ -226,8 +226,11 @@ REST callbacks description
 > `charset` parameter, if present, which is case insensitive.
 >
 > The `ProvideResource` value is the name of the callback that will
-> be called if the content-type matches. It is defined as follow.
+> be called if the content-type matches. It will only be called when
+> a representation of the resource needs to be returned. It is defined
+> as follow.
 >
+>  *  Methods: GET, HEAD
 >  *  Value type: iodata() | {stream, Fun} | {stream, Len, Fun} | {chunked, ChunkedFun}
 >  *  No default
 >
