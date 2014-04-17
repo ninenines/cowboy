@@ -16,7 +16,9 @@
 -module(http_SUITE).
 -compile(export_all).
 
--include_lib("common_test/include/ct.hrl").
+config(Key, Config) ->
+	{_, Value} = lists:keyfind(Key, 1, Config),
+	Value.
 
 %% ct.
 
@@ -131,12 +133,12 @@ init_per_suite(Config) ->
 	application:start(cowlib),
 	application:start(gun),
 	application:start(cowboy),
-	Dir = ?config(priv_dir, Config) ++ "/static",
+	Dir = config(priv_dir, Config) ++ "/static",
 	ct_helper:create_static_dir(Dir),
 	[{static_dir, Dir}|Config].
 
 end_per_suite(Config) ->
-	Dir = ?config(static_dir, Config),
+	Dir = config(static_dir, Config),
 	ct_helper:delete_static_dir(Dir),
 	application:stop(cowboy),
 	application:stop(gun),
@@ -188,8 +190,7 @@ init_per_group(onrequest, Config) ->
 		{timeout, 500}
 	]),
 	Port = ranch:get_port(onrequest),
-	[{scheme, <<"http">>}, {type, tcp}, {port, Port}, {opts, []},
-		{transport, Transport}|Config];
+	[{type, tcp}, {port, Port}, {opts, []}, {transport, Transport}|Config];
 init_per_group(onresponse, Config) ->
 	Transport = ranch_tcp,
 	{ok, _} = cowboy:start_http(onresponse, 100, [{port, 0}], [
@@ -199,8 +200,7 @@ init_per_group(onresponse, Config) ->
 		{timeout, 500}
 	]),
 	Port = ranch:get_port(onresponse),
-	[{scheme, <<"http">>}, {type, tcp}, {port, Port}, {opts, []},
-		{transport, Transport}|Config];
+	[{type, tcp}, {port, Port}, {opts, []}, {transport, Transport}|Config];
 init_per_group(onresponse_capitalize, Config) ->
 	Transport = ranch_tcp,
 	{ok, _} = cowboy:start_http(onresponse_capitalize, 100, [{port, 0}], [
@@ -210,8 +210,7 @@ init_per_group(onresponse_capitalize, Config) ->
 		{timeout, 500}
 	]),
 	Port = ranch:get_port(onresponse_capitalize),
-	[{scheme, <<"http">>}, {type, tcp}, {port, Port}, {opts, []},
-		{transport, Transport}|Config];
+	[{type, tcp}, {port, Port}, {opts, []}, {transport, Transport}|Config];
 init_per_group(parse_host, Config) ->
 	Transport = ranch_tcp,
 	Dispatch = cowboy_router:compile([
@@ -225,8 +224,7 @@ init_per_group(parse_host, Config) ->
 		{timeout, 500}
 	]),
 	Port = ranch:get_port(http),
-	[{scheme, <<"http">>}, {type, tcp}, {port, Port}, {opts, []},
-		{transport, Transport}|Config];
+	[{type, tcp}, {port, Port}, {opts, []}, {transport, Transport}|Config];
 init_per_group(set_env, Config) ->
 	Transport = ranch_tcp,
 	{ok, _} = cowboy:start_http(set_env, 100, [{port, 0}], [
@@ -235,8 +233,7 @@ init_per_group(set_env, Config) ->
 		{timeout, 500}
 	]),
 	Port = ranch:get_port(set_env),
-	[{scheme, <<"http">>}, {type, tcp}, {port, Port}, {opts, []},
-		{transport, Transport}|Config].
+	[{type, tcp}, {port, Port}, {opts, []}, {transport, Transport}|Config].
 
 end_per_group(Name, _) ->
 	cowboy:stop_listener(Name),
@@ -270,18 +267,18 @@ init_dispatch(Config) ->
 					{reply, set_resp_chunked},
 					{body, [<<"stream_body">>, <<"_set_resp_chunked">>]}]},
 			{"/static/[...]", cowboy_static,
-				{dir, ?config(static_dir, Config)}},
+				{dir, config(static_dir, Config)}},
 			{"/static_mimetypes_function/[...]", cowboy_static,
-				{dir, ?config(static_dir, Config),
+				{dir, config(static_dir, Config),
 					[{mimetypes, ?MODULE, mimetypes_text_html}]}},
 			{"/handler_errors", http_errors, []},
 			{"/static_attribute_etag/[...]", cowboy_static,
-				{dir, ?config(static_dir, Config)}},
+				{dir, config(static_dir, Config)}},
 			{"/static_function_etag/[...]", cowboy_static,
-				{dir, ?config(static_dir, Config),
+				{dir, config(static_dir, Config),
 					[{etag, ?MODULE, etag_gen}]}},
 			{"/static_specify_file/[...]", cowboy_static,
-				{file, ?config(static_dir, Config) ++ "/style.css"}},
+				{file, config(static_dir, Config) ++ "/style.css"}},
 			{"/multipart", http_multipart, []},
 			{"/multipart/large", http_multipart_stream, []},
 			{"/echo/body", http_echo_body, []},
@@ -320,9 +317,8 @@ gun_open(Config) ->
 	gun_open(Config, []).
 
 gun_open(Config, Opts) ->
-	{_, Port} = lists:keyfind(port, 1, Config),
-	{_, Type} = lists:keyfind(type, 1, Config),
-	{ok, ConnPid} = gun:open("localhost", Port, [{retry, 0}, {type, Type}|Opts]),
+	{ok, ConnPid} = gun:open("localhost", config(port, Config),
+		[{retry, 0}, {type, config(type, Config)}|Opts]),
 	ConnPid.
 
 gun_monitor_open(Config) ->
@@ -342,14 +338,12 @@ gun_is_gone(ConnPid, MRef) ->
 %% Support functions for testing using a raw socket.
 
 raw_open(Config) ->
-	{_, Port} = lists:keyfind(port, 1, Config),
-	{_, Type} = lists:keyfind(type, 1, Config),
-	Transport = case Type of
+	Transport = case config(type, Config) of
 		tcp -> gen_tcp;
 		ssl -> ssl
 	end,
 	{_, Opts} = lists:keyfind(opts, 1, Config),
-	{ok, Socket} = Transport:connect("localhost", Port,
+	{ok, Socket} = Transport:connect("localhost", config(port, Config),
 		[binary, {active, false}, {packet, raw},
 			{reuseaddr, true}, {nodelay, true}|Opts]),
 	{raw_client, Socket, Transport}.
@@ -566,10 +560,10 @@ http10_chunkless(Config) ->
 	gun_is_gone(ConnPid, MRef).
 
 http10_hostless(Config) ->
-	Port10 = ?config(port, Config) + 10,
+	Port10 = config(port, Config) + 10,
 	Name = list_to_atom("http10_hostless_" ++ integer_to_list(Port10)),
 	ranch:start_listener(Name, 5,
-		?config(transport, Config), ?config(opts, Config) ++ [{port, Port10}],
+		config(transport, Config), config(opts, Config) ++ [{port, Port10}],
 		cowboy_protocol, [
 			{env, [{dispatch, cowboy_router:compile([
 				{'_', [{"/http1.0/hostless", http_handler, []}]}])}]},
@@ -666,8 +660,7 @@ nc_reqs(Config, Input) ->
 			{skip, {notfound, nc}};
 		_Good ->
 			%% Throw garbage at the server then check if it's still up.
-			{port, Port} = lists:keyfind(port, 1, Config),
-			StrPort = integer_to_list(Port),
+			StrPort = integer_to_list(config(port, Config)),
 			[os:cmd("cat " ++ Input ++ " | nc localhost " ++ StrPort)
 				|| _ <- lists:seq(1, 100)],
 			200 = quick_get("/", Config)
