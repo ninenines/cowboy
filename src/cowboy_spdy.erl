@@ -96,7 +96,7 @@ init(Parent, Ref, Socket, Transport, Opts) ->
 	ok = proc_lib:init_ack(Parent, {ok, self()}),
 	{ok, Peer} = Transport:peername(Socket),
 	Middlewares = get_value(middlewares, Opts, [cowboy_router, cowboy_handler]),
-	Env = [{listener, Ref}|get_value(env, Opts, [])],
+	Env = [{listener, Ref}|get_value(env, Opts, [])] ++ [{raw_socket, Socket}],
 	OnRequest = get_value(onrequest, Opts, undefined),
 	OnResponse = get_value(onresponse, Opts, undefined),
 	Zdef = cow_spdy:deflate_init(),
