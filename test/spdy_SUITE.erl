@@ -13,21 +13,10 @@
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 -module(spdy_SUITE).
+-compile(export_all).
 
--include_lib("common_test/include/ct.hrl").
-
-%% ct.
--export([all/0]).
--export([groups/0]).
--export([init_per_suite/1]).
--export([end_per_suite/1]).
--export([init_per_group/2]).
--export([end_per_group/2]).
-
-%% Tests.
--export([check_status/1]).
--export([echo_body/1]).
--export([echo_body_multi/1]).
+-import(cowboy_test, [config/2]).
+-import(cowboy_test, [gun_monitor_open/1]).
 
 %% ct.
 
@@ -35,42 +24,23 @@ all() ->
 	[{group, spdy}].
 
 groups() ->
-	[{spdy, [], [
-		check_status,
-		echo_body,
-		echo_body_multi
-	]}].
+	[{spdy, [], cowboy_test:all(?MODULE)}].
 
 init_per_suite(Config) ->
 	case proplists:get_value(ssl_app, ssl:versions()) of
 		Version when Version < "5.2.1" ->
 			{skip, "No NPN support in SSL application."};
 		_ ->
-			application:start(crypto),
-			application:start(cowlib),
-			application:start(ranch),
-			application:start(cowboy),
-			application:start(asn1),
-			application:start(public_key),
-			application:start(ssl),
-			application:start(gun),
-			Dir = ?config(priv_dir, Config) ++ "/static",
+			cowboy_test:start([cowboy, gun]),
+			Dir = config(priv_dir, Config) ++ "/static",
 			ct_helper:create_static_dir(Dir),
 			[{static_dir, Dir}|Config]
 	end.
 
 end_per_suite(Config) ->
-	Dir = ?config(static_dir, Config),
+	Dir = config(static_dir, Config),
 	ct_helper:delete_static_dir(Dir),
-	application:stop(gun),
-	application:stop(ssl),
-	application:stop(public_key),
-	application:stop(asn1),
-	application:stop(cowboy),
-	application:stop(ranch),
-	application:stop(cowlib),
-	application:stop(crypto),
-	ok.
+	cowboy_test:stop([cowboy, gun]).
 
 init_per_group(Name, Config) ->
 	{_, Cert, Key} = ct_helper:make_certs(),
@@ -79,7 +49,7 @@ init_per_group(Name, Config) ->
 		{env, [{dispatch, init_dispatch(Config)}]}
 	]),
 	Port = ranch:get_port(Name),
-	[{port, Port}|Config].
+	[{port, Port}, {type, ssl}|Config].
 
 end_per_group(Name, _) ->
 	cowboy:stop_listener(Name),
@@ -91,7 +61,7 @@ init_dispatch(Config) ->
 	cowboy_router:compile([
 		{"localhost", [
 			{"/static/[...]", cowboy_static,
-				{dir, ?config(static_dir, Config)}},
+				{dir, config(static_dir, Config)}},
 			{"/echo/body", http_echo_body, []},
 			{"/chunked", http_chunked, []},
 			{"/", http_handler, []}
@@ -100,12 +70,7 @@ init_dispatch(Config) ->
 
 %% Convenience functions.
 
-gun_monitor_open(Config) ->
-	{_, Port} = lists:keyfind(port, 1, Config),
-	{ok, ConnPid} = gun:open("localhost", Port, [{retry, 0}]),
-	{ConnPid, monitor(process, ConnPid)}.
-
-quick_get(ConnPid, MRef, Host, Path) ->
+do_get(ConnPid, MRef, Host, Path) ->
 	StreamRef = gun:get(ConnPid, Path, [{":host", Host}]),
 	{response, IsFin, Status, _} = gun:await(ConnPid, StreamRef, MRef),
 	{IsFin, Status}.
@@ -123,7 +88,7 @@ check_status(Config) ->
 	],
 	{ConnPid, MRef} = gun_monitor_open(Config),
 	_ = [{Status, Fin, Host, Path} = begin
-		{IsFin, Ret} = quick_get(ConnPid, MRef, Host, Path),
+		{IsFin, Ret} = do_get(ConnPid, MRef, Host, Path),
 		{Ret, IsFin, Host, Path}
 	end || {Status, Fin, Host, Path} <- Tests],
 	gun:close(ConnPid).

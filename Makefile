@@ -23,11 +23,3 @@ dep_gun = pkg://gun master
 # Standard targets.
 
 include erlang.mk
-
-# Extra targets.
-
-.PHONY: autobahn
-
-autobahn: clean clean-deps deps app build-tests
-	@mkdir -p logs/
-	@$(CT_RUN) -suite autobahn_SUITE
