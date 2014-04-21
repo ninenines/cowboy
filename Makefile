@@ -8,6 +8,7 @@ ERLC_OPTS ?= -Werror +debug_info +warn_export_all +warn_export_vars \
 	+warn_shadow_vars +warn_obsolete_guard +warn_missing_spec
 COMPILE_FIRST = cowboy_middleware cowboy_sub_protocol
 CT_SUITES = eunit http spdy ws
+CT_OPTS += -pa test -ct_hooks cowboy_ct_hook []
 PLT_APPS = crypto public_key ssl
 
 # Dependencies.

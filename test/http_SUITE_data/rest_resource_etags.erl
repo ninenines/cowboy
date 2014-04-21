@@ -18,8 +18,10 @@ generate_etag(Req, State) ->
 			{<<"\"etag-header-value\"">>, Req2, State};
 		%% Invalid return values from generate_etag/2.
 		{<<"binary-strong-unquoted">>, Req2} ->
+			cowboy_error_h:ignore(cowboy_http, quoted_string, 2),
 			{<<"etag-header-value">>, Req2, State};
 		{<<"binary-weak-unquoted">>, Req2} ->
+			cowboy_error_h:ignore(cowboy_http, quoted_string, 2),
 			{<<"W/etag-header-value">>, Req2, State}
 	end.
 
