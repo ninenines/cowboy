@@ -104,20 +104,24 @@ init(Parent, Ref, Socket, Transport, Opts) ->
 		middlewares=Middlewares, env=Env, onrequest=OnRequest,
 		onresponse=OnResponse, peer=Peer, zdef=Zdef, zinf=Zinf}).
 
+parse_frame(State=#state{zinf=Zinf}, Data) ->
+	case cow_spdy:split(Data) of
+		{true, Frame, Rest} ->
+			P = cow_spdy:parse(Frame, Zinf),
+			State2 = handle_frame(State#state{buffer = Rest}, P),
+			parse_frame(State2, Rest);
+		false ->
+			loop(State#state{buffer=Data})
+	end.
+
 loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
-		buffer=Buffer, zinf=Zinf, children=Children}) ->
+		buffer=Buffer, children=Children}) ->
 	{OK, Closed, Error} = Transport:messages(),
 	Transport:setopts(Socket, [{active, once}]),
 	receive
 		{OK, Socket, Data} ->
 			Data2 = << Buffer/binary, Data/binary >>,
-			case cow_spdy:split(Data2) of
-				{true, Frame, Rest} ->
-					P = cow_spdy:parse(Frame, Zinf),
-					handle_frame(State#state{buffer=Rest}, P);
-				false ->
-					loop(State#state{buffer=Data2})
-			end;
+			parse_frame(State, Data2);
 		{Closed, Socket} ->
 			terminate(State);
 		{Error, Socket, _Reason} ->
@@ -221,12 +225,12 @@ system_code_change(Misc, _, _, _) ->
 handle_frame(State, {syn_stream, StreamID, _, _, true,
 		_, _, _, _, _, _, _}) ->
 	rst_stream(State, StreamID, protocol_error),
-	loop(State);
+	State;
 %% We do not support Associated-To-Stream-ID.
 handle_frame(State, {syn_stream, StreamID, AssocToStreamID,
 		_, _, _, _, _, _, _, _, _}) when AssocToStreamID =/= 0 ->
 	rst_stream(State, StreamID, internal_error),
-	loop(State);
+	State;
 %% SYN_STREAM.
 %%
 %% Erlang does not allow us to control the priority of processes
@@ -239,22 +243,22 @@ handle_frame(State=#state{middlewares=Middlewares, env=Env,
 		{self(), StreamID}, Peer, OnRequest, OnResponse,
 		Env, Middlewares, Method, Host, Path, Version, Headers
 	]),
-	loop(new_child(State, StreamID, Pid, IsFin));
+	new_child(State, StreamID, Pid, IsFin);
 %% RST_STREAM.
 handle_frame(State, {rst_stream, StreamID, Status}) ->
 	error_logger:error_msg("Received RST_STREAM frame ~p ~p",
 		[StreamID, Status]),
 	%% @todo Stop StreamID.
-	loop(State);
+	State;
 %% PING initiated by the server; ignore, we don't send any.
 handle_frame(State, {ping, PingID}) when PingID rem 2 =:= 0 ->
 	error_logger:error_msg("Ignored PING control frame: ~p~n", [PingID]),
-	loop(State);
+	State;
 %% PING initiated by the client; send it back.
 handle_frame(State=#state{socket=Socket, transport=Transport},
 		{ping, PingID}) ->
 	Transport:send(Socket, cow_spdy:ping(PingID)),
-	loop(State);
+	State;
 %% Data received for a stream.
 handle_frame(State, {data, StreamID, IsFin, Data}) ->
 	Child = #child{input=nofin, in_buffer=Buffer, is_recv=IsRecv}
@@ -275,7 +279,7 @@ handle_frame(State, {data, StreamID, IsFin, Data}) ->
 		_ ->
 			Child#child{input=IsFin2, in_buffer=Data2}
 	end,
-	loop(replace_child(Child2, State));
+	replace_child(Child2, State);
 %% General error, can't recover.
 handle_frame(State, {error, badprotocol}) ->
 	goaway(State, protocol_error),
@@ -283,7 +287,7 @@ handle_frame(State, {error, badprotocol}) ->
 %% Ignore all other frames for now.
 handle_frame(State, Frame) ->
 	error_logger:error_msg("Ignored frame ~p", [Frame]),
-	loop(State).
+	State.
 
 cancel_recv_timeout(StreamID, TRef) ->
 	_ = erlang:cancel_timer(TRef),
