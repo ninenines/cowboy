@@ -72,15 +72,12 @@ groups() ->
 	].
 
 init_per_suite(Config) ->
-	cowboy_test:start([cowboy, gun]),
 	Dir = config(priv_dir, Config) ++ "/static",
 	ct_helper:create_static_dir(Dir),
 	[{static_dir, Dir}|Config].
 
 end_per_suite(Config) ->
-	Dir = config(static_dir, Config),
-	ct_helper:delete_static_dir(Dir),
-	cowboy_test:stop([cowboy, gun]).
+	ct_helper:delete_static_dir(config(static_dir, Config)).
 
 init_tcp_group(Ref, ProtoOpts, Config) ->
 	Transport = ranch_tcp,

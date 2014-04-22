@@ -13,9 +13,7 @@
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 -module(eunit_SUITE).
-
--export([all/0]).
--export([eunit/1]).
+-compile(export_all).
 
 all() ->
 	[eunit].

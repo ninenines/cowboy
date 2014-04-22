@@ -27,11 +27,7 @@ groups() ->
 	[{autobahn, [], [autobahn_fuzzingclient]}, {ws, [parallel], BaseTests}].
 
 init_per_suite(Config) ->
-	cowboy_test:start([cowboy]),
 	Config.
-
-end_per_suite(_Config) ->
-	cowboy_test:stop([cowboy]).
 
 init_per_group(autobahn, Config) ->
 	%% Some systems have it named pip2.

@@ -30,10 +30,6 @@ do_start(App) ->
 			do_start(App)
 	end.
 
-stop(Apps) ->
-	_ = [application:stop(App) || App <- Apps],
-	ok.
-
 %% Quick configuration value retrieval.
 
 config(Key, Config) ->

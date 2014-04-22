@@ -31,16 +31,13 @@ init_per_suite(Config) ->
 		Version when Version < "5.2.1" ->
 			{skip, "No NPN support in SSL application."};
 		_ ->
-			cowboy_test:start([cowboy, gun]),
 			Dir = config(priv_dir, Config) ++ "/static",
 			ct_helper:create_static_dir(Dir),
 			[{static_dir, Dir}|Config]
 	end.
 
 end_per_suite(Config) ->
-	Dir = config(static_dir, Config),
-	ct_helper:delete_static_dir(Dir),
-	cowboy_test:stop([cowboy, gun]).
+	ct_helper:delete_static_dir(config(static_dir, Config)).
 
 init_per_group(Name, Config) ->
 	{_, Cert, Key} = ct_helper:make_certs(),
