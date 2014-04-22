@@ -49,6 +49,34 @@ all(Suite) ->
 		string:substr(atom_to_list(F), 1, 3) =/= "do_"
 	]).
 
+%% Listeners initialization.
+
+init_http(Ref, ProtoOpts, Config) ->
+	{ok, _} = cowboy:start_http(Ref, 100, [{port, 0}], [
+		{max_keepalive, 50},
+		{timeout, 500}
+		|ProtoOpts]),
+	Port = ranch:get_port(Ref),
+	[{type, tcp}, {port, Port}, {opts, []}|Config].
+
+init_https(Ref, ProtoOpts, Config) ->
+	{_, Cert, Key} = ct_helper:make_certs(),
+	Opts = [{cert, Cert}, {key, Key}],
+	{ok, _} = cowboy:start_https(Ref, 100, Opts ++ [{port, 0}], [
+		{max_keepalive, 50},
+		{timeout, 500}
+		|ProtoOpts]),
+	Port = ranch:get_port(Ref),
+	[{type, ssl}, {port, Port}, {opts, Opts}|Config].
+
+init_spdy(Ref, ProtoOpts, Config) ->
+	{_, Cert, Key} = ct_helper:make_certs(),
+	Opts = [{cert, Cert}, {key, Key}],
+	{ok, _} = cowboy:start_spdy(Ref, 100, Opts ++ [{port, 0}],
+		ProtoOpts),
+	Port = ranch:get_port(Ref),
+	[{type, ssl}, {port, Port}, {opts, Opts}|Config].
+
 %% Support functions for testing using Gun.
 
 gun_open(Config) ->

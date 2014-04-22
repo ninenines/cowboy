@@ -40,17 +40,12 @@ end_per_suite(Config) ->
 	ct_helper:delete_static_dir(config(static_dir, Config)).
 
 init_per_group(Name, Config) ->
-	{_, Cert, Key} = ct_helper:make_certs(),
-	Opts = [{cert, Cert}, {key, Key}],
-	{ok, _} = cowboy:start_spdy(Name, 100, Opts ++ [{port, 0}], [
+	cowboy_test:init_spdy(Name, [
 		{env, [{dispatch, init_dispatch(Config)}]}
-	]),
-	Port = ranch:get_port(Name),
-	[{port, Port}, {type, ssl}|Config].
+	], Config).
 
 end_per_group(Name, _) ->
-	cowboy:stop_listener(Name),
-	ok.
+	cowboy:stop_listener(Name).
 
 %% Dispatch configuration.
 

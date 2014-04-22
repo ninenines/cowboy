@@ -29,7 +29,7 @@ groups() ->
 init_per_suite(Config) ->
 	Config.
 
-init_per_group(autobahn, Config) ->
+init_per_group(Name = autobahn, Config) ->
 	%% Some systems have it named pip2.
 	Out = os:cmd("pip show autobahntestsuite ; pip2 show autobahntestsuite"),
 	case string:str(Out, "autobahntestsuite") of
@@ -40,21 +40,18 @@ init_per_group(autobahn, Config) ->
 				"http://autobahn.ws/testsuite/installation.html"),
 			{skip, "Autobahn Test Suite not installed."};
 		_ ->
-			{ok, _} = cowboy:start_http(autobahn, 100, [{port, 33080}], [
+			{ok, _} = cowboy:start_http(Name, 100, [{port, 33080}], [
 				{env, [{dispatch, init_dispatch()}]}]),
 			Config
 	end;
-init_per_group(ws, Config) ->
-	cowboy:start_http(ws, 100, [{port, 0}], [
+init_per_group(Name = ws, Config) ->
+	cowboy_test:init_http(Name, [
 		{env, [{dispatch, init_dispatch()}]},
 		{compress, true}
-	]),
-	Port = ranch:get_port(ws),
-	[{port, Port}|Config].
+	], Config).
 
 end_per_group(Listener, _Config) ->
-	cowboy:stop_listener(Listener),
-	ok.
+	cowboy:stop_listener(Listener).
 
 %% Dispatch configuration.
 

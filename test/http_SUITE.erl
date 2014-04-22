@@ -79,39 +79,26 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
 	ct_helper:delete_static_dir(config(static_dir, Config)).
 
-init_tcp_group(Ref, ProtoOpts, Config) ->
-	Transport = ranch_tcp,
-	{ok, _} = cowboy:start_http(Ref, 100, [{port, 0}], [
+init_per_group(Name = http, Config) ->
+	cowboy_test:init_http(Name, [
+		{env, [{dispatch, init_dispatch(Config)}]}
+	], Config);
+init_per_group(Name = https, Config) ->
+	cowboy_test:init_https(Name, [
+		{env, [{dispatch, init_dispatch(Config)}]}
+	], Config);
+init_per_group(Name = http_compress, Config) ->
+	cowboy_test:init_http(Name, [
 		{env, [{dispatch, init_dispatch(Config)}]},
-		{max_keepalive, 50},
-		{timeout, 500}
-		|ProtoOpts]),
-	Port = ranch:get_port(Ref),
-	[{type, tcp}, {port, Port}, {opts, []}, {transport, Transport}|Config].
-
-init_ssl_group(Ref, ProtoOpts, Config) ->
-	Transport = ranch_ssl,
-	{_, Cert, Key} = ct_helper:make_certs(),
-	Opts = [{cert, Cert}, {key, Key}],
-	{ok, _} = cowboy:start_https(Ref, 100, Opts ++ [{port, 0}], [
+		{compress, true}
+	], Config);
+init_per_group(Name = https_compress, Config) ->
+	cowboy_test:init_https(Name, [
 		{env, [{dispatch, init_dispatch(Config)}]},
-		{max_keepalive, 50},
-		{timeout, 500}
-		|ProtoOpts]),
-	Port = ranch:get_port(Ref),
-	[{type, ssl}, {port, Port}, {opts, Opts}, {transport, Transport}|Config].
-
-init_per_group(http, Config) ->
-	init_tcp_group(http, [], Config);
-init_per_group(https, Config) ->
-	init_ssl_group(https, [], Config);
-init_per_group(http_compress, Config) ->
-	init_tcp_group(http_compress, [{compress, true}], Config);
-init_per_group(https_compress, Config) ->
-	init_ssl_group(https_compress, [{compress, true}], Config);
+		{compress, true}
+	], Config);
 %% Most, if not all of these, should be in separate test suites.
 init_per_group(onrequest, Config) ->
-	Transport = ranch_tcp,
 	{ok, _} = cowboy:start_http(onrequest, 100, [{port, 0}], [
 		{env, [{dispatch, init_dispatch(Config)}]},
 		{max_keepalive, 50},
@@ -119,9 +106,8 @@ init_per_group(onrequest, Config) ->
 		{timeout, 500}
 	]),
 	Port = ranch:get_port(onrequest),
-	[{type, tcp}, {port, Port}, {opts, []}, {transport, Transport}|Config];
+	[{type, tcp}, {port, Port}, {opts, []}|Config];
 init_per_group(onresponse, Config) ->
-	Transport = ranch_tcp,
 	{ok, _} = cowboy:start_http(onresponse, 100, [{port, 0}], [
 		{env, [{dispatch, init_dispatch(Config)}]},
 		{max_keepalive, 50},
@@ -129,9 +115,8 @@ init_per_group(onresponse, Config) ->
 		{timeout, 500}
 	]),
 	Port = ranch:get_port(onresponse),
-	[{type, tcp}, {port, Port}, {opts, []}, {transport, Transport}|Config];
+	[{type, tcp}, {port, Port}, {opts, []}|Config];
 init_per_group(onresponse_capitalize, Config) ->
-	Transport = ranch_tcp,
 	{ok, _} = cowboy:start_http(onresponse_capitalize, 100, [{port, 0}], [
 		{env, [{dispatch, init_dispatch(Config)}]},
 		{max_keepalive, 50},
@@ -139,9 +124,8 @@ init_per_group(onresponse_capitalize, Config) ->
 		{timeout, 500}
 	]),
 	Port = ranch:get_port(onresponse_capitalize),
-	[{type, tcp}, {port, Port}, {opts, []}, {transport, Transport}|Config];
+	[{type, tcp}, {port, Port}, {opts, []}|Config];
 init_per_group(parse_host, Config) ->
-	Transport = ranch_tcp,
 	Dispatch = cowboy_router:compile([
 		{'_', [
 			{"/req_attr", http_req_attr, []}
@@ -153,20 +137,18 @@ init_per_group(parse_host, Config) ->
 		{timeout, 500}
 	]),
 	Port = ranch:get_port(http),
-	[{type, tcp}, {port, Port}, {opts, []}, {transport, Transport}|Config];
+	[{type, tcp}, {port, Port}, {opts, []}|Config];
 init_per_group(set_env, Config) ->
-	Transport = ranch_tcp,
 	{ok, _} = cowboy:start_http(set_env, 100, [{port, 0}], [
 		{env, [{dispatch, []}]},
 		{max_keepalive, 50},
 		{timeout, 500}
 	]),
 	Port = ranch:get_port(set_env),
-	[{type, tcp}, {port, Port}, {opts, []}, {transport, Transport}|Config].
+	[{type, tcp}, {port, Port}, {opts, []}|Config].
 
 end_per_group(Name, _) ->
-	cowboy:stop_listener(Name),
-	ok.
+	cowboy:stop_listener(Name).
 
 %% Dispatch configuration.
 
@@ -436,8 +418,12 @@ http10_chunkless(Config) ->
 http10_hostless(Config) ->
 	Port10 = config(port, Config) + 10,
 	Name = list_to_atom("http10_hostless_" ++ integer_to_list(Port10)),
-	ranch:start_listener(Name, 5,
-		config(transport, Config), config(opts, Config) ++ [{port, Port10}],
+	Transport = case config(type, Config) of
+		tcp -> ranch_tcp;
+		ssl -> ranch_ssl
+	end,
+	ranch:start_listener(Name, 5, Transport,
+		config(opts, Config) ++ [{port, Port10}],
 		cowboy_protocol, [
 			{env, [{dispatch, cowboy_router:compile([
 				{'_', [{"/http1.0/hostless", http_handler, []}]}])}]},
