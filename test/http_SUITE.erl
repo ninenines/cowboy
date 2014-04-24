@@ -131,12 +131,12 @@ init_per_group(parse_host, Config) ->
 			{"/req_attr", http_req_attr, []}
 		]}
 	]),
-	{ok, _} = cowboy:start_http(http, 100, [{port, 0}], [
+	{ok, _} = cowboy:start_http(parse_host, 100, [{port, 0}], [
 		{env, [{dispatch, Dispatch}]},
 		{max_keepalive, 50},
 		{timeout, 500}
 	]),
-	Port = ranch:get_port(http),
+	Port = ranch:get_port(parse_host),
 	[{type, tcp}, {port, Port}, {opts, []}|Config];
 init_per_group(set_env, Config) ->
 	{ok, _} = cowboy:start_http(set_env, 100, [{port, 0}], [
@@ -148,7 +148,7 @@ init_per_group(set_env, Config) ->
 	[{type, tcp}, {port, Port}, {opts, []}|Config].
 
 end_per_group(Name, _) ->
-	cowboy:stop_listener(Name).
+	ok = cowboy:stop_listener(Name).
 
 %% Dispatch configuration.
 
@@ -416,8 +416,8 @@ http10_chunkless(Config) ->
 	gun_is_gone(ConnPid, MRef).
 
 http10_hostless(Config) ->
+	Name = http10_hostless,
 	Port10 = config(port, Config) + 10,
-	Name = list_to_atom("http10_hostless_" ++ integer_to_list(Port10)),
 	Transport = case config(type, Config) of
 		tcp -> ranch_tcp;
 		ssl -> ranch_ssl
@@ -432,7 +432,7 @@ http10_hostless(Config) ->
 	),
 	200 = do_raw("GET /http1.0/hostless HTTP/1.0\r\n\r\n",
 		[{port, Port10}|Config]),
-	cowboy:stop_listener(http10).
+	cowboy:stop_listener(http10_hostless).
 
 keepalive_max(Config) ->
 	{ConnPid, MRef} = gun_monitor_open(Config),
