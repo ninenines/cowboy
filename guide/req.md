@@ -62,8 +62,10 @@ or `{error, atom()}`. This includes the following functions:
 also includes the `chunk/2` function which always returns
 `ok`.
 
-The final group modifies the Req object, so it always return
-a new `Req`. It includes the following functions: `compact/1`,
+The final group modifies the Req object state without
+performing any immediate operations. As these functions
+can't fail, they always return a new `Req` directly.
+This includes the following functions: `compact/1`,
 `delete_resp_header/2`, `set_meta/3`, `set_resp_body/2`,
 `set_resp_body_fun/{2,3}`, `set_resp_cookie/4`, `set_resp_header/3`.
 
