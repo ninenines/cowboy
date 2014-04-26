@@ -241,7 +241,7 @@ language_tag(Data, Fun) ->
 
 -spec language_subtag(binary(), fun(), binary(), [binary()]) -> any().
 language_subtag(Data, Fun, Tag, Acc) ->
-	alpha(Data,
+	alphanumeric(Data,
 		fun (_Rest, SubTag) when byte_size(SubTag) =:= 0;
 				byte_size(SubTag) > 8 -> {error, badarg};
 			(<< $-, Rest/binary >>, SubTag) ->
@@ -615,6 +615,23 @@ alpha(<< C, Rest/binary >>, Fun, Acc)
 alpha(Data, Fun, Acc) ->
 	Fun(Data, Acc).
 
+-spec alphanumeric(binary(), fun()) -> any().
+alphanumeric(Data, Fun) ->
+	alphanumeric(Data, Fun, <<>>).
+
+-spec alphanumeric(binary(), fun(), binary()) -> any().
+alphanumeric(<<>>, Fun, Acc) ->
+	Fun(<<>>, Acc);
+alphanumeric(<< C, Rest/binary >>, Fun, Acc)
+		when C >= $a andalso C =< $z;
+			 C >= $A andalso C =< $Z;
+			 C >= $0 andalso C =< $9 ->
+	C2 = cowboy_bstr:char_to_lower(C),
+	alphanumeric(Rest, Fun, << Acc/binary, C2 >>);
+alphanumeric(Data, Fun, Acc) ->
+	Fun(Data, Acc).
+
+%% @doc Parse either a token or a quoted string.
 -spec word(binary(), fun()) -> any().
 word(Data = << $", _/binary >>, Fun) ->
 	quoted_string(Data, Fun);
@@ -865,12 +882,13 @@ nonempty_language_range_list_test_() ->
 			{<<"en-gb">>, 800},
 			{<<"en">>, 700}
 		]},
-		{<<"en, en-US, en-cockney, i-cherokee, x-pig-latin">>, [
+		{<<"en, en-US, en-cockney, i-cherokee, x-pig-latin, es-419">>, [
 			{<<"en">>, 1000},
 			{<<"en-us">>, 1000},
 			{<<"en-cockney">>, 1000},
 			{<<"i-cherokee">>, 1000},
-			{<<"x-pig-latin">>, 1000}
+			{<<"x-pig-latin">>, 1000},
+			{<<"es-419">>, 1000}
 		]}
 	],
 	[{V, fun() -> R = nonempty_list(V, fun language_range/2) end}
