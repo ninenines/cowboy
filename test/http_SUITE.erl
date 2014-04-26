@@ -485,6 +485,28 @@ multipart(Config) ->
 	],
 	ok.
 
+multipart_chunked(Config) ->
+	ConnPid = gun_open(Config),
+	Body = <<
+		"This is a preamble."
+		"\r\n--OHai\r\nX-Name:answer\r\n\r\n42"
+		"\r\n--OHai\r\nServer:Cowboy\r\n\r\nIt rocks!\r\n"
+		"\r\n--OHai--\r\n"
+		"This is an epilogue."
+	>>,
+	Ref = gun:post(ConnPid, "/multipart", [
+		{<<"content-type">>, <<"multipart/x-makes-no-sense; boundary=OHai">>},
+		{<<"transfer-encoding">>, <<"chunked">>}]),
+	gun:data(ConnPid, Ref, fin, Body),
+	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
+	{ok, RespBody} = gun:await_body(ConnPid, Ref),
+	Parts = binary_to_term(RespBody),
+	Parts = [
+		{[{<<"x-name">>, <<"answer">>}], <<"42">>},
+		{[{<<"server">>, <<"Cowboy">>}], <<"It rocks!\r\n">>}
+	],
+	ok.
+
 multipart_large(Config) ->
 	ConnPid = gun_open(Config),
 	Boundary = "----------",
