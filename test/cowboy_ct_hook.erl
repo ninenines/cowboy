@@ -18,6 +18,6 @@
 
 init(_, _) ->
 	cowboy_test:start([cowboy, gun]),
-	error_logger:tty(false),
+	cowboy_test:make_certs(),
 	error_logger:add_report_handler(cowboy_error_h),
 	{ok, undefined}.

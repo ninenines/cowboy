@@ -158,7 +158,6 @@ init_dispatch(Config) ->
 			{"/chunked_response", http_chunked, []},
 			{"/streamed_response", http_streamed, []},
 			{"/init_shutdown", http_init_shutdown, []},
-			{"/long_polling", http_long_polling, []},
 			{"/headers/dupe", http_handler,
 				[{headers, [{<<"connection">>, <<"close">>}]}]},
 			{"/set_resp/header", http_set_resp,
@@ -209,9 +208,7 @@ init_dispatch(Config) ->
 			{"/resetags", rest_resource_etags, []},
 			{"/rest_expires", rest_expires, []},
 			{"/rest_empty_resource", rest_empty_resource, []},
-			{"/loop_recv", http_loop_recv, []},
 			{"/loop_stream_recv", http_loop_stream_recv, []},
-			{"/loop_timeout", http_loop_timeout, []},
 			{"/", http_handler, []}
 		]}
 	]).
@@ -266,14 +263,10 @@ The document has moved
 <A HREF=\"http://www.google.co.il/\">here</A>.
 </BODY></HTML>",
 	Tests = [
-		{102, <<"GET /long_polling HTTP/1.1\r\nHost: localhost\r\n"
-			"Content-Length: 5000\r\n\r\n", 0:5000/unit:8 >>},
 		{200, ["GET / HTTP/1.0\r\nHost: localhost\r\n"
 			"Set-Cookie: ", HugeCookie, "\r\n\r\n"]},
 		{200, "\r\n\r\n\r\n\r\n\r\nGET / HTTP/1.1\r\nHost: localhost\r\n\r\n"},
 		{200, "GET http://proxy/ HTTP/1.1\r\nHost: localhost\r\n\r\n"},
-		{200, <<"POST /loop_recv HTTP/1.1\r\nHost: localhost\r\n"
-			"Content-Length: 100000\r\n\r\n", 0:100000/unit:8 >>},
 		{400, "\n"},
 		{400, "Garbage\r\n\r\n"},
 		{400, "\r\n\r\n\r\n\r\n\r\n\r\n"},
@@ -287,8 +280,6 @@ The document has moved
 		{408, "GET / HTTP/1.1\r\nHost: localhost\r\n\r"},
 		{414, Huge},
 		{400, "GET / HTTP/1.1\r\n" ++ Huge},
-		{500, <<"GET /long_polling HTTP/1.1\r\nHost: localhost\r\n"
-			"Content-Length: 100000\r\n\r\n", 0:100000/unit:8 >>},
 		{505, "GET / HTTP/1.2\r\nHost: localhost\r\n\r\n"},
 		{closed, ""},
 		{closed, "\r\n"},
@@ -303,10 +294,8 @@ The document has moved
 
 check_status(Config) ->
 	Tests = [
-		{102, "/long_polling"},
 		{200, "/"},
 		{200, "/simple"},
-		{204, "/loop_timeout"},
 		{400, "/static/%2f"},
 		{400, "/static/%2e"},
 		{400, "/static/%2e%2e"},
@@ -616,12 +605,6 @@ pipeline(Config) ->
 	ConnPid = gun_open(Config),
 	Refs = [gun:get(ConnPid, "/") || _ <- lists:seq(1, 5)],
 	_ = [{response, nofin, 200, _} = gun:await(ConnPid, Ref) || Ref <- Refs],
-	ok.
-
-pipeline_long_polling(Config) ->
-	ConnPid = gun_open(Config),
-	Refs = [gun:get(ConnPid, "/long_polling") || _ <- lists:seq(1, 2)],
-	_ = [{response, fin, 102, _} = gun:await(ConnPid, Ref) || Ref <- Refs],
 	ok.
 
 rest_param_all(Config) ->

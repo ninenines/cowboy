@@ -30,11 +30,31 @@ do_start(App) ->
 			do_start(App)
 	end.
 
+%% SSL certificate creation and safekeeping.
+
+make_certs() ->
+	{_, Cert, Key} = ct_helper:make_certs(),
+	CertOpts = [{cert, Cert}, {key, Key}],
+	Pid = spawn(fun() -> receive after infinity -> ok end end),
+	?MODULE = ets:new(?MODULE, [ordered_set, public, named_table,
+		{heir, Pid, undefined}]),
+	ets:insert(?MODULE, {cert_opts, CertOpts}),
+	ok.
+
+get_certs() ->
+	ets:lookup_element(?MODULE, cert_opts, 2).
+
 %% Quick configuration value retrieval.
 
 config(Key, Config) ->
 	{_, Value} = lists:keyfind(Key, 1, Config),
 	Value.
+
+%% Test case description.
+
+doc(String) ->
+	ct:comment(String),
+	ct:log(String).
 
 %% List of all test cases in the suite.
 
@@ -60,8 +80,7 @@ init_http(Ref, ProtoOpts, Config) ->
 	[{type, tcp}, {port, Port}, {opts, []}|Config].
 
 init_https(Ref, ProtoOpts, Config) ->
-	{_, Cert, Key} = ct_helper:make_certs(),
-	Opts = [{cert, Cert}, {key, Key}],
+	Opts = get_certs(),
 	{ok, _} = cowboy:start_https(Ref, 100, Opts ++ [{port, 0}], [
 		{max_keepalive, 50},
 		{timeout, 500}
@@ -70,12 +89,61 @@ init_https(Ref, ProtoOpts, Config) ->
 	[{type, ssl}, {port, Port}, {opts, Opts}|Config].
 
 init_spdy(Ref, ProtoOpts, Config) ->
-	{_, Cert, Key} = ct_helper:make_certs(),
-	Opts = [{cert, Cert}, {key, Key}],
+	Opts = get_certs(),
 	{ok, _} = cowboy:start_spdy(Ref, 100, Opts ++ [{port, 0}],
 		ProtoOpts),
 	Port = ranch:get_port(Ref),
 	[{type, ssl}, {port, Port}, {opts, Opts}|Config].
+
+%% Common group of listeners used by most suites.
+
+common_all() ->
+	[
+		{group, http},
+		{group, https},
+		{group, spdy},
+		{group, http_compress},
+		{group, https_compress},
+		{group, spdy_compress}
+	].
+
+common_groups(Tests) ->
+	[
+		{http, [parallel], Tests},
+		{https, [parallel], Tests},
+		{spdy, [parallel], Tests},
+		{http_compress, [parallel], Tests},
+		{https_compress, [parallel], Tests},
+		{spdy_compress, [parallel], Tests}
+	].
+
+init_common_groups(Name = http, Config, Mod) ->
+	init_http(Name, [
+		{env, [{dispatch, Mod:init_dispatch(Config)}]}
+	], Config);
+init_common_groups(Name = https, Config, Mod) ->
+	init_https(Name, [
+		{env, [{dispatch, Mod:init_dispatch(Config)}]}
+	], Config);
+init_common_groups(Name = spdy, Config, Mod) ->
+	init_spdy(Name, [
+		{env, [{dispatch, Mod:init_dispatch(Config)}]}
+	], Config);
+init_common_groups(Name = http_compress, Config, Mod) ->
+	init_http(Name, [
+		{env, [{dispatch, Mod:init_dispatch(Config)}]},
+		{compress, true}
+	], Config);
+init_common_groups(Name = https_compress, Config, Mod) ->
+	init_https(Name, [
+		{env, [{dispatch, Mod:init_dispatch(Config)}]},
+		{compress, true}
+	], Config);
+init_common_groups(Name = spdy_compress, Config, Mod) ->
+	init_spdy(Name, [
+		{env, [{dispatch, Mod:init_dispatch(Config)}]},
+		{compress, true}
+	], Config).
 
 %% Support functions for testing using Gun.
 
