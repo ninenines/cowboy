@@ -531,7 +531,9 @@ stream_body(MaxLength, Req=#http_req{body_state=waiting, version=Version,
 						{stream, Length,
 							fun cow_http_te:stream_identity/2, {0, Length},
 							fun cowboy_http:ce_identity/1}})
-			end
+			end;
+		{ok, _, _} -> {error, badencoding};
+		{error, Reason} -> {error, Reason}
 	end;
 stream_body(_, Req=#http_req{body_state=done}) ->
 	{done, Req};
