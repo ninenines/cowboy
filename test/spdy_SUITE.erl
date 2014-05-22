@@ -56,6 +56,7 @@ init_dispatch(Config) ->
 				{dir, config(static_dir, Config)}},
 			{"/echo/body", http_echo_body, []},
 			{"/chunked", http_chunked, []},
+            {"/push", http_push, []},
 			{"/", http_handler, []}
 		]}
 	]).
@@ -108,3 +109,26 @@ echo_body_multi(Config) ->
 	{response, nofin, 200, _} = gun:await(ConnPid, StreamRef, MRef),
 	{ok, << 0:800000 >>} = gun:await_body(ConnPid, StreamRef, MRef),
 	gun:close(ConnPid).
+
+push_body(Config) ->
+	{ConnPid, MRef} = gun_monitor_open(Config),
+	Body = << 0:800000 >>,
+	StreamRef = gun:post(ConnPid, "/push", [
+		{<<"content-type">>, "application/octet-stream"}
+	], Body),
+    io:format("waiting for push~n", []),
+	
+    ok =
+    receive 
+        {gun_push, ConnPid, Strm, Assos, _, _, _, _} ->
+            io:format("DID YOU HET ME~n"),
+            io:format("StreamID: ~p Assoc: ~p~n", [Strm, Assos]),
+            ok
+    after 
+        5000 -> timeout
+    end,
+	{response, nofin, 200, _} = gun:await(ConnPid, StreamRef, MRef),
+  	{ok, _Body} = gun:await_body(ConnPid, StreamRef, MRef),
+	gun:close(ConnPid).
+
+

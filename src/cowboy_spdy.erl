@@ -39,6 +39,8 @@
 -export([sendfile/2]).
 -export([setopts/2]).
 
+-export([push_reply/7]).
+
 -type streamid() :: non_neg_integer().
 -type socket() :: {pid(), streamid()}.
 
@@ -65,6 +67,7 @@
 	zdef,
 	zinf,
 	last_streamid = 0 :: streamid(),
+    last_unidirectional_streamid = 0,
 	children = [] :: [#child{}]
 }).
 
@@ -164,6 +167,18 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 			syn_reply(State, StreamID, false, Status, Headers),
 			data(State, StreamID, true, Body),
 			loop(replace_child(Child#child{output=fin}, State));
+        %%Pid ! {push_reply, self(), Socket, Method, Host, Path, Status, Headers, Body},
+        {push_reply, From, {Pid, AssocStreamID}, Method, Host, Path, Status, Headers, Body}
+                when Pid =:= self() ->
+            %% Make sure that the original stream is still open
+            #child{output=nofin} = get_child(AssocStreamID, State),
+            {ok, StreamID, State2} = next_unidirectional_stream_id(State),
+            syn_stream(State2, StreamID, AssocStreamID, Host, Method,
+                       Path, false, Status, Headers),
+            data(State2, StreamID, true, Body),
+            io:format("Sending stream_id back: ~p~n", [StreamID]),
+            From ! {stream_id, StreamID},
+            loop(State2);
 		{stream_reply, {Pid, StreamID}, Status, Headers}
 				when Pid =:= self() ->
 			#child{output=nofin} = get_child(StreamID, State),
@@ -279,6 +294,7 @@ handle_frame(State=#state{socket=Socket, transport=Transport},
 	State;
 %% Data received for a stream.
 handle_frame(State, {data, StreamID, IsFin, Data}) ->
+    io:format("DATA FRAME: ~p~n", [StreamID]),
     case get_child(StreamID, State) of 
         false -> 
             error_logger:error_msg("Invalid data frame with stream id ~p.", [StreamID]),
@@ -329,6 +345,26 @@ cancel_recv_timeout(StreamID, TRef) ->
 %% but only up to N milliseconds. Then we shutdown.
 terminate(_State) ->
 	ok.
+
+next_unidirectional_stream_id(#state{last_unidirectional_streamid = StreamId}=State) ->
+    NextStreamId = StreamId + 2,
+    %% Max stream_id = pow(2, 31)
+    case NextStreamId > 2147483648 of
+        true ->
+            {error, out_of_streamids};
+        _ ->
+            {ok, NextStreamId, State#state{last_unidirectional_streamid=NextStreamId}}
+    end.
+%syn_stream(Zdef, StreamID, AssocToStreamID, IsFin, IsUnidirectional,
+%		Priority, Method, Scheme, Host, Path, Version, Headers) ->
+
+syn_stream(#state{socket=Socket, transport=Transport, zdef=Zdef},
+           StreamID, AssocStreamId, Host, Method, Path, IsFin, _Status, Headers) ->
+	Frame =	cow_spdy:syn_stream(Zdef,
+			    StreamID, AssocStreamId, IsFin, true, 0,
+			    Method, <<"https">>, Host, Path, <<"HTTP/1.1">>, Headers),
+    io:format("PUSH FRAME ~p~n", [Frame]),
+    Transport:send(Socket, Frame).
 
 syn_reply(#state{socket=Socket, transport=Transport, zdef=Zdef},
 		StreamID, IsFin, Status, Headers) ->
@@ -451,6 +487,30 @@ reply(Socket = {Pid, _}, Status, Headers, Body) ->
 		_ -> Pid ! {reply, Socket, Status, Headers, Body}
 	end,
 	ok.
+
+
+%% Push Reply creates a new syn_stream
+-spec push_reply(socket(), binary(), binary(), binary(), non_neg_integer(), cowboy:http_headers(), iodata()) ->
+    {error, creashed} | {error, timeout, {ok, socket()}}.
+
+push_reply(Socket = {Pid, _}, Method, Host, Path, Status, Headers, Body) ->
+    %% Don't allow empty bodies... makes no sense here
+    true = iolist_size(Body) > 0,
+
+    % {push_reply, {Pid, AssocStreamID}, Method, Host, Path, Status, Headers, Body}
+    MRef = monitor(process, Pid),
+    io:format("Sending push_reply to conn handler~n", []),
+    Pid ! {push_reply, self(), Socket, Method, Host, Path, Status, Headers, Body},
+    receive
+        {'DOWN', Pid, _} ->
+            {error, crashed};
+        {stream_id, StreamId} ->
+            demonitor(MRef),
+            {ok, {Pid, StreamId}}
+    after 5000 ->
+            demonitor(MRef),
+            {error, timeout}
+    end.
 
 -spec stream_reply(socket(), binary(), cowboy:http_headers()) -> ok.
 stream_reply(Socket = {Pid, _}, Status, Headers) ->

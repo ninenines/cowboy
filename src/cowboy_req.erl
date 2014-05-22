@@ -82,6 +82,10 @@
 -export([maybe_reply/2]).
 -export([ensure_response/2]).
 
+%% Only with SPDY
+%% Consider putting this somewhere else...
+-export([push_reply/5]).
+
 %% Private setter/getter API.
 -export([append_buffer/2]).
 -export([get/2]).
@@ -979,6 +983,24 @@ maybe_reply(Status, Req) ->
 		_ = cowboy_req:reply(Status, Req),
 		ok
 	end.
+%% Send multiple replies on one request - usable only with SPDY
+-spec push_reply(cowboy:http_state(), binary(), cowboy:http_headers(), binary(), req()) -> {ok, req()}.
+push_reply(Status, Path, Headers, Body, Req=#http_req{
+		socket=Socket, transport=Transport,
+		% version=Version, connection=Connection,
+		method=Method, %resp_compress=Compress,
+	%	resp_state=RespState,
+        host=Host,
+        resp_headers=RespHeaders})
+		when Transport =:= cowboy_spdy ->
+    Req2 = compact(Req),
+    MultiReq = Req2#http_req{path = Path,
+                             resp_headers = Headers,
+                             resp_body = Body},
+   
+    {ok, Socket1} = cowboy_spdy:push_reply(Socket, Method, Host,
+                                           Path, Status, RespHeaders, Body),
+    {ok, MultiReq#http_req{socket = Socket1}}.
 
 -spec ensure_response(req(), cowboy:http_status()) -> ok.
 %% The response has already been fully sent to the client.
