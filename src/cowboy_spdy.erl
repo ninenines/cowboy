@@ -176,7 +176,6 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
             syn_stream(State2, StreamID, AssocStreamID, Host, Method,
                        Path, false, Status, Headers),
             data(State2, StreamID, true, Body),
-            io:format("Sending stream_id back: ~p~n", [StreamID]),
             From ! {stream_id, StreamID},
             loop(State2);
 		{stream_reply, {Pid, StreamID}, Status, Headers}
@@ -294,7 +293,6 @@ handle_frame(State=#state{socket=Socket, transport=Transport},
 	State;
 %% Data received for a stream.
 handle_frame(State, {data, StreamID, IsFin, Data}) ->
-    io:format("DATA FRAME: ~p~n", [StreamID]),
     case get_child(StreamID, State) of 
         false -> 
             error_logger:error_msg("Invalid data frame with stream id ~p.", [StreamID]),
@@ -363,7 +361,6 @@ syn_stream(#state{socket=Socket, transport=Transport, zdef=Zdef},
 	Frame =	cow_spdy:syn_stream(Zdef,
 			    StreamID, AssocStreamId, IsFin, true, 0,
 			    Method, <<"https">>, Host, Path, <<"HTTP/1.1">>, Headers),
-    io:format("PUSH FRAME ~p~n", [Frame]),
     Transport:send(Socket, Frame).
 
 syn_reply(#state{socket=Socket, transport=Transport, zdef=Zdef},
@@ -499,7 +496,6 @@ push_reply(Socket = {Pid, _}, Method, Host, Path, Status, Headers, Body) ->
 
     % {push_reply, {Pid, AssocStreamID}, Method, Host, Path, Status, Headers, Body}
     MRef = monitor(process, Pid),
-    io:format("Sending push_reply to conn handler~n", []),
     Pid ! {push_reply, self(), Socket, Method, Host, Path, Status, Headers, Body},
     receive
         {'DOWN', Pid, _} ->
