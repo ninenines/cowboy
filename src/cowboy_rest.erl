@@ -153,12 +153,15 @@ is_authorized(Req, State) ->
 		{halt, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
 		{true, Req2, HandlerState} ->
-			forbidden(Req2, State#state{handler_state=HandlerState});
+			has_credit(Req2, State#state{handler_state=HandlerState});
 		{{false, AuthHead}, Req2, HandlerState} ->
 			Req3 = cowboy_req:set_resp_header(
 				<<"www-authenticate">>, AuthHead, Req2),
 			respond(Req3, State#state{handler_state=HandlerState}, 401)
 	end.
+
+has_credit(Req, State) ->
+        expect(Req, State, has_credit, true, fun forbidden/2, 402).
 
 forbidden(Req, State) ->
 	expect(Req, State, forbidden, false, fun valid_content_headers/2, 403).
