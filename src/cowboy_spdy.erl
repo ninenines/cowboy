@@ -529,7 +529,6 @@ update_window(Window, DeltaValue) ->
     Limit = math:pow(2, 31) - 1,
      case Window + DeltaValue of
        NewWindow when NewWindow =< Limit ->
-            error_logger:info_msg("New window: ~p Delta: ~p", [NewWindow, DeltaValue]),
            {ok, NewWindow};
         _ ->
            {error, window_over_limit}
