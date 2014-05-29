@@ -44,6 +44,15 @@
 -type streamid() :: non_neg_integer().
 -type socket() :: {pid(), streamid()}.
 
+-define(SESSION, 0).
+
+-record(flow_control, {
+    initial_send_window = 65536 :: integer(),
+    initial_recv_window = 65536 :: integer(),
+    send_window = 65536 :: integer(),
+    recv_window = 65536 :: integer()
+}).
+
 -record(child, {
 	streamid :: streamid(),
 	pid :: pid(),
@@ -51,7 +60,8 @@
 	in_buffer = <<>> :: binary(),
 	is_recv = false :: false | {active, socket(), pid()}
 		| {passive, socket(), pid(), non_neg_integer(), reference()},
-	output = nofin :: fin | nofin
+	output = nofin :: fin | nofin,
+    flow_control = #flow_control{} :: #flow_control{}
 }).
 
 -record(state, {
@@ -68,8 +78,39 @@
 	zinf,
 	last_streamid = 0 :: streamid(),
     last_unidirectional_streamid = 0,
-	children = [] :: [#child{}]
+	children = [] :: [#child{}],
+    flow_control = #flow_control{} :: #flow_control{}
 }).
+
+
+%% FLOW_CONTROL
+%%
+%% 1. Open connection
+%% 2. Send settings and set initial_recv_window_size
+%% 3. Maybe receive settings and update initial_send_window_size -- can happen at any time
+%%
+%% When receiving frames:
+%%
+%% 1. update_stream_recv_window_size(Child, -DataSize)
+%%
+%% 2. if (new_size < initial_size/2.0):
+%%        update_stream_recv_window_size(new_size) %% Also sends a WINDOW_UPDATE frame
+%%
+%%    update_session_recv_window_size(State, -DataSize)
+%%
+%%    if (new_size < initial_size/2.0):
+%%        update_session_recv_window_size(new_size) %% Also sends WINDOW_UPDATE frame
+%%
+%% When sending frames:
+%%   MAX_SIZE_TO_SEND = MIN(stream.send_window, session.send_window)
+%%   send(Data, MAX_SIZE_TO_SEND).
+%%
+%% WINDOW_UPDATE:
+%%   Update window size
+%%   Per_connection:
+%%     trigger sends on all channels
+%%   Per_stream:
+%%     trigger send on stream
 
 -type opts() :: [{env, cowboy_middleware:env()}
 	| {middlewares, [module()]}
@@ -105,6 +146,8 @@ init(Parent, Ref, Socket, Transport, Opts) ->
 	Zdef = cow_spdy:deflate_init(),
 	Zinf = cow_spdy:inflate_init(),
 	ok = ranch:accept_ack(Ref),
+    Transport:send(Socket, settings_frame(65536)),
+    %% Send initial window size in a settings frame
 	loop(#state{parent=Parent, socket=Socket, transport=Transport,
 		middlewares=Middlewares, env=Env, onrequest=OnRequest,
 		onresponse=OnResponse, peer=Peer, zdef=Zdef, zinf=Zinf}).
@@ -133,6 +176,8 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 			terminate(State);
 		{recv, FromSocket = {Pid, StreamID}, FromPid, Length, Timeout}
 				when Pid =:= self() ->
+            %% Length is the buffering limit
+            %% send window updates until this limit is reached?
 			Child = #child{in_buffer=InBuffer, is_recv=false}
 				= get_child(StreamID, State),
 			if
@@ -140,22 +185,23 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 					FromPid ! {recv, FromSocket, {ok, InBuffer}},
 					loop(replace_child(Child#child{in_buffer= <<>>}, State));
 				byte_size(InBuffer) >= Length ->
+                    %% All requested data got buffered here
 					<< Data:Length/binary, Rest/binary >> = InBuffer,
-					FromPid ! {recv, FromSocket, {ok, Data}},
+    				FromPid ! {recv, FromSocket, {ok, Data}},
 					loop(replace_child(Child#child{in_buffer=Rest}, State));
 				true ->
 					TRef = erlang:send_after(Timeout, self(),
 						{recv_timeout, FromSocket}),
 					loop(replace_child(Child#child{
 						is_recv={passive, FromSocket, FromPid, Length, TRef}},
-						State))
+                        State))
 			end;
 		{recv_timeout, {Pid, StreamID}}
 				when Pid =:= self() ->
 			Child = #child{is_recv={passive, FromSocket, FromPid, _, _}}
 				= get_child(StreamID, State),
 			FromPid ! {recv, FromSocket, {error, timeout}},
-			loop(replace_child(Child#child{is_recv=passive}, State));
+			loop(replace_child(Child#child{is_recv=false}, State));
 		{reply, {Pid, StreamID}, Status, Headers}
 				when Pid =:= self() ->
 			Child = #child{output=nofin} = get_child(StreamID, State),
@@ -165,8 +211,15 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 				when Pid =:= self() ->
 			Child = #child{output=nofin} = get_child(StreamID, State),
 			syn_reply(State, StreamID, false, Status, Headers),
-			data(State, StreamID, true, Body),
-			loop(replace_child(Child#child{output=fin}, State));
+            %% @todo update send window size
+            BytesToSend = iolist_size(Body),
+
+            State2 = #state{} = update_send_window(State, -BytesToSend),
+            Child2 = #child{} = update_send_window(Child, -BytesToSend),
+
+            %% Also update childs send window....
+			data(State2, StreamID, true, Body),
+			loop(replace_child(Child2#child{output=fin}, State2));
         %%Pid ! {push_reply, self(), Socket, Method, Host, Path, Status, Headers, Body},
         {push_reply, From, {Pid, AssocStreamID}, Method, Host, Path, Status, Headers, Body}
                 when Pid =:= self() ->
@@ -178,6 +231,7 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
             data(State2, StreamID, true, Body),
             From ! {stream_id, StreamID},
             loop(State2);
+
 		{stream_reply, {Pid, StreamID}, Status, Headers}
 				when Pid =:= self() ->
 			#child{output=nofin} = get_child(StreamID, State),
@@ -185,6 +239,12 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 			loop(State);
 		{stream_data, {Pid, StreamID}, Data}
 				when Pid =:= self() ->
+            %% @todo respect output window size
+            %% stop sending and restart if needed
+            %% get_max_send_size(Child, State) ->
+            %%     Check both flow control status
+            %% If data already in buffer just append
+            %% Sends get triggered by window_update frames
 			#child{output=nofin} = get_child(StreamID, State),
 			data(State, StreamID, false, Data),
 			loop(State);
@@ -193,6 +253,11 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 			Child = #child{output=nofin} = get_child(StreamID, State),
 			data(State, StreamID, true, <<>>),
 			loop(replace_child(Child#child{output=fin}, State));
+        {rst_stream, StreamID, Status} ->
+			Child = #child{output=nofin} = get_child(StreamID, State),
+            rst_stream(State, StreamID, Status),
+			loop(replace_child(Child#child{output=fin}, State));
+    
 		{sendfile, {Pid, StreamID}, Filepath}
 				when Pid =:= self() ->
 			Child = #child{output=nofin} = get_child(StreamID, State),
@@ -318,13 +383,76 @@ handle_frame(State, {data, StreamID, IsFin, Data}) ->
                          _ ->
                              Child#child{input=IsFin2, in_buffer=Data2}
                      end,
-            replace_child(Child2, State)
+            try 
+                #state{flow_control=FC} = State,
+                InputLength = iolist_size(Data),
+                FC2 = update_recv_window_and_maybe_send_window_update(FC, State, ?SESSION, -InputLength),
+                #child{flow_control = CFC} = Child2,
+                %% Recv window for stream
+                CFC2 = update_recv_window_and_maybe_send_window_update(CFC, State, StreamID, -InputLength),
+                replace_child(Child2#child{flow_control=CFC2}, State#state{flow_control = FC2}) of
+
+                State2 ->
+                    State2
+            catch 
+                throw:{flow_control, 0} ->
+                    %% GOAWAY If the error is in the connection
+                    %% RST_STREAM if the error is in the stream
+                    error_logger:error_msg("Session recv overflow"),
+                    goaway(State, protocol_error),
+                    terminate(State);
+                throw:{flow_control, StreamID} ->
+                    error_logger:error_msg("Stream recv overflow stream_id=~p", [StreamID]),
+                    self() ! {rst_stream, StreamID, flow_control_error}, %% Reason
+                    replace_child(Child2, State)
+            end
     end;
+
 %% General error, can't recover.
 handle_frame(State, {error, badprotocol}) ->
 	goaway(State, protocol_error),
 	terminate(State);
-%% Ignore all other frames for now.
+
+handle_frame(State, {window_update, ?SESSION, WindowSizeDelta}) ->
+    case update_send_window(State, WindowSizeDelta) of
+        {error, _} ->
+            error_logger:error_msg("Invalid window update delta=~p", [WindowSizeDelta]),
+            goaway(State, protocol_error),
+            terminate(State);
+        State2 ->
+            %% @todo Trigger sends!
+            loop(State2)
+    end;
+
+handle_frame(State, {window_update, StreamID, WindowSizeDelta}) ->
+    error_logger:error_msg("Updating flow control for stream=~p delta=~p~n", [StreamID, WindowSizeDelta]),
+    Child = #child{} = get_child(StreamID, State),
+    case update_send_window(Child, WindowSizeDelta) of
+        {error, _} ->
+            self() ! {rst_stream, StreamID, flow_control_error}, %% Reason
+            loop(State);
+        Child2 ->
+            loop(replace_child(Child2, State))
+    end;
+
+handle_frame(State, {settings, _, Settings}) ->
+   %% A SETTINGS frame can alter the initial flow control window size for all current streams.
+    %% When the value of SETTINGS_INITIAL_WINDOW_SIZE changes, a receiver MUST adjust the size
+    %% of all stream flow control windows that it maintains by the difference between the new 
+    %% value and the old value. A SETTINGS frame cannot alter the connection flow control window. 
+ 
+    %% 1. Change the initial window size
+    %% @todo
+    %% 2. Update all currently open streams with the diff between the old and new value
+    case lists:keyfind(initial_window_size, 1, Settings) of
+        false -> loop(State);
+        {_, InitialWindowSize, _, _} ->
+            #state{flow_control = FC} = State,
+            loop(State#state{flow_control = FC#flow_control{initial_send_window = InitialWindowSize,
+                             send_window = InitialWindowSize}})
+    end;
+
+
 handle_frame(State, Frame) ->
 	error_logger:error_msg("Ignored frame ~p", [Frame]),
 	State.
@@ -338,6 +466,83 @@ cancel_recv_timeout(StreamID, TRef) ->
 	after 0 ->
 		ok
 	end.
+
+flow_control_new_with_defaults(#flow_control{initial_send_window = ISW, initial_recv_window = IRW}) ->
+    #flow_control{initial_send_window = ISW, initial_recv_window = IRW}.
+
+update_recv_window_and_maybe_send_window_update(FlowControl, State, StreamID, Delta) ->
+    case update_recv_window(FlowControl, Delta) of
+        {error, _} ->
+            throw({flow_control, StreamID});
+        FlowControl2 ->
+            maybe_send_window_update(FlowControl2, State, StreamID)
+    end.
+
+%% FLOW_CONTROL
+maybe_send_window_update(#flow_control{initial_recv_window = InitialWindowSize,
+                                       recv_window = RecvWindowSize} = FC,
+                         #state{transport = Transport,
+                                socket = Socket}, StreamID)
+    when RecvWindowSize =< InitialWindowSize div 2 ->
+    error_logger:info_msg("Sending window update streamid=~p old_window_size=~p", [StreamID, RecvWindowSize]),
+    Transport:send(Socket, window_update_frame(StreamID, InitialWindowSize - RecvWindowSize)),
+    FC#flow_control{recv_window = InitialWindowSize};
+
+maybe_send_window_update(FC, _State, _StreamID) -> FC.
+
+update_recv_window(#flow_control{recv_window = Window}=FC, Delta) ->
+    case update_window(Window, Delta) of
+        {ok, NewWindow} ->
+            FC#flow_control{recv_window = NewWindow};
+        {error, Error} ->
+            {error, Error}
+    end.
+
+update_send_window(#state{flow_control=FC}=State, Delta) ->
+    case update_send_window(FC, Delta) of
+        {error, Error} ->
+            {error, Error};
+        FC2 ->
+            State#state{flow_control = FC2}
+    end;
+
+update_send_window(#child{flow_control=FC}=Child, Delta) ->
+    case update_send_window(FC, Delta) of
+        {error, Error} ->
+            {error, Error};
+        FC2 ->
+            Child#child{flow_control = FC2}
+    end;
+
+update_send_window(#flow_control{send_window = Window}=FC, Delta) ->
+    case update_window(Window, Delta) of
+        {ok, NewWindow} ->
+            FC#flow_control{send_window = NewWindow};
+        {error, Error} ->
+            {error, Error}
+    end.
+
+-spec update_window(integer(), integer()) -> {ok, integer()} | {error, atom()}.
+
+update_window(Window, DeltaValue) ->
+    Limit = math:pow(2, 31) - 1,
+     case Window + DeltaValue of
+       NewWindow when NewWindow =< Limit ->
+            error_logger:info_msg("New window: ~p Delta: ~p", [NewWindow, DeltaValue]),
+           {ok, NewWindow};
+        _ ->
+           {error, window_over_limit}
+    end.
+
+
+%% @todo this should really be in cowlib
+window_update_frame(StreamID, DeltaWindowSize) ->
+    <<1:1, 3:15, 9:16, 0:8, 8:25, StreamID:31, 0:1, DeltaWindowSize:31>>.
+
+settings_frame(InitialWindowSize) ->
+    KeyPair = <<0:8, 7:24, InitialWindowSize:32>>,
+    Length = 4 + 8,
+    <<1:1, 3:15, 4:16, 0:7, 0:1, Length:24, 1:32, KeyPair/binary>>.
 
 %% @todo We must wait for the children to finish here,
 %% but only up to N milliseconds. Then we shutdown.
@@ -372,7 +577,7 @@ rst_stream(#state{socket=Socket, transport=Transport}, StreamID, Status) ->
 goaway(#state{socket=Socket, transport=Transport, last_streamid=LastStreamID},
 		Status) ->
 	Transport:send(Socket, cow_spdy:goaway(LastStreamID, Status)).
-
+%% @todo respect send window_size 
 data(#state{socket=Socket, transport=Transport}, StreamID, IsFin, Data) ->
 	Transport:send(Socket, cow_spdy:data(StreamID, IsFin, Data)).
 
@@ -397,10 +602,12 @@ data_from_file(Socket, Transport, StreamID, IoDevice) ->
 
 %% Children.
 
-new_child(State=#state{children=Children}, StreamID, Pid, IsFin) ->
+new_child(State=#state{flow_control=FC, children=Children}, StreamID, Pid, IsFin) ->
+    CFC = flow_control_new_with_defaults(FC),
 	IsFin2 = if IsFin -> fin; true -> nofin end,
 	State#state{last_streamid=StreamID,
 		children=[#child{streamid=StreamID,
+                         flow_control = CFC,
 		pid=Pid, input=IsFin2}|Children]}.
 
 get_child(StreamID, #state{children=Children}) ->
