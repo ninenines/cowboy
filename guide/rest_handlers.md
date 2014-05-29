@@ -89,6 +89,7 @@ empty column means there is no default value for this callback.
 | delete_completed       | `true`                    |
 | delete_resource        | `false`                   |
 | expires                | `undefined`               |
+| has_credit             | `true`                   |
 | forbidden              | `false`                   |
 | generate_etag          | `undefined`               |
 | is_authorized          | `true`                    |
