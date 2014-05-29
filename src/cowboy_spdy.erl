@@ -45,12 +45,13 @@
 -type socket() :: {pid(), streamid()}.
 
 -define(SESSION, 0).
+-define(INITIAL_WINDOW_SIZE, 16 * 1024 * 1024).
 
 -record(flow_control, {
     initial_send_window = 65536 :: integer(),
-    initial_recv_window = 65536 :: integer(),
+    initial_recv_window = ?INITIAL_WINDOW_SIZE :: integer(),
     send_window = 65536 :: integer(),
-    recv_window = 65536 :: integer()
+    recv_window = ?INITIAL_WINDOW_SIZE :: integer()
 }).
 
 -record(child, {
@@ -146,7 +147,7 @@ init(Parent, Ref, Socket, Transport, Opts) ->
 	Zdef = cow_spdy:deflate_init(),
 	Zinf = cow_spdy:inflate_init(),
 	ok = ranch:accept_ack(Ref),
-    Transport:send(Socket, settings_frame(65536)),
+    Transport:send(Socket, settings_frame(?INITIAL_WINDOW_SIZE)),
     %% Send initial window size in a settings frame
 	loop(#state{parent=Parent, socket=Socket, transport=Transport,
 		middlewares=Middlewares, env=Env, onrequest=OnRequest,
