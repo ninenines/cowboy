@@ -537,7 +537,7 @@ update_window(Window, DeltaValue) ->
 
 %% @todo this should really be in cowlib
 window_update_frame(StreamID, DeltaWindowSize) ->
-    <<1:1, 3:15, 9:16, 0:8, 8:25, StreamID:31, 0:1, DeltaWindowSize:31>>.
+    <<1:1, 3:15, 9:16, 0:8, 8:24, 0:1, StreamID:31, 0:1, DeltaWindowSize:31>>.
 
 settings_frame(InitialWindowSize) ->
     KeyPair = <<0:8, 7:24, InitialWindowSize:32>>,
