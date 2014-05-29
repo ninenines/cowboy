@@ -116,13 +116,10 @@ push_body(Config) ->
 	StreamRef = gun:post(ConnPid, "/push", [
 		{<<"content-type">>, "application/octet-stream"}
 	], Body),
-    io:format("waiting for push~n", []),
 	
     ok =
     receive 
-        {gun_push, ConnPid, Strm, Assos, _, _, _, _} ->
-            io:format("DID YOU HET ME~n"),
-            io:format("StreamID: ~p Assoc: ~p~n", [Strm, Assos]),
+        {gun_push, ConnPid, _Strm, _Assos, _, _, _, _} ->
             ok
     after 
         5000 -> timeout

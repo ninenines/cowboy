@@ -353,8 +353,6 @@ next_unidirectional_stream_id(#state{last_unidirectional_streamid = StreamId}=St
         _ ->
             {ok, NextStreamId, State#state{last_unidirectional_streamid=NextStreamId}}
     end.
-%syn_stream(Zdef, StreamID, AssocToStreamID, IsFin, IsUnidirectional,
-%		Priority, Method, Scheme, Host, Path, Version, Headers) ->
 
 syn_stream(#state{socket=Socket, transport=Transport, zdef=Zdef},
            StreamID, AssocStreamId, Host, Method, Path, IsFin, _Status, Headers) ->
@@ -486,7 +484,6 @@ reply(Socket = {Pid, _}, Status, Headers, Body) ->
 	ok.
 
 
-%% Push Reply creates a new syn_stream
 -spec push_reply(socket(), binary(), binary(), binary(), non_neg_integer(), cowboy:http_headers(), iodata()) ->
     {error, creashed} | {error, timeout, {ok, socket()}}.
 
@@ -494,7 +491,6 @@ push_reply(Socket = {Pid, _}, Method, Host, Path, Status, Headers, Body) ->
     %% Don't allow empty bodies... makes no sense here
     true = iolist_size(Body) > 0,
 
-    % {push_reply, {Pid, AssocStreamID}, Method, Host, Path, Status, Headers, Body}
     MRef = monitor(process, Pid),
     Pid ! {push_reply, self(), Socket, Method, Host, Path, Status, Headers, Body},
     receive
