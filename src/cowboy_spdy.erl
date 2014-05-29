@@ -39,6 +39,8 @@
 -export([sendfile/2]).
 -export([setopts/2]).
 
+-export([push_reply/7]).
+
 -type streamid() :: non_neg_integer().
 -type socket() :: {pid(), streamid()}.
 
@@ -65,6 +67,7 @@
 	zdef,
 	zinf,
 	last_streamid = 0 :: streamid(),
+    last_unidirectional_streamid = 0,
 	children = [] :: [#child{}]
 }).
 
@@ -96,7 +99,7 @@ init(Parent, Ref, Socket, Transport, Opts) ->
 	ok = proc_lib:init_ack(Parent, {ok, self()}),
 	{ok, Peer} = Transport:peername(Socket),
 	Middlewares = get_value(middlewares, Opts, [cowboy_router, cowboy_handler]),
-	Env = [{listener, Ref}|get_value(env, Opts, [])],
+	Env = [{listener, Ref}|get_value(env, Opts, [])] ++ [{raw_socket, Socket}],
 	OnRequest = get_value(onrequest, Opts, undefined),
 	OnResponse = get_value(onresponse, Opts, undefined),
 	Zdef = cow_spdy:deflate_init(),
@@ -106,20 +109,24 @@ init(Parent, Ref, Socket, Transport, Opts) ->
 		middlewares=Middlewares, env=Env, onrequest=OnRequest,
 		onresponse=OnResponse, peer=Peer, zdef=Zdef, zinf=Zinf}).
 
+parse_frame(State=#state{zinf=Zinf}, Data) ->
+	case cow_spdy:split(Data) of
+		{true, Frame, Rest} ->
+			P = cow_spdy:parse(Frame, Zinf),
+			State2 = handle_frame(State#state{buffer = Rest}, P),
+			parse_frame(State2, Rest);
+		false ->
+			loop(State#state{buffer=Data})
+	end.
+
 loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
-		buffer=Buffer, zinf=Zinf, children=Children}) ->
+		buffer=Buffer, children=Children}) ->
 	{OK, Closed, Error} = Transport:messages(),
 	Transport:setopts(Socket, [{active, once}]),
 	receive
 		{OK, Socket, Data} ->
 			Data2 = << Buffer/binary, Data/binary >>,
-			case cow_spdy:split(Data2) of
-				{true, Frame, Rest} ->
-					P = cow_spdy:parse(Frame, Zinf),
-					handle_frame(State#state{buffer=Rest}, P);
-				false ->
-					loop(State#state{buffer=Data2})
-			end;
+			parse_frame(State, Data2);
 		{Closed, Socket} ->
 			terminate(State);
 		{Error, Socket, _Reason} ->
@@ -160,6 +167,17 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 			syn_reply(State, StreamID, false, Status, Headers),
 			data(State, StreamID, true, Body),
 			loop(replace_child(Child#child{output=fin}, State));
+        %%Pid ! {push_reply, self(), Socket, Method, Host, Path, Status, Headers, Body},
+        {push_reply, From, {Pid, AssocStreamID}, Method, Host, Path, Status, Headers, Body}
+                when Pid =:= self() ->
+            %% Make sure that the original stream is still open
+            #child{output=nofin} = get_child(AssocStreamID, State),
+            {ok, StreamID, State2} = next_unidirectional_stream_id(State),
+            syn_stream(State2, StreamID, AssocStreamID, Host, Method,
+                       Path, false, Status, Headers),
+            data(State2, StreamID, true, Body),
+            From ! {stream_id, StreamID},
+            loop(State2);
 		{stream_reply, {Pid, StreamID}, Status, Headers}
 				when Pid =:= self() ->
 			#child{output=nofin} = get_child(StreamID, State),
@@ -239,12 +257,12 @@ system_code_change(Misc, _, _, _) ->
 handle_frame(State, {syn_stream, StreamID, _, _, true,
 		_, _, _, _, _, _, _}) ->
 	rst_stream(State, StreamID, protocol_error),
-	loop(State);
+	State;
 %% We do not support Associated-To-Stream-ID.
 handle_frame(State, {syn_stream, StreamID, AssocToStreamID,
 		_, _, _, _, _, _, _, _, _}) when AssocToStreamID =/= 0 ->
 	rst_stream(State, StreamID, internal_error),
-	loop(State);
+	State;
 %% SYN_STREAM.
 %%
 %% Erlang does not allow us to control the priority of processes
@@ -257,46 +275,51 @@ handle_frame(State=#state{middlewares=Middlewares, env=Env,
 		{self(), StreamID}, Peer, OnRequest, OnResponse,
 		Env, Middlewares, Method, Host, Path, Version, Headers
 	]),
-	loop(new_child(State, StreamID, Pid, IsFin));
+	new_child(State, StreamID, Pid, IsFin);
 %% RST_STREAM.
 handle_frame(State, {rst_stream, StreamID, Status}) ->
 	error_logger:error_msg("Received RST_STREAM frame ~p ~p",
 		[StreamID, Status]),
 	%% @todo Stop StreamID.
-	loop(State);
+	State;
 %% PING initiated by the server; ignore, we don't send any.
 handle_frame(State, {ping, PingID}) when PingID rem 2 =:= 0 ->
 	error_logger:error_msg("Ignored PING control frame: ~p~n", [PingID]),
-	loop(State);
+	State;
 %% PING initiated by the client; send it back.
 handle_frame(State=#state{socket=Socket, transport=Transport},
 		{ping, PingID}) ->
 	Transport:send(Socket, cow_spdy:ping(PingID)),
-	loop(State);
+	State;
 %% Data received for a stream.
 handle_frame(State, {data, StreamID, IsFin, Data}) ->
-	Child = #child{input=nofin, in_buffer=Buffer, is_recv=IsRecv}
-		= get_child(StreamID, State),
-	Data2 = << Buffer/binary, Data/binary >>,
-	IsFin2 = if IsFin -> fin; true -> nofin end,
-	Child2 = case IsRecv of
-		{active, FromSocket, FromPid} ->
-			FromPid ! {spdy, FromSocket, Data},
-			Child#child{input=IsFin2, is_recv=false};
-		{passive, FromSocket, FromPid, 0, TRef} ->
-			FromPid ! {recv, FromSocket, {ok, Data2}},
-			cancel_recv_timeout(StreamID, TRef),
-			Child#child{input=IsFin2, in_buffer= <<>>, is_recv=false};
-		{passive, FromSocket, FromPid, Length, TRef}
-				when byte_size(Data2) >= Length ->
-			<< Data3:Length/binary, Rest/binary >> = Data2,
-			FromPid ! {recv, FromSocket, {ok, Data3}},
-			cancel_recv_timeout(StreamID, TRef),
-			Child#child{input=IsFin2, in_buffer=Rest, is_recv=false};
-		_ ->
-			Child#child{input=IsFin2, in_buffer=Data2}
-	end,
-	loop(replace_child(Child2, State));
+    case get_child(StreamID, State) of 
+        false -> 
+            error_logger:error_msg("Invalid data frame with stream id ~p.", [StreamID]),
+            State;
+        #child{input=nofin, in_buffer=Buffer, is_recv=IsRecv} = Child ->
+
+            Data2 = << Buffer/binary, Data/binary >>,
+            IsFin2 = if IsFin -> fin; true -> nofin end,
+            Child2 = case IsRecv of
+                         {active, FromSocket, FromPid} ->
+                             FromPid ! {spdy, FromSocket, Data},
+                             Child#child{input=IsFin2, is_recv=false};
+                         {passive, FromSocket, FromPid, 0, TRef} ->
+                             FromPid ! {recv, FromSocket, {ok, Data2}},
+                             cancel_recv_timeout(StreamID, TRef),
+                             Child#child{input=IsFin2, in_buffer= <<>>, is_recv=false};
+                         {passive, FromSocket, FromPid, Length, TRef}
+                           when byte_size(Data2) >= Length ->
+                             << Data3:Length/binary, Rest/binary >> = Data2,
+                             FromPid ! {recv, FromSocket, {ok, Data3}},
+                             cancel_recv_timeout(StreamID, TRef),
+                             Child#child{input=IsFin2, in_buffer=Rest, is_recv=false};
+                         _ ->
+                             Child#child{input=IsFin2, in_buffer=Data2}
+                     end,
+            replace_child(Child2, State)
+    end;
 %% General error, can't recover.
 handle_frame(State, {error, badprotocol}) ->
 	goaway(State, protocol_error),
@@ -304,7 +327,7 @@ handle_frame(State, {error, badprotocol}) ->
 %% Ignore all other frames for now.
 handle_frame(State, Frame) ->
 	error_logger:error_msg("Ignored frame ~p", [Frame]),
-	loop(State).
+	State.
 
 cancel_recv_timeout(StreamID, TRef) ->
 	_ = erlang:cancel_timer(TRef),
@@ -320,6 +343,23 @@ cancel_recv_timeout(StreamID, TRef) ->
 %% but only up to N milliseconds. Then we shutdown.
 terminate(_State) ->
 	ok.
+
+next_unidirectional_stream_id(#state{last_unidirectional_streamid = StreamId}=State) ->
+    NextStreamId = StreamId + 2,
+    %% Max stream_id = pow(2, 31)
+    case NextStreamId > 2147483648 of
+        true ->
+            {error, out_of_streamids};
+        _ ->
+            {ok, NextStreamId, State#state{last_unidirectional_streamid=NextStreamId}}
+    end.
+
+syn_stream(#state{socket=Socket, transport=Transport, zdef=Zdef},
+           StreamID, AssocStreamId, Host, Method, Path, IsFin, _Status, Headers) ->
+	Frame =	cow_spdy:syn_stream(Zdef,
+			    StreamID, AssocStreamId, IsFin, true, 0,
+			    Method, <<"https">>, Host, Path, <<"HTTP/1.1">>, Headers),
+    Transport:send(Socket, Frame).
 
 syn_reply(#state{socket=Socket, transport=Transport, zdef=Zdef},
 		StreamID, IsFin, Status, Headers) ->
@@ -442,6 +482,27 @@ reply(Socket = {Pid, _}, Status, Headers, Body) ->
 		_ -> Pid ! {reply, Socket, Status, Headers, Body}
 	end,
 	ok.
+
+
+-spec push_reply(socket(), binary(), binary(), binary(), non_neg_integer(), cowboy:http_headers(), iodata()) ->
+    {error, creashed} | {error, timeout, {ok, socket()}}.
+
+push_reply(Socket = {Pid, _}, Method, Host, Path, Status, Headers, Body) ->
+    %% Don't allow empty bodies... makes no sense here
+    true = iolist_size(Body) > 0,
+
+    MRef = monitor(process, Pid),
+    Pid ! {push_reply, self(), Socket, Method, Host, Path, Status, Headers, Body},
+    receive
+        {'DOWN', Pid, _} ->
+            {error, crashed};
+        {stream_id, StreamId} ->
+            demonitor(MRef),
+            {ok, {Pid, StreamId}}
+    after 5000 ->
+            demonitor(MRef),
+            {error, timeout}
+    end.
 
 -spec stream_reply(socket(), binary(), cowboy:http_headers()) -> ok.
 stream_reply(Socket = {Pid, _}, Status, Headers) ->
