@@ -282,6 +282,16 @@ REST callbacks description
 >
 > This date will be sent as the value of the expires header.
 
+### has_credit
+
+>  * Methods: all
+>  * Value type: boolean()
+>  * Default value: true
+>
+> Return whether an authenticated user has enough credit to
+> access the resource. If no authentication is available,
+> it is not called.
+
 ### forbidden
 
 >  *  Methods: all
