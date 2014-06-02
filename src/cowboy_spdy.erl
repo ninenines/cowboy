@@ -49,9 +49,9 @@
 
 -record(flow_control, {
     initial_send_window = 65536 :: integer(),
-    initial_recv_window = ?INITIAL_WINDOW_SIZE :: integer(),
+    initial_recv_window = 65536 :: integer(),
     send_window = 65536 :: integer(),
-    recv_window = ?INITIAL_WINDOW_SIZE :: integer()
+    recv_window = 65536 :: integer()
 }).
 
 -record(child, {
@@ -147,11 +147,16 @@ init(Parent, Ref, Socket, Transport, Opts) ->
 	Zdef = cow_spdy:deflate_init(),
 	Zinf = cow_spdy:inflate_init(),
 	ok = ranch:accept_ack(Ref),
+    
     Transport:send(Socket, settings_frame(?INITIAL_WINDOW_SIZE)),
+    FlowControl = send_window_update(#flow_control{initial_recv_window = ?INITIAL_WINDOW_SIZE},
+                                     #state{transport = Transport, socket = Socket}, ?SESSION),
+
     %% Send initial window size in a settings frame
 	loop(#state{parent=Parent, socket=Socket, transport=Transport,
 		middlewares=Middlewares, env=Env, onrequest=OnRequest,
-		onresponse=OnResponse, peer=Peer, zdef=Zdef, zinf=Zinf}).
+		onresponse=OnResponse, peer=Peer, zdef=Zdef, zinf=Zinf,
+        flow_control = FlowControl}).
 
 parse_frame(State=#state{zinf=Zinf}, Data) ->
 	case cow_spdy:split(Data) of
@@ -469,7 +474,10 @@ cancel_recv_timeout(StreamID, TRef) ->
 	end.
 
 flow_control_new_with_defaults(#flow_control{initial_send_window = ISW, initial_recv_window = IRW}) ->
-    #flow_control{initial_send_window = ISW, initial_recv_window = IRW}.
+    #flow_control{initial_send_window = ISW,
+                  send_window = ISW,
+                  initial_recv_window = IRW,
+                  recv_window = IRW}.
 
 update_recv_window_and_maybe_send_window_update(FlowControl, State, StreamID, Delta) ->
     case update_recv_window(FlowControl, Delta) of
@@ -480,14 +488,20 @@ update_recv_window_and_maybe_send_window_update(FlowControl, State, StreamID, De
     end.
 
 %% FLOW_CONTROL
-maybe_send_window_update(#flow_control{initial_recv_window = InitialWindowSize,
+send_window_update(#flow_control{initial_recv_window = InitialWindowSize,
                                        recv_window = RecvWindowSize} = FC,
                          #state{transport = Transport,
-                                socket = Socket}, StreamID)
-    when RecvWindowSize =< InitialWindowSize div 2 ->
+                                socket = Socket}, StreamID) ->
     error_logger:info_msg("Sending window update streamid=~p old_window_size=~p", [StreamID, RecvWindowSize]),
+  
     Transport:send(Socket, window_update_frame(StreamID, InitialWindowSize - RecvWindowSize)),
-    FC#flow_control{recv_window = InitialWindowSize};
+    FC#flow_control{recv_window = InitialWindowSize}.
+ 
+maybe_send_window_update(#flow_control{initial_recv_window = InitialWindowSize,
+                                       recv_window = RecvWindowSize} = FC,
+                                State, StreamID)
+    when RecvWindowSize =< InitialWindowSize div 2 ->
+    send_window_update(FC, State, StreamID);
 
 maybe_send_window_update(FC, _State, _StreamID) -> FC.
 
