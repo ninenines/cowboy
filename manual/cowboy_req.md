@@ -26,6 +26,15 @@ generally throw an error on the second call.
 Types
 -----
 
+### body_opts() = [{continue, boolean()}
+	| {length, non_neg_integer()}
+	| {read_length, non_neg_integer()}
+	| {read_timeout, timeout()}
+	| {transfer_decode, transfer_decode_fun(), any()}
+	| {content_decode, content_decode_fun()}]
+
+> Request body reading options.
+
 ### cookie_opts() = [{max_age, non_neg_integer()}
 	| {domain, binary()} | {path, binary()}
 	| {secure, boolean()} | {http_only, boolean()}]
@@ -327,20 +336,41 @@ Request related exports
 Request body related exports
 ----------------------------
 
-### body(Req) -> body(8000000, Req)
-### body(MaxLength, Req) -> {ok, Data, Req2} | {error, Reason}
+### body(Req) -> body(Req, [])
+### body(Req, Opts) -> {ok, Data, Req2} | {more, Data, Req2} | {error, Reason}
 
 > Types:
->  *  MaxLength = non_neg_integer() | infinity
+>  *  Opts = [body_opt()]
 >  *  Data = binary()
->  *  Reason = chunked | badlength | atom()
+>  *  Reason = atom()
 >
-> Return the request body.
+> Read the request body.
 >
-> This function will return `{error, chunked}` if the request
-> body was sent using the chunked transfer-encoding. It will
-> also return `{error, badlength}` if the length of the body
-> exceeds the given `MaxLength`, which is 8MB by default.
+> This function will read a chunk of the request body. If there is
+> more data to be read after this function call, then a `more` tuple
+> is returned. Otherwise an `ok` tuple is returned.
+>
+> Cowboy will automatically send a `100 Continue` reply if
+> required. If this behavior is not desirable, it can be disabled
+> by setting the `continue` option to `false`.
+>
+> Cowboy will by default attempt to read up to 8MB of the body,
+> but in chunks of 1MB. It will use a timeout of 15s per chunk.
+> All these values can be changed using the `length`, `read_length`
+> and `read_timeout` options respectively. Note that the size
+> of the data may not be the same as requested as the decoding
+> functions may grow or shrink it, and Cowboy makes not attempt
+> at returning an exact amount.
+>
+> Cowboy will properly handle chunked transfer-encoding by
+> default. If any other transfer-encoding or content-encoding
+> has been used for the request, custom decoding functions
+> can be used. The `content_decode` and `transfer_decode`
+> options allow setting the decode functions manually.
+>
+> After the body has been streamed fully, Cowboy will remove
+> the transfer-encoding header from the `Req` object, and add
+> the content-length header if it wasn't already there.
 >
 > This function can only be called once. Cowboy will not cache
 > the result of this call.
@@ -356,11 +386,13 @@ Request body related exports
 > use any transfer-encoding and if the content-length header
 > is present.
 
-### body_qs(Req) -> body_qs(16000, Req)
-### body_qs(MaxLength, Req) -> {ok, [{Name, Value}], Req2} | {error, Reason}
+### body_qs(Req) -> body_qs(Req,
+	[{length, 64000}, {read_length, 64000}, {read_timeout, 5000}])
+### body_qs(Req, Opts) -> {ok, [{Name, Value}], Req2}
+	| {badlength, Req2} | {error, Reason}
 
 > Types:
->  *  MaxLength = non_neg_integer() | infinity
+>  *  Opts = [body_opt()]
 >  *  Name = binary()
 >  *  Value = binary() | true
 >  *  Reason = chunked | badlength | atom()
@@ -371,10 +403,10 @@ Request body related exports
 > application/x-www-form-urlencoded, commonly used for the
 > query string.
 >
-> This function will return `{error, chunked}` if the request
-> body was sent using the chunked transfer-encoding. It will
-> also return `{error, badlength}` if the length of the body
-> exceeds the given `MaxLength`, which is 16KB by default.
+> This function calls `body/2` for reading the body, with the
+> same options it received. By default it will attempt to read
+> a body of 64KB in one chunk, with a timeout of 5s. If the
+> body is larger then a `badlength` tuple is returned.
 >
 > This function can only be called once. Cowboy will not cache
 > the result of this call.
@@ -383,34 +415,12 @@ Request body related exports
 
 > Return whether the request has a body.
 
-### init_stream(TransferDecode, TransferState, ContentDecode, Req) -> {ok, Req2}
+### part(Req) -> part(Req,
+	[{length, 64000}, {read_length, 64000}, {read_timeout, 5000}])
+### part(Req, Opts) -> {ok, Headers, Req2} | {done, Req2}
 
 > Types:
->  *  TransferDecode = fun((Encoded, TransferState) -> OK | More | Done | {error, Reason})
->  *  Encoded = Decoded = Rest = binary()
->  *  TransferState = any()
->  *  OK = {ok, Decoded, Rest, TransferState}
->  *  More = more | {more, Length, Decoded, TransferState}
->  *  Done = {done, TotalLength, Rest} | {done, Decoded, TotalLength, Rest}
->  *  Length = TotalLength = non_neg_integer()
->  *  ContentDecode = fun((Encoded) -> {ok, Decoded} | {error, Reason})
->  *  Reason = atom()
->
-> Initialize streaming of the request body.
->
-> This function can be used to specify what function to use
-> for decoding the request body, generally specified in the
-> transfer-encoding and content-encoding request headers.
->
-> Cowboy will properly handle chunked transfer-encoding by
-> default. You do not need to call this function if you do
-> not need to decode other encodings, `stream_body/{1,2}`
-> will perform all the required initialization when it is
-> called the first time.
-
-### part(Req) -> {ok, Headers, Req2} | {done, Req2}
-
-> Types:
+>  *  Opts = [body_opt()]
 >  *  Headers = cow_multipart:headers()
 >
 > Read the headers for the next part of the multipart message.
@@ -430,21 +440,28 @@ Request body related exports
 >
 > Note that once a part has been read, or skipped, it cannot
 > be read again.
+>
+> This function calls `body/2` for reading the body, with the
+> same options it received. By default it will only read chunks
+> of 64KB with a timeout of 5s. This is tailored for reading
+> part headers, not for skipping the previous part's body.
+> You might want to consider skipping large parts manually.
 
-### part_body(Req) -> part_body(8000000, Req)
-### part_body(MaxReadSize, Req) -> {ok, Data, Req2} | {more, Data, Req2}
+### part_body(Req) -> part_body(Req, [])
+### part_body(Req, Opts) -> {ok, Data, Req2} | {more, Data, Req2}
 
 > Types:
->  *  MaxReadSize = non_neg_integer()
+>  *  Opts = [body_opt()]
 >  *  Data = binary()
 >
 > Read the body of the current part of the multipart message.
 >
-> This function will read the body up to `MaxReadSize` bytes.
-> This is a soft limit. If there are more data to be read
-> from the socket for this part, the function will return
-> what it could read inside a `more` tuple. Otherwise, it
-> will return an `ok` tuple.
+> This function calls `body/2` for reading the body, with the
+> same options it received. It uses the same defaults.
+>
+> If there are more data to be read from the socket for this
+> part, the function will return what it could read inside a
+> `more` tuple. Otherwise, it will return an `ok` tuple.
 >
 > Calling this function again after receiving a `more` tuple
 > will return another chunk of body. The last chunk will be
@@ -452,46 +469,6 @@ Request body related exports
 >
 > Note that once the body has been read, fully or partially,
 > it cannot be read again.
-
-### skip_body(Req) -> {ok, Req2} | {error, Reason}
-
-> Types:
->  *  Reason = atom()
->
-> Skip the request body.
->
-> This function will skip the body even if it was partially
-> read before.
-
-### stream_body(Req) -> stream_body(1000000, Req)
-### stream_body(MaxReadSize, Req) -> {ok, Data, Req2}
-	| {done, Req2} | {error, Reason}
-
-> Types:
->  *  MaxReadSize = non_neg_integer()
->  *  Data = binary()
->  *  Reason = atom()
->
-> Stream the request body.
->
-> This function will return the next segment of the body.
->
-> Cowboy will properly handle chunked transfer-encoding by
-> default. If any other transfer-encoding or content-encoding
-> has been used for the request, custom decoding functions
-> can be used. They must be specified using `init_stream/4`.
->
-> The amount of data returned by this function may vary
-> depending on the current state of the request. If data
-> is already available in the buffer then it is used fully,
-> otherwise Cowboy will read up to `MaxReadSize` bytes from
-> the socket. By default Cowboy will read up to 1MB of data.
-> It is then decoded, which may grow or shrink it, depending
-> on the encoding headers, before it is finally returned.
->
-> After the body has been streamed fully, Cowboy will remove
-> the transfer-encoding header from the `Req` object, and add
-> the content-length header if it wasn't already there.
 
 Response related exports
 ------------------------
@@ -535,6 +512,22 @@ Response related exports
 >
 > This function can only be called once, with the exception
 > of overriding the response in the `onresponse` hook.
+
+### continue(Req) -> ok | {error, Reason}
+
+> Types:
+>  *  Reason = atom()
+>
+> Send a 100 Continue intermediate reply.
+>
+> This reply is required before the client starts sending the
+> body when the request contains the `expect` header with the
+> `100-continue` value.
+>
+> Cowboy will send this automatically when required. However
+> you may want to do it manually by disabling this behavior
+> with the `continue` body option and then calling this
+> function.
 
 ### delete_resp_header(Name, Req) -> Req2
 

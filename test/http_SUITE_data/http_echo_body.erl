@@ -10,16 +10,10 @@ init({_, http}, Req, _) ->
 handle(Req, State) ->
 	true = cowboy_req:has_body(Req),
 	{ok, Req3} = case cowboy_req:body(1000000, Req) of
-		{error, chunked} -> handle_chunked(Req);
-		{error, badlength} -> handle_badlength(Req);
-		{ok, Body, Req2} -> handle_body(Req2, Body)
+		{ok, Body, Req2} -> handle_body(Req2, Body);
+		{more, _, Req2} -> handle_badlength(Req2)
 	end,
 	{ok, Req3, State}.
-
-handle_chunked(Req) ->
-	{ok, Data, Req2} = read_body(Req, <<>>, 1000000),
-	{ok, Req3} = cowboy_req:reply(200, [], Data, Req2),
-	{ok, Req3}.
 
 handle_badlength(Req) ->
 	{ok, Req2} = cowboy_req:reply(413, [], <<"Request entity too large">>, Req),
@@ -33,13 +27,3 @@ handle_body(Req, Body) ->
 
 terminate(_, _, _) ->
 	ok.
-
-% Read chunked request content
-read_body(Req, Acc, BodyLengthRemaining) ->
-	case cowboy_req:stream_body(Req) of
-		{ok, Data, Req2} ->
-			BodyLengthRem = BodyLengthRemaining - byte_size(Data),
-			read_body(Req2, << Acc/binary, Data/binary >>, BodyLengthRem);
-		{done, Req2} ->
-			{ok, Acc, Req2}
-	end.

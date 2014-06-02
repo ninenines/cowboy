@@ -57,10 +57,9 @@ the socket or perform operations that may legitimately fail.
 They may return `{Result, Req}`, `{Result, Value, Req}`
 or `{error, atom()}`. This includes the following functions:
 `body/{1,2}`, `body_qs/{1,2}`, `chunked_reply/{2,3}`,
-`init_stream/4`, `parse_header/{2,3}`, `reply/{2,3,4}`,
-`skip_body/1`, `stream_body/{1,2}`. Finally, the group
-also includes the `chunk/2` function which always returns
-`ok`.
+`parse_header/{2,3}`, `part/{1,2}`, `part_body/{1,2}`
+and `reply/{2,3,4}`. Finally, the group also includes the
+`chunk/2` and `continue/1` functions which always return `ok`.
 
 The final group modifies the Req object state without
 performing any immediate operations. As these functions

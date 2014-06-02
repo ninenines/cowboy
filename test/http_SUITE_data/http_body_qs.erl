@@ -15,8 +15,8 @@ handle(Req, State) ->
 
 maybe_echo(<<"POST">>, true, Req) ->
 	case cowboy_req:body_qs(Req) of
-		{error,badlength} ->
-			echo(badlength, Req);
+		{badlength, Req2} ->
+			echo(badlength, Req2);
 		{ok, PostVals, Req2} ->
 			echo(proplists:get_value(<<"echo">>, PostVals), Req2)
 	end;

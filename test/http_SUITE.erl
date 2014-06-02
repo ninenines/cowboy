@@ -336,7 +336,7 @@ echo_body(Config) ->
 %% Check if sending request whose size is bigger than 1000000 bytes causes 413
 echo_body_max_length(Config) ->
 	ConnPid = gun_open(Config),
-	Ref = gun:post(ConnPid, "/echo/body", [], << 0:8000008 >>),
+	Ref = gun:post(ConnPid, "/echo/body", [], << 0:2000000/unit:8 >>),
 	{response, nofin, 413, _} = gun:await(ConnPid, Ref),
 	ok.
 
@@ -350,7 +350,7 @@ echo_body_qs(Config) ->
 
 echo_body_qs_max_length(Config) ->
 	ConnPid = gun_open(Config),
-	Ref = gun:post(ConnPid, "/echo/body_qs", [], << "echo=", 0:15996/unit:8 >>),
+	Ref = gun:post(ConnPid, "/echo/body_qs", [], << "echo=", 0:2000000/unit:8 >>),
 	{response, nofin, 413, _} = gun:await(ConnPid, Ref),
 	ok.
 

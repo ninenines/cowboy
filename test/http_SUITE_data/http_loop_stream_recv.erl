@@ -14,12 +14,12 @@ info(stream, Req, undefined) ->
 	stream(Req, 1, <<>>).
 
 stream(Req, ID, Acc) ->
-	case cowboy_req:stream_body(Req) of
-		{ok, Data, Req2} ->
-			parse_id(Req2, ID, << Acc/binary, Data/binary >>);
-		{done, Req2} ->
+	case cowboy_req:body(Req) of
+		{ok, <<>>, Req2} ->
 			{ok, Req3} = cowboy_req:reply(200, Req2),
-			{ok, Req3, undefined}
+			{ok, Req3, undefined};
+		{_, Data, Req2} ->
+			parse_id(Req2, ID, << Acc/binary, Data/binary >>)
 	end.
 
 parse_id(Req, ID, Data) ->

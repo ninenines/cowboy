@@ -11,6 +11,12 @@ Cowboy will not attempt to read the body until you do.
 If handler execution ends without reading it, Cowboy
 will simply skip it.
 
+Cowboy provides different ways to read the request body.
+You can read it directly, stream it, but also read and
+parse in a single call for form urlencoded formats or
+multipart. All of these except multipart are covered in
+this chapter. Multipart is covered later on in the guide.
+
 Check for request body
 ----------------------
 
@@ -46,36 +52,92 @@ chunked bodies by using the stream functions.
 Reading the body
 ----------------
 
-If a content-length header was sent with the request,
-you can read the whole body directly.
+You can read the whole body directly in one call.
 
 ``` erlang
 {ok, Body, Req2} = cowboy_req:body(Req).
 ```
 
-If no content-length header is available, Cowboy will
-return the `{error, chunked}` tuple. You will need to
-stream the request body instead.
-
-By default, Cowboy will reject all body sizes above 8MB,
-to prevent an attacker from needlessly filling up memory.
-You can override this limit however.
+By default, Cowboy will attempt to read up to a
+size of 8MB. You can override this limit as needed.
 
 ``` erlang
-{ok, Body, Req2} = cowboy_req:body(100000000, Req).
+{ok, Body, Req2} = cowboy_req:body(Req, [{length, 100000000}]).
 ```
 
 You can also disable it.
 
 ``` erlang
-{ok, Body, Req2} = cowboy_req:body(infinity, Req).
+{ok, Body, Req2} = cowboy_req:body(Req, [{length, infinity}]).
 ```
 
 It is recommended that you do not disable it for public
 facing websites.
 
-Reading a body sent from an HTML form
--------------------------------------
+If the body is larger than the limit, then Cowboy will return
+a `more` tuple instead, allowing you to stream it if you
+would like to.
+
+Streaming the body
+------------------
+
+You can stream the request body by chunks.
+
+Cowboy returns a `more` tuple when there is more body to
+be read, and an `ok` tuple for the last chunk. This allows
+you to loop over all chunks.
+
+``` erlang
+body_to_console(Req) ->
+    case cowboy_req:body(Req) of
+        {ok, Data, Req2} ->
+            io:format("~s", [Data]),
+            Req2;
+        {more, Data, Req2} ->
+            io:format("~s", [Data]),
+            body_to_console(Req2)
+    end.
+```
+
+You can of course set the `length` option to configure the
+size of chunks.
+
+Rate of data transmission
+-------------------------
+
+You can control the rate of data transmission by setting
+options when calling body functions. This applies not only
+to the functions described in this chapter, but also to
+the multipart functions.
+
+The `read_length` option defines the maximum amount of data
+to be received from the socket at once, in bytes.
+
+The `read_timeout` option defines the time Cowboy waits
+before that amount is received, in milliseconds.
+
+Transfer and content decoding
+-----------------------------
+
+Cowboy will by default decode the chunked transfer-encoding
+if any. It will not decode any content-encoding by default.
+
+The first time you call a body function you can set the
+`transfer_decode` and `content_decode` options. If the body
+was already started being read these options are simply
+ignored.
+
+The following example shows how to set both options.
+
+``` erlang
+{ok, Req2} = cowboy_req:body(Req, [
+    {transfer_decode, fun transfer_decode/2, TransferState},
+    {content_decode, fun content_decode/1}
+]).
+```
+
+Reading a form urlencoded body
+------------------------------
 
 You can directly obtain a list of key/value pairs if the
 body was sent using the application/x-www-form-urlencoded
@@ -95,75 +157,10 @@ You should not attempt to match on the list as the order
 of the values is undefined.
 
 By default Cowboy will reject bodies with a size above
-16KB when using this function. You can override this limit.
+64KB when using this function. You can override this limit
+by setting the `length` option.
 
 ``` erlang
-{ok, KeyValues, Req2} = cowboy_req:body_qs(500000, Req).
+{ok, KeyValues, Req2} = cowboy_req:body_qs(Req,
+    [{length, 2000000}]).
 ```
-
-You can also disable it by passing the atom `infinity`,
-although it is not recommended.
-
-Streaming the body
-------------------
-
-You can stream the request body by chunks.
-
-``` erlang
-{ok, Chunk, Req2} = cowboy_req:stream_body(Req).
-```
-
-By default, Cowboy will attempt to read chunks of up to
-1MB in size. The chunks returned by this function will
-often be smaller, however. You can also change this limit.
-
-``` erlang
-{ok, Chunk, Req2} = cowboy_req:stream_body(500000, Req).
-```
-
-When Cowboy finishes reading the body, any subsequent call
-will return `{done, Req2}`. You can thus write a recursive
-function to read the whole body and perform an action on
-all chunks, for example printing them to the console.
-
-``` erlang
-body_to_console(Req) ->
-    case cowboy_req:stream_body(Req) of
-        {ok, Chunk, Req2} ->
-            io:format("~s", [Chunk]),
-            body_to_console(Req2);
-        {done, Req2} ->
-            Req2
-    end.
-```
-
-Advanced streaming
-------------------
-
-Cowboy will by default decode the chunked transfer-encoding
-if any. It will not decode any content-encoding by default.
-
-Before starting to stream, you can configure the functions
-that will be used for decoding both transfer-encoding and
-content-encoding.
-
-``` erlang
-{ok, Req2} = cowboy_req:init_stream(fun transfer_decode/2,
-    TransferStartState, fun content_decode/1, Req).
-```
-
-Note that you do not need to call this function generally,
-as Cowboy will happily initialize the stream on its own.
-
-Skipping the body
------------------
-
-If you do not need the body, or if you started streaming
-the body but do not need the rest of it, you can skip it.
-
-``` erlang
-{ok, Req2} = cowboy_req:skip_body(Req).
-```
-
-You do not have to call this function though, as Cowboy will
-do it automatically when handler execution ends.

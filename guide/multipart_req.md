@@ -80,7 +80,9 @@ stream_file(Req) ->
 ```
 
 By default the body chunk Cowboy will return is limited
-to 8MB. This can of course be overriden.
+to 8MB. This can of course be overriden. Both functions
+can take a second argument, the same list of options that
+will be passed to `cowboy_req:body/2` function.
 
 Skipping unwanted parts
 -----------------------
@@ -106,6 +108,11 @@ multipart(Req) ->
 Similarly, if you start reading the body and it ends up
 being too big, you can simply continue with the next part,
 Cowboy will automatically skip what remains.
+
+Note that the skipping rate may not be adequate for your
+application. If you observe poor performance when skipping,
+you might want to consider manually skipping by calling
+the `cowboy_req:part_body/1` function directly.
 
 And if you started reading the message but decide that you
 do not need the remaining parts, you can simply stop reading
