@@ -46,7 +46,10 @@ Cowboy examples
  *  [static_world](./static_world):
     static file handler
 
- *  [web_sever](./web_server):
+ *  [upload](./upload):
+    multipart/form-data upload
+
+ *  [web_server](./web_server):
     serves files with lists directory entries
 
  *  [websocket](./websocket):
