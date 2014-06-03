@@ -79,6 +79,10 @@
 -export([maybe_reply/2]).
 -export([ensure_response/2]).
 
+%% Only with SPDY
+%% Consider putting this somewhere else...
+-export([push_reply/5]).
+
 %% Private setter/getter API.
 -export([append_buffer/2]).
 -export([get/2]).
@@ -1044,6 +1048,33 @@ maybe_reply(Status, Req) ->
 		_ = cowboy_req:reply(Status, Req),
 		ok
 	end.
+%% Send multiple replies on one request - usable only with SPDY
+%% Creates a new request object! <- not the same as the input one
+
+-spec push_reply(cowboy:http_state(), binary(), cowboy:http_headers(), binary(), req()) -> {ok, req()}.
+push_reply(Status, Path, Headers, Body, Req=#http_req{
+		socket=Socket, transport=Transport,
+        headers = ParentHeaders,host=Host,
+		method=Method, resp_state=RespState})
+		when (Transport =:= cowboy_spdy) andalso (RespState =:= waiting orelse RespState =:= waiting_stream) ->
+
+    ContentLength = integer_to_list(iolist_size(Body)),
+
+    AppendHeaders = [{<<"content-length">>, ContentLength},
+                     {<<"date">>, cowboy_clock:rfc1123()},
+                     {<<"server">>, <<"Cowboy">>}],
+
+    FullHeaders = response_merge_headers(AppendHeaders, Headers, ParentHeaders),
+
+    Req2 = Req#http_req{path = Path,
+                        resp_headers = Headers,
+                        resp_body = Body},
+   
+    {ok, Socket1} = cowboy_spdy:push_reply(Socket, Method, Host,
+                                           Path, Status, FullHeaders, Body),
+
+    %% Resp state can only be done until streaming is supported
+    {ok, Req2#http_req{socket = Socket1, resp_state = done}}.
 
 -spec ensure_response(req(), cowboy:http_status()) -> ok.
 %% The response has already been fully sent to the client.
