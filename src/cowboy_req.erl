@@ -1205,30 +1205,35 @@ response(Status, Headers, RespHeaders, DefaultHeaders, Body, Req=#http_req{
 		_ -> response_merge_headers(Headers, RespHeaders, DefaultHeaders)
 	end,
 	Body2 = case Body of stream -> <<>>; _ -> Body end,
-	Req2 = case OnResponse of
-		already_called -> Req;
-		undefined -> Req;
+	{Status2, FullHeaders2, Req2} = case OnResponse of
+		already_called -> {Status, FullHeaders, Req};
+		undefined -> {Status, FullHeaders, Req};
 		OnResponse ->
-			OnResponse(Status, FullHeaders, Body2,
-				%% Don't call 'onresponse' from the hook itself.
-				Req#http_req{resp_headers=[], resp_body= <<>>,
-					onresponse=already_called})
+			case OnResponse(Status, FullHeaders, Body2,
+					%% Don't call 'onresponse' from the hook itself.
+					Req#http_req{resp_headers=[], resp_body= <<>>,
+						onresponse=already_called}) of
+				StHdReq = {_, _, _} ->
+					StHdReq;
+				Req1 ->
+					{Status, FullHeaders, Req1}
+			end
 	end,
 	ReplyType = case Req2#http_req.resp_state of
 		waiting when Transport =:= cowboy_spdy, Body =:= stream ->
-			cowboy_spdy:stream_reply(Socket, status(Status), FullHeaders),
+			cowboy_spdy:stream_reply(Socket, status(Status2), FullHeaders2),
 			ReqPid ! {?MODULE, resp_sent},
 			normal;
 		waiting when Transport =:= cowboy_spdy ->
-			cowboy_spdy:reply(Socket, status(Status), FullHeaders, Body),
+			cowboy_spdy:reply(Socket, status(Status2), FullHeaders2, Body),
 			ReqPid ! {?MODULE, resp_sent},
 			normal;
 		RespState when RespState =:= waiting; RespState =:= waiting_stream ->
 			HTTPVer = atom_to_binary(Version, latin1),
 			StatusLine = << HTTPVer/binary, " ",
-				(status(Status))/binary, "\r\n" >>,
+				(status(Status2))/binary, "\r\n" >>,
 			HeaderLines = [[Key, <<": ">>, Value, <<"\r\n">>]
-				|| {Key, Value} <- FullHeaders],
+				|| {Key, Value} <- FullHeaders2],
 			Transport:send(Socket, [StatusLine, HeaderLines, <<"\r\n">>, Body2]),
 			ReqPid ! {?MODULE, resp_sent},
 			normal;
