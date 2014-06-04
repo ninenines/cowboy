@@ -28,15 +28,11 @@ Static files
 ------------
 
  *  [Static handler](static_handlers.md)
- *  Distributed CDN solutions
- *  Efficiently serving files
 
 REST
 ----
 
- *  REST principles
- *  Media types explained
- *  HTTP caching
+ *  [REST principles](rest_principles.md)
  *  [Handling REST requests](rest_handlers.md)
  *  HEAD/GET requests flowchart
  *  POST/PUT/PATCH requests flowchart
