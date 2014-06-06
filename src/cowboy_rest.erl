@@ -52,7 +52,7 @@
 	%% Cached resource calls.
 	etag :: undefined | no_call | {strong | weak, binary()},
 	last_modified :: undefined | no_call | calendar:datetime(),
-	expires :: undefined | no_call | calendar:datetime()
+	expires :: undefined | no_call | calendar:datetime() | binary()
 }).
 
 -spec upgrade(Req, Env, module(), any())
@@ -896,6 +896,10 @@ set_resp_expires(Req, State) ->
 	case Expires of
 		Expires when is_atom(Expires) ->
 			{Req2, State2};
+		Expires when is_binary(Expires) ->
+			Req3 = cowboy_req:set_resp_header(
+			        <<"expires">>, Expires, Req2),
+			{Req3, State2};
 		Expires ->
 			ExpiresBin = cowboy_clock:rfc1123(Expires),
 			Req3 = cowboy_req:set_resp_header(

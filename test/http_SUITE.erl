@@ -207,6 +207,7 @@ init_dispatch(Config) ->
 			{"/patch", rest_patch_resource, []},
 			{"/resetags", rest_resource_etags, []},
 			{"/rest_expires", rest_expires, []},
+			{"/rest_expires_binary", rest_expires_binary, []},
 			{"/rest_empty_resource", rest_empty_resource, []},
 			{"/loop_stream_recv", http_loop_stream_recv, []},
 			{"/", http_handler, []}
@@ -685,6 +686,13 @@ rest_expires(Config) ->
 	{_, Expires} = lists:keyfind(<<"expires">>, 1, Headers),
 	{_, LastModified} = lists:keyfind(<<"last-modified">>, 1, Headers),
 	Expires = LastModified = <<"Fri, 21 Sep 2012 22:36:14 GMT">>,
+	ok.
+
+rest_expires_binary(Config) ->
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/rest_expires_binary"),
+	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"0">>} = lists:keyfind(<<"expires">>, 1, Headers),
 	ok.
 
 rest_keepalive(Config) ->
