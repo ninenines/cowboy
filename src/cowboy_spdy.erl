@@ -148,7 +148,7 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 			Child = #child{is_recv={passive, FromSocket, FromPid, _, _}}
 				= get_child(StreamID, State),
 			FromPid ! {recv, FromSocket, {error, timeout}},
-			loop(replace_child(Child#child{is_recv=passive}, State));
+			loop(replace_child(Child, State));
 		{reply, {Pid, StreamID}, Status, Headers}
 				when Pid =:= self() ->
 			Child = #child{output=nofin} = get_child(StreamID, State),
@@ -489,7 +489,7 @@ sendfile(Socket = {Pid, _}, Filepath) ->
 	_ = Pid ! {sendfile, Socket, Filepath},
 	{ok, undefined}.
 
--spec setopts(inet:socket(), list()) -> ok.
+-spec setopts({pid(), _}, list()) -> ok.
 setopts(Socket = {Pid, _}, [{active, once}]) ->
 	_ = Pid ! {active, Socket, self()},
 	ok;
