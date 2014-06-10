@@ -6,30 +6,32 @@ list of planned changes and work to be done on the Cowboy
 server. It is intended to be exhaustive but some elements
 might still be missing.
 
-1.0
----
+1.0 (R16 and R17)
+-----------------
 
- *  Parse support for all standard HTTP/1.1 headers
+We are now in the final push to Cowboy 1.0. Further changes
+are expected to be bug fixes and documentation improvements.
 
- *  Support for multipart requests and responses
+2.0 (R17 and R18)
+-----------------
 
- *  Add Range support to REST
+ *  HTTP/2.0
 
- *  Complete the user guide
+ *  Websocket permessage deflate compression
 
-1.1
----
+ *  Better cowboy_req usability
 
- *  Check if using maps instead of a record improves performance
+    The number one usability concern with Cowboy today is
+    the need to keep the Req object. Most functions in
+    cowboy_req don't actually modify it and probably never
+    will. This change will make sure that only the required
+    function return a new Req.
 
-2.0
----
+    At the same time, some of the functions that cache their
+    results will stop to do so. This will save memory and
+    allow us to not modify the Req.
 
- *  Support for HTTP/2.0
-
- *  Simplify cowboy_req access functions
-
-    They do not need to return Req. So let's not.
+ *  Start experimenting with maps.
 
 Under consideration
 -------------------

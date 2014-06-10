@@ -1,6 +1,88 @@
 CHANGELOG
 =========
 
+0.10.0
+------
+
+ *  Update Ranch to 0.10 and Cowlib to 0.6.2
+
+ *  Update the body reading API to allow controlling rate of transfer
+
+    The lack of this feature was causing various timeout issues
+    in some environments.
+
+    The body/2 function now takes a Req and a list of options. The older
+    interface can still be used until Cowboy 1.0.
+
+    The body_qs/2, part/2 and part_body/2 also accept this list of
+    options, and pass it down to the body/2 call. The default options
+    vary between the different functions.
+
+    The return value of the function has changed. Older code should work
+    without modification but you should definitely still test it.
+
+    All functions appropriately decode transfer and content encoding.
+    There is no need to have a special case for that anymore.
+
+    The body/1,2 function supports streaming, with the same interface
+    as the part_body/1,2 function.
+
+ *  Deprecate the cowboy_req:init_stream, stream_body and skip_body functions
+
+    They will be removed in Cowboy 1.0.
+
+ *  Add support for multipart
+
+    The cowboy_req:part/1,2 and cowboy_req:part_body/1,2 can be
+    used for reading a multipart body.
+
+    Documentation has been added.
+
+    The old undocumented multipart functions were removed.
+
+ *  Allow the onresponse hook to override only status and headers
+
+    Previously it wasn't possible to override them without also
+    overriding the body. The new return value is currently marked
+    as experimental.
+
+ *  Make loop handlers work with SPDY
+
+ *  Fix a race condition with loop handlers and keepalive requests
+
+ *  Fix parsing of accept-language header
+
+ *  Fix parsing of authorization header with empty passwords
+
+ *  Fix multiline headers handling
+
+ *  Various optimizations
+
+    All code that is moved to cowlib is optimized at the same time
+    and benchmarks get added for all functions.
+
+    The parsing of connection, content-length and transfer-encoding
+    has been optimized.
+
+    Chunked transfer decoding has been optimized.
+
+ *  Enable +warn_missing_spec by default and fix specs
+
+ *  Remove the non-documented cowboy_client module; use gun instead
+
+ *  Numerous documentation updates and tweaks
+
+    The guide now has a REST principles chapter and revised
+    and completed Websocket chapters, alongside a new multipart chapter.
+
+ *  Add a multipart file upload example
+
+ *  Test suites are being reworked and greatly improved
+   *  Test Cowboy across all releases from R15B01 to 17.0, plus maint and master
+   *  The Autobahn test suite is now always ran (as long as it's installed)
+   *  Expected error reports are now silenced (but still logged)
+   *  Applications are now only started once from a ct hook
+
 0.9.0
 -----
 
