@@ -15,7 +15,7 @@ PLT_APPS = crypto public_key ssl
 
 DEPS = cowlib ranch
 dep_cowlib = pkg://cowlib 0.6.2
-dep_ranch = pkg://ranch 0.9.0
+dep_ranch = pkg://ranch 0.10.0
 
 TEST_DEPS = ct_helper gun
 dep_ct_helper = https://github.com/extend/ct_helper.git master
