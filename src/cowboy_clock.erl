@@ -107,62 +107,32 @@ update_rfc1123(Bin, Now, Now) ->
 	Bin;
 update_rfc1123(<< Keep:23/binary, _/bits >>,
 		{Date, {H, M, _}}, {Date, {H, M, S}}) ->
-	<< Keep/binary, (pad_int(S))/binary, " GMT" >>;
+	<< Keep/binary, (cow_date:pad_int(S))/binary, " GMT" >>;
 update_rfc1123(<< Keep:20/binary, _/bits >>,
 		{Date, {H, _, _}}, {Date, {H, M, S}}) ->
-	<< Keep/binary, (pad_int(M))/binary, $:, (pad_int(S))/binary, " GMT" >>;
+	<< Keep/binary, (cow_date:pad_int(M))/binary, $:, (cow_date:pad_int(S))/binary, " GMT" >>;
 update_rfc1123(<< Keep:17/binary, _/bits >>, {Date, _}, {Date, {H, M, S}}) ->
-	<< Keep/binary, (pad_int(H))/binary, $:, (pad_int(M))/binary,
-		$:, (pad_int(S))/binary, " GMT" >>;
+	<< Keep/binary, (cow_date:pad_int(H))/binary, $:, (cow_date:pad_int(M))/binary,
+		$:, (cow_date:pad_int(S))/binary, " GMT" >>;
 update_rfc1123(<< _:7/binary, Keep:10/binary, _/bits >>,
 		{{Y, Mo, _}, _}, {Date = {Y, Mo, D}, {H, M, S}}) ->
 	Wday = calendar:day_of_the_week(Date),
-	<< (weekday(Wday))/binary, ", ", (pad_int(D))/binary, Keep/binary,
-		(pad_int(H))/binary, $:, (pad_int(M))/binary,
-		$:, (pad_int(S))/binary, " GMT" >>;
+	<< (cow_date:weekday(Wday))/binary, ", ", (cow_date:pad_int(D))/binary, Keep/binary,
+		(cow_date:pad_int(H))/binary, $:, (cow_date:pad_int(M))/binary,
+		$:, (cow_date:pad_int(S))/binary, " GMT" >>;
 update_rfc1123(<< _:11/binary, Keep:6/binary, _/bits >>,
 		{{Y, _, _}, _}, {Date = {Y, Mo, D}, {H, M, S}}) ->
 	Wday = calendar:day_of_the_week(Date),
-	<< (weekday(Wday))/binary, ", ", (pad_int(D))/binary, " ",
-		(month(Mo))/binary, Keep/binary,
-		(pad_int(H))/binary, $:, (pad_int(M))/binary,
-		$:, (pad_int(S))/binary, " GMT" >>;
+	<< (cow_date:weekday(Wday))/binary, ", ", (cow_date:pad_int(D))/binary, " ",
+		(cow_date:month(Mo))/binary, Keep/binary,
+		(cow_date:pad_int(H))/binary, $:, (cow_date:pad_int(M))/binary,
+		$:, (cow_date:pad_int(S))/binary, " GMT" >>;
 update_rfc1123(_, _, {Date = {Y, Mo, D}, {H, M, S}}) ->
 	Wday = calendar:day_of_the_week(Date),
-	<< (weekday(Wday))/binary, ", ", (pad_int(D))/binary, " ",
-		(month(Mo))/binary, " ", (list_to_binary(integer_to_list(Y)))/binary,
-		" ", (pad_int(H))/binary, $:, (pad_int(M))/binary,
-		$:, (pad_int(S))/binary, " GMT" >>.
-
-%% Following suggestion by MononcQc on #erlounge.
--spec pad_int(0..59) -> binary().
-pad_int(X) when X < 10 ->
-	<< $0, ($0 + X) >>;
-pad_int(X) ->
-	list_to_binary(integer_to_list(X)).
-
--spec weekday(1..7) -> <<_:24>>.
-weekday(1) -> <<"Mon">>;
-weekday(2) -> <<"Tue">>;
-weekday(3) -> <<"Wed">>;
-weekday(4) -> <<"Thu">>;
-weekday(5) -> <<"Fri">>;
-weekday(6) -> <<"Sat">>;
-weekday(7) -> <<"Sun">>.
-
--spec month(1..12) -> <<_:24>>.
-month( 1) -> <<"Jan">>;
-month( 2) -> <<"Feb">>;
-month( 3) -> <<"Mar">>;
-month( 4) -> <<"Apr">>;
-month( 5) -> <<"May">>;
-month( 6) -> <<"Jun">>;
-month( 7) -> <<"Jul">>;
-month( 8) -> <<"Aug">>;
-month( 9) -> <<"Sep">>;
-month(10) -> <<"Oct">>;
-month(11) -> <<"Nov">>;
-month(12) -> <<"Dec">>.
+	<< (cow_date:weekday(Wday))/binary, ", ", (cow_date:pad_int(D))/binary, " ",
+		(cow_date:month(Mo))/binary, " ", (list_to_binary(integer_to_list(Y)))/binary,
+		" ", (cow_date:pad_int(H))/binary, $:, (cow_date:pad_int(M))/binary,
+		$:, (cow_date:pad_int(S))/binary, " GMT" >>.
 
 %% Tests.
 
@@ -187,24 +157,4 @@ update_rfc1123_test_() ->
 			{{2012, 1,  1}, { 0,  0,  0}}, <<"Sat, 31 Dec 2011 23:59:59 GMT">>}
 	],
 	[{R, fun() -> R = update_rfc1123(B, P, N) end} || {R, P, N, B} <- Tests].
-
-pad_int_test_() ->
-	Tests = [
-		{ 0, <<"00">>}, { 1, <<"01">>}, { 2, <<"02">>}, { 3, <<"03">>},
-		{ 4, <<"04">>}, { 5, <<"05">>}, { 6, <<"06">>}, { 7, <<"07">>},
-		{ 8, <<"08">>}, { 9, <<"09">>}, {10, <<"10">>}, {11, <<"11">>},
-		{12, <<"12">>}, {13, <<"13">>}, {14, <<"14">>}, {15, <<"15">>},
-		{16, <<"16">>}, {17, <<"17">>}, {18, <<"18">>}, {19, <<"19">>},
-		{20, <<"20">>}, {21, <<"21">>}, {22, <<"22">>}, {23, <<"23">>},
-		{24, <<"24">>}, {25, <<"25">>}, {26, <<"26">>}, {27, <<"27">>},
-		{28, <<"28">>}, {29, <<"29">>}, {30, <<"30">>}, {31, <<"31">>},
-		{32, <<"32">>}, {33, <<"33">>}, {34, <<"34">>}, {35, <<"35">>},
-		{36, <<"36">>}, {37, <<"37">>}, {38, <<"38">>}, {39, <<"39">>},
-		{40, <<"40">>}, {41, <<"41">>}, {42, <<"42">>}, {43, <<"43">>},
-		{44, <<"44">>}, {45, <<"45">>}, {46, <<"46">>}, {47, <<"47">>},
-		{48, <<"48">>}, {49, <<"49">>}, {50, <<"50">>}, {51, <<"51">>},
-		{52, <<"52">>}, {53, <<"53">>}, {54, <<"54">>}, {55, <<"55">>},
-		{56, <<"56">>}, {57, <<"57">>}, {58, <<"58">>}, {59, <<"59">>}
-	],
-	[{I, fun() -> O = pad_int(I) end} || {I, O} <- Tests].
 -endif.
