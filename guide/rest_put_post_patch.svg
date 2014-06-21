@@ -16,7 +16,7 @@
    id="svg2"
    version="1.1"
    inkscape:version="0.48.4 r9939"
-   sodipodi:docname="rest_get_head.svg"
+   sodipodi:docname="rest_put_post_patch.svg"
    inkscape:export-filename="/home/essen/Dropbox/Public/drawing.png"
    inkscape:export-xdpi="90"
    inkscape:export-ydpi="90">
@@ -64,9 +64,9 @@
      borderopacity="1.0"
      inkscape:pageopacity="1"
      inkscape:pageshadow="2"
-     inkscape:zoom="1"
-     inkscape:cx="-20.678492"
-     inkscape:cy="-340.87249"
+     inkscape:zoom="2"
+     inkscape:cx="-3.9389218"
+     inkscape:cy="344.00863"
      inkscape:document-units="px"
      inkscape:current-layer="layer1"
      showgrid="false"
@@ -93,7 +93,7 @@
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title></dc:title>
+        <dc:title />
       </cc:Work>
     </rdf:RDF>
   </metadata>
@@ -2838,5 +2838,19 @@
          id="tspan5373-9-0-8"
          x="322.92551"
          y="375.54388">false</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:16px;font-style:normal;font-weight:normal;text-align:start;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#6d8e41;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
+       x="66.001251"
+       y="574.40112"
+       id="text5371-2-8-9-0-3"
+       sodipodi:linespacing="125%"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643"><tspan
+         sodipodi:role="line"
+         id="tspan5373-6-3-4-55-3"
+         x="66.001251"
+         y="574.40112">true</tspan></text>
   </g>
 </svg>
