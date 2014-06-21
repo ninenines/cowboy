@@ -1,22 +1,14 @@
 REST handlers
 =============
 
-Purpose
--------
-
-REST is a set of constraints that, when applied to HTTP, dictates how
-resources must behave. It is the recommended way to handle requests
-with Cowboy.
-
 REST is implemented in Cowboy as a protocol upgrade. Once upgraded,
 the request is handled as a state machine with many optional callbacks
 describing the resource and modifying the machine's behavior.
 
-As the REST handler is still subject to change, the documentation is
-still thin. This state of affair will be improved in the coming weeks.
+The REST handler is the recommended way to handle requests.
 
-Usage
------
+Initialization
+--------------
 
 Like Websocket, REST is a sub-protocol of HTTP. It therefore
 requires a protocol upgrade.
@@ -27,15 +19,8 @@ init({tcp, http}, Req, Opts) ->
 ```
 
 Cowboy will then switch to the REST protocol and start executing
-the flow diagram, starting from `rest_init/2` if it's defined,
+the state machine, starting from `rest_init/2` if it's defined,
 and ending with `rest_terminate/2` also if defined.
-
-Flow diagram
-------------
-
-Not done yet. Feel free to use the one that is currently being worked on.
-
- *  https://github.com/extend/cowboy/pull/364
 
 Methods
 -------
@@ -50,8 +35,9 @@ Callbacks
 ---------
 
 All callbacks are optional. Some may become mandatory depending
-on what other defined callbacks return. The flow diagram should
-be a pretty good resource to determine which callbacks you need.
+on what other defined callbacks return. The various flowcharts
+in the next chapter should be a useful to determine which callbacks
+you need.
 
 When the request starts being processed, Cowboy will call the
 `rest_init/2` function if it is defined, with the Req object
@@ -69,7 +55,7 @@ tuple of the form `{Value, Req, State}`.
 
 The following table summarizes the callbacks and their default values.
 If the callback isn't defined, then the default value will be used.
-Please look at the flow diagram to find out the result of each return
+Please look at the flowcharts to find out the result of each return
 value.
 
 All callbacks can also return `{halt, Req, State}` to stop execution

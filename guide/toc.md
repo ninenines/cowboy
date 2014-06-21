@@ -34,11 +34,7 @@ REST
 
  *  [REST principles](rest_principles.md)
  *  [Handling REST requests](rest_handlers.md)
- *  HEAD/GET requests flowchart
- *  POST/PUT/PATCH requests flowchart
- *  DELETE requests flowchart
- *  OPTIONS requests flowchart
- *  Designing a REST API
+ *  [REST flowcharts](rest_flowcharts.md)
 
 Multipart
 ---------
