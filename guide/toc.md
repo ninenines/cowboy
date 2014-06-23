@@ -39,7 +39,7 @@ REST
 Multipart
 ---------
 
- *  Understanding multipart
+ *  [Introduction to multipart](multipart_intro.md)
  *  [Multipart requests](multipart_req.md)
  *  Multipart responses
 
