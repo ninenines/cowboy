@@ -1,8 +1,12 @@
 Hooks
 =====
 
-On request
-----------
+Cowboy provides two hooks. `onrequest` is called once the request
+line and headers have been received. `onresponse` is called just
+before sending the response.
+
+Onrequest
+---------
 
 The `onrequest` hook is called as soon as Cowboy finishes fetching
 the request headers. It occurs before any other processing, including
@@ -39,8 +43,8 @@ debug_hook(Req) ->
 
 Make sure to always return the last request object obtained.
 
-On response
------------
+Onresponse
+----------
 
 The `onresponse` hook is called right before sending the response
 to the socket. It can be used for the purposes of logging responses,
@@ -51,7 +55,7 @@ Note that like the `onrequest` hook, this function MUST NOT crash.
 Cowboy may or may not send a reply if this function crashes. If a reply
 is sent, the hook MUST explicitly provide all headers that are needed.
 
-You can specify the `onresponse` hook when creating the listener also.
+You can specify the `onresponse` hook when creating the listener.
 
 ``` erlang
 cowboy:start_http(my_http_listener, 100,

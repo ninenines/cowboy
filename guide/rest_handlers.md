@@ -10,8 +10,9 @@ The REST handler is the recommended way to handle requests.
 Initialization
 --------------
 
-Like Websocket, REST is a sub-protocol of HTTP. It therefore
-requires a protocol upgrade.
+First, the `init/3` callback is called. This callback is common
+to all handlers. To use REST for the current request, this function
+must return an `upgrade` tuple.
 
 ``` erlang
 init({tcp, http}, Req, Opts) ->

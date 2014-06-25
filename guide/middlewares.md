@@ -1,9 +1,6 @@
 Middlewares
 ===========
 
-Purpose
--------
-
 Cowboy delegates the request processing to middleware components.
 By default, two middlewares are defined, for the routing and handling
 of the request, as is detailed in most of this guide.

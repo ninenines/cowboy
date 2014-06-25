@@ -24,6 +24,12 @@ HTTP
  *  [Sending a response](resp.md)
  *  [Using cookies](cookies.md)
 
+Multipart
+---------
+
+ *  [Introduction to multipart](multipart_intro.md)
+ *  [Multipart requests](multipart_req.md)
+
 Static files
 ------------
 
@@ -36,48 +42,26 @@ REST
  *  [Handling REST requests](rest_handlers.md)
  *  [REST flowcharts](rest_flowcharts.md)
 
-Multipart
+Websocket
 ---------
-
- *  [Introduction to multipart](multipart_intro.md)
- *  [Multipart requests](multipart_req.md)
- *  Multipart responses
-
-Server push technologies
-------------------------
-
- *  Push technologies
- *  [Using loop handlers for server push](loop_handlers.md)
- *  CORS
-
-Using Websocket
----------------
 
  *  [The Websocket protocol](ws_protocol.md)
  *  [Handling Websocket connections](ws_handlers.md)
 
-Advanced HTTP
--------------
+Server push
+-----------
 
- *  Authentication
- *  Sessions
+ *  [Loop handlers](loop_handlers.md)
 
-Advanced Cowboy usage
----------------------
+Pluggable interface
+-------------------
 
- *  Optimization guide
- *  [Hooks](hooks.md)
  *  [Middlewares](middlewares.md)
- *  Access and error logs
- *  Handling broken clients
-   *  HTTP header names
-   *  HTTP/1.1 streaming not chunked
+ *  [Protocol upgrades](upgrade_protocol.md)
+ *  [Hooks](hooks.md)
 
-Old guide misc
---------------
+Internals
+---------
 
-This section will be removed as content is moved into other chapters.
-
- *  [Handlers](handlers.md)
- *  [Internals](internals.md)
- *  [Resources](resources.md)
+ *  [Architecture](architecture.md)
+ *  [Dealing with broken clients](broken_clients.md)

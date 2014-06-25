@@ -1,21 +1,20 @@
 Getting started
 ===============
 
-Setting up a working Erlang application is a little more complex than
-for most other languages. The reason is that Erlang is designed to
-build systems and not just simple applications.
+Erlang is more than a language, it is also an operating system
+for your applications. Erlang developers rarely write standalone
+modules, they write libraries or applications, and then bundle
+those into what is called a release. A release contains the
+Erlang VM plus all applications required to run the node, so
+it can be pushed to production directly.
 
-An Erlang system is typically comprised of many different nodes,
-each containing many different OTP applications, each containing
-many different modules and running many different processes.
-Nodes may or may not be identical depending on the nature of the
-system.
+This chapter walks you through all the steps of setting up
+Cowboy, writing your first application and generating your first
+release. At the end of this chapter you should know everything
+you need to push your first Cowboy application to production.
 
-To get started though, we only need one node that contains your own
-HTTP application, plus the dependencies that it needs, like Cowboy.
-To create our node, we need to build what is called a release. A
-release is a set of files that contain the Erlang VM plus all the
-applications required to run our node.
+Application skeleton
+--------------------
 
 Let's start by creating this application. We will simply call it
 `hello_erlang`. This application will have the following directory
@@ -130,6 +129,9 @@ That's not enough however. Since we are building a Cowboy based
 application, we also need to initialize Cowboy when we start our
 application.
 
+Setting up Cowboy
+-----------------
+
 Cowboy does nothing by default.
 
 Cowboy uses Ranch for handling the connections and provides convenience
@@ -198,6 +200,9 @@ init([]) ->
 
 Finally, we need to write the code for handling incoming requests.
 
+Handling HTTP requests
+----------------------
+
 Cowboy features many kinds of handlers. For this simple example,
 we will just use the plain HTTP handler, which has three callback
 functions: `init/3`, `handle/2` and `terminate/3`. You can find more
@@ -235,6 +240,9 @@ Its usage is documented in the
 
 The code for our application is ready, so let's build a release!
 
+Compiling
+---------
+
 First we need to download `erlang.mk`.
 
 ``` bash
@@ -271,6 +279,9 @@ haven't made any typo when creating the previous files.
 $ make
 ```
 
+Generating the release
+----------------------
+
 That's not all however, as we want to create a working release.
 For that purpose, we need to create a `relx.config` file. When
 this file exists, `erlang.mk` will automatically download `relx`
@@ -299,6 +310,3 @@ $ ./_rel/bin/hello_erlang console
 
 If you then access `http://localhost:8080` using your browser,
 you should receive a nice greet!
-
-You can find many more examples in the `examples/` directory
-of the Cowboy repository.
