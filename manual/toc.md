@@ -18,3 +18,4 @@ The function reference documents the public interface of Cowboy.
  *  [cowboy_sub_protocol](cowboy_sub_protocol.md)
  *  [cowboy_websocket](cowboy_websocket.md)
  *  [cowboy_websocket_handler](cowboy_websocket_handler.md)
+ *  [HTTP status codes](http_status_codes.md)
