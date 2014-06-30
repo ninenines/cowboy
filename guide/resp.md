@@ -52,7 +52,7 @@ client may know how to read the body.
 
 ``` erlang
 {ok, Req2} = cowboy_req:reply(200, [
-    {<<"content-type">>, <<"text/plain">>
+    {<<"content-type">>, <<"text/plain">>}
 ], "Hello world!", Req).
 ```
 
