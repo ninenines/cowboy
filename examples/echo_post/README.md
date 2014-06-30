@@ -12,7 +12,7 @@ $ make
 To start the release in the foreground:
 
 ``` bash
-$ ./_rel/bin/echo_post_example console
+$ ./_rel/echo_post_example/bin/echo_post_example console
 ```
 
 As this example echoes a POST parameter, it is a little more

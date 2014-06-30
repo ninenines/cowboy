@@ -12,7 +12,7 @@ $ make
 To start the release in the foreground:
 
 ``` bash
-$ ./_rel/bin/echo_get_example console
+$ ./_rel/echo_get_example/bin/echo_get_example console
 ```
 
 Then point your browser at

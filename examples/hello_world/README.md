@@ -12,7 +12,7 @@ $ make
 To start the release in the foreground:
 
 ``` bash
-$ ./_rel/bin/hello_world_example console
+$ ./_rel/hello_world_example/bin/hello_world_example console
 ```
 
 Then point your browser at [http://localhost:8080](http://localhost:8080).

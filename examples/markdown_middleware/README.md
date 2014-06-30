@@ -12,7 +12,7 @@ $ make
 To start the release in the foreground:
 
 ``` bash
-$ ./_rel/bin/hello_world_example console
+$ ./_rel/markdown_middleware_example/bin/markdown_middleware_example console
 ```
 
 Then point your browser at

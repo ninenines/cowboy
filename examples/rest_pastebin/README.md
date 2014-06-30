@@ -12,7 +12,7 @@ $ make
 To start the release in the foreground:
 
 ``` bash
-$ ./_rel/bin/rest_pastebin_example console
+$ ./_rel/rest_pastebin_example/bin/rest_pastebin_example console
 ```
 
 Then point your browser at [http://localhost:8080](http://localhost:8080).

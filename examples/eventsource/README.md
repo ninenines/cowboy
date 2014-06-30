@@ -12,7 +12,7 @@ $ make
 To start the release in the foreground:
 
 ``` bash
-$ ./_rel/bin/eventsource_example console
+$ ./_rel/eventsource_example/bin/eventsource_example console
 ```
 
 Then point your EventSource capable browser at

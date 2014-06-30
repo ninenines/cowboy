@@ -12,7 +12,7 @@ $ make
 To start the release in the foreground:
 
 ``` bash
-$ ./_rel/bin/error_hook_example console
+$ ./_rel/error_hook_example/bin/error_hook_example console
 ```
 
 Then point your browser at [http://localhost:8080](http://localhost:8080).

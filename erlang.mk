@@ -21,7 +21,7 @@ PROJECT ?= $(notdir $(CURDIR))
 PKG_FILE ?= $(CURDIR)/.erlang.mk.packages.v1
 export PKG_FILE
 
-PKG_FILE_URL ?= https://raw.github.com/extend/erlang.mk/master/packages.v1.tsv
+PKG_FILE_URL ?= https://raw.githubusercontent.com/extend/erlang.mk/master/packages.v1.tsv
 
 define get_pkg_file
 	wget --no-check-certificate -O $(PKG_FILE) $(PKG_FILE_URL) || rm $(PKG_FILE)
@@ -58,8 +58,13 @@ ifneq ($(wildcard $(RELX_CONFIG)),)
 RELX ?= $(CURDIR)/relx
 export RELX
 
-RELX_URL ?= https://github.com/erlware/relx/releases/download/v0.6.0/relx
+RELX_URL ?= https://github.com/erlware/relx/releases/download/v1.0.2/relx
 RELX_OPTS ?=
+RELX_OUTPUT_DIR ?= _rel
+
+ifneq ($(firstword $(subst -o,,$(RELX_OPTS))),)
+	RELX_OUTPUT_DIR = $(firstword $(subst -o,,$(RELX_OPTS)))
+endif
 
 define get_relx
 	wget -O $(RELX) $(RELX_URL) || rm $(RELX)
@@ -73,7 +78,7 @@ $(RELX):
 	@$(call get_relx)
 
 clean-rel:
-	@rm -rf _rel
+	$(gen_verbose) rm -rf $(RELX_OUTPUT_DIR)
 
 endif
 
@@ -111,9 +116,9 @@ clean-all: clean clean-deps clean-docs
 
 app: ebin/$(PROJECT).app
 	$(eval MODULES := $(shell find ebin -type f -name \*.beam \
-		| sed 's/ebin\///;s/\.beam/,/' | sed '$$s/.$$//'))
+		| sed "s/ebin\//'/;s/\.beam/',/" | sed '$$s/.$$//'))
 	$(appsrc_verbose) cat src/$(PROJECT).app.src \
-		| sed 's/{modules,[[:space:]]*\[\]}/{modules, \[$(MODULES)\]}/' \
+		| sed "s/{modules,[[:space:]]*\[\]}/{modules, \[$(MODULES)\]}/" \
 		> ebin/$(PROJECT).app
 
 define compile_erl
@@ -225,8 +230,7 @@ CT_RUN = ct_run \
 	-noshell \
 	-pa $(realpath ebin) $(DEPS_DIR)/*/ebin \
 	-dir test \
-	-logdir logs \
-	$(CT_OPTS)
+	-logdir logs
 
 CT_SUITES ?=
 
@@ -236,7 +240,7 @@ test_$(1): clean deps app build-tests
 	@if [ -d "test" ] ; \
 	then \
 		mkdir -p logs/ ; \
-		$(CT_RUN) -suite $(addsuffix _SUITE,$(1)) ; \
+		$(CT_RUN) -suite $(addsuffix _SUITE,$(1)) $(CT_OPTS) ; \
 	fi
 	$(gen_verbose) rm -f test/*.beam
 endef
@@ -248,7 +252,7 @@ tests: clean deps app build-tests
 	@if [ -d "test" ] ; \
 	then \
 		mkdir -p logs/ ; \
-		$(CT_RUN) -suite $(addsuffix _SUITE,$(CT_SUITES)) ; \
+		$(CT_RUN) -suite $(addsuffix _SUITE,$(CT_SUITES)) $(CT_OPTS) ; \
 	fi
 	$(gen_verbose) rm -f test/*.beam
 

@@ -305,7 +305,7 @@ We can now build and start the release.
 
 ``` bash
 $ make
-$ ./_rel/bin/hello_erlang console
+$ ./_rel/hello_erlang/bin/hello_erlang console
 ```
 
 If you then access `http://localhost:8080` using your browser,

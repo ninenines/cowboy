@@ -12,7 +12,7 @@ $ make
 To start the release in the foreground:
 
 ``` bash
-$ ./_rel/bin/ssl_hello_world_example console
+$ ./_rel/ssl_hello_world_example/bin/ssl_hello_world_example console
 ```
 
 Then point your browser at [https://localhost:8443](https://localhost:8443).
