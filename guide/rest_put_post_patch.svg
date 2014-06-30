@@ -65,8 +65,8 @@
      inkscape:pageopacity="1"
      inkscape:pageshadow="2"
      inkscape:zoom="2"
-     inkscape:cx="-3.9389218"
-     inkscape:cy="344.00863"
+     inkscape:cx="299.56028"
+     inkscape:cy="-395.99137"
      inkscape:document-units="px"
      inkscape:current-layer="layer1"
      showgrid="false"
@@ -1329,7 +1329,7 @@
     <text
        xml:space="preserve"
        style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#77823c;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
-       x="604.3656"
+       x="604.32263"
        y="1242.303"
        id="text5371-43-2-9-7-3-8"
        sodipodi:linespacing="125%"
@@ -1338,8 +1338,8 @@
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-3-9-7-8-7-5"
-         x="604.3656"
-         y="1242.303">422 unprocessable entity</tspan></text>
+         x="604.32263"
+         y="1242.303">400 bad request</tspan></text>
     <g
        transform="matrix(-0.34202014,-0.93969262,0.93969262,-0.34202014,-311.11659,1246.6148)"
        id="g5650-2-0-4-0"

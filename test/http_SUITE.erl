@@ -749,7 +749,7 @@ rest_options_default(Config) ->
 rest_patch(Config) ->
 	Tests = [
 		{204, [{<<"content-type">>, <<"text/plain">>}], <<"whatever">>},
-		{422, [{<<"content-type">>, <<"text/plain">>}], <<"false">>},
+		{400, [{<<"content-type">>, <<"text/plain">>}], <<"false">>},
 		{400, [{<<"content-type">>, <<"text/plain">>}], <<"halt">>},
 		{415, [{<<"content-type">>, <<"application/json">>}], <<"bad_content_type">>}
 	],
