@@ -8,7 +8,7 @@ particular custom enterprise clients tend to be very badly
 written.
 
 Cowboy tries to follow the standard as much as possible,
-but is not trying to handle very possible special cases.
+but is not trying to handle every possible special cases.
 Instead Cowboy focuses on the cases reported in the wild,
 on the public Web.
 
