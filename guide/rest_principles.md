@@ -21,10 +21,10 @@ REST architecture
 REST is a *client-server* architecture. The client and the server
 both have a different set of concerns. The client cares about how
 it will display information to the user. The server cares about
-how to store that information and how to make it available to
-users efficiently. This separation of concerns allows both the
-client and the server to evolve independently as it only requires
-that the interface stays the same.
+the content and the network of information, and how to make it
+available to users efficiently. This separation of concerns allows
+both the client and the server to evolve independently as it only
+requires that the interface stays the same.
 
 REST is *stateless*. That means the communication between the
 client and the server always contains all the information needed
@@ -58,10 +58,11 @@ a REST component cannot rely on it being executed.
 Resources and resource identifiers
 ----------------------------------
 
-A resource is an abstract concept. In a REST system, any information
-that can be named can be a resource. This includes documents, images,
-a collection of resources and any other information. Any information
-that can be the target of an hypertext link can be a resource.
+A resource is an abstract concept. In a REST architecture, a resource
+can stand for any information that can be named. This includes
+documents, images, a collection of resources and any other information.
+Any information that can be the target of an hypertext link can be a
+resource.
 
 A resource is a conceptual mapping to a set of entities. The set of
 entities evolves over time; a resource doesn't. For example a resource
@@ -85,17 +86,14 @@ Resource representations
 ------------------------
 
 The representation of a resource is a sequence of bytes associated
-with metadata.
+with representation/resource/control metadata.
 
-The metadata comes as a list of key-value pairs, where the name is
+The metadata comes as a list of key-value pairs, where the name
 corresponds to a standard that defines the value's structure and
-semantics. In HTTP the metadata comes in the form of HTTP headers
-which are well defined by the HTTP standard. Metadata includes
-representation metadata, resource metadata and control data.
+semantics. In HTTP, the metadata comes in the form of HTTP headers.
 
-The representation metadata gives additional information about
-the representation, such as its media type, the last date of
-modification, or even an Etag.
+The representation metadata gives information about the representation,
+such as its type, the last date of modification, or even a checksum.
 
 Resource metadata could be link to related resources or
 information about additional representations of the resource.
