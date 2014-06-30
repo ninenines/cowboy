@@ -58,7 +58,7 @@
 }).
 
 -spec upgrade(Req, Env, module(), any())
-	-> {ok, Req, Env} | {error, 400, Req}
+	-> {ok, Req, Env}
 	| {suspend, module(), atom(), [any()]}
 	when Req::cowboy_req:req(), Env::cowboy_middleware:env().
 upgrade(Req, Env, Handler, HandlerOpts) ->
@@ -124,8 +124,7 @@ websocket_extensions(State, Req) ->
 	end.
 
 -spec handler_init(#state{}, Req, any())
-	-> {ok, Req, cowboy_middleware:env()} | {error, 400, Req}
-	| {suspend, module(), atom(), [any()]}
+	-> {ok, Req, cowboy_middleware:env()} | {suspend, module(), atom(), [any()]}
 	when Req::cowboy_req:req().
 handler_init(State=#state{env=Env, transport=Transport,
 		handler=Handler}, Req, HandlerOpts) ->

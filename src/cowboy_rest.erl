@@ -56,8 +56,7 @@
 }).
 
 -spec upgrade(Req, Env, module(), any())
-	-> {ok, Req, Env} | {error, 500, Req}
-	when Req::cowboy_req:req(), Env::cowboy_middleware:env().
+	-> {ok, Req, Env} when Req::cowboy_req:req(), Env::cowboy_middleware:env().
 upgrade(Req, Env, Handler, HandlerOpts) ->
 	Method = cowboy_req:get(method, Req),
 	case erlang:function_exported(Handler, rest_init, 2) of

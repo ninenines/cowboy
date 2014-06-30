@@ -44,8 +44,7 @@
 }).
 
 -spec execute(Req, Env)
-	-> {ok, Req, Env} | {error, 500, Req}
-	| {suspend, ?MODULE, handler_loop, [any()]}
+	-> {ok, Req, Env} | {suspend, ?MODULE, handler_loop, [any()]}
 	when Req::cowboy_req:req(), Env::cowboy_middleware:env().
 execute(Req, Env) ->
 	{_, Handler} = lists:keyfind(handler, 1, Env),
@@ -58,8 +57,7 @@ execute(Req, Env) ->
 		Handler, HandlerOpts).
 
 -spec handler_init(Req, #state{}, module(), any())
-	-> {ok, Req, cowboy_middleware:env()}
-	| {error, 500, Req} | {suspend, module(), atom(), [any()]}
+	-> {ok, Req, cowboy_middleware:env()} | {suspend, module(), atom(), [any()]}
 	when Req::cowboy_req:req().
 handler_init(Req, State, Handler, HandlerOpts) ->
 	Transport = cowboy_req:get(transport, Req),
@@ -108,9 +106,7 @@ upgrade_protocol(Req, #state{env=Env},
 	Module:upgrade(Req, Env, Handler, HandlerOpts).
 
 -spec handler_handle(Req, #state{}, module(), any())
-	-> {ok, Req, cowboy_middleware:env()}
-	| {error, 500, Req}
-	when Req::cowboy_req:req().
+	-> {ok, Req, cowboy_middleware:env()} when Req::cowboy_req:req().
 handler_handle(Req, State, Handler, HandlerState) ->
 	try Handler:handle(Req, HandlerState) of
 		{ok, Req2, HandlerState2} ->
@@ -130,8 +126,7 @@ handler_handle(Req, State, Handler, HandlerState) ->
 
 %% Update the state if the response was sent in the callback.
 -spec handler_after_callback(Req, #state{}, module(), any())
-	-> {ok, Req, cowboy_middleware:env()}
-	| {error, 500, Req} | {suspend, module(), atom(), [any()]}
+	-> {ok, Req, cowboy_middleware:env()} | {suspend, module(), atom(), [any()]}
 	when Req::cowboy_req:req().
 handler_after_callback(Req, State=#state{resp_sent=false}, Handler,
 		HandlerState) ->
@@ -146,8 +141,7 @@ handler_after_callback(Req, State, Handler, HandlerState) ->
 	handler_before_loop(Req, State, Handler, HandlerState).
 
 -spec handler_before_loop(Req, #state{}, module(), any())
-	-> {ok, Req, cowboy_middleware:env()}
-	| {error, 500, Req} | {suspend, module(), atom(), [any()]}
+	-> {ok, Req, cowboy_middleware:env()} | {suspend, module(), atom(), [any()]}
 	when Req::cowboy_req:req().
 handler_before_loop(Req, State=#state{hibernate=true}, Handler, HandlerState) ->
 	[Socket, Transport] = cowboy_req:get([socket, transport], Req),
@@ -173,8 +167,7 @@ handler_loop_timeout(State=#state{loop_timeout=Timeout,
 	State#state{loop_timeout_ref=TRef}.
 
 -spec handler_loop(Req, #state{}, module(), any())
-	-> {ok, Req, cowboy_middleware:env()}
-	| {error, 500, Req} | {suspend, module(), atom(), [any()]}
+	-> {ok, Req, cowboy_middleware:env()} | {suspend, module(), atom(), [any()]}
 	when Req::cowboy_req:req().
 handler_loop(Req, State=#state{loop_buffer_size=NbBytes,
 		loop_max_buffer=Threshold, loop_timeout_ref=TRef},
@@ -222,8 +215,7 @@ handler_loop(Req, State=#state{loop_buffer_size=NbBytes,
 	end.
 
 -spec handler_call(Req, #state{}, module(), any(), any())
-	-> {ok, Req, cowboy_middleware:env()}
-	| {error, 500, Req} | {suspend, module(), atom(), [any()]}
+	-> {ok, Req, cowboy_middleware:env()} | {suspend, module(), atom(), [any()]}
 	when Req::cowboy_req:req().
 handler_call(Req, State=#state{resp_sent=RespSent},
 		Handler, HandlerState, Message) ->
