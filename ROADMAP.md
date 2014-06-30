@@ -18,6 +18,10 @@ are expected to be bug fixes and documentation improvements.
 The main features that will be added to Cowboy 2.0 are support
 for HTTP/2.0 and Websocket permessage deflate compression.
 
+A complete analysis of the httpbis set of specifications
+will be performed and extensive tests will be written to
+ensure maximum compatibility.
+
 A number of backward incompatible changes are planned. These
 changes are individually small, but together should result
 in a large improvement in usability.
