@@ -23,6 +23,10 @@ All functions which perform an action should only be called once.
 This includes reading the request body or replying. Cowboy will
 generally throw an error on the second call.
 
+It is highly discouraged to pass the Req object to another process.
+Doing so and calling `cowboy_req` functions from it leads to
+undefined behavior.
+
 Types
 -----
 
