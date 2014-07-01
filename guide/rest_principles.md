@@ -22,7 +22,7 @@ REST is a *client-server* architecture. The client and the server
 both have a different set of concerns. The server stores and/or
 manipulates information and makes it available to the user in
 an efficient manner. The client takes that information and
-displays it to the user and/or use it to perform subsequent
+displays it to the user and/or uses it to perform subsequent
 requests for information. This separation of concerns allows both
 the client and the server to evolve independently as it only
 requires that the interface stays the same.
