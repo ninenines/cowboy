@@ -41,6 +41,7 @@ REST
  *  [REST principles](rest_principles.md)
  *  [Handling REST requests](rest_handlers.md)
  *  [REST flowcharts](rest_flowcharts.md)
+ *  [Designing a resource handler](resource_design.md)
 
 Websocket
 ---------
