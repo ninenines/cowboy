@@ -2,6 +2,9 @@
 .erlang.mk.packages.*
 _rel
 deps
+doc/man3
+doc/man7
+doc/markdown
 ebin
 logs
 relx

@@ -1,0 +1,36 @@
+::: Protocol upgrades
+
+Cowboy features many different handlers, each for different purposes.
+All handlers have a common entry point: the `init/3` function.
+
+The default handler type is the simple HTTP handler.
+
+To switch to a different protocol, you must perform a protocol
+upgrade. This is what is done for Websocket and REST and is
+explained in details in the respective chapters.
+
+You can also create your own protocol on top of Cowboy and use
+the protocol upgrade mechanism to switch to it.
+
+For example, if you create the `my_protocol` module implementing
+the `cowboy_sub_protocol` behavior, then you can upgrade to it
+by simply returning the module name from `init/3`.
+
+``` erlang
+init(_, _, _Opts) ->
+    {upgrade, protocol, my_protocol}.
+```
+
+The `cowboy_sub_protocol` behavior only requires one callback,
+`upgrade/4`. It receives the Req object, the middleware environment,
+and the handler and options for this request. This is the same
+module as the `init/3` function and the same options that were
+passed to it.
+
+``` erlang
+upgrade(Req, Env, Handler, HandlerOpts) ->
+    %% ...
+```
+
+This callback is expected to behave like a middleware. Please
+see the corresponding chapter for more information.

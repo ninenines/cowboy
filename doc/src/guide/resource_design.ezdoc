@@ -1,0 +1,220 @@
+::: Designing a resource handler
+
+This chapter aims to provide you with a list of questions
+you must answer in order to write a good resource handler.
+It is meant to be usable as a step by step guide.
+
+:: The service
+
+Can the service become unavailable, and when it does, can
+we detect it? For example database connectivity problems
+may be detected early. We may also have planned outages
+of all or parts of the system. Implement the
+`service_available` callback.
+
+What HTTP methods does the service implement? Do we need
+more than the standard OPTIONS, HEAD, GET, PUT, POST,
+PATCH and DELETE? Are we not using one of those at all?
+Implement the `known_methods` callback.
+
+:: Type of resource handler
+
+Am I writing a handler for a collection of resources,
+or for a single resource?
+
+The semantics for each of these are quite different.
+You should not mix collection and single resource in
+the same handler.
+
+:: Collection handler
+
+Skip this section if you are not doing a collection.
+
+Is the collection hardcoded or dynamic? For example
+if you use the route `/users` for the collection of
+users then the collection is hardcoded; if you use
+`/forums/:category` for the collection of threads
+then it isn't. When the collection is hardcoded you
+can safely assume the resource always exists.
+
+What methods should I implement?
+
+OPTIONS is used to get some information about the
+collection. It is recommended to allow it even if you
+do not implement it, as Cowboy has a default
+implementation built-in.
+
+HEAD and GET are used to retrieve the collection.
+If you allow GET, also allow HEAD as there's no extra
+work required to make it work.
+
+POST is used to create a new resource inside the
+collection. Creating a resource by using POST on
+the collection is useful when resources may be
+created before knowing their URI, usually because
+parts of it are generated dynamically. A common
+case is some kind of auto incremented integer
+identifier.
+
+The next methods are more rarely allowed.
+
+PUT is used to create a new collection (when
+the collection isn't hardcoded), or replace
+the entire collection.
+
+DELETE is used to delete the entire collection.
+
+PATCH is used to modify the collection using
+instructions given in the request body. A PATCH
+operation is atomic. The PATCH operation may
+be used for such things as reordering; adding,
+modifying or deleting parts of the collection.
+
+:: Single resource handler
+
+Skip this section if you are doing a collection.
+
+What methods should I implement?
+
+OPTIONS is used to get some information about the
+resource. It is recommended to allow it even if you
+do not implement it, as Cowboy has a default
+implementation built-in.
+
+HEAD and GET are used to retrieve the resource.
+If you allow GET, also allow HEAD as there's no extra
+work required to make it work.
+
+POST is used to update the resource.
+
+PUT is used to create a new resource (when it doesn't
+already exist) or replace the resource.
+
+DELETE is used to delete the resource.
+
+PATCH is used to modify the resource using
+instructions given in the request body. A PATCH
+operation is atomic. The PATCH operation may
+be used for adding, removing or modifying specific
+values in the resource.
+
+:: The resource
+
+Following the above discussion, implement the
+`allowed_methods` callback.
+
+Does the resource always exist? If it may not, implement
+the `resource_exists` callback.
+
+Do I need to authenticate the client before they can
+access the resource? What authentication mechanisms
+should I provide? This may include form-based, token-based
+(in the URL or a cookie), HTTP basic, HTTP digest,
+SSL certificate or any other form of authentication.
+Implement the `is_authorized` callback.
+
+Do I need fine-grained access control? How do I determine
+that they are authorized access? Handle that in your
+`is_authorized` callback.
+
+Can access to a resource be forbidden regardless of access
+being authorized? A simple example of that is censorship
+of a resource. Implement the `forbidden` callback.
+
+Is there any constraints on the length of the resource URI?
+For example the URI may be used as a key in storage and may
+have a limit in length. Implement `uri_too_long`.
+
+:: Representations
+
+What media types do I provide? If text based, what charsets
+are provided? What languages do I provide?
+
+Implement the mandatory `content_types_provided`. Prefix
+the callbacks with `to_` for clarity. For example `to_html`
+or `to_text`.
+
+Implement the `languages_provided` or `charsets_provided`
+callbacks if applicable.
+
+Is there any other header that may make the representation
+of the resource vary? Implement the `variances` callback.
+
+Depending on your choices for caching content, you may
+want to implement one or more of the `generate_etag`,
+`last_modified` and `expires` callbacks.
+
+Do I want the user or user agent to actively choose a
+representation available? Send a list of available
+representations in the response body and implement
+the `multiple_choices` callback.
+
+:: Redirections
+
+Do I need to keep track of what resources were deleted?
+For example you may have a mechanism where moving a
+resource leaves a redirect link to its new location.
+Implement the `previously_existed` callback.
+
+Was the resource moved, and is the move temporary? If
+it is explicitly temporary, for example due to maintenance,
+implement the `moved_temporarily` callback. Otherwise,
+implement the `moved_permanently` callback.
+
+:: The request
+
+Do we need to perform extra checks to make sure the request
+is valid? Cowboy will do many checks when receiving the
+request already, do we need more? Note that this only
+applies to the request-line and headers of the request,
+and not the body. Implement `malformed_request`.
+
+May there be a request body? Will I know its size?
+What's the maximum size of the request body I'm willing
+to accept? Implement `valid_entity_length`.
+
+Finally, take a look at the sections corresponding to the
+methods you are implementing.
+
+:: OPTIONS method
+
+Cowboy by default will send back a list of allowed methods.
+Do I need to add more information to the response? Implement
+the `options` method.
+
+:: GET and HEAD methods
+
+If you implement the methods GET and/or HEAD, you must
+implement one `ProvideResource` callback for each
+content-type returned by the `content_types_provided`
+callback.
+
+:: PUT, POST and PATCH methods
+
+If you implement the methods PUT, POST and/or PATCH,
+you must implement the `content_types_accepted` callback,
+and one `AcceptResource` callback for each content-type
+it returns. Prefix the `AcceptResource` callback names
+with `from_` for clarity. For example `from_html` or
+`from_json`.
+
+Do we want to allow the POST method to create individual
+resources directly through their URI (like PUT)? Implement
+the `allow_missing_post` callback. It is recommended to
+explicitly use PUT in these cases instead.
+
+May there be conflicts when using PUT to create or replace
+a resource? Do we want to make sure that two updates around
+the same time are not cancelling one another? Implement the
+`is_conflict` callback.
+
+:: DELETE methods
+
+If you implement the method DELETE, you must implement
+the `delete_resource` callback.
+
+When `delete_resource` returns, is the resource completely
+removed from the server, including from any caching service?
+If not, and/or if the deletion is asynchronous and we have
+no way of knowing it has been completed yet, implement the
+`delete_completed` callback.

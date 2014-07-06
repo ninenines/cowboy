@@ -1,0 +1,141 @@
+::: Loop handlers
+
+Loop handlers are a special kind of HTTP handlers used when the
+response can not be sent right away. The handler enters instead
+a receive loop waiting for the right message before it can send
+a response.
+
+Loop handlers are used for requests where a response might not
+be immediately available, but where you would like to keep the
+connection open for a while in case the response arrives. The
+most known example of such practice is known as long-polling.
+
+Loop handlers can also be used for requests where a response is
+partially available and you need to stream the response body
+while the connection is open. The most known example of such
+practice is known as server-sent events.
+
+While the same can be accomplished using plain HTTP handlers,
+it is recommended to use loop handlers because they are well-tested
+and allow using built-in features like hibernation and timeouts.
+
+Loop handlers essentially wait for one or more Erlang messages
+and feed these messages to the `info/3` callback. It also features
+the `init/3` and `terminate/3` callbacks which work the same as
+for plain HTTP handlers.
+
+:: Initialization
+
+The `init/3` function must return a `loop` tuple to enable
+loop handler behavior. This tuple may optionally contain
+a timeout value and/or the atom `hibernate` to make the
+process enter hibernation until a message is received.
+
+This snippet enables the loop handler.
+
+``` erlang
+init(_Type, Req, _Opts) ->
+    {loop, Req, undefined_state}.
+```
+
+However it is largely recommended that you set a timeout
+value. The next example sets a timeout value of 30s and
+also makes the process hibernate.
+
+``` erlang
+init(_Type, Req, _Opts) ->
+    {loop, Req, undefined_state, 30000, hibernate}.
+```
+
+:: Receive loop
+
+Once initialized, Cowboy will wait for messages to arrive
+in the process' mailbox. When a message arrives, Cowboy
+calls the `info/3` function with the message, the Req object
+and the handler's state.
+
+The following snippet sends a reply when it receives a
+`reply` message from another process, or waits for another
+message otherwise.
+
+``` erlang
+info({reply, Body}, Req, State) ->
+    {ok, Req2} = cowboy_req:reply(200, [], Body, Req),
+    {ok, Req2, State};
+info(_Msg, Req, State) ->
+    {loop, Req, State, hibernate}.
+```
+
+Do note that the `reply` tuple here may be any message
+and is simply an example.
+
+This callback may perform any necessary operation including
+sending all or parts of a reply, and will subsequently
+return a tuple indicating if more messages are to be expected.
+
+The callback may also choose to do nothing at all and just
+skip the message received.
+
+If a reply is sent, then the `ok` tuple should be returned.
+This will instruct Cowboy to end the request.
+
+Otherwise a `loop` tuple should be returned.
+
+:: Streaming loop
+
+Another common case well suited for loop handlers is
+streaming data received in the form of Erlang messages.
+This can be done by initiating a chunked reply in the
+`init/3` callback and then using `cowboy_req:chunk/2`
+every time a message is received.
+
+The following snippet does exactly that. As you can see
+a chunk is sent every time a `chunk` message is received,
+and the loop is stopped by sending an `eof` message.
+
+``` erlang
+init(_Type, Req, _Opts) ->
+	{ok, Req2} = cowboy_req:chunked_reply(200, [], Req),
+    {loop, Req2, undefined_state}.
+
+info(eof, Req, State) ->
+    {ok, Req, State};
+info({chunk, Chunk}, Req, State) ->
+    ok = cowboy_req:chunk(Chunk, Req),
+    {loop, Req, State};
+info(_Msg, Req, State) ->
+    {loop, Req, State}.
+```
+
+:: Cleaning up
+
+It is recommended that you set the connection header to
+`close` when replying, as this process may be reused for
+a subsequent request.
+
+Please refer to the ^"HTTP handlers chapter^http_handlers
+for general instructions about cleaning up.
+
+:: Timeout
+
+By default Cowboy will not attempt to close the connection
+if there is no activity from the client. This is not always
+desirable, which is why you can set a timeout. Cowboy will
+close the connection if no data was received from the client
+after the configured time. The timeout only needs to be set
+once and can't be modified afterwards.
+
+Because the request may have had a body, or may be followed
+by another request, Cowboy is forced to buffer all data it
+receives. This data may grow to become too large though,
+so there is a configurable limit for it. The default buffer
+size is of 5000 bytes, but it may be changed by setting the
+`loop_max_buffer` middleware environment value.
+
+:: Hibernate
+
+To save memory, you may hibernate the process in between
+messages received. This is done by returning the atom
+`hibernate` as part of the `loop` tuple callbacks normally
+return. Just add the atom at the end and Cowboy will hibernate
+accordingly.

@@ -24,3 +24,55 @@ dep_gun = pkg://gun master
 # Standard targets.
 
 include erlang.mk
+
+# Documentation.
+
+dep_ezdoc = https://github.com/ninenines/ezdoc master
+$(eval $(call dep_target,ezdoc))
+
+build-doc-deps: $(DEPS_DIR)/ezdoc
+	$(MAKE) -C $(DEPS_DIR)/ezdoc
+
+define ezdoc_script
+io:format("Building manual~n"),
+[begin
+	AST = ezdoc:parse_file(F),
+	BF = filename:rootname(filename:basename(F)),
+	io:format("  ~s~n", [BF]),
+	file:write_file("doc/markdown/manual/" ++ BF ++ ".md", ezdoc_markdown:export(AST)),
+	case BF of
+		"cowboy" ++ _ when BF =/= "cowboy_app" ->
+			file:write_file("doc/man3/" ++ BF ++ ".3", ezdoc_man:export(3, AST));
+		_ when BF =/= "index" ->
+			file:write_file("doc/man7/" ++ BF ++ ".7", ezdoc_man:export(7, AST));
+		_ ->
+			ok
+	end
+end || F <- filelib:wildcard("doc/src/manual/*.ezdoc")],
+io:format("Building guide~n"),
+[begin
+	AST = ezdoc:parse_file(F),
+	BF = filename:rootname(filename:basename(F)),
+	io:format("  ~s~n", [BF]),
+	file:write_file("doc/markdown/guide/" ++ BF ++ ".md", ezdoc_markdown:export(AST))
+end || F <- filelib:wildcard("doc/src/guide/*.ezdoc")],
+io:format("Done.~n"),
+init:stop().
+endef
+export ezdoc_script
+
+docs: clean-docs build-doc-deps
+	@mkdir -p doc/man3 doc/man7 doc/markdown/guide doc/markdown/manual
+	$(gen_verbose) erl -noinput -pa ebin deps/ezdoc/ebin -eval "$$ezdoc_script"
+	@gzip doc/man3/*.3 doc/man7/*.7
+	@cp doc/src/guide/*.png doc/markdown/guide
+
+clean-docs:
+	$(gen_verbose) rm -rf doc/man3 doc/man7 doc/markdown
+
+MAN_INSTALL_PATH ?= /usr/local/share/man
+
+install-docs:
+	mkdir -p $(MAN_INSTALL_PATH)/man3/ $(MAN_INSTALL_PATH)/man7/
+	install -g 0 -o 0 -m 0644 doc/man3/*.gz $(MAN_INSTALL_PATH)/man3/
+	install -g 0 -o 0 -m 0644 doc/man7/*.gz $(MAN_INSTALL_PATH)/man7/

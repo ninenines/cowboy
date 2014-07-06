@@ -27,15 +27,23 @@ The SPDY implementation was sponsored by
 The project is currently sponsored by
 [Kato.im](https://kato.im).
 
-Getting Started
----------------
+Online documentation
+--------------------
 
- *  [Read the guide](http://ninenines.eu/docs/en/cowboy/HEAD/guide)
- *  [Check the manual](http://ninenines.eu/docs/en/cowboy/HEAD/manual)
- *  Look at the examples in the `examples/` directory
+ *  [User guide](http://ninenines.eu/docs/en/cowboy/HEAD/guide)
+ *  [Function reference](http://ninenines.eu/docs/en/cowboy/HEAD/manual)
 
-Support
--------
+Offline documentation
+---------------------
+
+ *  While still online, run `make docs`
+ *  Function reference man pages available in `doc/man3/` and `doc/man7/`
+ *  Run `make install-docs` to install man pages on your system
+ *  Full documentation in Markdown available in `doc/markdown/`
+ *  Examples available in `examples/`
+
+Getting help
+------------
 
  *  Official IRC Channel: #ninenines on irc.freenode.net
  *  [Mailing Lists](http://lists.ninenines.eu)
