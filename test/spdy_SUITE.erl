@@ -17,6 +17,8 @@
 
 -import(cowboy_test, [config/2]).
 -import(cowboy_test, [gun_monitor_open/1]).
+-import(cowboy_test, [raw_open/1]).
+-import(cowboy_test, [raw_send/2]).
 
 %% ct.
 
@@ -108,3 +110,38 @@ echo_body_multi(Config) ->
 	{response, nofin, 200, _} = gun:await(ConnPid, StreamRef, MRef),
 	{ok, << 0:800000 >>} = gun:await_body(ConnPid, StreamRef, MRef),
 	gun:close(ConnPid).
+
+two_frames_one_packet(Config) ->
+	{raw_client, Socket, Transport} = Client = raw_open([
+		{opts, [{client_preferred_next_protocols,
+			{client, [<<"spdy/3">>], <<"spdy/3">>}}]}
+		|Config]),
+	Zdef = cow_spdy:deflate_init(),
+	Zinf = cow_spdy:inflate_init(),
+	ok = raw_send(Client, iolist_to_binary([
+		cow_spdy:syn_stream(Zdef, 1, 0, true, false,
+			0, <<"GET">>, <<"https">>, <<"localhost">>,
+			<<"/">>, <<"HTTP/1.1">>, []),
+		cow_spdy:syn_stream(Zdef, 3, 0, true, false,
+			0, <<"GET">>, <<"https">>, <<"localhost">>,
+			<<"/">>, <<"HTTP/1.1">>, [])
+	])),
+	{Frame1, Rest1} = spdy_recv(Socket, Transport, <<>>),
+	{syn_reply, 1, false, <<"200 OK">>, _, _} = cow_spdy:parse(Frame1, Zinf),
+	{Frame2, Rest2} = spdy_recv(Socket, Transport, Rest1),
+	{data, 1, true, _} = cow_spdy:parse(Frame2, Zinf),
+	{Frame3, Rest3} = spdy_recv(Socket, Transport, Rest2),
+	{syn_reply, 3, false, <<"200 OK">>, _, _} = cow_spdy:parse(Frame3, Zinf),
+	{Frame4, <<>>} = spdy_recv(Socket, Transport, Rest3),
+	{data, 3, true, _} = cow_spdy:parse(Frame4, Zinf),
+	ok.
+
+spdy_recv(Socket, Transport, Acc) ->
+	{ok, Data} = Transport:recv(Socket, 0, 5000),
+	Data2 = << Acc/binary, Data/bits >>,
+	case cow_spdy:split(Data2) of
+		false ->
+			spdy_recv(Socket, Transport, Data2);
+		{true, Frame, Rest} ->
+			{Frame, Rest}
+	end.
