@@ -119,6 +119,8 @@ to describe whether they can have side effects. This will
 allows us to build introspection tools on top of a working
 REST API.
 
+Range support will be added.
+
 Under consideration
 -------------------
 
