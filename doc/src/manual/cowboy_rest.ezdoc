@@ -190,10 +190,10 @@ This function should create or update the resource with the
 information contained in the request body. This information
 may be full or partial depending on the request method.
 
-If the request body was processed successfully, `true` or
-`{true, URL}` may be returned. If an URL is provided, the
-response will redirect the client to the location of the
-resource.
+If the request body was processed successfully, `true` must
+be returned. If the request method is POST, `{true, URL}` may
+be returned instead, and Cowboy will redirect the client to
+the location of the newly created resource.
 
 If a response body must be sent, the appropriate media-type, charset
 and language can be retrieved using the `cowboy_req:meta/{2,3}`
