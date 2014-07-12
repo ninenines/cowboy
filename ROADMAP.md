@@ -76,6 +76,11 @@ callbacks will be removed in favor of a unified `terminate/3`.
 
 The `terminate/3` callback will become optional.
 
+### Middlewares
+
+The error tuple return value brings little value compared to
+the halt tuple. The error tuple will therefore be removed.
+
 ### Hooks
 
 The `onrequest` hook will be removed. It can easily be replaced
