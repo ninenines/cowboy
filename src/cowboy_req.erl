@@ -141,7 +141,7 @@
 	qs_vals = undefined :: undefined | list({binary(), binary() | true}),
 	bindings = undefined :: undefined | cowboy_router:bindings(),
 	headers = [] :: cowboy:http_headers(),
-	p_headers = [] :: [any()], %% @todo Improve those specs.
+	p_headers = [] :: [any()],
 	cookies = undefined :: undefined | [{binary(), binary()}],
 	meta = [] :: [{atom(), any()}],
 

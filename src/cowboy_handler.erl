@@ -79,7 +79,6 @@ handler_init(Req, State, Handler, HandlerOpts) ->
 		{shutdown, Req2, HandlerState} ->
 			terminate_request(Req2, State, Handler, HandlerState,
 				{normal, shutdown});
-		%% @todo {upgrade, transport, Module}
 		{upgrade, protocol, Module} ->
 			upgrade_protocol(Req, State, Handler, HandlerOpts, Module);
 		{upgrade, protocol, Module, Req2, HandlerOpts2} ->
