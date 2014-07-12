@@ -130,7 +130,7 @@ update_rfc1123(<< _:11/binary, Keep:6/binary, _/bits >>,
 update_rfc1123(_, _, {Date = {Y, Mo, D}, {H, M, S}}) ->
 	Wday = calendar:day_of_the_week(Date),
 	<< (weekday(Wday))/binary, ", ", (pad_int(D))/binary, " ",
-		(month(Mo))/binary, " ", (list_to_binary(integer_to_list(Y)))/binary,
+		(month(Mo))/binary, " ", (integer_to_binary(Y))/binary,
 		" ", (pad_int(H))/binary, $:, (pad_int(M))/binary,
 		$:, (pad_int(S))/binary, " GMT" >>.
 
@@ -139,7 +139,7 @@ update_rfc1123(_, _, {Date = {Y, Mo, D}, {H, M, S}}) ->
 pad_int(X) when X < 10 ->
 	<< $0, ($0 + X) >>;
 pad_int(X) ->
-	list_to_binary(integer_to_list(X)).
+	integer_to_binary(X).
 
 -spec weekday(1..7) -> <<_:24>>.
 weekday(1) -> <<"Mon">>;

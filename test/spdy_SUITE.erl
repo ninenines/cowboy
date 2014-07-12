@@ -127,11 +127,11 @@ two_frames_one_packet(Config) ->
 			<<"/">>, <<"HTTP/1.1">>, [])
 	])),
 	{Frame1, Rest1} = spdy_recv(Socket, Transport, <<>>),
-	{syn_reply, 1, false, <<"200 OK">>, _, _} = cow_spdy:parse(Frame1, Zinf),
+	{syn_reply, _, false, <<"200 OK">>, _, _} = cow_spdy:parse(Frame1, Zinf),
 	{Frame2, Rest2} = spdy_recv(Socket, Transport, Rest1),
 	{data, 1, true, _} = cow_spdy:parse(Frame2, Zinf),
 	{Frame3, Rest3} = spdy_recv(Socket, Transport, Rest2),
-	{syn_reply, 3, false, <<"200 OK">>, _, _} = cow_spdy:parse(Frame3, Zinf),
+	{syn_reply, _, false, <<"200 OK">>, _, _} = cow_spdy:parse(Frame3, Zinf),
 	{Frame4, <<>>} = spdy_recv(Socket, Transport, Rest3),
 	{data, 3, true, _} = cow_spdy:parse(Frame4, Zinf),
 	ok.

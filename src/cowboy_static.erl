@@ -264,8 +264,7 @@ generate_etag(Req, State={Path, {ok, #file_info{size=Size, mtime=Mtime}},
 	end.
 
 generate_default_etag(Size, Mtime) ->
-	{strong, list_to_binary(integer_to_list(
-		erlang:phash2({Size, Mtime}, 16#ffffffff)))}.
+	{strong, integer_to_binary(erlang:phash2({Size, Mtime}, 16#ffffffff))}.
 
 %% Return the time of last modification of the file.
 
