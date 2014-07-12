@@ -1036,14 +1036,21 @@ continue(#http_req{socket=Socket, transport=Transport,
 		<< HTTPVer/binary, " ", (status(100))/binary, "\r\n\r\n" >>).
 
 %% Meant to be used internally for sending errors after crashes.
--spec maybe_reply(cowboy:http_status(), req()) -> ok.
-maybe_reply(Status, Req) ->
+-spec maybe_reply([{module(), atom(), arity() | [term()], _}], req()) -> ok.
+maybe_reply(Stacktrace, Req) ->
 	receive
 		{cowboy_req, resp_sent} -> ok
 	after 0 ->
-		_ = cowboy_req:reply(Status, Req),
+		_ = do_maybe_reply(Stacktrace, Req),
 		ok
 	end.
+
+do_maybe_reply([
+		{cow_http_hd, _, _, _},
+		{cowboy_req, parse_header, _, _}|_], Req) ->
+	cowboy_req:reply(400, Req);
+do_maybe_reply(_, Req) ->
+	cowboy_req:reply(500, Req).
 
 -spec ensure_response(req(), cowboy:http_status()) -> ok.
 %% The response has already been fully sent to the client.

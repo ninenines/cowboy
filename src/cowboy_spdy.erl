@@ -422,7 +422,7 @@ execute(Req, Env, [Middleware|Tail]) ->
 		{halt, Req2} ->
 			cowboy_req:ensure_response(Req2, 204);
 		{error, Status, Req2} ->
-			cowboy_req:maybe_reply(Status, Req2)
+			cowboy_req:reply(Status, Req2)
 	end.
 
 -spec resume(cowboy_middleware:env(), [module()],
@@ -437,7 +437,7 @@ resume(Env, Tail, Module, Function, Args) ->
 		{halt, Req2} ->
 			cowboy_req:ensure_response(Req2, 204);
 		{error, Status, Req2} ->
-			cowboy_req:maybe_reply(Status, Req2)
+			cowboy_req:reply(Status, Req2)
 	end.
 
 %% Reply functions used by cowboy_req.

@@ -494,7 +494,7 @@ error_terminate(Status, State=#state{socket=Socket, transport=Transport,
 
 -spec error_terminate(cowboy:http_status(), cowboy_req:req(), #state{}) -> ok.
 error_terminate(Status, Req, State) ->
-	cowboy_req:maybe_reply(Status, Req),
+	_ = cowboy_req:reply(Status, Req),
 	terminate(State).
 
 -spec terminate(#state{}) -> ok.

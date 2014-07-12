@@ -85,11 +85,12 @@ handler_init(Req, State, Handler, HandlerOpts) ->
 		{upgrade, protocol, Module, Req2, HandlerOpts2} ->
 			upgrade_protocol(Req2, State, Handler, HandlerOpts2, Module)
 	catch Class:Reason ->
-		cowboy_req:maybe_reply(500, Req),
+		Stacktrace = erlang:get_stacktrace(),
+		cowboy_req:maybe_reply(Stacktrace, Req),
 		erlang:Class([
 			{reason, Reason},
 			{mfa, {Handler, init, 3}},
-			{stacktrace, erlang:get_stacktrace()},
+			{stacktrace, Stacktrace},
 			{req, cowboy_req:to_list(Req)},
 			{opts, HandlerOpts}
 		])
@@ -113,12 +114,13 @@ handler_handle(Req, State, Handler, HandlerState) ->
 			terminate_request(Req2, State, Handler, HandlerState2,
 				{normal, shutdown})
 	catch Class:Reason ->
-		cowboy_req:maybe_reply(500, Req),
+		Stacktrace = erlang:get_stacktrace(),
+		cowboy_req:maybe_reply(Stacktrace, Req),
 		handler_terminate(Req, Handler, HandlerState, Reason),
 		erlang:Class([
 			{reason, Reason},
 			{mfa, {Handler, handle, 2}},
-			{stacktrace, erlang:get_stacktrace()},
+			{stacktrace, Stacktrace},
 			{req, cowboy_req:to_list(Req)},
 			{state, HandlerState}
 		])
@@ -170,8 +172,8 @@ handler_loop_timeout(State=#state{loop_timeout=Timeout,
 	-> {ok, Req, cowboy_middleware:env()} | {suspend, module(), atom(), [any()]}
 	when Req::cowboy_req:req().
 handler_loop(Req, State=#state{loop_buffer_size=NbBytes,
-		loop_max_buffer=Threshold, loop_timeout_ref=TRef},
-		Handler, HandlerState) ->
+		loop_max_buffer=Threshold, loop_timeout_ref=TRef,
+		resp_sent=RespSent}, Handler, HandlerState) ->
 	[Socket, Transport] = cowboy_req:get([socket, transport], Req),
 	{OK, Closed, Error} = Transport:messages(),
 	receive
@@ -180,7 +182,9 @@ handler_loop(Req, State=#state{loop_buffer_size=NbBytes,
 			if	NbBytes2 > Threshold ->
 					_ = handler_terminate(Req, Handler, HandlerState,
 						{error, overflow}),
-					cowboy_req:maybe_reply(500, Req),
+					_ = if RespSent -> ok; true ->
+						cowboy_req:reply(500, Req)
+					end,
 					exit(normal);
 				true ->
 					Req2 = cowboy_req:append_buffer(Data, Req),
@@ -229,16 +233,15 @@ handler_call(Req, State=#state{resp_sent=RespSent},
 			handler_after_callback(Req2, State#state{hibernate=true},
 				Handler, HandlerState2)
 	catch Class:Reason ->
-		if RespSent ->
-			ok;
-		true ->
-			cowboy_req:maybe_reply(500, Req)
+		Stacktrace = erlang:get_stacktrace(),
+		if RespSent -> ok; true ->
+			cowboy_req:maybe_reply(Stacktrace, Req)
 		end,
 		handler_terminate(Req, Handler, HandlerState, Reason),
 		erlang:Class([
 			{reason, Reason},
 			{mfa, {Handler, info, 3}},
-			{stacktrace, erlang:get_stacktrace()},
+			{stacktrace, Stacktrace},
 			{req, cowboy_req:to_list(Req)},
 			{state, HandlerState}
 		])

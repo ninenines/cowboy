@@ -71,8 +71,12 @@ upgrade(Req, Env, Handler, HandlerOpts) ->
 		{ok, State2, Req2} ->
 			handler_init(State2, Req2, HandlerOpts)
 	catch _:_ ->
-		cowboy_req:maybe_reply(400, Req),
-		exit(normal)
+		receive
+			{cowboy_req, resp_sent} -> ok
+		after 0 ->
+			cowboy_req:reply(400, Req),
+			exit(normal)
+		end
 	end.
 
 -spec websocket_upgrade(#state{}, Req)
@@ -144,11 +148,12 @@ handler_init(State=#state{env=Env, transport=Transport,
 			cowboy_req:ensure_response(Req2, 400),
 			{ok, Req2, [{result, closed}|Env]}
 	catch Class:Reason ->
-		cowboy_req:maybe_reply(400, Req),
+		Stacktrace = erlang:get_stacktrace(),
+		cowboy_req:maybe_reply(Stacktrace, Req),
 		erlang:Class([
 			{reason, Reason},
 			{mfa, {Handler, websocket_init, 3}},
-			{stacktrace, erlang:get_stacktrace()},
+			{stacktrace, Stacktrace},
 			{req, cowboy_req:to_list(Req)},
 			{opts, HandlerOpts}
 		])

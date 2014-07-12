@@ -66,11 +66,12 @@ upgrade(Req, Env, Handler, HandlerOpts) ->
 					service_available(Req2, #state{env=Env, method=Method,
 						handler=Handler, handler_state=HandlerState})
 			catch Class:Reason ->
-				cowboy_req:maybe_reply(500, Req),
+				Stacktrace = erlang:get_stacktrace(),
+				cowboy_req:maybe_reply(Stacktrace, Req),
 				erlang:Class([
 					{reason, Reason},
 					{mfa, {Handler, rest_init, 2}},
-					{stacktrace, erlang:get_stacktrace()},
+					{stacktrace, Stacktrace},
 					{req, cowboy_req:to_list(Req)},
 					{opts, HandlerOpts}
 				])
@@ -999,11 +1000,12 @@ terminate(Req, State=#state{env=Env}) ->
 error_terminate(Req, State=#state{handler=Handler, handler_state=HandlerState},
 		Class, Reason, Callback) ->
 	rest_terminate(Req, State),
-	cowboy_req:maybe_reply(500, Req),
+	Stacktrace = erlang:get_stacktrace(),
+	cowboy_req:maybe_reply(Stacktrace, Req),
 	erlang:Class([
 		{reason, Reason},
 		{mfa, {Handler, Callback, 2}},
-		{stacktrace, erlang:get_stacktrace()},
+		{stacktrace, Stacktrace},
 		{req, cowboy_req:to_list(Req)},
 		{state, HandlerState}
 	]).
