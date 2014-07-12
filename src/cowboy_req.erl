@@ -90,16 +90,6 @@
 -export([lock/1]).
 -export([to_list/1]).
 
-%% Deprecated API.
--export([init_stream/4]).
--deprecated({init_stream, 4}).
--export([stream_body/1]).
--deprecated({stream_body, 1}).
--export([stream_body/2]).
--deprecated({stream_body, 2}).
--export([skip_body/1]).
--deprecated({skip_body, 1}).
-
 -type cookie_opts() :: cow_cookie:cookie_opts().
 -export_type([cookie_opts/0]).
 
@@ -507,9 +497,6 @@ body(Req) ->
 -spec body(Req, body_opts())
 	-> {ok, binary(), Req} | {more, binary(), Req}
 	| {error, atom()} when Req::req().
-%% @todo This clause is kept for compatibility reasons, to be removed in 1.0.
-body(MaxBodyLength, Req) when is_integer(MaxBodyLength) ->
-	body(Req, [{length, MaxBodyLength}]);
 body(Req=#http_req{body_state=waiting}, Opts) ->
 	%% Send a 100 continue if needed (enabled by default).
 	Req1 = case lists:keyfind(continue, 1, Opts) of
@@ -654,9 +641,6 @@ body_qs(Req) ->
 
 -spec body_qs(Req, body_opts()) -> {ok, [{binary(), binary() | true}], Req}
 	| {badlength, Req} | {error, atom()} when Req::req().
-%% @todo This clause is kept for compatibility reasons, to be removed in 1.0.
-body_qs(MaxBodyLength, Req) when is_integer(MaxBodyLength) ->
-	body_qs(Req, [{length, MaxBodyLength}]);
 body_qs(Req, Opts) ->
 	case body(Req, Opts) of
 		{ok, Body, Req2} ->
@@ -665,42 +649,6 @@ body_qs(Req, Opts) ->
 			{badlength, Req2};
 		{error, Reason} ->
 			{error, Reason}
-	end.
-
-%% Deprecated body API.
-%% @todo The following 4 functions will be removed in Cowboy 1.0.
-
--spec init_stream(transfer_decode_fun(), any(), content_decode_fun(), Req)
-	-> {ok, Req} when Req::req().
-init_stream(TransferDecode, TransferState, ContentDecode, Req) ->
-	{ok, Req#http_req{body_state=
-		{stream, 0, TransferDecode, TransferState, ContentDecode}}}.
-
--spec stream_body(Req) -> {ok, binary(), Req}
-	| {done, Req} | {error, atom()} when Req::req().
-stream_body(Req) ->
-	stream_body(1000000, Req).
-
--spec stream_body(non_neg_integer(), Req) -> {ok, binary(), Req}
-	| {done, Req} | {error, atom()} when Req::req().
-stream_body(ChunkLength, Req) ->
-	case body(Req, [{length, ChunkLength}]) of
-		{ok, <<>>, Req2} ->
-			{done, Req2};
-		{ok, Data, Req2} ->
-			{ok, Data, Req2};
-		{more, Data, Req2} ->
-			{ok, Data, Req2};
-		Error = {error, _} ->
-			Error
-	end.
-
--spec skip_body(Req) -> {ok, Req} | {error, atom()} when Req::req().
-skip_body(Req) ->
-	case stream_body(Req) of
-		{ok, _, Req2} -> skip_body(Req2);
-		{done, Req2} -> {ok, Req2};
-		{error, Reason} -> {error, Reason}
 	end.
 
 %% Multipart API.

@@ -9,7 +9,7 @@ init({_, http}, Req, _) ->
 
 handle(Req, State) ->
 	true = cowboy_req:has_body(Req),
-	{ok, Req3} = case cowboy_req:body(1000000, Req) of
+	{ok, Req3} = case cowboy_req:body(Req, [{length, 1000000}]) of
 		{ok, Body, Req2} -> handle_body(Req2, Body);
 		{more, _, Req2} -> handle_badlength(Req2)
 	end,
