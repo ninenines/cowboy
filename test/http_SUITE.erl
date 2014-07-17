@@ -426,6 +426,34 @@ http10_hostless(Config) ->
 		[{port, Port10}|Config]),
 	cowboy:stop_listener(http10_hostless).
 
+http10_keepalive_default(Config) ->
+	Normal = "GET / HTTP/1.0\r\nhost: localhost\r\n\r\n",
+	Client = raw_open(Config),
+	ok = raw_send(Client, Normal),
+	case catch raw_recv_head(Client) of
+		{'EXIT', _} -> error(closed);
+		_ -> ok
+	end,
+	ok = raw_send(Client, Normal),
+	case catch raw_recv_head(Client) of
+		{'EXIT', _} -> closed;
+		_ -> error(not_closed)
+	end.
+
+http10_keepalive_forced(Config) ->
+	Keepalive = "GET / HTTP/1.0\r\nhost: localhost\r\nConnection: keep-alive\r\n\r\n",
+	Client = raw_open(Config),
+	ok = raw_send(Client, Keepalive),
+	case catch raw_recv_head(Client) of
+		{'EXIT', _} -> error(closed);
+		_ -> ok
+	end,
+	ok = raw_send(Client, Keepalive),
+	case catch raw_recv_head(Client) of
+		{'EXIT', Err} -> error({closed, Err});
+		_ -> ok
+	end.
+
 keepalive_max(Config) ->
 	{ConnPid, MRef} = gun_monitor_open(Config),
 	Refs = [gun:get(ConnPid, "/", [{<<"connection">>, <<"keep-alive">>}])
