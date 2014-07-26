@@ -73,7 +73,7 @@ websocket_init(_Type, Req, _Opts) ->
 		{ok, Subprotocols, Req2} ->
 			case lists:keymember(<<"mychat2">>, 1, Subprotocols) of
 				true ->
-					Req3 = cowboy:set_resp_header(<<"sec-websocket-protocol">>,
+					Req3 = cowboy_req:set_resp_header(<<"sec-websocket-protocol">>,
 						<<"mychat2">>, Req2),
 					{ok, Req3, #state{}};
 				false ->
