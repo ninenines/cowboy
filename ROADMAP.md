@@ -6,12 +6,6 @@ list of planned changes and work to be done on the Cowboy
 server. It is intended to be exhaustive but some elements
 might still be missing.
 
-1.0 (R16 and R17)
------------------
-
-We are now in the final push to Cowboy 1.0. Further changes
-are expected to be bug fixes and documentation improvements.
-
 2.0 (R17 and R18)
 -----------------
 
