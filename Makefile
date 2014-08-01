@@ -7,19 +7,14 @@ PROJECT = cowboy
 ERLC_OPTS ?= -Werror +debug_info +warn_export_all +warn_export_vars \
 	+warn_shadow_vars +warn_obsolete_guard +warn_missing_spec
 COMPILE_FIRST = cowboy_middleware cowboy_sub_protocol
-CT_SUITES = eunit http loop_handler spdy ws
 CT_OPTS += -pa test -ct_hooks cowboy_ct_hook []
 PLT_APPS = crypto public_key ssl
 
 # Dependencies.
 
 DEPS = cowlib ranch
-dep_cowlib = pkg://cowlib 0.6.2
-dep_ranch = pkg://ranch 0.10.0
-
 TEST_DEPS = ct_helper gun
-dep_ct_helper = https://github.com/extend/ct_helper.git master
-dep_gun = pkg://gun master
+dep_ct_helper = git https://github.com/extend/ct_helper.git master
 
 # Standard targets.
 
@@ -27,7 +22,7 @@ include erlang.mk
 
 # Documentation.
 
-dep_ezdoc = https://github.com/ninenines/ezdoc master
+dep_ezdoc = git https://github.com/ninenines/ezdoc master
 $(eval $(call dep_target,ezdoc))
 
 build-doc-deps: $(DEPS_DIR)/ezdoc
@@ -61,7 +56,7 @@ init:stop().
 endef
 export ezdoc_script
 
-docs: clean-docs build-doc-deps
+docs:: clean-docs build-doc-deps
 	@mkdir -p doc/man3 doc/man7 doc/markdown/guide doc/markdown/manual
 	$(gen_verbose) erl -noinput -pa ebin deps/ezdoc/ebin -eval "$$ezdoc_script"
 	@gzip doc/man3/*.3 doc/man7/*.7
