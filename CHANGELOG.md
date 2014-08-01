@@ -1,6 +1,29 @@
 CHANGELOG
 =========
 
+1.0.0
+-----
+
+ *  Drop R15 support
+
+ *  Update erlang.mk, Ranch and Cowlib to 1.0.0
+
+ *  Complete the user guide and simplify the Getting started chapter
+
+ *  Document the HTTP status codes Cowboy may send in the manual
+
+ *  Provide installable man pages (see README)
+
+ *  Support ad-hoc keep-alive for HTTP/1.0 clients
+
+ *  Fix SPDY parsing error when many frames were received in one packet
+
+ *  Reply with 400 instead of 422 in cowboy_rest
+
+ *  Reply with 400 instead of 500 on header parsing crash
+
+ *  Remove deprecated body reading interface (see 0.10.0 notes)
+
 0.10.0
 ------
 
