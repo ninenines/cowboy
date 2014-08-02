@@ -14,7 +14,7 @@ you need to push your first Cowboy application to production.
 
 :: Bootstrap
 
-We are going to use the ^"erlang.mk^https://github.com/extend/erlang.mk
+We are going to use the ^"erlang.mk^https://github.com/ninenines/erlang.mk
 build system. It also offers bootstrap features allowing us to
 quickly get started without having to deal with minute details.
 
@@ -29,7 +29,7 @@ Then we need to download `erlang.mk`. Either use the following
 command or download it manually.
 
 ``` bash
-$ wget https://raw.githubusercontent.com/extend/erlang.mk/master/erlang.mk
+$ wget https://raw.githubusercontent.com/ninenines/erlang.mk/master/erlang.mk
 ```
 
 We can now bootstrap our application. Since we are going to generate

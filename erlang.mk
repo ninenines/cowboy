@@ -93,7 +93,7 @@ export ERL_LIBS
 PKG_FILE2 ?= $(CURDIR)/.erlang.mk.packages.v2
 export PKG_FILE2
 
-PKG_FILE_URL ?= https://raw.githubusercontent.com/extend/erlang.mk/master/packages.v2.tsv
+PKG_FILE_URL ?= https://raw.githubusercontent.com/ninenines/erlang.mk/master/packages.v2.tsv
 
 # Core targets.
 
