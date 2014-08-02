@@ -61,7 +61,7 @@ handler.
 
 :: Cowboy setup
 
-To add Cowboy as a dependency of your application, we need to modify
+To add Cowboy as a dependency to your application, you need to modify
 two files: the Makefile and the application resource file.
 
 Modifying the Makefile allows the build system to know it needs to
