@@ -40,7 +40,7 @@ modifications but there is no guarantee that it will work as expected.
 
 :: Versioning
 
-Cowboy uses [Semantic Versioning 2.0.0](http://semver.org/).
+Cowboy uses ^"Semantic Versioning 2.0.0^http://semver.org/^.
 
 :: Conventions
 
