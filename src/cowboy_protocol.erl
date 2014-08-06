@@ -180,6 +180,10 @@ parse_uri(<< "http://", Rest/bits >>, State, Method) ->
 	parse_uri_skip_host(Rest, State, Method);
 parse_uri(<< "https://", Rest/bits >>, State, Method) ->
 	parse_uri_skip_host(Rest, State, Method);
+parse_uri(<< "HTTP://", Rest/bits >>, State, Method) ->
+	parse_uri_skip_host(Rest, State, Method);
+parse_uri(<< "HTTPS://", Rest/bits >>, State, Method) ->
+	parse_uri_skip_host(Rest, State, Method);
 parse_uri(Buffer, State, Method) ->
 	parse_uri_path(Buffer, State, Method, <<>>).
 
