@@ -158,7 +158,7 @@ Cowboy will check for conflicts and then move on to the
 will figure out whether the resource existed previously,
 and if so whether it was moved elsewhere. If the resource
 is truly non-existent, the method is POST and the call
-for `accept_missing_post` returns `true`, then Cowboy will
+for `allow_missing_post` returns `true`, then Cowboy will
 move on to the `content_types_accepted` step. Otherwise
 the request processing ends there.
 
