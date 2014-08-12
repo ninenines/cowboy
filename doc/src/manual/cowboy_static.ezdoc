@@ -11,8 +11,8 @@ by using the REST semantics provided by `cowboy_rest`.
 	| {file, string() | binary(), extra()}
 	| {priv_dir, atom(), string() | binary()}
 	| {priv_dir, atom(), string() | binary(), extra()}
-	| {dir, atom(), string() | binary()}
-	| {dir, atom(), string() | binary(), extra()}
+	| {dir, string() | binary()}
+	| {dir, string() | binary(), extra()}
 
 Configuration for the static handler.
 
