@@ -56,6 +56,7 @@
 
 %% Multipart API.
 -export([part/1]).
+-export([part/2]).
 -export([part_body/1]).
 -export([part_body/2]).
 
