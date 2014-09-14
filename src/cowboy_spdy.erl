@@ -72,6 +72,7 @@
 	buffer = <<>> :: binary(),
 	middlewares,
 	env,
+	idle_timeout,
 	onrequest,
 	onresponse,
 	peer,
@@ -114,6 +115,7 @@
 %%     trigger send on stream
 
 -type opts() :: [{env, cowboy_middleware:env()}
+	| {idle_timeout, non_neg_integer()}
 	| {middlewares, [module()]}
 	| {onrequest, cowboy:onrequest_fun()}
 	| {onresponse, cowboy:onresponse_fun()}].
@@ -142,6 +144,7 @@ init(Parent, Ref, Socket, Transport, Opts) ->
 	{ok, Peer} = Transport:peername(Socket),
 	Middlewares = get_value(middlewares, Opts, [cowboy_router, cowboy_handler]),
 	Env = [{listener, Ref}|get_value(env, Opts, [])] ++ [{raw_socket, Socket}],
+	IdleTimeout = get_value(idle_timeout, Opts, 60000),
 	OnRequest = get_value(onrequest, Opts, undefined),
 	OnResponse = get_value(onresponse, Opts, undefined),
 	Zdef = cow_spdy:deflate_init(),
@@ -154,8 +157,8 @@ init(Parent, Ref, Socket, Transport, Opts) ->
 
     %% Send initial window size in a settings frame
 	loop(#state{parent=Parent, socket=Socket, transport=Transport,
-		middlewares=Middlewares, env=Env, onrequest=OnRequest,
-		onresponse=OnResponse, peer=Peer, zdef=Zdef, zinf=Zinf,
+		middlewares=Middlewares, env=Env, idle_timeout=IdleTimeout,
+		onrequest=OnRequest, onresponse=OnResponse, peer=Peer, zdef=Zdef, zinf=Zinf,
         flow_control = FlowControl}).
 
 parse_frame(State=#state{zinf=Zinf}, Data) ->
@@ -169,7 +172,7 @@ parse_frame(State=#state{zinf=Zinf}, Data) ->
 	end.
 
 loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
-		buffer=Buffer, children=Children}) ->
+		buffer=Buffer, idle_timeout=IdleTimeout, children=Children}) ->
 	{OK, Closed, Error} = Transport:messages(),
 	Transport:setopts(Socket, [{active, once}]),
 	receive
@@ -307,7 +310,7 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 		{'$gen_call', {To, Tag}, _} ->
 			To ! {Tag, {error, ?MODULE}},
 			loop(State)
-	after 60000 ->
+	after IdleTimeout ->
 		goaway(State, ok),
 		terminate(State)
 	end.

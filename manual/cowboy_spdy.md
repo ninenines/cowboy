@@ -7,6 +7,7 @@ Types
 -----
 
 ### opts() = [{env, cowboy_middleware:env()}
+	| {idle_timeout, non_neg_integer()}
 	| {middlewares, [module()]}
 	| {onrequest, cowboy:onrequest_fun()}
 	| {onresponse, cowboy:onresponse_fun()}]
@@ -27,6 +28,8 @@ The default value is given next to the option name.
 
  -  env ([{listener, Ref}])
    -  Initial middleware environment.
+ -  idle_timeout (60000)
+   -  Milliseconds before idle connections are closed.
  -  middlewares ([cowboy_router, cowboy_handler])
    -  List of middlewares to execute for every requests.
  -  onrequest (undefined)
