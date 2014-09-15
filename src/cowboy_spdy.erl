@@ -75,6 +75,9 @@
 	idle_timeout,
 	onrequest,
 	onresponse,
+	ping_id,
+	ping_interval,
+	ping_sent,
 	peer,
 	zdef,
 	zinf,
@@ -118,7 +121,8 @@
 	| {idle_timeout, non_neg_integer()}
 	| {middlewares, [module()]}
 	| {onrequest, cowboy:onrequest_fun()}
-	| {onresponse, cowboy:onresponse_fun()}].
+	| {onresponse, cowboy:onresponse_fun()}
+	| {ping_interval, non_neg_integer()}].
 -export_type([opts/0]).
 
 %% API.
@@ -147,6 +151,7 @@ init(Parent, Ref, Socket, Transport, Opts) ->
 	IdleTimeout = get_value(idle_timeout, Opts, 60000),
 	OnRequest = get_value(onrequest, Opts, undefined),
 	OnResponse = get_value(onresponse, Opts, undefined),
+	PingInterval = get_value(ping_interval, Opts, undefined),
 	Zdef = cow_spdy:deflate_init(),
 	Zinf = cow_spdy:inflate_init(),
 	ok = ranch:accept_ack(Ref),
@@ -156,9 +161,19 @@ init(Parent, Ref, Socket, Transport, Opts) ->
                                      #state{transport = Transport, socket = Socket}, ?SESSION),
 
     %% Send initial window size in a settings frame
+
+	case PingInterval of
+		undefined ->
+			ok;
+		_ ->
+			erlang:send_after(PingInterval, self(), send_ping)
+	end,
+
 	loop(#state{parent=Parent, socket=Socket, transport=Transport,
 		middlewares=Middlewares, env=Env, idle_timeout=IdleTimeout,
-		onrequest=OnRequest, onresponse=OnResponse, peer=Peer, zdef=Zdef, zinf=Zinf,
+		onrequest=OnRequest, onresponse=OnResponse,
+		ping_id=0, ping_interval=PingInterval, ping_sent=false,
+		peer=Peer, zdef=Zdef, zinf=Zinf,
         flow_control = FlowControl}).
 
 parse_frame(State=#state{zinf=Zinf}, Data) ->
@@ -266,7 +281,10 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 			Child = #child{output=nofin} = get_child(StreamID, State),
             rst_stream(State, StreamID, Status),
 			loop(replace_child(Child#child{output=fin}, State));
-    
+		send_ping ->
+			PingID = State#state.ping_id + 2,
+			Transport:send(Socket, cow_spdy:ping(PingID)),
+			loop(State#state{ping_id=PingID, ping_sent=true});
 		{sendfile, {Pid, StreamID}, Filepath}
 				when Pid =:= self() ->
 			Child = #child{output=nofin} = get_child(StreamID, State),
@@ -356,11 +374,15 @@ handle_frame(State, {rst_stream, StreamID, Status}) ->
 		[StreamID, Status]),
 	%% @todo Stop StreamID.
 	State;
-%% PING initiated by the server; ignore, we don't send any.
+%% PING initiated by the server; schedule another.
+handle_frame(State=#state{ping_id=PingID, ping_interval=PingInterval,
+		ping_sent=true}, {ping, PingID})  ->
+	erlang:send_after(PingInterval, self(), send_ping),
+	State#state{ping_sent=false};
+%% Unexpected PING initiated by the server; ignore.
 handle_frame(State, {ping, PingID}) when PingID rem 2 =:= 0 ->
 	error_logger:error_msg("Ignored PING control frame: ~p~n", [PingID]),
-	State;
-%% PING initiated by the client; send it back.
+	loop(State);
 handle_frame(State=#state{socket=Socket, transport=Transport},
 		{ping, PingID}) ->
 	Transport:send(Socket, cow_spdy:ping(PingID)),
