@@ -64,8 +64,11 @@ upgrade(Req, Env, Handler, HandlerOpts) ->
 			try Handler:rest_init(Req, HandlerOpts) of
 				{ok, Req2, HandlerState} ->
 					service_available(Req2, #state{env=Env, method=Method,
+						handler=Handler, handler_state=HandlerState});
+                {halt, Req2, HandlerState} ->
+                    terminate(Req2, #state{env=Env, method=Method,
 						handler=Handler, handler_state=HandlerState})
-			catch Class:Reason ->
+            catch Class:Reason ->
 				Stacktrace = erlang:get_stacktrace(),
 				cowboy_req:maybe_reply(Stacktrace, Req),
 				erlang:Class([
