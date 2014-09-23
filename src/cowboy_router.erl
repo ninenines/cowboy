@@ -33,21 +33,17 @@
 -export_type([bindings/0]).
 -export_type([tokens/0]).
 
--type constraints() :: [{atom(), int}
-	| {atom(), function, fun ((binary()) -> true | {true, any()} | false)}].
--export_type([constraints/0]).
-
 -type route_match() :: '_' | iodata().
 -type route_path() :: {Path::route_match(), Handler::module(), Opts::any()}
-	| {Path::route_match(), constraints(), Handler::module(), Opts::any()}.
+	| {Path::route_match(), cowboy:fields(), Handler::module(), Opts::any()}.
 -type route_rule() :: {Host::route_match(), Paths::[route_path()]}
-	| {Host::route_match(), constraints(), Paths::[route_path()]}.
+	| {Host::route_match(), cowboy:fields(), Paths::[route_path()]}.
 -type routes() :: [route_rule()].
 -export_type([routes/0]).
 
 -type dispatch_match() :: '_' | <<_:8>> | [binary() | '_' | '...' | atom()].
--type dispatch_path() :: {dispatch_match(), module(), any()}.
--type dispatch_rule() :: {Host::dispatch_match(), Paths::[dispatch_path()]}.
+-type dispatch_path() :: {dispatch_match(), cowboy:fields(), module(), any()}.
+-type dispatch_rule() :: {Host::dispatch_match(), cowboy:fields(), Paths::[dispatch_path()]}.
 -opaque dispatch_rules() :: [dispatch_rule()].
 -export_type([dispatch_rules/0]).
 
@@ -59,15 +55,15 @@ compile([], Acc) ->
 	lists:reverse(Acc);
 compile([{Host, Paths}|Tail], Acc) ->
 	compile([{Host, [], Paths}|Tail], Acc);
-compile([{HostMatch, Constraints, Paths}|Tail], Acc) ->
+compile([{HostMatch, Fields, Paths}|Tail], Acc) ->
 	HostRules = case HostMatch of
 		'_' -> '_';
 		_ -> compile_host(HostMatch)
 	end,
 	PathRules = compile_paths(Paths, []),
 	Hosts = case HostRules of
-		'_' -> [{'_', Constraints, PathRules}];
-		_ -> [{R, Constraints, PathRules} || R <- HostRules]
+		'_' -> [{'_', Fields, PathRules}];
+		_ -> [{R, Fields, PathRules} || R <- HostRules]
 	end,
 	compile(Tail, Hosts ++ Acc).
 
@@ -80,16 +76,16 @@ compile_paths([], Acc) ->
 	lists:reverse(Acc);
 compile_paths([{PathMatch, Handler, Opts}|Tail], Acc) ->
 	compile_paths([{PathMatch, [], Handler, Opts}|Tail], Acc);
-compile_paths([{PathMatch, Constraints, Handler, Opts}|Tail], Acc)
+compile_paths([{PathMatch, Fields, Handler, Opts}|Tail], Acc)
 		when is_list(PathMatch) ->
 	compile_paths([{iolist_to_binary(PathMatch),
-		Constraints, Handler, Opts}|Tail], Acc);
-compile_paths([{'_', Constraints, Handler, Opts}|Tail], Acc) ->
-	compile_paths(Tail, [{'_', Constraints, Handler, Opts}] ++ Acc);
-compile_paths([{<< $/, PathMatch/binary >>, Constraints, Handler, Opts}|Tail],
+		Fields, Handler, Opts}|Tail], Acc);
+compile_paths([{'_', Fields, Handler, Opts}|Tail], Acc) ->
+	compile_paths(Tail, [{'_', Fields, Handler, Opts}] ++ Acc);
+compile_paths([{<< $/, PathMatch/binary >>, Fields, Handler, Opts}|Tail],
 		Acc) ->
 	PathRules = compile_rules(PathMatch, $/, [], [], <<>>),
-	Paths = [{lists:reverse(R), Constraints, Handler, Opts} || R <- PathRules],
+	Paths = [{lists:reverse(R), Fields, Handler, Opts} || R <- PathRules],
 	compile_paths(Tail, Paths ++ Acc);
 compile_paths([{PathMatch, _, _, _}|_], _) ->
 	error({badarg, "The following route MUST begin with a slash: "
@@ -220,7 +216,7 @@ match([], _, _) ->
 %% If the host is '_' then there can be no constraints.
 match([{'_', [], PathMatchs}|_Tail], _, Path) ->
 	match_path(PathMatchs, undefined, Path, []);
-match([{HostMatch, Constraints, PathMatchs}|Tail], Tokens, Path)
+match([{HostMatch, Fields, PathMatchs}|Tail], Tokens, Path)
 		when is_list(Tokens) ->
 	case list_match(Tokens, HostMatch, []) of
 		false ->
@@ -230,7 +226,7 @@ match([{HostMatch, Constraints, PathMatchs}|Tail], Tokens, Path)
 				undefined -> undefined;
 				_ -> lists:reverse(HostInfo)
 			end,
-			case check_constraints(Constraints, Bindings) of
+			case check_constraints(Fields, Bindings) of
 				{ok, Bindings2} ->
 					match_path(PathMatchs, HostInfo2, Path, Bindings2);
 				nomatch ->
@@ -251,15 +247,15 @@ match_path([], _, _, _) ->
 %% If the path is '_' then there can be no constraints.
 match_path([{'_', [], Handler, Opts}|_Tail], HostInfo, _, Bindings) ->
 	{ok, Handler, Opts, Bindings, HostInfo, undefined};
-match_path([{<<"*">>, _Constraints, Handler, Opts}|_Tail], HostInfo, <<"*">>, Bindings) ->
+match_path([{<<"*">>, _, Handler, Opts}|_Tail], HostInfo, <<"*">>, Bindings) ->
 	{ok, Handler, Opts, Bindings, HostInfo, undefined};
-match_path([{PathMatch, Constraints, Handler, Opts}|Tail], HostInfo, Tokens,
+match_path([{PathMatch, Fields, Handler, Opts}|Tail], HostInfo, Tokens,
 		Bindings) when is_list(Tokens) ->
 	case list_match(Tokens, PathMatch, Bindings) of
 		false ->
 			match_path(Tail, HostInfo, Tokens, Bindings);
 		{true, PathBinds, PathInfo} ->
-			case check_constraints(Constraints, PathBinds) of
+			case check_constraints(Fields, PathBinds) of
 				{ok, PathBinds2} ->
 					{ok, Handler, Opts, PathBinds2, HostInfo, PathInfo};
 				nomatch ->
@@ -273,13 +269,16 @@ match_path(Dispatch, HostInfo, Path, Bindings) ->
 
 check_constraints([], Bindings) ->
 	{ok, Bindings};
-check_constraints([Constraint|Tail], Bindings) ->
-	Name = element(1, Constraint),
+check_constraints([Field|Tail], Bindings) when is_atom(Field) ->
+	check_constraints(Tail, Bindings);
+check_constraints([Field|Tail], Bindings) ->
+	Name = element(1, Field),
 	case lists:keyfind(Name, 1, Bindings) of
 		false ->
 			check_constraints(Tail, Bindings);
 		{_, Value} ->
-			case check_constraint(Constraint, Value) of
+			Constraints = element(2, Field),
+			case cowboy_constraints:validate(Value, Constraints) of
 				true ->
 					check_constraints(Tail, Bindings);
 				{true, Value2} ->
@@ -290,13 +289,6 @@ check_constraints([Constraint|Tail], Bindings) ->
 					nomatch
 			end
 	end.
-
-check_constraint({_, int}, Value) ->
-	try {true, list_to_integer(binary_to_list(Value))}
-	catch _:_ -> false
-	end;
-check_constraint({_, function, Fun}, Value) ->
-	Fun(Value).
 
 -spec split_host(binary()) -> tokens().
 split_host(Host) ->
@@ -540,9 +532,8 @@ match_constraints_test() ->
 		<<"ninenines.eu">>, <<"/path/123/">>),
 	{error, notfound, path} = match(Dispatch,
 		<<"ninenines.eu">>, <<"/path/NaN/">>),
-	Dispatch2 = [{'_', [],
-		[{[<<"path">>, username], [{username, function,
-		fun(Value) -> Value =:= cowboy_bstr:to_lower(Value) end}],
+	Dispatch2 = [{'_', [], [{[<<"path">>, username],
+		[{username, fun(Value) -> Value =:= cowboy_bstr:to_lower(Value) end}],
 		match, []}]}],
 	{ok, _, [], [{username, <<"essen">>}], _, _} = match(Dispatch2,
 		<<"ninenines.eu">>, <<"/path/essen">>),

@@ -22,31 +22,16 @@ Environment output:
 
 List of bindings found during routing.
 
-: constraints() = [IntConstraint | FunConstraint]
-
-Types:
-
-* IntConstraint = {atom(), int}
-* FunConstraint = {atom(), function, Fun}
-* Fun = fun((binary()) -> true | {true, any()} | false)
-
-List of constraints to apply to the bindings.
-
-The int constraint will convert the binding to an integer.
-The fun constraint allows writing custom code for checking
-the bindings. Returning a new value from that fun allows
-replacing the current binding with a new value.
-
 : dispatch_rules() - opaque to the user
 
 Rules for dispatching request used by Cowboy.
 
-: routes() = [{Host, Paths} | {Host, constraints(), Paths}]
+: routes() = [{Host, Paths} | {Host, cowboy:fields(), Paths}]
 
 Types:
 
 * Host = Path = '_' | iodata()
-* Paths = [{Path, Handler, Opts} | {Path, constraints(), Handler, Opts}]
+* Paths = [{Path, Handler, Opts} | {Path, cowboy:fields(), Handler, Opts}]
 * Handler = module()
 * Opts = any()
 
