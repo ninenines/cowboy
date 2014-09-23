@@ -8,10 +8,9 @@ init({_, http}, Req, _) ->
 	{ok, Req, undefined}.
 
 handle(Req, State) ->
-	{Method, Req2} = cowboy_req:method(Req),
-	HasBody = cowboy_req:has_body(Req2),
-	{ok, Req3} = maybe_echo(Method, HasBody, Req2),
-	{ok, Req3, State}.
+	Method = cowboy_req:method(Req),
+	HasBody = cowboy_req:has_body(Req),
+	{ok, maybe_echo(Method, HasBody, Req), State}.
 
 maybe_echo(<<"POST">>, true, Req) ->
 	case cowboy_req:body_qs(Req) of
@@ -20,7 +19,6 @@ maybe_echo(<<"POST">>, true, Req) ->
 		{ok, PostVals, Req2} ->
 			echo(proplists:get_value(<<"echo">>, PostVals), Req2)
 	end;
-
 maybe_echo(<<"POST">>, false, Req) ->
 	cowboy_req:reply(400, [], <<"Missing body.">>, Req);
 maybe_echo(_, _, Req) ->

@@ -73,8 +73,7 @@ custom_404_hook(404, Headers, <<>>, Req) ->
     Body = <<"404 Not Found.">>,
     Headers2 = lists:keyreplace(<<"content-length">>, 1, Headers,
         {<<"content-length">>, integer_to_list(byte_size(Body))}),
-    {ok, Req2} = cowboy_req:reply(404, Headers2, Body, Req),
-    Req2;
+    cowboy_req:reply(404, Headers2, Body, Req);
 custom_404_hook(_, _, _, Req) ->
     Req.
 ```

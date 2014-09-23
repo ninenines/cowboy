@@ -15,8 +15,7 @@ init(_, Req, _) ->
 	{loop, Req, 2, 5000, hibernate}.
 
 info(timeout, Req, 0) ->
-	{ok, Req2} = cowboy_req:reply(102, Req),
-	{ok, Req2, 0};
+	{ok, cowboy_req:reply(102, Req), 0};
 info(timeout, Req, Count) ->
 	erlang:send_after(200, self(), timeout),
 	{loop, Req, Count - 1, hibernate}.

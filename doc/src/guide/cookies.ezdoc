@@ -116,22 +116,47 @@ As we said, the client sends cookies with every request.
 But unlike the server, the client only sends the cookie
 name and value.
 
-You can read the value of a cookie.
+Cowboy provides two different ways to read cookies. You
+can either parse them as a list of key/value pairs, or
+match them into a map, optionally applying constraints
+to the values or providing a default if they are missing.
+
+You can parse the cookies and then use standard library
+functions to access individual values.
 
 ``` erlang
-{CookieVal, Req2} = cowboy_req:cookie(<<"lang">>, Req).
+Cookies = cowboy_req:parse_cookies(Req),
+{_, Lang} = lists:keyfind(<<"lang">>, 1, Cookies).
 ```
 
-You can also get a default value returned when the cookie
-isn't set.
+You can match the cookies into a map.
 
 ``` erlang
-{CookieVal, Req2} = cowboy_req:cookie(<<"lang">>, Req, <<"fr">>).
+#{id := ID, lang := Lang} = cowboy_req:match_cookies(Req, [id, lang]).
 ```
 
-And you can obtain all cookies at once as a list of
-key/value tuples.
+You can use constraints to validate the values while matching
+them. The following snippet will crash if the `id` cookie is
+not an integer number or if the `lang` cookie is empty. Additionally
+the `id` cookie value will be converted to an integer term, saving
+you a conversion step.
 
 ``` erlang
-{AllCookies, Req2} = cowboy_req:cookies(Req).
+CookiesMap = cowboy_req:match_cookies(Req, [{id, int}, {lang, nonempty}]).
 ```
+
+Note that if two cookies share the same name, then the map value
+will be a list of the two cookie values.
+
+Read more about ^constraints^.
+
+A default value can be provided. The default will be used
+if the `lang` cookie is not found. It will not be used if
+the cookie is found but has an empty value.
+
+``` erlang
+#{lang := Lang} = cowboy_req:match_cookies(Req, [{lang, [], <<"en-US">>}]).
+```
+
+If no default is provided and the value is missing, the
+query string is deemed invalid and the process will crash.

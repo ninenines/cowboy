@@ -60,7 +60,7 @@ message otherwise.
 
 ``` erlang
 info({reply, Body}, Req, State) ->
-    {ok, Req2} = cowboy_req:reply(200, [], Body, Req),
+    Req2 = cowboy_req:reply(200, [], Body, Req),
     {ok, Req2, State};
 info(_Msg, Req, State) ->
     {loop, Req, State, hibernate}.
@@ -95,13 +95,13 @@ and the loop is stopped by sending an `eof` message.
 
 ``` erlang
 init(_Type, Req, _Opts) ->
-	{ok, Req2} = cowboy_req:chunked_reply(200, [], Req),
+	Req2 = cowboy_req:chunked_reply(200, [], Req),
     {loop, Req2, undefined_state}.
 
 info(eof, Req, State) ->
     {ok, Req, State};
 info({chunk, Chunk}, Req, State) ->
-    ok = cowboy_req:chunk(Chunk, Req),
+    cowboy_req:chunk(Chunk, Req),
     {loop, Req, State};
 info(_Msg, Req, State) ->
     {loop, Req, State}.

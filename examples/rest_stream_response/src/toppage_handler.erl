@@ -20,9 +20,9 @@ content_types_provided(Req, State) ->
 	], Req, State}.
 
 streaming_csv(Req, Table) ->
-	{N, Req1} = cowboy_req:binding(v1, Req, 1),
+	N = cowboy_req:binding(v1, Req, 1),
 	MS = [{{'$1', '$2', '$3'}, [{'==', '$2', N}], ['$$']}],
-	{{stream, result_streamer(Table, MS)}, Req1, Table}.
+	{{stream, result_streamer(Table, MS)}, Req, Table}.
 
 result_streamer(Table, MS) ->
 	fun (Socket, Transport) ->

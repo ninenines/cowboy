@@ -16,17 +16,16 @@ get_text_plain(Req, State) ->
 
 content_types_accepted(Req, State) ->
 	case cowboy_req:method(Req) of
-		{<<"PATCH">>, Req0} ->
-			{[{{<<"text">>, <<"plain">>, []}, patch_text_plain}], Req0, State};
-		{_, Req0} ->
-			{[], Req0, State}
+		<<"PATCH">> ->
+			{[{{<<"text">>, <<"plain">>, []}, patch_text_plain}], Req, State};
+		_ ->
+			{[], Req, State}
 	end.
 
 patch_text_plain(Req, State) ->
 	case cowboy_req:body(Req) of
 		{ok, <<"halt">>, Req0} ->
-			{ok, Req1} = cowboy_req:reply(400, Req0),
-			{halt, Req1, State};
+			{halt, cowboy_req:reply(400, Req0), State};
 		{ok, <<"false">>, Req0} ->
 			{false, Req0, State};
 		{ok, _Body, Req0} ->

@@ -20,38 +20,6 @@ A number of backward incompatible changes are planned. These
 changes are individually small, but together should result
 in a large improvement in usability.
 
-### cowboy_req
-
-The interface of `cowboy_req` will be largely changed. The
-number one complaint about Cowboy today is that you have
-to keep track of the Req whenever you do anything. The new
-interface will minimize that.
-
-All functions will return a single term, excluding the body
-reading functions `body/{1,2}`, `body_qs/{1,2}`, `part/{1,2}`,
-`part_body/{1,2}`.
-
-Of the functions returning a single term, some of them will
-return a Req object. This includes the functions that already
-return Req: `compact/1`, `delete_resp_header/2`, `set_meta/3`,
-`set_resp_body/2`, `set_resp_body_fun/{2,3}`, `set_resp_cookie/4`,
-`set_resp_header/3`, and adds the `chunked_reply/{2,3}` and
-`reply/{2,3,4}` functions to the list.
-
-Of note is that this will allow chaining all the response
-functions if that's what you fancy.
-
-The `parse_header/{2,3}` function will now only return the
-parsed header value, and crash on error. It will also not
-cache the parsed value anymore, except for headers that Cowboy
-requires, like the connection header.
-
-It is unsure what will become of the `qs_val`, `qs_vals`,
-`cookie` and `cookies` functions. The main idea at this point
-is to replace them with a `parse_qs/2` and `parse_cookies/2`
-that would return the parsed list, and let the user decide
-how to access it.
-
 ### init/terminate unification
 
 The first argument of the `init/3` function is too rarely used.

@@ -20,10 +20,10 @@ handle(Req, State) ->
 		false -> {ok, Req, State};
 		true ->
 			case cowboy_req:has_resp_body(Req) of
-				false -> {ok, Req, State};
+				false ->
+					{ok, Req, State};
 				true ->
-					{ok, Req2} = cowboy_req:reply(200, Req),
-					{ok, Req2, State}
+					{ok, cowboy_req:reply(200, Req), State}
 			end
 	end.
 

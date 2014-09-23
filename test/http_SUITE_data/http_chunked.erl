@@ -8,7 +8,7 @@ init({_Transport, http}, Req, _Opts) ->
 	{ok, Req, undefined}.
 
 handle(Req, State) ->
-	{ok, Req2} = cowboy_req:chunked_reply(200, Req),
+	Req2 = cowboy_req:chunked_reply(200, Req),
 	timer:sleep(100),
 	cowboy_req:chunk("chunked_handler\r\n", Req2),
 	timer:sleep(100),

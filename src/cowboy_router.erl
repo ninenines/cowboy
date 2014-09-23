@@ -165,7 +165,8 @@ compile_brackets_split(<< C, Rest/binary >>, Acc, N) ->
 	when Req::cowboy_req:req(), Env::cowboy_middleware:env().
 execute(Req, Env) ->
 	{_, Dispatch} = lists:keyfind(dispatch, 1, Env),
-	[Host, Path] = cowboy_req:get([host, path], Req),
+	Host = cowboy_req:host(Req),
+	Path = cowboy_req:path(Req),
 	case match(Dispatch, Host, Path) of
 		{ok, Handler, HandlerOpts, Bindings, HostInfo, PathInfo} ->
 			Req2 = cowboy_req:set_bindings(HostInfo, PathInfo, Bindings, Req),
@@ -316,7 +317,7 @@ split_host(Host, Acc) ->
 %% Following RFC2396, this function may return path segments containing any
 %% character, including <em>/</em> if, and only if, a <em>/</em> was escaped
 %% and part of a path segment.
--spec split_path(binary()) -> tokens().
+-spec split_path(binary()) -> tokens() | badrequest.
 split_path(<< $/, Path/bits >>) ->
 	split_path(Path, []);
 split_path(_) ->

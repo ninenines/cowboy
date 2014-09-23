@@ -9,8 +9,7 @@ init({_Transport, http}, Req, []) ->
 
 handle(Req, State) ->
 	{Result, Req2} = acc_multipart(Req, []),
-	{ok, Req3} = cowboy_req:reply(200, [], term_to_binary(Result), Req2),
-	{ok, Req3, State}.
+	{ok, cowboy_req:reply(200, [], term_to_binary(Result), Req2), State}.
 
 terminate(_, _, _) ->
 	ok.

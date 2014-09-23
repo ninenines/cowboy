@@ -17,8 +17,7 @@ init(_, Req, _) ->
 info(timeout, Req, State) ->
 	{ok, Body, Req2} = cowboy_req:body(Req),
 	100000 = byte_size(Body),
-	{ok, Req3} = cowboy_req:reply(200, Req2),
-	{ok, Req3, State}.
+	{ok, cowboy_req:reply(200, Req2), State}.
 
 terminate({normal, shutdown}, _, _) ->
 	ok.

@@ -852,9 +852,9 @@ parameterized_tokens_param(Data, Fun) ->
 %% Decoding.
 
 %% @todo Move this to cowlib too I suppose. :-)
--spec ce_identity(binary()) -> {ok, binary()}.
+-spec ce_identity(Data) -> Data when Data::binary().
 ce_identity(Data) ->
-	{ok, Data}.
+	Data.
 
 %% Tests.
 

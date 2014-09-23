@@ -154,7 +154,7 @@ the `handle/2` function like this to send a reply.
 
 ``` erlang
 handle(Req, State=#state{}) ->
-	{ok, Req2} = cowboy_req:reply(200,
+	Req2 = cowboy_req:reply(200,
 		[{<<"content-type">>, <<"text/plain">>}],
 		<<"Hello Erlang!">>,
 		Req),

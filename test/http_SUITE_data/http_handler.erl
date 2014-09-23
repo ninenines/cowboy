@@ -12,8 +12,7 @@ init({_Transport, http}, Req, Opts) ->
 	{ok, Req, #state{headers=Headers, body=Body}}.
 
 handle(Req, State=#state{headers=Headers, body=Body}) ->
-	{ok, Req2} = cowboy_req:reply(200, Headers, Body, Req),
-	{ok, Req2, State}.
+	{ok, cowboy_req:reply(200, Headers, Body, Req), State}.
 
 terminate(_, _, _) ->
 	ok.

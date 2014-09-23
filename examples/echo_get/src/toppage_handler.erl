@@ -11,10 +11,10 @@ init(_Transport, Req, []) ->
 	{ok, Req, undefined}.
 
 handle(Req, State) ->
-	{Method, Req2} = cowboy_req:method(Req),
-	{Echo, Req3} = cowboy_req:qs_val(<<"echo">>, Req2),
-	{ok, Req4} = echo(Method, Echo, Req3),
-	{ok, Req4, State}.
+	Method = cowboy_req:method(Req),
+	#{echo := Echo} = cowboy_req:match_qs(Req, [echo]),
+	Req2 = echo(Method, Echo, Req),
+	{ok, Req2, State}.
 
 echo(<<"GET">>, undefined, Req) ->
 	cowboy_req:reply(400, [], <<"Missing echo parameter.">>, Req);

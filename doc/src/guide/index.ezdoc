@@ -15,6 +15,7 @@ best use of Cowboy for writing powerful web applications.
 
 * ^"The life of a request^http_req_life
 * ^"Routing^routing
+* ^"Constraints^constraints
 * ^"Handling plain HTTP requests^http_handlers
 * ^"The Req object^req
 * ^"Reading the request body^req_body

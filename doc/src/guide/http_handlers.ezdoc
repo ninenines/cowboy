@@ -61,7 +61,7 @@ continue with the handler code, so we use the
 init(_Type, Req, Opts) ->
     case lists:keyfind(lang, 1, Opts) of
         false ->
-            {ok, Req2} = cowboy_req:reply(500, [
+            Req2 = cowboy_req:reply(500, [
                 {<<"content-type">>, <<"text/plain">>}
             ], "Missing option 'lang'.", Req),
             {shutdown, Req2, no_state};
@@ -110,7 +110,7 @@ The following handle function will send a fairly original response.
 
 ``` erlang
 handle(Req, State) ->
-    {ok, Req2} = cowboy_req:reply(200, [
+    Req2 = cowboy_req:reply(200, [
         {<<"content-type">>, <<"text/plain">>}
     ], <<"Hello World!">>, Req),
     {ok, Req2, State}.

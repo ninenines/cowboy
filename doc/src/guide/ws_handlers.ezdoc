@@ -68,16 +68,16 @@ the connection, assuming no correct subprotocol was found.
 ``` erlang
 websocket_init(_Type, Req, _Opts) ->
 	case cowboy_req:parse_header(<<"sec-websocket-protocol">>, Req) of
-		{ok, undefined, Req2} ->
+		undefined ->
 			{ok, Req, #state{}};
-		{ok, Subprotocols, Req2} ->
+		Subprotocols ->
 			case lists:keymember(<<"mychat2">>, 1, Subprotocols) of
 				true ->
-					Req3 = cowboy_req:set_resp_header(<<"sec-websocket-protocol">>,
-						<<"mychat2">>, Req2),
-					{ok, Req3, #state{}};
+					Req2 = cowboy_req:set_resp_header(<<"sec-websocket-protocol">>,
+						<<"mychat2">>, Req),
+					{ok, Req2, #state{}};
 				false ->
-					{shutdown, Req2}
+					{shutdown, Req}
 			end
 	end.
 ```

@@ -9,8 +9,7 @@ init(_, Req, []) ->
 
 handle(Req, State) ->
 	Req2 = multipart(Req),
-	{ok, Req3} = cowboy_req:reply(200, Req2),
-	{ok, Req3, State}.
+	{ok, cowboy_req:reply(200, Req2), State}.
 
 terminate(_, _, _) ->
 	ok.

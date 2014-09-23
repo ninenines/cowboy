@@ -36,37 +36,37 @@ content_types_accepted(Req, State) ->
 
 resource_exists(Req, _State) ->
 	case cowboy_req:binding(paste_id, Req) of
-		{undefined, Req2} ->
-			{true, Req2, index};
-		{PasteID, Req2} ->
+		undefined ->
+			{true, Req, index};
+		PasteID ->
 			case valid_path(PasteID) and file_exists(PasteID) of
-				true -> {true, Req2, PasteID};
-				false -> {false, Req2, PasteID}
+				true -> {true, Req, PasteID};
+				false -> {false, Req, PasteID}
 			end
 	end.
 
 create_paste(Req, State) ->
 	PasteID = new_paste_id(),
-	{ok, [{<<"paste">>, Paste}], Req3} = cowboy_req:body_qs(Req),
+	{ok, [{<<"paste">>, Paste}], Req2} = cowboy_req:body_qs(Req),
 	ok = file:write_file(full_path(PasteID), Paste),
-	case cowboy_req:method(Req3) of
-		{<<"POST">>, Req4} ->
-			{{true, <<$/, PasteID/binary>>}, Req4, State};
-		{_, Req4} ->
-			{true, Req4, State}
+	case cowboy_req:method(Req2) of
+		<<"POST">> ->
+			{{true, <<$/, PasteID/binary>>}, Req2, State};
+		_ ->
+			{true, Req2, State}
 	end.
 
 paste_html(Req, index) ->
 	{read_file("index.html"), Req, index};
 paste_html(Req, Paste) ->
-	{Style, Req2} = cowboy_req:qs_val(<<"lang">>, Req, plain),
-	{format_html(Paste, Style), Req2, Paste}.
+	#{lang := Lang} = cowboy_req:match_qs(Req, [lang]),
+	{format_html(Paste, Lang), Req, Paste}.
 
 paste_text(Req, index) ->
 	{read_file("index.txt"), Req, index};
 paste_text(Req, Paste) ->
-	{Style, Req2} = cowboy_req:qs_val(<<"lang">>, Req, plain),
-	{format_text(Paste, Style), Req2, Paste}.
+	#{lang := Lang} = cowboy_req:match_qs(Req, [lang]),
+	{format_text(Paste, Lang), Req, Paste}.
 
 % Private
 

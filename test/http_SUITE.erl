@@ -592,13 +592,11 @@ onrequest_reply(Config) ->
 
 %% Hook for the above onrequest tests.
 do_onrequest_hook(Req) ->
-	case cowboy_req:qs_val(<<"reply">>, Req) of
-		{undefined, Req2} ->
-			cowboy_req:set_resp_header(<<"server">>, <<"Serenity">>, Req2);
-		{_, Req2} ->
-			{ok, Req3} = cowboy_req:reply(
-				200, [], <<"replied!">>, Req2),
-			Req3
+	case cowboy_req:match_qs(Req, [{reply, [], noreply}]) of
+		#{reply := noreply} ->
+			cowboy_req:set_resp_header(<<"server">>, <<"Serenity">>, Req);
+		_ ->
+			cowboy_req:reply(200, [], <<"replied!">>, Req)
 	end.
 
 onresponse_capitalize(Config) ->
@@ -612,8 +610,7 @@ onresponse_capitalize(Config) ->
 do_onresponse_capitalize_hook(Status, Headers, Body, Req) ->
 	Headers2 = [{cowboy_bstr:capitalize_token(N), V}
 		|| {N, V} <- Headers],
-	{ok, Req2} = cowboy_req:reply(Status, Headers2, Body, Req),
-	Req2.
+	cowboy_req:reply(Status, Headers2, Body, Req).
 
 onresponse_crash(Config) ->
 	ConnPid = gun_open(Config),
@@ -630,9 +627,7 @@ onresponse_reply(Config) ->
 
 %% Hook for the above onresponse tests.
 do_onresponse_hook(_, Headers, _, Req) ->
-	{ok, Req2} = cowboy_req:reply(
-		<<"777 Lucky">>, [{<<"x-hook">>, <<"onresponse">>}|Headers], Req),
-	Req2.
+	cowboy_req:reply(<<"777 Lucky">>, [{<<"x-hook">>, <<"onresponse">>}|Headers], Req).
 
 parse_host(Config) ->
 	ConnPid = gun_open(Config),

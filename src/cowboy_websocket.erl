@@ -78,26 +78,26 @@ upgrade(Req, Env, Handler, HandlerOpts) ->
 -spec websocket_upgrade(#state{}, Req)
 	-> {ok, #state{}, Req} when Req::cowboy_req:req().
 websocket_upgrade(State, Req) ->
-	{ok, ConnTokens, Req2}
-		= cowboy_req:parse_header(<<"connection">>, Req),
+	ConnTokens = cowboy_req:parse_header(<<"connection">>, Req),
 	true = lists:member(<<"upgrade">>, ConnTokens),
 	%% @todo Should probably send a 426 if the Upgrade header is missing.
-	{ok, [<<"websocket">>], Req3}
-		= cowboy_req:parse_header(<<"upgrade">>, Req2),
-	{Version, Req4} = cowboy_req:header(<<"sec-websocket-version">>, Req3),
+	[<<"websocket">>] = cowboy_req:parse_header(<<"upgrade">>, Req),
+	Version = cowboy_req:header(<<"sec-websocket-version">>, Req),
 	IntVersion = list_to_integer(binary_to_list(Version)),
 	true = (IntVersion =:= 7) orelse (IntVersion =:= 8)
 		orelse (IntVersion =:= 13),
-	{Key, Req5} = cowboy_req:header(<<"sec-websocket-key">>, Req4),
+	Key = cowboy_req:header(<<"sec-websocket-key">>, Req),
 	false = Key =:= undefined,
 	websocket_extensions(State#state{key=Key},
-		cowboy_req:set_meta(websocket_version, IntVersion, Req5)).
+		cowboy_req:set_meta(websocket_version, IntVersion, Req)).
 
 -spec websocket_extensions(#state{}, Req)
 	-> {ok, #state{}, Req} when Req::cowboy_req:req().
 websocket_extensions(State, Req) ->
 	case cowboy_req:parse_header(<<"sec-websocket-extensions">>, Req) of
-		{ok, Extensions, Req2} when Extensions =/= undefined ->
+		undefined ->
+			{ok, State, cowboy_req:set_meta(websocket_compress, false, Req)};
+		Extensions ->
 			[Compress] = cowboy_req:get([resp_compress], Req),
 			case lists:keyfind(<<"x-webkit-deflate-frame">>, 1, Extensions) of
 				{<<"x-webkit-deflate-frame">>, []} when Compress =:= true ->
@@ -115,12 +115,10 @@ websocket_extensions(State, Req) ->
 						deflate_frame = true,
 						inflate_state = Inflate,
 						deflate_state = Deflate
-					}, cowboy_req:set_meta(websocket_compress, true, Req2)};
+					}, cowboy_req:set_meta(websocket_compress, true, Req)};
 				_ ->
-					{ok, State, cowboy_req:set_meta(websocket_compress, false, Req2)}
-			end;
-		_ ->
-			{ok, State, cowboy_req:set_meta(websocket_compress, false, Req)}
+					{ok, State, cowboy_req:set_meta(websocket_compress, false, Req)}
+			end
 	end.
 
 -spec handler_init(#state{}, Req, any())
@@ -168,12 +166,8 @@ websocket_handshake(State=#state{
 		false -> [];
 		true -> [{<<"sec-websocket-extensions">>, <<"x-webkit-deflate-frame">>}]
 	end,
-	{ok, Req2} = cowboy_req:upgrade_reply(
-		101,
-		[{<<"upgrade">>, <<"websocket">>},
-		 {<<"sec-websocket-accept">>, Challenge}|
-		 Extensions],
-		Req),
+	Req2 = cowboy_req:upgrade_reply(101, [{<<"upgrade">>, <<"websocket">>},
+		{<<"sec-websocket-accept">>, Challenge}|Extensions], Req),
 	%% Flush the resp_sent message before moving on.
 	receive {cowboy_req, resp_sent} -> ok after 0 -> ok end,
 	State2 = handler_loop_timeout(State),

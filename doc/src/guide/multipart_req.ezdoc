@@ -17,7 +17,7 @@ You can quickly figure out if a multipart message
 has been sent by parsing the `content-type` header.
 
 ``` erlang
-{ok, {<<"multipart">>, <<"form-data">>, _}, Req2}
+{<<"multipart">>, <<"form-data">>, _}
     = cowboy_req:parse_header(<<"content-type">>, Req).
 ```
 

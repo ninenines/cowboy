@@ -37,7 +37,7 @@ You can obtain the body length if it was sent with the
 request.
 
 ``` erlang
-{Length, Req2} = cowboy_req:body_length(Req).
+Length = cowboy_req:body_length(Req).
 ```
 
 The value returned will be `undefined` if the length
@@ -123,7 +123,7 @@ ignored.
 The following example shows how to set both options.
 
 ``` erlang
-{ok, Req2} = cowboy_req:body(Req, [
+{ok, Data, Req2} = cowboy_req:body(Req, [
     {transfer_decode, fun transfer_decode/2, TransferState},
     {content_decode, fun content_decode/1}
 ]).

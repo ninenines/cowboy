@@ -14,16 +14,16 @@ handle(Req, State) ->
 	NewValue = integer_to_list(random:uniform(1000000)),
 	Req2 = cowboy_req:set_resp_cookie(
 		<<"server">>, NewValue, [{path, <<"/">>}], Req),
-	{ClientCookie, Req3} = cowboy_req:cookie(<<"client">>, Req2),
-	{ServerCookie, Req4} = cowboy_req:cookie(<<"server">>, Req3),
+	#{client := ClientCookie, server := ServerCookie}
+		= cowboy_req:match_cookies(Req2, [client, server]),
 	{ok, Body} = toppage_dtl:render([
 		{client, ClientCookie},
 		{server, ServerCookie}
 	]),
-	{ok, Req5} = cowboy_req:reply(200,
+	Req3 = cowboy_req:reply(200,
 		[{<<"content-type">>, <<"text/html">>}],
-		Body, Req4),
-	{ok, Req5, State}.
+		Body, Req2),
+	{ok, Req3, State}.
 
 terminate(_Reason, _Req, _State) ->
 	ok.

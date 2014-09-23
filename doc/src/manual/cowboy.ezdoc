@@ -5,6 +5,12 @@ manipulating Ranch listeners.
 
 :: Types
 
+: fields() = [atom()
+	| {atom(), cowboy_constraints:constraint() | [cowboy_constraints:constraint()]}
+	| {atom(), cowboy_constraints:constraint() | [cowboy_constraints:constraint()], any()}]
+
+Fields for match operations. Constraint(s) and default value are optional.
+
 : http_headers() = [{binary(), iodata()}]
 
 HTTP headers as a list of key/values.

@@ -27,47 +27,22 @@ For example, when streaming the request body, the
 function will return the body by chunks, one at a
 time, until there is none left.
 
-It also caches the result of operations performed
-on the immutable state. That means that some calls
-will give a result much faster when called many times.
-
 :: Overview of the cowboy_req interface
 
-The `cowboy_req` interface is divided in four groups
-of functions, each having a well defined return type
-signature common to the entire group.
+With the exception of functions manipulating the request
+body, all functions return a single value. Depending on
+the function this can be the requested value (method,
+host, path, ...), a boolean (has_body, has_resp_header...)
+a new Req object (set_resp_body, set_resp_header...), or
+simply the atom `ok` (chunk, continue, ...).
 
-The first group, access functions, will always return
-`{Value, Req}`. The group includes all the following
-functions: `binding/{2,3}`, `bindings/1`, `body_length/1`,
-`cookie/{2,3}`, `cookies/1`, `header/{2,3}`, `headers/1`,
-`host/1`, `host_info/1`, `host_url/1`, `meta/{2,3}`,
-`method/1`, `path/1`, `path_info/1`, `peer/1`, `port/1`,
-`qs/1`, `qs_val/{2,3}`, `qs_vals/1`, `url/1`, `version/1`.
+The request body reading functions may return `{Result, Req}`
+or `{Result, Value, Req}`. The functions in this category
+are `body/{1,2}`, `body_qs/{1,2}`, `part/{1,2}`, `part_body/{1,2}`.
 
-The second group, question functions, will always return
-a `boolean()`. The group includes the following three
-functions: `has_body/1`, `has_resp_body/1`, `has_resp_header/2`.
-
-The third group contains the functions that manipulate
-the socket or perform operations that may legitimately fail.
-They may return `{Result, Req}`, `{Result, Value, Req}`
-or `{error, atom()}`. This includes the following functions:
-`body/{1,2}`, `body_qs/{1,2}`, `chunked_reply/{2,3}`,
-`parse_header/{2,3}`, `part/{1,2}`, `part_body/{1,2}`
-and `reply/{2,3,4}`. Finally, the group also includes the
-`chunk/2` and `continue/1` functions which always return `ok`.
-
-The final group modifies the Req object state without
-performing any immediate operations. As these functions
-can't fail, they always return a new `Req` directly.
-This includes the following functions: `compact/1`,
-`delete_resp_header/2`, `set_meta/3`, `set_resp_body/2`,
-`set_resp_body_fun/{2,3}`, `set_resp_cookie/4`, `set_resp_header/3`.
-
-This chapter covers most of the first group, plus a few other
-functions. The next few chapters cover cookies handling, reading
-the request body and sending a response.
+This chapter covers the access functions mainly. Cookies,
+request body and response functions are covered in their
+own chapters.
 
 :: Request
 
@@ -82,7 +57,7 @@ GET, HEAD, OPTIONS, PATCH, POST, PUT, DELETE. Method names
 are case sensitive.
 
 ``` erlang
-{Method, Req2} = cowboy_req:method(Req).
+Method = cowboy_req:method(Req).
 ```
 
 The host, port and path parts of the URL identify the resource
@@ -90,15 +65,15 @@ being accessed. The host and port information may not be
 available if the client uses HTTP/1.0.
 
 ``` erlang
-{Host, Req2} = cowboy_req:host(Req),
-{Port, Req3} = cowboy_req:port(Req2),
-{Path, Req4} = cowboy_req:path(Req3).
+Host = cowboy_req:host(Req),
+Port = cowboy_req:port(Req),
+Path = cowboy_req:path(Req).
 ```
 
 The version used by the client can of course also be obtained.
 
 ``` erlang
-{Version, Req2} = cowboy_req:version(Req).
+Version = cowboy_req:version(Req).
 ```
 
 Do note however that clients claiming to implement one version
@@ -115,21 +90,21 @@ You can fetch a single binding. The value will be `undefined`
 if the binding doesn't exist.
 
 ``` erlang
-{Binding, Req2} = cowboy_req:binding(my_binding, Req).
+Binding = cowboy_req:binding(my_binding, Req).
 ```
 
 If you need a different value when the binding doesn't exist,
 you can change the default.
 
 ``` erlang
-{Binding, Req2} = cowboy_req:binding(my_binding, Req, 42).
+Binding = cowboy_req:binding(my_binding, Req, 42).
 ```
 
 You can also obtain all bindings in one call. They will be
 returned as a list of key/value tuples.
 
 ``` erlang
-{AllBindings, Req2} = cowboy_req:bindings(Req).
+AllBindings = cowboy_req:bindings(Req).
 ```
 
 If you used `...` at the beginning of the route's pattern
@@ -137,7 +112,7 @@ for the host, you can retrieve the matched part of the host.
 The value will be `undefined` otherwise.
 
 ``` erlang
-{HostInfo, Req2} = cowboy_req:host_info(Req).
+HostInfo = cowboy_req:host_info(Req).
 ```
 
 Similarly, if you used `...` at the end of the route's
@@ -145,49 +120,70 @@ pattern for the path, you can retrieve the matched part,
 or get `undefined` otherwise.
 
 ``` erlang
-{PathInfo, Req2} = cowboy_req:path_info(Req).
+PathInfo = cowboy_req:path_info(Req).
 ```
 
 :: Query string
 
-The query string can be obtained directly.
+The raw query string can be obtained directly.
 
 ``` erlang
-{Qs, Req2} = cowboy_req:qs(Req).
+Qs = cowboy_req:qs(Req).
 ```
 
-You can also requests only one value.
+You can parse the query string and then use standard library
+functions to access individual values.
 
 ``` erlang
-{QsVal, Req2} = cowboy_req:qs_val(<<"lang">>, Req).
+QsVals = cowboy_req:parse_qs(Req),
+{_, Lang} = lists:keyfind(<<"lang">>, 1, QsVals).
 ```
 
-If that value is optional, you can define a default to simplify
-your task.
+You can match the query string into a map.
 
 ``` erlang
-{QsVal, Req2} = cowboy_req:qs_val(<<"lang">>, Req, <<"en">>).
+#{id := ID, lang := Lang} = cowboy_req:match_qs(Req, [id, lang]).
 ```
 
-Finally, you can obtain all query string values.
+You can use constraints to validate the values while matching
+them. The following snippet will crash if the `id` value is
+not an integer number or if the `lang` value is empty. Additionally
+the `id` value will be converted to an integer term, saving
+you a conversion step.
 
 ``` erlang
-{AllValues, Req2} = cowboy_req:qs_vals(Req).
+QsMap = cowboy_req:match_qs(Req, [{id, int}, {lang, nonempty}]).
 ```
+
+Note that in the case of duplicate query string keys, the map
+value will become a list of the different values.
+
+Read more about ^constraints^.
+
+A default value can be provided. The default will be used
+if the `lang` key is not found. It will not be used if
+the key is found but has an empty value.
+
+``` erlang
+#{lang := Lang} = cowboy_req:match_qs(Req, [{lang, [], <<"en-US">>}]).
+```
+
+If no default is provided and the value is missing, the
+query string is deemed invalid and the process will crash.
 
 :: Request URL
 
 You can reconstruct the full URL of the resource.
 
 ``` erlang
-{URL, Req2} = cowboy_req:url(Req).
+URL = cowboy_req:url(Req).
 ```
 
 You can also obtain only the base of the URL, excluding the
 path and query string.
 
 ``` erlang
-{BaseURL, Req2} = cowboy_req:host_url(Req).
+BaseURL = cowboy_req:host_url(Req).
 ```
 
 :: Headers
@@ -198,57 +194,43 @@ or parsed into a more meaningful representation.
 This will get the string value of a header.
 
 ``` erlang
-{HeaderVal, Req2} = cowboy_req:header(<<"content-type">>, Req).
+HeaderVal = cowboy_req:header(<<"content-type">>, Req).
 ```
 
 You can of course set a default in case the header is missing.
 
 ``` erlang
-{HeaderVal, Req2}
+HeaderVal
     = cowboy_req:header(<<"content-type">>, Req, <<"text/plain">>).
 ```
 
 And also obtain all headers.
 
 ``` erlang
-{AllHeaders, Req2} = cowboy_req:headers(Req).
+AllHeaders = cowboy_req:headers(Req).
 ```
 
 To parse the previous header, simply call `parse_header/{2,3}`
-where you would call `header/{2,3}` otherwise. Note that the
-return value changes and includes the result of the operation
-as the first element of the returned tuple. A successful parse
-returns `ok`.
+where you would call `header/{2,3}` otherwise.
 
 ``` erlang
-{ok, ParsedVal, Req2} = cowboy_req:parse_header(<<"content-type">>, Req).
+ParsedVal = cowboy_req:parse_header(<<"content-type">>, Req).
 ```
 
-When Cowboy doesn't know how to parse the given header, the
-result of the operation will be `undefined` and the string value
-will be returned instead.
-
-``` erlang
-{undefined, HeaderVal, Req2}
-    = cowboy_req:parse_header(<<"unicorn-header">>, Req).
-```
-
-When parsing fails, `{error, Reason}` is returned instead.
+Cowboy will crash if it doesn't know how to parse the given
+header, or if the value is invalid.
 
 You can of course define a default value. Note that the default
 value you specify here is the parsed value you'd like to get
 by default.
 
 ``` erlang
-{ok, ParsedVal, Req2}
-    = cowboy_req:parse_header(<<"content-type">>, Req,
-    {<<"text">>, <<"plain">>, []}).
+ParsedVal = cowboy_req:parse_header(<<"content-type">>, Req,
+	{<<"text">>, <<"plain">>, []}).
 ```
 
 The list of known headers and default values is defined in the
-manual. Also note that the result of parsing is cached, so
-calling this function multiple times for the same values will
-not have a significant performance impact.
+manual.
 
 :: Meta
 
@@ -260,13 +242,13 @@ This will get a meta value. The returned value will be `undefined`
 if it isn't defined.
 
 ``` erlang
-{MetaVal, Req2} = cowboy_req:meta(websocket_version, Req).
+MetaVal = cowboy_req:meta(websocket_version, Req).
 ```
 
 You can change the default value if needed.
 
 ``` erlang
-{MetaVal, Req2} = cowboy_req:meta(websocket_version, Req, 13).
+MetaVal = cowboy_req:meta(websocket_version, Req, 13).
 ```
 
 You can also define your own meta values. The name must be
@@ -283,7 +265,7 @@ not necessarily the actual IP and port of the client, but
 rather the one of the machine that connected to the server.
 
 ``` erlang
-{{IP, Port}, Req2} = cowboy_req:peer(Req).
+{IP, Port} = cowboy_req:peer(Req).
 ```
 
 :: Reducing the memory footprint

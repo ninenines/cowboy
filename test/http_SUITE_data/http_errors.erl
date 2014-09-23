@@ -5,18 +5,18 @@
 -export([init/3, handle/2, terminate/3]).
 
 init({_Transport, http}, Req, _Opts) ->
-    {Case, Req1} = cowboy_req:qs_val(<<"case">>, Req),
-    case_init(Case, Req1).
+	#{'case' := Case} = cowboy_req:match_qs(Req, ['case']),
+    case_init(Case, Req).
 
 case_init(<<"init_before_reply">> = Case, _Req) ->
 	cowboy_error_h:ignore(?MODULE, case_init, 2),
     erlang:error(Case);
 case_init(<<"init_after_reply">> = Case, Req) ->
 	cowboy_error_h:ignore(?MODULE, case_init, 2),
-    {ok, _Req1} = cowboy_req:reply(200, [], "http_handler_crashes", Req),
+    _ = cowboy_req:reply(200, [], "http_handler_crashes", Req),
     erlang:error(Case);
 case_init(<<"init_reply_handle_error">> = Case, Req) ->
-    {ok, Req1} = cowboy_req:reply(200, [], "http_handler_crashes", Req),
+    Req1 = cowboy_req:reply(200, [], "http_handler_crashes", Req),
     {ok, Req1, Case};
 case_init(<<"handle_before_reply">> = Case, Req) ->
     {ok, Req, Case};
@@ -31,7 +31,7 @@ handle(_Req, <<"handle_before_reply">> = Case) ->
     erlang:error(Case);
 handle(Req, <<"handle_after_reply">> = Case) ->
 	cowboy_error_h:ignore(?MODULE, handle, 2),
-    {ok, _Req1} = cowboy_req:reply(200, [], "http_handler_crashes", Req),
+    _ = cowboy_req:reply(200, [], "http_handler_crashes", Req),
     erlang:error(Case).
 
 terminate(_, _, _) ->

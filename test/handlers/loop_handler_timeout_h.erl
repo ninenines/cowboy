@@ -16,8 +16,7 @@ init(_, Req, _) ->
 	{loop, Req, undefined, 200, hibernate}.
 
 info(timeout, Req, State) ->
-	{ok, Req2} = cowboy_req:reply(500, Req),
-	{ok, Req2, State}.
+	{ok, cowboy_req:reply(500, Req), State}.
 
 terminate({normal, timeout}, _, _) ->
 	ok.

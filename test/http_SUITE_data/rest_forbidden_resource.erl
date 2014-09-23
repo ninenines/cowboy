@@ -27,5 +27,4 @@ to_text(Req, State) ->
 	{<<"This is REST!">>, Req, State}.
 
 from_text(Req, State) ->
-	{Path, Req2} = cowboy_req:path(Req),
-	{{true, Path}, Req2, State}.
+	{{true, cowboy_req:path(Req)}, Req, State}.

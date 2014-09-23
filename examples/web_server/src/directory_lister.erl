@@ -12,14 +12,14 @@ execute(Req, Env) ->
 	end.
 
 redirect_directory(Req, Env) ->
-	{Path, Req1} = cowboy_req:path_info(Req),
+	Path = cowboy_req:path_info(Req),
 	Path1 = << <<S/binary, $/>> || S <- Path >>,
 	{handler_opts, {_, _, _, Extra}} = lists:keyfind(handler_opts, 1, Env),
 	{dir_handler, DirHandler} = lists:keyfind(dir_handler, 1, Extra),
 	FullPath = resource_path(Path1),
 	case valid_path(Path) and filelib:is_dir(FullPath) of
-		true -> handle_directory(Req1, Env, Path1, FullPath, DirHandler);
-		false -> {ok, Req1, Env}
+		true -> handle_directory(Req, Env, Path1, FullPath, DirHandler);
+		false -> {ok, Req, Env}
 	end.
 
 handle_directory(Req, Env, Prefix, Path, DirHandler) ->

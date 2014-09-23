@@ -87,14 +87,14 @@ rest_init_dir(Req, Path, Extra) when is_list(Path) ->
 	rest_init_dir(Req, list_to_binary(Path), Extra);
 rest_init_dir(Req, Path, Extra) ->
 	Dir = fullpath(filename:absname(Path)),
-	{PathInfo, Req2} = cowboy_req:path_info(Req),
+	PathInfo = cowboy_req:path_info(Req),
 	Filepath = filename:join([Dir|PathInfo]),
 	Len = byte_size(Dir),
 	case fullpath(Filepath) of
 		<< Dir:Len/binary, $/, _/binary >> ->
-			rest_init_info(Req2, Filepath, Extra);
+			rest_init_info(Req, Filepath, Extra);
 		_ ->
-			{ok, Req2, error}
+			{ok, Req, error}
 	end.
 
 fullpath(Path) ->

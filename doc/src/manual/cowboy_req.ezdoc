@@ -6,21 +6,19 @@ and respond to requests.
 The functions in this module follow patterns for their return types,
 based on the kind of function.
 
-* access: `{Value, Req}`
-* action: `{Result, Req} | {Result, Value, Req} | {error, atom()}`
+* access: `Value`
+* action: `ok | {Result, Req} | {Result, Value, Req}`
 * modification: `Req`
 * question: `boolean()`
 
-The only exception is the `chunk/2` function which may return `ok`.
-
 Whenever `Req` is returned, you must use this returned value and
 ignore any previous you may have had. This value contains various
-state informations which are necessary for Cowboy to do some lazy
-evaluation or cache results where appropriate.
+values which are necessary for Cowboy to keep track of the request
+and response states.
 
 All functions which perform an action should only be called once.
 This includes reading the request body or replying. Cowboy will
-generally throw an error on the second call.
+throw an error on the second call when it detects suspicious behavior.
 
 It is highly discouraged to pass the Req object to another process.
 Doing so and calling `cowboy_req` functions from it leads to
@@ -54,7 +52,7 @@ the function descriptions below.
 :: Request related exports
 
 : binding(Name, Req) -> binding(Name, Req, undefined)
-: binding(Name, Req, Default) -> {Value, Req2}
+: binding(Name, Req, Default) -> Value
 
 Types:
 
@@ -68,7 +66,7 @@ By default the value is a binary, however constraints may change
 the type of this value (for example automatically converting
 numbers to integer).
 
-: bindings(Req) -> {[{Name, Value}], Req2}
+: bindings(Req) -> [{Name, Value}]
 
 Types:
 
@@ -81,30 +79,8 @@ By default the value is a binary, however constraints may change
 the type of this value (for example automatically converting
 numbers to integer).
 
-: cookie(Name, Req) -> cookie(Name, Req, undefined)
-: cookie(Name, Req, Default) -> {Value, Req2}
-
-Types:
-
-* Name = binary()
-* Default = any()
-* Value = binary() | Default
-
-Return the value for the given cookie.
-
-Cookie names are case sensitive.
-
-: cookies(Req) -> {[{Name, Value}], Req2}
-
-Types:
-
-* Name = binary()
-* Value = binary()
-
-Return all cookies.
-
 : header(Name, Req) -> header(Name, Req, undefined)
-: header(Name, Req, Default) -> {Value, Req2}
+: header(Name, Req, Default) -> Value
 
 Types:
 
@@ -117,7 +93,7 @@ Return the value for the given header.
 While header names are case insensitive, this function expects
 the name to be a lowercase binary.
 
-: headers(Req) -> {Headers, Req2}
+: headers(Req) -> Headers
 
 Types:
 
@@ -125,7 +101,7 @@ Types:
 
 Return all headers.
 
-: host(Req) -> {Host, Req2}
+: host(Req) -> Host
 
 Types:
 
@@ -133,7 +109,7 @@ Types:
 
 Return the requested host.
 
-: host_info(Req) -> {HostInfo, Req2}
+: host_info(Req) -> HostInfo
 
 Types:
 
@@ -141,7 +117,7 @@ Types:
 
 Return the extra tokens from matching against `...` during routing.
 
-: host_url(Req) -> {HostURL, Req2}
+: host_url(Req) -> HostURL
 
 Types:
 
@@ -153,8 +129,57 @@ This function will always return `undefined` until the
 `cowboy_router` middleware has been executed. This includes
 the `onrequest` hook.
 
+: match_cookies(Req, Fields) -> Map
+
+Types:
+
+* Fields = cowboy:fields()
+* Map = map()
+
+Match cookies against the given fields.
+
+Cowboy will only return the cookie values specified in the
+fields list, and ignore all others. Fields can be either
+the name of the cookie requested; the name along with a
+list of constraints; or the name, a list of constraints
+and a default value in case the cookie is missing.
+
+This function will crash if the cookie is missing and no
+default value is provided. This function will also crash
+if a constraint fails.
+
+The name of the cookie must be provided as an atom. The
+key of the returned map will be that atom. The value may
+be converted through the use of constraints, making this
+function able to extract, validate and convert values all
+in one step.
+
+: match_qs(Req, Fields) -> Map
+
+Types:
+
+* Fields = cowboy:fields()
+* Map = map()
+
+Match the query string against the given fields.
+
+Cowboy will only return the query string values specified
+in the fields list, and ignore all others. Fields can be
+either the key requested; the key along with a list of
+constraints; or the key, a list of constraints and a
+default value in case the key is missing.
+
+This function will crash if the key is missing and no
+default value is provided. This function will also crash
+if a constraint fails.
+
+The key must be provided as an atom. The key of the
+returned map will be that atom. The value may be converted
+through the use of constraints, making this function able
+to extract, validate and convert values all in one step.
+
 : meta(Name, Req) -> meta(Name, Req, undefined)
-: meta(Name, Req, Default) -> {Value, Req2}
+: meta(Name, Req, Default) -> Value
 
 Types:
 
@@ -164,7 +189,7 @@ Types:
 
 Return metadata about the request.
 
-: method(Req) -> {Method, Req2}
+: method(Req) -> Method
 
 Types:
 
@@ -174,16 +199,25 @@ Return the method.
 
 Methods are case sensitive. Standard methods are always uppercase.
 
-: parse_header(Name, Req) ->
-: parse_header(Name, Req, Default) -> {ok, ParsedValue, Req2}
-	| {undefined, Value, Req2} | {error, badarg}
+: parse_cookies(Req) -> [{Name, Value}]
+
+Types:
+
+* Name = binary()
+* Value = binary()
+
+Parse and return all cookies.
+
+Cookie names are case sensitive.
+
+: parse_header(Name, Req) -> see below
+: parse_header(Name, Req, Default) -> ParsedValue | Default
 
 Types:
 
 * Name = binary()
 * Default = any()
 * ParsedValue - see below
-* Value = any()
 
 Parse the given header.
 
@@ -196,6 +230,8 @@ following table summarizes the default values used.
 
 ||	Header name			Default value
 |
+|	content-length		`0`
+|	cookie				`[]`
 |	transfer-encoding	`[<<"identity">>]`
 |	Any other header	`undefined`
 
@@ -241,8 +277,8 @@ except the value of the charset parameter, which is case insensitive.
 All other values are case insensitive and will be returned as lowercase.
 
 The headers accept, accept-encoding and cookie headers can return
-an empty list. Others will return `{error, badarg}` if the header
-value is empty.
+an empty list. Some other headers are expected to have a value if provided
+and may crash if the value is missing.
 
 The authorization header parsing code currently only supports basic
 HTTP authentication. The `Credentials` type is thus `{Username, Password}`
@@ -257,7 +293,21 @@ The range header value `Range` can take three forms:
 An `undefined` tuple will be returned if Cowboy doesn't know how
 to parse the requested header.
 
-: path(Req) -> {Path, Req2}
+: parse_qs(Req) -> [{Name, Value}]
+
+Types:
+
+* Name = binary()
+* Value = binary() | true
+
+Return the request's query string as a list of tuples.
+
+The atom `true` is returned for keys which have no value.
+Keys with no value are different from keys with an empty
+value in that they do not have a `=` indicating the presence
+of a value.
+
+: path(Req) -> Path
 
 Types:
 
@@ -265,7 +315,7 @@ Types:
 
 Return the requested path.
 
-: path_info(Req) -> {PathInfo, Req2}
+: path_info(Req) -> PathInfo
 
 Types:
 
@@ -273,7 +323,7 @@ Types:
 
 Return the extra tokens from matching against `...` during routing.
 
-: peer(Req) -> {Peer, Req2}
+: peer(Req) -> Peer
 
 Types:
 
@@ -281,7 +331,7 @@ Types:
 
 Return the client's IP address and port number.
 
-: port(Req) -> {Port, Req2}
+: port(Req) -> Port
 
 Types:
 
@@ -293,39 +343,13 @@ The port returned by this function is obtained by parsing
 the host header. It may be different than the actual port
 the client used to connect to the Cowboy server.
 
-: qs(Req) -> {QueryString, Req2}
+: qs(Req) -> QueryString
 
 Types:
 
 * QueryString = binary()
 
 Return the request's query string.
-
-: qs_val(Name, Req) -> qs_val(Name, Req, undefined)
-: qs_val(Name, Req, Default) -> {Value, Req2}
-
-Types:
-
-* Name = binary()
-* Default = any()
-* Value = binary() | true
-
-Return a value from the request's query string.
-
-The value `true` will be returned when the name was found
-in the query string without an associated value.
-
-: qs_vals(Req) -> {[{Name, Value}], Req2}
-
-Types:
-
-* Name = binary()
-* Value = binary() | true
-
-Return the request's query string as a list of tuples.
-
-The value `true` will be returned when a name was found
-in the query string without an associated value.
 
 : set_meta(Name, Value, Req) -> Req2
 
@@ -338,7 +362,7 @@ Set metadata about the request.
 
 An existing value will be overwritten.
 
-: url(Req) -> {URL, Req2}
+: url(Req) -> URL
 
 Types:
 
@@ -350,7 +374,7 @@ This function will always return `undefined` until the
 `cowboy_router` middleware has been executed. This includes
 the `onrequest` hook.
 
-: version(Req) -> {Version, Req2}
+: version(Req) -> Version
 
 Types:
 
@@ -361,7 +385,7 @@ Return the HTTP version used for this request.
 :: Request body related exports
 
 : body(Req) -> body(Req, [])
-: body(Req, Opts) -> {ok, Data, Req2} | {more, Data, Req2} | {error, Reason}
+: body(Req, Opts) -> {ok, Data, Req2} | {more, Data, Req2}
 
 Types:
 
@@ -400,7 +424,7 @@ the content-length header if it wasn't already there.
 This function can only be called once. Cowboy will not cache
 the result of this call.
 
-: body_length(Req) -> {Length, Req2}
+: body_length(Req) -> Length
 
 Types:
 
@@ -414,8 +438,7 @@ is present.
 
 : body_qs(Req) -> body_qs(Req,
 	[{length, 64000}, {read_length, 64000}, {read_timeout, 5000}])
-: body_qs(Req, Opts) -> {ok, [{Name, Value}], Req2}
-	| {badlength, Req2} | {error, Reason}
+: body_qs(Req, Opts) -> {ok, [{Name, Value}], Req2} | {badlength, Req2}
 
 Types:
 
@@ -501,7 +524,7 @@ it cannot be read again.
 
 :: Response related exports
 
-: chunk(Data, Req) -> ok | {error, Reason}
+: chunk(Data, Req) -> ok
 
 Types:
 
@@ -520,7 +543,7 @@ without wrapping it in an HTTP/1.1 chunk, providing
 compatibility with older clients.
 
 : chunked_reply(StatusCode, Req) -> chunked_reply(StatusCode, [], Req)
-: chunked_reply(StatusCode, Headers, Req) -> {ok, Req2}
+: chunked_reply(StatusCode, Headers, Req) -> Req2
 
 Types:
 
@@ -543,7 +566,7 @@ compatibility with older clients.
 This function can only be called once, with the exception
 of overriding the response in the `onresponse` hook.
 
-: continue(Req) -> ok | {error, Reason}
+: continue(Req) -> ok
 
 Types:
 
@@ -591,7 +614,7 @@ the name to be a lowercase binary.
 
 : reply(StatusCode, Req) -> reply(StatusCode, [], Req)
 : reply(StatusCode, Headers, Req) - see below
-: reply(StatusCode, Headers, Body, Req) -> {ok, Req2}
+: reply(StatusCode, Headers, Body, Req) -> Req2
 
 Types:
 
@@ -657,7 +680,7 @@ arguments. Only send and sendfile operations are supported.
 Types:
 
 * Fun = fun((ChunkFun) -> ok)
-* ChunkFun = fun((iodata()) -> ok | {error, atom()})
+* ChunkFun = fun((iodata()) -> ok)
 
 Set a fun for sending the response body using chunked transfer-encoding.
 

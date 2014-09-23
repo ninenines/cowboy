@@ -12,12 +12,11 @@ init(_Transport, _Req, []) ->
 	{upgrade, protocol, cowboy_rest}.
 
 is_authorized(Req, State) ->
-	{ok, Auth, Req1} = cowboy_req:parse_header(<<"authorization">>, Req),
-	case Auth of
+	case cowboy_req:parse_header(<<"authorization">>, Req) of
 		{<<"basic">>, {User = <<"Alladin">>, <<"open sesame">>}} ->
-			{true, Req1, User};
+			{true, Req, User};
 		_ ->
-			{{false, <<"Basic realm=\"cowboy\"">>}, Req1, State}
+			{{false, <<"Basic realm=\"cowboy\"">>}, Req, State}
 	end.
 
 content_types_provided(Req, State) ->

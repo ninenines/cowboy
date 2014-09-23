@@ -25,8 +25,7 @@ handle(Req, State=#state{headers=_Headers, body=Body, reply=Reply}) ->
 			SFun2 = fun(SendFun) -> lists:foreach(SendFun, Body) end,
 			cowboy_req:set_resp_body_fun(chunked, SFun2, Req)
 	end,
-	{ok, Req3} = cowboy_req:reply(200, Req2),
-	{ok, Req3, State}.
+	{ok, cowboy_req:reply(200, Req2), State}.
 
 terminate(_, _, _) ->
 	ok.
