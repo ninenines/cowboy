@@ -104,7 +104,7 @@ compile_rules(<< $:, Rest/binary >>, S, Segments, Rules, <<>>) ->
 	Name = binary_to_atom(NameBin, utf8),
 	compile_rules(Rest2, S, Segments, Rules, Name);
 compile_rules(<< $:, _/binary >>, _, _, _, _) ->
-	erlang:error(badarg);
+	error(badarg);
 compile_rules(<< $[, $., $., $., $], Rest/binary >>, S, Segments, Rules, Acc)
 		when Acc =:= <<>> ->
 	compile_rules(Rest, S, ['...'|Segments], Rules, Acc);
@@ -116,17 +116,17 @@ compile_rules(<< $[, Rest/binary >>, S, Segments, Rules, <<>>) ->
 	compile_brackets(Rest, S, Segments, Rules);
 %% Open bracket in the middle of a segment.
 compile_rules(<< $[, _/binary >>, _, _, _, _) ->
-	erlang:error(badarg);
+	error(badarg);
 %% Missing an open bracket.
 compile_rules(<< $], _/binary >>, _, _, _, _) ->
-	erlang:error(badarg);
+	error(badarg);
 compile_rules(<< C, Rest/binary >>, S, Segments, Rules, Acc) ->
 	compile_rules(Rest, S, Segments, Rules, << Acc/binary, C >>).
 
 %% Everything past $: until the segment separator ($. for hosts,
 %% $/ for paths) or $[ or $] or end of binary is the binding name.
 compile_binding(<<>>, _, <<>>) ->
-	erlang:error(badarg);
+	error(badarg);
 compile_binding(Rest = <<>>, _, Acc) ->
 	{Acc, Rest};
 compile_binding(Rest = << C, _/binary >>, S, Acc)
@@ -144,7 +144,7 @@ compile_brackets(Rest, S, Segments, Rules) ->
 
 %% Missing a close bracket.
 compile_brackets_split(<<>>, _, _) ->
-	erlang:error(badarg);
+	error(badarg);
 %% Make sure we don't confuse the closing bracket we're looking for.
 compile_brackets_split(<< C, Rest/binary >>, Acc, N) when C =:= $[ ->
 	compile_brackets_split(Rest, << Acc/binary, C >>, N + 1);
