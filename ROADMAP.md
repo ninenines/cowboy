@@ -45,9 +45,6 @@ the halt tuple. The error tuple will therefore be removed.
 
 ### Hooks
 
-The `onrequest` hook will be removed. It can easily be replaced
-by a middleware.
-
 The interface of the `onresponse` hook will change. There has
 been a number of issues and added complexity with the current
 interface that warrant fixing. The main problem is that the

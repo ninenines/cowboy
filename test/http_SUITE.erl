@@ -34,7 +34,6 @@ all() ->
 		{group, https},
 		{group, http_compress},
 		{group, https_compress},
-		{group, onrequest},
 		{group, onresponse},
 		{group, onresponse_capitalize},
 		{group, parse_host},
@@ -43,7 +42,6 @@ all() ->
 
 groups() ->
 	Tests = cowboy_test:all(?MODULE) -- [
-		onrequest, onrequest_reply, onrequest_hook,
 		onresponse_crash, onresponse_reply, onresponse_capitalize,
 		parse_host, set_env_dispatch
 	],
@@ -52,10 +50,6 @@ groups() ->
 		{https, [parallel], Tests},
 		{http_compress, [parallel], Tests},
 		{https_compress, [parallel], Tests},
-		{onrequest, [parallel], [
-			onrequest,
-			onrequest_reply
-		]},
 		{onresponse, [parallel], [
 			onresponse_crash,
 			onresponse_reply
@@ -98,15 +92,6 @@ init_per_group(Name = https_compress, Config) ->
 		{compress, true}
 	], Config);
 %% Most, if not all of these, should be in separate test suites.
-init_per_group(onrequest, Config) ->
-	{ok, _} = cowboy:start_http(onrequest, 100, [{port, 0}], [
-		{env, [{dispatch, init_dispatch(Config)}]},
-		{max_keepalive, 50},
-		{onrequest, fun do_onrequest_hook/1},
-		{timeout, 500}
-	]),
-	Port = ranch:get_port(onrequest),
-	[{type, tcp}, {port, Port}, {opts, []}|Config];
 init_per_group(onresponse, Config) ->
 	{ok, _} = cowboy:start_http(onresponse, 100, [{port, 0}], [
 		{env, [{dispatch, init_dispatch(Config)}]},
@@ -573,31 +558,6 @@ nc_rand(Config) ->
 
 nc_zero(Config) ->
 	do_nc(Config, "/dev/zero").
-
-onrequest(Config) ->
-	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, "/"),
-	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
-	{<<"server">>, <<"Serenity">>} = lists:keyfind(<<"server">>, 1, Headers),
-	{ok, <<"http_handler">>} = gun:await_body(ConnPid, Ref),
-	ok.
-
-onrequest_reply(Config) ->
-	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, "/?reply=1"),
-	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
-	{<<"server">>, <<"Cowboy">>} = lists:keyfind(<<"server">>, 1, Headers),
-	{ok, <<"replied!">>} = gun:await_body(ConnPid, Ref),
-	ok.
-
-%% Hook for the above onrequest tests.
-do_onrequest_hook(Req) ->
-	case cowboy_req:match_qs(Req, [{reply, [], noreply}]) of
-		#{reply := noreply} ->
-			cowboy_req:set_resp_header(<<"server">>, <<"Serenity">>, Req);
-		_ ->
-			cowboy_req:reply(200, [], <<"replied!">>, Req)
-	end.
 
 onresponse_capitalize(Config) ->
 	Client = raw_open(Config),

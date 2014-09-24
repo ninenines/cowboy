@@ -24,7 +24,7 @@
 -export([system_code_change/4]).
 
 %% Internal request process.
--export([request_init/11]).
+-export([request_init/10]).
 -export([resume/5]).
 -export([reply/4]).
 -export([stream_reply/3]).
@@ -59,7 +59,6 @@
 	buffer = <<>> :: binary(),
 	middlewares,
 	env,
-	onrequest,
 	onresponse,
 	peer,
 	zdef,
@@ -70,7 +69,6 @@
 
 -type opts() :: [{env, cowboy_middleware:env()}
 	| {middlewares, [module()]}
-	| {onrequest, cowboy:onrequest_fun()}
 	| {onresponse, cowboy:onresponse_fun()}].
 -export_type([opts/0]).
 
@@ -97,13 +95,12 @@ init(Parent, Ref, Socket, Transport, Opts) ->
 	{ok, Peer} = Transport:peername(Socket),
 	Middlewares = get_value(middlewares, Opts, [cowboy_router, cowboy_handler]),
 	Env = [{listener, Ref}|get_value(env, Opts, [])],
-	OnRequest = get_value(onrequest, Opts, undefined),
 	OnResponse = get_value(onresponse, Opts, undefined),
 	Zdef = cow_spdy:deflate_init(),
 	Zinf = cow_spdy:inflate_init(),
 	ok = ranch:accept_ack(Ref),
 	loop(#state{parent=Parent, socket=Socket, transport=Transport,
-		middlewares=Middlewares, env=Env, onrequest=OnRequest,
+		middlewares=Middlewares, env=Env,
 		onresponse=OnResponse, peer=Peer, zdef=Zdef, zinf=Zinf}).
 
 loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
@@ -257,11 +254,11 @@ handle_frame(State, {syn_stream, StreamID, AssocToStreamID,
 %% Erlang does not allow us to control the priority of processes
 %% so we ignore that value entirely.
 handle_frame(State=#state{middlewares=Middlewares, env=Env,
-		onrequest=OnRequest, onresponse=OnResponse, peer=Peer},
+		onresponse=OnResponse, peer=Peer},
 		{syn_stream, StreamID, _, IsFin, _, _,
 		Method, _, Host, Path, Version, Headers}) ->
 	Pid = spawn_link(?MODULE, request_init, [
-		{self(), StreamID}, Peer, OnRequest, OnResponse,
+		{self(), StreamID}, Peer, OnResponse,
 		Env, Middlewares, Method, Host, Path, Version, Headers
 	]),
 	new_child(State, StreamID, Pid, IsFin);
@@ -385,11 +382,10 @@ delete_child(Pid, State=#state{children=Children}) ->
 %% Request process.
 
 -spec request_init(socket(), {inet:ip_address(), inet:port_number()},
-		cowboy:onrequest_fun(), cowboy:onresponse_fun(),
-		cowboy_middleware:env(), [module()],
+		cowboy:onresponse_fun(), cowboy_middleware:env(), [module()],
 		binary(), binary(), binary(), binary(), [{binary(), binary()}])
 	-> ok.
-request_init(FakeSocket, Peer, OnRequest, OnResponse,
+request_init(FakeSocket, Peer, OnResponse,
 		Env, Middlewares, Method, Host, Path, Version, Headers) ->
 	{Host2, Port} = cow_http:parse_fullhost(Host),
 	{Path2, Qs} = cow_http:parse_fullpath(Path),
@@ -397,16 +393,7 @@ request_init(FakeSocket, Peer, OnRequest, OnResponse,
 	Req = cowboy_req:new(FakeSocket, ?MODULE, Peer,
 		Method, Path2, Qs, Version2, Headers,
 		Host2, Port, <<>>, true, false, OnResponse),
-	case OnRequest of
-		undefined ->
-			execute(Req, Env, Middlewares);
-		_ ->
-			Req2 = OnRequest(Req),
-			case cowboy_req:get(resp_state, Req2) of
-				waiting -> execute(Req2, Env, Middlewares);
-				_ -> ok
-			end
-	end.
+	execute(Req, Env, Middlewares).
 
 -spec execute(cowboy_req:req(), cowboy_middleware:env(), [module()])
 	-> ok.

@@ -6,7 +6,6 @@ The `cowboy_spdy` module implements SPDY/3 as a Ranch protocol.
 
 : opts() = [{env, cowboy_middleware:env()}
 	| {middlewares, [module()]}
-	| {onrequest, cowboy:onrequest_fun()}
 	| {onresponse, cowboy:onresponse_fun()}]
 
 Configuration for the SPDY protocol handler.
@@ -29,10 +28,6 @@ Initial middleware environment.
 : middlewares ([cowboy_router, cowboy_handler])
 
 List of middlewares to execute for every requests.
-
-: onrequest (undefined)
-
-Fun called every time a request is received.
 
 : onresponse (undefined)
 

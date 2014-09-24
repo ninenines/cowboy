@@ -126,8 +126,7 @@ Types:
 Return the requested URL excluding the path component.
 
 This function will always return `undefined` until the
-`cowboy_router` middleware has been executed. This includes
-the `onrequest` hook.
+`cowboy_router` middleware has been executed.
 
 : match_cookies(Req, Fields) -> Map
 
@@ -371,8 +370,7 @@ Types:
 Return the requested URL.
 
 This function will always return `undefined` until the
-`cowboy_router` middleware has been executed. This includes
-the `onrequest` hook.
+`cowboy_router` middleware has been executed.
 
 : version(Req) -> Version
 

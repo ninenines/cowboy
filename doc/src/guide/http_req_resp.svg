@@ -65,15 +65,15 @@
      inkscape:pageopacity="1"
      inkscape:pageshadow="2"
      inkscape:zoom="1.4142136"
-     inkscape:cx="229.71447"
+     inkscape:cx="82.28271"
      inkscape:cy="764.83183"
      inkscape:document-units="px"
      inkscape:current-layer="layer1"
      showgrid="false"
-     inkscape:window-width="1920"
-     inkscape:window-height="1014"
+     inkscape:window-width="2560"
+     inkscape:window-height="1402"
      inkscape:window-x="0"
-     inkscape:window-y="33"
+     inkscape:window-y="38"
      inkscape:window-maximized="1"
      inkscape:snap-global="true"
      showguides="true">
@@ -93,7 +93,7 @@
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title></dc:title>
+        <dc:title />
       </cc:Work>
     </rdf:RDF>
   </metadata>
@@ -101,42 +101,28 @@
      inkscape:label="Layer 1"
      inkscape:groupmode="layer"
      id="layer1">
-    <use
-       x="0"
-       y="0"
-       xlink:href="#path5757"
-       id="use5779"
-       transform="matrix(0.59961275,-0.80029029,0.80029029,0.59961275,-103.8895,437.48518)"
-       width="744.09448"
-       height="1052.3622"
-       inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
-       inkscape:export-xdpi="89.926643"
-       inkscape:export-ydpi="89.926643" />
-    <use
-       x="0"
-       y="0"
-       xlink:href="#path5757"
-       id="use5777"
-       transform="matrix(0.92125726,-0.38895379,0.38895379,0.92125726,-85.14742,176.0134)"
-       width="744.09448"
-       height="1052.3622"
-       inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
-       inkscape:export-xdpi="89.926643"
-       inkscape:export-ydpi="89.926643" />
     <path
-       style="fill:none;stroke:#6d8e41;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;stroke-miterlimit:4;stroke-dasharray:2, 4;stroke-dashoffset:0"
-       d="m 188.5,231.36218 187,79"
-       id="path5757"
-       inkscape:connector-curvature="0"
-       inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
+       inkscape:export-ydpi="89.926643"
        inkscape:export-xdpi="89.926643"
-       inkscape:export-ydpi="89.926643" />
+       inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
+       inkscape:connector-curvature="0"
+       id="use5779"
+       d="M 194.29441,340.67017 369.64493,238.3853"
+       style="fill:none;stroke:#6d8e41;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:2, 4;stroke-dashoffset:0" />
+    <path
+       inkscape:export-ydpi="89.926643"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
+       inkscape:connector-curvature="0"
+       id="use5777"
+       d="m 178.49877,231.1517 203.00246,0.045"
+       style="fill:none;stroke:#6d8e41;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:1.99999999, 3.99999998;stroke-dashoffset:0" />
     <use
        x="0"
        y="0"
        xlink:href="#g5650"
        id="use5753"
-       transform="translate(475.11201,-33.017248)"
+       transform="translate(475.11201,-117.70525)"
        width="744.09448"
        height="1052.3622"
        inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
@@ -154,12 +140,12 @@
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643" />
     <rect
-       style="fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:#a9ca7d;stroke-width:2.44279908999999984;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
+       style="fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:#a9ca7d;stroke-width:2.44279909;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
        id="rect5367"
        width="207.05719"
        height="171.55719"
        x="43.721401"
-       y="360.88528"
+       y="276.1973"
        rx="11.072577"
        inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
        inkscape:export-xdpi="89.926643"
@@ -169,34 +155,38 @@
        y="0"
        xlink:href="#g5650"
        id="use5654"
-       transform="translate(205.03261,53.351708)"
+       transform="translate(205.03261,-31.336292)"
        width="744.09448"
        height="1052.3622"
        inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643" />
-    <use
-       x="0"
-       y="0"
-       xlink:href="#use5656"
-       id="use5658"
-       transform="translate(0,-86.13396)"
-       width="744.09448"
-       height="1052.3622"
-       inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
-       inkscape:export-xdpi="89.926643"
-       inkscape:export-ydpi="89.926643" />
-    <use
-       x="0"
-       y="0"
-       xlink:href="#use5658"
+    <g
        id="use5660"
-       transform="translate(0,-87.519558)"
-       width="744.09448"
-       height="1052.3622"
-       inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
-       inkscape:export-xdpi="89.926643"
-       inkscape:export-ydpi="89.926643" />
+       transform="translate(205.03261,-207.5)">
+      <path
+         style="opacity:0.8;fill:none;stroke:#6d8e41;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none"
+         d="m -57.78256,351.41962 0,52.3259"
+         id="path3051"
+         inkscape:connector-curvature="0" />
+      <path
+         sodipodi:type="star"
+         style="opacity:0.8;fill:#6d8e41;fill-opacity:1;fill-rule:nonzero;stroke:#6d8e41;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
+         id="path3053"
+         sodipodi:sides="3"
+         sodipodi:cx="-222.73865"
+         sodipodi:cy="415.25897"
+         sodipodi:r1="14.849242"
+         sodipodi:r2="7.4246211"
+         sodipodi:arg1="1.5707963"
+         sodipodi:arg2="2.6179939"
+         inkscape:flatsided="true"
+         inkscape:rounded="0"
+         inkscape:randomized="0"
+         d="m -222.73865,430.10821 -12.85982,-22.27386 25.71964,0 z"
+         inkscape:transform-center-y="2.1823437"
+         transform="matrix(0.58787746,0,0,0.58787746,73.160466,163.35774)" />
+    </g>
     <use
        x="0"
        y="0"
@@ -287,17 +277,6 @@
     <use
        x="0"
        y="0"
-       xlink:href="#rect5273"
-       id="use5335"
-       transform="translate(318.97597,268.31614)"
-       width="744.09448"
-       height="1052.3622"
-       inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
-       inkscape:export-xdpi="89.926643"
-       inkscape:export-ydpi="89.926643" />
-    <use
-       x="0"
-       y="0"
        xlink:href="#rect5273-22"
        id="use5355"
        transform="translate(318.97592,-176.5)"
@@ -328,23 +307,20 @@
        inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643" />
-    <use
-       x="0"
-       y="0"
-       xlink:href="#use5335"
+    <rect
+       rx="15"
+       y="386.37247"
+       x="94.955292"
+       height="36.392323"
+       width="104.5895"
        id="use5363"
-       transform="translate(0,173.33215)"
-       width="744.09448"
-       height="1052.3622"
-       inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
-       inkscape:export-xdpi="89.926643"
-       inkscape:export-ydpi="89.926643" />
+       style="fill:#d1f2a5;fill-opacity:1;fill-rule:nonzero;stroke:#a9ca7d;stroke-width:3;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0" />
     <use
        x="0"
        y="0"
        xlink:href="#use5361"
        id="use5365"
-       transform="translate(0,173.66424)"
+       transform="translate(0,88.97624)"
        width="744.09448"
        height="1052.3622"
        inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
@@ -393,7 +369,7 @@
        xml:space="preserve"
        style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#77823c;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
        x="146.53125"
-       y="407.78009"
+       y="323.0921"
        id="text5371-5"
        sodipodi:linespacing="125%"
        inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
@@ -402,7 +378,7 @@
          sodipodi:role="line"
          id="tspan5373-0"
          x="146.53125"
-         y="407.78009">router</tspan></text>
+         y="323.0921">router</tspan></text>
     <text
        xml:space="preserve"
        style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
@@ -417,22 +393,8 @@
     <text
        xml:space="preserve"
        style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
-       x="147.00391"
-       y="321.39722"
-       id="text5371-2-3"
-       sodipodi:linespacing="125%"
-       inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
-       inkscape:export-xdpi="89.926643"
-       inkscape:export-ydpi="89.926643"><tspan
-         sodipodi:role="line"
-         id="tspan5373-6-7"
-         x="147.00391"
-         y="321.39722">onrequest</tspan></text>
-    <text
-       xml:space="preserve"
-       style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
        x="146.53125"
-       y="495.07318"
+       y="410.38519"
        id="text5371-2-3-0"
        sodipodi:linespacing="125%"
        inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
@@ -441,11 +403,11 @@
          sodipodi:role="line"
          id="tspan5373-6-7-3"
          x="146.53125"
-         y="495.07318">handler</tspan></text>
+         y="410.38519">handler</tspan></text>
     <text
        xml:space="preserve"
        style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
-       x="-446.99591"
+       x="-362.30792"
        y="63.078125"
        id="text5371-2-3-0-7"
        sodipodi:linespacing="125%"
@@ -455,7 +417,7 @@
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-6-7-3-9"
-         x="-446.99591"
+         x="-362.30792"
          y="63.078125">middlewares</tspan></text>
     <text
        xml:space="preserve"
@@ -487,7 +449,7 @@
        y="0"
        xlink:href="#rect5273-7"
        id="use5668"
-       transform="translate(589.05532,207.03588)"
+       transform="translate(589.05532,122.34788)"
        width="744.09448"
        height="1052.3622"
        inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
@@ -498,7 +460,7 @@
        y="0"
        xlink:href="#rect5273"
        id="use5670"
-       transform="translate(589.05538,355.27934)"
+       transform="translate(589.05538,270.59134)"
        width="744.09448"
        height="1052.3622"
        inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
@@ -509,7 +471,7 @@
        y="0"
        xlink:href="#use5355"
        id="use5672"
-       transform="translate(270.07946,434.91762)"
+       transform="translate(270.07946,350.22962)"
        width="744.09448"
        height="1052.3622"
        inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
@@ -520,7 +482,7 @@
        y="0"
        xlink:href="#text5371-4-0"
        id="use5674"
-       transform="translate(270.29655,434.16115)"
+       transform="translate(270.29655,349.47315)"
        width="744.09448"
        height="1052.3622"
        inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
@@ -530,7 +492,7 @@
        xml:space="preserve"
        style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#77823c;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
        x="417.30829"
-       y="321.42792"
+       y="236.73991"
        id="text5371-9"
        sodipodi:linespacing="125%"
        inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
@@ -539,12 +501,12 @@
          sodipodi:role="line"
          id="tspan5373-57"
          x="417.30829"
-         y="321.42792">reply</tspan></text>
+         y="236.73991">reply</tspan></text>
     <text
        xml:space="preserve"
        style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
        x="417.30829"
-       y="407.77994"
+       y="323.09195"
        id="text5371-2-0"
        sodipodi:linespacing="125%"
        inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
@@ -553,6 +515,6 @@
          sodipodi:role="line"
          id="tspan5373-6-8"
          x="417.30829"
-         y="407.77994">onresponse</tspan></text>
+         y="323.09195">onresponse</tspan></text>
   </g>
 </svg>

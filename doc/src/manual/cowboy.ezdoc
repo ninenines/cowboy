@@ -25,15 +25,6 @@ A binary status can be used to set a custom message.
 
 HTTP version.
 
-: onrequest_fun() = fun((cowboy_req:req()) -> cowboy_req:req())
-
-Fun called immediately after receiving a request.
-
-It can perform any operation on the Req object, including
-reading the request body or replying. If a reply is sent,
-the processing of the request ends here, before any middleware
-is executed.
-
 : onresponse_fun() = fun((http_status(), http_headers(),
 	iodata(), cowboy_req:req()) -> cowboy_req:req())
 

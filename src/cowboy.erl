@@ -34,9 +34,6 @@
 -type http_version() :: 'HTTP/1.1' | 'HTTP/1.0'.
 -export_type([http_version/0]).
 
--type onrequest_fun() :: fun((Req) -> Req).
--export_type([onrequest_fun/0]).
-
 -type onresponse_fun() ::
 	fun((http_status(), http_headers(), iodata(), Req) -> Req).
 -export_type([onresponse_fun/0]).

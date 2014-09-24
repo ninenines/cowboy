@@ -32,7 +32,6 @@
 	| {max_keepalive, non_neg_integer()}
 	| {max_request_line_length, non_neg_integer()}
 	| {middlewares, [module()]}
-	| {onrequest, cowboy:onrequest_fun()}
 	| {onresponse, cowboy:onresponse_fun()}
 	| {timeout, timeout()}].
 -export_type([opts/0]).
@@ -43,7 +42,6 @@
 	middlewares :: [module()],
 	compress :: boolean(),
 	env :: cowboy_middleware:env(),
-	onrequest :: undefined | cowboy:onrequest_fun(),
 	onresponse = undefined :: undefined | cowboy:onresponse_fun(),
 	max_empty_lines :: non_neg_integer(),
 	req_keepalive = 1 :: non_neg_integer(),
@@ -85,7 +83,6 @@ init(Ref, Socket, Transport, Opts) ->
 	MaxRequestLineLength = get_value(max_request_line_length, Opts, 4096),
 	Middlewares = get_value(middlewares, Opts, [cowboy_router, cowboy_handler]),
 	Env = [{listener, Ref}|get_value(env, Opts, [])],
-	OnRequest = get_value(onrequest, Opts, undefined),
 	OnResponse = get_value(onresponse, Opts, undefined),
 	Timeout = get_value(timeout, Opts, 5000),
 	ok = ranch:accept_ack(Ref),
@@ -95,8 +92,7 @@ init(Ref, Socket, Transport, Opts) ->
 		max_request_line_length=MaxRequestLineLength,
 		max_header_name_length=MaxHeaderNameLength,
 		max_header_value_length=MaxHeaderValueLength, max_headers=MaxHeaders,
-		onrequest=OnRequest, onresponse=OnResponse,
-		timeout=Timeout, until=until(Timeout)}, 0).
+		onresponse=OnResponse, timeout=Timeout, until=until(Timeout)}, 0).
 
 -spec until(timeout()) -> non_neg_integer() | infinity.
 until(infinity) ->
@@ -410,24 +406,10 @@ request(Buffer, State=#state{socket=Socket, transport=Transport,
 			Req = cowboy_req:new(Socket, Transport, Peer, Method, Path,
 				Query, Version, Headers, Host, Port, Buffer,
 				ReqKeepalive < MaxKeepalive, Compress, OnResponse),
-			onrequest(Req, State);
+			execute(Req, State);
 		{error, _} ->
 			%% Couldn't read the peer address; connection is gone.
 			terminate(State)
-	end.
-
-%% Call the global onrequest callback. The callback can send a reply,
-%% in which case we consider the request handled and move on to the next
-%% one. Note that since we haven't dispatched yet, we don't know the
-%% handler, host_info, path_info or bindings yet.
--spec onrequest(cowboy_req:req(), #state{}) -> ok.
-onrequest(Req, State=#state{onrequest=undefined}) ->
-	execute(Req, State);
-onrequest(Req, State=#state{onrequest=OnRequest}) ->
-	Req2 = OnRequest(Req),
-	case cowboy_req:get(resp_state, Req2) of
-		waiting -> execute(Req2, State);
-		_ -> next_request(Req2, State, ok)
 	end.
 
 -spec execute(cowboy_req:req(), #state{}) -> ok.
