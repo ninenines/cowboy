@@ -428,9 +428,7 @@ execute(Req, State, Env, [Middleware|Tail]) ->
 			erlang:hibernate(?MODULE, resume,
 				[State, Env, Tail, Module, Function, Args]);
 		{halt, Req2} ->
-			next_request(Req2, State, ok);
-		{error, Code, Req2} ->
-			error_terminate(Code, Req2, State)
+			next_request(Req2, State, ok)
 	end.
 
 -spec resume(#state{}, cowboy_middleware:env(), [module()],
@@ -443,9 +441,7 @@ resume(State, Env, Tail, Module, Function, Args) ->
 			erlang:hibernate(?MODULE, resume,
 				[State, Env, Tail, Module2, Function2, Args2]);
 		{halt, Req2} ->
-			next_request(Req2, State, ok);
-		{error, Code, Req2} ->
-			error_terminate(Code, Req2, State)
+			next_request(Req2, State, ok)
 	end.
 
 -spec next_request(cowboy_req:req(), #state{}, any()) -> ok.

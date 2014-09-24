@@ -24,7 +24,6 @@ Middlewares can return one of four different values:
 * `{ok, Req, Env}` to continue the request processing
 * `{suspend, Module, Function, Args}` to hibernate
 * `{halt, Req}` to stop processing and move on to the next request
-* `{error, StatusCode, Req}` to reply an error and close the socket
 
 Of note is that when hibernating, processing will resume on the given
 MFA, discarding all previous stacktrace. Make sure you keep the `Req`

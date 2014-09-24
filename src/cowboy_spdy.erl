@@ -407,9 +407,7 @@ execute(Req, Env, [Middleware|Tail]) ->
 			erlang:hibernate(?MODULE, resume,
 				[Env, Tail, Module, Function, Args]);
 		{halt, Req2} ->
-			cowboy_req:ensure_response(Req2, 204);
-		{error, Status, Req2} ->
-			cowboy_req:reply(Status, Req2)
+			cowboy_req:ensure_response(Req2, 204)
 	end.
 
 -spec resume(cowboy_middleware:env(), [module()],
@@ -422,9 +420,7 @@ resume(Env, Tail, Module, Function, Args) ->
 			erlang:hibernate(?MODULE, resume,
 				[Env, Tail, Module2, Function2, Args2]);
 		{halt, Req2} ->
-			cowboy_req:ensure_response(Req2, 204);
-		{error, Status, Req2} ->
-			cowboy_req:reply(Status, Req2)
+			cowboy_req:ensure_response(Req2, 204)
 	end.
 
 %% Reply functions used by cowboy_req.

@@ -99,7 +99,6 @@ handler_init(Req, State, Handler, HandlerOpts) ->
 	-> {ok, Req, Env}
 	| {suspend, module(), atom(), any()}
 	| {halt, Req}
-	| {error, cowboy:http_status(), Req}
 	when Req::cowboy_req:req(), Env::cowboy_middleware:env().
 upgrade_protocol(Req, #state{env=Env},
 		Handler, HandlerOpts, Module) ->
