@@ -1,14 +1,15 @@
 %% Feel free to use, reuse and abuse the code in this file.
 
 -module(http_loop_stream_recv).
--export([init/3]).
+
+-export([init/2]).
 -export([info/3]).
 -export([terminate/3]).
 
-init({_, http}, Req, _) ->
+init(Req, _) ->
 	receive after 100 -> ok end,
 	self() ! stream,
-	{loop, Req, undefined, 100}.
+	{long_polling, Req, undefined, 100}.
 
 info(stream, Req, undefined) ->
 	stream(Req, 1, <<>>).

@@ -267,17 +267,3 @@ rather the one of the machine that connected to the server.
 ``` erlang
 {IP, Port} = cowboy_req:peer(Req).
 ```
-
-:: Reducing the memory footprint
-
-When you are done reading information from the request object
-and know you are not going to access it anymore, for example
-when using long-polling or Websocket, you can use the `compact/1`
-function to remove most of the data from the request object and
-free memory.
-
-``` erlang
-Req2 = cowboy_req:compact(Req).
-```
-
-You will still be able to send a reply if needed.

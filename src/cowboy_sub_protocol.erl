@@ -15,9 +15,6 @@
 
 -module(cowboy_sub_protocol).
 
--callback upgrade(Req, Env, module(), any())
-	-> {ok, Req, Env}
-	| {suspend, module(), atom(), [any()]}
-	| {halt, Req}
-	| {error, cowboy:http_status(), Req}
+-callback upgrade(Req, Env, module(), any(), timeout(), run | hibernate)
+	-> {ok, Req, Env} | {suspend, module(), atom(), [any()]} | {halt, Req}
 	when Req::cowboy_req:req(), Env::cowboy_middleware:env().

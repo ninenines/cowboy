@@ -1,11 +1,12 @@
 %% Feel free to use, reuse and abuse the code in this file.
 
 -module(http_echo_body).
--behaviour(cowboy_http_handler).
--export([init/3, handle/2, terminate/3]).
 
-init({_, http}, Req, _) ->
-	{ok, Req, undefined}.
+-export([init/2]).
+-export([handle/2]).
+
+init(Req, Opts) ->
+	{http, Req, Opts}.
 
 handle(Req, State) ->
 	true = cowboy_req:has_body(Req),
@@ -22,6 +23,3 @@ handle_body(Req, Body) ->
 	Size = cowboy_req:body_length(Req),
 	Size = byte_size(Body),
 	cowboy_req:reply(200, [], Body, Req).
-
-terminate(_, _, _) ->
-	ok.

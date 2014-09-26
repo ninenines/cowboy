@@ -1,36 +1,61 @@
 ::: Protocol upgrades
 
 Cowboy features many different handlers, each for different purposes.
-All handlers have a common entry point: the `init/3` function.
+All handlers have a common entry point: the `init/2` function.
+This function returns the name of the protocol that will be
+used for processing the request, along with various options.
 
-The default handler type is the simple HTTP handler.
+Cowboy defines four built-in handler types. Three of them are
+implemented as sub protocols. More can be implemented by
+writing a custom sub protocol.
 
-To switch to a different protocol, you must perform a protocol
-upgrade. This is what is done for Websocket and REST and is
-explained in details in the respective chapters.
+The following table lists the built-in handler types.
 
-You can also create your own protocol on top of Cowboy and use
-the protocol upgrade mechanism to switch to it.
+||	Alias			Module				Description
+|
+|	http			-					Plain HTTP handler
+|	long_polling	cowboy_long_polling	Long-polling handler
+|	rest			cowboy_rest			REST handler
+|	ws				cowboy_websocket	Websocket handler
 
-For example, if you create the `my_protocol` module implementing
-the `cowboy_sub_protocol` behavior, then you can upgrade to it
-by simply returning the module name from `init/3`.
+Both the alias or the module name can be used to specify the
+kind of handler. In addition, a user-defined module name can
+be used.
 
 ``` erlang
-init(_, _, _Opts) ->
-    {upgrade, protocol, my_protocol}.
+init(Req, Opts) ->
+	{my_protocol, Req, Opts}.
 ```
 
-The `cowboy_sub_protocol` behavior only requires one callback,
-`upgrade/4`. It receives the Req object, the middleware environment,
-and the handler and options for this request. This is the same
-module as the `init/3` function and the same options that were
-passed to it.
+The `init/2` function can also return some extra options for
+handlers that are meant to be long running, for example the
+`long_polling` and `ws` handler types. These options can also
+be passed on to custom sub protocols. For example the following
+`init/2` function defines both a timeout value and enables
+process hibernation:
 
 ``` erlang
-upgrade(Req, Env, Handler, HandlerOpts) ->
+init(Req, Opts) ->
+	{my_protocol, Req, Opts, 5000, hibernate}.
+```
+
+It is up to the sub protocol to implement these (or reject
+them if they are not supported).
+
+The `cowboy_sub_protocol` behavior only requires one callback,
+`upgrade/6`. It receives the Req object, the middleware environment,
+the handler and options for this request, and the timeout and
+hibernate values. The default timeout value is `infinity` and
+the default hibernate value is `run`.
+
+``` erlang
+upgrade(Req, Env, Handler, HandlerOpts, Timeout, Hibernate) ->
     %% ...
 ```
 
 This callback is expected to behave like a middleware. Please
 see the corresponding chapter for more information.
+
+Sub protocols are expected to call the `cowboy_handler:terminate/5`
+function when they terminate. This function will make sure that
+the optional `terminate/3` callback will be called, if present.

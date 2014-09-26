@@ -1,18 +1,16 @@
 %% Feel free to use, reuse and abuse the code in this file.
 
 -module(http_multipart).
--behaviour(cowboy_http_handler).
--export([init/3, handle/2, terminate/3]).
 
-init({_Transport, http}, Req, []) ->
-	{ok, Req, {}}.
+-export([init/2]).
+-export([handle/2]).
+
+init(Req, Opts) ->
+	{http, Req, Opts}.
 
 handle(Req, State) ->
 	{Result, Req2} = acc_multipart(Req, []),
 	{ok, cowboy_req:reply(200, [], term_to_binary(Result), Req2), State}.
-
-terminate(_, _, _) ->
-	ok.
 
 acc_multipart(Req, Acc) ->
 	case cowboy_req:part(Req) of

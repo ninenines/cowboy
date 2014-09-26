@@ -1,18 +1,16 @@
 %% Feel free to use, reuse and abuse the code in this file.
 
 -module(http_stream_body).
--behaviour(cowboy_http_handler).
--export([init/3, handle/2, terminate/3]).
 
--record(state, {headers, body, reply}).
+-export([init/2]).
+-export([handle/2]).
 
-init({_Transport, http}, Req, Opts) ->
-	Headers = proplists:get_value(headers, Opts, []),
-	Body = proplists:get_value(body, Opts, "http_handler_stream_body"),
-	Reply = proplists:get_value(reply, Opts),
-	{ok, Req, #state{headers=Headers, body=Body, reply=Reply}}.
+init(Req, Opts) ->
+	{http, Req, Opts}.
 
-handle(Req, State=#state{headers=_Headers, body=Body, reply=Reply}) ->
+handle(Req, State) ->
+	Body = proplists:get_value(body, State, "http_handler_stream_body"),
+	Reply = proplists:get_value(reply, State),
 	SFun = fun(Socket, Transport) -> Transport:send(Socket, Body) end,
 	Req2 = case Reply of
 		set_resp ->
@@ -26,6 +24,3 @@ handle(Req, State=#state{headers=_Headers, body=Body, reply=Reply}) ->
 			cowboy_req:set_resp_body_fun(chunked, SFun2, Req)
 	end,
 	{ok, cowboy_req:reply(200, Req2), State}.
-
-terminate(_, _, _) ->
-	ok.

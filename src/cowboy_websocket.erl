@@ -17,7 +17,7 @@
 -module(cowboy_websocket).
 -behaviour(cowboy_sub_protocol).
 
--export([upgrade/4]).
+-export([upgrade/6]).
 -export([handler_loop/4]).
 
 -type close_code() :: 1000..4999.
@@ -53,19 +53,18 @@
 	deflate_state :: undefined | port()
 }).
 
--spec upgrade(Req, Env, module(), any())
-	-> {ok, Req, Env}
-	| {suspend, module(), atom(), [any()]}
+-spec upgrade(Req, Env, module(), any(), timeout(), run | hibernate)
+	-> {ok, Req, Env} | {suspend, module(), atom(), [any()]}
 	when Req::cowboy_req:req(), Env::cowboy_middleware:env().
-upgrade(Req, Env, Handler, HandlerOpts) ->
+upgrade(Req, Env, Handler, HandlerState, Timeout, Hibernate) ->
 	{_, Ref} = lists:keyfind(listener, 1, Env),
 	ranch:remove_connection(Ref),
 	[Socket, Transport] = cowboy_req:get([socket, transport], Req),
-	State = #state{env=Env, socket=Socket, transport=Transport,
-		handler=Handler},
+	State = #state{env=Env, socket=Socket, transport=Transport, handler=Handler,
+		timeout=Timeout, hibernate=Hibernate =:= hibernate},
 	try websocket_upgrade(State, Req) of
 		{ok, State2, Req2} ->
-			handler_init(State2, Req2, HandlerOpts)
+			websocket_handshake(State2, Req2, HandlerState)
 	catch _:_ ->
 		receive
 			{cowboy_req, resp_sent} -> ok
@@ -119,38 +118,6 @@ websocket_extensions(State, Req) ->
 				_ ->
 					{ok, State, cowboy_req:set_meta(websocket_compress, false, Req)}
 			end
-	end.
-
--spec handler_init(#state{}, Req, any())
-	-> {ok, Req, cowboy_middleware:env()} | {suspend, module(), atom(), [any()]}
-	when Req::cowboy_req:req().
-handler_init(State=#state{env=Env, transport=Transport,
-		handler=Handler}, Req, HandlerOpts) ->
-	try Handler:websocket_init(Transport:name(), Req, HandlerOpts) of
-		{ok, Req2, HandlerState} ->
-			websocket_handshake(State, Req2, HandlerState);
-		{ok, Req2, HandlerState, hibernate} ->
-			websocket_handshake(State#state{hibernate=true},
-				Req2, HandlerState);
-		{ok, Req2, HandlerState, Timeout} ->
-			websocket_handshake(State#state{timeout=Timeout},
-				Req2, HandlerState);
-		{ok, Req2, HandlerState, Timeout, hibernate} ->
-			websocket_handshake(State#state{timeout=Timeout,
-				hibernate=true}, Req2, HandlerState);
-		{shutdown, Req2} ->
-			cowboy_req:ensure_response(Req2, 400),
-			{ok, Req2, [{result, closed}|Env]}
-	catch Class:Reason ->
-		Stacktrace = erlang:get_stacktrace(),
-		cowboy_req:maybe_reply(Stacktrace, Req),
-		erlang:Class([
-			{reason, Reason},
-			{mfa, {Handler, websocket_init, 3}},
-			{stacktrace, Stacktrace},
-			{req, cowboy_req:to_list(Req)},
-			{opts, HandlerOpts}
-		])
 	end.
 
 -spec websocket_handshake(#state{}, Req, any())
@@ -703,6 +670,15 @@ websocket_send({Type, Payload0}, State=#state{socket=Socket, transport=Transport
 	{Transport:send(Socket,
 		[<< 1:1, Rsv/bits, Opcode:4, 0:1, BinLen/bits >>, Payload]), State2}.
 
+-spec payload_length_to_binary(0..16#7fffffffffffffff)
+	-> << _:7 >> | << _:23 >> | << _:71 >>.
+payload_length_to_binary(N) ->
+	case N of
+		N when N =< 125 -> << N:7 >>;
+		N when N =< 16#ffff -> << 126:7, N:16 >>;
+		N when N =< 16#7fffffffffffffff -> << 127:7, N:64 >>
+	end.
+
 -spec websocket_send_many([frame()], #state{})
 	-> {ok, #state{}} | {shutdown, #state{}} | {{error, atom()}, #state{}}.
 websocket_send_many([], State) ->
@@ -739,26 +715,6 @@ websocket_close(State=#state{socket=Socket, transport=Transport},
 	-> {ok, Req, cowboy_middleware:env()}
 	when Req::cowboy_req:req().
 handler_terminate(#state{env=Env, handler=Handler},
-		Req, HandlerState, TerminateReason) ->
-	try
-		Handler:websocket_terminate(TerminateReason, Req, HandlerState)
-	catch Class:Reason ->
-		erlang:Class([
-			{reason, Reason},
-			{mfa, {Handler, websocket_terminate, 3}},
-			{stacktrace, erlang:get_stacktrace()},
-			{req, cowboy_req:to_list(Req)},
-			{state, HandlerState},
-			{terminate_reason, TerminateReason}
-		])
-	end,
+		Req, HandlerState, Reason) ->
+	_ = cowboy_handler:terminate(Req, Env, Handler, HandlerState, Reason),
 	{ok, Req, [{result, closed}|Env]}.
-
--spec payload_length_to_binary(0..16#7fffffffffffffff)
-	-> << _:7 >> | << _:23 >> | << _:71 >>.
-payload_length_to_binary(N) ->
-	case N of
-		N when N =< 125 -> << N:7 >>;
-		N when N =< 16#ffff -> << 126:7, N:16 >>;
-		N when N =< 16#7fffffffffffffff -> << 127:7, N:64 >>
-	end.

@@ -3,23 +3,19 @@
 %% @doc EventSource emitter.
 -module(eventsource_handler).
 
--export([init/3]).
+-export([init/2]).
 -export([info/3]).
--export([terminate/3]).
 
-init(_Transport, Req, []) ->
+init(Req, Opts) ->
 	Headers = [{<<"content-type">>, <<"text/event-stream">>}],
 	Req2 = cowboy_req:chunked_reply(200, Headers, Req),
 	erlang:send_after(1000, self(), {message, "Tick"}),
-	{loop, Req2, undefined, 5000}.
+	{long_polling, Req2, Opts, 5000}.
 
 info({message, Msg}, Req, State) ->
 	cowboy_req:chunk(["id: ", id(), "\ndata: ", Msg, "\n\n"], Req),
 	erlang:send_after(1000, self(), {message, "Tick"}),
 	{loop, Req, State}.
-
-terminate(_Reason, _Req, _State) ->
-	ok.
 
 id() ->
 	{Mega, Sec, Micro} = erlang:now(),

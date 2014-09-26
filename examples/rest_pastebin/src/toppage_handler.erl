@@ -4,7 +4,7 @@
 -module(toppage_handler).
 
 %% Standard callbacks.
--export([init/3]).
+-export([init/2]).
 -export([allowed_methods/2]).
 -export([content_types_provided/2]).
 -export([content_types_accepted/2]).
@@ -15,11 +15,9 @@
 -export([paste_html/2]).
 -export([paste_text/2]).
 
-init(_Transport, _Req, []) ->
-	% For the random number generator:
-	{X, Y, Z} = now(),
-	random:seed(X, Y, Z),
-	{upgrade, protocol, cowboy_rest}.
+init(Req, Opts) ->
+	random:seed(now()),
+	{rest, Req, Opts}.
 
 allowed_methods(Req, State) ->
 	{[<<"GET">>, <<"POST">>], Req, State}.

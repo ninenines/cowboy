@@ -1,11 +1,12 @@
 -module(rest_missing_callbacks).
--export([init/3]).
+
+-export([init/2]).
 -export([allowed_methods/2]).
 -export([content_types_accepted/2]).
 -export([content_types_provided/2]).
 
-init(_Transport, _Req, _Opts) ->
-	{upgrade, protocol, cowboy_rest}.
+init(Req, Opts) ->
+	{rest, Req, Opts}.
 
 allowed_methods(Req, State) ->
 	{[<<"GET">>, <<"PUT">>], Req, State}.

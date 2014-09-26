@@ -713,13 +713,3 @@ Set a response header.
 
 You should use `set_resp_cookie/4` instead of this function
 to set cookies.
-
-:: Misc. exports
-
-: compact(Req) -> Req2
-
-Remove any non-essential data from the Req object.
-
-Long-lived connections usually only need to manipulate the
-Req object at initialization. Compacting allows saving up
-memory by discarding extraneous information.

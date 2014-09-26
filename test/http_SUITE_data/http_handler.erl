@@ -1,18 +1,14 @@
 %% Feel free to use, reuse and abuse the code in this file.
 
 -module(http_handler).
--behaviour(cowboy_http_handler).
--export([init/3, handle/2, terminate/3]).
 
--record(state, {headers, body}).
+-export([init/2]).
+-export([handle/2]).
 
-init({_Transport, http}, Req, Opts) ->
-	Headers = proplists:get_value(headers, Opts, []),
-	Body = proplists:get_value(body, Opts, "http_handler"),
-	{ok, Req, #state{headers=Headers, body=Body}}.
+init(Req, Opts) ->
+	{http, Req, Opts}.
 
-handle(Req, State=#state{headers=Headers, body=Body}) ->
+handle(Req, State) ->
+	Headers = proplists:get_value(headers, State, []),
+	Body = proplists:get_value(body, State, "http_handler"),
 	{ok, cowboy_req:reply(200, Headers, Body, Req), State}.
-
-terminate(_, _, _) ->
-	ok.

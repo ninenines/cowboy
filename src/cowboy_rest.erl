@@ -17,7 +17,7 @@
 -module(cowboy_rest).
 -behaviour(cowboy_sub_protocol).
 
--export([upgrade/4]).
+-export([upgrade/6]).
 
 -record(state, {
 	env :: cowboy_middleware:env(),
@@ -55,31 +55,12 @@
 	expires :: undefined | no_call | calendar:datetime() | binary()
 }).
 
--spec upgrade(Req, Env, module(), any())
+-spec upgrade(Req, Env, module(), any(), infinity, run)
 	-> {ok, Req, Env} when Req::cowboy_req:req(), Env::cowboy_middleware:env().
-upgrade(Req, Env, Handler, HandlerOpts) ->
+upgrade(Req, Env, Handler, HandlerState, infinity, run) ->
 	Method = cowboy_req:method(Req),
-	case erlang:function_exported(Handler, rest_init, 2) of
-		true ->
-			try Handler:rest_init(Req, HandlerOpts) of
-				{ok, Req2, HandlerState} ->
-					service_available(Req2, #state{env=Env, method=Method,
-						handler=Handler, handler_state=HandlerState})
-			catch Class:Reason ->
-				Stacktrace = erlang:get_stacktrace(),
-				cowboy_req:maybe_reply(Stacktrace, Req),
-				erlang:Class([
-					{reason, Reason},
-					{mfa, {Handler, rest_init, 2}},
-					{stacktrace, Stacktrace},
-					{req, cowboy_req:to_list(Req)},
-					{opts, HandlerOpts}
-				])
-			end;
-		false ->
-			service_available(Req, #state{env=Env, method=Method,
-				handler=Handler})
-	end.
+	service_available(Req, #state{env=Env, method=Method,
+		handler=Handler, handler_state=HandlerState}).
 
 service_available(Req, State) ->
 	expect(Req, State, service_available, true, fun known_methods/2, 503).
@@ -986,13 +967,9 @@ next(Req, State, StatusCode) when is_integer(StatusCode) ->
 respond(Req, State, StatusCode) ->
 	terminate(cowboy_req:reply(StatusCode, Req), State).
 
-terminate(Req, State=#state{env=Env}) ->
-	rest_terminate(Req, State),
-	{ok, Req, [{result, ok}|Env]}.
-
 error_terminate(Req, State=#state{handler=Handler, handler_state=HandlerState},
 		Class, Reason, Callback) ->
-	rest_terminate(Req, State),
+	_ = terminate(Req, State),
 	Stacktrace = erlang:get_stacktrace(),
 	cowboy_req:maybe_reply(Stacktrace, Req),
 	erlang:Class([
@@ -1003,9 +980,5 @@ error_terminate(Req, State=#state{handler=Handler, handler_state=HandlerState},
 		{state, HandlerState}
 	]).
 
-rest_terminate(Req, #state{handler=Handler, handler_state=HandlerState}) ->
-	case erlang:function_exported(Handler, rest_terminate, 2) of
-		true -> ok = Handler:rest_terminate(
-			cowboy_req:lock(Req), HandlerState);
-		false -> ok
-	end.
+terminate(Req, #state{env=Env, handler=Handler, handler_state=HandlerState}) ->
+	cowboy_handler:terminate(Req, Env, Handler, HandlerState, {normal, shutdown}).

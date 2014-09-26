@@ -4,15 +4,14 @@
 %% When it receives the last message, it sends a 102 reply back.
 
 -module(long_polling_h).
--behaviour(cowboy_loop_handler).
 
--export([init/3]).
+-export([init/2]).
 -export([info/3]).
 -export([terminate/3]).
 
-init(_, Req, _) ->
+init(Req, _) ->
 	erlang:send_after(200, self(), timeout),
-	{loop, Req, 2, 5000, hibernate}.
+	{long_polling, Req, 2, 5000, hibernate}.
 
 info(timeout, Req, 0) ->
 	{ok, cowboy_req:reply(102, Req), 0};

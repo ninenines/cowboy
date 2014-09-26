@@ -1,10 +1,11 @@
 %% Feel free to use, reuse and abuse the code in this file.
 
 -module(http_errors).
--behaviour(cowboy_http_handler).
--export([init/3, handle/2, terminate/3]).
 
-init({_Transport, http}, Req, _Opts) ->
+-export([init/2]).
+-export([handle/2]).
+
+init(Req, _Opts) ->
 	#{'case' := Case} = cowboy_req:match_qs(Req, ['case']),
     case_init(Case, Req).
 
@@ -17,11 +18,11 @@ case_init(<<"init_after_reply">> = Case, Req) ->
     error(Case);
 case_init(<<"init_reply_handle_error">> = Case, Req) ->
     Req1 = cowboy_req:reply(200, [], "http_handler_crashes", Req),
-    {ok, Req1, Case};
+    {http, Req1, Case};
 case_init(<<"handle_before_reply">> = Case, Req) ->
-    {ok, Req, Case};
+    {http, Req, Case};
 case_init(<<"handle_after_reply">> = Case, Req) ->
-    {ok, Req, Case}.
+    {http, Req, Case}.
 
 handle(_Req, <<"init_reply_handle_error">> = Case) ->
 	cowboy_error_h:ignore(?MODULE, handle, 2),
@@ -33,6 +34,3 @@ handle(Req, <<"handle_after_reply">> = Case) ->
 	cowboy_error_h:ignore(?MODULE, handle, 2),
     _ = cowboy_req:reply(200, [], "http_handler_crashes", Req),
     error(Case).
-
-terminate(_, _, _) ->
-	ok.

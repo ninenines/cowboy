@@ -8,18 +8,20 @@ The REST handler is the recommended way to handle requests.
 
 :: Initialization
 
-First, the `init/3` callback is called. This callback is common
+First, the `init/2` callback is called. This callback is common
 to all handlers. To use REST for the current request, this function
-must return an `upgrade` tuple.
+must return a `rest` tuple.
 
 ``` erlang
-init({tcp, http}, Req, Opts) ->
-    {upgrade, protocol, cowboy_rest}.
+init(Req, Opts) ->
+    {rest, Req, Opts}.
 ```
 
 Cowboy will then switch to the REST protocol and start executing
-the state machine, starting from `rest_init/2` if it's defined,
-and ending with `rest_terminate/2` also if defined.
+the state machine.
+
+After reaching the end of the flowchart, the `terminate/3` callback
+will be called if it is defined.
 
 :: Methods
 
@@ -36,27 +38,16 @@ on what other defined callbacks return. The various flowcharts
 in the next chapter should be a useful to determine which callbacks
 you need.
 
-When the request starts being processed, Cowboy will call the
-`rest_init/2` function if it is defined, with the Req object
-and the handler options as arguments. This function must return
-`{ok, Req, State}` where `State` is the handler's state that all
-subsequent callbacks will receive.
+All callbacks take two arguments, the Req object and the State,
+and return a three-element tuple of the form `{Value, Req, State}`.
 
-At the end of every request, the special callback `rest_terminate/2`
-will be called if it is defined. It cannot be used to send a reply,
-and must always return `ok`.
-
-All other callbacks are resource callbacks. They all take two
-arguments, the Req object and the State, and return a three-element
-tuple of the form `{Value, Req, State}`.
+All callbacks can also return `{halt, Req, State}` to stop execution
+of the request.
 
 The following table summarizes the callbacks and their default values.
 If the callback isn't defined, then the default value will be used.
 Please look at the flowcharts to find out the result of each return
 value.
-
-All callbacks can also return `{halt, Req, State}` to stop execution
-of the request, at which point `rest_terminate/2` will be called.
 
 In the following table, "skip" means the callback is entirely skipped
 if it is undefined, moving directly to the next step. Similarly,

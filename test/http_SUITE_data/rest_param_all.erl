@@ -1,14 +1,14 @@
 -module(rest_param_all).
 
--export([init/3]).
+-export([init/2]).
 -export([allowed_methods/2]).
 -export([content_types_provided/2]).
 -export([get_text_plain/2]).
 -export([content_types_accepted/2]).
 -export([put_text_plain/2]).
 
-init(_Transport, _Req, _Opts) ->
-	{upgrade, protocol, cowboy_rest}.
+init(Req, Opts) ->
+	{rest, Req, Opts}.
 
 allowed_methods(Req, State) ->
 	{[<<"GET">>, <<"PUT">>], Req, State}.

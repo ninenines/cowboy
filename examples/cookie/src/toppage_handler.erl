@@ -3,12 +3,11 @@
 %% @doc Cookie handler.
 -module(toppage_handler).
 
--export([init/3]).
+-export([init/2]).
 -export([handle/2]).
--export([terminate/3]).
 
-init(_Transport, Req, []) ->
-	{ok, Req, undefined}.
+init(Req, Opts) ->
+	{http, Req, Opts}.
 
 handle(Req, State) ->
 	NewValue = integer_to_list(random:uniform(1000000)),
@@ -24,6 +23,3 @@ handle(Req, State) ->
 		[{<<"content-type">>, <<"text/html">>}],
 		Body, Req2),
 	{ok, Req3, State}.
-
-terminate(_Reason, _Req, _State) ->
-	ok.

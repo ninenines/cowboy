@@ -3,12 +3,11 @@
 %% @doc POST echo handler.
 -module(toppage_handler).
 
--export([init/3]).
+-export([init/2]).
 -export([handle/2]).
--export([terminate/3]).
 
-init(_Transport, Req, []) ->
-	{ok, Req, undefined}.
+init(Req, Opts) ->
+	{http, Req, Opts}.
 
 handle(Req, State) ->
 	Method = cowboy_req:method(Req),
@@ -32,6 +31,3 @@ echo(Echo, Req) ->
 	cowboy_req:reply(200, [
 		{<<"content-type">>, <<"text/plain; charset=utf-8">>}
 	], Echo, Req).
-
-terminate(_Reason, _Req, _State) ->
-	ok.

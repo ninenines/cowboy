@@ -1,12 +1,13 @@
+%% Feel free to use, reuse and abuse the code in this file.
+
+%% @doc Upload handler.
 -module(upload_handler).
--behaviour(cowboy_http_handler).
 
--export([init/3]).
+-export([init/2]).
 -export([handle/2]).
--export([terminate/3]).
 
-init(_, Req, _Opts) ->
-	{ok, Req, undefined}.
+init(Req, Opts) ->
+	{http, Req, Opts}.
 
 handle(Req, State) ->
 	{ok, Headers, Req2} = cowboy_req:part(Req),
@@ -16,6 +17,3 @@ handle(Req, State) ->
 	io:format("Received file ~p of content-type ~p as follow:~n~p~n~n",
 		[Filename, ContentType, Data]),
 	{ok, Req3, State}.
-
-terminate(_Reason, _Req, _State) ->
-	ok.

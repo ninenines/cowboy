@@ -11,53 +11,18 @@ socket communication and decoding/encoding of frames.
 
 :: Initialization
 
-First, the `init/3` callback is called. This callback is common
+First, the `init/2` callback is called. This callback is common
 to all handlers. To establish a Websocket connection, this function
-must return an `upgrade` tuple.
+must return a `ws` tuple.
 
 ``` erlang
-init(_, Req, Opts) ->
-	{upgrade, protocol, cowboy_websocket}.
-```
-
-It is also possible to return an update Req object and options
-using the longer form of this tuple.
-
-``` erlang
-init(_Type, Req, Opts) ->
-	{upgrade, protocol, cowboy_websocket, Req, Opts}.
+init(Req, Opts) ->
+	{ws, Req, Opts}.
 ```
 
 Upon receiving this tuple, Cowboy will switch to the code
-that handles Websocket connections. It does not immediately
-perform the handshake however. First, it calls the `websocket_init/3`
-callback.
-
-This function must be used to initialize the state, and can
-also be used to register the process, start a timer, etc.
-As long as the function returns an `ok` tuple, then Cowboy
-performs the Websocket handshake.
-
-``` erlang
-websocket_init(_Type, Req, _Opts) ->
-    {ok, Req, #state{}}.
-```
-
-A `shutdown` tuple can be returned to refuse to perform the
-handshake. When doing so, Cowboy will send a `400 Bad Request`
-response to the client and close the connection.
-
-``` erlang
-websocket_init(_Type, Req, _Opts) ->
-	{shutdown, Req}.
-```
-
-It is also possible to perform a `cowboy_req:reply/{2,3,4}`
-before returning a `shutdown` tuple, allowing you to override
-the response sent back to the client.
-
-Note that browser support for handling Websocket connection
-failures may vary.
+that handles Websocket connections and perform the handshake
+immediately.
 
 If the sec-websocket-protocol header was sent with the request
 for establishing a Websocket connection, then the Websocket
@@ -66,7 +31,7 @@ back to the client, otherwise the client might decide to close
 the connection, assuming no correct subprotocol was found.
 
 ``` erlang
-websocket_init(_Type, Req, _Opts) ->
+init(Req, _Opts) ->
 	case cowboy_req:parse_header(<<"sec-websocket-protocol">>, Req) of
 		undefined ->
 			{ok, Req, #state{}};
@@ -77,15 +42,15 @@ websocket_init(_Type, Req, _Opts) ->
 						<<"mychat2">>, Req),
 					{ok, Req2, #state{}};
 				false ->
-					{shutdown, Req}
+					{shutdown, Req, undefined}
 			end
 	end.
 ```
 
-It is not recommended to wait too long inside the `websocket_init/3`
+It is not recommended to wait too long inside the `init/2`
 function. Any extra initialization may be done after returning by
 sending yourself a message before doing anything. Any message sent
-to `self()` from `websocket_init/3` is guaranteed to arrive before
+to `self()` from `init/2` is guaranteed to arrive before
 any frames from the client.
 
 It is also very easy to ensure that this message arrives before
@@ -93,10 +58,10 @@ any message from other processes by sending it before registering
 or enabling timers.
 
 ``` erlang
-websocket_init(_Type, Req, _Opts) ->
+init(Req, _Opts) ->
 	self() ! post_init,
 	%% Register process here...
-	{ok, Req, #state{}}.
+	{ws, Req, #state{}}.
 
 websocket_info(post_init, Req, State) ->
 	%% Perform post_init initialization here...
@@ -195,8 +160,8 @@ leave the process alive forever.
 A good timeout value is 60 seconds.
 
 ``` erlang
-websocket_init(_Type, Req, _Opts) ->
-	{ok, Req, #state{}, 60000}.
+init(Req, _Opts) ->
+	{ws, Req, #state{}, 60000}.
 ```
 
 This value cannot be changed once it is set. It defaults to

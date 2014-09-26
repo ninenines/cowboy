@@ -7,36 +7,17 @@ will simply call the three callbacks sequentially.
 
 :: Initialization
 
-The first callback, `init/3`, is common to all handlers,
+The first callback, `init/2`, is common to all handlers,
 as it is used to identify the type of handler. Plain
-HTTP handlers just return `ok`.
+HTTP handlers just return `http`.
 
 ``` erlang
-init(_Type, Req, _Opts) ->
-    {ok, Req, no_state}.
+init(Req, Opts) ->
+    {http, Req, Opts}.
 ```
 
-This function receives the name of the transport and
-protocol modules used for processing the request.
-They can be used to quickly dismiss requests. For
-example the following handler will crash when accessed
-using TCP instead of SSL.
-
-``` erlang
-init({ssl, _}, Req, _Opts) ->
-    {ok, Req, no_state}.
-```
-
-This function also receives the options associated with
-this route that you configured previously. If your
-handler does not use options, then it is recommended
-you match the value `[]` directly to quickly detect
-configuration errors.
-
-``` erlang
-init(_Type, Req, []) ->
-    {ok, Req, no_state}.
-```
+This function receives the options associated with
+this route that you configured previously.
 
 You do not need to validate the options unless they
 are user configured. If they are, and there's a
@@ -45,9 +26,9 @@ example, this will crash if the required `lang`
 option is not found.
 
 ``` erlang
-init(_Type, Req, Opts) ->
-    {_, _Lang} = lists:keyfind(lang, 1, Opts),
-    {ok, Req, no_state}.
+init(Req, Opts) ->
+    {_, Lang} = lists:keyfind(lang, 1, Opts),
+    {http, Req, Lang}.
 ```
 
 If your users are unlikely to figure out the issue
@@ -58,15 +39,15 @@ continue with the handler code, so we use the
 `shutdown` return value to stop early.
 
 ``` erlang
-init(_Type, Req, Opts) ->
+init(Req, Opts) ->
     case lists:keyfind(lang, 1, Opts) of
         false ->
             Req2 = cowboy_req:reply(500, [
                 {<<"content-type">>, <<"text/plain">>}
             ], "Missing option 'lang'.", Req),
-            {shutdown, Req2, no_state};
-        _ ->
-            {ok, Req, no_state}
+            {shutdown, Req2, undefined};
+        {_, Lang} ->
+            {http, Req, Lang}
     end.
 ```
 
@@ -75,9 +56,9 @@ safely. So we need to pass them onward to the rest of
 the handler. That's what the third element of the return
 tuple, the state, is for.
 
-We recommend that you create a state record for this.
-The record will make your handler code clearer and
-will allow you to better use Dialyzer for type checking.
+You may use a state record for this. The record will make
+your handler code clearer and will allow Dialyzer to better
+type check your code.
 
 ``` erlang
 -record(state, {
@@ -85,15 +66,25 @@ will allow you to better use Dialyzer for type checking.
     %% More fields here.
 }).
 
-init(_Type, Req, Opts) ->
+init(Req, Opts) ->
     {_, Lang} = lists:keyfind(lang, 1, Opts),
-    {ok, Req, #state{lang=Lang}}.
+    {http, Req, #state{lang=Lang}}.
+```
+
+You may also use a map. A map is interesting in that you
+do not need to define it beforehand, but is a little less
+efficient and not as well supported by Dialyzer.
+
+``` erlang
+init(Req, Opts) ->
+    {_, Lang} = lists:keyfind(lang, 1, Opts),
+    {http, Req, #{lang => Lang}.
 ```
 
 :: Handling the request
 
 The second callback, `handle/2`, is specific to plain HTTP
-handlers. It's where you, wait for it, handle the request.
+handlers. It's where you handle the request.
 
 A handle function that does nothing would look like this:
 
@@ -118,8 +109,7 @@ handle(Req, State) ->
 
 :: Cleaning up
 
-The third and last callback, `terminate/3`, will most likely
-be empty in your handler.
+The third and last callback, `terminate/3`, is optional.
 
 ``` erlang
 terminate(_Reason, Req, State) ->
@@ -140,6 +130,3 @@ thin however. The use of the process dictionary is discouraged
 in Erlang code in general. And if you need to use timers, monitors
 or to receive messages, you are better off with a loop handler,
 a different kind of handler meant specifically for this use.
-
-This function is still available should you need it. It will
-always be called.

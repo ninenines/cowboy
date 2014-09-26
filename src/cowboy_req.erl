@@ -83,9 +83,6 @@
 -export([get/2]).
 -export([set/2]).
 -export([set_bindings/4]).
-
-%% Misc API.
--export([compact/1]).
 -export([lock/1]).
 -export([to_list/1]).
 
@@ -1001,13 +998,6 @@ set([{version, Val}|Tail], Req) -> set(Tail, Req#http_req{version=Val}).
 set_bindings(HostInfo, PathInfo, Bindings, Req) ->
 	Req#http_req{host_info=HostInfo, path_info=PathInfo,
 		bindings=Bindings}.
-
-%% Misc API.
-
--spec compact(Req) -> Req when Req::req().
-compact(Req) ->
-	Req#http_req{host_info=undefined, path_info=undefined,
-		bindings=undefined, headers=[]}.
 
 -spec lock(Req) -> Req when Req::req().
 lock(Req) ->

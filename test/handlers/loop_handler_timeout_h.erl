@@ -5,15 +5,14 @@
 %% This results in a 204 reply being sent back by Cowboy.
 
 -module(loop_handler_timeout_h).
--behaviour(cowboy_loop_handler).
 
--export([init/3]).
+-export([init/2]).
 -export([info/3]).
 -export([terminate/3]).
 
-init(_, Req, _) ->
+init(Req, _) ->
 	erlang:send_after(1000, self(), timeout),
-	{loop, Req, undefined, 200, hibernate}.
+	{long_polling, Req, undefined, 200, hibernate}.
 
 info(timeout, Req, State) ->
 	{ok, cowboy_req:reply(500, Req), State}.

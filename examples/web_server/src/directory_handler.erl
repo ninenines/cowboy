@@ -4,8 +4,7 @@
 -module(directory_handler).
 
 %% REST Callbacks
--export([init/3]).
--export([rest_init/2]).
+-export([init/2]).
 -export([allowed_methods/2]).
 -export([resource_exists/2]).
 -export([content_types_provided/2]).
@@ -14,11 +13,8 @@
 -export([list_json/2]).
 -export([list_html/2]).
 
-init(_Transport, _Req, _Paths) ->
-	{upgrade, protocol, cowboy_rest}.
-
-rest_init(Req, Paths) ->
-	{ok, Req, Paths}.
+init(Req, Paths) ->
+	{rest, Req, Paths}.
 
 allowed_methods(Req, State) ->
 	{[<<"GET">>], Req, State}.

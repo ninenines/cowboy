@@ -1,9 +1,14 @@
 -module(rest_patch_resource).
--export([init/3, allowed_methods/2, content_types_provided/2, get_text_plain/2,
-	content_types_accepted/2, patch_text_plain/2]).
 
-init(_Transport, _Req, _Opts) ->
-	{upgrade, protocol, cowboy_rest}.
+-export([init/2]).
+-export([allowed_methods/2]).
+-export([content_types_provided/2]).
+-export([get_text_plain/2]).
+-export([content_types_accepted/2]).
+-export([patch_text_plain/2]).
+
+init(Req, Opts) ->
+	{rest, Req, Opts}.
 
 allowed_methods(Req, State) ->
 	{[<<"HEAD">>, <<"GET">>, <<"PATCH">>], Req, State}.

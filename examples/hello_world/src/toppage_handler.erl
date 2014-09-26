@@ -3,18 +3,14 @@
 %% @doc Hello world handler.
 -module(toppage_handler).
 
--export([init/3]).
+-export([init/2]).
 -export([handle/2]).
--export([terminate/3]).
 
-init(_Type, Req, []) ->
-	{ok, Req, undefined}.
+init(Req, Opts) ->
+	{http, Req, Opts}.
 
 handle(Req, State) ->
 	Req2 = cowboy_req:reply(200, [
 		{<<"content-type">>, <<"text/plain">>}
 	], <<"Hello world!">>, Req),
 	{ok, Req2, State}.
-
-terminate(_Reason, _Req, _State) ->
-	ok.

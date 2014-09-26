@@ -20,24 +20,6 @@ A number of backward incompatible changes are planned. These
 changes are individually small, but together should result
 in a large improvement in usability.
 
-### init/terminate unification
-
-The first argument of the `init/3` function is too rarely used.
-It will be removed.
-
-The return value of the `init/2` function will become
-`{http, Req, State} | {loop, Req, State} | {Module, Req, State}`
-with `Module` being `cowboy_rest`, `cowboy_websocket` or a
-user provided module.
-
-The `rest_init` and `websocket_init` callbacks will be removed
-as they become unnecessary with the new `init/2` interface.
-
-Similarly, the `rest_terminate` and `websocket_terminate`
-callbacks will be removed in favor of a unified `terminate/3`.
-
-The `terminate/3` callback will become optional.
-
 ### Hooks
 
 The interface of the `onresponse` hook will change. There has

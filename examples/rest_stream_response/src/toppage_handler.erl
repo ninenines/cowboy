@@ -3,16 +3,12 @@
 %% @doc Streaming handler.
 -module(toppage_handler).
 
--export([init/3]).
--export([rest_init/2]).
+-export([init/2]).
 -export([content_types_provided/2]).
 -export([streaming_csv/2]).
 
-init(_Transport, _Req, _Table) ->
-	{upgrade, protocol, cowboy_rest}.
-
-rest_init(Req, Table) ->
-	{ok, Req, Table}.
+init(Req, Table) ->
+	{rest, Req, Table}.
 
 content_types_provided(Req, State) ->
 	{[

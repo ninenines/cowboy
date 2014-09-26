@@ -16,22 +16,21 @@
 
 -type opts() :: any().
 -type state() :: any().
--type terminate_reason() :: {normal, shutdown}
-	| {normal, timeout} %% Only occurs in loop handlers.
-	| {error, closed} %% Only occurs in loop handlers.
-	| {error, overflow} %% Only occurs in loop handlers.
-	| {error, atom()}.
+%% @todo see terminate
+%-type terminate_reason() :: {normal, shutdown}
+%	| {normal, timeout} %% Only occurs in loop handlers.
+%	| {error, closed} %% Only occurs in loop handlers.
+%	| {error, overflow} %% Only occurs in loop handlers.
+%	| {error, atom()}.
 
--callback init({atom(), http}, Req, opts())
-	-> {ok, Req, state()}
-	| {loop, Req, state()}
-	| {loop, Req, state(), hibernate}
-	| {loop, Req, state(), timeout()}
-	| {loop, Req, state(), timeout(), hibernate}
+-callback init(Req, opts())
+	-> {http, Req, state()}
+	| {long_polling | rest | ws | module(), Req, state()}
+	| {long_polling | rest | ws | module(), Req, state(), hibernate}
+	| {long_polling | rest | ws | module(), Req, state(), timeout()}
+	| {long_polling | rest | ws | module(), Req, state(), timeout(), hibernate}
 	| {shutdown, Req, state()}
-	| {upgrade, protocol, module()}
-	| {upgrade, protocol, module(), Req, opts()}
 	when Req::cowboy_req:req().
 -callback handle(Req, State) -> {ok, Req, State}
 	when Req::cowboy_req:req(), State::state().
--callback terminate(terminate_reason(), cowboy_req:req(), state()) -> ok.
+%% @todo optional -callback terminate(terminate_reason(), cowboy_req:req(), state()) -> ok.

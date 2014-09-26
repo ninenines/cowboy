@@ -1,8 +1,12 @@
 -module(rest_resource_etags).
--export([init/3, generate_etag/2, content_types_provided/2, get_text_plain/2]).
 
-init(_Transport, _Req, _Opts) ->
-	{upgrade, protocol, cowboy_rest}.
+-export([init/2]).
+-export([generate_etag/2]).
+-export([content_types_provided/2]).
+-export([get_text_plain/2]).
+
+init(Req, Opts) ->
+	{rest, Req, Opts}.
 
 generate_etag(Req, State) ->
 	#{type := Type} = cowboy_req:match_qs(Req, [type]),
