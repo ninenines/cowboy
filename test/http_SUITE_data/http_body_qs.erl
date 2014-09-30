@@ -3,15 +3,11 @@
 -module(http_body_qs).
 
 -export([init/2]).
--export([handle/2]).
 
 init(Req, Opts) ->
-	{http, Req, Opts}.
-
-handle(Req, State) ->
 	Method = cowboy_req:method(Req),
 	HasBody = cowboy_req:has_body(Req),
-	{ok, maybe_echo(Method, HasBody, Req), State}.
+	{ok, maybe_echo(Method, HasBody, Req), Opts}.
 
 maybe_echo(<<"POST">>, true, Req) ->
 	case cowboy_req:body_qs(Req) of

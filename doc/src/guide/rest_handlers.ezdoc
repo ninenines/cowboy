@@ -1,20 +1,20 @@
 ::: REST handlers
 
-REST is implemented in Cowboy as a protocol upgrade. Once upgraded,
-the request is handled as a state machine with many optional callbacks
+REST is implemented in Cowboy as a sub protocol. The request
+is handled as a state machine with many optional callbacks
 describing the resource and modifying the machine's behavior.
 
-The REST handler is the recommended way to handle requests.
+The REST handler is the recommended way to handle HTTP requests.
 
 :: Initialization
 
 First, the `init/2` callback is called. This callback is common
 to all handlers. To use REST for the current request, this function
-must return a `rest` tuple.
+must return a `cowboy_rest` tuple.
 
 ``` erlang
 init(Req, Opts) ->
-    {rest, Req, Opts}.
+    {cowboy_rest, Req, Opts}.
 ```
 
 Cowboy will then switch to the REST protocol and start executing

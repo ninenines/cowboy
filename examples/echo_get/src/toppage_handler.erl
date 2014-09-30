@@ -4,16 +4,12 @@
 -module(toppage_handler).
 
 -export([init/2]).
--export([handle/2]).
 
 init(Req, Opts) ->
-	{http, Req, Opts}.
-
-handle(Req, State) ->
 	Method = cowboy_req:method(Req),
 	#{echo := Echo} = cowboy_req:match_qs(Req, [echo]),
 	Req2 = echo(Method, Echo, Req),
-	{ok, Req2, State}.
+	{ok, Req2, Opts}.
 
 echo(<<"GET">>, undefined, Req) ->
 	cowboy_req:reply(400, [], <<"Missing echo parameter.">>, Req);

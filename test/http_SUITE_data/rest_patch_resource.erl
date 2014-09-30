@@ -8,7 +8,7 @@
 -export([patch_text_plain/2]).
 
 init(Req, Opts) ->
-	{rest, Req, Opts}.
+	{cowboy_rest, Req, Opts}.
 
 allowed_methods(Req, State) ->
 	{[<<"HEAD">>, <<"GET">>, <<"PATCH">>], Req, State}.

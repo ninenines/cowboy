@@ -8,7 +8,7 @@
 -export([streaming_csv/2]).
 
 init(Req, Table) ->
-	{rest, Req, Table}.
+	{cowboy_rest, Req, Table}.
 
 content_types_provided(Req, State) ->
 	{[

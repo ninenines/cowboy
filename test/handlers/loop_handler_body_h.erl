@@ -11,12 +11,12 @@
 
 init(Req, _) ->
 	self() ! timeout,
-	{long_polling, Req, undefined, 5000, hibernate}.
+	{cowboy_loop, Req, undefined, 5000, hibernate}.
 
 info(timeout, Req, State) ->
 	{ok, Body, Req2} = cowboy_req:body(Req),
 	100000 = byte_size(Body),
-	{ok, cowboy_req:reply(200, Req2), State}.
+	{shutdown, cowboy_req:reply(200, Req2), State}.
 
-terminate({normal, shutdown}, _, _) ->
+terminate(shutdown, _, _) ->
 	ok.

@@ -1,8 +1,9 @@
-::: Static handler
+::: Static files
 
-The static handler is a built-in REST handler for serving files.
-It is available as a convenience and provides a quick solution
-for serving files during development.
+Cowboy comes with a special handler built as a REST handler
+and designed specifically for serving static files. It is
+provided as a convenience and provides a quick solution for
+serving files during development.
 
 For systems in production, consider using one of the many
 Content Distribution Network (CDN) available on the market,

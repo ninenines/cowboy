@@ -3,14 +3,10 @@
 -module(http_multipart).
 
 -export([init/2]).
--export([handle/2]).
 
 init(Req, Opts) ->
-	{http, Req, Opts}.
-
-handle(Req, State) ->
 	{Result, Req2} = acc_multipart(Req, []),
-	{ok, cowboy_req:reply(200, [], term_to_binary(Result), Req2), State}.
+	{ok, cowboy_req:reply(200, [], term_to_binary(Result), Req2), Opts}.
 
 acc_multipart(Req, Acc) ->
 	case cowboy_req:part(Req) of

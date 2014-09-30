@@ -6,7 +6,7 @@
 -export([expires/2]).
 
 init(Req, Opts) ->
-	{rest, Req, Opts}.
+	{cowboy_rest, Req, Opts}.
 
 content_types_provided(Req, State) ->
 	{[{{<<"text">>, <<"plain">>, []}, get_text_plain}], Req, State}.

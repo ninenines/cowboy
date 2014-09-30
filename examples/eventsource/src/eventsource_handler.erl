@@ -10,12 +10,12 @@ init(Req, Opts) ->
 	Headers = [{<<"content-type">>, <<"text/event-stream">>}],
 	Req2 = cowboy_req:chunked_reply(200, Headers, Req),
 	erlang:send_after(1000, self(), {message, "Tick"}),
-	{long_polling, Req2, Opts, 5000}.
+	{cowboy_loop, Req2, Opts, 5000}.
 
 info({message, Msg}, Req, State) ->
 	cowboy_req:chunk(["id: ", id(), "\ndata: ", Msg, "\n\n"], Req),
 	erlang:send_after(1000, self(), {message, "Tick"}),
-	{loop, Req, State}.
+	{ok, Req, State}.
 
 id() ->
 	{Mega, Sec, Micro} = erlang:now(),

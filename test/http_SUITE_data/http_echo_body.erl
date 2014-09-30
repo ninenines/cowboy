@@ -3,18 +3,14 @@
 -module(http_echo_body).
 
 -export([init/2]).
--export([handle/2]).
 
 init(Req, Opts) ->
-	{http, Req, Opts}.
-
-handle(Req, State) ->
 	true = cowboy_req:has_body(Req),
 	Req3 = case cowboy_req:body(Req, [{length, 1000000}]) of
 		{ok, Body, Req2} -> handle_body(Req2, Body);
 		{more, _, Req2} -> handle_badlength(Req2)
 	end,
-	{ok, Req3, State}.
+	{ok, Req3, Opts}.
 
 handle_badlength(Req) ->
 	cowboy_req:reply(413, [], <<"Request entity too large">>, Req).

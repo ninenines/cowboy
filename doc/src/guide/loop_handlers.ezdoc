@@ -8,7 +8,7 @@ a response.
 Loop handlers are used for requests where a response might not
 be immediately available, but where you would like to keep the
 connection open for a while in case the response arrives. The
-most known example of such practice is known as long-polling.
+most known example of such practice is known as long polling.
 
 Loop handlers can also be used for requests where a response is
 partially available and you need to stream the response body
@@ -21,12 +21,12 @@ and allow using built-in features like hibernation and timeouts.
 
 Loop handlers essentially wait for one or more Erlang messages
 and feed these messages to the `info/3` callback. It also features
-the `init/3` and `terminate/3` callbacks which work the same as
+the `init/2` and `terminate/3` callbacks which work the same as
 for plain HTTP handlers.
 
 :: Initialization
 
-The `init/3` function must return a `loop` tuple to enable
+The `init/2` function must return a `cowboy_loop` tuple to enable
 loop handler behavior. This tuple may optionally contain
 a timeout value and/or the atom `hibernate` to make the
 process enter hibernation until a message is received.
@@ -35,7 +35,7 @@ This snippet enables the loop handler.
 
 ``` erlang
 init(Req, Opts) ->
-    {long_polling, Req, Opts}.
+    {cowboy_loop, Req, Opts}.
 ```
 
 However it is largely recommended that you set a timeout
@@ -44,7 +44,7 @@ also makes the process hibernate.
 
 ``` erlang
 init(Req, Opts) ->
-    {long_polling, Req, Opts, 30000, hibernate}.
+    {cowboy_loop, Req, Opts, 30000, hibernate}.
 ```
 
 :: Receive loop
@@ -61,9 +61,9 @@ message otherwise.
 ``` erlang
 info({reply, Body}, Req, State) ->
     Req2 = cowboy_req:reply(200, [], Body, Req),
-    {ok, Req2, State};
+    {shutdown, Req2, State};
 info(_Msg, Req, State) ->
-    {loop, Req, State, hibernate}.
+    {ok, Req, State, hibernate}.
 ```
 
 Do note that the `reply` tuple here may be any message
@@ -76,17 +76,17 @@ return a tuple indicating if more messages are to be expected.
 The callback may also choose to do nothing at all and just
 skip the message received.
 
-If a reply is sent, then the `ok` tuple should be returned.
+If a reply is sent, then the `shutdown` tuple should be returned.
 This will instruct Cowboy to end the request.
 
-Otherwise a `loop` tuple should be returned.
+Otherwise an `ok` tuple should be returned.
 
 :: Streaming loop
 
 Another common case well suited for loop handlers is
 streaming data received in the form of Erlang messages.
 This can be done by initiating a chunked reply in the
-`init/3` callback and then using `cowboy_req:chunk/2`
+`init/2` callback and then using `cowboy_req:chunk/2`
 every time a message is received.
 
 The following snippet does exactly that. As you can see
@@ -96,15 +96,15 @@ and the loop is stopped by sending an `eof` message.
 ``` erlang
 init(Req, Opts) ->
 	Req2 = cowboy_req:chunked_reply(200, [], Req),
-    {long_polling, Req2, Opts}.
+    {cowboy_loop, Req2, Opts}.
 
 info(eof, Req, State) ->
-    {ok, Req, State};
+    {shutdown, Req, State};
 info({chunk, Chunk}, Req, State) ->
     cowboy_req:chunk(Chunk, Req),
-    {loop, Req, State};
+    {ok, Req, State};
 info(_Msg, Req, State) ->
-    {loop, Req, State}.
+    {ok, Req, State}.
 ```
 
 :: Cleaning up

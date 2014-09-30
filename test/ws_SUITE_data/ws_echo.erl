@@ -7,7 +7,7 @@
 -export([websocket_info/3]).
 
 init(Req, _) ->
-	{ws, Req, undefined}.
+	{cowboy_websocket, Req, undefined}.
 
 websocket_handle({text, Data}, Req, State) ->
 	{reply, {text, Data}, Req, State};

@@ -6,7 +6,7 @@
 -export([get_text_plain/2]).
 
 init(Req, Opts) ->
-	{rest, Req, Opts}.
+	{cowboy_rest, Req, Opts}.
 
 allowed_methods(Req, State) ->
 	{[<<"GET">>, <<"HEAD">>, <<"DELETE">>], Req, State}.

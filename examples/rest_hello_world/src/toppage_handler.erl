@@ -10,7 +10,7 @@
 -export([hello_to_text/2]).
 
 init(Req, Opts) ->
-	{rest, Req, Opts}.
+	{cowboy_rest, Req, Opts}.
 
 content_types_provided(Req, State) ->
 	{[

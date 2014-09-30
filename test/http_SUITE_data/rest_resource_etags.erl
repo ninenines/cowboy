@@ -6,7 +6,7 @@
 -export([get_text_plain/2]).
 
 init(Req, Opts) ->
-	{rest, Req, Opts}.
+	{cowboy_rest, Req, Opts}.
 
 generate_etag(Req, State) ->
 	#{type := Type} = cowboy_req:match_qs(Req, [type]),

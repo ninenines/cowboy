@@ -4,12 +4,8 @@
 -module(toppage_handler).
 
 -export([init/2]).
--export([handle/2]).
 
 init(Req, Opts) ->
-	{http, Req, Opts}.
-
-handle(Req, State) ->
 	NewValue = integer_to_list(random:uniform(1000000)),
 	Req2 = cowboy_req:set_resp_cookie(
 		<<"server">>, NewValue, [{path, <<"/">>}], Req),
@@ -22,4 +18,4 @@ handle(Req, State) ->
 	Req3 = cowboy_req:reply(200,
 		[{<<"content-type">>, <<"text/html">>}],
 		Body, Req2),
-	{ok, Req3, State}.
+	{ok, Req3, Opts}.

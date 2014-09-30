@@ -7,7 +7,7 @@
 -export([websocket_info/3]).
 
 init(Req, _) ->
-	{ws, Req, undefined, 1000, hibernate}.
+	{cowboy_websocket, Req, undefined, 1000, hibernate}.
 
 websocket_handle(_Frame, Req, State) ->
 	{ok, Req, State, hibernate}.

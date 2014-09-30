@@ -17,7 +17,7 @@ must return a `ws` tuple.
 
 ``` erlang
 init(Req, Opts) ->
-	{ws, Req, Opts}.
+	{cowboy_websocket, Req, Opts}.
 ```
 
 Upon receiving this tuple, Cowboy will switch to the code
@@ -61,7 +61,7 @@ or enabling timers.
 init(Req, _Opts) ->
 	self() ! post_init,
 	%% Register process here...
-	{ws, Req, #state{}}.
+	{cowboy_websocket, Req, #state{}}.
 
 websocket_info(post_init, Req, State) ->
 	%% Perform post_init initialization here...
@@ -161,7 +161,7 @@ A good timeout value is 60 seconds.
 
 ``` erlang
 init(Req, _Opts) ->
-	{ws, Req, #state{}, 60000}.
+	{cowboy_websocket, Req, #state{}, 60000}.
 ```
 
 This value cannot be changed once it is set. It defaults to

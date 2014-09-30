@@ -3,7 +3,6 @@
 -module(http_set_resp).
 
 -export([init/2]).
--export([handle/2]).
 
 init(Req, Opts) ->
 	Headers = proplists:get_value(headers, Opts, []),
@@ -14,16 +13,13 @@ init(Req, Opts) ->
 	Req3 = cowboy_req:set_resp_body(Body, Req2),
 	Req4 = cowboy_req:set_resp_header(<<"x-cowboy-test">>, <<"ok">>, Req3),
 	Req5 = cowboy_req:set_resp_cookie(<<"cake">>, <<"lie">>, [], Req4),
-	{http, Req5, undefined}.
-
-handle(Req, State) ->
-	case cowboy_req:has_resp_header(<<"x-cowboy-test">>, Req) of
-		false -> {ok, Req, State};
+	case cowboy_req:has_resp_header(<<"x-cowboy-test">>, Req5) of
+		false -> {ok, Req5, Opts};
 		true ->
-			case cowboy_req:has_resp_body(Req) of
+			case cowboy_req:has_resp_body(Req5) of
 				false ->
-					{ok, Req, State};
+					{ok, Req5, Opts};
 				true ->
-					{ok, cowboy_req:reply(200, Req), State}
+					{ok, cowboy_req:reply(200, Req5), Opts}
 			end
 	end.

@@ -25,7 +25,7 @@ excluding the initial flawed draft sometimes known as
 :: Implementation
 
 Cowboy implements Websocket as a protocol upgrade. Once the
-upgrade is performed from the `init/3` callback, Cowboy
+upgrade is performed from the `init/2` callback, Cowboy
 switches to Websocket. Please consult the next chapter for
 more information on initiating and handling Websocket
 connections.

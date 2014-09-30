@@ -19,6 +19,15 @@
 
 -export([upgrade/6]).
 
+-callback init(Req, any())
+	-> {ok | module(), Req, any()}
+	| {module(), Req, any(), hibernate}
+	| {module(), Req, any(), timeout()}
+	| {module(), Req, any(), timeout(), hibernate}
+	when Req::cowboy_req:req().
+%% @todo optional REST callbacks
+%% @todo optional -callback terminate(terminate_reason(), cowboy_req:req(), state()) -> ok.
+
 -record(state, {
 	env :: cowboy_middleware:env(),
 	method = undefined :: binary(),
@@ -967,11 +976,11 @@ next(Req, State, StatusCode) when is_integer(StatusCode) ->
 respond(Req, State, StatusCode) ->
 	terminate(cowboy_req:reply(StatusCode, Req), State).
 
-error_terminate(Req, State=#state{handler=Handler, handler_state=HandlerState},
+error_terminate(Req, #state{handler=Handler, handler_state=HandlerState},
 		Class, Reason, Callback) ->
-	_ = terminate(Req, State),
 	Stacktrace = erlang:get_stacktrace(),
 	cowboy_req:maybe_reply(Stacktrace, Req),
+	cowboy_handler:terminate({crash, Class, Reason}, Req, HandlerState, Handler),
 	erlang:Class([
 		{reason, Reason},
 		{mfa, {Handler, Callback, 2}},
@@ -981,4 +990,5 @@ error_terminate(Req, State=#state{handler=Handler, handler_state=HandlerState},
 	]).
 
 terminate(Req, #state{env=Env, handler=Handler, handler_state=HandlerState}) ->
-	cowboy_handler:terminate(Req, Env, Handler, HandlerState, {normal, shutdown}).
+	Result = cowboy_handler:terminate(normal, Req, HandlerState, Handler),
+	{ok, Req, [{result, Result}|Env]}.

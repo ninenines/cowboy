@@ -9,7 +9,7 @@
 init(Req, _) ->
 	receive after 100 -> ok end,
 	self() ! stream,
-	{long_polling, Req, undefined, 100}.
+	{cowboy_loop, Req, undefined, 100}.
 
 info(stream, Req, undefined) ->
 	stream(Req, 1, <<>>).
@@ -17,7 +17,7 @@ info(stream, Req, undefined) ->
 stream(Req, ID, Acc) ->
 	case cowboy_req:body(Req) of
 		{ok, <<>>, Req2} ->
-			{ok, cowboy_req:reply(200, Req2), undefined};
+			{shutdown, cowboy_req:reply(200, Req2), undefined};
 		{_, Data, Req2} ->
 			parse_id(Req2, ID, << Acc/binary, Data/binary >>)
 	end.
@@ -30,5 +30,5 @@ parse_id(Req, ID, Data) ->
 			stream(Req, ID, Data)
 	end.
 
-terminate({normal, shutdown}, _, _) ->
+terminate(shutdown, _, _) ->
 	ok.

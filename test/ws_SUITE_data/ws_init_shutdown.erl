@@ -4,5 +4,5 @@
 
 -export([init/2]).
 
-init(Req, _) ->
-	{shutdown, cowboy_req:reply(403, Req), undefined}.
+init(Req, Opts) ->
+	{ok, cowboy_req:reply(403, Req), Opts}.

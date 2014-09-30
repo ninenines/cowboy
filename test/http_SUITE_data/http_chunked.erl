@@ -3,15 +3,11 @@
 -module(http_chunked).
 
 -export([init/2]).
--export([handle/2]).
 
 init(Req, Opts) ->
-	{http, Req, Opts}.
-
-handle(Req, State) ->
 	Req2 = cowboy_req:chunked_reply(200, Req),
 	timer:sleep(100),
 	cowboy_req:chunk("chunked_handler\r\n", Req2),
 	timer:sleep(100),
 	cowboy_req:chunk("works fine!", Req2),
-	{ok, Req2, State}.
+	{ok, Req2, Opts}.

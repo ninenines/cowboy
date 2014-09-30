@@ -21,7 +21,15 @@
 -behaviour(cowboy_middleware).
 
 -export([execute/2]).
--export([terminate/5]).
+-export([terminate/4]).
+
+-callback init(Req, any())
+	-> {ok | module(), Req, any()}
+	| {module(), Req, any(), hibernate}
+	| {module(), Req, any(), timeout()}
+	| {module(), Req, any(), timeout(), hibernate}
+	when Req::cowboy_req:req().
+%% @todo optional -callback terminate(terminate_reason(), cowboy_req:req(), state()) -> ok.
 
 -spec execute(Req, Env) -> {ok, Req, Env}
 	when Req::cowboy_req:req(), Env::cowboy_middleware:env().
@@ -29,21 +37,21 @@ execute(Req, Env) ->
 	{_, Handler} = lists:keyfind(handler, 1, Env),
 	{_, HandlerOpts} = lists:keyfind(handler_opts, 1, Env),
 	try Handler:init(Req, HandlerOpts) of
-		{http, Req2, State} ->
-			handle(Req2, Env, Handler, State);
-		{shutdown, Req2, State} ->
-			terminate(Req2, Env, Handler, State, {normal, shutdown});
+		{ok, Req2, State} ->
+			Result = terminate(normal, Req2, State, Handler),
+			{ok, Req2, [{result, Result}|Env]};
 		{Mod, Req2, State} ->
-			upgrade(Req2, Env, Handler, State, infinity, run, Mod);
+			Mod:upgrade(Req2, Env, Handler, State, infinity, run);
 		{Mod, Req2, State, hibernate} ->
-			upgrade(Req2, Env, Handler, State, infinity, hibernate, Mod);
+			Mod:upgrade(Req2, Env, Handler, State, infinity, hibernate);
 		{Mod, Req2, State, Timeout} ->
-			upgrade(Req2, Env, Handler, State, Timeout, run, Mod);
+			Mod:upgrade(Req2, Env, Handler, State, Timeout, run);
 		{Mod, Req2, State, Timeout, hibernate} ->
-			upgrade(Req2, Env, Handler, State, Timeout, hibernate, Mod)
+			Mod:upgrade(Req2, Env, Handler, State, Timeout, hibernate)
 	catch Class:Reason ->
 		Stacktrace = erlang:get_stacktrace(),
 		cowboy_req:maybe_reply(Stacktrace, Req),
+		terminate({crash, Class, Reason}, Req, HandlerOpts, Handler),
 		erlang:Class([
 			{reason, Reason},
 			{mfa, {Handler, init, 2}},
@@ -53,36 +61,9 @@ execute(Req, Env) ->
 		])
 	end.
 
-handle(Req, Env, Handler, State) ->
-	try Handler:handle(Req, State) of
-		{ok, Req2, State2} ->
-			terminate(Req2, Env, Handler, State2, {normal, shutdown})
-	catch Class:Reason ->
-		Stacktrace = erlang:get_stacktrace(),
-		cowboy_req:maybe_reply(Stacktrace, Req),
-		_ = terminate(Req, Env, Handler, State, Reason),
-		erlang:Class([
-			{reason, Reason},
-			{mfa, {Handler, handle, 2}},
-			{stacktrace, Stacktrace},
-			{req, cowboy_req:to_list(Req)},
-			{state, State}
-		])
-	end.
-
-upgrade(Req, Env, Handler, State, Timeout, Hibernate, Mod) ->
-	Mod2 = case Mod of
-		long_polling -> cowboy_long_polling;
-		rest -> cowboy_rest;
-		ws -> cowboy_websocket;
-		_ when Mod =/= http -> Mod
-	end,
-	Mod2:upgrade(Req, Env, Handler, State, Timeout, Hibernate).
-
--spec terminate(Req, Env, module(), any(), {normal, shutdown} | {error, atom()} | any())
-	-> {ok, Req, Env} when Req::cowboy_req:req(), Env::cowboy_middleware:env().
-terminate(Req, Env, Handler, State, Reason) ->
-	Result = case erlang:function_exported(Handler, terminate, 3) of
+-spec terminate(any(), Req, any(), module()) -> ok when Req::cowboy_req:req().
+terminate(Reason, Req, State, Handler) ->
+	case erlang:function_exported(Handler, terminate, 3) of
 		true ->
 			try
 				Handler:terminate(Reason, cowboy_req:lock(Req), State)
@@ -98,5 +79,4 @@ terminate(Req, Env, Handler, State, Reason) ->
 			end;
 		false ->
 			ok
-	end,
-	{ok, Req, [{result, Result}|Env]}.
+	end.

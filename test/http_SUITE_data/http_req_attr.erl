@@ -5,15 +5,11 @@
 -module(http_req_attr).
 
 -export([init/2]).
--export([handle/2]).
 
 init(Req, Opts) ->
-	{http, Req, Opts}.
-
-handle(Req, State) ->
 	#{attr := Attr} = cowboy_req:match_qs(Req, [attr]),
 	<<"host_and_port">> = Attr,
 	Host = cowboy_req:host(Req),
 	Port = cowboy_req:port(Req),
 	Value = [Host, "\n", integer_to_list(Port)],
-	{ok, cowboy_req:reply(200, [], Value, Req), State}.
+	{ok, cowboy_req:reply(200, [], Value, Req), Opts}.

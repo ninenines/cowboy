@@ -142,7 +142,6 @@ init_dispatch(Config) ->
 		{"localhost", [
 			{"/chunked_response", http_chunked, []},
 			{"/streamed_response", http_streamed, []},
-			{"/init_shutdown", http_init_shutdown, []},
 			{"/headers/dupe", http_handler,
 				[{headers, [{<<"connection">>, <<"close">>}]}]},
 			{"/set_resp/header", http_set_resp,
@@ -292,9 +291,7 @@ check_status(Config) ->
 		{403, "/static/unreadable"},
 		{404, "/not/found"},
 		{404, "/static/not_found"},
-		{500, "/handler_errors?case=handle_before_reply"},
-		{500, "/handler_errors?case=init_before_reply"},
-		{666, "/init_shutdown"}
+		{500, "/handler_errors?case=init_before_reply"}
 	],
 	_ = [{Status, URL} = begin
 		Ret = do_get(URL, Config),
@@ -342,37 +339,9 @@ echo_body_qs_max_length(Config) ->
 	{response, nofin, 413, _} = gun:await(ConnPid, Ref),
 	ok.
 
-error_chain_handle_after_reply(Config) ->
-	{ConnPid, MRef} = gun_monitor_open(Config),
-	Ref1 = gun:get(ConnPid, "/"),
-	Ref2 = gun:get(ConnPid, "/handler_errors?case=handle_after_reply"),
-	{response, nofin, 200, _} = gun:await(ConnPid, Ref1, MRef),
-	{response, nofin, 200, _} = gun:await(ConnPid, Ref2, MRef),
-	gun_is_gone(ConnPid, MRef).
-
-error_chain_handle_before_reply(Config) ->
-	{ConnPid, MRef} = gun_monitor_open(Config),
-	Ref1 = gun:get(ConnPid, "/"),
-	Ref2 = gun:get(ConnPid, "/handler_errors?case=handle_before_reply"),
-	{response, nofin, 200, _} = gun:await(ConnPid, Ref1, MRef),
-	{response, fin, 500, _} = gun:await(ConnPid, Ref2, MRef),
-	gun_is_gone(ConnPid, MRef).
-
-error_handle_after_reply(Config) ->
-	{ConnPid, MRef} = gun_monitor_open(Config),
-	Ref = gun:get(ConnPid, "/handler_errors?case=handle_after_reply"),
-	{response, nofin, 200, _} = gun:await(ConnPid, Ref, MRef),
-	gun_is_gone(ConnPid, MRef).
-
 error_init_after_reply(Config) ->
 	{ConnPid, MRef} = gun_monitor_open(Config),
 	Ref = gun:get(ConnPid, "/handler_errors?case=init_after_reply"),
-	{response, nofin, 200, _} = gun:await(ConnPid, Ref, MRef),
-	gun_is_gone(ConnPid, MRef).
-
-error_init_reply_handle_error(Config) ->
-	{ConnPid, MRef} = gun_monitor_open(Config),
-	Ref = gun:get(ConnPid, "/handler_errors?case=init_reply_handle_error"),
 	{response, nofin, 200, _} = gun:await(ConnPid, Ref, MRef),
 	gun_is_gone(ConnPid, MRef).
 

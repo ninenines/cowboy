@@ -8,7 +8,7 @@
 -export([put_text_plain/2]).
 
 init(Req, Opts) ->
-	{rest, Req, Opts}.
+	{cowboy_rest, Req, Opts}.
 
 allowed_methods(Req, State) ->
 	{[<<"GET">>, <<"PUT">>], Req, State}.

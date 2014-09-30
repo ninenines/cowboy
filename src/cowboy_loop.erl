@@ -21,11 +21,24 @@
 %% by default. This can be configured through the <em>loop_max_buffer</em>
 %% environment value. The request will be terminated with an
 %% <em>{error, overflow}</em> reason if this threshold is reached.
--module(cowboy_long_polling).
+-module(cowboy_loop).
 -behaviour(cowboy_sub_protocol).
 
 -export([upgrade/6]).
 -export([loop/4]).
+
+-callback init(Req, any())
+	-> {ok | module(), Req, any()}
+	| {module(), Req, any(), hibernate}
+	| {module(), Req, any(), timeout()}
+	| {module(), Req, any(), timeout(), hibernate}
+	when Req::cowboy_req:req().
+-callback info(any(), Req, State)
+	-> {ok, Req, State}
+	| {ok, Req, State, hibernate}
+	| {shutdown, Req, State}
+	when Req::cowboy_req:req(), State::any().
+%% @todo optional -callback terminate(terminate_reason(), cowboy_req:req(), state()) -> ok.
 
 -record(state, {
 	env :: cowboy_middleware:env(),
@@ -91,7 +104,7 @@ timeout(State=#state{timeout=Timeout,
 -spec loop(Req, #state{}, module(), any())
 	-> {ok, Req, cowboy_middleware:env()} | {suspend, module(), atom(), [any()]}
 	when Req::cowboy_req:req().
-loop(Req, State=#state{env=Env, buffer_size=NbBytes,
+loop(Req, State=#state{buffer_size=NbBytes,
 		max_buffer=Threshold, timeout_ref=TRef,
 		resp_sent=RespSent}, Handler, HandlerState) ->
 	[Socket, Transport] = cowboy_req:get([socket, transport], Req),
@@ -103,7 +116,7 @@ loop(Req, State=#state{env=Env, buffer_size=NbBytes,
 					_ = if RespSent -> ok; true ->
 						cowboy_req:reply(500, Req)
 					end,
-					_ = cowboy_handler:terminate(Req, Env, Handler, HandlerState, {error, overflow}),
+					cowboy_handler:terminate({error, overflow}, Req, HandlerState, Handler),
 					exit(normal);
 				true ->
 					Req2 = cowboy_req:append_buffer(Data, Req),
@@ -115,7 +128,7 @@ loop(Req, State=#state{env=Env, buffer_size=NbBytes,
 		{Error, Socket, Reason} ->
 			terminate(Req, State, Handler, HandlerState, {error, Reason});
 		{timeout, TRef, ?MODULE} ->
-			after_loop(Req, State, Handler, HandlerState, {normal, timeout});
+			after_loop(Req, State, Handler, HandlerState, timeout);
 		{timeout, OlderTRef, ?MODULE} when is_reference(OlderTRef) ->
 			loop(Req, State, Handler, HandlerState);
 		Message ->
@@ -133,21 +146,21 @@ loop(Req, State=#state{env=Env, buffer_size=NbBytes,
 			call(Req2, State, Handler, HandlerState, Message)
 	end.
 
-call(Req, State=#state{env=Env, resp_sent=RespSent},
+call(Req, State=#state{resp_sent=RespSent},
 		Handler, HandlerState, Message) ->
 	try Handler:info(Message, Req, HandlerState) of
 		{ok, Req2, HandlerState2} ->
-			after_loop(Req2, State, Handler, HandlerState2, {normal, shutdown});
-		{loop, Req2, HandlerState2} ->
 			after_call(Req2, State, Handler, HandlerState2);
-		{loop, Req2, HandlerState2, hibernate} ->
-			after_call(Req2, State#state{hibernate=true}, Handler, HandlerState2)
+		{ok, Req2, HandlerState2, hibernate} ->
+			after_call(Req2, State#state{hibernate=true}, Handler, HandlerState2);
+		{shutdown, Req2, HandlerState2} ->
+			after_loop(Req2, State, Handler, HandlerState2, shutdown)
 	catch Class:Reason ->
 		Stacktrace = erlang:get_stacktrace(),
 		if RespSent -> ok; true ->
 			cowboy_req:maybe_reply(Stacktrace, Req)
 		end,
-		_ = cowboy_handler:terminate(Req, Env, Handler, HandlerState, {error, overflow}),
+		cowboy_handler:terminate({crash, Class, Reason}, Req, HandlerState, Handler),
 		erlang:Class([
 			{reason, Reason},
 			{mfa, {Handler, info, 3}},
@@ -180,7 +193,8 @@ terminate(Req, #state{env=Env, timeout_ref=TRef},
 		TRef -> erlang:cancel_timer(TRef)
 	end,
 	flush_timeouts(),
-	cowboy_handler:terminate(Req, Env, Handler, HandlerState, Reason).
+	Result = cowboy_handler:terminate(Reason, Req, HandlerState, Handler),
+	{ok, Req, [{result, Result}|Env]}.
 
 flush_timeouts() ->
 	receive

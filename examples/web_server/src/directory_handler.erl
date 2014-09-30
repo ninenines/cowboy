@@ -14,7 +14,7 @@
 -export([list_html/2]).
 
 init(Req, Paths) ->
-	{rest, Req, Paths}.
+	{cowboy_rest, Req, Paths}.
 
 allowed_methods(Req, State) ->
 	{[<<"GET">>], Req, State}.

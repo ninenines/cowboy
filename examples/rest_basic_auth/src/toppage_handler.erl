@@ -9,7 +9,7 @@
 -export([to_text/2]).
 
 init(Req, Opts) ->
-	{rest, Req, Opts}.
+	{cowboy_rest, Req, Opts}.
 
 is_authorized(Req, State) ->
 	case cowboy_req:parse_header(<<"authorization">>, Req) of

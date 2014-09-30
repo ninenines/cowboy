@@ -6,7 +6,7 @@
 -export([from_text/2]).
 
 init(Req, Opts) ->
-	{rest, Req, Opts}.
+	{cowboy_rest, Req, Opts}.
 
 allowed_methods(Req, State) ->
 	{[<<"POST">>], Req, State}.

@@ -3,12 +3,13 @@
 The `cowboy_rest` module implements REST semantics on top of
 the HTTP protocol.
 
-This module cannot be described as a behaviour due to most of
-the callbacks it defines being optional. It has the same
-semantics as a behaviour otherwise.
+This module is a sub protocol that defines many callbacks
+be implemented by handlers. The `init/2` and `terminate/3`
+callbacks are common to all handler types and are documented
+in the manual for the ^cowboy_handler module.
 
-The only mandatory callback is `init/3`, needed to perform
-the protocol upgrade.
+All other callbacks are optional, though some may become
+required depending on the return value of previous callbacks.
 
 :: Types
 
@@ -43,46 +44,23 @@ The media-type is the content-type, excluding the charset.
 This value is always defined after the call to
 `content_types_provided/2`.
 
+:: Terminate reasons
+
+The following values may be received as the terminate reason
+in the optional `terminate/3` callback.
+
+: normal
+
+The connection was closed normally.
+
+: {crash, Class, Reason}
+
+A crash occurred in the handler. `Class` and `Reason` can be
+used to obtain more information about the crash. The function
+`erlang:get_stacktrace/0` can also be called to obtain the
+stacktrace of the process when the crash occurred.
+
 :: Callbacks
-
-: init({TransportName, ProtocolName}, Req, Opts)
-	-> {upgrade, protocol, cowboy_rest}
-	| {upgrade, protocol, cowboy_rest, Req, Opts}
-
-Types:
-
-* TransportName = tcp | ssl | atom()
-* ProtocolName = http | atom()
-* Req = cowboy_req:req()
-* Opts = any()
-
-Upgrade the protocol to `cowboy_rest`.
-
-This is the only mandatory callback.
-
-: rest_init(Req, Opts) -> {ok, Req, State}
-
-Types:
-
-* Req = cowboy_req:req()
-* Opts = any()
-* State = any()
-
-Initialize the state for this request.
-
-: rest_terminate(Req, State) -> ok
-
-Types:
-
-* Req = cowboy_req:req()
-* State = any()
-
-Perform any necessary cleanup of the state.
-
-This callback should release any resource currently in use,
-clear any active timer and reset the process to its original
-state, as it might be reused for future requests sent on the
-same connection.
 
 : Callback(Req, State) -> {Value, Req, State} | {halt, Req, State}
 

@@ -150,15 +150,15 @@ $ make new t=cowboy_http n=hello_handler
 ```
 
 You can then open the `src/hello_handler.erl` file and modify
-the `handle/2` function like this to send a reply.
+the `init/2` function like this to send a reply.
 
 ``` erlang
-handle(Req, State=#state{}) ->
+init(Req, Opts) ->
 	Req2 = cowboy_req:reply(200,
 		[{<<"content-type">>, <<"text/plain">>}],
 		<<"Hello Erlang!">>,
 		Req),
-	{ok, Req2, State}.
+	{ok, Req2, Opts}.
 ```
 
 What the above code does is send a `200 OK` reply, with the

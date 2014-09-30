@@ -9,7 +9,7 @@
 -export([from_text/2]).
 
 init(Req, [Forbidden]) ->
-	{rest, Req, Forbidden}.
+	{cowboy_rest, Req, Forbidden}.
 
 allowed_methods(Req, State) ->
 	{[<<"GET">>, <<"HEAD">>, <<"POST">>], Req, State}.

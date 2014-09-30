@@ -8,7 +8,7 @@
 
 init(Req, Opts) ->
 	erlang:send_after(10, self(), send_many),
-	{ws, Req, Opts}.
+	{cowboy_websocket, Req, Opts}.
 
 websocket_handle(_Frame, Req, State) ->
 	{ok, Req, State}.

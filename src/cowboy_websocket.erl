@@ -33,8 +33,32 @@
 -type frag_state() :: undefined
 	| {nofin, opcode(), binary()} | {fin, opcode(), binary()}.
 -type rsv() :: << _:3 >>.
--type terminate_reason() :: {normal | error | remote, atom()}
-	| {remote, close_code(), binary()}.
+-type terminate_reason() :: normal | shutdown | timeout
+	| remote | {remote, close_code(), binary()}
+	| {error, badencoding | badframe | closed | atom()}
+	| {crash, error | exit | throw, any()}.
+
+-callback init(Req, any())
+	-> {ok | module(), Req, any()}
+	| {module(), Req, any(), hibernate}
+	| {module(), Req, any(), timeout()}
+	| {module(), Req, any(), timeout(), hibernate}
+	when Req::cowboy_req:req().
+-callback websocket_handle({text | binary | ping | pong, binary()}, Req, State)
+	-> {ok, Req, State}
+	| {ok, Req, State, hibernate}
+	| {reply, frame() | [frame()], Req, State}
+	| {reply, frame() | [frame()], Req, State, hibernate}
+	| {shutdown, Req, State}
+	when Req::cowboy_req:req(), State::any().
+-callback websocket_info(any(), Req, State)
+	-> {ok, Req, State}
+	| {ok, Req, State, hibernate}
+	| {reply, frame() | [frame()], Req, State}
+	| {reply, frame() | [frame()], Req, State, hibernate}
+	| {shutdown, Req, State}
+	when Req::cowboy_req:req(), State::any().
+%% @todo optional -callback terminate(terminate_reason(), cowboy_req:req(), state()) -> ok.
 
 -record(state, {
 	env :: cowboy_middleware:env(),
@@ -181,7 +205,7 @@ handler_loop(State=#state{socket=Socket, messages={OK, Closed, Error},
 		{Error, Socket, Reason} ->
 			handler_terminate(State, Req, HandlerState, {error, Reason});
 		{timeout, TRef, ?MODULE} ->
-			websocket_close(State, Req, HandlerState, {normal, timeout});
+			websocket_close(State, Req, HandlerState, timeout);
 		{timeout, OlderTRef, ?MODULE} when is_reference(OlderTRef) ->
 			handler_loop(State, Req, HandlerState, SoFar);
 		Message ->
@@ -487,7 +511,7 @@ websocket_payload_loop(State=#state{socket=Socket, transport=Transport,
 		{Error, Socket, Reason} ->
 			handler_terminate(State, Req, HandlerState, {error, Reason});
 		{timeout, TRef, ?MODULE} ->
-			websocket_close(State, Req, HandlerState, {normal, timeout});
+			websocket_close(State, Req, HandlerState, timeout);
 		{timeout, OlderTRef, ?MODULE} when is_reference(OlderTRef) ->
 			websocket_payload_loop(State, Req, HandlerState,
 				Opcode, Len, MaskKey, Unmasked, UnmaskedLen, Rsv);
@@ -524,7 +548,7 @@ websocket_dispatch(State, Req, HandlerState, RemainingData, 2, Payload) ->
 		websocket_handle, {binary, Payload}, fun websocket_data/4);
 %% Close control frame.
 websocket_dispatch(State, Req, HandlerState, _RemainingData, 8, <<>>) ->
-	websocket_close(State, Req, HandlerState, {remote, closed});
+	websocket_close(State, Req, HandlerState, remote);
 websocket_dispatch(State, Req, HandlerState, _RemainingData, 8,
 		<< Code:16, Payload/bits >>) ->
 	websocket_close(State, Req, HandlerState, {remote, Code, Payload});
@@ -558,8 +582,7 @@ handler_call(State=#state{handler=Handler}, Req, HandlerState,
 				{ok, State2} ->
 					NextState(State2, Req2, HandlerState2, RemainingData);
 				{shutdown, State2} ->
-					handler_terminate(State2, Req2, HandlerState2,
-						{normal, shutdown});
+					handler_terminate(State2, Req2, HandlerState2, shutdown);
 				{{error, _} = Error, State2} ->
 					handler_terminate(State2, Req2, HandlerState2, Error)
 			end;
@@ -570,8 +593,7 @@ handler_call(State=#state{handler=Handler}, Req, HandlerState,
 					NextState(State2#state{hibernate=true},
 						Req2, HandlerState2, RemainingData);
 				{shutdown, State2} ->
-					handler_terminate(State2, Req2, HandlerState2,
-						{normal, shutdown});
+					handler_terminate(State2, Req2, HandlerState2, shutdown);
 				{{error, _} = Error, State2} ->
 					handler_terminate(State2, Req2, HandlerState2, Error)
 			end;
@@ -580,8 +602,7 @@ handler_call(State=#state{handler=Handler}, Req, HandlerState,
 				{ok, State2} ->
 					NextState(State2, Req2, HandlerState2, RemainingData);
 				{shutdown, State2} ->
-					handler_terminate(State2, Req2, HandlerState2,
-						{normal, shutdown});
+					handler_terminate(State2, Req2, HandlerState2, shutdown);
 				{{error, _} = Error, State2} ->
 					handler_terminate(State2, Req2, HandlerState2, Error)
 			end;
@@ -591,15 +612,14 @@ handler_call(State=#state{handler=Handler}, Req, HandlerState,
 					NextState(State2#state{hibernate=true},
 						Req2, HandlerState2, RemainingData);
 				{shutdown, State2} ->
-					handler_terminate(State2, Req2, HandlerState2,
-						{normal, shutdown});
+					handler_terminate(State2, Req2, HandlerState2, shutdown);
 				{{error, _} = Error, State2} ->
 					handler_terminate(State2, Req2, HandlerState2, Error)
 			end;
 		{shutdown, Req2, HandlerState2} ->
-			websocket_close(State, Req2, HandlerState2, {normal, shutdown})
+			websocket_close(State, Req2, HandlerState2, shutdown)
 	catch Class:Reason ->
-		_ = websocket_close(State, Req, HandlerState, {error, handler}),
+		_ = websocket_close(State, Req, HandlerState, {crash, Class, Reason}),
 		erlang:Class([
 			{reason, Reason},
 			{mfa, {Handler, Callback, 3}},
@@ -696,15 +716,15 @@ websocket_send_many([Frame|Tail], State) ->
 websocket_close(State=#state{socket=Socket, transport=Transport},
 		Req, HandlerState, Reason) ->
 	case Reason of
-		{normal, _} ->
+		Normal when Normal =:= shutdown; Normal =:= timeout ->
 			Transport:send(Socket, << 1:1, 0:3, 8:4, 0:1, 2:7, 1000:16 >>);
 		{error, badframe} ->
 			Transport:send(Socket, << 1:1, 0:3, 8:4, 0:1, 2:7, 1002:16 >>);
 		{error, badencoding} ->
 			Transport:send(Socket, << 1:1, 0:3, 8:4, 0:1, 2:7, 1007:16 >>);
-		{error, handler} ->
+		{crash, _, _} ->
 			Transport:send(Socket, << 1:1, 0:3, 8:4, 0:1, 2:7, 1011:16 >>);
-		{remote, closed} ->
+		remote ->
 			Transport:send(Socket, << 1:1, 0:3, 8:4, 0:8 >>);
 		{remote, Code, _} ->
 			Transport:send(Socket, << 1:1, 0:3, 8:4, 0:1, 2:7, Code:16 >>)
@@ -716,5 +736,5 @@ websocket_close(State=#state{socket=Socket, transport=Transport},
 	when Req::cowboy_req:req().
 handler_terminate(#state{env=Env, handler=Handler},
 		Req, HandlerState, Reason) ->
-	_ = cowboy_handler:terminate(Req, Env, Handler, HandlerState, Reason),
+	cowboy_handler:terminate(Reason, Req, HandlerState, Handler),
 	{ok, Req, [{result, closed}|Env]}.

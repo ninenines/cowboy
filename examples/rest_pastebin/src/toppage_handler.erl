@@ -17,7 +17,7 @@
 
 init(Req, Opts) ->
 	random:seed(now()),
-	{rest, Req, Opts}.
+	{cowboy_rest, Req, Opts}.
 
 allowed_methods(Req, State) ->
 	{[<<"GET">>, <<"POST">>], Req, State}.

@@ -42,7 +42,7 @@
 %% If the handler is configured to manage a directory, check that the
 %% requested file is inside the configured directory.
 
--spec init(Req, opts()) -> {rest, Req, error | state()} when Req::cowboy_req:req().
+-spec init(Req, opts()) -> {cowboy_rest, Req, error | state()} when Req::cowboy_req:req().
 init(Req, {Name, Path}) ->
 	init_opts(Req, {Name, Path, []});
 init(Req, {Name, App, Path})
@@ -87,7 +87,7 @@ init_dir(Req, Path, Extra) ->
 		<< Dir:Len/binary, $/, _/binary >> ->
 			init_info(Req, Filepath, Extra);
 		_ ->
-			{rest, Req, error}
+			{cowboy_rest, Req, error}
 	end.
 
 fullpath(Path) ->
@@ -105,7 +105,7 @@ fullpath([Segment|Tail], Acc) ->
 
 init_info(Req, Path, Extra) ->
 	Info = file:read_file_info(Path, [{time, universal}]),
-	{rest, Req, {Path, Info, Extra}}.
+	{cowboy_rest, Req, {Path, Info, Extra}}.
 
 -ifdef(TEST).
 fullpath_test_() ->

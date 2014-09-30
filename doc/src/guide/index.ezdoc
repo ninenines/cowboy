@@ -1,35 +1,34 @@
 ::: Cowboy User Guide
 
 The Cowboy User Guide explores the modern Web and how to make
-best use of Cowboy for writing powerful web applications.
+best use of Cowboy for writing powerful Web applications.
 
-:: Introducing Cowboy
+:: Rationale
 
-* ^"Introduction^introduction
 * ^"The modern Web^modern_web
 * ^"Erlang and the Web^erlang_web
-* ^"Erlang for beginners^erlang_beginners
+
+:: Introduction
+
+* ^"Introduction^introduction
 * ^"Getting started^getting_started
+* ^"Request overview^overview
+* ^"Erlang for beginners^erlang_beginners
 
-:: HTTP
+:: Configuration
 
-* ^"The life of a request^http_req_life
 * ^"Routing^routing
 * ^"Constraints^constraints
-* ^"Handling plain HTTP requests^http_handlers
+* ^"Static files^static_files
+
+:: Request and response
+
+* ^"Handlers^handlers
 * ^"The Req object^req
 * ^"Reading the request body^req_body
 * ^"Sending a response^resp
 * ^"Using cookies^cookies
-
-:: Multipart
-
-* ^"Introduction to multipart^multipart_intro
-* ^"Multipart requests^multipart_req
-
-:: Static files
-
-* ^"Static handler^static_handlers
+* ^"Multipart^multipart
 
 :: REST
 
@@ -43,14 +42,14 @@ best use of Cowboy for writing powerful web applications.
 * ^"The Websocket protocol^ws_protocol
 * ^"Handling Websocket connections^ws_handlers
 
-:: Server push
+:: Push technology
 
 * ^"Loop handlers^loop_handlers
 
-:: Pluggable interface
+:: Extensions
 
 * ^"Middlewares^middlewares
-* ^"Protocol upgrades^upgrade_protocol
+* ^"Sub protocols^sub_protocols
 * ^"Hooks^hooks
 
 :: Internals

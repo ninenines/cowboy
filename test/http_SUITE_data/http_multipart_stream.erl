@@ -3,14 +3,10 @@
 -module(http_multipart_stream).
 
 -export([init/2]).
--export([handle/2]).
 
 init(Req, Opts) ->
-	{http, Req, Opts}.
-
-handle(Req, State) ->
 	Req2 = multipart(Req),
-	{ok, cowboy_req:reply(200, Req2), State}.
+	{ok, cowboy_req:reply(200, Req2), Opts}.
 
 multipart(Req) ->
 	case cowboy_req:part(Req) of

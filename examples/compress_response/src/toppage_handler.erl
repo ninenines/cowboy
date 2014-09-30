@@ -4,12 +4,8 @@
 -module(toppage_handler).
 
 -export([init/2]).
--export([handle/2]).
 
 init(Req, Opts) ->
-	{http, Req, Opts}.
-
-handle(Req, State) ->
 	BigBody =
 <<"A cowboy is an animal herder who tends cattle on ranches in North America,
 traditionally on horseback, and often performs a multitude of other ranch-
@@ -24,4 +20,4 @@ considerable respect for their achievements. There are also cattle handlers
 in many other parts of the world, particularly South America and Australia,
 who perform work similar to the cowboy in their respective nations.\n">>,
 	Req2 = cowboy_req:reply(200, [], BigBody, Req),
-	{ok, Req2, State}.
+	{ok, Req2, Opts}.

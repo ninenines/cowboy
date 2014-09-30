@@ -8,7 +8,7 @@
 
 init(Req, _) ->
 	erlang:start_timer(1000, self(), <<"websocket_init">>),
-	{ws, Req, undefined}.
+	{cowboy_websocket, Req, undefined}.
 
 websocket_handle({text, Data}, Req, State) ->
 	{reply, {text, Data}, Req, State};

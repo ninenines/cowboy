@@ -6,7 +6,7 @@
 
 init(Req, Opts) ->
 	erlang:start_timer(1000, self(), <<"Hello!">>),
-	{ws, Req, Opts}.
+	{cowboy_websocket, Req, Opts}.
 
 websocket_handle({text, Msg}, Req, State) ->
 	{reply, {text, << "That's what she said! ", Msg/binary >>}, Req, State};
