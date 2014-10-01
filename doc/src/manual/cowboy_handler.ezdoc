@@ -20,10 +20,6 @@ defines the basic interface for handlers. All Cowboy handlers
 implement at least the `init/2` callback, and may implement
 the `terminate/3` callback optionally.
 
-:: Types
-
-None.
-
 :: Terminate reasons
 
 The following values may be received as the terminate reason

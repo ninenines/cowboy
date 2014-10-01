@@ -159,7 +159,3 @@ being closed.
 The `hibernate` option will hibernate the process until
 it receives another message or new data from the Websocket
 connection.
-
-:: Exports
-
-None.

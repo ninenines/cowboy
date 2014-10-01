@@ -32,7 +32,3 @@ List of middlewares to execute for every requests.
 : onresponse (undefined)
 
 Fun called every time a response is sent.
-
-:: Exports
-
-None.

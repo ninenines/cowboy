@@ -3,10 +3,6 @@
 The `cowboy_sub_protocol` behaviour defines the interface used
 by modules that implement a protocol on top of HTTP.
 
-:: Types
-
-None.
-
 :: Callbacks
 
 : upgrade(Req, Env, Handler, Opts)

@@ -73,7 +73,3 @@ Fun called every time a response is sent.
 : timeout (5000)
 
 Time in ms with no requests before Cowboy closes the connection.
-
-:: Exports
-
-None.

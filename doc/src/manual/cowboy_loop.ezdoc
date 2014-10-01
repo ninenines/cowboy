@@ -18,10 +18,6 @@ when no data has been received during that timespan. The
 default timeout is `infinity`, which should only be used if
 you have alternate means of ending inactive connections.
 
-:: Types
-
-None.
-
 :: Terminate reasons
 
 The following values may be received as the terminate reason
@@ -94,7 +90,3 @@ typically because a response has been sent.
 
 The `hibernate` option will hibernate the process until
 it receives another message.
-
-:: Exports
-
-None.
