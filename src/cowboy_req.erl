@@ -189,7 +189,7 @@ method(Req) ->
 version(Req) ->
 	Req#http_req.version.
 
--spec peer(req()) -> {inet:ip_address(), inet:port_number()}.
+-spec peer(req()) -> {inet:ip_address(), inet:port_number()} | undefined.
 peer(Req) ->
 	Req#http_req.peer.
 
