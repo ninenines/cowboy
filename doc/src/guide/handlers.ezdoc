@@ -97,3 +97,61 @@ Note that while this function may be called in a Websocket
 handler, it is generally not useful to do any clean up as
 the process terminates immediately after calling this callback
 when using Websocket.
+
+:: Code change
+
+All handlers coming with Cowboy allow the use of the optional
+`code_change/4` callback.
+
+``` erlang
+code_change(_OldVsn, Req, State, _Extra) ->
+	{ok, Req, State}
+```
+
+This callback is strictly reserved for changing the state structure
+of the handler when a code change occurs. The return value must a
+tuple as above. If this callback is not implemented the `Req` and
+`State` will remain unchanged after a code change.
+
+This function may be called when a handler uses the `cowboy_loop` or
+`cowboy_websocket` sub protocols.
+
+:: Formatting status
+
+All handlers coming with Cowboy allow the use of the optional
+`format_status/2` callback.
+
+``` erlang
+format_status(_Opt, [_PDict, _Req, State]) ->
+	State
+```
+
+`Opt` is the atom `normal` when the status is being formatted due to
+a system call and the atom `terminate` when a handler's state is being
+formatted when terminating. `PDict` is the contents of the process
+dictionary.
+
+This callback should be used to provide nicely formatted status for
+debug tools and logging. It is strictly reserved for formatting the
+status of a handler.
+
+If this callback is not implemented the following default
+implementation will be used:
+
+``` erlang
+format_status(normal, [_PDict, _Req, State]) ->
+	[{data, [{"Handler state", State}]}];
+format_status(terminate, [_PDict, _Req, State]) ->
+	State.
+```
+
+Notice the structure of the return in the case of `normal`. Returning
+a list of 2-tuples with the first element the atoms `header` or `data`
+will allow observer - and other OTP tools - to do extra formatting of
+the status. In the case of `header` the second element should be a
+string describing the process status. For `data` the second element
+should be a list of 2-tuples with first element a string and the
+second a term. The string should describe the term as in the default
+implementation. For `cowboy_loop` and `cowboy_websocket` sub protocols
+a header and additional data will be included along with the handlers
+formatted status.

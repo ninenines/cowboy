@@ -22,10 +22,11 @@
 -export([system_continue/3]).
 -export([system_terminate/4]).
 -export([system_code_change/4]).
+-export([format_status/2]).
 
 %% Internal request process.
--export([request_init/10]).
--export([resume/5]).
+-export([request_init/12]).
+-export([request_terminate/2]).
 -export([reply/4]).
 -export([stream_reply/3]).
 -export([stream_data/2]).
@@ -54,11 +55,13 @@
 
 -record(state, {
 	parent = undefined :: pid(),
+	dbg :: [sys:dbg_opt()],
 	socket,
 	transport,
 	buffer = <<>> :: binary(),
 	middlewares,
 	env,
+	debug,
 	onresponse,
 	peer,
 	zdef,
@@ -69,7 +72,8 @@
 
 -type opts() :: [{env, cowboy_middleware:env()}
 	| {middlewares, [module()]}
-	| {onresponse, cowboy:onresponse_fun()}].
+	| {onresponse, cowboy:onresponse_fun()}
+	| {debug, list()}].
 -export_type([opts/0]).
 
 %% API.
@@ -95,15 +99,16 @@ init(Parent, Ref, Socket, Transport, Opts) ->
 	{ok, Peer} = Transport:peername(Socket),
 	Middlewares = get_value(middlewares, Opts, [cowboy_router, cowboy_handler]),
 	Env = [{listener, Ref}|get_value(env, Opts, [])],
+	Debug = get_value(debug, Opts, []),
 	OnResponse = get_value(onresponse, Opts, undefined),
 	Zdef = cow_spdy:deflate_init(),
 	Zinf = cow_spdy:inflate_init(),
 	ok = ranch:accept_ack(Ref),
 	loop(#state{parent=Parent, socket=Socket, transport=Transport,
-		middlewares=Middlewares, env=Env,
+		middlewares=Middlewares, env=Env, debug=Debug,
 		onresponse=OnResponse, peer=Peer, zdef=Zdef, zinf=Zinf}).
 
-loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
+loop(State=#state{parent=Parent, dbg=Dbg, socket=Socket, transport=Transport,
 		buffer=Buffer, children=Children}) ->
 	{OK, Closed, Error} = Transport:messages(),
 	Transport:setopts(Socket, [{active, once}]),
@@ -192,7 +197,7 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 			%% @todo Report the error if any.
 			loop(delete_child(Pid, State));
 		{system, From, Request} ->
-			sys:handle_system_msg(Request, From, Parent, ?MODULE, [], State);
+			sys:handle_system_msg(Request, From, Parent, ?MODULE, Dbg, State);
 		%% Calls from the supervisor module.
 		{'$gen_call', {To, Tag}, which_children} ->
 			Workers = [{?MODULE, Pid, worker, [?MODULE]}
@@ -214,8 +219,8 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 	end.
 
 -spec system_continue(_, _, #state{}) -> ok.
-system_continue(_, _, State) ->
-	loop(State).
+system_continue(_, Dbg, State) ->
+	loop(State#state{dbg=Dbg}).
 
 -spec system_terminate(any(), _, _, _) -> no_return().
 system_terminate(Reason, _, _, _) ->
@@ -224,6 +229,21 @@ system_terminate(Reason, _, _, _) ->
 -spec system_code_change(Misc, _, _, _) -> {ok, Misc} when Misc::#state{}.
 system_code_change(Misc, _, _, _) ->
 	{ok, Misc}.
+
+-spec format_status(normal, [[{term(), term()}] | running | suspended |
+		pid() | [sys:dbg_opt()] | #state{}]) -> any().
+format_status(_Opt, [_PDict, SysState, Parent, Dbg, Misc]) ->
+	Log = sys:get_debug(log, Dbg, []),
+	Data = [
+		{"Status", SysState},
+		{"Parent", Parent},
+		{"Logged events", Log},
+		{"State", state_to_list(Misc)}
+	],
+	[{header, "Cowboy SPDY"}, {data, Data}].
+
+state_to_list(State) ->
+	lists:zip(record_info(fields, state), tl(tuple_to_list(State))).
 
 parse_frame(State=#state{zinf=Zinf}, Data) ->
 	case cow_spdy:split(Data) of
@@ -254,12 +274,12 @@ handle_frame(State, {syn_stream, StreamID, AssocToStreamID,
 %% Erlang does not allow us to control the priority of processes
 %% so we ignore that value entirely.
 handle_frame(State=#state{middlewares=Middlewares, env=Env,
-		onresponse=OnResponse, peer=Peer},
+		debug=Debug, onresponse=OnResponse, peer=Peer},
 		{syn_stream, StreamID, _, IsFin, _, _,
 		Method, _, Host, Path, Version, Headers}) ->
-	Pid = spawn_link(?MODULE, request_init, [
+	Pid = proc_lib:spawn_link(?MODULE, request_init, [
 		{self(), StreamID}, Peer, OnResponse,
-		Env, Middlewares, Method, Host, Path, Version, Headers
+		Env, self(), Debug, Middlewares, Method, Host, Path, Version, Headers
 	]),
 	new_child(State, StreamID, Pid, IsFin);
 %% RST_STREAM.
@@ -382,46 +402,26 @@ delete_child(Pid, State=#state{children=Children}) ->
 %% Request process.
 
 -spec request_init(socket(), {inet:ip_address(), inet:port_number()},
-		cowboy:onresponse_fun(), cowboy_middleware:env(), [module()],
-		binary(), binary(), binary(), binary(), [{binary(), binary()}])
+		cowboy:onresponse_fun(), cowboy_middleware:env(), pid(), list(),
+		[module()], binary(), binary(), binary(), binary(),
+		[{binary(), binary()}])
 	-> ok.
 request_init(FakeSocket, Peer, OnResponse,
-		Env, Middlewares, Method, Host, Path, Version, Headers) ->
+		Env, Parent, Debug, Middlewares, Method, Host, Path, Version, Headers) ->
 	{Host2, Port} = cow_http:parse_fullhost(Host),
 	{Path2, Qs} = cow_http:parse_fullpath(Path),
 	Version2 = cow_http:parse_version(Version),
 	Req = cowboy_req:new(FakeSocket, ?MODULE, Peer,
 		Method, Path2, Qs, Version2, Headers,
 		Host2, Port, <<>>, true, false, OnResponse),
-	execute(Req, Env, Middlewares).
+	Dbg = sys:debug_options(Debug),
+	Env2 = [{parent, Parent}, {dbg, Dbg} | Env],
+	Halt = {?MODULE, request_terminate, []},
+	cowboy_middleware:execute(Req, Env2, Halt, Middlewares).
 
--spec execute(cowboy_req:req(), cowboy_middleware:env(), [module()])
-	-> ok.
-execute(Req, _, []) ->
-	cowboy_req:ensure_response(Req, 204);
-execute(Req, Env, [Middleware|Tail]) ->
-	case Middleware:execute(Req, Env) of
-		{ok, Req2, Env2} ->
-			execute(Req2, Env2, Tail);
-		{suspend, Module, Function, Args} ->
-			erlang:hibernate(?MODULE, resume,
-				[Env, Tail, Module, Function, Args]);
-		{halt, Req2} ->
-			cowboy_req:ensure_response(Req2, 204)
-	end.
-
--spec resume(cowboy_middleware:env(), [module()],
-	module(), module(), [any()]) -> ok.
-resume(Env, Tail, Module, Function, Args) ->
-	case apply(Module, Function, Args) of
-		{ok, Req2, Env2} ->
-			execute(Req2, Env2, Tail);
-		{suspend, Module2, Function2, Args2} ->
-			erlang:hibernate(?MODULE, resume,
-				[Env, Tail, Module2, Function2, Args2]);
-		{halt, Req2} ->
-			cowboy_req:ensure_response(Req2, 204)
-	end.
+-spec request_terminate(cowboy_req:req(), cowboy_middleware:env()) -> ok.
+request_terminate(Req, _Env) ->
+	cowboy_req:ensure_response(Req, 204).
 
 %% Reply functions used by cowboy_req.
 

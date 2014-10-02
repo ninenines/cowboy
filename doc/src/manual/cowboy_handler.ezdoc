@@ -17,8 +17,9 @@ Environment output:
 
 This module also defines the `cowboy_handler` behaviour that
 defines the basic interface for handlers. All Cowboy handlers
-implement at least the `init/2` callback, and may implement
-the `terminate/3` callback optionally.
+implement at least the `init/2` callback, and may implement any of
+the optional callbacks: `terminate/3`, `code_change/4` and
+`format_status/2`.
 
 :: Types
 
@@ -108,3 +109,38 @@ Call the optional `terminate/3` callback if it exists.
 This function should always be called at the end of the execution
 of a handler, to give it a chance to clean up or perform
 miscellaneous operations.
+
+: code_change(OldVsn, Req, State, Module, Extra, Handler) -> {ok, Req, State}
+
+Types:
+
+* OldVsn :: any()
+* Req = cowboy_req:req()
+* State = any()
+* Module = module()
+* Extra = any()
+* Handler = module()
+
+Call the optional `code_change/4` callback if it exists.
+
+This function should always be called when a code change occurs as
+the structure of the handlers state may need to be changed.
+
+: format_status(Opt, PDict, Req, State, Handler) -> Status
+
+Types:
+
+* Opt = normal | terminate
+* PDict = [{any(), any()}]
+* Req = cowboy_req:req()
+* State = any()
+* Handler = module()
+* Status = any()
+
+Call the optional `format_status/2` callback if it exists.
+
+This function should always be called when formatting the handlers
+state. The `Opt` value of `normal` should be used when formatting
+the state as part of a `format_status/2` system call. The `Opt`
+value of `terminate` should be used when creating a suitable
+value for logging on termination.

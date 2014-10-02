@@ -19,9 +19,17 @@
 -export([start_link/4]).
 
 %% Internal.
--export([init/4]).
+-export([init/5]).
 -export([parse_request/3]).
--export([resume/6]).
+-export([next_request/4]).
+
+%% System.
+-export([system_continue/3]).
+-export([system_terminate/4]).
+-export([system_code_change/4]).
+-export([system_get_state/1]).
+-export([system_replace_state/2]).
+-export([format_status/2]).
 
 -type opts() :: [{compress, boolean()}
 	| {env, cowboy_middleware:env()}
@@ -42,6 +50,7 @@
 	middlewares :: [module()],
 	compress :: boolean(),
 	env :: cowboy_middleware:env(),
+	parent :: pid(),
 	onresponse = undefined :: undefined | cowboy:onresponse_fun(),
 	max_empty_lines :: non_neg_integer(),
 	req_keepalive = 1 :: non_neg_integer(),
@@ -60,7 +69,7 @@
 
 -spec start_link(ranch:ref(), inet:socket(), module(), opts()) -> {ok, pid()}.
 start_link(Ref, Socket, Transport, Opts) ->
-	Pid = spawn_link(?MODULE, init, [Ref, Socket, Transport, Opts]),
+	Pid = proc_lib:spawn_link(?MODULE, init, [Ref, self(), Socket, Transport, Opts]),
 	{ok, Pid}.
 
 %% Internal.
@@ -72,8 +81,8 @@ get_value(Key, Opts, Default) ->
 		_ -> Default
 	end.
 
--spec init(ranch:ref(), inet:socket(), module(), opts()) -> ok.
-init(Ref, Socket, Transport, Opts) ->
+-spec init(ranch:ref(), pid(), inet:socket(), module(), opts()) -> ok.
+init(Ref, Parent, Socket, Transport, Opts) ->
 	Compress = get_value(compress, Opts, false),
 	MaxEmptyLines = get_value(max_empty_lines, Opts, 5),
 	MaxHeaderNameLength = get_value(max_header_name_length, Opts, 64),
@@ -82,12 +91,13 @@ init(Ref, Socket, Transport, Opts) ->
 	MaxKeepalive = get_value(max_keepalive, Opts, 100),
 	MaxRequestLineLength = get_value(max_request_line_length, Opts, 4096),
 	Middlewares = get_value(middlewares, Opts, [cowboy_router, cowboy_handler]),
-	Env = [{listener, Ref}|get_value(env, Opts, [])],
+	Dbg = sys:debug_options(get_value(debug, Opts, [])),
+	Env = [{listener, Ref}, {parent, Parent}, {dbg, Dbg}|get_value(env, Opts, [])],
 	OnResponse = get_value(onresponse, Opts, undefined),
 	Timeout = get_value(timeout, Opts, 5000),
 	ok = ranch:accept_ack(Ref),
 	wait_request(<<>>, #state{socket=Socket, transport=Transport,
-		middlewares=Middlewares, compress=Compress, env=Env,
+		middlewares=Middlewares, compress=Compress, env=Env, parent=Parent,
 		max_empty_lines=MaxEmptyLines, max_keepalive=MaxKeepalive,
 		max_request_line_length=MaxRequestLineLength,
 		max_header_name_length=MaxHeaderNameLength,
@@ -414,45 +424,19 @@ request(Buffer, State=#state{socket=Socket, transport=Transport,
 
 -spec execute(cowboy_req:req(), #state{}) -> ok.
 execute(Req, State=#state{middlewares=Middlewares, env=Env}) ->
-	execute(Req, State, Env, Middlewares).
+	Halt = {?MODULE, next_request, [State, ok]},
+	cowboy_middleware:execute(Req, Env, Halt, Middlewares).
 
--spec execute(cowboy_req:req(), #state{}, cowboy_middleware:env(), [module()])
+-spec next_request(cowboy_req:req(), cowboy_middleware:env(), #state{}, any())
 	-> ok.
-execute(Req, State, Env, []) ->
-	next_request(Req, State, get_value(result, Env, ok));
-execute(Req, State, Env, [Middleware|Tail]) ->
-	case Middleware:execute(Req, Env) of
-		{ok, Req2, Env2} ->
-			execute(Req2, State, Env2, Tail);
-		{suspend, Module, Function, Args} ->
-			erlang:hibernate(?MODULE, resume,
-				[State, Env, Tail, Module, Function, Args]);
-		{halt, Req2} ->
-			next_request(Req2, State, ok)
-	end.
-
--spec resume(#state{}, cowboy_middleware:env(), [module()],
-	module(), module(), [any()]) -> ok.
-resume(State, Env, Tail, Module, Function, Args) ->
-	case apply(Module, Function, Args) of
-		{ok, Req2, Env2} ->
-			execute(Req2, State, Env2, Tail);
-		{suspend, Module2, Function2, Args2} ->
-			erlang:hibernate(?MODULE, resume,
-				[State, Env, Tail, Module2, Function2, Args2]);
-		{halt, Req2} ->
-			next_request(Req2, State, ok)
-	end.
-
--spec next_request(cowboy_req:req(), #state{}, any()) -> ok.
-next_request(Req, State=#state{req_keepalive=Keepalive, timeout=Timeout},
+next_request(Req, Env, State=#state{req_keepalive=Keepalive, timeout=Timeout},
 		HandlerRes) ->
 	cowboy_req:ensure_response(Req, 204),
 	%% If we are going to close the connection,
 	%% we do not want to attempt to skip the body.
 	case cowboy_req:get(connection, Req) of
 		close ->
-			terminate(State);
+			terminate(State#state{env=Env});
 		_ ->
 			%% Skip the body if it is reasonably sized. Close otherwise.
 			Buffer = case cowboy_req:body(Req) of
@@ -461,13 +445,28 @@ next_request(Req, State=#state{req_keepalive=Keepalive, timeout=Timeout},
 			end,
 			%% Flush the resp_sent message before moving on.
 			if HandlerRes =:= ok, Buffer =/= close ->
-					receive {cowboy_req, resp_sent} -> ok after 0 -> ok end,
-					?MODULE:parse_request(Buffer,
-						State#state{req_keepalive=Keepalive + 1,
-						until=until(Timeout)}, 0);
+				   next_request(Buffer, State#state{req_keepalive=Keepalive + 1,
+						until=until(Timeout), env=Env});
 				true ->
-					terminate(State)
+					terminate(State#state{env=Env})
 			end
+	end.
+
+-spec next_request(binary(), #state{}) -> ok.
+next_request(Buffer, State=#state{env=Env, parent=Parent}) ->
+	receive
+		{cowboy_req, resp_sent} ->
+			next_request(Buffer, State);
+		{'EXIT', Parent, Reason} ->
+			terminate(State),
+			exit(Reason);
+		{system, From, Msg} ->
+			Parent = get_value(parent, Env, self()),
+			Dbg = get_value(dbg, Env, []),
+			Misc = {Buffer, State},
+			sys:handle_system_msg(Msg, From, Parent, ?MODULE, Dbg, Misc)
+	after 0 ->
+			?MODULE:parse_request(Buffer, State, 0)
 	end.
 
 -spec error_terminate(cowboy:http_status(), #state{}) -> ok.
@@ -486,3 +485,51 @@ error_terminate(Status, Req, State) ->
 terminate(#state{socket=Socket, transport=Transport}) ->
 	Transport:close(Socket),
 	ok.
+
+%% System.
+
+-spec system_continue(pid(), [sys:dbg_opt()], {binary(), #state{}}) -> ok.
+system_continue(_Parent, Dbg, {Buffer, State=#state{env=Env}}) ->
+	Env2 = lists:keystore(dbg, 1, Env, {dbg, Dbg}),
+	next_request(Buffer, State#state{env=Env2}).
+
+-spec system_terminate(any(), pid(), [sys:dbg_opt()], {binary(), #state{}})
+	-> no_return().
+system_terminate(Reason, _Parent, _Dbg, {_Buffer, State}) ->
+	terminate(State),
+	exit(Reason).
+
+-spec system_code_change({binary(), #state{}}, module(), any(), any())
+	-> {ok, #state{}}.
+system_code_change(Misc, _Module, _OldVsn, _Extra) ->
+	{ok, Misc}.
+
+-spec system_get_state({binary(), #state{}})
+	-> {ok, {module(), undefined, {binary(), #state{}}}}.
+system_get_state(Misc) ->
+	{ok, {?MODULE, undefined, Misc}}.
+
+-spec system_replace_state(cowboy_system:replace_state(), {binary(), #state{}})
+	-> {ok, {module(), undefined, {binary(), #state{}}}, {binary(), #state{}}}.
+system_replace_state(Replace, Misc) ->
+	{?MODULE, undefined, Misc2={_, _}} = Replace({?MODULE, undefined, Misc}),
+	{ok, {?MODULE, undefined, Misc2}, Misc2}.
+
+-spec format_status(normal, list()) -> [{atom(), term()}].
+format_status(normal, [_PDict, SysState, Parent, Dbg,
+		{Buffer, State=#state{env=Env}}]) ->
+	Env2 = lists:keystore(dbg, 1, Env, {dbg, Dbg}),
+	Log = sys:get_debug(log, Dbg, []),
+	Data = [
+		{"Status", SysState},
+		{"Parent", Parent},
+		{"Logged events", Log},
+		{"Environment", Env2},
+		{"Protocol buffer", Buffer},
+		{"Protocol state", state_to_list(State)}
+	],
+	[{header, "Cowboy protocol"}, {data, Data}].
+
+-spec state_to_list(#state{}) -> [{atom(), term()}].
+state_to_list(State) ->
+	lists:zip(record_info(fields, state), tl(tuple_to_list(State))).

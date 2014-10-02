@@ -195,7 +195,8 @@ init_dispatch(Config) ->
 			{"/rest_expires_binary", rest_expires_binary, []},
 			{"/rest_empty_resource", rest_empty_resource, []},
 			{"/loop_stream_recv", http_loop_stream_recv, []},
-			{"/", http_handler, []}
+			{"/", http_handler, []},
+			{"/system", http_system, []}
 		]}
 	]).
 
@@ -1026,4 +1027,28 @@ te_identity(Config) ->
 	Ref = gun:post(ConnPid, "/echo/body", [], Body),
 	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
 	{ok, Body} = gun:await_body(ConnPid, Ref),
+	ok.
+
+system(Config) ->
+	ConnPid = gun_open(Config),
+	register(http_system_tester, self()),
+	Ref = gun:get(ConnPid, "/system", [{<<"connection">>, <<"keep-alive">>}]),
+	Pid = receive {http_system, P} -> P after 500 -> exit(timeout) end,
+	unregister(http_system_tester),
+	ok = sys:suspend(Pid),
+	ok = sys:change_code(Pid, undefined, undefined, undefined),
+	{cowboy_protocol, undefined, State} = sys:get_state(Pid),
+	Replace = fun({Mod, undefined, State2}) -> {Mod, undefined, State2} end,
+	{cowboy_protocol, undefined, State} = sys:replace_state(Pid, Replace),
+	%% Not allowed to change module from cowboy_protocol.
+	BadReplace = fun({_Mod2, undefined, State3}) -> {undefined, undefined, State3} end,
+	{'EXIT', {{callback_failed, _, _}, _}} = (catch sys:replace_state(Pid, BadReplace)),
+	{cowboy_protocol, undefined, _} = sys:get_state(Pid),
+	{status, Pid, {module, _Module}, Status} = sys:get_status(Pid),
+	[_PDict, suspended, _Parent, [], Misc] = Status,
+	[{header, "Cowboy protocol"}, {data, Data}] = Misc,
+	{_, <<>>} = lists:keyfind("Protocol buffer", 1, Data),
+	{_, [{_, _} | _]} = lists:keyfind("Protocol state", 1, Data),
+	ok = sys:resume(Pid),
+	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
 	ok.

@@ -57,7 +57,8 @@ upgrade(Req, Env, Handler, HandlerOpts, Timeout, Hibernate) ->
 ```
 
 This callback is expected to behave like a middleware and to
-return an updated environment and Req object.
+return an updated environment and Req object. Note that sub protocols
+may halt, hibernate and handle system messages like a middleware.
 
 Sub protocols are expected to call the `cowboy_handler:terminate/4`
 function when they terminate. This function will make sure that

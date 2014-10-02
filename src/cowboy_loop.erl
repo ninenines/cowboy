@@ -23,9 +23,16 @@
 %% <em>{error, overflow}</em> reason if this threshold is reached.
 -module(cowboy_loop).
 -behaviour(cowboy_sub_protocol).
+-behaviour(cowboy_system).
 
 -export([upgrade/6]).
 -export([loop/4]).
+-export([continue/3]).
+-export([terminate/4]).
+-export([code_change/5]).
+-export([get_state/2]).
+-export([replace_state/3]).
+-export([format_status/2]).
 
 -callback init(Req, any())
 	-> {ok | module(), Req, any()}
@@ -42,6 +49,7 @@
 
 -record(state, {
 	env :: cowboy_middleware:env(),
+	parent :: pid(),
 	hibernate = false :: boolean(),
 	buffer_size = 0 :: non_neg_integer(),
 	max_buffer = 5000 :: non_neg_integer() | infinity,
@@ -50,15 +58,22 @@
 	resp_sent = false :: boolean()
 }).
 
+-type misc() :: {#state{}, module(), any()}.
+
 -spec upgrade(Req, Env, module(), any(), timeout(), run | hibernate)
 	-> {ok, Req, Env} | {suspend, module(), atom(), [any()]}
+	| {system, {pid(), any()}, any(), module(), Req, Env, misc()}
 	when Req::cowboy_req:req(), Env::cowboy_middleware:env().
 upgrade(Req, Env, Handler, HandlerState, Timeout, run) ->
-	State = #state{env=Env, max_buffer=get_max_buffer(Env), timeout=Timeout},
+	{_, Parent} = lists:keyfind(parent, 1, Env),
+	State = #state{env=Env, parent=Parent, max_buffer=get_max_buffer(Env),
+		timeout=Timeout},
 	State2 = timeout(State),
 	after_call(Req, State2, Handler, HandlerState);
 upgrade(Req, Env, Handler, HandlerState, Timeout, hibernate) ->
-	State = #state{env=Env, max_buffer=get_max_buffer(Env), hibernate=true, timeout=Timeout},
+	{_, Parent} = lists:keyfind(parent, 1, Env),
+	State = #state{env=Env, parent=Parent, max_buffer=get_max_buffer(Env),
+		hibernate=true, timeout=Timeout},
 	State2 = timeout(State),
 	after_call(Req, State2, Handler, HandlerState).
 
@@ -103,10 +118,12 @@ timeout(State=#state{timeout=Timeout,
 
 -spec loop(Req, #state{}, module(), any())
 	-> {ok, Req, cowboy_middleware:env()} | {suspend, module(), atom(), [any()]}
+	| {system, {pid(), any()}, any(), module(), Req,
+	   cowboy_middleware:env(), misc()}
 	when Req::cowboy_req:req().
 loop(Req, State=#state{buffer_size=NbBytes,
 		max_buffer=Threshold, timeout_ref=TRef,
-		resp_sent=RespSent}, Handler, HandlerState) ->
+		resp_sent=RespSent, env=Env, parent=Parent}, Handler, HandlerState) ->
 	[Socket, Transport] = cowboy_req:get([socket, transport], Req),
 	{OK, Closed, Error} = Transport:messages(),
 	receive
@@ -131,6 +148,10 @@ loop(Req, State=#state{buffer_size=NbBytes,
 			after_loop(Req, State, Handler, HandlerState, timeout);
 		{timeout, OlderTRef, ?MODULE} when is_reference(OlderTRef) ->
 			loop(Req, State, Handler, HandlerState);
+		{'EXIT', Parent, Reason} ->
+			terminate(Req, State, Handler, HandlerState, {shutdown, Reason});
+		{system, From, Msg} ->
+			{system, From, Msg, ?MODULE, Req, Env, {State, Handler, HandlerState}};
 		Message ->
 			%% We set the socket back to {active, false} mode in case
 			%% the handler is going to call recv. We also flush any
@@ -161,12 +182,14 @@ call(Req, State=#state{resp_sent=RespSent},
 			cowboy_req:maybe_reply(Stacktrace, Req)
 		end,
 		cowboy_handler:terminate({crash, Class, Reason}, Req, HandlerState, Handler),
-		erlang:Class([
+		State = cowboy_handler:format_status(terminate, get(), Req, HandlerState, Handler),
+		erlang:exit([
+			{class, Class},
 			{reason, Reason},
 			{mfa, {Handler, info, 3}},
 			{stacktrace, Stacktrace},
 			{req, cowboy_req:to_list(Req)},
-			{state, HandlerState}
+			{state, State}
 		])
 	end.
 
@@ -203,3 +226,61 @@ flush_timeouts() ->
 	after 0 ->
 		ok
 	end.
+
+-spec continue(cowboy_req:req(), cowboy_middleware:env(), misc())
+	-> {ok, cowboy_req:req(), cowboy_middleware:env()}
+	| {suspend, module(), atom(), [any()]}
+	| {system, {pid(), any()}, any(), module(), cowboy_req:req(),
+		cowboy_middleware:env(), misc()}.
+continue(Req, Env, {State, Handler, HandlerState}) ->
+	loop(Req, State#state{env=Env}, Handler, HandlerState).
+
+-spec terminate(any(), cowboy_req:req(), cowboy_middleware:env(), misc())
+	-> no_return().
+terminate(Reason, Req, _Env,
+		{#state{resp_sent=RespSent}, Handler, HandlerState}) ->
+	if RespSent -> ok; true ->
+		cowboy_req:maybe_reply([], Req)
+	end,
+	_ = cowboy_handler:terminate({shutdown, Reason}, Req, HandlerState, Handler),
+	exit(Reason).
+
+-spec code_change(cowboy_req:req(), misc(), module(), any(), any())
+	-> {ok, cowboy_req:req(), misc()}.
+code_change(Req, {State, Handler, HandlerState}, Module, OldVsn, Extra) ->
+	{ok, Req2, HandlerState2} = cowboy_handler:code_change(OldVsn, Req, HandlerState,
+		Module, Extra, Handler),
+	{ok, Req2, {State, Handler, HandlerState2}}.
+
+-spec get_state(cowboy_req:req(), misc())
+	-> {ok, {module(), cowboy_req:req(), any()}}.
+get_state(Req, {_State, Handler, HandlerState}) ->
+	{ok, {Handler, Req, HandlerState}}.
+
+-spec replace_state(cowboy_system:replace_state(), cowboy_req:req(), misc())
+	-> {ok, {module(), cowboy_req:req(), any()}, cowboy_req:req(), misc()}.
+replace_state(Replace, Req, {State, Handler, HandlerState}) ->
+	Result = {Handler, Req2, HandlerState2} = Replace({Handler, Req, HandlerState}),
+	{ok, Result, Req2, {State, Handler, HandlerState2}}.
+
+-spec format_status(normal, [[{term(), term()}] | running | suspended |
+		cowboy_req:req() | cowboy_middleware:env() | misc()])
+	-> maybe_improper_list().
+format_status(Opt, [PDict, SysState, Req, Env, {State, Handler, HandlerState}]) ->
+	Parent = lists:keyfind(parent, 1, Env),
+	{dbg, Dbg} = lists:keyfind(dbg, 1, Env),
+	Log = sys:get_debug(log, Dbg, []),
+	Data = [
+		{"Status", SysState},
+		{"Parent", Parent},
+		{"Logged events", Log},
+		{"Request", cowboy_req:to_list(Req)},
+		{"Environment", Env},
+		{"Loop state", state_to_list(State)},
+		{"Handler", Handler}
+	],
+	HandlerStatus = cowboy_handler:format_status(Opt, PDict, Req, HandlerState, Handler),
+	[{header, "Cowboy loop handler"}, {data, Data} | HandlerStatus].
+
+state_to_list(State) ->
+	lists:zip(record_info(fields, state), tl(tuple_to_list(State))).

@@ -976,17 +976,21 @@ next(Req, State, StatusCode) when is_integer(StatusCode) ->
 respond(Req, State, StatusCode) ->
 	terminate(cowboy_req:reply(StatusCode, Req), State).
 
+-spec error_terminate(cowboy_req:req(), #state{}, error | exit | throw, any(), atom())
+	-> no_return().
 error_terminate(Req, #state{handler=Handler, handler_state=HandlerState},
 		Class, Reason, Callback) ->
 	Stacktrace = erlang:get_stacktrace(),
 	cowboy_req:maybe_reply(Stacktrace, Req),
 	cowboy_handler:terminate({crash, Class, Reason}, Req, HandlerState, Handler),
-	erlang:Class([
+	State = cowboy_handler:format_status(terminate, get(), Req, HandlerState, Handler),
+	erlang:exit([
+		{class, Class},
 		{reason, Reason},
 		{mfa, {Handler, Callback, 2}},
 		{stacktrace, Stacktrace},
 		{req, cowboy_req:to_list(Req)},
-		{state, HandlerState}
+		{state, State}
 	]).
 
 terminate(Req, #state{env=Env, handler=Handler, handler_state=HandlerState}) ->

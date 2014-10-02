@@ -22,6 +22,8 @@
 
 -export([execute/2]).
 -export([terminate/4]).
+-export([code_change/6]).
+-export([format_status/5]).
 
 -callback init(Req, any())
 	-> {ok | module(), Req, any()}
@@ -30,6 +32,10 @@
 	| {module(), Req, any(), timeout(), hibernate}
 	when Req::cowboy_req:req().
 %% @todo optional -callback terminate(terminate_reason(), cowboy_req:req(), state()) -> ok.
+%% @todo optional -callback code_change(any(), cowboy_req:req(), any(), any())
+%%	-> {ok, cowboy_req:req(), any()}.
+%% @todo optional -callback format_status(normal | terminate,
+%%		[[{any(), any()}], cowboy_req:req(), any()]) -> any().
 
 -spec execute(Req, Env) -> {ok, Req, Env}
 	when Req::cowboy_req:req(), Env::cowboy_middleware:env().
@@ -52,7 +58,8 @@ execute(Req, Env) ->
 		Stacktrace = erlang:get_stacktrace(),
 		cowboy_req:maybe_reply(Stacktrace, Req),
 		terminate({crash, Class, Reason}, Req, HandlerOpts, Handler),
-		erlang:Class([
+		erlang:exit([
+			{class, Class},
 			{reason, Reason},
 			{mfa, {Handler, init, 2}},
 			{stacktrace, Stacktrace},
@@ -68,15 +75,63 @@ terminate(Reason, Req, State, Handler) ->
 			try
 				Handler:terminate(Reason, cowboy_req:lock(Req), State)
 			catch Class:Reason2 ->
-				erlang:Class([
+				erlang:exit([
+					{class, Class},
 					{reason, Reason2},
 					{mfa, {Handler, terminate, 3}},
 					{stacktrace, erlang:get_stacktrace()},
 					{req, cowboy_req:to_list(Req)},
-					{state, State},
+					{state, terminate_state(Req, State, Handler)},
 					{terminate_reason, Reason}
 				])
 			end;
 		false ->
 			ok
 	end.
+
+terminate_state(Req, State, Handler) ->
+	case erlang:function_exported(Handler, format_status, 2) of
+		true ->
+			call_format_status(terminate, get(), Req, State, Handler);
+		false ->
+			default_format_status(terminate, State)
+	end.
+
+-spec code_change(any(), cowboy_req:req(), any(), module(), any(), module())
+	-> {ok, cowboy_req:req(), any()}.
+code_change(OldVsn, Req, State, Handler, Extra, Handler) ->
+	case erlang:function_exported(Handler, code_change, 4) of
+		true ->
+			handler_code_change(OldVsn, Req, State, Extra, Handler);
+		false ->
+			{ok, Req, State}
+	end;
+code_change(_OldVsn, Req, State, _Module, _Extra, _Handler) ->
+	{ok, Req, State}.
+
+handler_code_change(OldVsn, Req, State, Extra, Handler) ->
+	{ok, _Req2, _State2} = Handler:code_change(OldVsn, Req, State, Extra).
+
+-spec format_status(normal | terminate, [{term(), term()}], cowboy_req:req(),
+	any(), module()) -> any().
+format_status(Opt, PDict, Req, State, Handler) ->
+	case erlang:function_exported(Handler, format_status, 2) of
+		true ->
+			call_format_status(Opt, PDict, Req, State, Handler);
+		false ->
+			default_format_status(Opt, State)
+	end.
+
+call_format_status(Opt, PDict, Req, State, Handler) ->
+	try Handler:format_status(Opt, [PDict, cowboy_req:lock(Req), State]) of
+		Status ->
+			Status
+	catch
+		_:_ ->
+			default_format_status(Opt, State)
+	end.
+
+default_format_status(normal, State) ->
+	[{data, [{"Handler state", State}]}];
+default_format_status(terminate, State) ->
+	State.
