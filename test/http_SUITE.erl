@@ -256,6 +256,8 @@ The document has moved
 		{400, "\n"},
 		{400, "Garbage\r\n\r\n"},
 		{400, "\r\n\r\n\r\n\r\n\r\n\r\n"},
+		{400, " / HTTP/1.1\r\nHost: localhost\r\n\r\n"},
+		{400, "GET  HTTP/1.1\r\nHost: localhost\r\n\r\n"},
 		{400, "GET / HTTP/1.1\r\nHost: ninenines.eu\r\n\r\n"},
 		{400, "GET http://proxy/ HTTP/1.1\r\n\r\n"},
 		{400, "GET / HTTP/1.1\r\nHost: localhost:bad_port\r\n\r\n"},

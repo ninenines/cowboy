@@ -136,6 +136,8 @@ wait_request(Buffer, State=#state{socket=Socket, transport=Transport,
 %% Empty lines must be using \r\n.
 parse_request(<< $\n, _/binary >>, State, _) ->
 	error_terminate(400, State);
+parse_request(<< $\s, _/bits >>, State, _) ->
+	error_terminate(400, State);
 %% We limit the length of the Request-line to MaxLength to avoid endlessly
 %% reading from the socket and eventually crashing.
 parse_request(Buffer, State=#state{max_request_line_length=MaxLength,
@@ -169,6 +171,8 @@ parse_method(<< C, Rest/bits >>, State, SoFar) ->
 	end.
 
 parse_uri(<< $\r, _/bits >>, State, _) ->
+	error_terminate(400, State);
+parse_uri(<< $\s, _/bits >>, State, Method) ->
 	error_terminate(400, State);
 parse_uri(<< "* ", Rest/bits >>, State, Method) ->
 	parse_version(Rest, State, Method, <<"*">>, <<>>);
