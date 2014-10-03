@@ -172,7 +172,7 @@ parse_method(<< C, Rest/bits >>, State, SoFar) ->
 
 parse_uri(<< $\r, _/bits >>, State, _) ->
 	error_terminate(400, State);
-parse_uri(<< $\s, _/bits >>, State, Method) ->
+parse_uri(<< $\s, _/bits >>, State, _) ->
 	error_terminate(400, State);
 parse_uri(<< "* ", Rest/bits >>, State, Method) ->
 	parse_version(Rest, State, Method, <<"*">>, <<>>);
