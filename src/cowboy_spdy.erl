@@ -123,7 +123,7 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 					FromPid ! {recv, FromSocket, {ok, InBuffer}},
 					loop(replace_child(Child#child{in_buffer= <<>>}, State));
 				byte_size(InBuffer) >= Length ->
-					<< Data:Length/binary, Rest/binary >> = InBuffer,
+					<< Data:Length/binary, Rest/bits >> = InBuffer,
 					FromPid ! {recv, FromSocket, {ok, Data}},
 					loop(replace_child(Child#child{in_buffer=Rest}, State));
 				true ->
@@ -293,7 +293,7 @@ handle_frame(State, {data, StreamID, IsFin, Data}) ->
 			Child#child{input=IsFin2, in_buffer= <<>>, is_recv=false};
 		{passive, FromSocket, FromPid, Length, TRef}
 				when byte_size(Data2) >= Length ->
-			<< Data3:Length/binary, Rest/binary >> = Data2,
+			<< Data3:Length/binary, Rest/bits >> = Data2,
 			FromPid ! {recv, FromSocket, {ok, Data3}},
 			cancel_recv_timeout(StreamID, TRef),
 			Child#child{input=IsFin2, in_buffer=Rest, is_recv=false};

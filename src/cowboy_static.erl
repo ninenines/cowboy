@@ -134,7 +134,7 @@ good_path_check_test_() ->
 	],
 	[{P, fun() ->
 		case fullpath(P) of
-			<< "/home/cowboy/", _/binary >> -> ok
+			<< "/home/cowboy/", _/bits >> -> ok
 		end
 	end} || P <- Tests].
 
@@ -145,7 +145,7 @@ bad_path_check_test_() ->
 	],
 	[{P, fun() ->
 		error = case fullpath(P) of
-			<< "/home/cowboy/", _/binary >> -> ok;
+			<< "/home/cowboy/", _/bits >> -> ok;
 			_ -> error
 		end
 	end} || P <- Tests].
@@ -167,7 +167,7 @@ good_path_win32_check_test_() ->
 	end,
 	[{P, fun() ->
 		case fullpath(P) of
-			<< "c:/home/cowboy/", _/binary >> -> ok
+			<< "c:/home/cowboy/", _/bits >> -> ok
 		end
 	end} || P <- Tests].
 
@@ -185,7 +185,7 @@ bad_path_win32_check_test_() ->
 	end,
 	[{P, fun() ->
 		error = case fullpath(P) of
-			<< "c:/home/cowboy/", _/binary >> -> ok;
+			<< "c:/home/cowboy/", _/bits >> -> ok;
 			_ -> error
 		end
 	end} || P <- Tests].

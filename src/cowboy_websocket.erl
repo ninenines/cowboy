@@ -269,7 +269,7 @@ websocket_data(State, Req, HandlerState, << Fin:1, Rsv:3/bits, Opcode:4, 1:1,
 	websocket_data(State, Req, HandlerState,
 		Opcode, Len, MaskKey, Rest, Rsv, Fin);
 %% When payload length is over 63 bits, the most significant bit MUST be 0.
-websocket_data(State, Req, HandlerState, << _:8, 1:1, 127:7, 1:1, _:7, _/binary >>) ->
+websocket_data(State, Req, HandlerState, << _:8, 1:1, 127:7, 1:1, _:7, _/bits >>) ->
 	websocket_close(State, Req, HandlerState, {error, badframe});
 %% All frames sent from the client to the server are masked.
 websocket_data(State, Req, HandlerState, << _:8, 0:1, _/bits >>) ->
@@ -466,7 +466,7 @@ rotate_mask_key(MaskKey, UnmaskedLen) ->
 -spec is_utf8(binary()) -> false | binary().
 is_utf8(Valid = <<>>) ->
 	Valid;
-is_utf8(<< _/utf8, Rest/binary >>) ->
+is_utf8(<< _/utf8, Rest/bits >>) ->
 	is_utf8(Rest);
 %% 2 bytes. Codepages C0 and C1 are invalid; fail early.
 is_utf8(<< 2#1100000:7, _/bits >>) ->

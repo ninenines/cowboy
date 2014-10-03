@@ -134,7 +134,7 @@ wait_request(Buffer, State=#state{socket=Socket, transport=Transport,
 
 -spec parse_request(binary(), #state{}, non_neg_integer()) -> ok.
 %% Empty lines must be using \r\n.
-parse_request(<< $\n, _/binary >>, State, _) ->
+parse_request(<< $\n, _/bits >>, State, _) ->
 	error_terminate(400, State);
 parse_request(<< $\s, _/bits >>, State, _) ->
 	error_terminate(400, State);
@@ -150,7 +150,7 @@ parse_request(Buffer, State=#state{max_request_line_length=MaxLength,
 		1 when ReqEmpty =:= MaxEmpty ->
 			error_terminate(400, State);
 		1 ->
-			<< _:16, Rest/binary >> = Buffer,
+			<< _:16, Rest/bits >> = Buffer,
 			parse_request(Rest, State, ReqEmpty + 1);
 		_ ->
 			parse_method(Buffer, State, <<>>)

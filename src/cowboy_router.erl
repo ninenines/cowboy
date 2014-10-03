@@ -82,7 +82,7 @@ compile_paths([{PathMatch, Fields, Handler, Opts}|Tail], Acc)
 		Fields, Handler, Opts}|Tail], Acc);
 compile_paths([{'_', Fields, Handler, Opts}|Tail], Acc) ->
 	compile_paths(Tail, [{'_', Fields, Handler, Opts}] ++ Acc);
-compile_paths([{<< $/, PathMatch/binary >>, Fields, Handler, Opts}|Tail],
+compile_paths([{<< $/, PathMatch/bits >>, Fields, Handler, Opts}|Tail],
 		Acc) ->
 	PathRules = compile_rules(PathMatch, $/, [], [], <<>>),
 	Paths = [{lists:reverse(R), Fields, Handler, Opts} || R <- PathRules],
@@ -95,32 +95,32 @@ compile_rules(<<>>, _, Segments, Rules, <<>>) ->
 	[Segments|Rules];
 compile_rules(<<>>, _, Segments, Rules, Acc) ->
 	[[Acc|Segments]|Rules];
-compile_rules(<< S, Rest/binary >>, S, Segments, Rules, <<>>) ->
+compile_rules(<< S, Rest/bits >>, S, Segments, Rules, <<>>) ->
 	compile_rules(Rest, S, Segments, Rules, <<>>);
-compile_rules(<< S, Rest/binary >>, S, Segments, Rules, Acc) ->
+compile_rules(<< S, Rest/bits >>, S, Segments, Rules, Acc) ->
 	compile_rules(Rest, S, [Acc|Segments], Rules, <<>>);
-compile_rules(<< $:, Rest/binary >>, S, Segments, Rules, <<>>) ->
+compile_rules(<< $:, Rest/bits >>, S, Segments, Rules, <<>>) ->
 	{NameBin, Rest2} = compile_binding(Rest, S, <<>>),
 	Name = binary_to_atom(NameBin, utf8),
 	compile_rules(Rest2, S, Segments, Rules, Name);
-compile_rules(<< $:, _/binary >>, _, _, _, _) ->
+compile_rules(<< $:, _/bits >>, _, _, _, _) ->
 	error(badarg);
-compile_rules(<< $[, $., $., $., $], Rest/binary >>, S, Segments, Rules, Acc)
+compile_rules(<< $[, $., $., $., $], Rest/bits >>, S, Segments, Rules, Acc)
 		when Acc =:= <<>> ->
 	compile_rules(Rest, S, ['...'|Segments], Rules, Acc);
-compile_rules(<< $[, $., $., $., $], Rest/binary >>, S, Segments, Rules, Acc) ->
+compile_rules(<< $[, $., $., $., $], Rest/bits >>, S, Segments, Rules, Acc) ->
 	compile_rules(Rest, S, ['...', Acc|Segments], Rules, Acc);
-compile_rules(<< $[, S, Rest/binary >>, S, Segments, Rules, Acc) ->
+compile_rules(<< $[, S, Rest/bits >>, S, Segments, Rules, Acc) ->
 	compile_brackets(Rest, S, [Acc|Segments], Rules);
-compile_rules(<< $[, Rest/binary >>, S, Segments, Rules, <<>>) ->
+compile_rules(<< $[, Rest/bits >>, S, Segments, Rules, <<>>) ->
 	compile_brackets(Rest, S, Segments, Rules);
 %% Open bracket in the middle of a segment.
-compile_rules(<< $[, _/binary >>, _, _, _, _) ->
+compile_rules(<< $[, _/bits >>, _, _, _, _) ->
 	error(badarg);
 %% Missing an open bracket.
-compile_rules(<< $], _/binary >>, _, _, _, _) ->
+compile_rules(<< $], _/bits >>, _, _, _, _) ->
 	error(badarg);
-compile_rules(<< C, Rest/binary >>, S, Segments, Rules, Acc) ->
+compile_rules(<< C, Rest/bits >>, S, Segments, Rules, Acc) ->
 	compile_rules(Rest, S, Segments, Rules, << Acc/binary, C >>).
 
 %% Everything past $: until the segment separator ($. for hosts,
@@ -129,10 +129,10 @@ compile_binding(<<>>, _, <<>>) ->
 	error(badarg);
 compile_binding(Rest = <<>>, _, Acc) ->
 	{Acc, Rest};
-compile_binding(Rest = << C, _/binary >>, S, Acc)
+compile_binding(Rest = << C, _/bits >>, S, Acc)
 		when C =:= S; C =:= $[; C =:= $] ->
 	{Acc, Rest};
-compile_binding(<< C, Rest/binary >>, S, Acc) ->
+compile_binding(<< C, Rest/bits >>, S, Acc) ->
 	compile_binding(Rest, S, << Acc/binary, C >>).
 
 compile_brackets(Rest, S, Segments, Rules) ->
@@ -146,14 +146,14 @@ compile_brackets(Rest, S, Segments, Rules) ->
 compile_brackets_split(<<>>, _, _) ->
 	error(badarg);
 %% Make sure we don't confuse the closing bracket we're looking for.
-compile_brackets_split(<< C, Rest/binary >>, Acc, N) when C =:= $[ ->
+compile_brackets_split(<< C, Rest/bits >>, Acc, N) when C =:= $[ ->
 	compile_brackets_split(Rest, << Acc/binary, C >>, N + 1);
-compile_brackets_split(<< C, Rest/binary >>, Acc, N) when C =:= $], N > 0 ->
+compile_brackets_split(<< C, Rest/bits >>, Acc, N) when C =:= $], N > 0 ->
 	compile_brackets_split(Rest, << Acc/binary, C >>, N - 1);
 %% That's the right one.
-compile_brackets_split(<< $], Rest/binary >>, Acc, 0) ->
+compile_brackets_split(<< $], Rest/bits >>, Acc, 0) ->
 	{Acc, Rest};
-compile_brackets_split(<< C, Rest/binary >>, Acc, N) ->
+compile_brackets_split(<< C, Rest/bits >>, Acc, N) ->
 	compile_brackets_split(Rest, << Acc/binary, C >>, N).
 
 -spec execute(Req, Env)
