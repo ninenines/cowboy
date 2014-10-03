@@ -311,17 +311,6 @@ Return whether the put action results in a conflict.
 A `409 Conflict` response will be sent if this function
 returns `true`.
 
-: known_content_type
-
-* Methods: all
-* Value type: boolean()
-* Default value: true
-
-Return whether the content-type is known.
-
-This function determines if the server understands the
-content-type, regardless of its use by the resource.
-
 : known_methods
 
 * Methods: all

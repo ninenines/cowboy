@@ -52,9 +52,6 @@ functions and the new response function described above.
 
 ### REST
 
-The `known_content_type` callback has no purpose, so it
-is going to be removed.
-
 The documentation for all REST callbacks will be updated
 to describe whether they can have side effects. This will
 allows us to build introspection tools on top of a working

@@ -67,7 +67,6 @@ if it is undefined, moving directly to the next step. Similarly,
 |	generate_etag			`undefined`
 |	is_authorized			`true`
 |	is_conflict				`false`
-|	known_content_type		`true`
 |	known_methods			`[<<"GET">>, <<"HEAD">>, <<"POST">>, <<"PUT">>, <<"PATCH">>, <<"DELETE">>, <<"OPTIONS">>]`
 |	languages_provided		skip
 |	last_modified			`undefined`
