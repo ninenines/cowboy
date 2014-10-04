@@ -20,6 +20,10 @@ dep_ct_helper = git https://github.com/extend/ct_helper.git master
 
 include erlang.mk
 
+# Also dialyze the tests.
+
+# DIALYZER_OPTS += --src -r test
+
 # Documentation.
 
 dep_ezdoc = git https://github.com/ninenines/ezdoc master
