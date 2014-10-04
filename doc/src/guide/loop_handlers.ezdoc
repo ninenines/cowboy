@@ -113,7 +113,7 @@ It is recommended that you set the connection header to
 `close` when replying, as this process may be reused for
 a subsequent request.
 
-Please refer to the ^"HTTP handlers chapter^http_handlers
+Please refer to the ^"Handlers chapter^handlers
 for general instructions about cleaning up.
 
 :: Timeout
