@@ -1,6 +1,90 @@
 CHANGELOG
 =========
 
+2.0.0-pre.1
+-----------
+
+ *  Drop R16 support
+
+ *  Breaking update of the cowboy_req interface
+
+    Simplify the interface for most cowboy_req functions. They all return
+    a single value except the four body reading functions. The reply functions
+    now only return a Req value.
+
+    Access functions do not return a Req anymore.
+
+    Functions that used to cache results do not have a cache anymore.
+
+    The interface for accessing query string and cookies has therefore
+    been changed.
+
+    None of the functions return an error tuple anymore. It either works
+    or crashes. Cowboy will attempt to provide an appropriate status code
+    in the response of crashed handlers.
+
+    As a result, the content decode function has its return value changed
+    to a simple binary, and the body reading functions only return on success.
+
+ *  Change interface for reading the query string and cookies
+
+    There are now three query string functions: qs/1 provides access
+    to the raw query string value; parse_qs/1 returns the query string
+    as a list of key/values; match_qs/2 returns a map containing the
+    values requested in the second argument, after applying constraints
+    and default value.
+
+    Similarly, there are two cookie functions: parse_cookies/1 and
+    match_cookies/2. More match functions will be added in future commits.
+
+ *  Unify the init and terminate callbacks
+
+    `init/3` becomes `init/2`, its first argument was removed. Its return
+    value has changed, it now returns an `ok` tuple or a `Mod` tuple, the
+    latter allowing to switch to a different handler type and also able
+    to take timeout and hibernate options. The sub protocol interface has
+    been changed and receives these options now.
+
+    rest_init/2 and rest_terminate/2 have been removed.
+
+    websocket_init/3 and websocket_terminate/3 have been removed.
+
+    terminate/3 is now optional. It is called regardless of
+    the type of handler, including REST and Websocket.
+
+    Terminate reasons for all handler types have been documented.
+    The terminate callback is now appropriately called in all cases
+    (or should be).
+
+ *  Plain HTTP handlers are virtually removed
+
+    You can use the `init/2` function to do the work of a plain HTTP
+    handler. The behavior is defined in `cowboy_handler`.
+
+ *  Loop handlers are now the `cowboy_loop` sub protocol
+
+ *  Loop handlers now use the same return values as Websocket
+
+ *  Behaviors have been moved into the module implementing them
+
+    That means `cowboy_loop`, `cowboy_rest` and `cowboy_websocket`.
+
+ *  Change the format for constraints used by the router
+
+ *  Remove the onrequest hook
+
+    Use a middleware instead.
+
+ *  Remove the `error` return value from middlewares
+
+ *  Remove the REST `known_content_type` callback
+
+ *  Improve absolute URI support
+
+ *  Fix two edge cases when the request-line is invalid
+
+ *  Guide reorganization and partial rewrite
+
 1.0.0
 -----
 
