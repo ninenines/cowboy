@@ -80,7 +80,8 @@ init_dispatch() ->
 					{text, <<"won't be received">>}]}
 			]},
 			{"/ws_timeout_hibernate", ws_timeout_hibernate, []},
-			{"/ws_timeout_cancel", ws_timeout_cancel, []}
+			{"/ws_timeout_cancel", ws_timeout_cancel, []},
+			{"/ws_system", ws_system, []}
 		]}
 	]).
 
@@ -647,6 +648,48 @@ ws_timeout_reset(Config) ->
 			= gen_tcp:recv(Socket, 0, 6000),
 		ok = timer:sleep(500)
 	end || _ <- [1, 2, 3, 4]],
+	{ok, << 1:1, 0:3, 8:4, 0:1, 2:7, 1000:16 >>} = gen_tcp:recv(Socket, 0, 6000),
+	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
+	ok.
+
+ws_system(Config) ->
+	%% Websocket sub protocol should handle system messages
+	{port, Port} = lists:keyfind(port, 1, Config),
+	{ok, Socket} = gen_tcp:connect("localhost", Port,
+		[binary, {active, false}, {packet, raw}]),
+	register(ws_system_tester, self()),
+	ok = gen_tcp:send(Socket, [
+		"GET /ws_system HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Connection: Upgrade\r\n"
+		"Upgrade: websocket\r\n"
+		"Sec-WebSocket-Origin: http://localhost\r\n"
+		"Sec-WebSocket-Version: 8\r\n"
+		"Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n"
+		"\r\n"]),
+	{ok, Handshake} = gen_tcp:recv(Socket, 0, 6000),
+	{ok, {http_response, {1, 1}, 101, "Switching Protocols"}, Rest}
+		= erlang:decode_packet(http, Handshake, []),
+	[Headers, <<>>] = do_decode_headers(
+		erlang:decode_packet(httph, Rest, []), []),
+	{'Connection', "Upgrade"} = lists:keyfind('Connection', 1, Headers),
+	{'Upgrade', "websocket"} = lists:keyfind('Upgrade', 1, Headers),
+	{"sec-websocket-accept", "s3pPLMBiTxaQ9kYGzzhZRbK+xOo="}
+		= lists:keyfind("sec-websocket-accept", 1, Headers),
+	Pid = receive {ws_system, P} -> P after 500 -> exit(timeout) end,
+	unregister(ws_system_tester),
+	ok = sys:suspend(Pid),
+	%% code_change sets state to extra (1)
+	ok = sys:change_code(Pid, ws_system, undefined, 1),
+	ok = sys:resume(Pid),
+	{ws_system, _Req, 1} = sys:get_state(Pid),
+	Replace = fun({Mod, Req2, 1}) -> {Mod, Req2, 2} end,
+	{ws_system, _Req3, 2} = sys:replace_state(Pid, Replace),
+	{ws_system, _Req4, 2} = sys:get_state(Pid),
+	{status, Pid, {module, _Module}, Status} = sys:get_status(Pid),
+	[_PDict, running, _Parent, [], Misc] = Status,
+	[{header, "Cowboy websocket handler"},
+	 {data, _}, {data, [{"Handler state", {formatted, 2}}]}] = Misc,
 	{ok, << 1:1, 0:3, 8:4, 0:1, 2:7, 1000:16 >>} = gen_tcp:recv(Socket, 0, 6000),
 	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
 	ok.

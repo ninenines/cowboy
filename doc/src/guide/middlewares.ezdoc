@@ -23,11 +23,17 @@ Middlewares can return one of four different values:
 
 * `{ok, Req, Env}` to continue the request processing
 * `{suspend, Module, Function, Args}` to hibernate
+* `{system, From, Msg, Module, Req, Env, Misc}` to handle system
+messages
 * `{halt, Req}` to stop processing and move on to the next request
 
 Of note is that when hibernating, processing will resume on the given
 MFA, discarding all previous stacktrace. Make sure you keep the `Req`
 and `Env` in the arguments of this MFA for later use.
+
+When handling system messages the given module must implement the
+`cowboy_system` callbacks. For more information about handling system
+messages see `System Messages` below.
 
 If an error happens during middleware processing, Cowboy will not try
 to send an error back to the socket, the process will just crash. It
@@ -41,14 +47,18 @@ In the previous chapters we saw it briefly when we needed to pass
 the routing information. It is a list of tuples with the first
 element being an atom and the second any Erlang term.
 
-Two values in the environment are reserved:
+Four values in the environment are reserved:
 
 * `listener` contains the name of the listener
 * `result` contains the result of the processing
+* `parent` contains the pid of the parent process
+* `dbg` contains a list of `sys` debug objects
 
-The `listener` value is always defined. The `result` value can be
-set by any middleware. If set to anything other than `ok`, Cowboy
-will not process any subsequent requests on this connection.
+The `listener`, `parent` and `dbg` values are always defined. If an
+exit signal is received from the parent process the middleware must
+exit with the same reason. The `result` value can be set by any
+middleware. If set to anything other than `ok`, Cowboy will not
+process any subsequent requests on this connection.
 
 The middlewares that come with Cowboy may define or require other
 environment values to perform.
@@ -66,3 +76,232 @@ and `handler_opts` values of the environment, respectively.
 
 The handler middleware requires the `handler` and `handler_opts`
 values. It puts the result of the request handling into `result`.
+
+:: System Messages
+
+A middleware may choose to handle system messages. Handling system
+messages will help OTP tools to debug and code reload the middleware.
+
+To handle system message a middleware implements the 3 required
+`cowboy_system` callbacks and possibly 3 optional callbacks. Note
+these are not the same as the standard `sys` callbacks though are
+very similar.
+
+A system message is of the form:
+
+``` erlang
+{system, From, Msg}
+```
+
+To handle the system message a middleware returns:
+
+``` erlang
+{system, From, Msg, Module, Req, Env, Misc}
+```
+
+`Module` is the module with the `cowboy_system` callbacks. This module
+will be used to handle system requests. `Misc` should be any
+additional data that is required by the middleware, i.e. its state.
+
+Once the middleware has returned, the `sys` module will control the
+process. Note the process might be hibernated.
+
+The first callback is `continue/3`. This is called when `sys` returns
+control of the process to cowboy and the middleware. Therefore it
+should continue to act as normal and return the same values as
+`execute/2`:
+
+``` erlang
+continue(Req, Env, Misc) ->
+	{ok, Req, Env}
+```
+
+The second callback is `terminate/4`. This is called when the process
+should terminate because its parent did. The middleware should exit
+with the same reason as the first argument (after handling any
+termination or clean up):
+
+``` erlang
+terminate(Reason, _Req, _Env, _Misc) ->
+	exit(Reason).
+```
+
+The third callback is `code_change/4`. This is called when the process
+should change it's internal state structure because a new version of
+the module has been loaded:
+
+``` erlang
+code_change(Req, Misc, _Module, _OldVsn, _Extra) ->
+	{ok, Req, Misc}.
+```
+
+`OldVsn` is a term representing the previous version of the module
+being code changed, which may not be the middleware. This should be
+used to know if and how a state should be converted to a new
+structure.
+
+`Extra` can be any term and can be used to provide extra information
+required in a code change.
+
+To code change a process it must be suspended by the `sys` module:
+
+``` erlang
+sys:suspend(Pid),
+sys:change_code(Pid, Module, OldVsn, Extra),
+sys:resume(Pid).
+```
+
+Remember to resume the process afterwards, with `sys:resume/1`,
+otherwise the process will remain `sys` suspended.
+
+To code change the state of a handler a middleware may call
+`cowboy_handler:code_change/6`, to alter the `Req` and handler state:
+
+``` erlang
+cowboy_handler:code_change(OldVsn, Req, State, Module, Extra, Handler)
+```
+
+This is turn will call the handler's optional callback `code_change/4`
+if it is implemented and `Module` is the handlers module:
+
+```erlang
+Handler:code_change(OldVsn, Req, State, Extra)
+```
+
+Both `cowboy_loop` and `cowboy_websocket` will code change a handler
+in this way.
+
+The first optional callback is `get_state/2`. This is used to retrieve
+the state of the middleware when debugging. The return value should be
+of the form:
+
+``` erlang
+{ok, {Module, Req, State}}
+```
+
+Where `Module` is the module of the middleware, or handler, and
+`State` is its the state. For example:
+
+``` erlang
+get_state(Req, Misc) ->
+	{ok, {?MODULE, Req, Misc}}.
+```
+
+To get the state of a process call (only for use while debugging):
+
+``` erlang
+sys:get_state(Pid)
+```
+
+If a middleware does not implement this callback the `Module` will be
+middleware module and `State` its data.
+
+The `cowboy_loop` and `cowboy_websocket` sub protocols will return the
+module and state of the current handler, rather than their own.
+Middlewares with handler modules may wish to do this too.
+
+The second optional callback is `replace_state/3`. This function is
+called during debugging to replace the internal state of a middleware
+or a handler.
+
+The first argument is an anonymous function that expects an argument
+of the form returned by `get_state/2`.
+
+``` erlang
+replace_state(Replace, Req, Misc) ->
+	Result = {?Module, Req2, Misc2} = Replace({?MODULE, Req, Misc}),
+	{ok, Result, Req2, Misc2}.
+```
+Where `State` is the state of the middleware, or handler, with module
+`Module`.
+
+The middleware will receive the new `Req2` and `Misc2` on
+`continue/3`, or the next system callback called.
+
+To replace the state of a process call (only for use while debugging):
+
+``` erlang
+sys:replace_state(Replace, Pid)
+```
+
+For a cowboy process the `Replace` anonymous function should
+receive, and return, an argument similar to this example:
+
+``` erlang
+fun({Module, Req, State}) ->
+	{Module, Req, State}
+end.
+```
+
+If a middleware does not implement this callback the `Module` will be
+the module of the middleware and `State` its data. Note that in this
+case the middleware module can not be changed. An attempt to do so
+will result in the replace failing. However the cowboy process will
+continue as if the call had not been made.
+
+For `cowboy_loop` and `cowboy_websocket` sub protocols the `Module`
+and `State` will refer to the handler module and its state. These two
+will not allow the current handler to be changed, and an attempt to do
+so will fail. Should a `Replace` function raise an exception the
+internal state of the process will stay the same and it will continue
+running as if nothing happened.
+
+Calling a cowboy process when it is between requests will results in
+the `Req` being the atom `undefined` because there is currently no
+request.
+
+A third optional callback can be implemented, `format_status/2`. This
+function is called during debugging to fetch the full status of a
+middleware.
+
+The first argument is the atom `normal`. The second argument is a
+list of information. The first element is the contents of the process
+dictionary. The second is an atom `suspended` or `running`, depending
+whether the process is suspended by `sys` or not. The third, cowboy
+request object; the fourth, middleware environment; the fifth, the
+data for the middleware.
+
+``` erlang
+format_status(normal, [_PDict, _SysState, Req, Env, Misc]) ->
+	[
+		{header, "Middleware"},
+		{data, [
+			{"Request", cowboy_req:to_list(Req)},
+			{"Environment", Env},
+			{"Misc", Misc}
+		]}
+	].
+```
+
+Note that the `Req` will be locked and should only be used to retrieve
+information.
+
+If a middleware does not implement this callback the `Misc` data will
+be used to format the status.
+
+To view the status of a process call:
+
+``` erlang
+sys:get_status(Pid)
+```
+
+To format the state of a handler a middleware (or sub protocol) may
+call `cowboy_handler:format_status/4`:
+
+```erlang
+cowboy_handler:format_status(normal, PDict, Req, State, Handler)
+```
+
+In turn this will call the optional handler callback
+`format_status/2`:
+
+```erlang
+Handler:format_status(normal, [PDict, Req, State])
+```
+
+If a handler does not implement the callback its `State` will be
+used to provide data for the status:
+
+``` erlang
+{data, [{"Handler state", State}]}
+```

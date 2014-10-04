@@ -39,7 +39,8 @@ init_dispatch(_) ->
 	cowboy_router:compile([{'_', [
 		{"/long_polling", long_polling_h, []},
 		{"/loop_body", loop_handler_body_h, []},
-		{"/loop_timeout", loop_handler_timeout_h, []}
+		{"/loop_timeout", loop_handler_timeout_h, []},
+		{"/loop_system", loop_handler_system_h, []}
 	]}]).
 
 %% Tests.
@@ -83,5 +84,27 @@ loop_timeout(Config) ->
 	doc("Ensure that the loop handler timeout results in a 204 response."),
 	ConnPid = gun_open(Config),
 	Ref = gun:get(ConnPid, "/loop_timeout"),
+	{response, fin, 204, _} = gun:await(ConnPid, Ref),
+	ok.
+
+loop_system(Config) ->
+	doc("Ensure that the loop handler can handle system messages"),
+	ConnPid = gun_open(Config),
+	register(loop_tester_system, self()),
+	Ref = gun:get(ConnPid, "/loop_system"),
+	Pid = receive {loop_handler_system_h, P} -> P after 500 -> exit(timeout) end,
+	unregister(loop_tester_system),
+	ok = sys:suspend(Pid),
+	%% code_change sets state to extra (1)
+	ok = sys:change_code(Pid, loop_handler_system_h, undefined, 1),
+	ok = sys:resume(Pid),
+	{loop_handler_system_h, _Req, 1} = sys:get_state(Pid),
+	Replace = fun({Mod, Req2, 1}) -> {Mod, Req2, 2} end,
+	{loop_handler_system_h, _Req3, 2} = sys:replace_state(Pid, Replace),
+	{loop_handler_system_h, _Req4, 2} = sys:get_state(Pid),
+	{status, Pid, {module, _Module}, Status} = sys:get_status(Pid),
+	[_PDict, running, _Parent, [], Misc] = Status,
+	[{header, "Cowboy loop handler"},
+	 {data, _}, {data, [{"Handler state", {formatted, 2}}]}] = Misc,
 	{response, fin, 204, _} = gun:await(ConnPid, Ref),
 	ok.
