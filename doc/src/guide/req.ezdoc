@@ -142,7 +142,7 @@ QsVals = cowboy_req:parse_qs(Req),
 You can match the query string into a map.
 
 ``` erlang
-#{id := ID, lang := Lang} = cowboy_req:match_qs(Req, [id, lang]).
+#{id := ID, lang := Lang} = cowboy_req:match_qs([id, lang], Req).
 ```
 
 You can use constraints to validate the values while matching
@@ -152,7 +152,7 @@ the `id` value will be converted to an integer term, saving
 you a conversion step.
 
 ``` erlang
-QsMap = cowboy_req:match_qs(Req, [{id, int}, {lang, nonempty}]).
+QsMap = cowboy_req:match_qs([{id, int}, {lang, nonempty}], Req).
 ```
 
 Note that in the case of duplicate query string keys, the map
@@ -165,7 +165,7 @@ if the `lang` key is not found. It will not be used if
 the key is found but has an empty value.
 
 ``` erlang
-#{lang := Lang} = cowboy_req:match_qs(Req, [{lang, [], <<"en-US">>}]).
+#{lang := Lang} = cowboy_req:match_qs([{lang, [], <<"en-US">>}], Req).
 ```
 
 If no default is provided and the value is missing, the

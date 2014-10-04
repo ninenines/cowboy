@@ -221,9 +221,9 @@ qs(Req) ->
 parse_qs(#http_req{qs=Qs}) ->
 	cow_qs:parse_qs(Qs).
 
--spec match_qs(req(), cowboy:fields()) -> map().
-match_qs(Req, Fields) ->
-	filter(kvlist_to_map(parse_qs(Req), Fields), Fields).
+-spec match_qs(cowboy:fields(), req()) -> map().
+match_qs(Fields, Req) ->
+	filter(Fields, kvlist_to_map(Fields, parse_qs(Req))).
 
 %% The URL includes the scheme, host and port only.
 -spec host_url(req()) -> undefined | binary().
@@ -380,9 +380,9 @@ parse_header(Name, Req, Default, ParseFun) ->
 parse_cookies(Req) ->
 	parse_header(<<"cookie">>, Req).
 
--spec match_cookies(req(), cowboy:fields()) -> map().
-match_cookies(Req, Fields) ->
-	filter(kvlist_to_map(parse_cookies(Req), Fields), Fields).
+-spec match_cookies(cowboy:fields(), req()) -> map().
+match_cookies(Fields, Req) ->
+	filter(Fields, kvlist_to_map(Fields, parse_cookies(Req))).
 
 -spec meta(atom(), req()) -> any() | undefined.
 meta(Name, Req) ->
@@ -1214,63 +1214,63 @@ status(B) when is_binary(B) -> B.
 %% Create map, convert keys to atoms and group duplicate keys into lists.
 %% Keys that are not found in the user provided list are entirely skipped.
 %% @todo Can probably be done directly while parsing.
-kvlist_to_map(KvList, Fields) ->
+kvlist_to_map(Fields, KvList) ->
 	Keys = [case K of
 		{Key, _} -> Key;
 		{Key, _, _} -> Key;
 		Key -> Key
 	end || K <- Fields],
-	kvlist_to_map(KvList, Keys, #{}).
+	kvlist_to_map(Keys, KvList, #{}).
 
-kvlist_to_map([], _, Map) ->
+kvlist_to_map(_, [], Map) ->
 	Map;
-kvlist_to_map([{Key, Value}|Tail], Keys, Map) ->
+kvlist_to_map(Keys, [{Key, Value}|Tail], Map) ->
 	try binary_to_existing_atom(Key, utf8) of
 		Atom ->
 			case lists:member(Atom, Keys) of
 				true ->
 					case maps:find(Atom, Map) of
 						{ok, MapValue} when is_list(MapValue) ->
-							kvlist_to_map(Tail, Keys,
+							kvlist_to_map(Keys, Tail,
 								maps:put(Atom, [Value|MapValue], Map));
 						{ok, MapValue} ->
-							kvlist_to_map(Tail, Keys,
+							kvlist_to_map(Keys, Tail,
 								maps:put(Atom, [Value, MapValue], Map));
 						error ->
-							kvlist_to_map(Tail, Keys,
+							kvlist_to_map(Keys, Tail,
 								maps:put(Atom, Value, Map))
 					end;
 				false ->
-					kvlist_to_map(Tail, Keys, Map)
+					kvlist_to_map(Keys, Tail, Map)
 			end
 	catch error:badarg ->
-		kvlist_to_map(Tail, Keys, Map)
+		kvlist_to_map(Keys, Tail, Map)
 	end.
 
 %% Loop through fields, if value is missing and no default, crash;
 %% else if value is missing and has a default, set default;
 %% otherwise apply constraints. If constraint fails, crash.
-filter(Map, []) ->
+filter([], Map) ->
 	Map;
-filter(Map, [{Key, Constraints}|Tail]) ->
-	filter_constraints(Map, Tail, Key, maps:get(Key, Map), Constraints);
-filter(Map, [{Key, Constraints, Default}|Tail]) ->
+filter([{Key, Constraints}|Tail], Map) ->
+	filter_constraints(Tail, Map, Key, maps:get(Key, Map), Constraints);
+filter([{Key, Constraints, Default}|Tail], Map) ->
 	case maps:find(Key, Map) of
 		{ok, Value} ->
-			filter_constraints(Map, Tail, Key, Value, Constraints);
+			filter_constraints(Tail, Map, Key, Value, Constraints);
 		error ->
-			filter(maps:put(Key, Default, Map), Tail)
+			filter(Tail, maps:put(Key, Default, Map))
 	end;
-filter(Map, [Key|Tail]) ->
+filter([Key|Tail], Map) ->
 	true = maps:is_key(Key, Map),
-	filter(Map, Tail).
+	filter(Tail, Map).
 
-filter_constraints(Map, Tail, Key, Value, Constraints) ->
+filter_constraints(Tail, Map, Key, Value, Constraints) ->
 	case cowboy_constraints:validate(Value, Constraints) of
 		true ->
-			filter(Map, Tail);
+			filter(Tail, Map);
 		{true, Value2} ->
-			filter(maps:put(Key, Value2, Map), Tail)
+			filter(Tail, maps:put(Key, Value2, Map))
 	end.
 
 %% Tests.

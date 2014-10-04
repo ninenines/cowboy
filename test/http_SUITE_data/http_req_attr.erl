@@ -7,7 +7,7 @@
 -export([init/2]).
 
 init(Req, Opts) ->
-	#{attr := Attr} = cowboy_req:match_qs(Req, [attr]),
+	#{attr := Attr} = cowboy_req:match_qs([attr], Req),
 	<<"host_and_port">> = Attr,
 	Host = cowboy_req:host(Req),
 	Port = cowboy_req:port(Req),

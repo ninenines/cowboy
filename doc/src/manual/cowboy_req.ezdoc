@@ -128,7 +128,7 @@ Return the requested URL excluding the path component.
 This function will always return `undefined` until the
 `cowboy_router` middleware has been executed.
 
-: match_cookies(Req, Fields) -> Map
+: match_cookies(Fields, Req) -> Map
 
 Types:
 
@@ -153,7 +153,7 @@ be converted through the use of constraints, making this
 function able to extract, validate and convert values all
 in one step.
 
-: match_qs(Req, Fields) -> Map
+: match_qs(Fields, Req) -> Map
 
 Types:
 

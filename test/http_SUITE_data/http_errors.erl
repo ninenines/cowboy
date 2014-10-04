@@ -5,7 +5,7 @@
 -export([init/2]).
 
 init(Req, _Opts) ->
-	#{'case' := Case} = cowboy_req:match_qs(Req, ['case']),
+	#{'case' := Case} = cowboy_req:match_qs(['case'], Req),
     case_init(Case, Req).
 
 case_init(<<"init_before_reply">> = Case, _Req) ->

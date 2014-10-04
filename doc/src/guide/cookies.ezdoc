@@ -132,7 +132,7 @@ Cookies = cowboy_req:parse_cookies(Req),
 You can match the cookies into a map.
 
 ``` erlang
-#{id := ID, lang := Lang} = cowboy_req:match_cookies(Req, [id, lang]).
+#{id := ID, lang := Lang} = cowboy_req:match_cookies([id, lang], Req).
 ```
 
 You can use constraints to validate the values while matching
@@ -142,7 +142,7 @@ the `id` cookie value will be converted to an integer term, saving
 you a conversion step.
 
 ``` erlang
-CookiesMap = cowboy_req:match_cookies(Req, [{id, int}, {lang, nonempty}]).
+CookiesMap = cowboy_req:match_cookies([{id, int}, {lang, nonempty}], Req).
 ```
 
 Note that if two cookies share the same name, then the map value
@@ -155,7 +155,7 @@ if the `lang` cookie is not found. It will not be used if
 the cookie is found but has an empty value.
 
 ``` erlang
-#{lang := Lang} = cowboy_req:match_cookies(Req, [{lang, [], <<"en-US">>}]).
+#{lang := Lang} = cowboy_req:match_cookies([{lang, [], <<"en-US">>}], Req).
 ```
 
 If no default is provided and the value is missing, the

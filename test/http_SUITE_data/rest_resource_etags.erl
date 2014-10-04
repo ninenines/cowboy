@@ -9,7 +9,7 @@ init(Req, Opts) ->
 	{cowboy_rest, Req, Opts}.
 
 generate_etag(Req, State) ->
-	#{type := Type} = cowboy_req:match_qs(Req, [type]),
+	#{type := Type} = cowboy_req:match_qs([type], Req),
 	case Type of
 		%% Correct return values from generate_etag/2.
 		<<"tuple-weak">> ->

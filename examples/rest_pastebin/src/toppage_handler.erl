@@ -57,13 +57,13 @@ create_paste(Req, State) ->
 paste_html(Req, index) ->
 	{read_file("index.html"), Req, index};
 paste_html(Req, Paste) ->
-	#{lang := Lang} = cowboy_req:match_qs(Req, [lang]),
+	#{lang := Lang} = cowboy_req:match_qs([lang], Req),
 	{format_html(Paste, Lang), Req, Paste}.
 
 paste_text(Req, index) ->
 	{read_file("index.txt"), Req, index};
 paste_text(Req, Paste) ->
-	#{lang := Lang} = cowboy_req:match_qs(Req, [lang]),
+	#{lang := Lang} = cowboy_req:match_qs([lang], Req),
 	{format_text(Paste, Lang), Req, Paste}.
 
 % Private

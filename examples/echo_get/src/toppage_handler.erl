@@ -7,7 +7,7 @@
 
 init(Req, Opts) ->
 	Method = cowboy_req:method(Req),
-	#{echo := Echo} = cowboy_req:match_qs(Req, [echo]),
+	#{echo := Echo} = cowboy_req:match_qs([echo], Req),
 	Req2 = echo(Method, Echo, Req),
 	{ok, Req2, Opts}.
 
