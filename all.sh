@@ -1,7 +1,7 @@
 #!/bin/sh
 
 KERL_INSTALL_PATH=~/erlang
-KERL_RELEASES="r16b01 r16b02 r16b03-1 17.0 17.1.2"
+KERL_RELEASES="17.0 17.1.2 17.3"
 
 make build-ct-suites
 
