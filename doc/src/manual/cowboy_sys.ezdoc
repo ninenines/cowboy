@@ -1,0 +1,42 @@
+::: cowboy_sys
+
+The `cowboy_sys` behaviour defines the interface used to handle system
+messages in Cowboy middleware and sub protocol modules.
+
+:: Callbacks
+
+: sys_continue(Req, State)
+	-> {ok, Req, Env}
+	| {suspend, Module, Function, Args}
+	| {system, From, Msg, Module, Req, State}
+	| {halt, Req}
+
+Types:
+
+* Req = cowboy_req:req()
+* Env = env()
+* Module = module()
+* Function = atom()
+* Args = [any()]
+* From = {pid(), any()}
+* Msg = any()
+* State = any()
+
+Continue processsing after handling system messages.
+
+Please refer to the `cowboy_middleware` manual for possible return values.
+
+: sys_terminate(Reason, Req, State)
+	-> no_return().
+
+Types:
+
+* Reason = any()
+* Req = cowboy_req:req()
+* State = any()
+
+Terminate due to exit signal from parent while handling system messages.
+
+The process should exit with `Reason` after doing any cleanup or miscellaneous
+operations. The process should not continue as normal. Usually the reason will
+be `shutdown` when the parent process is terminating itself.

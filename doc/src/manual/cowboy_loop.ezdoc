@@ -67,6 +67,10 @@ received first.
 
 A socket error ocurred.
 
+: {shutdown, Reason}
+
+Parent process exited with reason `Reason`.
+
 :: Callbacks
 
 : info(Info, Req, State)

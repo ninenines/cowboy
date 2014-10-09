@@ -80,7 +80,8 @@ init_dispatch() ->
 					{text, <<"won't be received">>}]}
 			]},
 			{"/ws_timeout_hibernate", ws_timeout_hibernate, []},
-			{"/ws_timeout_cancel", ws_timeout_cancel, []}
+			{"/ws_timeout_cancel", ws_timeout_cancel, []},
+			{"/ws_system", ws_system, []}
 		]}
 	]).
 
@@ -651,6 +652,36 @@ ws_timeout_reset(Config) ->
 	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
 	ok.
 
+sys_suspend_resume(Config) ->
+	%% Ensure that a ws handler can handle sys:suspend/1 and sys:resume/1.
+	{Pid, Socket} = system_ws_connect("/ws_system", Config),
+	ok = sys:suspend(Pid),
+	ok = sys:resume(Pid),
+	{ok, << 1:1, 0:3, 8:4, 0:1, 2:7, 1000:16 >>} = gen_tcp:recv(Socket, 0, 6000),
+	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
+	ok.
+
+sys_change_code(Config) ->
+	%% Ensure that a ws handler can handle sys:change_code/4.
+	{Pid, Socket} = system_ws_connect("/ws_system", Config),
+	ok = sys:suspend(Pid),
+	ok = sys:change_code(Pid, ?MODULE, undefined, undefined),
+	ok = sys:resume(Pid),
+	{ok, << 1:1, 0:3, 8:4, 0:1, 2:7, 1000:16 >>} = gen_tcp:recv(Socket, 0, 6000),
+	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
+	ok.
+
+sys_statistics(Config) ->
+	%% Ensure that a ws handler can handle sys:statistics/2
+	{Pid, Socket} = system_ws_connect("/ws_system", Config),
+	ok = sys:statistics(Pid, true),
+	{ok, [{_,_} | _]} = sys:statistics(Pid, get),
+	ok = sys:statistics(Pid, false),
+	{ok, no_statistics} = sys:statistics(Pid, get),
+	{ok, << 1:1, 0:3, 8:4, 0:1, 2:7, 1000:16 >>} = gen_tcp:recv(Socket, 0, 6000),
+	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
+	ok.
+
 %% Internal.
 
 do_decode_headers({ok, http_eoh, Rest}, Acc) ->
@@ -677,3 +708,30 @@ do_mask(<< O:8 >>, MaskKey, Acc) ->
 	<< MaskKey2:8, _:24 >> = << MaskKey:32 >>,
 	T = O bxor MaskKey2,
 	<< Acc/binary, T:8 >>.
+
+system_ws_connect(Path, Config) ->
+	Tag = make_ref(),
+	QS = cow_qs:qs([{<<"from">>, term_to_binary({self(), Tag})}]),
+	{port, Port} = lists:keyfind(port, 1, Config),
+	{ok, Socket} = gen_tcp:connect("localhost", Port,
+		[binary, {active, false}, {packet, raw}]),
+	ok = gen_tcp:send(Socket, [
+		"GET ", Path, $?, QS, " HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Connection: Upgrade\r\n"
+		"Upgrade: websocket\r\n"
+		"Sec-WebSocket-Origin: http://localhost\r\n"
+		"Sec-WebSocket-Version: 8\r\n"
+		"Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n"
+		"\r\n"]),
+	{ok, Handshake} = gen_tcp:recv(Socket, 0, 6000),
+	{ok, {http_response, {1, 1}, 101, "Switching Protocols"}, Rest}
+		= erlang:decode_packet(http, Handshake, []),
+	[Headers, <<>>] = do_decode_headers(
+		erlang:decode_packet(httph, Rest, []), []),
+	{'Connection', "Upgrade"} = lists:keyfind('Connection', 1, Headers),
+	{'Upgrade', "websocket"} = lists:keyfind('Upgrade', 1, Headers),
+	{"sec-websocket-accept", "s3pPLMBiTxaQ9kYGzzhZRbK+xOo="}
+		= lists:keyfind("sec-websocket-accept", 1, Headers),
+	Pid = receive {Tag, P} -> P after 500 -> exit(timeout) end,
+	{Pid, Socket}.

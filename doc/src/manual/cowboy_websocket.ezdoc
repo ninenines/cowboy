@@ -74,6 +74,10 @@ The remote endpoint closed the connection with the given
 The handler requested to close the connection, either by returning
 a `shutdown` tuple or by sending a `close` frame.
 
+: {shutdown, Reason}
+
+The parent process exited with reason `Reason`.
+
 : timeout
 
 The connection has been closed due to inactivity. The timeout
