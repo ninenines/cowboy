@@ -181,7 +181,7 @@ parse_frame(State=#state{zinf=Zinf}, Data) ->
 		{true, Frame, Rest} ->
 			P = cow_spdy:parse(Frame, Zinf),
                         case handle_frame(State#state{buffer = Rest}, P) of
-                            State2#state{} ->
+                            State2=#state{} ->
                                 parse_frame(State2, Rest);
                             ok ->
                                 ok
