@@ -180,11 +180,16 @@ parse_frame(State=#state{zinf=Zinf}, Data) ->
 	case cow_spdy:split(Data) of
 		{true, Frame, Rest} ->
 			P = cow_spdy:parse(Frame, Zinf),
-			State2 = handle_frame(State#state{buffer = Rest}, P),
-			parse_frame(State2, Rest);
+                        case handle_frame(State#state{buffer = Rest}, P) of
+                            State2#state{} ->
+                                parse_frame(State2, Rest);
+                            ok ->
+                                ok
+                        end;
 		false ->
 			loop(State#state{buffer=Data})
 	end.
+
 
 loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 		buffer=Buffer, idle_timeout=IdleTimeout, children=Children}) ->
