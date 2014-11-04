@@ -14,14 +14,19 @@
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 -module(cowboy_protocol).
+-behaviour(cowboy_sys).
 
 %% API.
 -export([start_link/4]).
 
 %% Internal.
--export([init/4]).
+-export([init/5]).
 -export([parse_request/3]).
--export([resume/6]).
+-export([resume/5]).
+
+%% System.
+-export([sys_continue/2]).
+-export([sys_terminate/3]).
 
 -type opts() :: [{compress, boolean()}
 	| {env, cowboy_middleware:env()}
@@ -42,6 +47,7 @@
 	middlewares :: [module()],
 	compress :: boolean(),
 	env :: cowboy_middleware:env(),
+	parent :: pid(),
 	onresponse = undefined :: undefined | cowboy:onresponse_fun(),
 	max_empty_lines :: non_neg_integer(),
 	req_keepalive = 1 :: non_neg_integer(),
@@ -60,7 +66,8 @@
 
 -spec start_link(ranch:ref(), inet:socket(), module(), opts()) -> {ok, pid()}.
 start_link(Ref, Socket, Transport, Opts) ->
-	Pid = spawn_link(?MODULE, init, [Ref, Socket, Transport, Opts]),
+	Pid = cowboy_proc:spawn_link(?MODULE, init,
+		[Ref, self(), Socket, Transport, Opts]),
 	{ok, Pid}.
 
 %% Internal.
@@ -72,8 +79,8 @@ get_value(Key, Opts, Default) ->
 		_ -> Default
 	end.
 
--spec init(ranch:ref(), inet:socket(), module(), opts()) -> ok.
-init(Ref, Socket, Transport, Opts) ->
+-spec init(ranch:ref(), pid(), inet:socket(), module(), opts()) -> no_return().
+init(Ref, Parent, Socket, Transport, Opts) ->
 	Compress = get_value(compress, Opts, false),
 	MaxEmptyLines = get_value(max_empty_lines, Opts, 5),
 	MaxHeaderNameLength = get_value(max_header_name_length, Opts, 64),
@@ -82,12 +89,12 @@ init(Ref, Socket, Transport, Opts) ->
 	MaxKeepalive = get_value(max_keepalive, Opts, 100),
 	MaxRequestLineLength = get_value(max_request_line_length, Opts, 4096),
 	Middlewares = get_value(middlewares, Opts, [cowboy_router, cowboy_handler]),
-	Env = [{listener, Ref}|get_value(env, Opts, [])],
+	Env = [{listener, Ref}, {parent, Parent}|get_value(env, Opts, [])],
 	OnResponse = get_value(onresponse, Opts, undefined),
 	Timeout = get_value(timeout, Opts, 5000),
 	ok = ranch:accept_ack(Ref),
 	wait_request(<<>>, #state{socket=Socket, transport=Transport,
-		middlewares=Middlewares, compress=Compress, env=Env,
+		middlewares=Middlewares, compress=Compress, env=Env, parent=Parent,
 		max_empty_lines=MaxEmptyLines, max_keepalive=MaxKeepalive,
 		max_request_line_length=MaxRequestLineLength,
 		max_header_name_length=MaxHeaderNameLength,
@@ -122,17 +129,17 @@ recv(Socket, Transport, Until) ->
 			Transport:recv(Socket, 0, Timeout)
 	end.
 
--spec wait_request(binary(), #state{}, non_neg_integer()) -> ok.
+-spec wait_request(binary(), #state{}, non_neg_integer()) -> no_return().
 wait_request(Buffer, State=#state{socket=Socket, transport=Transport,
 		until=Until}, ReqEmpty) ->
 	case recv(Socket, Transport, Until) of
 		{ok, Data} ->
 			parse_request(<< Buffer/binary, Data/binary >>, State, ReqEmpty);
 		{error, _} ->
-			terminate(State)
+			terminate(normal, State)
 	end.
 
--spec parse_request(binary(), #state{}, non_neg_integer()) -> ok.
+-spec parse_request(binary(), #state{}, non_neg_integer()) -> no_return().
 %% Empty lines must be using \r\n.
 parse_request(<< $\n, _/bits >>, State, _) ->
 	error_terminate(400, State);
@@ -241,7 +248,7 @@ wait_header(Buffer, State=#state{socket=Socket, transport=Transport,
 		{error, timeout} ->
 			error_terminate(408, State);
 		{error, _} ->
-			terminate(State)
+			terminate(normal, State)
 	end.
 
 parse_header(<< $\r, $\n, Rest/bits >>, S, M, P, Q, V, Headers) ->
@@ -289,7 +296,7 @@ wait_hd_before_value(Buffer, State=#state{
 		{error, timeout} ->
 			error_terminate(408, State);
 		{error, _} ->
-			terminate(State)
+			terminate(normal, State)
 	end.
 
 parse_hd_before_value(<< $\s, Rest/bits >>, S, M, P, Q, V, H, N) ->
@@ -320,7 +327,7 @@ wait_hd_value(_, State=#state{
 		{error, timeout} ->
 			error_terminate(408, State);
 		{error, _} ->
-			terminate(State)
+			terminate(normal, State)
 	end.
 
 %% Pushing back as much as we could the retrieval of new data
@@ -337,7 +344,7 @@ wait_hd_value_nl(_, State=#state{
 		{error, timeout} ->
 			error_terminate(408, State);
 		{error, _} ->
-			terminate(State)
+			terminate(normal, State)
 	end.
 
 parse_hd_value(<< $\r, Rest/bits >>, S, M, P, Q, V, Headers, Name, SoFar) ->
@@ -413,42 +420,45 @@ request(Buffer, State=#state{socket=Socket, transport=Transport,
 			execute(Req, State);
 		{error, _} ->
 			%% Couldn't read the peer address; connection is gone.
-			terminate(State)
+			terminate(normal, State)
 	end.
 
--spec execute(cowboy_req:req(), #state{}) -> ok.
+-spec execute(cowboy_req:req(), #state{}) -> no_return().
 execute(Req, State=#state{middlewares=Middlewares, env=Env}) ->
 	execute(Req, State, Env, Middlewares).
 
--spec execute(cowboy_req:req(), #state{}, cowboy_middleware:env(), [module()])
-	-> ok.
 execute(Req, State, Env, []) ->
 	next_request(Req, State, get_value(result, Env, ok));
-execute(Req, State, Env, [Middleware|Tail]) ->
+execute(Req, State=#state{parent=Parent}, Env, [Middleware|Tail]) ->
 	case Middleware:execute(Req, Env) of
 		{ok, Req2, Env2} ->
 			execute(Req2, State, Env2, Tail);
-		{suspend, Module, Function, Args} ->
-			erlang:hibernate(?MODULE, resume,
-				[State, Env, Tail, Module, Function, Args]);
+		{suspend, Module, Fun, Args} ->
+			cowboy_proc:hibernate(?MODULE, resume,
+				[State, Tail, Module, Fun, Args]);
+		{system, From, Msg, Module, Req2, ModState} ->
+			cowboy_sys:handle_msg(Msg, From, Parent, ?MODULE, Req2,
+				{State, Tail, Module, ModState});
 		{halt, Req2} ->
 			next_request(Req2, State, ok)
 	end.
 
--spec resume(#state{}, cowboy_middleware:env(), [module()],
-	module(), module(), [any()]) -> ok.
-resume(State, Env, Tail, Module, Function, Args) ->
-	case apply(Module, Function, Args) of
+-spec resume(#state{}, [module()], module(), module(), [any()]) -> no_return().
+resume(State=#state{parent=Parent}, Tail, Module, Fun, Args) ->
+	case apply(Module, Fun, Args) of
 		{ok, Req2, Env2} ->
 			execute(Req2, State, Env2, Tail);
-		{suspend, Module2, Function2, Args2} ->
-			erlang:hibernate(?MODULE, resume,
-				[State, Env, Tail, Module2, Function2, Args2]);
+		{suspend, Module2, Fun2, Args2} ->
+			cowboy_proc:hibernate(?MODULE, resume,
+				[State, Tail, Module2, Fun2, Args2]);
+		{system, From, Msg, Module2, Req2, ModState2} ->
+			cowboy_sys:handle_msg(Msg, From, Parent, ?MODULE, Req2,
+				{State, Tail, Module2, ModState2});
 		{halt, Req2} ->
 			next_request(Req2, State, ok)
 	end.
 
--spec next_request(cowboy_req:req(), #state{}, any()) -> ok.
+-spec next_request(cowboy_req:req(), #state{}, any()) -> no_return().
 next_request(Req, State=#state{req_keepalive=Keepalive, timeout=Timeout},
 		HandlerRes) ->
 	cowboy_req:ensure_response(Req, 204),
@@ -456,7 +466,7 @@ next_request(Req, State=#state{req_keepalive=Keepalive, timeout=Timeout},
 	%% we do not want to attempt to skip the body.
 	case cowboy_req:get(connection, Req) of
 		close ->
-			terminate(State);
+			terminate(normal, State);
 		_ ->
 			%% Skip the body if it is reasonably sized. Close otherwise.
 			Buffer = case cowboy_req:body(Req) of
@@ -466,27 +476,60 @@ next_request(Req, State=#state{req_keepalive=Keepalive, timeout=Timeout},
 			%% Flush the resp_sent message before moving on.
 			if HandlerRes =:= ok, Buffer =/= close ->
 					receive {cowboy_req, resp_sent} -> ok after 0 -> ok end,
-					?MODULE:parse_request(Buffer,
+					next_request(Buffer,
 						State#state{req_keepalive=Keepalive + 1,
-						until=until(Timeout)}, 0);
+						until=until(Timeout)});
 				true ->
-					terminate(State)
+					terminate(normal, State)
 			end
 	end.
 
--spec error_terminate(cowboy:http_status(), #state{}) -> ok.
+-spec next_request(binary(), #state{}) -> no_return().
+next_request(Buffer, State=#state{parent=Parent}) ->
+	receive
+		{system, From, Msg} ->
+			cowboy_sys:handle_msg(Msg, From, Parent, ?MODULE, undefined,
+				{State, Buffer});
+		{'EXIT', Parent, Reason} ->
+			terminate(Reason, State)
+	after 0 ->
+		?MODULE:parse_request(Buffer, State, 0)
+	end.
+
+-spec error_terminate(cowboy:http_status(), #state{}) -> no_return().
 error_terminate(Status, State=#state{socket=Socket, transport=Transport,
 		compress=Compress, onresponse=OnResponse}) ->
 	error_terminate(Status, cowboy_req:new(Socket, Transport,
 		undefined, <<"GET">>, <<>>, <<>>, 'HTTP/1.1', [], <<>>,
 		undefined, <<>>, false, Compress, OnResponse), State).
 
--spec error_terminate(cowboy:http_status(), cowboy_req:req(), #state{}) -> ok.
+-spec error_terminate(cowboy:http_status(), cowboy_req:req(), #state{})
+	-> no_return().
 error_terminate(Status, Req, State) ->
 	_ = cowboy_req:reply(Status, Req),
-	terminate(State).
+	terminate(normal, State).
 
--spec terminate(#state{}) -> ok.
-terminate(#state{socket=Socket, transport=Transport}) ->
+-spec terminate(any(), #state{}) -> no_return().
+terminate(Reason, #state{socket=Socket, transport=Transport}) ->
 	Transport:close(Socket),
-	ok.
+	exit(Reason).
+
+%% System.
+
+-spec sys_continue(undefined, {#state{}, binary()})
+	-> no_return();
+	(cowboy_req:req(), {#state{}, [module()], module(), any()})
+	-> no_return().
+sys_continue(undefined, {State, Buffer}) ->
+	next_request(Buffer, State);
+sys_continue(Req, {State, Tail, Module, ModState}) ->
+	resume(State, Tail, Module, sys_continue, [Req, ModState]).
+
+-spec sys_terminate(any(), undefined, {#state{}, binary()})
+	-> no_return();
+	(any(), cowboy_req:req(), {#state{}, [module()], module(), any()})
+	-> no_return().
+sys_terminate(Reason, undefined, {State, _Buffer}) ->
+	terminate(Reason, State);
+sys_terminate(Reason, Req, {_State, _Tail, Module, ModState}) ->
+	Module:terminate(Reason, Req, ModState).

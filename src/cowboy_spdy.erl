@@ -24,8 +24,6 @@
 -export([system_code_change/4]).
 
 %% Internal request process.
--export([request_init/10]).
--export([resume/5]).
 -export([reply/4]).
 -export([stream_reply/3]).
 -export([stream_data/2]).
@@ -41,6 +39,7 @@
 
 -type streamid() :: non_neg_integer().
 -type socket() :: {pid(), streamid()}.
+-export_type([socket/0]).
 
 -record(child, {
 	streamid :: streamid(),
@@ -257,10 +256,8 @@ handle_frame(State=#state{middlewares=Middlewares, env=Env,
 		onresponse=OnResponse, peer=Peer},
 		{syn_stream, StreamID, _, IsFin, _, _,
 		Method, _, Host, Path, Version, Headers}) ->
-	Pid = spawn_link(?MODULE, request_init, [
-		{self(), StreamID}, Peer, OnResponse,
-		Env, Middlewares, Method, Host, Path, Version, Headers
-	]),
+	Pid = cowboy_spdy_request:spawn_link({self(), StreamID}, Peer, OnResponse,
+		Env, Middlewares, Method, Host, Path, Version, Headers),
 	new_child(State, StreamID, Pid, IsFin);
 %% RST_STREAM.
 handle_frame(State, {rst_stream, StreamID, Status}) ->
@@ -378,50 +375,6 @@ replace_child(Child=#child{streamid=StreamID},
 delete_child(Pid, State=#state{children=Children}) ->
 	Children2 = lists:keydelete(Pid, #child.pid, Children),
 	State#state{children=Children2}.
-
-%% Request process.
-
--spec request_init(socket(), {inet:ip_address(), inet:port_number()},
-		cowboy:onresponse_fun(), cowboy_middleware:env(), [module()],
-		binary(), binary(), binary(), binary(), [{binary(), binary()}])
-	-> ok.
-request_init(FakeSocket, Peer, OnResponse,
-		Env, Middlewares, Method, Host, Path, Version, Headers) ->
-	{Host2, Port} = cow_http:parse_fullhost(Host),
-	{Path2, Qs} = cow_http:parse_fullpath(Path),
-	Version2 = cow_http:parse_version(Version),
-	Req = cowboy_req:new(FakeSocket, ?MODULE, Peer,
-		Method, Path2, Qs, Version2, Headers,
-		Host2, Port, <<>>, true, false, OnResponse),
-	execute(Req, Env, Middlewares).
-
--spec execute(cowboy_req:req(), cowboy_middleware:env(), [module()])
-	-> ok.
-execute(Req, _, []) ->
-	cowboy_req:ensure_response(Req, 204);
-execute(Req, Env, [Middleware|Tail]) ->
-	case Middleware:execute(Req, Env) of
-		{ok, Req2, Env2} ->
-			execute(Req2, Env2, Tail);
-		{suspend, Module, Function, Args} ->
-			erlang:hibernate(?MODULE, resume,
-				[Env, Tail, Module, Function, Args]);
-		{halt, Req2} ->
-			cowboy_req:ensure_response(Req2, 204)
-	end.
-
--spec resume(cowboy_middleware:env(), [module()],
-	module(), module(), [any()]) -> ok.
-resume(Env, Tail, Module, Function, Args) ->
-	case apply(Module, Function, Args) of
-		{ok, Req2, Env2} ->
-			execute(Req2, Env2, Tail);
-		{suspend, Module2, Function2, Args2} ->
-			erlang:hibernate(?MODULE, resume,
-				[Env, Tail, Module2, Function2, Args2]);
-		{halt, Req2} ->
-			cowboy_req:ensure_response(Req2, 204)
-	end.
 
 %% Reply functions used by cowboy_req.
 

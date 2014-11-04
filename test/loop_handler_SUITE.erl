@@ -39,7 +39,8 @@ init_dispatch(_) ->
 	cowboy_router:compile([{'_', [
 		{"/long_polling", long_polling_h, []},
 		{"/loop_body", loop_handler_body_h, []},
-		{"/loop_timeout", loop_handler_timeout_h, []}
+		{"/loop_timeout", loop_handler_timeout_h, []},
+		{"/loop_system", loop_system_h, []}
 	]}]).
 
 %% Tests.
@@ -85,3 +86,42 @@ loop_timeout(Config) ->
 	Ref = gun:get(ConnPid, "/loop_timeout"),
 	{response, fin, 204, _} = gun:await(ConnPid, Ref),
 	ok.
+
+sys_suspend_resume(Config) ->
+	doc("Ensure that a loop handler can handle sys:suspend/1 and sys:resume/1"),
+	ConnPid = gun_open(Config),
+	{Pid, Ref} = system_gun_get(ConnPid, "/loop_system"),
+	ok = sys:suspend(Pid),
+	ok = sys:resume(Pid),
+	{response, fin, 204, _} = gun:await(ConnPid, Ref),
+	ok.
+
+sys_change_code(Config) ->
+	doc("Ensure that a loop handler can handle sys:change_code/4"),
+	ConnPid = gun_open(Config),
+	{Pid, Ref} = system_gun_get(ConnPid, "/loop_system"),
+	ok = sys:suspend(Pid),
+	ok = sys:change_code(Pid, ?MODULE, undefined, undefined),
+	ok = sys:resume(Pid),
+	{response, fin, 204, _} = gun:await(ConnPid, Ref),
+	ok.
+
+sys_statistics(Config) ->
+	doc("Ensure that a loop handler can handle sys:statistics/2"),
+	ConnPid = gun_open(Config),
+	{Pid, Ref} = system_gun_get(ConnPid, "/loop_system"),
+	ok = sys:statistics(Pid, true),
+	{ok, [{_,_} | _]} = sys:statistics(Pid, get),
+	ok = sys:statistics(Pid, false),
+	{ok, no_statistics} = sys:statistics(Pid, get),
+	{response, fin, 204, _} = gun:await(ConnPid, Ref),
+	ok.
+
+%% Internal
+
+system_gun_get(ConnPid, Path) ->
+	Tag = make_ref(),
+	QS = cow_qs:qs([{<<"from">>, term_to_binary({self(), Tag})}]),
+	Ref = gun:get(ConnPid, [Path, $? | QS]),
+	Pid = receive {Tag, P} -> P after 500 -> exit(timeout) end,
+	{Pid, Ref}.

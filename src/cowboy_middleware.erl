@@ -20,5 +20,6 @@
 -callback execute(Req, Env)
 	-> {ok, Req, Env}
 	| {suspend, module(), atom(), [any()]}
+	| {system, {pid(), any()}, any(), module(), Req, any()}
 	| {halt, Req}
 	when Req::cowboy_req:req(), Env::env().

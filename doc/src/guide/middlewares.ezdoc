@@ -23,11 +23,16 @@ Middlewares can return one of four different values:
 
 * `{ok, Req, Env}` to continue the request processing
 * `{suspend, Module, Function, Args}` to hibernate
+* `{system, From, Msg, Module, Req, State}` to handle system messages
 * `{halt, Req}` to stop processing and move on to the next request
 
 Of note is that when hibernating, processing will resume on the given
 MFA, discarding all previous stacktrace. Make sure you keep the `Req`
 and `Env` in the arguments of this MFA for later use.
+
+When handling system messages the given module must implement the
+`cowboy_sys` callbacks. For more information about handling system
+messages see `System messages` below.
 
 If an error happens during middleware processing, Cowboy will not try
 to send an error back to the socket, the process will just crash. It
@@ -41,14 +46,15 @@ In the previous chapters we saw it briefly when we needed to pass
 the routing information. It is a list of tuples with the first
 element being an atom and the second any Erlang term.
 
-Two values in the environment are reserved:
+Three values in the environment are reserved:
 
 * `listener` contains the name of the listener
 * `result` contains the result of the processing
+* `parent` contains the pid of the parent process
 
-The `listener` value is always defined. The `result` value can be
-set by any middleware. If set to anything other than `ok`, Cowboy
-will not process any subsequent requests on this connection.
+The `listener` and `parent` values are always defined. The `result`
+value can be set by any middleware. If set to anything other than `ok`,
+Cowboy will not process any subsequent requests on this connection.
 
 The middlewares that come with Cowboy may define or require other
 environment values to perform.
@@ -66,3 +72,46 @@ and `handler_opts` values of the environment, respectively.
 
 The handler middleware requires the `handler` and `handler_opts`
 values. It puts the result of the request handling into `result`.
+
+:: System messages
+
+A middleware may choose to handle system messages. Handling system
+messages will allow OTP tools to debug the middleware. To handle system
+messages a middleware implements the two `cowboy_sys` callbacks. If a
+middleware does not receive any messages it should not try to handle
+system messages.
+
+A system message is of the form: `{system, From, Msg}`, and to handle
+it the middleware should return:
+`{system, From, Msg, Module, Req, State}`.
+
+`Module` is the module with the `cowboy_sys` callbacks. This module
+will be used to handle system requests and is typically the current
+module: `?MODULE`. `State` should be the state of the module. It should
+contain all data required to return the middleware back to its previous
+state. Therefore `State` will have to include `Env`, should a
+middleware wish to return `{ok, Req, Env}` at a later stage.
+
+Once the middleware has returned, the `sys` and `cowboy_sys` modules
+will control the process. Note the process might be hibernated while
+these modules control it.
+
+The first callback is `sys_continue/2`. This is called when `sys`
+returns control of the process to Cowboy and the middleware. Therefore
+it should continue to act as normal and return the same values as
+`execute/2`:
+
+``` erlang
+sys_continue(Req, #state{env=Env}) ->
+	{ok, Req, Env}
+```
+
+The second callback is `sys_terminate/3`. This is called when the
+process should terminate because its parent did. The middleware should
+exit with the same reason as the first argument (after handling any
+termination or clean up):
+
+``` erlang
+sys_terminate(Reason, _Req, _ModuleState) ->
+	exit(Reason).
+```

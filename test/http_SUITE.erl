@@ -195,6 +195,7 @@ init_dispatch(Config) ->
 			{"/rest_expires_binary", rest_expires_binary, []},
 			{"/rest_empty_resource", rest_empty_resource, []},
 			{"/loop_stream_recv", http_loop_stream_recv, []},
+			{"/system", http_system_h, []},
 			{"/", http_handler, []}
 		]}
 	]).
@@ -1029,3 +1030,48 @@ te_identity(Config) ->
 	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
 	{ok, Body} = gun:await_body(ConnPid, Ref),
 	ok.
+
+sys_suspend_resume(Config) ->
+	%% Ensure that cowboy_protocol can handle sys:suspend/1 and sys:resume/1.
+	ConnPid = gun_open(Config),
+	{Pid, Ref} = system_gun_get(ConnPid, "/system"),
+	ok = sys:suspend(Pid),
+	ok = sys:resume(Pid),
+	{response, fin, 204, _} = gun:await(ConnPid, Ref),
+	ok.
+
+sys_change_code(Config) ->
+	%% Ensure that cowboy_protocol can handle sys:change_code/4.
+	ConnPid = gun_open(Config),
+	{Pid, Ref} = system_gun_get(ConnPid, "/system"),
+	ok = sys:suspend(Pid),
+	ok = sys:change_code(Pid, ?MODULE, undefined, undefined),
+	ok = sys:resume(Pid),
+	{response, fin, 204, _} = gun:await(ConnPid, Ref),
+	ok.
+
+sys_statistics(Config) ->
+	%% Ensure that cowboy_protocol can handle sys:statistics/2
+	ConnPid = gun_open(Config),
+	{Pid, Ref} = system_gun_get(ConnPid, "/system"),
+	ok = sys:statistics(Pid, true),
+	{response, fin, 204, _} = gun:await(ConnPid, Ref),
+	{Pid, Ref2} = system_gun_get(ConnPid, "/system"),
+	{ok, [{_,_} | _]} = sys:statistics(Pid, get),
+	{response, fin, 204, _} = gun:await(ConnPid, Ref2),
+	{Pid, Ref3} = system_gun_get(ConnPid, "/system"),
+	ok = sys:statistics(Pid, false),
+	{response, fin, 204, _} = gun:await(ConnPid, Ref3),
+	{Pid, Ref4} = system_gun_get(ConnPid, "/system"),
+	{ok, no_statistics} = sys:statistics(Pid, get),
+	{response, fin, 204, _} = gun:await(ConnPid, Ref4),
+	ok.
+
+%% Internal
+
+system_gun_get(ConnPid, Path) ->
+	Tag = make_ref(),
+	QS = cow_qs:qs([{<<"from">>, term_to_binary({self(), Tag})}]),
+	Ref = gun:get(ConnPid, [Path, $? | QS]),
+	Pid = receive {Tag, P} -> P after 500 -> exit(timeout) end,
+	{Pid, Ref}.

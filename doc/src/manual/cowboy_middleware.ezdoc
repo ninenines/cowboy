@@ -21,6 +21,7 @@ optionally with its contents modified.
 : execute(Req, Env)
 	-> {ok, Req, Env}
 	| {suspend, Module, Function, Args}
+	| {system, From, Msg, Module, Req, State}
 	| {halt, Req}
 
 Types:
@@ -30,6 +31,9 @@ Types:
 * Module = module()
 * Function = atom()
 * Args = [any()]
+* From = {pid(), any()}
+* Msg = any()
+* State = any()
 
 Execute the middleware.
 
@@ -40,6 +44,10 @@ response may or may not have been sent.
 The `suspend` return value will hibernate the process until
 an Erlang message is received. Note that when resuming, any
 previous stacktrace information will be gone.
+
+The `system` return value indicates that `cowboy_sys` should be
+used to handle the system message. The given module will be used
+for `cowboy_sys` callbacks when handling system messages.
 
 The `halt` return value stops Cowboy from doing any further
 processing of the request, even if there are middlewares

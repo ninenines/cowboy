@@ -8,6 +8,7 @@ by modules that implement a protocol on top of HTTP.
 : upgrade(Req, Env, Handler, Opts)
 	-> {ok, Req, Env}
 	| {suspend, Module, Function, Args}
+	| {system, From, Msg, Module, Req, State}
 	| {halt, Req}
 	| {error, StatusCode, Req}
 
@@ -20,6 +21,9 @@ Types:
 * Module = module()
 * Function = atom()
 * Args = [any()]
+* From = {pid(), any()}
+* Msg = any()
+* State = any()
 * StatusCode = cowboy:http_status()
 
 Upgrade the protocol.
