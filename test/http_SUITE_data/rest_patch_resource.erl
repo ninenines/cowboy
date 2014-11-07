@@ -29,8 +29,8 @@ content_types_accepted(Req, State) ->
 
 patch_text_plain(Req, State) ->
 	case cowboy_req:body(Req) of
-		{ok, <<"halt">>, Req0} ->
-			{halt, cowboy_req:reply(400, Req0), State};
+		{ok, <<"stop">>, Req0} ->
+			{stop, cowboy_req:reply(400, Req0), State};
 		{ok, <<"false">>, Req0} ->
 			{false, Req0, State};
 		{ok, _Body, Req0} ->

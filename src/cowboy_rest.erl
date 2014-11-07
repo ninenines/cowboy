@@ -84,7 +84,7 @@ known_methods(Req, State=#state{method=Method}) ->
 			next(Req, State, fun uri_too_long/2);
 		no_call ->
 			next(Req, State, 501);
-		{halt, Req2, HandlerState} ->
+		{stop, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
 		{List, Req2, HandlerState} ->
 			State2 = State#state{handler_state=HandlerState},
@@ -109,7 +109,7 @@ allowed_methods(Req, State=#state{method=Method}) ->
 		no_call ->
 			method_not_allowed(Req, State,
 				[<<"HEAD">>, <<"GET">>, <<"OPTIONS">>]);
-		{halt, Req2, HandlerState} ->
+		{stop, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
 		{List, Req2, HandlerState} ->
 			State2 = State#state{handler_state=HandlerState},
@@ -140,7 +140,7 @@ is_authorized(Req, State) ->
 	case call(Req, State, is_authorized) of
 		no_call ->
 			forbidden(Req, State);
-		{halt, Req2, HandlerState} ->
+		{stop, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
 		{true, Req2, HandlerState} ->
 			forbidden(Req2, State#state{handler_state=HandlerState});
@@ -172,7 +172,7 @@ options(Req, State=#state{allowed_methods=Methods, method= <<"OPTIONS">>}) ->
 				= << << ", ", M/binary >> || M <- Methods >>,
 			Req2 = cowboy_req:set_resp_header(<<"allow">>, Allow, Req),
 			respond(Req2, State, 200);
-		{halt, Req2, HandlerState} ->
+		{stop, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
 		{ok, Req2, HandlerState} ->
 			respond(Req2, State#state{handler_state=HandlerState}, 200)
@@ -211,7 +211,7 @@ content_types_provided(Req, State) ->
 			catch _:_ ->
 				respond(Req, State2, 400)
 			end;
-		{halt, Req2, HandlerState} ->
+		{stop, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
 		{[], Req2, HandlerState} ->
 			not_acceptable(Req2, State#state{handler_state=HandlerState});
@@ -313,7 +313,7 @@ languages_provided(Req, State) ->
 	case call(Req, State, languages_provided) of
 		no_call ->
 			charsets_provided(Req, State);
-		{halt, Req2, HandlerState} ->
+		{stop, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
 		{[], Req2, HandlerState} ->
 			not_acceptable(Req2, State#state{handler_state=HandlerState});
@@ -373,7 +373,7 @@ charsets_provided(Req, State) ->
 	case call(Req, State, charsets_provided) of
 		no_call ->
 			set_content_type(Req, State);
-		{halt, Req2, HandlerState} ->
+		{stop, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
 		{[], Req2, HandlerState} ->
 			not_acceptable(Req2, State#state{handler_state=HandlerState});
@@ -645,7 +645,7 @@ moved_permanently(Req, State, OnFalse) ->
 			respond(Req3, State#state{handler_state=HandlerState}, 301);
 		{false, Req2, HandlerState} ->
 			OnFalse(Req2, State#state{handler_state=HandlerState});
-		{halt, Req2, HandlerState} ->
+		{stop, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
 		no_call ->
 			OnFalse(Req, State)
@@ -666,7 +666,7 @@ moved_temporarily(Req, State) ->
 			respond(Req3, State#state{handler_state=HandlerState}, 307);
 		{false, Req2, HandlerState} ->
 			is_post_to_missing_resource(Req2, State#state{handler_state=HandlerState}, 410);
-		{halt, Req2, HandlerState} ->
+		{stop, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
 		no_call ->
 			is_post_to_missing_resource(Req, State, 410)
@@ -716,7 +716,7 @@ accept_resource(Req, State) ->
 	case call(Req, State, content_types_accepted) of
 		no_call ->
 			respond(Req, State, 415);
-		{halt, Req2, HandlerState} ->
+		{stop, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
 		{CTA, Req2, HandlerState} ->
 			CTA2 = [normalize_content_types(P) || P <- CTA],
@@ -751,7 +751,7 @@ choose_content_type(Req, State, ContentType, [_Any|Tail]) ->
 
 process_content_type(Req, State=#state{method=Method, exists=Exists}, Fun) ->
 	try case call(Req, State, Fun) of
-		{halt, Req2, HandlerState2} ->
+		{stop, Req2, HandlerState2} ->
 			terminate(Req2, State#state{handler_state=HandlerState2});
 		{true, Req2, HandlerState2} when Exists ->
 			State2 = State#state{handler_state=HandlerState2},
@@ -832,7 +832,7 @@ set_resp_body_expires(Req, State) ->
 %% it to the response.
 set_resp_body(Req, State=#state{content_type_a={_, Callback}}) ->
 	try case call(Req, State, Callback) of
-		{halt, Req2, HandlerState2} ->
+		{stop, Req2, HandlerState2} ->
 			terminate(Req2, State#state{handler_state=HandlerState2});
 		{Body, Req2, HandlerState2} ->
 			State2 = State#state{handler_state=HandlerState2},
@@ -936,7 +936,7 @@ expect(Req, State, Callback, Expected, OnTrue, OnFalse) ->
 	case call(Req, State, Callback) of
 		no_call ->
 			next(Req, State, OnTrue);
-		{halt, Req2, HandlerState} ->
+		{stop, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
 		{Expected, Req2, HandlerState} ->
 			next(Req2, State#state{handler_state=HandlerState}, OnTrue);

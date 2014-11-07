@@ -21,7 +21,7 @@ optionally with its contents modified.
 : execute(Req, Env)
 	-> {ok, Req, Env}
 	| {suspend, Module, Function, Args}
-	| {halt, Req}
+	| {stop, Req}
 
 Types:
 
@@ -41,7 +41,7 @@ The `suspend` return value will hibernate the process until
 an Erlang message is received. Note that when resuming, any
 previous stacktrace information will be gone.
 
-The `halt` return value stops Cowboy from doing any further
+The `stop` return value stops Cowboy from doing any further
 processing of the request, even if there are middlewares
 that haven't been executed yet. The connection may be left
 open to receive more requests from the client.

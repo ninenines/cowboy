@@ -8,8 +8,7 @@ by modules that implement a protocol on top of HTTP.
 : upgrade(Req, Env, Handler, Opts)
 	-> {ok, Req, Env}
 	| {suspend, Module, Function, Args}
-	| {halt, Req}
-	| {error, StatusCode, Req}
+	| {stop, Req}
 
 Types:
 

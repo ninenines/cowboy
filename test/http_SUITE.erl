@@ -706,7 +706,7 @@ rest_patch(Config) ->
 	Tests = [
 		{204, [{<<"content-type">>, <<"text/plain">>}], <<"whatever">>},
 		{400, [{<<"content-type">>, <<"text/plain">>}], <<"false">>},
-		{400, [{<<"content-type">>, <<"text/plain">>}], <<"halt">>},
+		{400, [{<<"content-type">>, <<"text/plain">>}], <<"stop">>},
 		{415, [{<<"content-type">>, <<"application/json">>}], <<"bad_content_type">>}
 	],
 	ConnPid = gun_open(Config),

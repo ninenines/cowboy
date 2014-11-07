@@ -58,7 +58,7 @@ stacktrace of the process when the crash occurred.
 
 :: Callbacks
 
-: Callback(Req, State) -> {Value, Req, State} | {halt, Req, State}
+: Callback(Req, State) -> {Value, Req, State} | {stop, Req, State}
 
 Types:
 
@@ -72,7 +72,7 @@ on the `Value` type, the default value if the callback is
 not defined, and more general information on when the
 callback is called and what its intended use is.
 
-The `halt` tuple can be returned to stop REST processing.
+The `stop` tuple can be returned to stop REST processing.
 It is up to the resource code to send a reply before that,
 otherwise a `204 No Content` will be sent.
 

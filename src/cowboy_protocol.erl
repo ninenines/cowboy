@@ -431,7 +431,7 @@ execute(Req, State, Env, [Middleware|Tail]) ->
 		{suspend, Module, Function, Args} ->
 			erlang:hibernate(?MODULE, resume,
 				[State, Env, Tail, Module, Function, Args]);
-		{halt, Req2} ->
+		{stop, Req2} ->
 			next_request(Req2, State, ok)
 	end.
 
@@ -444,7 +444,7 @@ resume(State, Env, Tail, Module, Function, Args) ->
 		{suspend, Module2, Function2, Args2} ->
 			erlang:hibernate(?MODULE, resume,
 				[State, Env, Tail, Module2, Function2, Args2]);
-		{halt, Req2} ->
+		{stop, Req2} ->
 			next_request(Req2, State, ok)
 	end.
 

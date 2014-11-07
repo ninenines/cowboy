@@ -157,7 +157,7 @@ compile_brackets_split(<< C, Rest/bits >>, Acc, N) ->
 	compile_brackets_split(Rest, << Acc/binary, C >>, N).
 
 -spec execute(Req, Env)
-	-> {ok, Req, Env} | {halt, Req}
+	-> {ok, Req, Env} | {stop, Req}
 	when Req::cowboy_req:req(), Env::cowboy_middleware:env().
 execute(Req, Env) ->
 	{_, Dispatch} = lists:keyfind(dispatch, 1, Env),
@@ -168,11 +168,11 @@ execute(Req, Env) ->
 			Req2 = cowboy_req:set_bindings(HostInfo, PathInfo, Bindings, Req),
 			{ok, Req2, [{handler, Handler}, {handler_opts, HandlerOpts}|Env]};
 		{error, notfound, host} ->
-			{halt, cowboy_req:reply(400, Req)};
+			{stop, cowboy_req:reply(400, Req)};
 		{error, badrequest, path} ->
-			{halt, cowboy_req:reply(400, Req)};
+			{stop, cowboy_req:reply(400, Req)};
 		{error, notfound, path} ->
-			{halt, cowboy_req:reply(404, Req)}
+			{stop, cowboy_req:reply(404, Req)}
 	end.
 
 %% Internal.

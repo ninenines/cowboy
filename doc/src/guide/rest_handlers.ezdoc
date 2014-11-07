@@ -41,7 +41,7 @@ you need.
 All callbacks take two arguments, the Req object and the State,
 and return a three-element tuple of the form `{Value, Req, State}`.
 
-All callbacks can also return `{halt, Req, State}` to stop execution
+All callbacks can also return `{stop, Req, State}` to stop execution
 of the request.
 
 The following table summarizes the callbacks and their default values.
