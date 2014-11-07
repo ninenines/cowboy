@@ -12,7 +12,7 @@
 # ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-.PHONY: all deps app rel docs tests clean distclean help
+.PHONY: all deps app rel docs tests clean distclean help erlang-mk
 
 ERLANG_MK_VERSION = 1
 
@@ -72,6 +72,18 @@ define core_http_get
 endef
 endif
 
+# Automated update.
+
+ERLANG_MK_BUILD_CONFIG ?= build.config
+ERLANG_MK_BUILD_DIR ?= .erlang.mk.build
+
+erlang-mk:
+	git clone https://github.com/ninenines/erlang.mk $(ERLANG_MK_BUILD_DIR)
+	if [ -f $(ERLANG_MK_BUILD_CONFIG) ]; then cp $(ERLANG_MK_BUILD_CONFIG) $(ERLANG_MK_BUILD_DIR); fi
+	cd $(ERLANG_MK_BUILD_DIR) && make
+	cp $(ERLANG_MK_BUILD_DIR)/erlang.mk ./erlang.mk
+	rm -rf $(ERLANG_MK_BUILD_DIR)
+
 # Copyright (c) 2013-2014, Loïc Hoguin <essen@ninenines.eu>
 # This file is part of erlang.mk and subject to the terms of the ISC License.
 
@@ -108,7 +120,7 @@ deps:: $(ALL_DEPS_DIRS)
 		if [ -f $$dep/GNUmakefile ] || [ -f $$dep/makefile ] || [ -f $$dep/Makefile ] ; then \
 			$(MAKE) -C $$dep ; \
 		else \
-			echo "include $(CURDIR)/erlang.mk" | $(MAKE) -f - -C $$dep ; \
+			echo "include $(CURDIR)/erlang.mk" | ERLC_OPTS=+debug_info $(MAKE) -f - -C $$dep ; \
 		fi ; \
 	done
 
@@ -132,8 +144,8 @@ endef
 define dep_target
 $(DEPS_DIR)/$(1):
 	@mkdir -p $(DEPS_DIR)
-	@if [ ! -f $(PKG_FILE2) ]; then $(call core_http_get,$(PKG_FILE2),$(PKG_FILE_URL)); fi
 ifeq (,$(dep_$(1)))
+	@if [ ! -f $(PKG_FILE2) ]; then $(call core_http_get,$(PKG_FILE2),$(PKG_FILE_URL)); fi
 	@DEPPKG=$$$$(awk 'BEGIN { FS = "\t" }; $$$$1 == "$(1)" { print $$$$2 " " $$$$3 " " $$$$4 }' $(PKG_FILE2);); \
 	VS=$$$$(echo $$$$DEPPKG | cut -d " " -f1); \
 	REPO=$$$$(echo $$$$DEPPKG | cut -d " " -f2); \
@@ -176,8 +188,10 @@ pkg-search:
 	$(error Usage: make pkg-search q=STRING)
 endif
 
+ifeq ($(PKG_FILE2),$(CURDIR)/.erlang.mk.packages.v2)
 distclean-pkg:
 	$(gen_verbose) rm -f $(PKG_FILE2)
+endif
 
 help::
 	@printf "%s\n" "" \
@@ -217,8 +231,10 @@ app:: erlc-include ebin/$(PROJECT).app
 		echo "Empty modules entry not found in $(PROJECT).app.src. Please consult the erlang.mk README for instructions." >&2; \
 		exit 1; \
 	fi
+	$(eval GITDESCRIBE := $(shell git describe --dirty --abbrev=7 --tags --always --first-parent 2>/dev/null || true))
 	$(appsrc_verbose) cat src/$(PROJECT).app.src \
 		| sed "s/{modules,[[:space:]]*\[\]}/{modules, \[$(MODULES)\]}/" \
+		| sed "s/{id,[[:space:]]*\"git\"}/{id, \"$(GITDESCRIBE)\"}/" \
 		> ebin/$(PROJECT).app
 
 define compile_erl
@@ -278,6 +294,7 @@ help::
 bs_appsrc = "{application, $(PROJECT), [" \
 	"	{description, \"\"}," \
 	"	{vsn, \"0.1.0\"}," \
+	"	{id, \"git\"}," \
 	"	{modules, []}," \
 	"	{registered, []}," \
 	"	{applications, [" \
@@ -290,6 +307,7 @@ bs_appsrc = "{application, $(PROJECT), [" \
 bs_appsrc_lib = "{application, $(PROJECT), [" \
 	"	{description, \"\"}," \
 	"	{vsn, \"0.1.0\"}," \
+	"	{id, \"git\"}," \
 	"	{modules, []}," \
 	"	{registered, []}," \
 	"	{applications, [" \
@@ -580,7 +598,7 @@ build-ct-deps: $(ALL_TEST_DEPS_DIRS)
 	@for dep in $(ALL_TEST_DEPS_DIRS) ; do $(MAKE) -C $$dep; done
 
 build-ct-suites: build-ct-deps
-	$(gen_verbose) erlc -v $(TEST_ERLC_OPTS) -o test/ \
+	$(gen_verbose) erlc -v $(TEST_ERLC_OPTS) -I include/ -o test/ \
 		$(wildcard test/*.erl test/*/*.erl) -pa ebin/
 
 tests-ct: ERLC_OPTS = $(TEST_ERLC_OPTS)
@@ -622,6 +640,7 @@ DIALYZER_PLT ?= $(CURDIR)/.$(PROJECT).plt
 export DIALYZER_PLT
 
 PLT_APPS ?=
+DIALYZER_DIRS ?= --src -r src
 DIALYZER_OPTS ?= -Werror_handling -Wrace_conditions \
 	-Wunmatched_returns # -Wunderspecs
 
@@ -650,7 +669,7 @@ dialyze:
 else
 dialyze: $(DIALYZER_PLT)
 endif
-	@dialyzer --no_native --src -r src $(DIALYZER_OPTS)
+	@dialyzer --no_native $(DIALYZER_DIRS) $(DIALYZER_OPTS)
 
 # Copyright (c) 2013-2014, Loïc Hoguin <essen@ninenines.eu>
 # This file is part of erlang.mk and subject to the terms of the ISC License.
