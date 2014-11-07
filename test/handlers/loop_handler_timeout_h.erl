@@ -15,7 +15,7 @@ init(Req, _) ->
 	{cowboy_loop, Req, undefined, 200, hibernate}.
 
 info(timeout, Req, State) ->
-	{shutdown, cowboy_req:reply(500, Req), State}.
+	{stop, cowboy_req:reply(500, Req), State}.
 
 terminate(timeout, _, _) ->
 	ok.

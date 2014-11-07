@@ -14,12 +14,12 @@ init(Req, _) ->
 	{cowboy_loop, Req, 2, 5000, hibernate}.
 
 info(timeout, Req, 0) ->
-	{shutdown, cowboy_req:reply(102, Req), 0};
+	{stop, cowboy_req:reply(102, Req), 0};
 info(timeout, Req, Count) ->
 	erlang:send_after(200, self(), timeout),
 	{ok, Req, Count - 1, hibernate}.
 
-terminate(shutdown, _, 0) ->
+terminate(stop, _, 0) ->
 	ok;
 terminate({error, overflow}, _, _) ->
 	ok.

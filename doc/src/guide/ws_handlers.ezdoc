@@ -42,7 +42,7 @@ init(Req, _Opts) ->
 						<<"mychat2">>, Req),
 					{ok, Req2, #state{}};
 				false ->
-					{shutdown, Req, undefined}
+					{stop, Req, undefined}
 			end
 	end.
 ```
@@ -75,7 +75,7 @@ ping or pong frame arrives from the client. Note that in the
 case of ping and pong frames, no action is expected as Cowboy
 automatically replies to ping frames.
 
-The handler can decide to send frames to the socket, shutdown
+The handler can decide to send frames to the socket, stop
 or just continue without sending anything.
 
 The following snippet echoes back any text frame received and
@@ -93,7 +93,7 @@ websocket_handle(_Frame, Req, State) ->
 Cowboy will call `websocket_info/3` whenever an Erlang message
 arrives.
 
-The handler can decide to send frames to the socket, shutdown
+The handler can decide to send frames to the socket, stop
 or just continue without sending anything.
 
 The following snippet forwards any `log` message to the socket

@@ -69,10 +69,10 @@ further details.
 The remote endpoint closed the connection with the given
 `Code` and `Payload` as the reason.
 
-: shutdown
+: stop
 
 The handler requested to close the connection, either by returning
-a `shutdown` tuple or by sending a `close` frame.
+a `stop` tuple or by sending a `close` frame.
 
 : timeout
 
@@ -111,7 +111,7 @@ A socket error ocurred.
 	| {ok, Req, State, hibernate}
 	| {reply, OutFrame | [OutFrame], Req, State}
 	| {reply, OutFrame | [OutFrame], Req, State, hibernate}
-	| {shutdown, Req, State}
+	| {stop, Req, State}
 
 Types:
 
@@ -125,7 +125,7 @@ Handle the data received from the Websocket connection.
 This function will be called every time data is received
 from the Websocket connection.
 
-The `shutdown` return value can be used to close the
+The `stop` return value can be used to close the
 connection. A close reply will also result in the connection
 being closed.
 
@@ -138,7 +138,7 @@ Erlang message.
 	| {ok, Req, State, hibernate}
 	| {reply, OutFrame | [OutFrame], Req, State}
 	| {reply, OutFrame | [OutFrame], Req, State, hibernate}
-	| {shutdown, Req, State}
+	| {stop, Req, State}
 
 Types:
 
@@ -152,7 +152,7 @@ Handle the Erlang message received.
 This function will be called every time an Erlang message
 has been received. The message can be any Erlang term.
 
-The `shutdown` return value can be used to close the
+The `stop` return value can be used to close the
 connection. A close reply will also result in the connection
 being closed.
 

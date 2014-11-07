@@ -36,7 +36,7 @@
 -callback info(any(), Req, State)
 	-> {ok, Req, State}
 	| {ok, Req, State, hibernate}
-	| {shutdown, Req, State}
+	| {stop, Req, State}
 	when Req::cowboy_req:req(), State::any().
 %% @todo optional -callback terminate(terminate_reason(), cowboy_req:req(), state()) -> ok.
 
@@ -153,8 +153,8 @@ call(Req, State=#state{resp_sent=RespSent},
 			after_call(Req2, State, Handler, HandlerState2);
 		{ok, Req2, HandlerState2, hibernate} ->
 			after_call(Req2, State#state{hibernate=true}, Handler, HandlerState2);
-		{shutdown, Req2, HandlerState2} ->
-			after_loop(Req2, State, Handler, HandlerState2, shutdown)
+		{stop, Req2, HandlerState2} ->
+			after_loop(Req2, State, Handler, HandlerState2, stop)
 	catch Class:Reason ->
 		Stacktrace = erlang:get_stacktrace(),
 		if RespSent -> ok; true ->

@@ -29,10 +29,10 @@ The connection was closed normally before switching to the
 loop sub protocol. This typically happens if an `ok` tuple is
 returned from the `init/2` callback.
 
-: shutdown
+: stop
 
 The handler requested to close the connection by returning
-a `shutdown` tuple.
+a `stop` tuple.
 
 : timeout
 
@@ -72,7 +72,7 @@ A socket error ocurred.
 : info(Info, Req, State)
 	-> {ok, Req, State}
 	| {ok, Req, State, hibernate}
-	| {shutdown, Req, State}
+	| {stop, Req, State}
 
 Types:
 
@@ -85,7 +85,7 @@ Handle the Erlang message received.
 This function will be called every time an Erlang message
 has been received. The message can be any Erlang term.
 
-The `shutdown` return value can be used to stop the receive loop,
+The `stop` return value can be used to stop the receive loop,
 typically because a response has been sent.
 
 The `hibernate` option will hibernate the process until

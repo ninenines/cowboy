@@ -33,7 +33,7 @@
 -type frag_state() :: undefined
 	| {nofin, opcode(), binary()} | {fin, opcode(), binary()}.
 -type rsv() :: << _:3 >>.
--type terminate_reason() :: normal | shutdown | timeout
+-type terminate_reason() :: normal | stop | timeout
 	| remote | {remote, close_code(), binary()}
 	| {error, badencoding | badframe | closed | atom()}
 	| {crash, error | exit | throw, any()}.
@@ -49,14 +49,14 @@
 	| {ok, Req, State, hibernate}
 	| {reply, frame() | [frame()], Req, State}
 	| {reply, frame() | [frame()], Req, State, hibernate}
-	| {shutdown, Req, State}
+	| {stop, Req, State}
 	when Req::cowboy_req:req(), State::any().
 -callback websocket_info(any(), Req, State)
 	-> {ok, Req, State}
 	| {ok, Req, State, hibernate}
 	| {reply, frame() | [frame()], Req, State}
 	| {reply, frame() | [frame()], Req, State, hibernate}
-	| {shutdown, Req, State}
+	| {stop, Req, State}
 	when Req::cowboy_req:req(), State::any().
 %% @todo optional -callback terminate(terminate_reason(), cowboy_req:req(), state()) -> ok.
 
@@ -581,8 +581,8 @@ handler_call(State=#state{handler=Handler}, Req, HandlerState,
 			case websocket_send_many(Payload, State) of
 				{ok, State2} ->
 					NextState(State2, Req2, HandlerState2, RemainingData);
-				{shutdown, State2} ->
-					handler_terminate(State2, Req2, HandlerState2, shutdown);
+				{stop, State2} ->
+					handler_terminate(State2, Req2, HandlerState2, stop);
 				{{error, _} = Error, State2} ->
 					handler_terminate(State2, Req2, HandlerState2, Error)
 			end;
@@ -592,8 +592,8 @@ handler_call(State=#state{handler=Handler}, Req, HandlerState,
 				{ok, State2} ->
 					NextState(State2#state{hibernate=true},
 						Req2, HandlerState2, RemainingData);
-				{shutdown, State2} ->
-					handler_terminate(State2, Req2, HandlerState2, shutdown);
+				{stop, State2} ->
+					handler_terminate(State2, Req2, HandlerState2, stop);
 				{{error, _} = Error, State2} ->
 					handler_terminate(State2, Req2, HandlerState2, Error)
 			end;
@@ -601,8 +601,8 @@ handler_call(State=#state{handler=Handler}, Req, HandlerState,
 			case websocket_send(Payload, State) of
 				{ok, State2} ->
 					NextState(State2, Req2, HandlerState2, RemainingData);
-				{shutdown, State2} ->
-					handler_terminate(State2, Req2, HandlerState2, shutdown);
+				{stop, State2} ->
+					handler_terminate(State2, Req2, HandlerState2, stop);
 				{{error, _} = Error, State2} ->
 					handler_terminate(State2, Req2, HandlerState2, Error)
 			end;
@@ -611,13 +611,13 @@ handler_call(State=#state{handler=Handler}, Req, HandlerState,
 				{ok, State2} ->
 					NextState(State2#state{hibernate=true},
 						Req2, HandlerState2, RemainingData);
-				{shutdown, State2} ->
-					handler_terminate(State2, Req2, HandlerState2, shutdown);
+				{stop, State2} ->
+					handler_terminate(State2, Req2, HandlerState2, stop);
 				{{error, _} = Error, State2} ->
 					handler_terminate(State2, Req2, HandlerState2, Error)
 			end;
-		{shutdown, Req2, HandlerState2} ->
-			websocket_close(State, Req2, HandlerState2, shutdown)
+		{stop, Req2, HandlerState2} ->
+			websocket_close(State, Req2, HandlerState2, stop)
 	catch Class:Reason ->
 		_ = websocket_close(State, Req, HandlerState, {crash, Class, Reason}),
 		erlang:Class([
@@ -652,12 +652,11 @@ websocket_deflate_frame(_, Payload, State=#state{deflate_state = Deflate}) ->
 	{Deflated1, << 1:1, 0:2 >>, State}.
 
 -spec websocket_send(frame(), #state{})
--> {ok, #state{}} | {shutdown, #state{}} | {{error, atom()}, #state{}}.
-websocket_send(Type, State=#state{socket=Socket, transport=Transport})
-		when Type =:= close ->
+-> {ok, #state{}} | {stop, #state{}} | {{error, atom()}, #state{}}.
+websocket_send(Type = close, State=#state{socket=Socket, transport=Transport}) ->
 	Opcode = websocket_opcode(Type),
 	case Transport:send(Socket, << 1:1, 0:3, Opcode:4, 0:8 >>) of
-		ok -> {shutdown, State};
+		ok -> {stop, State};
 		Error -> {Error, State}
 	end;
 websocket_send(Type, State=#state{socket=Socket, transport=Transport})
@@ -675,7 +674,7 @@ websocket_send({Type = close, StatusCode, Payload}, State=#state{
 	BinLen = payload_length_to_binary(Len),
 	Transport:send(Socket,
 		[<< 1:1, 0:3, Opcode:4, 0:1, BinLen/bits, StatusCode:16 >>, Payload]),
-	{shutdown, State};
+	{stop, State};
 websocket_send({Type, Payload0}, State=#state{socket=Socket, transport=Transport}) ->
 	Opcode = websocket_opcode(Type),
 	{Payload, Rsv, State2} = websocket_deflate_frame(Opcode, iolist_to_binary(Payload0), State),
@@ -700,13 +699,13 @@ payload_length_to_binary(N) ->
 	end.
 
 -spec websocket_send_many([frame()], #state{})
-	-> {ok, #state{}} | {shutdown, #state{}} | {{error, atom()}, #state{}}.
+	-> {ok, #state{}} | {stop, #state{}} | {{error, atom()}, #state{}}.
 websocket_send_many([], State) ->
 	{ok, State};
 websocket_send_many([Frame|Tail], State) ->
 	case websocket_send(Frame, State) of
 		{ok, State2} -> websocket_send_many(Tail, State2);
-		{shutdown, State2} -> {shutdown, State2};
+		{stop, State2} -> {stop, State2};
 		{Error, State2} -> {Error, State2}
 	end.
 
@@ -716,7 +715,7 @@ websocket_send_many([Frame|Tail], State) ->
 websocket_close(State=#state{socket=Socket, transport=Transport},
 		Req, HandlerState, Reason) ->
 	case Reason of
-		Normal when Normal =:= shutdown; Normal =:= timeout ->
+		Normal when Normal =:= stop; Normal =:= timeout ->
 			Transport:send(Socket, << 1:1, 0:3, 8:4, 0:1, 2:7, 1000:16 >>);
 		{error, badframe} ->
 			Transport:send(Socket, << 1:1, 0:3, 8:4, 0:1, 2:7, 1002:16 >>);

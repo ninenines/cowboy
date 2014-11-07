@@ -17,7 +17,7 @@ info(stream, Req, undefined) ->
 stream(Req, ID, Acc) ->
 	case cowboy_req:body(Req) of
 		{ok, <<>>, Req2} ->
-			{shutdown, cowboy_req:reply(200, Req2), undefined};
+			{stop, cowboy_req:reply(200, Req2), undefined};
 		{_, Data, Req2} ->
 			parse_id(Req2, ID, << Acc/binary, Data/binary >>)
 	end.
@@ -30,5 +30,5 @@ parse_id(Req, ID, Data) ->
 			stream(Req, ID, Data)
 	end.
 
-terminate(shutdown, _, _) ->
+terminate(stop, _, _) ->
 	ok.

@@ -61,7 +61,7 @@ message otherwise.
 ``` erlang
 info({reply, Body}, Req, State) ->
     Req2 = cowboy_req:reply(200, [], Body, Req),
-    {shutdown, Req2, State};
+    {stop, Req2, State};
 info(_Msg, Req, State) ->
     {ok, Req, State, hibernate}.
 ```
@@ -76,7 +76,7 @@ return a tuple indicating if more messages are to be expected.
 The callback may also choose to do nothing at all and just
 skip the message received.
 
-If a reply is sent, then the `shutdown` tuple should be returned.
+If a reply is sent, then the `stop` tuple should be returned.
 This will instruct Cowboy to end the request.
 
 Otherwise an `ok` tuple should be returned.
@@ -99,7 +99,7 @@ init(Req, Opts) ->
     {cowboy_loop, Req2, Opts}.
 
 info(eof, Req, State) ->
-    {shutdown, Req, State};
+    {stop, Req, State};
 info({chunk, Chunk}, Req, State) ->
     cowboy_req:chunk(Chunk, Req),
     {ok, Req, State};
