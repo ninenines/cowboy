@@ -1,6 +1,17 @@
 CHANGELOG
 =========
 
+1.0.1
+-----
+
+ *  Add missing cowboy_req:part/2 export
+
+ *  Fix an issue building dependencies on FreeBSD
+
+ *  Improve support for requests with an absolute URI
+
+ *  Small fixes to the documentation
+
 1.0.0
 -----
 
