@@ -46,7 +46,7 @@ Types:
 * TransOpts = ranch_tcp:opts()
 * ProtoOpts = cowboy_protocol:opts()
 
-Start listening for HTTP connections. Returns the pid for this
+Start listening for HTTP requests. Returns the pid for this
 listener's supervisor.
 
 : start_https(Ref, NbAcceptors, TransOpts, ProtoOpts) -> {ok, pid()}
