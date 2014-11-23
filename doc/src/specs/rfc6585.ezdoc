@@ -1,0 +1,44 @@
+::: RFC6585
+
+This document lists status codes that Cowboy implements as
+defined in the RFC6585 specifications.
+
+:: Status codes
+
+: 428 Precondition Required (RFC6585 3)
+
+The server requires the request to this resource to be conditional.
+
+The response should explain how to resubmit the request successfully.
+
+: 429 Too Many Requests (RFC6585 4, RFC6585 7.2)
+
+The user has sent too many requests in a given amount of time.
+
+The response should detail the rates allowed.
+
+The retry-after header can be used to indicate how long the
+user has to wait before making a new request.
+
+When an attack is detected it is recommended to drop the
+connection directly instead of sending this response.
+
+: 431 Request Header Fields Too Large (RFC6585 5, RFC6585 7.3)
+
+The request's header fields are too large.
+
+When rejecting a single header, the response should detail
+which header was at fault.
+
+When an attack is detected it is recommended to drop the
+connection directly instead of sending this response.
+
+: 511 Network Authentication Required (RFC6585 6)
+
+The user needs to authenticate into the network to gain access.
+
+This status code is meant to be used by proxies only, not by
+origin servers.
+
+The response should contain a link to the resource allowing
+the user to log in.
