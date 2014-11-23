@@ -1,0 +1,6 @@
+::: Cowboy Implementation Reference
+
+The implementation reference documents the behavior of Cowboy
+with regards to various standards and specifications.
+
+* ^"RFC7230 HTTP/1.1 server^rfc7230_server
