@@ -109,7 +109,8 @@ websocket_info(_Info, Req, State) ->
 :: Sending frames to the socket
 
 Cowboy allows sending either a single frame or a list of
-frames to the socket. Any frame can be sent: text, binary, ping,
+frames to the socket, in which case the frames are sent
+sequentially. Any frame can be sent: text, binary, ping,
 pong or close frames.
 
 The following example sends three frames using a single `reply`
