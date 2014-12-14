@@ -102,9 +102,14 @@ init(Parent, Ref, Socket, Transport, Opts) ->
 	Zdef = cow_spdy:deflate_init(),
 	Zinf = cow_spdy:inflate_init(),
 	ok = ranch:accept_ack(Ref),
-	loop(#state{parent=Parent, socket=Socket, transport=Transport,
-		middlewares=Middlewares, env=Env, onrequest=OnRequest,
-		onresponse=OnResponse, peer=Peer, zdef=Zdef, zinf=Zinf}).
+	case ssl:negotiated_next_protocol(Socket) of
+		{ok, <<"spdy/3">>} ->
+			loop(#state{parent=Parent, socket=Socket, transport=Transport,
+				middlewares=Middlewares, env=Env, onrequest=OnRequest,
+				onresponse=OnResponse, peer=Peer, zdef=Zdef, zinf=Zinf});
+		_ ->
+			cowboy_protocol:init_without_ack(Ref, Socket, Transport, Opts)
+	end.
 
 loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 		buffer=Buffer, children=Children}) ->
