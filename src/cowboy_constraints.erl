@@ -16,10 +16,12 @@
 
 -export([validate/2]).
 
+-type dirty_constraint_result() :: true | {true, any()} | false.
+-type constraint_result() :: true | {true, any()} | {false, fun() | atom()}.
 -type constraint() :: int | nonempty | fun().
--export_type([constraint/0]).
+-export_type([constraint/0, constraint_result/0]).
 
--spec validate(binary(), [constraint()]) -> true | {true, any()} | false.
+-spec validate(binary(), [constraint()]) -> constraint_result().
 validate(Value, [Constraint]) ->
 	apply_constraint(Value, Constraint);
 validate(Value, Constraints) when is_list(Constraints) ->
@@ -37,17 +39,21 @@ validate_list(Value, [Constraint|Tail], State) ->
 			validate_list(Value, Tail, State);
 		{true, Value2} ->
 			validate_list(Value2, Tail, modified);
-		false ->
-			false
+		Else ->
+			Else
 	end.
 
 %% @todo {int, From, To}, etc.
-apply_constraint(Value, int) ->
-	int(Value);
-apply_constraint(Value, nonempty) ->
-	nonempty(Value);
+apply_constraint(Value, int = F) ->
+	prepare_result(int(Value), F);
+apply_constraint(Value, nonempty = F) ->
+	prepare_result(nonempty(Value), F);
 apply_constraint(Value, F) when is_function(F) ->
-	F(Value).
+	prepare_result(F(Value), F).
+
+-spec prepare_result(dirty_constraint_result(), fun() | atom()) -> constraint_result().
+prepare_result(False, F) when False =:= false -> {false, F};
+prepare_result(True, _F)                      -> True.
 
 %% Constraint functions.
 

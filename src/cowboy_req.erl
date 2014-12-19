@@ -1253,7 +1253,10 @@ kvlist_to_map(Keys, [{Key, Value}|Tail], Map) ->
 filter([], Map) ->
 	Map;
 filter([{Key, Constraints}|Tail], Map) ->
-	filter_constraints(Tail, Map, Key, maps:get(Key, Map), Constraints);
+	case maps:find(Key, Map) of
+		{ok, Val} -> filter_constraints(Tail, Map, Key, Val, Constraints);
+		_         -> throw({bad_constraint, Key})
+	end;
 filter([{Key, Constraints, Default}|Tail], Map) ->
 	case maps:find(Key, Map) of
 		{ok, Value} ->
@@ -1270,7 +1273,9 @@ filter_constraints(Tail, Map, Key, Value, Constraints) ->
 		true ->
 			filter(Tail, Map);
 		{true, Value2} ->
-			filter(Tail, maps:put(Key, Value2, Map))
+			filter(Tail, maps:put(Key, Value2, Map));
+		{false, F} ->
+			throw({bad_constraint, {Key, F}})
 	end.
 
 %% Tests.
