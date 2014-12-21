@@ -348,7 +348,7 @@ parse_hd_value(<< $\r, Rest/bits >>, S, M, P, Q, V, Headers, Name, SoFar) ->
 			parse_hd_value(Rest2, S, M, P, Q, V, Headers, Name,
 				<< SoFar/binary, C >>);
 		<< $\n, Rest2/bits >> ->
-			parse_header(Rest2, S, M, P, Q, V, [{Name, SoFar}|Headers])
+			parse_header(Rest2, S, M, P, Q, V, [{Name, clean_value_ws_end(SoFar, byte_size(SoFar) - 1)}|Headers])
 	end;
 parse_hd_value(<< C, Rest/bits >>, S, M, P, Q, V, H, N, SoFar) ->
 	parse_hd_value(Rest, S, M, P, Q, V, H, N, << SoFar/binary, C >>);
@@ -357,6 +357,42 @@ parse_hd_value(<<>>, State=#state{max_header_value_length=MaxLength},
 	error_terminate(400, State);
 parse_hd_value(<<>>, S, M, P, Q, V, H, N, SoFar) ->
 	wait_hd_value(<<>>, S, M, P, Q, V, H, N, SoFar).
+
+clean_value_ws_end(_, -1) ->
+	<<>>;
+clean_value_ws_end(Value, N) ->
+	case binary:at(Value, N) of
+		$\s -> clean_value_ws_end(Value, N - 1);
+		$\t -> clean_value_ws_end(Value, N - 1);
+		_ ->
+			S = N + 1,
+			<< Value2:S/binary, _/bits >> = Value,
+			Value2
+	end.
+
+-ifdef(TEST).
+clean_value_ws_end_test_() ->
+	Tests = [
+		{<<>>, <<>>},
+		{<<"     ">>, <<>>},
+		{<<"text/*;q=0.3, text/html;q=0.7, text/html;level=1, "
+			"text/html;level=2;q=0.4, */*;q=0.5   \t   \t    ">>,
+			<<"text/*;q=0.3, text/html;q=0.7, text/html;level=1, "
+				"text/html;level=2;q=0.4, */*;q=0.5">>}
+	],
+	[{V, fun() -> R = clean_value_ws_end(V, byte_size(V) - 1) end} || {V, R} <- Tests].
+-endif.
+
+-ifdef(PERF).
+horse_clean_value_ws_end() ->
+	horse:repeat(200000,
+		clean_value_ws_end(
+			<<"text/*;q=0.3, text/html;q=0.7, text/html;level=1, "
+				"text/html;level=2;q=0.4, */*;q=0.5          ">>,
+			byte_size(<<"text/*;q=0.3, text/html;q=0.7, text/html;level=1, "
+				"text/html;level=2;q=0.4, */*;q=0.5          ">>) - 1)
+	).
+-endif.
 
 request(B, State=#state{transport=Transport}, M, P, Q, Version, Headers) ->
 	case lists:keyfind(<<"host">>, 1, Headers) of
