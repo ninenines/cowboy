@@ -1250,32 +1250,40 @@ kvlist_to_map(Keys, [{Key, Value}|Tail], Map) ->
 %% Loop through fields, if value is missing and no default, crash;
 %% else if value is missing and has a default, set default;
 %% otherwise apply constraints. If constraint fails, crash.
-filter([], Map) ->
-	Map;
-filter([{Key, Constraints}|Tail], Map) ->
-	case maps:find(Key, Map) of
-		{ok, Val} -> filter_constraints(Tail, Map, Key, Val, Constraints);
-		_         -> throw({bad_constraint, Key})
-	end;
-filter([{Key, Constraints, Default}|Tail], Map) ->
-	case maps:find(Key, Map) of
-		{ok, Value} ->
-			filter_constraints(Tail, Map, Key, Value, Constraints);
-		error ->
-			filter(Tail, maps:put(Key, Default, Map))
-	end;
-filter([Key|Tail], Map) ->
-	true = maps:is_key(Key, Map),
-	filter(Tail, Map).
+filter(Fields, InputM) ->
+	filter(Fields, InputM, #{}).
 
-filter_constraints(Tail, Map, Key, Value, Constraints) ->
+filter([], InputM, ErrM) ->
+	case maps:size(ErrM) of
+		0 -> InputM;
+		_ -> throw({badmatch, ErrM})
+	end;
+filter([{Key, Constraints}|Tail], InputM, ErrM) ->
+	case maps:find(Key, InputM) of
+		{ok, Val} ->
+			filter_constraints(Tail, InputM, Key, Val, Constraints, ErrM);
+		_ ->
+			filter(Tail, InputM, maps:put(Key, missing, ErrM))
+	end;
+filter([{Key, Constraints, Default}|Tail], InputM, ErrM) ->
+	case maps:find(Key, InputM) of
+		{ok, Value} ->
+			filter_constraints(Tail, InputM, Key, Value, Constraints, ErrM);
+		error ->
+			filter(Tail, maps:put(Key, Default, InputM), ErrM)
+	end;
+filter([Key|Tail], InputM, ErrM) ->
+	true = maps:is_key(Key, InputM),
+	filter(Tail, InputM, ErrM).
+
+filter_constraints(Tail, InputM, Key, Value, Constraints, ErrM) ->
 	case cowboy_constraints:validate(Value, Constraints) of
 		true ->
-			filter(Tail, Map);
+			filter(Tail, InputM, ErrM);
 		{true, Value2} ->
-			filter(Tail, maps:put(Key, Value2, Map));
+			filter(Tail, maps:put(Key, Value2, InputM), ErrM);
 		{false, F} ->
-			throw({bad_constraint, {Key, F}})
+			filter(Tail, InputM, maps:put(Key, {invalid, F}, ErrM))
 	end.
 
 %% Tests.
