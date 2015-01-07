@@ -374,9 +374,7 @@ handle_frame(State=#state{middlewares=Middlewares, env=Env,
 	]),
 	new_child(State, StreamID, Pid, IsFin);
 %% RST_STREAM.
-handle_frame(State, {rst_stream, StreamID, Status}) ->
-	error_logger:error_msg("Received RST_STREAM frame ~p ~p",
-		[StreamID, Status]),
+handle_frame(State, {rst_stream, _StreamID, _Status}) ->
 	%% @todo Stop StreamID.
 	State;
 %% PING initiated by the server; schedule another.
