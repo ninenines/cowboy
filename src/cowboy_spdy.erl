@@ -486,6 +486,9 @@ handle_frame(State, {settings, _, Settings}) ->
                              send_window = InitialWindowSize}})
     end;
 
+handle_frame(State, {goaway, _, _}) ->
+	%% Silently ignore GOAWAY frames.
+	State;
 
 handle_frame(State, Frame) ->
 	error_logger:error_msg("Ignored frame ~p", [Frame]),
