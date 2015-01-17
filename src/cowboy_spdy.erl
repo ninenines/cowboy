@@ -394,7 +394,6 @@ handle_frame(State=#state{socket=Socket, transport=Transport},
 handle_frame(State, {data, StreamID, IsFin, Data}) ->
     case get_child(StreamID, State) of 
         false -> 
-            error_logger:error_msg("Invalid data frame with stream id ~p.", [StreamID]),
             State;
         #child{input=nofin, in_buffer=Buffer, is_recv=IsRecv} = Child ->
 
