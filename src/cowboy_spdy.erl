@@ -145,7 +145,10 @@ get_value(Key, Opts, Default) ->
 init(Parent, Ref, Socket, Transport, Opts) ->
 	process_flag(trap_exit, true),
 	ok = proc_lib:init_ack(Parent, {ok, self()}),
-	{ok, Peer} = Transport:peername(Socket),
+	Peer = case Transport:peername(Socket) of
+		{ok, Peer2} -> Peer2;
+		{error, enotconn} -> exit(normal)
+	end,
 	Middlewares = get_value(middlewares, Opts, [cowboy_router, cowboy_handler]),
 	Env = [{listener, Ref}|get_value(env, Opts, [])] ++ [{raw_socket, Socket}],
 	IdleTimeout = get_value(idle_timeout, Opts, 60000),
