@@ -986,7 +986,7 @@ maybe_reply(Status, Req) ->
 %% Send multiple replies on one request - usable only with SPDY
 %% Creates a new request object! <- not the same as the input one
 
--spec push_reply(cowboy:http_state(), binary(), cowboy:http_headers(), binary(), req()) -> {ok, req()}.
+-spec push_reply(cowboy:http_state(), binary(), cowboy:http_headers(), binary(), req()) -> {ok, req()} | {error, atom()}.
 push_reply(Status, Path, Headers, Body, Req=#http_req{
 		socket=Socket, transport=Transport,
         headers = ParentHeaders,host=Host,
@@ -1005,11 +1005,12 @@ push_reply(Status, Path, Headers, Body, Req=#http_req{
                         resp_headers = Headers,
                         resp_body = Body},
    
-    {ok, Socket1} = cowboy_spdy:push_reply(Socket, Method, Host,
-                                           Path, Status, FullHeaders, Body),
-
-    %% Resp state can only be done until streaming is supported
-    {ok, Req2#http_req{socket = Socket1, resp_state = done}}.
+    case cowboy_spdy:push_reply(Socket, Method, Host, Path, Status, FullHeaders, Body) of
+        {ok, Socket1} ->
+            %% Resp state can only be done until streaming is supported
+            {ok, Req2#http_req{socket = Socket1, resp_state = done}};
+        Err -> Err
+    end.
 
 -spec ensure_response(req(), cowboy:http_status()) -> ok.
 %% The response has already been fully sent to the client.
