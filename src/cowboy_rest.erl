@@ -523,7 +523,7 @@ resource_exists(Req, State) ->
 
 if_match_exists(Req, State) ->
 	State2 = State#state{exists=true},
-	try cowboy_req:parse_header(<<"if-match">>, Req) of
+	case cowboy_req:parse_header(<<"if-match">>, Req) of
 		{ok, undefined, Req2} ->
 			if_unmodified_since_exists(Req2, State2);
 		{ok, '*', Req2} ->
@@ -532,8 +532,6 @@ if_match_exists(Req, State) ->
 			if_match(Req2, State2, ETagsList);
 		{error, badarg} ->
 			respond(Req, State2, 400)
-	catch Class:Reason ->
-		error_terminate(Req, State2, Class, Reason, if_match)
 	end.
 
 if_match(Req, State, EtagsList) ->
@@ -577,7 +575,7 @@ if_unmodified_since(Req, State, IfUnmodifiedSince) ->
 	end.
 
 if_none_match_exists(Req, State) ->
-	try cowboy_req:parse_header(<<"if-none-match">>, Req) of
+	case cowboy_req:parse_header(<<"if-none-match">>, Req) of
 		{ok, undefined, Req2} ->
 			if_modified_since_exists(Req2, State);
 		{ok, '*', Req2} ->
@@ -586,8 +584,6 @@ if_none_match_exists(Req, State) ->
 			if_none_match(Req2, State, EtagsList);
 		{error, badarg} ->
 			respond(Req, State, 400)
-	catch Class:Reason ->
-		error_terminate(Req, State, Class, Reason, if_none_match)
 	end.
 
 if_none_match(Req, State, EtagsList) ->
