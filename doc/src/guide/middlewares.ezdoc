@@ -19,7 +19,7 @@ It is defined in the `cowboy_middleware` behavior.
 This callback has two arguments. The first is the `Req` object.
 The second is the environment.
 
-Middlewares can return one of four different values:
+Middlewares can return one of three different values:
 
 * `{ok, Req, Env}` to continue the request processing
 * `{suspend, Module, Function, Args}` to hibernate
