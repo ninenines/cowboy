@@ -906,6 +906,8 @@ maybe_reply(Stacktrace, Req) ->
 		ok
 	end.
 
+do_maybe_reply([{erlang, binary_to_integer, _, _}, {cow_http_hd, parse_content_length, _, _}|_], Req) ->
+	cowboy_req:reply(400, Req);
 do_maybe_reply([{cow_http_hd, _, _, _}|_], Req) ->
 	cowboy_req:reply(400, Req);
 do_maybe_reply(_, Req) ->
