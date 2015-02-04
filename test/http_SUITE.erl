@@ -748,8 +748,8 @@ rest_resource_etags(Config) ->
 		{200, <<"\"etag-header-value\"">>, "tuple-strong"},
 		{200, <<"W/\"etag-header-value\"">>, "binary-weak-quoted"},
 		{200, <<"\"etag-header-value\"">>, "binary-strong-quoted"},
-		{500, false, "binary-strong-unquoted"},
-		{500, false, "binary-weak-unquoted"}
+		{400, false, "binary-strong-unquoted"},
+		{400, false, "binary-weak-unquoted"}
 	],
 	_ = [{Status, ETag, Type} = begin
 		{Ret, RespETag} = rest_resource_get_etag(Config, Type),

@@ -289,91 +289,43 @@ headers(Req) ->
 
 -spec parse_header(binary(), Req) -> any() when Req::req().
 parse_header(Name = <<"content-length">>, Req) ->
-	parse_header(Name, Req, 0);
+	parse_header(Name, Req, 0, fun cow_http_hd:parse_content_length/1);
 parse_header(Name = <<"cookie">>, Req) ->
-	parse_header(Name, Req, []);
+	parse_header(Name, Req, [], fun cow_cookie:parse_cookie/1);
 parse_header(Name = <<"transfer-encoding">>, Req) ->
-	parse_header(Name, Req, [<<"identity">>]);
+	parse_header(Name, Req, [<<"identity">>], fun cow_http_hd:parse_transfer_encoding/1);
 parse_header(Name, Req) ->
 	parse_header(Name, Req, undefined).
 
 -spec parse_header(binary(), Req, any()) -> any() when Req::req().
-parse_header(Name = <<"accept">>, Req, Default) ->
-	parse_header(Name, Req, Default, fun (Value) ->
-		cowboy_http:list(Value, fun cowboy_http:media_range/2) end);
-parse_header(Name = <<"accept-charset">>, Req, Default) ->
-	parse_header(Name, Req, Default, fun (Value) ->
-		cowboy_http:nonempty_list(Value, fun cowboy_http:conneg/2) end);
-parse_header(Name = <<"accept-encoding">>, Req, Default) ->
-	parse_header(Name, Req, Default, fun (Value) ->
-		cowboy_http:list(Value, fun cowboy_http:conneg/2) end);
-parse_header(Name = <<"accept-language">>, Req, Default) ->
-	parse_header(Name, Req, Default, fun (Value) ->
-		cowboy_http:nonempty_list(Value, fun cowboy_http:language_range/2) end);
-parse_header(Name = <<"authorization">>, Req, Default) ->
-	parse_header(Name, Req, Default, fun (Value) ->
-		cowboy_http:token_ci(Value, fun cowboy_http:authorization/2) end);
-parse_header(Name = <<"connection">>, Req, Default) ->
-	case header(Name, Req) of
-		undefined -> Default;
-		Value -> cow_http_hd:parse_connection(Value)
-	end;
-parse_header(Name = <<"content-length">>, Req, Default) ->
-	case header(Name, Req) of
-		undefined -> Default;
-		Value -> cow_http_hd:parse_content_length(Value)
-	end;
-parse_header(Name = <<"content-type">>, Req, Default) ->
-	parse_header(Name, Req, Default, fun cowboy_http:content_type/1);
-parse_header(Name = <<"cookie">>, Req, Default) ->
-	case header(Name, Req) of
-		undefined -> Default;
-		%% Flash player incorrectly sends an empty Cookie header.
-		<<>> -> Default;
-		Value -> cow_cookie:parse_cookie(Value)
-	end;
-parse_header(Name = <<"expect">>, Req, Default) ->
-	parse_header(Name, Req, Default, fun (Value) ->
-		cowboy_http:nonempty_list(Value, fun cowboy_http:expectation/2) end);
-parse_header(Name, Req, Default)
-		when Name =:= <<"if-match">>;
-			Name =:= <<"if-none-match">> ->
-	parse_header(Name, Req, Default, fun cowboy_http:entity_tag_match/1);
-parse_header(Name, Req, Default)
-		when Name =:= <<"if-modified-since">>;
-			Name =:= <<"if-unmodified-since">> ->
-	parse_header(Name, Req, Default, fun cowboy_http:http_date/1);
-parse_header(Name = <<"range">>, Req, Default) ->
-	parse_header(Name, Req, Default, fun cowboy_http:range/1);
-parse_header(Name, Req, Default)
-		when Name =:= <<"sec-websocket-protocol">>;
-			Name =:= <<"x-forwarded-for">> ->
-	parse_header(Name, Req, Default, fun (Value) ->
-		cowboy_http:nonempty_list(Value, fun cowboy_http:token/2) end);
-parse_header(Name = <<"transfer-encoding">>, Req, Default) ->
-	case header(Name, Req) of
-		undefined -> Default;
-		Value -> cow_http_hd:parse_transfer_encoding(Value)
-	end;
-%% @todo Product version.
-parse_header(Name = <<"upgrade">>, Req, Default) ->
-	parse_header(Name, Req, Default, fun (Value) ->
-		cowboy_http:nonempty_list(Value, fun cowboy_http:token_ci/2) end);
-parse_header(Name = <<"sec-websocket-extensions">>, Req, Default) ->
-	parse_header(Name, Req, Default, fun cowboy_http:parameterized_tokens/1).
+parse_header(Name, Req, Default) ->
+	parse_header(Name, Req, Default, parse_header_fun(Name)).
 
-%% @todo Remove this function when everything moved to cowlib.
+parse_header_fun(<<"accept">>) -> fun cow_http_hd:parse_accept/1;
+parse_header_fun(<<"accept-charset">>) -> fun cow_http_hd:parse_accept_charset/1;
+parse_header_fun(<<"accept-encoding">>) -> fun cow_http_hd:parse_accept_encoding/1;
+parse_header_fun(<<"accept-language">>) -> fun cow_http_hd:parse_accept_language/1;
+parse_header_fun(<<"authorization">>) -> fun cow_http_hd:parse_authorization/1;
+parse_header_fun(<<"connection">>) -> fun cow_http_hd:parse_connection/1;
+parse_header_fun(<<"content-length">>) -> fun cow_http_hd:parse_content_length/1;
+parse_header_fun(<<"content-type">>) -> fun cow_http_hd:parse_content_type/1;
+parse_header_fun(<<"cookie">>) -> fun cow_cookie:parse_cookie/1;
+parse_header_fun(<<"expect">>) -> fun cow_http_hd:parse_expect/1;
+parse_header_fun(<<"if-match">>) -> fun cow_http_hd:parse_if_match/1;
+parse_header_fun(<<"if-modified-since">>) -> fun cow_http_hd:parse_if_modified_since/1;
+parse_header_fun(<<"if-none-match">>) -> fun cow_http_hd:parse_if_none_match/1;
+parse_header_fun(<<"if-unmodified-since">>) -> fun cow_http_hd:parse_if_unmodified_since/1;
+parse_header_fun(<<"range">>) -> fun cow_http_hd:parse_range/1;
+parse_header_fun(<<"sec-websocket-extensions">>) -> fun cow_http_hd:parse_sec_websocket_extensions/1;
+parse_header_fun(<<"sec-websocket-protocol">>) -> fun cow_http_hd:parse_sec_websocket_protocol_req/1;
+parse_header_fun(<<"transfer-encoding">>) -> fun cow_http_hd:parse_transfer_encoding/1;
+parse_header_fun(<<"upgrade">>) -> fun cow_http_hd:parse_upgrade/1;
+parse_header_fun(<<"x-forwarded-for">>) -> fun cow_http_hd:parse_x_forwarded_for/1.
+
 parse_header(Name, Req, Default, ParseFun) ->
 	case header(Name, Req) of
-		undefined ->
-			Default;
-		Value ->
-			case ParseFun(Value) of
-				{error, badarg} ->
-					error(badarg);
-				ParsedValue ->
-					ParsedValue
-			end
+		undefined -> Default;
+		Value -> ParseFun(Value)
 	end.
 
 -spec parse_cookies(req()) -> [{binary(), binary()}].
@@ -443,7 +395,7 @@ body(Req=#http_req{body_state=waiting}, Opts) ->
 	%% Initialize body streaming state.
 	CFun = case lists:keyfind(content_decode, 1, Opts) of
 		false ->
-			fun cowboy_http:ce_identity/1;
+			fun body_content_decode_identity/1;
 		{_, CFun0} ->
 			CFun0
 	end,
@@ -483,6 +435,10 @@ body(Req, Opts) ->
 		{_, ReadTimeout0} -> ReadTimeout0
 	end,
 	body_loop(Req, ReadTimeout, ReadLen, ChunkLen, <<>>).
+
+%% Default identity function for content decoding.
+%% @todo Move into cowlib when more content decode functions get implemented.
+body_content_decode_identity(Data) -> Data.
 
 body_loop(Req=#http_req{buffer=Buffer, body_state={stream, Length, _, _, _}},
 		ReadTimeout, ReadLength, ChunkLength, Acc) ->

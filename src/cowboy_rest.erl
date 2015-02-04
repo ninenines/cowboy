@@ -234,7 +234,7 @@ content_types_provided(Req, State) ->
 
 normalize_content_types({ContentType, Callback})
 		when is_binary(ContentType) ->
-	{cowboy_http:content_type(ContentType), Callback};
+	{cow_http_hd:parse_content_type(ContentType), Callback};
 normalize_content_types(Normalized) ->
 	Normalized.
 
@@ -896,7 +896,7 @@ generate_etag(Req, State=#state{etag=undefined}) ->
 		no_call ->
 			{undefined, Req, State#state{etag=no_call}};
 		{Etag, Req2, HandlerState} when is_binary(Etag) ->
-			[Etag2] = cowboy_http:entity_tag_match(Etag),
+			Etag2 = cow_http_hd:parse_etag(Etag),
 			{Etag2, Req2, State#state{handler_state=HandlerState, etag=Etag2}};
 		{Etag, Req2, HandlerState} ->
 			{Etag, Req2, State#state{handler_state=HandlerState, etag=Etag}}
