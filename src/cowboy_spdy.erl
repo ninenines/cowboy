@@ -54,15 +54,15 @@
 
 -record(state, {
 	parent = undefined :: pid(),
-	socket,
-	transport,
+	socket :: inet:socket(),
+	transport :: module(),
 	buffer = <<>> :: binary(),
-	middlewares,
-	env,
-	onresponse,
-	peer,
-	zdef,
-	zinf,
+	middlewares :: [module()],
+	env :: cowboy_middleware:env(),
+	onresponse :: cowboy:onresponse_fun(),
+	peer :: {inet:ip_address(), inet:port_number()},
+	zdef :: zlib:zstream(),
+	zinf :: zlib:zstream(),
 	last_streamid = 0 :: streamid(),
 	children = [] :: [#child{}]
 }).
