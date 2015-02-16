@@ -34,8 +34,8 @@ process enter hibernation until a message is received.
 This snippet enables the loop handler.
 
 ``` erlang
-init(Req, Opts) ->
-    {cowboy_loop, Req, Opts}.
+init(Req, _Opts) ->
+    {cowboy_loop, Req, #state{}}.
 ```
 
 However it is largely recommended that you set a timeout
@@ -43,8 +43,8 @@ value. The next example sets a timeout value of 30s and
 also makes the process hibernate.
 
 ``` erlang
-init(Req, Opts) ->
-    {cowboy_loop, Req, Opts, 30000, hibernate}.
+init(Req, _Opts) ->
+    {cowboy_loop, Req, #state{}, 30000, hibernate}.
 ```
 
 :: Receive loop
@@ -94,9 +94,9 @@ a chunk is sent every time a `chunk` message is received,
 and the loop is stopped by sending an `eof` message.
 
 ``` erlang
-init(Req, Opts) ->
-	Req2 = cowboy_req:chunked_reply(200, [], Req),
-    {cowboy_loop, Req2, Opts}.
+init(Req, _Opts) ->
+    Req2 = cowboy_req:chunked_reply(200, [], Req),
+    {cowboy_loop, Req2, #state{}}.
 
 info(eof, Req, State) ->
     {stop, Req, State};

@@ -13,8 +13,8 @@ to all handlers. To use REST for the current request, this function
 must return a `cowboy_rest` tuple.
 
 ``` erlang
-init(Req, Opts) ->
-    {cowboy_rest, Req, Opts}.
+init(Req, _Opts) ->
+    {cowboy_rest, Req, #state{}}.
 ```
 
 Cowboy will then switch to the REST protocol and start executing

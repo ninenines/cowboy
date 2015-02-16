@@ -14,8 +14,8 @@ defined during the ^"router configuration^routing^.
 A handler that does nothing would look like this:
 
 ``` erlang
-init(Req, Opts) ->
-    {ok, Req, Opts}.
+init(Req, _Opts) ->
+    {ok, Req, #state{}}.
 ```
 
 Despite sending no reply, a `204 No Content` reply will be
@@ -25,11 +25,11 @@ sent for every request.
 We need to use the Req object for sending a reply.
 
 ``` erlang
-init(Req, Opts) ->
+init(Req, _Opts) ->
     Req2 = cowboy_req:reply(200, [
         {<<"content-type">>, <<"text/plain">>}
     ], <<"Hello World!">>, Req),
-    {ok, Req2, Opts}.
+    {ok, Req2, #state{}}.
 ```
 
 As you can see we return a 3-tuple. `ok` means that the
@@ -60,15 +60,15 @@ return the name of the handler type you want to use. The
 following snippet switches to a Websocket handler:
 
 ``` erlang
-init(Req, Opts) ->
-	{cowboy_websocket, Req, Opts}.
+init(Req, _Opts) ->
+	{cowboy_websocket, Req, #state{}}.
 ```
 
 You can also switch to your own custom handler type:
 
 ``` erlang
-init(Req, Opts) ->
-	{my_handler_type, Req, Opts}.
+init(Req, _Opts) ->
+	{my_handler_type, Req, #state{}}.
 ```
 
 How to implement a custom handler type is described in the

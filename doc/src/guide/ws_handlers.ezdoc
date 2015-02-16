@@ -16,8 +16,8 @@ to all handlers. To establish a Websocket connection, this function
 must return a `ws` tuple.
 
 ``` erlang
-init(Req, Opts) ->
-	{cowboy_websocket, Req, Opts}.
+init(Req, _Opts) ->
+	{cowboy_websocket, Req, #state{}}.
 ```
 
 Upon receiving this tuple, Cowboy will switch to the code

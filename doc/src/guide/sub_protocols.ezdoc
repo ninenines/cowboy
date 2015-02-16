@@ -14,8 +14,8 @@ the name of the sub protocol module. Everything past this point
 is handled by the sub protocol.
 
 ``` erlang
-init(Req, Opts) ->
-	{cowboy_websocket, Req, Opts}.
+init(Req, _Opts) ->
+	{cowboy_websocket, Req, #state{}}.
 ```
 
 The return value may also have a `Timeout` value and/or the
@@ -28,8 +28,8 @@ protocol, sets the timeout value to 5 seconds and enables
 hibernation:
 
 ``` erlang
-init(Req, Opts) ->
-	{my_protocol, Req, Opts, 5000, hibernate}.
+init(Req, _Opts) ->
+	{my_protocol, Req, #state{}, 5000, hibernate}.
 ```
 
 If a sub protocol does not make use of these options, it should
