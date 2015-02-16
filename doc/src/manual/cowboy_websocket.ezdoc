@@ -22,18 +22,6 @@ Cowboy will terminate the process right after closing the
 Websocket connection. This means that there is no real need to
 perform any cleanup in the optional `terminate/3` callback.
 
-:: Types
-
-: close_code() = 1000..4999
-
-Reason for closing the connection.
-
-: frame() = close | ping | pong
-	| {text | binary | close | ping | pong, iodata()}
-	| {close, close_code(), iodata()}
-
-Frames that can be sent to the client.
-
 :: Meta values
 
 : websocket_compress
@@ -118,7 +106,7 @@ Types:
 * InFrame = {text | binary | ping | pong, binary()}
 * Req = cowboy_req:req()
 * State = any()
-* OutFrame = frame()
+* OutFrame = cow_ws:frame()
 
 Handle the data received from the Websocket connection.
 
@@ -145,7 +133,7 @@ Types:
 * Info = any()
 * Req = cowboy_req:req()
 * State = any()
-* OutFrame = frame()
+* OutFrame = cow_ws:frame()
 
 Handle the Erlang message received.
 
