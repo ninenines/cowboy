@@ -10,7 +10,7 @@ init(Req, Opts) ->
 	Req2 = cowboy_req:set_resp_cookie(
 		<<"server">>, NewValue, [{path, <<"/">>}], Req),
 	#{client := ClientCookie, server := ServerCookie}
-		= cowboy_req:match_cookies([client, server], Req2),
+		= cowboy_req:match_cookies([{client, [], <<>>}, {server, [], <<>>}], Req2),
 	{ok, Body} = toppage_dtl:render([
 		{client, ClientCookie},
 		{server, ServerCookie}
