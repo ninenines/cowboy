@@ -823,8 +823,11 @@ chunk(Data, #http_req{socket=Socket, transport=Transport,
 	ok = Transport:send(Socket, Data);
 chunk(Data, #http_req{socket=Socket, transport=Transport,
 		resp_state=chunks}) ->
-	ok = Transport:send(Socket, [integer_to_list(iolist_size(Data), 16),
-		<<"\r\n">>, Data, <<"\r\n">>]).
+	case iolist_size(Data) of
+		0 -> ok;
+		Size -> Transport:send(Socket, [integer_to_list(Size, 16),
+			<<"\r\n">>, Data, <<"\r\n">>])
+	end.
 
 %% If ever made public, need to send nothing if HEAD.
 -spec last_chunk(Req) -> Req when Req::req().

@@ -6,6 +6,8 @@
 
 init(Req, Opts) ->
 	Req2 = cowboy_req:chunked_reply(200, Req),
+	%% Try an empty chunk to make sure the stream doesn't get closed.
+	cowboy_req:chunk([<<>>], Req2),
 	timer:sleep(100),
 	cowboy_req:chunk("chunked_handler\r\n", Req2),
 	timer:sleep(100),
