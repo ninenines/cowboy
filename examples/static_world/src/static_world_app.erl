@@ -13,6 +13,7 @@
 start(_Type, _Args) ->
 	Dispatch = cowboy_router:compile([
 		{'_', [
+			{"/", cowboy_static, {priv_file, static_world, "index.html"}},
 			{"/[...]", cowboy_static, {priv_dir, static_world, "",
 				[{mimetypes, cow_mimetypes, all}]}}
 		]}
