@@ -43,7 +43,8 @@ end_per_suite(Config) ->
 
 init_per_group(Name, Config) ->
 	cowboy_test:init_spdy(Name, [
-		{env, [{dispatch, init_dispatch(Config)}]}
+		{env, [{dispatch, init_dispatch(Config)}]},
+		{max_concurrent_streams, 2}
 	], Config).
 
 end_per_group(Name, _) ->
@@ -57,6 +58,7 @@ init_dispatch(Config) ->
 			{"/static/[...]", cowboy_static,
 				{dir, config(static_dir, Config)}},
 			{"/echo/body", http_echo_body, []},
+			{"/concurrent_streams", http_concurrent_streams, []},
 			{"/chunked", http_chunked, []},
 			{"/", http_handler, []}
 		]}
@@ -127,13 +129,15 @@ two_frames_one_packet(Config) ->
 			<<"/">>, <<"HTTP/1.1">>, [])
 	])),
 	{Frame1, Rest1} = spdy_recv(Socket, Transport, <<>>),
-	{syn_reply, _, false, <<"200 OK">>, _, _} = cow_spdy:parse(Frame1, Zinf),
+	{settings, _, _Settings} = cow_spdy:parse(Frame1, Zinf),
 	{Frame2, Rest2} = spdy_recv(Socket, Transport, Rest1),
-	{data, 1, true, _} = cow_spdy:parse(Frame2, Zinf),
+	{syn_reply, _, false, <<"200 OK">>, _, _} = cow_spdy:parse(Frame2, Zinf),
 	{Frame3, Rest3} = spdy_recv(Socket, Transport, Rest2),
-	{syn_reply, _, false, <<"200 OK">>, _, _} = cow_spdy:parse(Frame3, Zinf),
-	{Frame4, <<>>} = spdy_recv(Socket, Transport, Rest3),
-	{data, 3, true, _} = cow_spdy:parse(Frame4, Zinf),
+	{data, 1, true, _} = cow_spdy:parse(Frame3, Zinf),
+	{Frame4, Rest4} = spdy_recv(Socket, Transport, Rest3),
+	{syn_reply, _, false, <<"200 OK">>, _, _} = cow_spdy:parse(Frame4, Zinf),
+	{Frame5, <<>>} = spdy_recv(Socket, Transport, Rest4),
+	{data, 3, true, _} = cow_spdy:parse(Frame5, Zinf),
 	ok.
 
 spdy_recv(Socket, Transport, Acc) ->
@@ -145,3 +149,28 @@ spdy_recv(Socket, Transport, Acc) ->
 		{true, Frame, Rest} ->
 			{Frame, Rest}
 	end.
+
+concurrent_streams(Config) ->
+	{raw_client, Socket, Transport} = Client = raw_open([
+		{opts, [{client_preferred_next_protocols,
+			{client, [<<"spdy/3">>], <<"spdy/3">>}}]}
+		|Config]),
+	Zdef = cow_spdy:deflate_init(),
+	Zinf = cow_spdy:inflate_init(),
+	ok = raw_send(Client, iolist_to_binary([
+		cow_spdy:syn_stream(Zdef, 1, 0, true, false,
+			0, <<"GET">>, <<"https">>, <<"localhost">>,
+			<<"/">>, <<"HTTP/1.1">>, []),
+		cow_spdy:syn_stream(Zdef, 3, 0, true, false,
+			0, <<"GET">>, <<"https">>, <<"localhost">>,
+			<<"/">>, <<"HTTP/1.1">>, []),
+		cow_spdy:syn_stream(Zdef, 5, 0, true, false,
+			0, <<"GET">>, <<"https">>, <<"localhost">>,
+			<<"/">>, <<"HTTP/1.1">>, [])
+	])),
+	{Frame1, Rest1} = spdy_recv(Socket, Transport, <<>>),
+	{settings, _, [{max_concurrent_streams, _, _, _},
+			{initial_window_size, _, _, _}]} = cow_spdy:parse(Frame1, Zinf),
+	{Frame2, _Rest2} = spdy_recv(Socket, Transport, Rest1),
+	{rst_stream,5,refused_stream} = cow_spdy:parse(Frame2, Zinf),
+	ok.
