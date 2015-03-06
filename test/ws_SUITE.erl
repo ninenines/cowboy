@@ -41,7 +41,9 @@ init_per_group(Name = autobahn, Config) ->
 			{skip, "Autobahn Test Suite not installed."};
 		_ ->
 			{ok, _} = cowboy:start_http(Name, 100, [{port, 33080}], [
-				{env, [{dispatch, init_dispatch()}]}]),
+				{env, [{dispatch, init_dispatch()}]},
+				{compress, true}
+			]),
 			Config
 	end;
 init_per_group(Name = ws, Config) ->
