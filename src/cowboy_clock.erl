@@ -84,6 +84,7 @@ handle_cast(_Msg, State) ->
 
 -spec handle_info(any(), State) -> {noreply, State} when State::#state{}.
 handle_info(update, #state{universaltime=Prev, rfc1123=B1, tref=TRef0}) ->
+	%% Cancel the timer in case an external process sent an update message.
 	erlang:cancel_timer(TRef0),
 	T = erlang:universaltime(),
 	B2 = update_rfc1123(B1, Prev, T),
