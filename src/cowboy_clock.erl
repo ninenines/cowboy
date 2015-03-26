@@ -65,7 +65,7 @@ init([]) ->
 		named_table, {read_concurrency, true}]),
 	T = erlang:universaltime(),
 	B = update_rfc1123(<<>>, undefined, T),
-	{ok, TRef} = timer:send_interval(1000, update),
+	TRef = erlang:send_after(1000, self(), update),
 	ets:insert(?MODULE, {rfc1123, B}),
 	{ok, #state{universaltime=T, rfc1123=B, tref=TRef}}.
 
@@ -83,10 +83,12 @@ handle_cast(_Msg, State) ->
 	{noreply, State}.
 
 -spec handle_info(any(), State) -> {noreply, State} when State::#state{}.
-handle_info(update, #state{universaltime=Prev, rfc1123=B1, tref=TRef}) ->
+handle_info(update, #state{universaltime=Prev, rfc1123=B1, tref=TRef0}) ->
+	erlang:cancel_timer(TRef0),
 	T = erlang:universaltime(),
 	B2 = update_rfc1123(B1, Prev, T),
 	ets:insert(?MODULE, {rfc1123, B2}),
+	TRef = erlang:send_after(1000, self(), update),
 	{noreply, #state{universaltime=T, rfc1123=B2, tref=TRef}};
 handle_info(_Info, State) ->
 	{noreply, State}.
