@@ -17,7 +17,7 @@
 -export([init/2]).
 
 init(_, _) ->
-	cowboy_test:start([cowboy, gun]),
-	cowboy_test:make_certs(),
-	error_logger:add_report_handler(cowboy_error_h),
+	ct_helper:start([cowboy, gun]),
+	ct_helper:make_certs_in_ets(),
+	error_logger:add_report_handler(ct_helper_error_h),
 	{ok, undefined}.

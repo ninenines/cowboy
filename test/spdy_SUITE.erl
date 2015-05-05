@@ -15,8 +15,8 @@
 -module(spdy_SUITE).
 -compile(export_all).
 
--import(cowboy_test, [config/2]).
--import(cowboy_test, [gun_monitor_open/1]).
+-import(ct_helper, [config/2]).
+-import(cowboy_test, [gun_open/1]).
 -import(cowboy_test, [raw_open/1]).
 -import(cowboy_test, [raw_send/2]).
 
@@ -26,7 +26,7 @@ all() ->
 	[{group, spdy}].
 
 groups() ->
-	[{spdy, [], cowboy_test:all(?MODULE)}].
+	[{spdy, [], ct_helper:all(?MODULE)}].
 
 init_per_suite(Config) ->
 	case proplists:get_value(ssl_app, ssl:versions()) of
@@ -64,9 +64,9 @@ init_dispatch(Config) ->
 
 %% Convenience functions.
 
-do_get(ConnPid, MRef, Host, Path) ->
-	StreamRef = gun:get(ConnPid, Path, [{":host", Host}]),
-	{response, IsFin, Status, _} = gun:await(ConnPid, StreamRef, MRef),
+do_get(ConnPid, Host, Path) ->
+	StreamRef = gun:get(ConnPid, Path, [{<<"host">>, Host}]),
+	{response, IsFin, Status, _} = gun:await(ConnPid, StreamRef),
 	{IsFin, Status}.
 
 %% Tests.
@@ -80,25 +80,25 @@ check_status(Config) ->
 		{400, fin, "localhost", "bad-path"},
 		{404, fin, "localhost", "/this/path/does/not/exist"}
 	],
-	{ConnPid, MRef} = gun_monitor_open(Config),
+	ConnPid = gun_open(Config),
 	_ = [{Status, Fin, Host, Path} = begin
-		{IsFin, Ret} = do_get(ConnPid, MRef, Host, Path),
+		{IsFin, Ret} = do_get(ConnPid, Host, Path),
 		{Ret, IsFin, Host, Path}
 	end || {Status, Fin, Host, Path} <- Tests],
 	gun:close(ConnPid).
 
 echo_body(Config) ->
-	{ConnPid, MRef} = gun_monitor_open(Config),
+	ConnPid = gun_open(Config),
 	Body = << 0:800000 >>,
 	StreamRef = gun:post(ConnPid, "/echo/body", [
 		{<<"content-type">>, "application/octet-stream"}
 	], Body),
-	{response, nofin, 200, _} = gun:await(ConnPid, StreamRef, MRef),
-	{ok, Body} = gun:await_body(ConnPid, StreamRef, MRef),
+	{response, nofin, 200, _} = gun:await(ConnPid, StreamRef),
+	{ok, Body} = gun:await_body(ConnPid, StreamRef),
 	gun:close(ConnPid).
 
 echo_body_multi(Config) ->
-	{ConnPid, MRef} = gun_monitor_open(Config),
+	ConnPid = gun_open(Config),
 	BodyChunk = << 0:80000 >>,
 	StreamRef = gun:post(ConnPid, "/echo/body", [
 		%% @todo I'm still unhappy with this. It shouldn't be required...
@@ -107,8 +107,8 @@ echo_body_multi(Config) ->
 	]),
 	_ = [gun:data(ConnPid, StreamRef, nofin, BodyChunk) || _ <- lists:seq(1, 9)],
 	gun:data(ConnPid, StreamRef, fin, BodyChunk),
-	{response, nofin, 200, _} = gun:await(ConnPid, StreamRef, MRef),
-	{ok, << 0:800000 >>} = gun:await_body(ConnPid, StreamRef, MRef),
+	{response, nofin, 200, _} = gun:await(ConnPid, StreamRef),
+	{ok, << 0:800000 >>} = gun:await_body(ConnPid, StreamRef),
 	gun:close(ConnPid).
 
 two_frames_one_packet(Config) ->

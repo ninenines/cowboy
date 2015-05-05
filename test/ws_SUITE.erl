@@ -15,7 +15,7 @@
 -module(ws_SUITE).
 -compile(export_all).
 
--import(cowboy_test, [config/2]).
+-import(ct_helper, [config/2]).
 
 %% ct.
 
@@ -23,11 +23,8 @@ all() ->
 	[{group, autobahn}, {group, ws}].
 
 groups() ->
-	BaseTests = cowboy_test:all(?MODULE) -- [autobahn_fuzzingclient],
+	BaseTests = ct_helper:all(?MODULE) -- [autobahn_fuzzingclient],
 	[{autobahn, [], [autobahn_fuzzingclient]}, {ws, [parallel], BaseTests}].
-
-init_per_suite(Config) ->
-	Config.
 
 init_per_group(Name = autobahn, Config) ->
 	%% Some systems have it named pip2.

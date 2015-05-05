@@ -15,83 +15,24 @@
 -module(cowboy_test).
 -compile(export_all).
 
-%% Start and stop applications and their dependencies.
-
-start(Apps) ->
-	_ = [do_start(App) || App <- Apps],
-	ok.
-
-do_start(App) ->
-	case application:start(App) of
-		ok ->
-			ok;
-		{error, {not_started, Dep}} ->
-			do_start(Dep),
-			do_start(App)
-	end.
-
-%% SSL certificate creation and safekeeping.
-
-make_certs() ->
-	{_, Cert, Key} = ct_helper:make_certs(),
-	CertOpts = [{cert, Cert}, {key, Key}],
-	Pid = spawn(fun() -> receive after infinity -> ok end end),
-	?MODULE = ets:new(?MODULE, [ordered_set, public, named_table,
-		{heir, Pid, undefined}]),
-	ets:insert(?MODULE, {cert_opts, CertOpts}),
-	ok.
-
-get_certs() ->
-	ets:lookup_element(?MODULE, cert_opts, 2).
-
-%% Quick configuration value retrieval.
-
-config(Key, Config) ->
-	{_, Value} = lists:keyfind(Key, 1, Config),
-	Value.
-
-%% Test case description.
-
-doc(String) ->
-	ct:comment(String),
-	ct:log(String).
-
-%% List of all test cases in the suite.
-
-all(Suite) ->
-	lists:usort([F || {F, 1} <- Suite:module_info(exports),
-		F =/= module_info,
-		F =/= test, %% This is leftover from the eunit parse_transform...
-		F =/= all,
-		F =/= groups,
-		string:substr(atom_to_list(F), 1, 5) =/= "init_",
-		string:substr(atom_to_list(F), 1, 4) =/= "end_",
-		string:substr(atom_to_list(F), 1, 3) =/= "do_"
-	]).
+-import(ct_helper, [config/2]).
 
 %% Listeners initialization.
 
 init_http(Ref, ProtoOpts, Config) ->
-	{ok, _} = cowboy:start_http(Ref, 100, [{port, 0}], [
-		{max_keepalive, 50},
-		{timeout, 500}
-		|ProtoOpts]),
+	{ok, _} = cowboy:start_http(Ref, 100, [{port, 0}], ProtoOpts),
 	Port = ranch:get_port(Ref),
 	[{type, tcp}, {port, Port}, {opts, []}|Config].
 
 init_https(Ref, ProtoOpts, Config) ->
-	Opts = get_certs(),
-	{ok, _} = cowboy:start_https(Ref, 100, Opts ++ [{port, 0}], [
-		{max_keepalive, 50},
-		{timeout, 500}
-		|ProtoOpts]),
+	Opts = ct_helper:get_certs_from_ets(),
+	{ok, _} = cowboy:start_https(Ref, 100, Opts ++ [{port, 0}], ProtoOpts),
 	Port = ranch:get_port(Ref),
 	[{type, ssl}, {port, Port}, {opts, Opts}|Config].
 
 init_spdy(Ref, ProtoOpts, Config) ->
-	Opts = get_certs(),
-	{ok, _} = cowboy:start_spdy(Ref, 100, Opts ++ [{port, 0}],
-		ProtoOpts),
+	Opts = ct_helper:get_certs_from_ets(),
+	{ok, _} = cowboy:start_spdy(Ref, 100, Opts ++ [{port, 0}], ProtoOpts),
 	Port = ranch:get_port(Ref),
 	[{type, ssl}, {port, Port}, {opts, Opts}|Config].
 
@@ -148,22 +89,17 @@ init_common_groups(Name = spdy_compress, Config, Mod) ->
 %% Support functions for testing using Gun.
 
 gun_open(Config) ->
-	gun_open(Config, []).
+	gun_open(Config, #{}).
 
 gun_open(Config, Opts) ->
-	{ok, ConnPid} = gun:open("localhost", config(port, Config),
-		[{retry, 0}, {type, config(type, Config)}|Opts]),
+	{ok, ConnPid} = gun:open("localhost", config(port, Config), Opts#{
+		retry => 0,
+		transport => config(type, Config)
+	}),
 	ConnPid.
 
-gun_monitor_open(Config) ->
-	gun_monitor_open(Config, []).
-
-gun_monitor_open(Config, Opts) ->
-	ConnPid = gun_open(Config, Opts),
-	{ConnPid, monitor(process, ConnPid)}.
-
-gun_is_gone(ConnPid, MRef) ->
-	receive {'DOWN', MRef, process, ConnPid, gone} -> ok
+gun_down(ConnPid) ->
+	receive {gun_down, ConnPid, _, _, _, _} -> ok
 	after 500 -> error(timeout) end.
 
 %% Support functions for testing using a raw socket.
@@ -183,18 +119,21 @@ raw_send({raw_client, Socket, Transport}, Data) ->
 	Transport:send(Socket, Data).
 
 raw_recv_head({raw_client, Socket, Transport}) ->
-	{ok, Data} = Transport:recv(Socket, 0, 5000),
+	{ok, Data} = Transport:recv(Socket, 0, 10000),
 	raw_recv_head(Socket, Transport, Data).
 
 raw_recv_head(Socket, Transport, Buffer) ->
 	case binary:match(Buffer, <<"\r\n\r\n">>) of
 		nomatch ->
-			{ok, Data} = Transport:recv(Socket, 0, 5000),
+			{ok, Data} = Transport:recv(Socket, 0, 10000),
 			raw_recv_head(Socket, Transport, << Buffer/binary, Data/binary >>);
 		{_, _} ->
 			Buffer
 	end.
 
+raw_recv({raw_client, Socket, Transport}, Length, Timeout) ->
+	Transport:recv(Socket, Length, Timeout).
+
 raw_expect_recv({raw_client, Socket, Transport}, Expect) ->
-	{ok, Expect} = Transport:recv(Socket, iolist_size(Expect), 5000),
+	{ok, Expect} = Transport:recv(Socket, iolist_size(Expect), 10000),
 	ok.

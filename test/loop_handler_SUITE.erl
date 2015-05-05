@@ -15,8 +15,8 @@
 -module(loop_handler_SUITE).
 -compile(export_all).
 
--import(cowboy_test, [config/2]).
--import(cowboy_test, [doc/1]).
+-import(ct_helper, [config/2]).
+-import(ct_helper, [doc/1]).
 -import(cowboy_test, [gun_open/1]).
 
 %% ct.
@@ -25,7 +25,7 @@ all() ->
 	cowboy_test:common_all().
 
 groups() ->
-	cowboy_test:common_groups(cowboy_test:all(?MODULE)).
+	cowboy_test:common_groups(ct_helper:all(?MODULE)).
 
 init_per_group(Name, Config) ->
 	cowboy_test:init_common_groups(Name, Config, ?MODULE).

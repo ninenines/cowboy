@@ -48,7 +48,7 @@ outcome of the processing.
 The time the request (request line and headers) takes to be
 received by the server must be limited and subject to configuration.
 A server must wait at least 5 seconds before dropping the connection.
-A 418 status code must be sent if the request line was received
+A 408 status code must be sent if the request line was received
 fully when the timeout is triggered.
 
 An HTTP/1.1 server must understand any valid HTTP/1.0 request,
@@ -105,7 +105,7 @@ forms are specific to the CONNECT and site-wide OPTIONS method,
 respectively. (RFC7230 5.3.2)
 
 The fragment part of the target URI is not sent. It must be
-ignrored by a server receiving it. (RFC7230 5.1)
+ignored by a server receiving it. (RFC7230 5.1)
 
 ```
 request-target = origin-form / absolute-form / authority-form / asterisk-form
@@ -361,10 +361,6 @@ version  = "HTTP/1.0" / "HTTP/1.1"
 
 Any version number other than HTTP/1.0 or HTTP/1.1 must be
 rejected by a server or intermediary with a 505 status code. (RFC7230 2.6, RFC7230 A.2)
-
-A request that has whitespace different than CRLF following the
-version must be rejected with a 400 status code and the closing
-of the connection. (RFC7230 3.1.1)
 
 A request that has any whitespace or characters different than
 CRLF following the version must be rejected with a 400 status

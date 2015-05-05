@@ -5,7 +5,7 @@ PROJECT = cowboy
 # Options.
 
 COMPILE_FIRST = cowboy_middleware cowboy_sub_protocol
-CT_OPTS += -pa test -ct_hooks cowboy_ct_hook []
+CT_OPTS += -pa test -ct_hooks cowboy_ct_hook [] # -boot start_sasl
 PLT_APPS = crypto public_key ssl
 
 # Dependencies.
@@ -21,6 +21,7 @@ dep_ct_helper = git https://github.com/extend/ct_helper.git master
 include erlang.mk
 
 ERLC_OPTS += +warn_export_all +warn_missing_spec +warn_untyped_record
+TEST_ERLC_OPTS += +'{parse_transform, eunit_autoexport}'
 
 # Also dialyze the tests.
 

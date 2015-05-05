@@ -23,10 +23,10 @@ generate_etag(Req, State) ->
 			{<<"\"etag-header-value\"">>, Req, State};
 		%% Invalid return values from generate_etag/2.
 		<<"binary-strong-unquoted">> ->
-			cowboy_error_h:ignore(cow_http_hd, parse_etag, 1),
+			ct_helper_error_h:ignore(cow_http_hd, parse_etag, 1),
 			{<<"etag-header-value">>, Req, State};
 		<<"binary-weak-unquoted">> ->
-			cowboy_error_h:ignore(cow_http_hd, parse_etag, 1),
+			ct_helper_error_h:ignore(cow_http_hd, parse_etag, 1),
 			{<<"W/etag-header-value">>, Req, State}
 	end.
 

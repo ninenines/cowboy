@@ -12,13 +12,13 @@ allowed_methods(Req, State) ->
 	{[<<"GET">>, <<"PUT">>], Req, State}.
 
 content_types_accepted(Req, State) ->
-	cowboy_error_h:ignore(cowboy_rest, process_content_type, 3),
+	ct_helper_error_h:ignore(cowboy_rest, process_content_type, 3),
 	{[
 		{<<"application/json">>, put_application_json}
 	], Req, State}.
 
 content_types_provided(Req, State) ->
-	cowboy_error_h:ignore(cowboy_rest, set_resp_body, 2),
+	ct_helper_error_h:ignore(cowboy_rest, set_resp_body, 2),
 	{[
 		{<<"text/plain">>, get_text_plain}
 	], Req, State}.
