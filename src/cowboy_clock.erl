@@ -73,7 +73,7 @@ init([]) ->
 -spec handle_call
 	(stop, from(), State) -> {stop, normal, stopped, State}
 	when State::#state{}.
-handle_call(stop, _From, State=#state{tref=TRef}) ->
+handle_call(stop, _From, State) ->
 	{stop, normal, stopped, State};
 handle_call(_Request, _From, State) ->
 	{reply, ignored, State}.
