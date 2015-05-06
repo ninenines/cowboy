@@ -36,7 +36,7 @@
 -record(state, {
 	universaltime = undefined :: undefined | calendar:datetime(),
 	rfc1123 = <<>> :: binary(),
-	tref = undefined :: undefined | timer:tref()
+	tref = undefined :: undefined | reference()
 }).
 
 %% API.
@@ -69,11 +69,11 @@ init([]) ->
 	ets:insert(?MODULE, {rfc1123, B}),
 	{ok, #state{universaltime=T, rfc1123=B, tref=TRef}}.
 
--spec handle_call(any(), _, State)
-	-> {reply, ignored, State} | {stop, normal, stopped, State}
+-type from() :: {pid(), term()}.
+-spec handle_call
+	(stop, from(), State) -> {stop, normal, stopped, State}
 	when State::#state{}.
 handle_call(stop, _From, State=#state{tref=TRef}) ->
-	{ok, cancel} = timer:cancel(TRef),
 	{stop, normal, stopped, State};
 handle_call(_Request, _From, State) ->
 	{reply, ignored, State}.
@@ -85,7 +85,7 @@ handle_cast(_Msg, State) ->
 -spec handle_info(any(), State) -> {noreply, State} when State::#state{}.
 handle_info(update, #state{universaltime=Prev, rfc1123=B1, tref=TRef0}) ->
 	%% Cancel the timer in case an external process sent an update message.
-	erlang:cancel_timer(TRef0),
+	_ = erlang:cancel_timer(TRef0),
 	T = erlang:universaltime(),
 	B2 = update_rfc1123(B1, Prev, T),
 	ets:insert(?MODULE, {rfc1123, B2}),
