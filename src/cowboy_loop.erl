@@ -161,13 +161,14 @@ call(Req, State=#state{resp_sent=RespSent},
 			cowboy_req:maybe_reply(Stacktrace, Req)
 		end,
 		cowboy_handler:terminate({crash, Class, Reason}, Req, HandlerState, Handler),
-		erlang:Class([
+		exit({cowboy_handler, [
+			{class, Class},
 			{reason, Reason},
 			{mfa, {Handler, info, 3}},
 			{stacktrace, Stacktrace},
 			{req, cowboy_req:to_list(Req)},
 			{state, HandlerState}
-		])
+		]})
 	end.
 
 %% It is sometimes important to make a socket passive as it was initially

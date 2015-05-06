@@ -52,13 +52,14 @@ execute(Req, Env) ->
 		Stacktrace = erlang:get_stacktrace(),
 		cowboy_req:maybe_reply(Stacktrace, Req),
 		terminate({crash, Class, Reason}, Req, HandlerOpts, Handler),
-		erlang:Class([
+		exit({cowboy_handler, [
+			{class, Class},
 			{reason, Reason},
 			{mfa, {Handler, init, 2}},
 			{stacktrace, Stacktrace},
 			{req, cowboy_req:to_list(Req)},
 			{opts, HandlerOpts}
-		])
+		]})
 	end.
 
 -spec terminate(any(), Req, any(), module()) -> ok when Req::cowboy_req:req().
@@ -68,14 +69,15 @@ terminate(Reason, Req, State, Handler) ->
 			try
 				Handler:terminate(Reason, cowboy_req:lock(Req), State)
 			catch Class:Reason2 ->
-				erlang:Class([
+				exit({cowboy_handler, [
+					{class, Class},
 					{reason, Reason2},
 					{mfa, {Handler, terminate, 3}},
 					{stacktrace, erlang:get_stacktrace()},
 					{req, cowboy_req:to_list(Req)},
 					{state, State},
 					{terminate_reason, Reason}
-				])
+				]})
 			end;
 		false ->
 			ok
