@@ -621,7 +621,7 @@ not_modified(Req, State) ->
 				{Req4, State3} ->
 					respond(Req4, State3, 304)
 			catch Class:Reason ->
-				error_terminate(Req, State, Class, Reason, expires)
+				error_terminate(Req, State2, Class, Reason, expires)
 			end
 	catch Class:Reason ->
 		error_terminate(Req, State, Class, Reason, generate_etag)
