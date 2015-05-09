@@ -42,6 +42,7 @@
 -type streamid() :: non_neg_integer().
 -type socket() :: {pid(), streamid()}.
 
+-define(INITIAL_WINDOW_SIZE, 16 * 1024 * 1024).
 -record(child, {
 	streamid :: streamid(),
 	pid :: pid(),
@@ -64,10 +65,12 @@
 	zdef :: zlib:zstream(),
 	zinf :: zlib:zstream(),
 	last_streamid = 0 :: streamid(),
-	children = [] :: [#child{}]
+	children = [] :: [#child{}],
+	max_concurrent_streams :: non_neg_integer() | undefined
 }).
 
 -type opts() :: [{env, cowboy_middleware:env()}
+	| {max_concurrent_streams, non_neg_integer()}
 	| {middlewares, [module()]}
 	| {onresponse, cowboy:onresponse_fun()}].
 -export_type([opts/0]).
@@ -96,11 +99,17 @@ init(Parent, Ref, Socket, Transport, Opts) ->
 	Middlewares = get_value(middlewares, Opts, [cowboy_router, cowboy_handler]),
 	Env = [{listener, Ref}|get_value(env, Opts, [])],
 	OnResponse = get_value(onresponse, Opts, undefined),
+	MaxConcurrentStreams = get_value(max_concurrent_streams, Opts, undefined),
 	Zdef = cow_spdy:deflate_init(),
 	Zinf = cow_spdy:inflate_init(),
 	ok = ranch:accept_ack(Ref),
+
+	Settings = cow_spdy:settings(false,
+			[{max_concurrent_streams,MaxConcurrentStreams,false,false},
+			{initial_window_size,?INITIAL_WINDOW_SIZE,false,false}]),
+	Transport:send(Socket, list_to_binary(Settings)),
 	loop(#state{parent=Parent, socket=Socket, transport=Transport,
-		middlewares=Middlewares, env=Env,
+		middlewares=Middlewares, env=Env, max_concurrent_streams=MaxConcurrentStreams,
 		onresponse=OnResponse, peer=Peer, zdef=Zdef, zinf=Zinf}).
 
 loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
@@ -254,14 +263,23 @@ handle_frame(State, {syn_stream, StreamID, AssocToStreamID,
 %% Erlang does not allow us to control the priority of processes
 %% so we ignore that value entirely.
 handle_frame(State=#state{middlewares=Middlewares, env=Env,
-		onresponse=OnResponse, peer=Peer},
+		onresponse=OnResponse, peer=Peer, children=Children,
+		max_concurrent_streams=MaxConcurrentStreams},
 		{syn_stream, StreamID, _, IsFin, _, _,
 		Method, _, Host, Path, Version, Headers}) ->
-	Pid = spawn_link(?MODULE, request_init, [
-		{self(), StreamID}, Peer, OnResponse,
-		Env, Middlewares, Method, Host, Path, Version, Headers
-	]),
-	new_child(State, StreamID, Pid, IsFin);
+	if MaxConcurrentStreams == undefined orelse
+	  length(Children) < MaxConcurrentStreams ->
+		Pid = spawn_link(?MODULE, request_init, [
+		    {self(), StreamID}, Peer, OnResponse,
+		    Env, Middlewares, Method, Host, Path, Version, Headers
+		    ]),
+		new_child(State, StreamID, Pid, IsFin);
+           true ->
+		error_logger:warning_msg("Exceeded max_concurrent_streams limit ~p",
+					[MaxConcurrentStreams]),
+		rst_stream(State, StreamID, refused_stream),
+		State
+        end;
 %% RST_STREAM.
 handle_frame(State, {rst_stream, StreamID, Status}) ->
 	error_logger:error_msg("Received RST_STREAM frame ~p ~p",
