@@ -388,7 +388,7 @@ body(Req=#http_req{body_state=waiting}, Opts) ->
 		_ ->
 			ExpectHeader = parse_header(<<"expect">>, Req),
 			ok = case ExpectHeader of
-				[<<"100-continue">>] -> continue(Req);
+				continue -> continue(Req);
 				_ -> ok
 			end
 	end,
