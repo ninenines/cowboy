@@ -62,7 +62,7 @@ a collection of resources and any other information. Any information
 that can be the target of an hypertext link can be a resource.
 
 A resource is a conceptual mapping to a set of entities. The set of
-entities evolves over time; a resource doesn't. For example a resource
+entities evolves over time; a resource doesn't. For example, a resource
 can map to "users who have logged in this past month" and another
 to "all users". At some point in time they may map to the same set of
 entities, because all users logged in this past month. But they are
@@ -102,8 +102,8 @@ Control data allows parameterizing the request or response.
 For example, we may only want the representation returned if
 it is more recent than the one we have in cache. Similarly,
 we may want to instruct the client about how it should cache
-the representation. This isn't restricted to caching. We may
-for example want to store a new representation of a resource
+the representation. This isn't restricted to caching. We may,
+for example, want to store a new representation of a resource
 only if it wasn't modified since we first retrieved it.
 
 The data format of a representation is also known as the media
