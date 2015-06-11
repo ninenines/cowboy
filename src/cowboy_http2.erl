@@ -77,7 +77,7 @@
 	encode_state = cow_hpack:init() :: cow_hpack:state()
 }).
 
--spec init(pid(), ranch:ref(), inet:socket(), module(), opts(), module()) -> ok.
+-spec init(pid(), ranch:ref(), inet:socket(), module(), cowboy:opts(), module()) -> ok.
 init(Parent, Ref, Socket, Transport, Opts, Handler) ->
 	before_loop(#state{parent=Parent, ref=Ref, socket=Socket,
 		transport=Transport, opts=Opts, handler=Handler}, <<>>).
