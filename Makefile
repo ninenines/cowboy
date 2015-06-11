@@ -4,14 +4,15 @@ PROJECT = cowboy
 
 # Options.
 
-COMPILE_FIRST = cowboy_middleware cowboy_sub_protocol
-CT_OPTS += -pa test -ct_hooks cowboy_ct_hook [] # -boot start_sasl
+COMPILE_FIRST = cowboy_middleware cowboy_stream cowboy_sub_protocol
+CT_OPTS += -ct_hooks cowboy_ct_hook [] # -boot start_sasl
 PLT_APPS = crypto public_key ssl
+CI_OTP = OTP-18.0-rc2 # OTP-17.1.2 OTP-17.2.2 OTP-17.3.4 OTP-17.4.1 OTP-17.5.3
 
 # Dependencies.
 
 DEPS = cowlib ranch
-dep_cowlib = git https://github.com/ninenines/cowlib 1.3.0
+dep_cowlib = git https://github.com/ninenines/cowlib master
 
 TEST_DEPS = ct_helper gun
 dep_ct_helper = git https://github.com/extend/ct_helper.git master
@@ -26,6 +27,16 @@ TEST_ERLC_OPTS += +'{parse_transform, eunit_autoexport}'
 # Also dialyze the tests.
 
 # DIALYZER_OPTS += --src -r test
+
+# Open logs after CI ends.
+
+ci::
+	$(gen_verbose) xdg-open logs/all_runs.html
+
+# Use erl_make_certs from the tested release.
+
+ci-setup::
+	$(gen_verbose) cp ~/.kerl/builds/$(CI_OTP_RELEASE)/otp_src_git/lib/ssl/test/erl_make_certs.erl deps/ct_helper/src/
 
 # Documentation.
 

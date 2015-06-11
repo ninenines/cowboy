@@ -17,8 +17,12 @@
 -export([start_http/4]).
 -export([start_https/4]).
 -export([start_spdy/4]).
+-export([start_tls/4]).
 -export([stop_listener/1]).
 -export([set_env/3]).
+
+-type opts() :: map().
+-export_type([opts/0]).
 
 -type fields() :: [atom()
 	| {atom(), cowboy_constraints:constraint() | [cowboy_constraints:constraint()]}
@@ -63,6 +67,18 @@ start_spdy(Ref, NbAcceptors, TransOpts, ProtoOpts)
 	|TransOpts],
 	ranch:start_listener(Ref, NbAcceptors,
 		ranch_ssl, TransOpts2, cowboy_spdy, ProtoOpts).
+
+-spec start_tls(ranch:ref(), non_neg_integer(), ranch_ssl:opts(), opts()) -> {ok, pid()} | {error, any()}.
+start_tls(Ref, NbAcceptors, TransOpts0, ProtoOpts)
+		when is_integer(NbAcceptors), NbAcceptors > 0 ->
+	{_, Type} = maps:get(stream_handler, ProtoOpts, {cowboy_stream_h, supervisor}),
+	TransOpts = [
+		{connection_type, Type},
+		{next_protocols_advertised, [<<"h2">>, <<"spdy/3">>, <<"http/1.1">>]},
+		{alpn_preferred_protocols, [<<"h2">>, <<"spdy/3">>, <<"http/1.1">>]}
+	|TransOpts0],
+	ranch:start_listener(Ref, NbAcceptors,
+		ranch_ssl, TransOpts, cowboy_tls, ProtoOpts).
 
 -spec stop_listener(ranch:ref()) -> ok | {error, not_found}.
 stop_listener(Ref) ->
