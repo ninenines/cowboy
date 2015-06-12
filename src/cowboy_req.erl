@@ -521,6 +521,30 @@ body_qs(Req, Opts) ->
 			{badlength, Req2}
 	end.
 
+-spec sanitize_html(D) when D :: binary() | list() | atom() -> {ok, binary()}
+
+sanitize_html(Data) when is_binary(Data) ->
+	sanitize_html(binary_to_list(Data), []);
+sanitize_html(Data) when is_atom(Data) ->
+	sanitize_html(atom_to_list(Data), []);
+sanitize_html(Data) when is_list(Data) ->
+	sanitize_html(Data, []).
+
+sanitize_html([], Acc) ->
+	{ok, list_to_binary(lists:reverse(Acc))};
+sanitize_html("<" ++ Tail, Acc) ->
+	sanitize_html(Tail, lists:reverse("&lt;", Acc));
+sanitize_html(">" ++ Tail, Acc) ->
+	sanitize_html(Tail, lists:reverse("&gt;", Acc));
+sanitize_html("&" ++ Tail, Acc) ->
+	sanitize_html(Tail, lists:reverse("&amp;", Acc));
+sanitize_html("/" ++ Tail, Acc) ->
+	sanitize_html(Tail, lists:reverse("&x2F;", Acc));
+sanitize_html("'" ++ Tail, Acc) ->
+	sanitize_html(Tail, lists:reverse("&x27;", Acc));
+sanitize_html([C|Tail], Acc) ->
+	sanitize_html(Tail, [C|Acc]).
+
 %% Multipart API.
 
 -spec part(Req)
