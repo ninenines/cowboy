@@ -1003,8 +1003,8 @@ terminate(Req, State=#state{env=Env}) ->
 
 error_terminate(Req, State=#state{handler=Handler, handler_state=HandlerState},
 		Class, Reason, Callback) ->
-	rest_terminate(Req, State),
 	Stacktrace = erlang:get_stacktrace(),
+	rest_terminate(Req, State),
 	cowboy_req:maybe_reply(Stacktrace, Req),
 	erlang:Class([
 		{reason, Reason},
