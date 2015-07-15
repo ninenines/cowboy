@@ -425,7 +425,7 @@ asctime_date(Data) ->
 							{error, badarg}
 					end);
 			(_Any, _WkDay) ->
-				{error, badarg1}
+				{error, badarg}
 		end).
 
 -spec asctime_year(binary(), tuple(), tuple()) -> any().
