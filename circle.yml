@@ -1,3 +1,7 @@
+general:
+  artifacts:
+    - "logs"
+
 dependencies:
   cache_directories:
     - "~/.kerl"
