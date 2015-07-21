@@ -16,7 +16,7 @@
 
 ERLANG_MK_FILENAME := $(realpath $(lastword $(MAKEFILE_LIST)))
 
-ERLANG_MK_VERSION = 1.2.0-631-g56cbd9e-dirty
+ERLANG_MK_VERSION = 1.2.0-632-g26ea355-dirty
 
 # Core configuration.
 
@@ -5365,7 +5365,9 @@ CI_OTP ?=
 ifeq ($(strip $(CI_OTP)),)
 ci::
 else
-ci:: $(KERL) $(addprefix ci-,$(CI_OTP))
+ci:: $(addprefix ci-,$(CI_OTP))
+
+ci-prepare: $(addprefix $(CI_INSTALL_DIR)/,$(CI_OTP))
 
 ci-setup::
 
@@ -5384,7 +5386,7 @@ endef
 $(foreach otp,$(CI_OTP),$(eval $(call ci_target,$(otp))))
 
 define ci_otp_target
-$(CI_INSTALL_DIR)/$(1):
+$(CI_INSTALL_DIR)/$(1): $(KERL)
 	$(KERL) build git $(OTP_GIT) $(1) $(1)
 	$(KERL) install $(1) $(CI_INSTALL_DIR)/$(1)
 endef
