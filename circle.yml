@@ -12,5 +12,5 @@ dependencies:
 
 test:
   override:
-    - make ci:
+    - make -k ci:
         timeout: 3600

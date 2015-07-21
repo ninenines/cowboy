@@ -5376,7 +5376,7 @@ ci_verbose = $(ci_verbose_$(V))
 
 define ci_target
 ci-$(1): $(CI_INSTALL_DIR)/$(1)
-	-$(ci_verbose) \
+	$(ci_verbose) \
 		PATH="$(CI_INSTALL_DIR)/$(1)/bin:$(PATH)" \
 		CI_OTP_RELEASE="$(1)" \
 		CT_OPTS="-label $(1)" \
