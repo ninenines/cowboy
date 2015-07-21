@@ -1,21 +1,28 @@
 # See LICENSE for licensing information.
 
 PROJECT = cowboy
+PROJECT_DESCRIPTION = Small, fast, modular HTTP server.
+PROJECT_VERSION = 2.0.0-pre.2
+PROJECT_REGISTERED = cowboy_clock
 
 # Options.
 
 COMPILE_FIRST = cowboy_middleware cowboy_stream cowboy_sub_protocol
+PLT_APPS = public_key ssl
 CT_OPTS += -ct_hooks cowboy_ct_hook [] # -boot start_sasl
-PLT_APPS = crypto public_key ssl
-CI_OTP = OTP-18.0-rc2 # OTP-17.1.2 OTP-17.2.2 OTP-17.3.4 OTP-17.4.1 OTP-17.5.3
+CI_OTP = OTP-18.0.2
 
 # Dependencies.
 
+OTP_DEPS = crypto
+
 DEPS = cowlib ranch
 dep_cowlib = git https://github.com/ninenines/cowlib master
+dep_ranch = git https://github.com/ninenines/ranch 1.1.0
 
 TEST_DEPS = ct_helper gun
-dep_ct_helper = git https://github.com/extend/ct_helper.git master
+dep_ct_helper = git https://github.com/extend/ct_helper master
+dep_gun = git https://github.com/ninenines/gun master
 
 # Standard targets.
 
@@ -35,7 +42,7 @@ ci::
 
 # Use erl_make_certs from the tested release.
 
-ci-setup::
+ci-setup:: clean deps test-deps
 	$(gen_verbose) cp ~/.kerl/builds/$(CI_OTP_RELEASE)/otp_src_git/lib/ssl/test/erl_make_certs.erl deps/ct_helper/src/
 
 # Documentation.
