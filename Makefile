@@ -35,11 +35,6 @@ TEST_ERLC_OPTS += +'{parse_transform, eunit_autoexport}'
 
 # DIALYZER_OPTS += --src -r test
 
-# Open logs after CI ends.
-
-ci::
-	$(gen_verbose) xdg-open logs/all_runs.html
-
 # Use erl_make_certs from the tested release.
 
 ci-setup:: clean deps test-deps
