@@ -86,17 +86,30 @@ init_dispatch() ->
 %% Tests.
 
 autobahn_fuzzingclient(Config) ->
-	Out = os:cmd("cd " ++ config(priv_dir, Config)
-		++ " && wstest -m fuzzingclient -s "
-		++ config(data_dir, Config) ++ "client.json"),
+	Self = self(),
+	spawn_link(fun() -> start_port(Config, Self) end),
+	receive autobahn_exit -> ok end,
 	Report = config(priv_dir, Config) ++ "reports/servers/index.html",
 	ct:log("<h2><a href=\"~s\">Full report</a></h2>~n", [Report]),
 	ct:print("Autobahn Test Suite report: file://~s~n", [Report]),
-	ct:log("~s~n", [Out]),
 	{ok, HTML} = file:read_file(Report),
 	case length(binary:matches(HTML, <<"case_failed">>)) > 2 of
 		true -> error(failed);
 		false -> ok
+	end.
+
+start_port(Config, Pid) ->
+	Port = open_port({spawn, "wstest -m fuzzingclient -s " ++ config(data_dir, Config) ++ "client.json"},
+		[{line, 10000}, {cd, config(priv_dir, Config)}, binary, eof]),
+	receive_infinity(Port, Pid).
+
+receive_infinity(Port, Pid) ->
+	receive
+		{Port, {data, {eol, Line}}} ->
+			io:format(user, "~s~n", [Line]),
+			receive_infinity(Port, Pid);
+		{Port, eof} ->
+			Pid ! autobahn_exit
 	end.
 
 %% We do not support hixie76 anymore.
