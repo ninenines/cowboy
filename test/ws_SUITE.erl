@@ -89,8 +89,8 @@ autobahn_fuzzingclient(Config) ->
 	Self = self(),
 	spawn_link(fun() -> start_port(Config, Self) end),
 	receive autobahn_exit -> ok end,
+	ct:log("<h2><a href=\"log_private/reports/servers/index.html\">Full report</a></h2>~n"),
 	Report = config(priv_dir, Config) ++ "reports/servers/index.html",
-	ct:log("<h2><a href=\"~s\">Full report</a></h2>~n", [Report]),
 	ct:print("Autobahn Test Suite report: file://~s~n", [Report]),
 	{ok, HTML} = file:read_file(Report),
 	case length(binary:matches(HTML, <<"case_failed">>)) > 2 of
