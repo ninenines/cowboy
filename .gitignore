@@ -1,11 +1,13 @@
 .cowboy.plt
-.erlang.mk.packages.*
+.erlang.mk
 _rel
 deps
 doc/man3
 doc/man7
 doc/markdown
-ebin
+ebin/*.beam
+ebin/test
+examples/*/ebin
 logs
 relx
 test/*.beam
