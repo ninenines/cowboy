@@ -285,7 +285,7 @@ check_constraints([Field|Tail], Bindings) ->
 					Bindings2 = lists:keyreplace(Name, 1, Bindings,
 						{Name, Value2}),
 					check_constraints(Tail, Bindings2);
-				false ->
+				{false, _} ->
 					nomatch
 			end
 	end.
