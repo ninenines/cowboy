@@ -1,0 +1,22 @@
+general:
+  artifacts:
+    - "logs"
+
+dependencies:
+  cache_directories:
+    - "~/.kerl"
+    - "~/erlang"
+
+  pre:
+    - sudo pip install autobahntestsuite
+    - sudo apt-get install autoconf2.59
+    - cd $HOME/bin && ln -s /usr/bin/autoconf2.59 autoconf
+    - cd $HOME/bin && ln -s /usr/bin/autoheader2.59 autoheader
+    - make ci-prepare:
+        timeout: 18000
+
+test:
+  override:
+    - source $HOME/erlang/OTP-18.0.2/activate && make dialyze
+    - make -k ci:
+        timeout: 3600
