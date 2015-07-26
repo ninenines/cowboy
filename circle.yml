@@ -13,7 +13,7 @@ dependencies:
     - cd $HOME/bin && ln -s /usr/bin/autoconf2.59 autoconf
     - cd $HOME/bin && ln -s /usr/bin/autoheader2.59 autoheader
     - make ci-prepare:
-        timeout: 18000
+        timeout: 7200
 
 test:
   override:

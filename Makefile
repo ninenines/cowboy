@@ -9,7 +9,7 @@ ERLC_OPTS ?= -Werror +debug_info +warn_export_all +warn_export_vars \
 COMPILE_FIRST = cowboy_middleware cowboy_sub_protocol
 CT_OPTS += -pa test -ct_hooks cowboy_ct_hook []
 PLT_APPS = crypto public_key ssl
-CI_OTP = OTP_R16B01 OTP_R16B02 OTP_R16B03-1 OTP-17.0.2 OTP-17.1.2 # OTP-17.2.2 OTP-17.3.4 OTP-17.4.1 OTP-17.5.6.2 OTP-18.0.2
+CI_OTP = OTP_R16B01 OTP_R16B02 OTP_R16B03-1 OTP-17.0.2 OTP-17.1.2 OTP-17.2.2 OTP-17.3.4 OTP-17.4.1 OTP-17.5.6.2 OTP-18.0.2
 
 # Dependencies.
 
