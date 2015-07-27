@@ -290,6 +290,10 @@ the same format as the etag header, including quotes.
 * Value type: true | {false, AuthHeader}
 * Default value: true
 
+Types:
+
+* AuthHead = iodata()
+
 Return whether the user is authorized to perform the action.
 
 This function should be used to perform any necessary
@@ -380,6 +384,10 @@ the request body, which is processed later.
 * Value type: {true, URL} | false
 * Default value: false
 
+Types:
+
+* URL = iodata()
+
 Return whether the resource was permanently moved.
 
 If it was, its new URL is also returned and sent in the
@@ -390,6 +398,10 @@ location header in the response.
 * Methods: GET, HEAD, POST, PATCH, DELETE
 * Value type: {true, URL} | false
 * Default value: false
+
+Types:
+
+* URL = iodata()
 
 Return whether the resource was temporarily moved.
 

@@ -45,7 +45,9 @@
 	| {reply, cow_ws:frame() | [cow_ws:frame()], Req, State, hibernate}
 	| {stop, Req, State}
 	when Req::cowboy_req:req(), State::any().
-%% @todo optional -callback terminate(terminate_reason(), cowboy_req:req(), state()) -> ok.
+
+-callback terminate(any(), cowboy_req:req(), any()) -> ok.
+-optional_callbacks([terminate/3]).
 
 -record(state, {
 	env :: cowboy_middleware:env(),

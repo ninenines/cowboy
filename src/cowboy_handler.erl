@@ -29,7 +29,9 @@
 	| {module(), Req, any(), timeout()}
 	| {module(), Req, any(), timeout(), hibernate}
 	when Req::cowboy_req:req().
-%% @todo optional -callback terminate(terminate_reason(), cowboy_req:req(), state()) -> ok.
+
+-callback terminate(any(), cowboy_req:req(), any()) -> ok.
+-optional_callbacks([terminate/3]).
 
 -spec execute(Req, Env) -> {ok, Req, Env}
 	when Req::cowboy_req:req(), Env::cowboy_middleware:env().
