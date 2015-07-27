@@ -18,6 +18,4 @@ info({message, Msg}, Req, State) ->
 	{ok, Req, State}.
 
 id() ->
-	{Mega, Sec, Micro} = erlang:now(),
-	Id = (Mega * 1000000 + Sec) * 1000000 + Micro,
-	integer_to_list(Id, 16).
+	integer_to_list(erlang:unique_integer([positive, monotonic]), 16).
