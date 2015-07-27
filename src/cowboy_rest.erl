@@ -972,6 +972,7 @@ next(Req, State, StatusCode) when is_integer(StatusCode) ->
 respond(Req, State, StatusCode) ->
 	terminate(cowboy_req:reply(StatusCode, Req), State).
 
+-spec error_terminate(cowboy_req:req(), #state{}, atom(), any(), atom()) -> no_return().
 error_terminate(Req, #state{handler=Handler, handler_state=HandlerState},
 		Class, Reason, Callback) ->
 	Stacktrace = erlang:get_stacktrace(),
