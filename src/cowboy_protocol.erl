@@ -110,8 +110,7 @@ init(Ref, Socket, Transport, Opts) ->
 until(infinity) ->
 	infinity;
 until(Timeout) ->
-	{Me, S, Mi} = os:timestamp(),
-	Me * 1000000000 + S * 1000 + Mi div 1000 + Timeout.
+	erlang:monotonic_time(milli_seconds) + Timeout.
 
 %% Request parsing.
 %%
@@ -125,9 +124,7 @@ until(Timeout) ->
 recv(Socket, Transport, infinity) ->
 	Transport:recv(Socket, 0, infinity);
 recv(Socket, Transport, Until) ->
-	{Me, S, Mi} = os:timestamp(),
-	Now = Me * 1000000000 + S * 1000 + Mi div 1000,
-	Timeout = Until - Now,
+	Timeout = Until - erlang:monotonic_time(milli_seconds),
 	if	Timeout < 0 ->
 			{error, timeout};
 		true ->
