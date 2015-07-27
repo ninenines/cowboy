@@ -37,7 +37,8 @@ email to contact@ninenines.eu for more information.
 You *SHOULD* open a ticket for every bug you encounter, regardless
 of the version you use. A ticket not only helps the project ensure
 that bugs are squashed, it also helps other users who later run
-into this issue.
+into this issue. You *SHOULD* give as much information as possible
+including what commit/branch, what OS/version and so on.
 
 You *SHOULD NOT* open a ticket if another already exists for the
 same issue. You *SHOULD* instead either add more information by
