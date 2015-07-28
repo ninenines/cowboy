@@ -820,7 +820,9 @@ reply(Status, Headers, Body, Req=#http_req{
 		resp_state=RespState, resp_headers=RespHeaders})
 		when RespState =:= waiting; RespState =:= waiting_stream ->
 	HTTP11Headers = if
-		Transport =/= cowboy_spdy, Version =:= 'HTTP/1.1' ->
+		Transport =/= cowboy_spdy, Version =:= 'HTTP/1.0', Connection =:= keepalive ->
+			[{<<"connection">>, atom_to_connection(Connection)}];
+		Transport =/= cowboy_spdy, Version =:= 'HTTP/1.1', Connection =:= close ->
 			[{<<"connection">>, atom_to_connection(Connection)}];
 		true ->
 			[]
@@ -1134,13 +1136,20 @@ chunked_response(Status, Headers, Req=#http_req{
 		when RespState =:= waiting; RespState =:= waiting_stream ->
 	RespConn = response_connection(Headers, Connection),
 	HTTP11Headers = if
+		Version =:= 'HTTP/1.0', Connection =:= keepalive ->
+			[{<<"connection">>, atom_to_connection(Connection)}];
 		Version =:= 'HTTP/1.0' -> [];
 		true ->
 			MaybeTE = if
 				RespState =:= waiting_stream -> [];
 				true -> [{<<"transfer-encoding">>, <<"chunked">>}]
 			end,
-			[{<<"connection">>, atom_to_connection(Connection)}|MaybeTE]
+			if
+				Connection =:= close ->
+					[{<<"connection">>, atom_to_connection(Connection)}|MaybeTE];
+				true ->
+					MaybeTE
+			end
 	end,
 	RespState2 = if
 		Version =:= 'HTTP/1.1', RespState =:= 'waiting' -> chunks;
