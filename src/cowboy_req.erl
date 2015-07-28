@@ -685,8 +685,10 @@ reply(Status, Headers, Body, Req=#http_req{
 		method=Method, resp_compress=Compress,
 		resp_state=RespState, resp_headers=RespHeaders})
 		when RespState =:= waiting; RespState =:= waiting_stream ->
-	HTTP11Headers = if
-		Transport =/= cowboy_spdy, Version =:= 'HTTP/1.1' ->
+	StdHeaders = if
+		Transport =/= cowboy_spdy, Version =:= 'HTTP/1.0', Connection =:= keepalive ->
+			[{<<"connection">>, atom_to_connection(Connection)}];
+		Transport =/= cowboy_spdy, Version =:= 'HTTP/1.1', Connection =:= close ->
 			[{<<"connection">>, atom_to_connection(Connection)}];
 		true ->
 			[]
@@ -736,7 +738,7 @@ reply(Status, Headers, Body, Req=#http_req{
 					{<<"content-length">>, integer_to_list(ContentLength)},
 					{<<"date">>, cowboy_clock:rfc1123()},
 					{<<"server">>, <<"Cowboy">>}
-				|HTTP11Headers], stream, Req),
+				|StdHeaders], stream, Req),
 			if	RespType =/= hook, Method =/= <<"HEAD">> ->
 					BodyFun(Socket, Transport);
 				true -> ok
@@ -745,18 +747,18 @@ reply(Status, Headers, Body, Req=#http_req{
 		_ when Compress ->
 			RespConn = response_connection(Headers, Connection),
 			Req2 = reply_may_compress(Status, Headers, Body, Req,
-				RespHeaders, HTTP11Headers, Method),
+				RespHeaders, StdHeaders, Method),
 			Req2#http_req{connection=RespConn};
 		_ ->
 			RespConn = response_connection(Headers, Connection),
 			Req2 = reply_no_compress(Status, Headers, Body, Req,
-				RespHeaders, HTTP11Headers, Method, iolist_size(Body)),
+				RespHeaders, StdHeaders, Method, iolist_size(Body)),
 			Req2#http_req{connection=RespConn}
 	end,
 	Req3#http_req{resp_state=done, resp_headers=[], resp_body= <<>>}.
 
 reply_may_compress(Status, Headers, Body, Req,
-		RespHeaders, HTTP11Headers, Method) ->
+		RespHeaders, StdHeaders, Method) ->
 	BodySize = iolist_size(Body),
 	try parse_header(<<"accept-encoding">>, Req) of
 		Encodings ->
@@ -779,26 +781,26 @@ reply_may_compress(Status, Headers, Body, Req,
 							{<<"content-encoding">>, <<"gzip">>},
 							{<<"date">>, cowboy_clock:rfc1123()},
 							{<<"server">>, <<"Cowboy">>}
-						|HTTP11Headers],
+						|StdHeaders],
 						case Method of <<"HEAD">> -> <<>>; _ -> GzBody end,
 						Req),
 					Req2;
 				false ->
 					reply_no_compress(Status, Headers, Body, Req,
-						RespHeaders, HTTP11Headers, Method, BodySize)
+						RespHeaders, StdHeaders, Method, BodySize)
 			end
 	catch _:_ ->
 		reply_no_compress(Status, Headers, Body, Req,
-			RespHeaders, HTTP11Headers, Method, BodySize)
+			RespHeaders, StdHeaders, Method, BodySize)
 	end.
 
 reply_no_compress(Status, Headers, Body, Req,
-		RespHeaders, HTTP11Headers, Method, BodySize) ->
+		RespHeaders, StdHeaders, Method, BodySize) ->
 	{_, Req2} = response(Status, Headers, RespHeaders, [
 			{<<"content-length">>, integer_to_list(BodySize)},
 			{<<"date">>, cowboy_clock:rfc1123()},
 			{<<"server">>, <<"Cowboy">>}
-		|HTTP11Headers],
+		|StdHeaders],
 		case Method of <<"HEAD">> -> <<>>; _ -> Body end,
 		Req),
 	Req2.
@@ -987,14 +989,21 @@ chunked_response(Status, Headers, Req=#http_req{
 		resp_state=RespState, resp_headers=RespHeaders})
 		when RespState =:= waiting; RespState =:= waiting_stream ->
 	RespConn = response_connection(Headers, Connection),
-	HTTP11Headers = if
+	StdHeaders = if
+		Version =:= 'HTTP/1.0', Connection =:= keepalive ->
+			[{<<"connection">>, atom_to_connection(Connection)}];
 		Version =:= 'HTTP/1.0' -> [];
 		true ->
 			MaybeTE = if
 				RespState =:= waiting_stream -> [];
 				true -> [{<<"transfer-encoding">>, <<"chunked">>}]
 			end,
-			[{<<"connection">>, atom_to_connection(Connection)}|MaybeTE]
+			if
+				Connection =:= close ->
+					[{<<"connection">>, atom_to_connection(Connection)}|MaybeTE];
+				true ->
+					MaybeTE
+			end
 	end,
 	RespState2 = if
 		Version =:= 'HTTP/1.1', RespState =:= 'waiting' -> chunks;
@@ -1003,7 +1012,7 @@ chunked_response(Status, Headers, Req=#http_req{
 	{RespType, Req2} = response(Status, Headers, RespHeaders, [
 		{<<"date">>, cowboy_clock:rfc1123()},
 		{<<"server">>, <<"Cowboy">>}
-	|HTTP11Headers], <<>>, Req),
+	|StdHeaders], <<>>, Req),
 	{RespType, Req2#http_req{connection=RespConn, resp_state=RespState2,
 			resp_headers=[], resp_body= <<>>}}.
 
