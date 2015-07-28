@@ -379,7 +379,10 @@ http10_keepalive_default(Config) ->
 	ok = raw_send(Client, Normal),
 	case catch raw_recv_head(Client) of
 		{'EXIT', _} -> error(closed);
-		_ -> ok
+		Data ->
+			{'HTTP/1.0', 200, _, Rest} = cow_http:parse_status_line(Data),
+			{Headers, _} = cow_http:parse_headers(Rest),
+			false = lists:keymember(<<"connection">>, 1, Headers)
 	end,
 	ok = raw_send(Client, Normal),
 	case catch raw_recv_head(Client) of
@@ -393,7 +396,10 @@ http10_keepalive_forced(Config) ->
 	ok = raw_send(Client, Keepalive),
 	case catch raw_recv_head(Client) of
 		{'EXIT', _} -> error(closed);
-		_ -> ok
+		Data ->
+			{'HTTP/1.0', 200, _, Rest} = cow_http:parse_status_line(Data),
+			{Headers, _} = cow_http:parse_headers(Rest),
+			{_, <<"keep-alive">>} = lists:keyfind(<<"connection">>, 1, Headers)
 	end,
 	ok = raw_send(Client, Keepalive),
 	case catch raw_recv_head(Client) of
@@ -408,7 +414,7 @@ keepalive_max(Config) ->
 	CloseRef = gun:get(ConnPid, "/", [{<<"connection">>, <<"keep-alive">>}]),
 	_ = [begin
 		{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
-		{_, <<"keep-alive">>} = lists:keyfind(<<"connection">>, 1, Headers)
+		false = lists:keymember(<<"connection">>, 1, Headers)
 	end || Ref <- Refs],
 	{response, nofin, 200, Headers} = gun:await(ConnPid, CloseRef),
 	{_, <<"close">>} = lists:keyfind(<<"connection">>, 1, Headers),
@@ -423,7 +429,7 @@ keepalive_nl(Config) ->
 	end || _ <- lists:seq(1, 10)],
 	_ = [begin
 		{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
-		{_, <<"keep-alive">>} = lists:keyfind(<<"connection">>, 1, Headers)
+		false = lists:keymember(<<"connection">>, 1, Headers)
 	end || Ref <- Refs],
 	ok.
 
@@ -648,7 +654,7 @@ rest_keepalive(Config) ->
 	Refs = [gun:get(ConnPid, "/simple") || _ <- lists:seq(1, 10)],
 	_ = [begin
 		{response, nofin, 200, Headers} =  gun:await(ConnPid, Ref),
-		{_, <<"keep-alive">>} = lists:keyfind(<<"connection">>, 1, Headers)
+		false = lists:keymember(<<"connection">>, 1, Headers)
 	end || Ref <- Refs],
 	ok.
 
@@ -663,9 +669,9 @@ rest_keepalive_post(Config) ->
 	end || _ <- lists:seq(1, 5)],
 	_ = [begin
 		{response, fin, 403, Headers1} = gun:await(ConnPid, Ref1),
-		{_, <<"keep-alive">>} = lists:keyfind(<<"connection">>, 1, Headers1),
+		false = lists:keymember(<<"connection">>, 1, Headers1),
 		{response, fin, 303, Headers2} = gun:await(ConnPid, Ref2),
-		{_, <<"keep-alive">>} = lists:keyfind(<<"connection">>, 1, Headers2)
+		false = lists:keymember(<<"connection">>, 1, Headers2)
 	end || {Ref1, Ref2} <- Refs],
 	ok.
 
