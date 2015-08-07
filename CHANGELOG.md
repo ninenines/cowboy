@@ -1,6 +1,30 @@
 CHANGELOG
 =========
 
+1.0.3
+-----
+
+ *  Add CircleCI for automated testing across all supported Erlang versions
+
+ *  Only send the Connection header when necessary
+
+ *  Send Connection: keep-alive when HTTP/1.0 connections are kept open
+
+ *  Fix a typo in a return value of cowboy_http:asctime_date
+
+ *  Fix Dialyzer warnings in cowboy_clock
+
+1.0.2
+-----
+
+ *  Fix cowboy_clock inbox overflow when system clock changes (but see 1.0.3)
+
+ *  Fix stacktrace shown on REST handler crashes
+
+ *  Reply with 400 on if-match and if-not-match parsing crash
+
+ *  Improve static_world example by adding index.html file
+
 1.0.1
 -----
 
