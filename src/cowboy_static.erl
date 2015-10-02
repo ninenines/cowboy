@@ -273,9 +273,13 @@ last_modified(Req, State={_, {ok, #file_info{mtime=Modified}}, _}) ->
 -spec get_file(Req, State)
 	-> {{stream, non_neg_integer(), fun()}, Req, State}
 	when State::state().
-get_file(Req, State={Path, {ok, #file_info{size=Size}}, _}) ->
+get_file(Req, State={Path, {ok, #file_info{size=Size}}, Extra}) ->
 	Sendfile = fun (Socket, Transport) ->
-		case Transport:sendfile(Socket, Path) of
+		Res = case lists:keyfind(sendfile, 1, Extra) of
+			{sendfile, false} -> ranch_transport:sendfile(Transport, Socket, Path, 0, 0, []);
+			_ -> Transport:sendfile(Socket, Path)
+		end,
+		case Res of
 			{ok, _} -> ok;
 			{error, closed} -> ok;
 			{error, etimedout} -> ok

@@ -24,9 +24,11 @@ and how the mimetype of files should be detected. They are defined
 as follow, but do note that these types are not exported, only the
 `opts/0` type is public.
 
-: extra() = [extra_etag() | extra_mimetypes()]
+: extra() = [extra_etag() | extra_mimetypes() | extra_sendfile()]
 
 : extra_etag() = {etag, module(), function()} | {etag, false}
 
 : extra_mimetypes() = {mimetypes, module(), function()}
 	| {mimetypes, binary() | {binary(), binary(), [{binary(), binary()}]}}
+
+: extra_sendfile() = {sendfile, false}

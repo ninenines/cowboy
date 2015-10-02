@@ -166,3 +166,17 @@ You can also completely disable etag handling.
 {"/assets/[...]", cowboy_static, {priv_dir, my_app, "static/assets",
     [{etag, false}]}}
 ```
+
+:: Sendfile
+
+If you are running Cowboy in a VirtualBox, you may find that
+after making changes to static files the old version seems
+to be cached.
+
+If this is the case, it may be sendfile() that is causing the
+problem.
+
+``` erlang
+{"/assets/[...]", cowboy_static, {priv_dir, my_app, "static/assets",
+    [{sendfile, false}]}}
+```
