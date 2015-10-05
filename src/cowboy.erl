@@ -46,8 +46,12 @@
 	cowboy_protocol:opts()) -> {ok, pid()} | {error, any()}.
 start_http(Ref, NbAcceptors, TransOpts, ProtoOpts) ->
 	start_http(Ref, NbAcceptors, TransOpts, ProtoOpts, ranch_tcp, cowboy_protocol).
+-spec start_http(ranch:ref(), non_neg_integer(), ranch_tcp:opts(),
+		cowboy_protocol:opts(), atom()) -> {ok, pid()} | {error, any()}.
 start_http(Ref, NbAcceptors, TransOpts, ProtoOpts, Transport) ->
   start_http(Ref, NbAcceptors, TransOpts, ProtoOpts, Transport, cowboy_protocol).
+-spec start_http(ranch:ref(), non_neg_integer(), ranch_tcp:opts(),
+		cowboy_protocol:opts(), atom(), atom()) -> {ok, pid()} | {error, any()}.
 start_http(Ref, NbAcceptors, TransOpts, ProtoOpts, Transport, Protocol)
   when is_integer(NbAcceptors), NbAcceptors > 0 ->
   ranch:start_listener(Ref, NbAcceptors,
