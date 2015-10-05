@@ -14,7 +14,7 @@
 
 -module(cowboy).
 
--export([start_http/4]).
+-export([start_http/4, start_http/5, start_http/6]).
 -export([start_https/4]).
 -export([start_spdy/4]).
 -export([start_tls/4]).
@@ -44,10 +44,18 @@
 
 -spec start_http(ranch:ref(), non_neg_integer(), ranch_tcp:opts(),
 	cowboy_protocol:opts()) -> {ok, pid()} | {error, any()}.
-start_http(Ref, NbAcceptors, TransOpts, ProtoOpts)
-		when is_integer(NbAcceptors), NbAcceptors > 0 ->
-	ranch:start_listener(Ref, NbAcceptors,
-		ranch_tcp, TransOpts, cowboy_protocol, ProtoOpts).
+start_http(Ref, NbAcceptors, TransOpts, ProtoOpts) ->
+	start_http(Ref, NbAcceptors, TransOpts, ProtoOpts, ranch_tcp, cowboy_protocol).
+-spec start_http(ranch:ref(), non_neg_integer(), ranch_tcp:opts(),
+		cowboy_protocol:opts(), atom()) -> {ok, pid()} | {error, any()}.
+start_http(Ref, NbAcceptors, TransOpts, ProtoOpts, Transport) ->
+  start_http(Ref, NbAcceptors, TransOpts, ProtoOpts, Transport, cowboy_protocol).
+-spec start_http(ranch:ref(), non_neg_integer(), ranch_tcp:opts(),
+		cowboy_protocol:opts(), atom(), atom()) -> {ok, pid()} | {error, any()}.
+start_http(Ref, NbAcceptors, TransOpts, ProtoOpts, Transport, Protocol)
+  when is_integer(NbAcceptors), NbAcceptors > 0 ->
+  ranch:start_listener(Ref, NbAcceptors,
+    Transport, TransOpts, Protocol, ProtoOpts).
 
 -spec start_https(ranch:ref(), non_neg_integer(), ranch_ssl:opts(),
 	cowboy_protocol:opts()) -> {ok, pid()} | {error, any()}.
