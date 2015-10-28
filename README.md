@@ -25,7 +25,7 @@ The project is currently sponsored by
 [Kato.im](https://kato.im).
 
 The SPDY implementation was sponsored by
-[LeoFS Cloud Storage](http://www.leofs.org).
+[LeoFS Cloud Storage](http://leo-project.net/leofs/).
 
 Online documentation
 --------------------
