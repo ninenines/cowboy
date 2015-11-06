@@ -415,7 +415,7 @@ handler_terminate(#state{env=Env, handler=Handler},
 	
 	
 %% @private
-get_real_socket({proxy_socket, _, Socket, _, _, _, _, _, _}) -> Socket.
-get_real_socket(Socket) -> Socket;
+get_real_socket({proxy_socket, _, Socket, _, _, _, _, _, _}) -> Socket;
+get_real_socket(Socket) -> Socket.
 
 
