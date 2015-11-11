@@ -145,6 +145,7 @@ wait_request(Buffer, State = #state{socket = Socket, transport = Transport,
 %% Empty lines must be using \r\n.
 parse_request(<<"PROXY ", Data/binary>>,
     State = #state{socket = Socket, transport = Transport, until = Until}, ReqEmpty) ->
+  error_logger:info_msg("Data ~p", [Data]),
   {Proxy, Other} = case binary:split(Data, [<<"\r\n">>]) of
                      [P, O] -> {P, O};
                      [P] -> {P, <<>>}
