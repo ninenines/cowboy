@@ -152,9 +152,13 @@ parse_request(<<"PROXY ", Data/binary>>,
                    end,
   case parse_proxy_protocol(Proxy) of
     unknown_peer when Other =:= <<>> ->
-      {ok, NewData} = recv(Socket, Transport, Until),
-      parse_request(NewData, State, ReqEmpty),
-      {ok, State};
+      case recv(Socket, Transport, Until) of
+        {ok, NewData} ->
+          parse_request(NewData, State, ReqEmpty),
+          {ok, State};
+        {error, _} ->
+          error_terminate(400, State)
+      end;
     unknown_peer ->
       parse_request(Other, State, ReqEmpty),
       {ok, State};
@@ -163,8 +167,13 @@ parse_request(<<"PROXY ", Data/binary>>,
       throw(not_proxy_protocol);
     ProxyInfo when Other =:= <<>> ->
       put(proxy, ProxyInfo),
-      {ok, NewData} = recv(Socket, Transport, Until),
-      parse_request(NewData, State, ReqEmpty);
+      case recv(Socket, Transport, Until) of
+        {ok, NewData} ->
+          parse_request(NewData, State, ReqEmpty),
+          {ok, State};
+        {error, _} ->
+          error_terminate(400, State)
+      end;
     ProxyInfo ->
       put(proxy, ProxyInfo),
       parse_request(Other, State, ReqEmpty)
