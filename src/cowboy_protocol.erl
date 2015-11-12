@@ -145,7 +145,6 @@ wait_request(Buffer, State = #state{socket = Socket, transport = Transport,
 %% Empty lines must be using \r\n.
 parse_request(<<"PROXY ", Data/binary>>,
     State = #state{socket = Socket, transport = Transport, until = Until}, ReqEmpty) ->
-  error_logger:info_msg("Data ~p", [Data]),
   {Proxy, Other} = case binary:split(Data, [<<"\r\n">>]) of
                      [P, O] -> {P, O};
                      [P] -> {P, <<>>}
@@ -157,7 +156,7 @@ parse_request(<<"PROXY ", Data/binary>>,
           parse_request(NewData, State, ReqEmpty),
           {ok, State};
         {error, _} ->
-          error_terminate(400, State)
+          terminate(State)
       end;
     unknown_peer ->
       parse_request(Other, State, ReqEmpty),
@@ -172,7 +171,7 @@ parse_request(<<"PROXY ", Data/binary>>,
           parse_request(NewData, State, ReqEmpty),
           {ok, State};
         {error, _} ->
-          error_terminate(400, State)
+          terminate(State)
       end;
     ProxyInfo ->
       put(proxy, ProxyInfo),
