@@ -48,10 +48,17 @@ new ticket when they are opened. If the maintainer didn't say
 anything after a few days, you *SHOULD* write a new comment asking
 for more information.
 
+You *SHOULD* provide a reproducible test case, either in the
+ticket or by sending a pull request and updating the test suite.
+
 When you have a fix ready, you *SHOULD* open a pull request,
 even if the code does not fit the requirements discussed below.
 Providing a fix, even a dirty one, can help other users and/or
 at least get the maintainer on the right tracks.
+
+You *SHOULD* try to relax and be patient. Some tickets are merged
+or fixed quickly, others aren't. There's no real rules around that.
+You can become a paying customer if you need something fast.
 
 == Security reports
 
