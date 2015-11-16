@@ -1,6 +1,7 @@
 .cowboy.plt
 .erlang.mk
 _rel
+cowboy.d
 deps
 doc/man3
 doc/man7

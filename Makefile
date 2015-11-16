@@ -14,7 +14,7 @@ CI_OTP = OTP-18.0.3 OTP-18.1
 
 # Dependencies.
 
-OTP_DEPS = crypto
+LOCAL_DEPS = crypto
 
 DEPS = cowlib ranch
 dep_cowlib = git https://github.com/ninenines/cowlib master
@@ -28,8 +28,14 @@ dep_gun = git https://github.com/ninenines/gun master
 
 include erlang.mk
 
+# Compile options.
+
 ERLC_OPTS += +warn_export_all +warn_missing_spec +warn_untyped_record
 TEST_ERLC_OPTS += +'{parse_transform, eunit_autoexport}'
+
+# Generate rebar.config on build.
+
+app:: rebar.config
 
 # Also dialyze the tests.
 
