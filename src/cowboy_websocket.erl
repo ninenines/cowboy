@@ -570,7 +570,7 @@ websocket_dispatch(State, Req, HandlerState, _RemainingData, 8,
 %% Ping control frame. Send a pong back and forward the ping to the handler.
 websocket_dispatch(State=#state{socket=Socket, transport=Transport},
 		Req, HandlerState, RemainingData, 9, Payload) ->
-	Len = payload_length_to_binary(byte_size(Payload)),
+	Len = payload_length_to_binary(iolist_size(Payload)),
 	Transport:send(Socket, << 1:1, 0:3, 10:4, 0:1, Len/bits, Payload/binary >>),
 	handler_call(State, Req, HandlerState, RemainingData,
 		websocket_handle, {ping, Payload}, fun websocket_data/4);
