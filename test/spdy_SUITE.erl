@@ -136,6 +136,15 @@ two_frames_one_packet(Config) ->
 	{data, 3, true, _} = cow_spdy:parse(Frame4, Zinf),
 	ok.
 
+negotiate_http(Config) ->
+	{raw_client, Socket, Transport} = Client = raw_open([
+		{opts, [{client_preferred_next_protocols,
+			{client, [<<"http/1.1">>], <<"http/1.1">>}}]}
+		|Config]),
+	ok = raw_send(Client, <<"GET / HTTP/1.1\r\nHost: localhost\r\n\r\n">>),
+	{ok, <<"HTTP/1.1 200 OK\r\n", _/binary>>} = Transport:recv(Socket, 0, 5000),
+	ok.
+
 spdy_recv(Socket, Transport, Acc) ->
 	{ok, Data} = Transport:recv(Socket, 0, 5000),
 	Data2 = << Acc/binary, Data/bits >>,
