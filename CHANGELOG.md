@@ -1,6 +1,11 @@
 CHANGELOG
 =========
 
+1.0.4
+-----
+
+ *  Fix a crash when using iolist() as payload for some Websocket frames
+
 1.0.3
 -----
 
