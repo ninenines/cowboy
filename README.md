@@ -22,7 +22,7 @@ Sponsors
 --------
 
 The project is currently sponsored by
-[Kato.im](https://kato.im).
+[Sameroom](https://sameroom.io).
 
 The SPDY implementation was sponsored by
 [LeoFS Cloud Storage](http://leo-project.net/leofs/).
