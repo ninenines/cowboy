@@ -7,4 +7,8 @@
 
 init(Req, content_length) ->
 	ct_helper_error_h:ignore(erlang, binary_to_integer, 1),
-	cowboy_req:parse_header(<<"content-length">>, Req).
+	cowboy_req:parse_header(<<"content-length">>, Req);
+
+init(Req, bad_constraint) ->
+	QueriesSpec = [{param, [int]}],
+	cowboy_req:match_qs(QueriesSpec, Req).
