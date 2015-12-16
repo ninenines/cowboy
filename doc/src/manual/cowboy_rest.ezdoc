@@ -153,7 +153,7 @@ what the method is with `cowboy_req:method/1` and return a
 different list for each methods.
 
 The `AcceptResource` value is the name of the callback that will
-be called if the content-type matches. It is defined as follow.
+be called if the content-type matches. It is defined as follows.
 
 * Value type: true | {true, URL} | false
 * No default

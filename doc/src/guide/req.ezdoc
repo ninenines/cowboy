@@ -188,7 +188,7 @@ BaseURL = cowboy_req:host_url(Req).
 
 :: Headers
 
-Cowboy allows you to obtain the header values as string,
+Cowboy allows you to obtain the header values as a string,
 or parsed into a more meaningful representation.
 
 This will get the string value of a header.

@@ -7,7 +7,7 @@ It is meant to be usable as a step by step guide.
 :: The service
 
 Can the service become unavailable, and when it does, can
-we detect it? For example database connectivity problems
+we detect it? For example, database connectivity problems
 may be detected early. We may also have planned outages
 of all or parts of the system. Implement the
 `service_available` callback.
@@ -30,7 +30,7 @@ the same handler.
 
 Skip this section if you are not doing a collection.
 
-Is the collection hardcoded or dynamic? For example
+Is the collection hardcoded or dynamic? For example,
 if you use the route `/users` for the collection of
 users then the collection is hardcoded; if you use
 `/forums/:category` for the collection of threads
@@ -121,8 +121,8 @@ Can access to a resource be forbidden regardless of access
 being authorized? A simple example of that is censorship
 of a resource. Implement the `forbidden` callback.
 
-Is there any constraints on the length of the resource URI?
-For example the URI may be used as a key in storage and may
+Are there any constraints on the length of the resource URI?
+For example, the URI may be used as a key in storage and may
 have a limit in length. Implement `uri_too_long`.
 
 :: Representations
@@ -131,7 +131,7 @@ What media types do I provide? If text based, what charsets
 are provided? What languages do I provide?
 
 Implement the mandatory `content_types_provided`. Prefix
-the callbacks with `to_` for clarity. For example `to_html`
+the callbacks with `to_` for clarity. For example, `to_html`
 or `to_text`.
 
 Implement the `languages_provided` or `charsets_provided`
@@ -152,7 +152,7 @@ the `multiple_choices` callback.
 :: Redirections
 
 Do I need to keep track of what resources were deleted?
-For example you may have a mechanism where moving a
+For example, you may have a mechanism where moving a
 resource leaves a redirect link to its new location.
 Implement the `previously_existed` callback.
 
@@ -195,7 +195,7 @@ If you implement the methods PUT, POST and/or PATCH,
 you must implement the `content_types_accepted` callback,
 and one `AcceptResource` callback for each content-type
 it returns. Prefix the `AcceptResource` callback names
-with `from_` for clarity. For example `from_html` or
+with `from_` for clarity. For example, `from_html` or
 `from_json`.
 
 Do we want to allow the POST method to create individual
