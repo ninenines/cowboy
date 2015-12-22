@@ -36,13 +36,14 @@ all() ->
 		{group, onresponse},
 		{group, onresponse_capitalize},
 		{group, parse_host},
-		{group, set_env}
+		{group, set_env},
+		{group, router_compile}
 	].
 
 groups() ->
 	Tests = ct_helper:all(?MODULE) -- [
 		onresponse_crash, onresponse_reply, onresponse_capitalize,
-		parse_host, set_env_dispatch
+		parse_host, set_env_dispatch, path_allow_colon
 	],
 	[
 		{http, [parallel], Tests},
@@ -61,6 +62,9 @@ groups() ->
 		]},
 		{set_env, [], [
 			set_env_dispatch
+		]},
+		{router_compile, [], [
+			path_allow_colon
 		]}
 	].
 
@@ -121,8 +125,12 @@ init_per_group(set_env, Config) ->
 		{env, [{dispatch, []}]}
 	]),
 	Port = ranch:get_port(set_env),
-	[{type, tcp}, {port, Port}, {opts, []}|Config].
+	[{type, tcp}, {port, Port}, {opts, []}|Config];
+init_per_group(router_compile, Config) ->
+	Config.
 
+end_per_group(router_compile, _) ->
+	ok;
 end_per_group(Name, _) ->
 	ok = cowboy:stop_listener(Name).
 
@@ -777,6 +785,10 @@ set_env_dispatch(Config) ->
 	ConnPid2 = gun_open(Config),
 	Ref2 = gun:get(ConnPid2, "/"),
 	{response, nofin, 200, _} = gun:await(ConnPid2, Ref2),
+	ok.
+
+path_allow_colon(_Config) ->
+	cowboy_router:compile([{'_', [{"/foo/bar:blah", http_handler, []}]}]),
 	ok.
 
 set_resp_body(Config) ->
