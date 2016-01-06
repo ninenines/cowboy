@@ -2,7 +2,7 @@ Cowboy examples
 ===============
 
  *  [chunked_hello_world](./chunked_hello_world):
-    demonstrates chunked data transfer with two one-second delays
+    demonstrate chunked data transfer with two one-second delays
 
  *  [compress_response](./compress_response)
     send a response body compressed if the client supports it
@@ -50,7 +50,7 @@ Cowboy examples
     multipart/form-data upload
 
  *  [web_server](./web_server):
-    serves files with lists directory entries
+    serve files with lists directory entries
 
  *  [websocket](./websocket):
     websocket example
@@ -59,3 +59,4 @@ Other languages
 ---------------
 
  *  [elixir](https://github.com/joshrotenberg/elixir_cowboy_examples)
+ *  [lfe](https://github.com/quasiquoting/lfe-cowboy-examples)
