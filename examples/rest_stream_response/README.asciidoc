@@ -1,35 +1,26 @@
-REST streaming example
-======================
+= REST streaming example
 
 To try this example, you need GNU `make` and `git` in your PATH.
 
-To build the example, run the following command:
+To build and run the example, use the following command:
 
-``` bash
-$ make
-```
+[source,bash]
+$ make run
 
-To start the release in the foreground:
+Then point your browser to http://localhost:8080
 
-``` bash
-$ ./_rel/rest_stream_response_example/bin/rest_stream_response_example console
-```
-
-Then point your browser at [http://localhost:8080](http://localhost:8080).
-
-About
------
+== About
 
 This example simulates streaming a large amount of data from a data store one
 record at a time in CSV format. It also uses a constraint to ensure that the
 last segment of the route is an integer.
 
-Example output
---------------
+== Example output
 
 Fetch records with the second field with value 1:
 
-``` bash
+[source,bash]
+----
 $ curl -i localhost:8080
 HTTP/1.1 200 OK
 transfer-encoding: identity
@@ -42,11 +33,12 @@ DBUZGQ0C,1,28
 BgoQAxMV,1,6
 DAYEFxER,1,18
 ...
-```
+----
 
 Fetch records with the second field with value 4:
 
-``` bash
+[source,bash]
+----
 $ curl -i localhost:8080/4
 HTTP/1.1 200 OK
 transfer-encoding: identity
@@ -59,11 +51,12 @@ ABcFDxcE,4,42
 DgYQCgEE,4,5
 CA8BBhYD,4,10
 ...
-```
+----
 
 Fail to use a proper integer and get an error:
 
-``` bash
+[source,bash]
+----
 $ curl -i localhost:8080/foo
 HTTP/1.1 404 Not Found
 connection: keep-alive
@@ -71,4 +64,4 @@ server: Cowboy
 date: Sun, 10 Feb 2013 19:36:16 GMT
 content-length: 0
 
-```
+----

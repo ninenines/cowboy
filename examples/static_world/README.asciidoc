@@ -1,0 +1,30 @@
+= Static file handler example
+
+To try this example, you need GNU `make` and `git` in your PATH.
+
+To build and run the example, use the following command:
+
+[source,bash]
+$ make run
+
+The example will serve all the files found in the 'priv/'
+directory. For example:
+
+* http://localhost:8080/test.txt[Plain text file]
+* http://localhost:8080/video.html[HTML5 video demo]
+
+== Example output
+
+[source,bash]
+----
+$ curl -i http://localhost:8080/test.txt
+HTTP/1.1 200 OK
+connection: keep-alive
+server: Cowboy
+date: Mon, 09 Sep 2013 13:49:50 GMT
+content-length: 52
+content-type: text/plain
+last-modified: Fri, 18 Jan 2013 16:33:31 GMT
+
+If you read this then the static file server works!
+----

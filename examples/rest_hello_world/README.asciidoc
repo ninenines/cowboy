@@ -1,28 +1,20 @@
-REST hello world example
-========================
+= REST hello world example
 
 To try this example, you need GNU `make` and `git` in your PATH.
 
-To build the example, run the following command:
+To build and run the example, use the following command:
 
-``` bash
-$ make
-```
+[source,bash]
+$ make run
 
-To start the release in the foreground:
+Then point your browser to http://localhost:8080
 
-``` bash
-$ ./_rel/rest_hello_world_example/bin/rest_hello_world_example console
-```
-
-Then point your browser at [http://localhost:8080](http://localhost:8080).
-
-Example output
---------------
+== Example output
 
 Request HTML:
 
-``` bash
+[source,bash]
+----
 $ curl -i http://localhost:8080
 HTTP/1.1 200 OK
 connection: keep-alive
@@ -41,11 +33,12 @@ vary: Accept
   <p>REST Hello World as HTML!</p>
 </body>
 </html>
-```
+----
 
 Request JSON:
 
-``` bash
+[source,bash]
+----
 $ curl -i -H "Accept: application/json" http://localhost:8080
 HTTP/1.1 200 OK
 connection: keep-alive
@@ -56,11 +49,12 @@ content-type: application/json
 vary: Accept
 
 {"rest": "Hello World!"}
-```
+----
 
 Request plain text:
 
-``` bash
+[source,bash]
+----
 $ curl -i -H "Accept: text/plain" http://localhost:8080
 HTTP/1.1 200 OK
 connection: keep-alive
@@ -71,11 +65,12 @@ content-type: text/plain
 vary: Accept
 
 REST Hello World as text!
-```
+----
 
 Request a non acceptable content-type:
 
-``` bash
+[source,bash]
+----
 $ curl -i -H "Accept: text/css" http://localhost:8080
 HTTP/1.1 406 Not Acceptable
 connection: keep-alive
@@ -83,4 +78,4 @@ server: Cowboy
 date: Fri, 28 Sep 2012 04:18:51 GMT
 content-length: 0
 
-```
+----

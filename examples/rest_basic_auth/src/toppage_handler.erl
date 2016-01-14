@@ -13,7 +13,7 @@ init(Req, Opts) ->
 
 is_authorized(Req, State) ->
 	case cowboy_req:parse_header(<<"authorization">>, Req) of
-		{<<"basic">>, {User = <<"Alladin">>, <<"open sesame">>}} ->
+		{basic, User = <<"Alladin">>, <<"open sesame">>} ->
 			{true, Req, User};
 		_ ->
 			{{false, <<"Basic realm=\"cowboy\"">>}, Req, State}

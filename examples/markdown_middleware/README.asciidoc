@@ -1,0 +1,15 @@
+= Middleware example
+
+To try this example, you need GNU `make` and `git` in your PATH.
+
+To build and run the example, use the following command:
+
+[source,bash]
+$ make run
+
+Then point your browser to http://localhost:8080/video.html
+
+Cowboy will serve all the files you put in the `priv` directory.
+If you request a `.html` file that has a corresponding `.md` file
+that has been modified more recently than the `.html` file, the
+Markdown file will be converted to HTML and served by Cowboy.

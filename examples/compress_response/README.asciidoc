@@ -1,28 +1,20 @@
-Compressed response example
-===========================
+= Compressed response example
 
 To try this example, you need GNU `make` and `git` in your PATH.
 
-To build the example, run the following command:
+To build and run the example, use the following command:
 
-``` bash
-$ make
-```
+[source,bash]
+$ make run
 
-To start the release in the foreground:
+Then point your browser to http://localhost:8080
 
-``` bash
-$ ./_rel/compress_response_example/bin/compress_response_example console
-```
-
-Then point your browser at [http://localhost:8080](http://localhost:8080).
-
-Example output
---------------
+== Example output
 
 Without compression:
 
-``` bash
+[source,bash]
+----
 $ curl -i http://localhost:8080
 HTTP/1.1 200 OK
 connection: keep-alive
@@ -42,11 +34,12 @@ have established the ability to work at virtually identical tasks and obtained
 considerable respect for their achievements. There are also cattle handlers
 in many other parts of the world, particularly South America and Australia,
 who perform work similar to the cowboy in their respective nations.
-```
+----
 
 With compression:
 
-```
+[source,bash]
+----
 $ curl -i --compressed http://localhost:8080
 HTTP/1.1 200 OK
 connection: keep-alive
@@ -67,4 +60,4 @@ have established the ability to work at virtually identical tasks and obtained
 considerable respect for their achievements. There are also cattle handlers
 in many other parts of the world, particularly South America and Australia,
 who perform work similar to the cowboy in their respective nations.
-```
+----

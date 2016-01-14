@@ -1,28 +1,20 @@
-Error hook example
-==================
+= Error hook example
 
 To try this example, you need GNU `make` and `git` in your PATH.
 
-To build the example, run the following command:
+To build and run the example, use the following command:
 
-``` bash
-$ make
-```
+[source,bash]
+$ make run
 
-To start the release in the foreground:
+Then point your browser to http://localhost:8080
 
-``` bash
-$ ./_rel/error_hook_example/bin/error_hook_example console
-```
-
-Then point your browser at [http://localhost:8080](http://localhost:8080).
-
-Example output
---------------
+== Example output
 
 Not found:
 
-``` bash
+[source,bash]
+----
 $ curl -i http://localhost:8080
 HTTP/1.1 404 Not Found
 connection: keep-alive
@@ -31,11 +23,12 @@ date: Wed, 27 Feb 2013 23:32:55 GMT
 content-length: 56
 
 404 Not Found: "/" is not the path you are looking for.
-```
+----
 
 Bad request:
 
-``` bash
+[source,bash]
+----
 $ telnet localhost 8080
 Trying ::1...
 Connection failed: Connection refused
@@ -51,4 +44,4 @@ content-length: 15
 
 HTTP Error 400
 Connection closed by foreign host.
-```
+----

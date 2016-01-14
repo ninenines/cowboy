@@ -16,7 +16,7 @@
 -export([paste_text/2]).
 
 init(Req, Opts) ->
-	random:seed(now()),
+	random:seed(os:timestamp()),
 	{cowboy_rest, Req, Opts}.
 
 allowed_methods(Req, State) ->
@@ -57,13 +57,13 @@ create_paste(Req, State) ->
 paste_html(Req, index) ->
 	{read_file("index.html"), Req, index};
 paste_html(Req, Paste) ->
-	#{lang := Lang} = cowboy_req:match_qs([lang], Req),
+	#{lang := Lang} = cowboy_req:match_qs([{lang, [], plain}], Req),
 	{format_html(Paste, Lang), Req, Paste}.
 
 paste_text(Req, index) ->
 	{read_file("index.txt"), Req, index};
 paste_text(Req, Paste) ->
-	#{lang := Lang} = cowboy_req:match_qs([lang], Req),
+	#{lang := Lang} = cowboy_req:match_qs([{lang, [], plain}], Req),
 	{format_text(Paste, Lang), Req, Paste}.
 
 % Private
