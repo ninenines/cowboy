@@ -1,0 +1,99 @@
+= cowboy_handler(3)
+
+== Name
+
+cowboy_handler - handler middleware and behaviour
+
+== Description
+
+The `cowboy_handler` middleware executes the handler passed
+through the environment values `handler` and `handler_opts`,
+and adds the result of this execution to the environment as
+the value `result`, indicating that the request has been
+handled and received a response.
+
+Environment input:
+
+handler = module():: Handler to be executed.
+handler_opts = any():: Options to be passed to the handler.
+
+Environment output:
+
+result = ok:: Result of the request.
+
+This module also defines the `cowboy_handler` behaviour that
+defines the basic interface for handlers. All Cowboy handlers
+implement at least the `init/2` callback, and may implement
+the `terminate/3` callback optionally.
+
+== Terminate reasons
+
+The following values may be received as the terminate reason
+in the optional `terminate/3` callback. Different handler types
+may define additional terminate reasons.
+
+normal::
+	The connection was closed normally.
+
+{crash, Class, Reason}::
+	A crash occurred in the handler. `Class` and `Reason` can be
+	used to obtain more information about the crash. The function
+	`erlang:get_stacktrace/0` can also be called to obtain the
+	stacktrace of the process when the crash occurred.
+
+== Callbacks
+
+=== init(Req, Opts) -> {ok, Req, State} | {Module, Req, State} | {Module, Req, State, hibernate | Timeout} | {Module, Req, State, Timeout, hibernate}
+
+Req = cowboy_req:req():: The Req object.
+Opts = any():: Handler options.
+State = any():: Handler state.
+Module = module():: Module of the sub-protocol to use.
+Timeout = timeout():: Timeout passed to the sub-protocol, when applicable.
+
+Process the request.
+
+This function can be used to switch to an alternate handler
+type by returning the name of the module to be used, along
+with a few options.
+
+For basic handlers this is the function where the response
+should be sent. If no response is sent, Cowboy will ensure
+that a `204 No Content` response is sent.
+
+A crash in this callback will result in `terminate/3` being
+called if it is defined, with the `State` argument set to
+the value of `Opts` originally given to the `init/2` callback.
+
+=== terminate(Reason, Req, State) -> ok
+
+Reason = any():: Reason for termination.
+Req = cowboy_req:req():: The Req object.
+State = any():: Handler state.
+
+Perform any necessary cleanup of the state.
+
+This callback should release any resource currently in use,
+clear any active timer and reset the process to its original
+state, as it might be reused for future requests sent on the
+same connection. Typical plain HTTP handlers rarely need to
+use it.
+
+A crash in this callback or an invalid return value will
+result in the closing of the connection and the termination
+of the process.
+
+== Exports
+
+=== terminate(Reason, Req, State, Handler) -> ok
+
+Reason = any():: Reason for termination.
+Req = cowboy_req:req():: The Req object.
+State = any():: Handler state.
+Handler = module():: Handler module.
+
+Call the optional `terminate/3` callback if it exists.
+
+This function should always be called at the end of the execution
+of a handler, to give it a chance to clean up or perform
+miscellaneous operations.

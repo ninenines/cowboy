@@ -1,0 +1,27 @@
+= cowboy_sub_protocol(3)
+
+== Name
+
+cowboy_sub_protocol - sub protocol
+
+== Description
+
+The `cowboy_sub_protocol` behaviour defines the interface used
+by modules that implement a protocol on top of HTTP.
+
+== Callbacks
+
+=== upgrade(Req, Env, Handler, HandlerOpts) -> {ok, Req, Env} | {suspend, Module, Function, Args} | {stop, Req}
+
+Req = cowboy_req:req():: The Req object.
+Env = env():: The request environment.
+Handler = module():: Handler module.
+Opts = any():: Handler options.
+Module = module():: MFA to call when resuming the process.
+Function = atom():: MFA to call when resuming the process.
+Args = [any()]:: MFA to call when resuming the process.
+
+Upgrade the protocol.
+
+Please refer to the `cowboy_middleware` manual for a
+description of the return values.

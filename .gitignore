@@ -3,9 +3,10 @@
 _rel
 cowboy.d
 deps
+doc/guide.pdf
+doc/html
 doc/man3
 doc/man7
-doc/markdown
 ebin/*.beam
 ebin/test
 examples/*/ebin

@@ -1,0 +1,169 @@
+[[multipart]]
+== Multipart requests
+
+Multipart originates from MIME, an Internet standard that
+extends the format of emails. Multipart messages are a
+container for parts of any content-type.
+
+For example, a multipart message may have a part
+containing text and a second part containing an
+image. This is what allows you to attach files
+to emails.
+
+In the context of HTTP, multipart is most often used
+with the `multipart/form-data` content-type. This is
+the content-type you have to use when you want browsers
+to be allowed to upload files through HTML forms.
+
+Multipart is of course not required for uploading
+files, it is only required when you want to do so
+through HTML forms.
+
+You can read and parse multipart messages using the
+Req object directly.
+
+Cowboy defines two functions that allows you to get
+information about each part and read their contents.
+
+=== Structure
+
+A multipart message is a list of parts. Parts may
+contain either a multipart message or a non-multipart
+content-type. This allows parts to be arranged in a
+tree structure, although this is a rare case as far
+as the Web is concerned.
+
+=== Form-data
+
+In the normal case, when a form is submitted, the
+browser will use the `application/x-www-form-urlencoded`
+content-type. This type is just a list of keys and
+values and is therefore not fit for uploading files.
+
+That's where the `multipart/form-data` content-type
+comes in. When the form is configured to use this
+content-type, the browser will use one part of the
+message for each form field. This means that a file
+input field will be sent in its own part, but the
+same applies to all other kinds of fields.
+
+A form with a text input, a file input and a select
+choice box will result in a multipart message with
+three parts, one for each field.
+
+The browser does its best to determine the content-type
+of the files it sends this way, but you should not
+rely on it for determining the contents of the file.
+Proper investigation of the contents is recommended.
+
+=== Checking the content-type
+
+While there is a variety of multipart messages, the
+most common on the Web is `multipart/form-data`. It's
+the type of message being sent when an HTML form
+allows uploading files.
+
+You can quickly figure out if a multipart message
+has been sent by parsing the `content-type` header.
+
+[source,erlang]
+----
+{<<"multipart">>, <<"form-data">>, _}
+    = cowboy_req:parse_header(<<"content-type">>, Req).
+----
+
+=== Reading a multipart message
+
+To read a message you have to iterate over all its
+parts. Then, for each part, you can inspect its headers
+and read its body.
+
+[source,erlang]
+----
+multipart(Req) ->
+    case cowboy_req:part(Req) of
+        {ok, _Headers, Req2} ->
+            {ok, _Body, Req3} = cowboy_req:part_body(Req2),
+            multipart(Req3);
+        {done, Req2} ->
+            Req2
+    end.
+----
+
+Parts do not have a size limit. When a part body is
+too big, Cowboy will return what it read so far and
+allow you to continue if you wish to do so.
+
+The function `cow_multipart:form_data/1` can be used
+to quickly obtain information about a part from a
+`multipart/form-data` message. This function will
+tell you if the part is for a normal field or if it
+is a file being uploaded.
+
+This can be used for example to allow large part bodies
+for files but crash when a normal field is too large.
+
+[source,erlang]
+----
+multipart(Req) ->
+    case cowboy_req:part(Req) of
+        {ok, Headers, Req2} ->
+            Req4 = case cow_multipart:form_data(Headers) of
+                {data, _FieldName} ->
+                    {ok, _Body, Req3} = cowboy_req:part_body(Req2),
+                    Req3;
+                {file, _FieldName, _Filename, _CType, _CTransferEncoding} ->
+                    stream_file(Req2)
+            end,
+            multipart(Req4);
+        {done, Req2} ->
+            Req2
+    end.
+
+stream_file(Req) ->
+    case cowboy_req:part_body(Req) of
+        {ok, _Body, Req2} ->
+            Req2;
+        {more, _Body, Req2} ->
+            stream_file(Req2)
+    end.
+----
+
+By default the body chunk Cowboy will return is limited
+to 8MB. This can of course be overriden. Both functions
+can take a second argument, the same list of options that
+will be passed to `cowboy_req:body/2` function.
+
+=== Skipping unwanted parts
+
+If you do not want to read a part's body, you can skip it.
+Skipping is easy. If you do not call the function to read
+the part's body, Cowboy will automatically skip it when
+you request the next part.
+
+The following snippet reads all part headers and skips
+all bodies:
+
+[source,erlang]
+----
+multipart(Req) ->
+    case cowboy_req:part(Req) of
+        {ok, _Headers, Req2} ->
+            multipart(Req2);
+        {done, Req2} ->
+            Req2
+    end.
+----
+
+Similarly, if you start reading the body and it ends up
+being too big, you can simply continue with the next part,
+Cowboy will automatically skip what remains.
+
+Note that the skipping rate may not be adequate for your
+application. If you observe poor performance when skipping,
+you might want to consider manually skipping by calling
+the `cowboy_req:part_body/1` function directly.
+
+And if you started reading the message but decide that you
+do not need the remaining parts, you can simply stop reading
+entirely and Cowboy will automatically figure out what to do.

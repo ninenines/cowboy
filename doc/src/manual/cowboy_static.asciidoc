@@ -1,0 +1,41 @@
+= cowboy_static(3)
+
+== Name
+
+cowboy_static - static file handler
+
+== Description
+
+The `cowboy_static` module implements file serving capabilities
+by using the REST semantics provided by `cowboy_rest`.
+
+== Types
+
+=== opts() = [Option]
+
+[source,erlang]
+----
+Option = {priv_file, atom(), string() | binary()}
+	| {priv_file, atom(), string() | binary(), Extra}
+	| {file, string() | binary()}
+	| {file, string() | binary(), Extra}
+	| {priv_dir, atom(), string() | binary()}
+	| {priv_dir, atom(), string() | binary(), Extra}
+	| {dir, string() | binary()}
+	| {dir, string() | binary(), Extra}
+
+Extra = [ETag | Mimetypes]
+
+ETag = {etag, module(), function()} | {etag, false}
+
+Mimetypes = {mimetypes, module(), function()}
+	| {mimetypes, binary() | {binary(), binary(), [{binary(), binary()}]}}
+----
+
+Configuration for the static handler.
+
+The handler can be configured for sending either one file or
+a directory (including its subdirectories).
+
+Extra options allow you to define how the etag should be calculated
+and how the mimetype of files should be detected.

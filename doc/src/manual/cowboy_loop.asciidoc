@@ -1,0 +1,86 @@
+= cowboy_loop(3)
+
+== Name
+
+cowboy_loop - loop handlers
+
+== Description
+
+The `cowboy_loop` module implements a handler interface for
+long running HTTP connections. It is the recommended interface
+for long polling and server-sent events, amongst others.
+
+This module is a sub protocol that defines three callbacks to
+be implemented by handlers. The `init/2` and `terminate/3`
+callbacks are common to all handler types and are documented
+in the manual for the link:cowboy_handler.asciidoc[cowboy_handler] module.
+
+The `info/3` callback is specific to loop handlers and will be
+called as many times as necessary until a reply is sent.
+
+It is highly recommended to return a timeout value from the
+`init/2` callback to ensure that the process is terminated
+when no data has been received during that timespan. The
+default timeout is `infinity`, which should only be used if
+you have alternate means of ending inactive connections.
+
+== Terminate reasons
+
+The following values may be received as the terminate reason
+in the optional `terminate/3` callback.
+
+normal::
+	The connection was closed normally before switching to the
+	loop sub protocol. This typically happens if an `ok` tuple is
+	returned from the `init/2` callback.
+
+stop::
+	The handler requested to close the connection by returning
+	a `stop` tuple.
+
+timeout::
+	The connection has been closed due to inactivity. The timeout
+	value can be configured from `init/2`. The response sent when
+	this happens is a `204 No Content`.
+
+{crash, Class, Reason}::
+	A crash occurred in the handler. `Class` and `Reason` can be
+	used to obtain more information about the crash. The function
+	`erlang:get_stacktrace/0` can also be called to obtain the
+	stacktrace of the process when the crash occurred.
+
+{error, overflow}::
+	The connection is being closed and the process terminated
+	because the buffer Cowboy uses to keep data sent by the
+	client has reached its maximum. The buffer size can be
+	configured through the environment value `loop_max_buffer`
+	and defaults to 5000 bytes.
+	+
+	If the long running request comes with a body it is recommended
+	to process this body before switching to the loop sub protocol.
+
+{error, closed}::
+	The socket has been closed brutally without a close frame being
+	received first.
+
+{error, Reason}::
+	A socket error ocurred.
+
+== Callbacks
+
+=== info(Info, Req, State) -> {ok, Req, State} | {ok, Req, State, hibernate} | {stop, Req, State}
+
+Info = any():: Message received by the process.
+Req = cowboy_req:req():: The Req object.
+State = any():: Handler state.
+
+Handle the Erlang message received.
+
+This function will be called every time an Erlang message
+has been received. The message can be any Erlang term.
+
+The `stop` return value can be used to stop the receive loop,
+typically because a response has been sent.
+
+The `hibernate` option will hibernate the process until
+it receives another message.

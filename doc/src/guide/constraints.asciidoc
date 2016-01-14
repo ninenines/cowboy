@@ -1,0 +1,54 @@
+[[constraints]]
+== Constraints
+
+Cowboy provides an optional constraints based validation feature
+when interacting with user input.
+
+Constraints are first used during routing. The router uses
+constraints to more accurately match bound values, allowing
+to create routes where a segment is an integer for example,
+and rejecting the others.
+
+Constraints are also used when performing a match operation
+on input data, like the query string or cookies. There, a
+default value can also be provided for optional values.
+
+Finally, constraints can be used to not only validate input,
+but also convert said input into proper Erlang terms, all in
+one step.
+
+=== Structure
+
+Constraints are provided as a list of fields and for each
+field a list of constraints for that field can be provided.
+
+Fields are either the name of the field; the name and
+one or more constraints; or the name, one or more constraints
+and a default value.
+
+When no default value is provided then the field is required.
+Otherwise the default value is used.
+
+All constraints for a field will be used to match its value
+in the order they are given. If the value is modified by a
+constraint, the next constraint receives the updated value.
+
+=== Built-in constraints
+
+[cols="<,<",options="header"]
+|===
+| Constraint | Description
+| int        | Convert binary value to integer.
+| nonempty   | Ensures the binary value is non-empty.
+|===
+
+=== Custom constraint
+
+In addition to the predefined constraints, Cowboy will accept
+a fun. This fun must accept one argument and return one of
+`true`, `{true, NewValue}` or `false`. The result indicates
+whether the value matches the constraint, and if it does it
+can optionally be modified. This allows converting the value
+to a more appropriate Erlang term.
+
+Note that constraint functions SHOULD be pure and MUST NOT crash.
