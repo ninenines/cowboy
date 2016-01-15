@@ -59,13 +59,18 @@ handler.
 === Cowboy setup
 
 Modifying the 'Makefile' allows the build system to know it needs to
-fetch and compile Cowboy. To do that we simply need to add one line
+fetch and compile Cowboy. To do that we simply need to add two lines
 to our Makefile to make it look like this:
 
 [source,make]
+----
 PROJECT = hello_erlang
+
 DEPS = cowboy
+dep_cowboy_commit = master
+
 include erlang.mk
+----
 
 If you run `make run` now, Cowboy will be included in the release
 and started automatically. This is not enough however, as Cowboy
