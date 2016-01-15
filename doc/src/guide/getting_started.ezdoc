@@ -44,11 +44,7 @@ necessary for creating the release. We can already build and start
 this release.
 
 ``` bash
-$ make
-...
-$ ./_rel/hello_erlang_release/bin/hello_erlang_release console
-...
-(hello_erlang@127.0.0.1)1>
+$ make run
 ```
 
 Entering the command `i().` will show the running processes, including
@@ -74,34 +70,7 @@ DEPS = cowboy
 include erlang.mk
 ```
 
-Modifying the application resource file, `src/hello_erlang.app.src`,
-allows the build system to know it needs to include Cowboy in the
-release and start it automatically. This is a different step because
-some dependencies are only needed during development.
-
-We are simply going to add `cowboy` to the list of `applications`,
-right after `stdlib`. Don't forget the comma separator.
-
-``` erlang
-{application, hello_erlang, [
-	{description, "Hello Erlang!"},
-	{vsn, "0.1.0"},
-	{modules, []},
-	{registered, []},
-	{applications, [
-		kernel,
-		stdlib,
-		cowboy
-	]},
-	{mod, {hello_erlang_app, []}},
-	{env, []}
-]}.
-```
-
-You may want to set a description for the application while you
-are editing the file.
-
-If you run `make` now and start the release, Cowboy will be included
+If you run `make run` now, Cowboy will be included in the release
 and started automatically. This is not enough however, as Cowboy
 doesn't do anything by default. We still need to tell Cowboy to
 listen for connections.
@@ -132,7 +101,7 @@ The dispatch list is explained in great details in the
 path `/` to the handler module `hello_handler`. This module
 doesn't exist yet, we still have to write it.
 
-If you build the release, start it and open ^http://localhost:8080
+If you build and run the release, then open ^http://localhost:8080
 now, you will get an error because the module is missing. Any
 other URL, like ^http://localhost:8080/test^, will result in a
 404 error.
@@ -165,5 +134,5 @@ What the above code does is send a `200 OK` reply, with the
 `content-type` header set to `text/plain` and the response
 body set to `Hello Erlang!`.
 
-If you build the release, start it and open ^http://localhost:8080
+If you build and run the release, then open ^http://localhost:8080
 in your browser, you should get a nice `Hello Erlang!` displayed!
