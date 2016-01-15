@@ -16,7 +16,7 @@
 
 ERLANG_MK_FILENAME := $(realpath $(lastword $(MAKEFILE_LIST)))
 
-ERLANG_MK_VERSION = 2.0.0-pre.2-73-g87285ad
+ERLANG_MK_VERSION = 2.0.0-pre.2-73-g87285ad-dirty
 
 # Core configuration.
 
@@ -5850,12 +5850,22 @@ endif
 # Copyright (c) 2015, Loïc Hoguin <essen@ninenines.eu>
 # This file is part of erlang.mk and subject to the terms of the ISC License.
 
-.PHONY: ci ci-setup distclean-kerl
+.PHONY: ci ci-prepare ci-setup distclean-kerl
 
-KERL ?= $(CURDIR)/kerl
+ifndef KERL
+KERL := $(shell which kerl 2>/dev/null)
+
+ifeq ($(strip $(KERL)),)
+KERL := $(CURDIR)/.erlang.mk/kerl/kerl
+endif
+endif
+
 export KERL
 
-KERL_URL ?= https://raw.githubusercontent.com/yrashk/kerl/master/kerl
+KERL_GIT ?= https://github.com/yrashk/kerl
+KERL_COMMIT ?= 4e7c4349ddcd46ac11cd4cd50bfbda25f1f11ca2
+
+KERL_MAKEFLAGS ?=
 
 OTP_GIT ?= https://github.com/erlang/otp
 
@@ -5888,7 +5898,7 @@ $(foreach otp,$(CI_OTP),$(eval $(call ci_target,$(otp))))
 define ci_otp_target
 ifeq ($(wildcard $(CI_INSTALL_DIR)/$(1)),)
 $(CI_INSTALL_DIR)/$(1): $(KERL)
-	$(KERL) build git $(OTP_GIT) $(1) $(1)
+	$(KERL_MAKEFLAGS) $(KERL) build git $(OTP_GIT) $(1) $(1)
 	$(KERL) install $(1) $(CI_INSTALL_DIR)/$(1)
 endif
 endef
@@ -5896,7 +5906,9 @@ endef
 $(foreach otp,$(CI_OTP),$(eval $(call ci_otp_target,$(otp))))
 
 $(KERL):
-	$(gen_verbose) $(call core_http_get,$(KERL),$(KERL_URL))
+	$(verbose) mkdir -p $(ERLANG_MK_TMP)
+	$(gen_verbose) git clone $(KERL_GIT) $(ERLANG_MK_TMP)/kerl
+	$(verbose) cd $(ERLANG_MK_TMP)/kerl && git checkout $(KERL_COMMIT)
 	$(verbose) chmod +x $(KERL)
 
 help::

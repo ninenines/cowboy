@@ -13,7 +13,7 @@ dependencies:
     - sudo apt-get install autoconf2.59
     - cd $HOME/bin && ln -s /usr/bin/autoconf2.59 autoconf
     - cd $HOME/bin && ln -s /usr/bin/autoheader2.59 autoheader
-    - MAKEFLAGS="-j 32" make ci-prepare:
+    - KERL_MAKEFLAGS="-j 32 -O" make ci-prepare:
         timeout: 3600
 
 test:
