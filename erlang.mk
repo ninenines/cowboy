@@ -5898,7 +5898,7 @@ $(foreach otp,$(CI_OTP),$(eval $(call ci_target,$(otp))))
 define ci_otp_target
 ifeq ($(wildcard $(CI_INSTALL_DIR)/$(1)),)
 $(CI_INSTALL_DIR)/$(1): $(KERL)
-	$(KERL_MAKEFLAGS) $(KERL) build git $(OTP_GIT) $(1) $(1)
+	MAKEFLAGS="$(KERL_MAKEFLAGS)" $(KERL) build git $(OTP_GIT) $(1) $(1)
 	$(KERL) install $(1) $(CI_INSTALL_DIR)/$(1)
 endif
 endef
