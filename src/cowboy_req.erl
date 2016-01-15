@@ -696,7 +696,17 @@ reply(Status, Headers, Body, Req=#http_req{
 	Req3 = case Body of
 		BodyFun when is_function(BodyFun) ->
 			%% We stream the response body until we close the connection.
-			RespConn = close,
+			%% HEAD requests may end up using an empty streaming function
+			%% to avoid setting a 'Content-Length' header when the value
+			%% is unknown, but without wanting to close the connection,
+			%% in which case we respect whatever was set by the response
+			%% in terms of termination. The connection however defaults
+			%% to 'close' if the value is unspecified.
+			%% See RFC 7231 4.3.2 vis. payload header fields.
+			RespConn = case Method of
+				<<"HEAD">> -> response_connection(Headers, close);
+				_ -> close
+			end,
 			{RespType, Req2} = if
 				Transport =:= cowboy_spdy ->
 					response(Status, Headers, RespHeaders, [
