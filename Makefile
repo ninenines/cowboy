@@ -10,7 +10,8 @@ PROJECT_REGISTERED = cowboy_clock
 COMPILE_FIRST = cowboy_middleware cowboy_stream cowboy_sub_protocol
 PLT_APPS = public_key ssl
 CT_OPTS += -ct_hooks cowboy_ct_hook [] # -boot start_sasl
-CI_OTP = OTP-18.0.3 OTP-18.1
+
+CI_OTP = OTP-18.0.3 OTP-18.1.5 OTP-18.2.2
 
 # Dependencies.
 

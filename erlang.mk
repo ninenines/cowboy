@@ -16,7 +16,7 @@
 
 ERLANG_MK_FILENAME := $(realpath $(lastword $(MAKEFILE_LIST)))
 
-ERLANG_MK_VERSION = 2.0.0-pre.2-72-g86ddfb5
+ERLANG_MK_VERSION = 2.0.0-pre.2-73-g87285ad
 
 # Core configuration.
 
@@ -5095,7 +5095,7 @@ $(if $(filter-out -Werror,$1),\
 endef
 
 define compat_erlc_opts_to_list
-	[$(call comma_list,$(foreach o,$(call compat_prepare_erlc_opts,$1),$(call compat_convert_erlc_opts,$o)))]
+[$(call comma_list,$(foreach o,$(call compat_prepare_erlc_opts,$1),$(call compat_convert_erlc_opts,$o)))]
 endef
 
 define compat_rebar_config
