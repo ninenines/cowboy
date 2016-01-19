@@ -79,16 +79,29 @@ absname(Path) when is_binary(Path) ->
 init_dir(Req, Path, Extra) when is_list(Path) ->
 	init_dir(Req, list_to_binary(Path), Extra);
 init_dir(Req, Path, Extra) ->
-	Dir = fullpath(filename:absname(Path)),
-	PathInfo = cowboy_req:path_info(Req),
-	Filepath = filename:join([Dir|PathInfo]),
-	Len = byte_size(Dir),
-	case fullpath(Filepath) of
-		<< Dir:Len/binary, $/, _/binary >> ->
-			init_info(Req, Filepath, Extra);
-		_ ->
-			{cowboy_rest, Req, error}
-	end.
+  Dir = fullpath(filename:absname(Path)),
+  PathInfo = cowboy_req:path_info(Req),
+  Filepath = filename:join([Dir|PathInfo]),
+  case lists:keyfind(default_file, 1, Extra) of
+    {default_file, File} -> 
+      case filelib:is_dir(Filepath) of
+        true ->
+          Filepathfile = filename:join([Filepath, File]),
+          init_info(Req, absname(Filepathfile), Extra);
+        false ->
+          init_dir(Req, Dir, Filepath, Extra)
+      end;
+    false ->
+      init_dir(Req, Dir, Filepath, Extra)
+  end.
+init_dir(Req, Dir, Filepath, Extra) ->
+  Len = byte_size(Dir),
+  case fullpath(Filepath) of
+    << Dir:Len/binary, $/, _/binary >> ->
+      init_info(Req, Filepath, Extra);
+    _ ->
+      {cowboy_rest, Req, error}
+  end.
 
 fullpath(Path) ->
 	fullpath(filename:split(Path), []).

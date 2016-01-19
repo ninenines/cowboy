@@ -15,7 +15,7 @@ start(_Type, _Args) ->
 		{'_', [
 			{"/", cowboy_static, {priv_file, static_world, "index.html"}},
 			{"/[...]", cowboy_static, {priv_dir, static_world, "",
-				[{mimetypes, cow_mimetypes, all}]}}
+				[{mimetypes, cow_mimetypes, all}, {default_file, "index.html"}]}}
 		]}
 	]),
 	{ok, _} = cowboy:start_http(http, 100, [{port, 8080}], [
