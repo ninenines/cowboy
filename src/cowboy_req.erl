@@ -461,8 +461,11 @@ body_loop(Req=#http_req{buffer=Buffer, body_state={stream, Length, _, _, _}},
 
 body_recv(Req=#http_req{transport=Transport, socket=Socket, buffer=Buffer},
 		ReadTimeout, ReadLength) ->
-	{ok, Data} = Transport:recv(Socket, ReadLength, ReadTimeout),
-	body_decode(Req#http_req{buffer= << Buffer/binary, Data/binary >>}, ReadTimeout).
+    	{ok, Data} = Transport:recv(Socket, ReadLength, ReadTimeout),
+    	case Buffer of
+        	<<>> -> body_decode(Req#http_req{buffer=Data}, ReadTimeout);
+		_ -> body_decode(Req#http_req{buffer= << Buffer/binary, Data/binary >>}, ReadTimeout)
+    	end.
 
 %% Two decodings happen. First a decoding function is applied to the
 %% transferred data, and then another is applied to the actual content.
