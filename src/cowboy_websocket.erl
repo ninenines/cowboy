@@ -118,28 +118,26 @@ websocket_extensions(State, Req, [], []) ->
 	{ok, State, Req};
 websocket_extensions(State, Req, [], [<<", ">>|RespHeader]) ->
 	{ok, State, cowboy_req:set_resp_header(<<"sec-websocket-extensions">>, lists:reverse(RespHeader), Req)};
-websocket_extensions(State=#state{extensions=Extensions}, Req, [{<<"permessage-deflate">>, Params}|Tail], RespHeader) ->
+websocket_extensions(State=#state{extensions=Extensions}, Req, [{HParam, Params}|Tail], RespHeader) 
+	when HParam == <<"permessage-deflate">>; HParam == <<"x-webkit-deflate-frame">> 
+->
 	%% @todo Make deflate options configurable.
-	Opts = #{level => best_compression, mem_level => 8, strategy => default},
-	case cow_ws:negotiate_permessage_deflate(Params, Extensions, Opts) of
+	Opts = #{level => best_speed, mem_level => 8, strategy => default},
+	Negotiated = case HParam of
+		<<"permessage-deflate">> -> cow_ws:negotiate_permessage_deflate(Params, Extensions, Opts);
+		<<"x-webkit-deflate-frame">> -> cow_ws:negotiate_x_webkit_deflate_frame(Params, Extensions, Opts)
+	end,
+
+	case Negotiated of
 		{ok, RespExt, Extensions2} ->
 			Req2 = cowboy_req:set_meta(websocket_compress, true, Req),
 			websocket_extensions(State#state{extensions=Extensions2},
-				Req2, Tail, [<<", ">>, RespExt|RespHeader]);
+				Req2, Tail, [<<", ">>, RespExt|RespHeader]
+			);
 		ignore ->
 			websocket_extensions(State, Req, Tail, RespHeader)
 	end;
-websocket_extensions(State=#state{extensions=Extensions}, Req, [{<<"x-webkit-deflate-frame">>, Params}|Tail], RespHeader) ->
-	%% @todo Make deflate options configurable.
-	Opts = #{level => best_compression, mem_level => 8, strategy => default},
-	case cow_ws:negotiate_x_webkit_deflate_frame(Params, Extensions, Opts) of
-		{ok, RespExt, Extensions2} ->
-			Req2 = cowboy_req:set_meta(websocket_compress, true, Req),
-			websocket_extensions(State#state{extensions=Extensions2},
-				Req2, Tail, [<<", ">>, RespExt|RespHeader]);
-		ignore ->
-			websocket_extensions(State, Req, Tail, RespHeader)
-	end;
+
 websocket_extensions(State, Req, [_|Tail], RespHeader) ->
 	websocket_extensions(State, Req, Tail, RespHeader).
 
