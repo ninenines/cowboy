@@ -118,11 +118,15 @@ websocket_extensions(State, Req, [], []) ->
 	{ok, State, Req};
 websocket_extensions(State, Req, [], [<<", ">>|RespHeader]) ->
 	{ok, State, cowboy_req:set_resp_header(<<"sec-websocket-extensions">>, lists:reverse(RespHeader), Req)};
-websocket_extensions(State=#state{extensions=Extensions}, Req, [{HParam, Params}|Tail], RespHeader) 
+websocket_extensions(State=#state{extensions=Extensions, env=Env}, Req, [{HParam, Params}|Tail], RespHeader) 
 	when HParam == <<"permessage-deflate">>; HParam == <<"x-webkit-deflate-frame">> 
 ->
-	%% @todo Make deflate options configurable.
-	Opts = #{level => best_speed, mem_level => 8, strategy => default},
+	HandlerOpts = proplists:get_value(handler_opts, Env),
+	CompressLevel = proplists:get_value(level, HandlerOpts, best_speed),
+	CompressStrategy = proplists:get_value(strategy, HandlerOpts, default),
+	CompressMemLvl = proplists:get_value(mem_level, HandlerOpts, 8),
+
+	Opts = #{level => CompressLevel, mem_level => CompressMemLvl, strategy => CompressStrategy},
 	Negotiated = case HParam of
 		<<"permessage-deflate">> -> cow_ws:negotiate_permessage_deflate(Params, Extensions, Opts);
 		<<"x-webkit-deflate-frame">> -> cow_ws:negotiate_x_webkit_deflate_frame(Params, Extensions, Opts)
