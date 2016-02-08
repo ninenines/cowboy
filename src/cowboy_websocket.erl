@@ -122,24 +122,32 @@ websocket_extensions(State=#state{extensions=Extensions, env=Env}, Req, [{HParam
 	when HParam == <<"permessage-deflate">>; HParam == <<"x-webkit-deflate-frame">> 
 ->
 	HandlerOpts = proplists:get_value(handler_opts, Env),
-	CompressLevel = proplists:get_value(level, HandlerOpts, best_speed),
-	CompressStrategy = proplists:get_value(strategy, HandlerOpts, default),
-	CompressMemLvl = proplists:get_value(mem_level, HandlerOpts, 8),
+	Compress = proplists:get_value(compress, HandlerOpts, []),
+	case proplists:get_value(mode, Compress, active) of
+		off -> websocket_extensions(State, Req, Tail, RespHeader);
+		Mode ->
+			CompressLevel = proplists:get_value(level, Compress, best_speed),
+			CompressStrategy = proplists:get_value(strategy, Compress, default),
+			CompressMemLvl = proplists:get_value(mem_level, Compress, 8),
+			CompressMaxWindowBits = proplists:get_value(max_window_bits, Compress, 15),
 
-	Opts = #{level => CompressLevel, mem_level => CompressMemLvl, strategy => CompressStrategy},
-	Negotiated = case HParam of
-		<<"permessage-deflate">> -> cow_ws:negotiate_permessage_deflate(Params, Extensions, Opts);
-		<<"x-webkit-deflate-frame">> -> cow_ws:negotiate_x_webkit_deflate_frame(Params, Extensions, Opts)
-	end,
+			Opts = #{level=> CompressLevel, mem_level=> CompressMemLvl, strategy=> CompressStrategy, 
+				max_window_bits=> CompressMaxWindowBits, mode=> Mode
+			},
+			Negotiated = case HParam of
+				<<"permessage-deflate">> -> cow_ws:negotiate_permessage_deflate(Params, Extensions, Opts);
+				<<"x-webkit-deflate-frame">> -> cow_ws:negotiate_x_webkit_deflate_frame(Params, Extensions, Opts)
+			end,
 
-	case Negotiated of
-		{ok, RespExt, Extensions2} ->
-			Req2 = cowboy_req:set_meta(websocket_compress, true, Req),
-			websocket_extensions(State#state{extensions=Extensions2},
-				Req2, Tail, [<<", ">>, RespExt|RespHeader]
-			);
-		ignore ->
-			websocket_extensions(State, Req, Tail, RespHeader)
+			case Negotiated of
+				{ok, RespExt, Extensions2} ->
+					Req2 = cowboy_req:set_meta(websocket_compress, true, Req),
+					websocket_extensions(State#state{extensions=Extensions2},
+						Req2, Tail, [<<", ">>, RespExt|RespHeader]
+					);
+				ignore ->
+					websocket_extensions(State, Req, Tail, RespHeader)
+			end
 	end;
 
 websocket_extensions(State, Req, [_|Tail], RespHeader) ->
