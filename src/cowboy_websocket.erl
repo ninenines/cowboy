@@ -116,8 +116,32 @@ websocket_extensions(State, Req) ->
 
 websocket_extensions(State, Req, [], []) ->
 	{ok, State, Req};
-websocket_extensions(State, Req, [], [<<", ">>|RespHeader]) ->
-	{ok, State, cowboy_req:set_resp_header(<<"sec-websocket-extensions">>, lists:reverse(RespHeader), Req)};
+websocket_extensions(State=#state{env=Env}, Req, [], [<<", ">>|RespHeader]) ->
+	%default to 15 client window size if no client_max_window_bits
+	HandlerOpts = proplists:get_value(handler_opts, Env),
+	Compress = proplists:get_value(compress, HandlerOpts, []),
+	Env2 = case proplists:get_value(client_max_window_bits_set, Compress, false) of
+		false -> lists:keyreplace(client_max_window_bits, 1, Env, {client_max_window_bits, 15});
+		true -> Env
+	end,
+
+	{ok, State#state{env= Env2}, cowboy_req:set_resp_header(<<"sec-websocket-extensions">>, lists:reverse(RespHeader), Req)};
+websocket_extensions(State=#state{env=Env}, Req, [{<<"client_max_window_bits">>, Params}|Tail], RespHeader) ->
+	HandlerOpts = proplists:get_value(handler_opts, Env),
+	Compress = proplists:get_value(compress, HandlerOpts, []),
+	CCompressMaxWindowBits = proplists:get_value(client_max_window_bits, Compress, 15),
+	if
+		CCompressMaxWindowBits >= 8, CCompressMaxWindowBits < 15 ->
+			Env2 = [{client_max_window_bits_set, true}|Env],
+			websocket_extensions(State#state{env= Env2}, Req, Tail, 
+				[
+					<<", ">>, 
+					<<"client_max_window_bits=", (integer_to_binary(CCompressMaxWindowBits))/binary>>|RespHeader
+				]
+			);
+		true ->
+			websocket_extensions(State, Req, Tail, RespHeader)
+	end;
 websocket_extensions(State=#state{extensions=Extensions, env=Env}, Req, [{HParam, Params}|Tail], RespHeader) 
 	when HParam == <<"permessage-deflate">>; HParam == <<"x-webkit-deflate-frame">> 
 ->
@@ -129,10 +153,13 @@ websocket_extensions(State=#state{extensions=Extensions, env=Env}, Req, [{HParam
 			CompressLevel = proplists:get_value(level, Compress, best_speed),
 			CompressStrategy = proplists:get_value(strategy, Compress, default),
 			CompressMemLvl = proplists:get_value(mem_level, Compress, 8),
-			CompressMaxWindowBits = proplists:get_value(max_window_bits, Compress, 15),
+			CCompressMaxWindowBits = proplists:get_value(client_max_window_bits, Compress, 15),
+			SCompressMaxWindowBits = proplists:get_value(server_max_window_bits, Compress, 15),
 
 			Opts = #{level=> CompressLevel, mem_level=> CompressMemLvl, strategy=> CompressStrategy, 
-				max_window_bits=> CompressMaxWindowBits, mode=> Mode
+				client_max_window_bits=> CCompressMaxWindowBits, 
+				server_max_window_bits=> SCompressMaxWindowBits,
+				mode=> Mode
 			},
 			Negotiated = case HParam of
 				<<"permessage-deflate">> -> cow_ws:negotiate_permessage_deflate(Params, Extensions, Opts);
