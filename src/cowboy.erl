@@ -14,9 +14,7 @@
 
 -module(cowboy).
 
--export([start_http/4]).
--export([start_https/4]).
--export([start_spdy/4]).
+-export([start_clear/4]).
 -export([start_tls/4]).
 -export([stop_listener/1]).
 -export([set_env/3]).
@@ -42,43 +40,27 @@
 	fun((http_status(), http_headers(), iodata(), Req) -> Req).
 -export_type([onresponse_fun/0]).
 
--spec start_http(ranch:ref(), non_neg_integer(), ranch_tcp:opts(),
+-spec start_clear(ranch:ref(), non_neg_integer(), ranch_tcp:opts(),
 	cowboy_protocol:opts()) -> {ok, pid()} | {error, any()}.
-start_http(Ref, NbAcceptors, TransOpts, ProtoOpts)
+start_clear(Ref, NbAcceptors, TransOpts0, ProtoOpts)
 		when is_integer(NbAcceptors), NbAcceptors > 0 ->
-	ranch:start_listener(Ref, NbAcceptors,
-		ranch_tcp, TransOpts, cowboy_protocol, ProtoOpts).
-
--spec start_https(ranch:ref(), non_neg_integer(), ranch_ssl:opts(),
-	cowboy_protocol:opts()) -> {ok, pid()} | {error, any()}.
-start_https(Ref, NbAcceptors, TransOpts, ProtoOpts)
-		when is_integer(NbAcceptors), NbAcceptors > 0 ->
-	ranch:start_listener(Ref, NbAcceptors,
-		ranch_ssl, TransOpts, cowboy_protocol, ProtoOpts).
-
--spec start_spdy(ranch:ref(), non_neg_integer(), ranch_ssl:opts(),
-	cowboy_spdy:opts()) -> {ok, pid()} | {error, any()}.
-start_spdy(Ref, NbAcceptors, TransOpts, ProtoOpts)
-		when is_integer(NbAcceptors), NbAcceptors > 0 ->
-	TransOpts2 = [
-		{connection_type, supervisor},
-		{next_protocols_advertised,
-			[<<"spdy/3">>, <<"http/1.1">>, <<"http/1.0">>]}
-	|TransOpts],
-	ranch:start_listener(Ref, NbAcceptors,
-		ranch_ssl, TransOpts2, cowboy_spdy, ProtoOpts).
+	TransOpts = TransOpts0,%[connection_type(ProtoOpts)|TransOpts0],
+	ranch:start_listener(Ref, NbAcceptors, ranch_tcp, TransOpts, cowboy_clear, ProtoOpts).
 
 -spec start_tls(ranch:ref(), non_neg_integer(), ranch_ssl:opts(), opts()) -> {ok, pid()} | {error, any()}.
 start_tls(Ref, NbAcceptors, TransOpts0, ProtoOpts)
 		when is_integer(NbAcceptors), NbAcceptors > 0 ->
-	{_, Type} = maps:get(stream_handler, ProtoOpts, {cowboy_stream_h, supervisor}),
 	TransOpts = [
-		{connection_type, Type},
+		connection_type(ProtoOpts),
 		{next_protocols_advertised, [<<"h2">>, <<"spdy/3">>, <<"http/1.1">>]},
 		{alpn_preferred_protocols, [<<"h2">>, <<"spdy/3">>, <<"http/1.1">>]}
 	|TransOpts0],
-	ranch:start_listener(Ref, NbAcceptors,
-		ranch_ssl, TransOpts, cowboy_tls, ProtoOpts).
+	ranch:start_listener(Ref, NbAcceptors, ranch_ssl, TransOpts, cowboy_tls, ProtoOpts).
+
+-spec connection_type(opts()) -> {connection_type, worker | supervisor}.
+connection_type(ProtoOpts) ->
+	{_, Type} = maps:get(stream_handler, ProtoOpts, {cowboy_stream_h, supervisor}),
+	{connection_type, Type}.
 
 -spec stop_listener(ranch:ref()) -> ok | {error, not_found}.
 stop_listener(Ref) ->

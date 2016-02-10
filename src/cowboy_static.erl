@@ -274,11 +274,4 @@ last_modified(Req, State={_, {ok, #file_info{mtime=Modified}}, _}) ->
 	-> {{stream, non_neg_integer(), fun()}, Req, State}
 	when State::state().
 get_file(Req, State={Path, {ok, #file_info{size=Size}}, _}) ->
-	Sendfile = fun (Socket, Transport) ->
-		case Transport:sendfile(Socket, Path) of
-			{ok, _} -> ok;
-			{error, closed} -> ok;
-			{error, etimedout} -> ok
-		end
-	end,
-	{{stream, Size, Sendfile}, Req, State}.
+	{{sendfile, 0, Size, Path}, Req, State}.

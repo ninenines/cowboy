@@ -17,7 +17,7 @@ content_types_provided(Req, State) ->
 	{[{{<<"text">>, <<"plain">>, '*'}, get_text_plain}], Req, State}.
 
 get_text_plain(Req, State) ->
-	{_, _, Param} = cowboy_req:meta(media_type, Req, {{<<"text">>, <<"plain">>}, []}),
+	{_, _, Param} = maps:get(media_type, Req, {{<<"text">>, <<"plain">>}, []}),
 	Body = if
 		Param == '*' ->
 			<<"'*'">>;

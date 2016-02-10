@@ -86,8 +86,7 @@ init(Parent, Ref, Socket, Transport, Opts, Handler) ->
 before_loop(State, Buffer) ->
 	loop(State, Buffer).
 
-loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
-		handler=Handler, children=Children}, Buffer) ->
+loop(State=#state{parent=Parent, socket=Socket, transport=Transport, children=Children}, Buffer) ->
 	Transport:setopts(Socket, [{active, once}]),
 	{OK, Closed, Error} = Transport:messages(),
 	receive
@@ -104,7 +103,7 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 		{system, From, Request} ->
 			sys:handle_system_msg(Request, From, Parent, ?MODULE, [], {State, Buffer});
 		%% Messages pertaining to a stream.
-		{{Handler, StreamID}, Msg} ->
+		{{Pid, StreamID}, Msg} when Pid =:= self() ->
 			loop(info(State, StreamID, Msg), Buffer);
 		%% Exit signal from children.
 		Msg = {'EXIT', Pid, _} ->
@@ -328,8 +327,8 @@ commands(State0=#state{socket=Socket, transport=Transport, server_streamid=Promi
 commands(State, StreamID, [{flow, _Size}|Tail]) ->
 	commands(State, StreamID, Tail);
 %% Supervise a child process.
-commands(State=#state{children=Children}, StreamID, [{spawn, Pid}|Tail]) ->
-	commands(State#state{children=[{Pid, StreamID}|Children]}, StreamID, Tail);
+commands(State=#state{children=Children}, StreamID, [{spawn, Pid, _Shutdown}|Tail]) -> %% @todo Shutdown
+	 commands(State#state{children=[{Pid, StreamID}|Children]}, StreamID, Tail);
 %% Upgrade to a new protocol.
 %%
 %% @todo Implementation.
@@ -357,7 +356,7 @@ terminate_all_streams([#stream{id=StreamID, state=StreamState}|Tail], Reason, Ha
 
 %% Stream functions.
 
-stream_init(State0=#state{socket=Socket, transport=Transport, handler=Handler,
+stream_init(State0=#state{ref=Ref, socket=Socket, transport=Transport, handler=Handler, opts=Opts,
 		streams=Streams0, decode_state=DecodeState0}, StreamID, IsFin, HeaderBlock) ->
 	%% @todo Add clause for CONNECT requests (no scheme/path).
 	try headers_decode(HeaderBlock, DecodeState0) of
@@ -365,10 +364,46 @@ stream_init(State0=#state{socket=Socket, transport=Transport, handler=Handler,
 				<<":method">> := Method,
 				<<":scheme">> := Scheme,
 				<<":authority">> := Authority,
-				<<":path">> := Path}, DecodeState} ->
+				<<":path">> := PathWithQs}, DecodeState} ->
 			State = State0#state{decode_state=DecodeState},
 			Headers = maps:without([<<":method">>, <<":scheme">>, <<":authority">>, <<":path">>], Headers0),
-			try Handler:init(StreamID, IsFin, Method, Scheme, Authority, Path, Headers) of
+			%% @todo We need to parse the port out of :authority.
+			%% @todo We need to parse the query string out of :path.
+			%% @todo We need to give a way to get the socket infos.
+
+			Host = Authority, %% @todo
+			Port = todo, %% @todo
+			Path = PathWithQs, %% @todo
+			Qs = todo, %% @todo
+
+			Req = #{
+				ref => Ref,
+				pid => self(),
+				streamid => StreamID,
+
+				%% @todo peer
+				%% @todo sockname
+				%% @todo ssl client cert?
+
+				method => Method,
+				scheme => Scheme,
+				host => Host,
+				%% host_info (cowboy_router)
+				port => Port,
+				path => Path,
+				%% path_info (cowboy_router)
+				%% bindings (cowboy_router)
+				qs => Qs,
+				version => 'HTTP/2',
+				headers => Headers,
+
+				has_body => IsFin =:= nofin
+				%% @todo multipart? keep state separate
+
+				%% meta values (cowboy_websocket, cowboy_rest)
+			},
+
+			try Handler:init(StreamID, Req, Opts) of
 				{Commands, StreamState} ->
 					Streams = [#stream{id=StreamID, state=StreamState}|Streams0],
 					commands(State#state{streams=Streams}, StreamID, Commands)
@@ -377,7 +412,7 @@ stream_init(State0=#state{socket=Socket, transport=Transport, handler=Handler,
 					"with reason ~p:~p.",
 					[Handler, StreamID, IsFin, Method, Scheme, Authority, Path, Headers, Class, Reason]),
 				stream_reset(State, StreamID, {internal_error, {Class, Reason},
-					'Exception occurred in StreamHandler:init/7 call.'})
+					'Exception occurred in StreamHandler:init/7 call.'}) %% @todo Check final arity.
 			end;
 		{_, DecodeState} ->
 			Transport:send(Socket, cow_http2:rst_stream(StreamID, protocol_error)),

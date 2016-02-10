@@ -37,17 +37,17 @@ init_per_group(Name = autobahn, Config) ->
 				"http://autobahn.ws/testsuite/installation.html"),
 			{skip, "Autobahn Test Suite not installed."};
 		_ ->
-			{ok, _} = cowboy:start_http(Name, 100, [{port, 33080}], [
-				{env, [{dispatch, init_dispatch()}]},
-				{compress, true}
-			]),
+			{ok, _} = cowboy:start_clear(Name, 100, [{port, 33080}], #{
+				env => #{dispatch => init_dispatch()},
+				compress => true %% @todo Use a separate option for HTTP and Websocket compression.
+			}),
 			Config
 	end;
 init_per_group(Name = ws, Config) ->
-	cowboy_test:init_http(Name, [
-		{env, [{dispatch, init_dispatch()}]},
-		{compress, true}
-	], Config).
+	cowboy_test:init_http(Name, #{
+		env => #{dispatch => init_dispatch()},
+		compress => true %% @todo Use a separate option for HTTP and Websocket compression.
+	}, Config).
 
 end_per_group(Listener, _Config) ->
 	cowboy:stop_listener(Listener).

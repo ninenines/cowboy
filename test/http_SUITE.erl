@@ -45,7 +45,7 @@ groups() ->
 		parse_host, set_env_dispatch
 	],
 	[
-		{http, [parallel], Tests},
+		{http, [], Tests}, %% @todo parallel
 		{https, [parallel], Tests},
 		{http_compress, [parallel], Tests},
 		{https_compress, [parallel], Tests},
@@ -73,33 +73,29 @@ end_per_suite(Config) ->
 	ct_helper:delete_static_dir(config(static_dir, Config)).
 
 init_per_group(Name = http, Config) ->
-	cowboy_test:init_http(Name, [
-		{env, [{dispatch, init_dispatch(Config)}]}
-	], Config);
+	cowboy_test:init_http(Name, #{env => #{dispatch => init_dispatch(Config)}}, Config);
 init_per_group(Name = https, Config) ->
-	cowboy_test:init_https(Name, [
-		{env, [{dispatch, init_dispatch(Config)}]}
-	], Config);
+	cowboy_test:init_https(Name, #{env => #{dispatch => init_dispatch(Config)}}, Config);
 init_per_group(Name = http_compress, Config) ->
-	cowboy_test:init_http(Name, [
-		{env, [{dispatch, init_dispatch(Config)}]},
-		{compress, true}
-	], Config);
+	cowboy_test:init_http(Name, #{
+		env => #{dispatch => init_dispatch(Config)},
+		compress => true
+	}, Config);
 init_per_group(Name = https_compress, Config) ->
-	cowboy_test:init_https(Name, [
-		{env, [{dispatch, init_dispatch(Config)}]},
-		{compress, true}
-	], Config);
+	cowboy_test:init_https(Name, #{
+		env => #{dispatch => init_dispatch(Config)},
+		compress => true
+	}, Config);
 %% Most, if not all of these, should be in separate test suites.
 init_per_group(onresponse, Config) ->
-	{ok, _} = cowboy:start_http(onresponse, 100, [{port, 0}], [
+	{ok, _} = cowboy:start_clear(onresponse, 100, [{port, 0}], [
 		{env, [{dispatch, init_dispatch(Config)}]},
 		{onresponse, fun do_onresponse_hook/4}
 	]),
 	Port = ranch:get_port(onresponse),
 	[{type, tcp}, {port, Port}, {opts, []}|Config];
 init_per_group(onresponse_capitalize, Config) ->
-	{ok, _} = cowboy:start_http(onresponse_capitalize, 100, [{port, 0}], [
+	{ok, _} = cowboy:start_clear(onresponse_capitalize, 100, [{port, 0}], [
 		{env, [{dispatch, init_dispatch(Config)}]},
 		{onresponse, fun do_onresponse_capitalize_hook/4}
 	]),
@@ -111,13 +107,13 @@ init_per_group(parse_host, Config) ->
 			{"/req_attr", http_req_attr, []}
 		]}
 	]),
-	{ok, _} = cowboy:start_http(parse_host, 100, [{port, 0}], [
+	{ok, _} = cowboy:start_clear(parse_host, 100, [{port, 0}], [
 		{env, [{dispatch, Dispatch}]}
 	]),
 	Port = ranch:get_port(parse_host),
 	[{type, tcp}, {port, Port}, {opts, []}|Config];
 init_per_group(set_env, Config) ->
-	{ok, _} = cowboy:start_http(set_env, 100, [{port, 0}], [
+	{ok, _} = cowboy:start_clear(set_env, 100, [{port, 0}], [
 		{env, [{dispatch, []}]}
 	]),
 	Port = ranch:get_port(set_env),
@@ -134,11 +130,11 @@ init_dispatch(Config) ->
 			{"/chunked_response", http_chunked, []},
 			{"/streamed_response", http_streamed, []},
 			{"/headers/dupe", http_handler,
-				[{headers, [{<<"connection">>, <<"close">>}]}]},
+				[{headers, #{<<"connection">> => <<"close">>}}]},
 			{"/set_resp/header", http_set_resp,
-				[{headers, [{<<"vary">>, <<"Accept">>}]}]},
+				[{headers, #{<<"vary">> => <<"Accept">>}}]},
 			{"/set_resp/overwrite", http_set_resp,
-				[{headers, [{<<"server">>, <<"DesireDrive/1.0">>}]}]},
+				[{headers, #{<<"server">> => <<"DesireDrive/1.0">>}}]},
 			{"/set_resp/body", http_set_resp,
 				[{body, <<"A flameless dance does not equal a cycle">>}]},
 			{"/stream_body/set_resp", http_stream_body,
@@ -314,7 +310,7 @@ echo_body(Config) ->
 %% Check if sending request whose size is bigger than 1000000 bytes causes 413
 echo_body_max_length(Config) ->
 	ConnPid = gun_open(Config),
-	Ref = gun:post(ConnPid, "/echo/body", [], << 0:2000000/unit:8 >>),
+	Ref = gun:post(ConnPid, "/echo/body", [], << 0:10000000/unit:8 >>),
 	{response, nofin, 413, _} = gun:await(ConnPid, Ref),
 	ok.
 
@@ -336,7 +332,7 @@ error_init_after_reply(Config) ->
 	ConnPid = gun_open(Config),
 	Ref = gun:get(ConnPid, "/handler_errors?case=init_after_reply"),
 	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
-	gun_down(ConnPid).
+	ok.
 
 headers_dupe(Config) ->
 	ConnPid = gun_open(Config),
@@ -357,18 +353,18 @@ http10_chunkless(Config) ->
 http10_hostless(Config) ->
 	Name = http10_hostless,
 	Port10 = config(port, Config) + 10,
-	Transport = case config(type, Config) of
-		tcp -> ranch_tcp;
-		ssl -> ranch_ssl
+	{Transport, Protocol} = case config(type, Config) of
+		tcp -> {ranch_tcp, cowboy_clear};
+		ssl -> {ranch_ssl, cowboy_tls}
 	end,
 	ranch:start_listener(Name, 5, Transport,
 		config(opts, Config) ++ [{port, Port10}],
-		cowboy_protocol, [
-			{env, [{dispatch, cowboy_router:compile([
-				{'_', [{"/http1.0/hostless", http_handler, []}]}])}]},
-			{max_keepalive, 50},
-			{timeout, 500}]
-	),
+		Protocol, #{
+			env =>#{dispatch => cowboy_router:compile([
+				{'_', [{"/http1.0/hostless", http_handler, []}]}])},
+			max_keepalive => 50,
+			timeout => 500
+	}),
 	200 = do_raw("GET /http1.0/hostless HTTP/1.0\r\n\r\n",
 		[{port, Port10}|Config]),
 	cowboy:stop_listener(http10_hostless).
@@ -380,9 +376,10 @@ http10_keepalive_default(Config) ->
 	case catch raw_recv_head(Client) of
 		{'EXIT', _} -> error(closed);
 		Data ->
-			{'HTTP/1.0', 200, _, Rest} = cow_http:parse_status_line(Data),
+			%% Cowboy always advertises itself as HTTP/1.1.
+			{'HTTP/1.1', 200, _, Rest} = cow_http:parse_status_line(Data),
 			{Headers, _} = cow_http:parse_headers(Rest),
-			false = lists:keymember(<<"connection">>, 1, Headers)
+			{_, <<"close">>} = lists:keyfind(<<"connection">>, 1, Headers)
 	end,
 	ok = raw_send(Client, Normal),
 	case catch raw_recv_head(Client) of
@@ -397,7 +394,8 @@ http10_keepalive_forced(Config) ->
 	case catch raw_recv_head(Client) of
 		{'EXIT', _} -> error(closed);
 		Data ->
-			{'HTTP/1.0', 200, _, Rest} = cow_http:parse_status_line(Data),
+			%% Cowboy always advertises itself as HTTP/1.1.
+			{'HTTP/1.1', 200, _, Rest} = cow_http:parse_status_line(Data),
 			{Headers, _} = cow_http:parse_headers(Rest),
 			{_, <<"keep-alive">>} = lists:keyfind(<<"connection">>, 1, Headers)
 	end,

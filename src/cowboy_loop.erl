@@ -60,15 +60,21 @@ upgrade(Req, Env, Handler, HandlerState, Timeout, run) ->
 	State2 = timeout(State),
 	after_call(Req, State2, Handler, HandlerState);
 upgrade(Req, Env, Handler, HandlerState, Timeout, hibernate) ->
+
+%	dbg:start(),
+%	dbg:tracer(),
+%	dbg:tpl(?MODULE, []),
+%	dbg:tpl(long_polling_h, []),
+%	dbg:tpl(loop_handler_body_h, []),
+%	dbg:tpl(cowboy_req, []),
+%	dbg:p(all, c),
+
 	State = #state{env=Env, max_buffer=get_max_buffer(Env), hibernate=true, timeout=Timeout},
 	State2 = timeout(State),
 	after_call(Req, State2, Handler, HandlerState).
 
-get_max_buffer(Env) ->
-	case lists:keyfind(loop_max_buffer, 1, Env) of
-		false -> 5000;
-		{_, MaxBuffer} -> MaxBuffer
-	end.
+get_max_buffer(#{loop_max_buffer := MaxBuffer}) -> MaxBuffer;
+get_max_buffer(_) -> 5000.
 
 %% Update the state if the response was sent in the callback.
 after_call(Req, State=#state{resp_sent=false}, Handler,
@@ -83,12 +89,21 @@ after_call(Req, State, Handler, HandlerState) ->
 	before_loop(Req, State, Handler, HandlerState).
 
 before_loop(Req, State=#state{hibernate=true}, Handler, HandlerState) ->
-	[Socket, Transport] = cowboy_req:get([socket, transport], Req),
-	Transport:setopts(Socket, [{active, once}]),
+
+	%% @todo Yeah we can't get the socket anymore.
+	%% Everything changes since we are a separate process now.
+	%% Proper flow control at the connection level should be implemented
+	%% instead of what we have here.
+
+%	[Socket, Transport] = cowboy_req:get([socket, transport], Req),
+%	Transport:setopts(Socket, [{active, once}]),
 	{suspend, ?MODULE, loop, [Req, State#state{hibernate=false}, Handler, HandlerState]};
 before_loop(Req, State, Handler, HandlerState) ->
-	[Socket, Transport] = cowboy_req:get([socket, transport], Req),
-	Transport:setopts(Socket, [{active, once}]),
+
+	%% Same here.
+
+%	[Socket, Transport] = cowboy_req:get([socket, transport], Req),
+%	Transport:setopts(Socket, [{active, once}]),
 	loop(Req, State, Handler, HandlerState).
 
 %% Almost the same code can be found in cowboy_websocket.
@@ -109,26 +124,26 @@ timeout(State=#state{timeout=Timeout,
 loop(Req, State=#state{buffer_size=NbBytes,
 		max_buffer=Threshold, timeout_ref=TRef,
 		resp_sent=RespSent}, Handler, HandlerState) ->
-	[Socket, Transport] = cowboy_req:get([socket, transport], Req),
-	{OK, Closed, Error} = Transport:messages(),
+%	[Socket, Transport] = cowboy_req:get([socket, transport], Req),
+%	{OK, Closed, Error} = Transport:messages(),
 	receive
-		{OK, Socket, Data} ->
-			NbBytes2 = NbBytes + byte_size(Data),
-			if	NbBytes2 > Threshold ->
-					_ = if RespSent -> ok; true ->
-						cowboy_req:reply(500, Req)
-					end,
-					cowboy_handler:terminate({error, overflow}, Req, HandlerState, Handler),
-					exit(normal);
-				true ->
-					Req2 = cowboy_req:append_buffer(Data, Req),
-					State2 = timeout(State#state{buffer_size=NbBytes2}),
-					before_loop(Req2, State2, Handler, HandlerState)
-			end;
-		{Closed, Socket} ->
-			terminate(Req, State, Handler, HandlerState, {error, closed});
-		{Error, Socket, Reason} ->
-			terminate(Req, State, Handler, HandlerState, {error, Reason});
+%		{OK, Socket, Data} ->
+%			NbBytes2 = NbBytes + byte_size(Data),
+%			if	NbBytes2 > Threshold ->
+%					_ = if RespSent -> ok; true ->
+%						cowboy_req:reply(500, Req)
+%					end,
+%					cowboy_handler:terminate({error, overflow}, Req, HandlerState, Handler),
+%					exit(normal);
+%				true ->
+%					Req2 = cowboy_req:append_buffer(Data, Req),
+%					State2 = timeout(State#state{buffer_size=NbBytes2}),
+%					before_loop(Req2, State2, Handler, HandlerState)
+%			end;
+%		{Closed, Socket} ->
+%			terminate(Req, State, Handler, HandlerState, {error, closed});
+%		{Error, Socket, Reason} ->
+%			terminate(Req, State, Handler, HandlerState, {error, Reason});
 		{timeout, TRef, ?MODULE} ->
 			after_loop(Req, State, Handler, HandlerState, timeout);
 		{timeout, OlderTRef, ?MODULE} when is_reference(OlderTRef) ->
@@ -139,13 +154,13 @@ loop(Req, State=#state{buffer_size=NbBytes,
 			%% data received after that and put it into the buffer.
 			%% We do not check the size here, if data keeps coming
 			%% we'll error out on the next packet received.
-			Transport:setopts(Socket, [{active, false}]),
-			Req2 = receive {OK, Socket, Data} ->
-				cowboy_req:append_buffer(Data, Req)
-			after 0 ->
-				Req
-			end,
-			call(Req2, State, Handler, HandlerState, Message)
+%			Transport:setopts(Socket, [{active, false}]),
+%			Req2 = receive {OK, Socket, Data} ->
+%				cowboy_req:append_buffer(Data, Req)
+%			after 0 ->
+%				Req
+%			end,
+			call(Req, State, Handler, HandlerState, Message)
 	end.
 
 call(Req, State=#state{resp_sent=RespSent},
@@ -168,7 +183,7 @@ call(Req, State=#state{resp_sent=RespSent},
 			{reason, Reason},
 			{mfa, {Handler, info, 3}},
 			{stacktrace, Stacktrace},
-			{req, cowboy_req:to_list(Req)},
+			{req, Req},
 			{state, HandlerState}
 		]})
 	end.

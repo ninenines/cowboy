@@ -373,7 +373,7 @@ content_types_provided(Req, State) ->
 			try cowboy_req:parse_header(<<"accept">>, Req) of
 				undefined ->
 					languages_provided(
-						cowboy_req:set_meta(media_type, {<<"text">>, <<"html">>, []}, Req),
+						Req#{media_type => {<<"text">>, <<"html">>, []}},
 						State2#state{content_type_a={{<<"text">>, <<"html">>, []}, to_html}});
 				Accept ->
 					choose_media_type(Req, State2, prioritize_accept(Accept))
@@ -392,7 +392,7 @@ content_types_provided(Req, State) ->
 				undefined ->
 					{PMT, _Fun} = HeadCTP = hd(CTP2),
 					languages_provided(
-						cowboy_req:set_meta(media_type, PMT, Req2),
+						Req2#{media_type => PMT},
 						State2#state{content_type_a=HeadCTP});
 				Accept ->
 					choose_media_type(Req2, State2, prioritize_accept(Accept))
@@ -460,14 +460,14 @@ match_media_type_params(Req, State, _Accept,
 		[Provided = {{TP, STP, '*'}, _Fun}|_Tail],
 		{{_TA, _STA, Params_A}, _QA, _APA}) ->
 	PMT = {TP, STP, Params_A},
-	languages_provided(cowboy_req:set_meta(media_type, PMT, Req),
+	languages_provided(Req#{media_type => PMT},
 		State#state{content_type_a=Provided});
 match_media_type_params(Req, State, Accept,
 		[Provided = {PMT = {_TP, _STP, Params_P}, _Fun}|Tail],
 		MediaType = {{_TA, _STA, Params_A}, _QA, _APA}) ->
 	case lists:sort(Params_P) =:= lists:sort(Params_A) of
 		true ->
-			languages_provided(cowboy_req:set_meta(media_type, PMT, Req),
+			languages_provided(Req#{media_type => PMT},
 				State#state{content_type_a=Provided});
 		false ->
 			match_media_type(Req, State, Accept, Tail, MediaType)
@@ -534,7 +534,7 @@ match_language(Req, State, Accept, [Provided|Tail],
 
 set_language(Req, State=#state{language_a=Language}) ->
 	Req2 = cowboy_req:set_resp_header(<<"content-language">>, Language, Req),
-	charsets_provided(cowboy_req:set_meta(language, Language, Req2), State).
+	charsets_provided(Req2#{language => Language}, State).
 
 %% charsets_provided should return a list of binary values indicating
 %% which charsets are accepted by the resource.
@@ -599,7 +599,7 @@ set_content_type(Req, State=#state{
 		Charset -> [ContentType, <<"; charset=">>, Charset]
 	end,
 	Req2 = cowboy_req:set_resp_header(<<"content-type">>, ContentType2, Req),
-	encodings_provided(cowboy_req:set_meta(charset, Charset, Req2), State).
+	encodings_provided(Req2#{charset => Charset}, State).
 
 set_content_type_build_params('*', []) ->
 	<<>>;
@@ -1012,7 +1012,7 @@ set_resp_body(Req, State=#state{content_type_a={_, Callback}}) ->
 					cowboy_req:set_resp_body_fun(Len, StreamFun, Req2);
 				{chunked, StreamFun} ->
 					cowboy_req:set_resp_body_fun(chunked, StreamFun, Req2);
-				_Contents ->
+				_ ->
 					cowboy_req:set_resp_body(Body, Req2)
 			end,
 			multiple_choices(Req3, State2)
@@ -1152,7 +1152,7 @@ error_terminate(Req, #state{handler=Handler, handler_state=HandlerState},
 		{reason, Reason},
 		{mfa, {Handler, Callback, 2}},
 		{stacktrace, Stacktrace},
-		{req, cowboy_req:to_list(Req)},
+		{req, Req},
 		{state, HandlerState}
 	]}).
 

@@ -5,11 +5,11 @@
 -export([init/2]).
 
 init(Req, Opts) ->
-	Headers = proplists:get_value(headers, Opts, []),
+	Headers = proplists:get_value(headers, Opts, #{}),
 	Body = proplists:get_value(body, Opts, <<"http_handler_set_resp">>),
 	Req2 = lists:foldl(fun({Name, Value}, R) ->
 		cowboy_req:set_resp_header(Name, Value, R)
-	end, Req, Headers),
+	end, Req, maps:to_list(Headers)),
 	Req3 = cowboy_req:set_resp_body(Body, Req2),
 	Req4 = cowboy_req:set_resp_header(<<"x-cowboy-test">>, <<"ok">>, Req3),
 	Req5 = cowboy_req:set_resp_cookie(<<"cake">>, <<"lie">>, [], Req4),

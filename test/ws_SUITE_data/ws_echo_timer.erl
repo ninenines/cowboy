@@ -3,12 +3,16 @@
 -module(ws_echo_timer).
 
 -export([init/2]).
+-export([websocket_init/2]).
 -export([websocket_handle/3]).
 -export([websocket_info/3]).
 
 init(Req, _) ->
-	erlang:start_timer(1000, self(), <<"websocket_init">>),
 	{cowboy_websocket, Req, undefined}.
+
+websocket_init(Req, State) ->
+	erlang:start_timer(1000, self(), <<"websocket_init">>),
+	{ok, Req, State}.
 
 websocket_handle({text, Data}, Req, State) ->
 	{reply, {text, Data}, Req, State};

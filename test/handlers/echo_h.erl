@@ -13,4 +13,4 @@ echo(What, Req, Opts) ->
 		V when is_integer(V) -> integer_to_binary(V);
 		V -> V
 	end,
-	{ok, cowboy_req:reply(200, [], Value, Req), Opts}.
+	{ok, cowboy_req:reply(200, #{}, Value, Req), Opts}.

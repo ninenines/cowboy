@@ -14,9 +14,10 @@ init(Req, _) ->
 	{cowboy_loop, Req, undefined, 5000, hibernate}.
 
 info(timeout, Req, State) ->
-	{ok, Body, Req2} = cowboy_req:body(Req),
+	{ok, Body, Req2} = cowboy_req:read_body(Req),
 	100000 = byte_size(Body),
-	{stop, cowboy_req:reply(200, Req2), State}.
+	cowboy_req:reply(200, Req2),
+	{stop, Req, State}.
 
 terminate(stop, _, _) ->
 	ok.

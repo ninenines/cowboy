@@ -159,14 +159,17 @@ compile_brackets_split(<< C, Rest/bits >>, Acc, N) ->
 -spec execute(Req, Env)
 	-> {ok, Req, Env} | {stop, Req}
 	when Req::cowboy_req:req(), Env::cowboy_middleware:env().
-execute(Req, Env) ->
-	{_, Dispatch} = lists:keyfind(dispatch, 1, Env),
-	Host = cowboy_req:host(Req),
-	Path = cowboy_req:path(Req),
+execute(Req=#{host := Host, path := Path}, Env=#{dispatch := Dispatch}) ->
 	case match(Dispatch, Host, Path) of
 		{ok, Handler, HandlerOpts, Bindings, HostInfo, PathInfo} ->
-			Req2 = cowboy_req:set_bindings(HostInfo, PathInfo, Bindings, Req),
-			{ok, Req2, [{handler, Handler}, {handler_opts, HandlerOpts}|Env]};
+			{ok, Req#{
+				host_info => HostInfo,
+				path_info => PathInfo,
+				bindings => Bindings
+			}, Env#{
+				handler => Handler,
+				handler_opts => HandlerOpts
+			}};
 		{error, notfound, host} ->
 			{stop, cowboy_req:reply(400, Req)};
 		{error, badrequest, path} ->
