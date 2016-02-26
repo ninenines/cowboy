@@ -1,0 +1,143 @@
+= cowboy_websocket(3)
+
+== Name
+
+cowboy_websocket - Websocket protocol
+
+== Description
+
+The `cowboy_websocket` module implements the Websocket protocol.
+
+This module is a sub protocol that defines four callbacks to
+be implemented by handlers. The `init/2` and `terminate/3`
+callbacks are common to all handler types and are documented
+in the manual for the link:cowboy_handler.asciidoc[cowboy_handler] module.
+
+The `websocket_handle/3` and `websocket_info/3` callbacks are
+specific to Websocket handlers and will be called as many times
+as necessary until the Websocket connection is closed.
+
+The `init/2` callback can be used to negotiate Websocket protocol
+extensions with the client. It is highly recommended to return a
+timeout value from this callback to ensure that the process is
+terminated when no data has been received during that timespan.
+The default timeout is `infinity`, which should only be used if
+you have alternate means of ending inactive connections.
+
+Cowboy will terminate the process right after closing the
+Websocket connection. This means that there is no real need to
+perform any cleanup in the optional `terminate/3` callback.
+
+== Meta values
+
+websocket_compress = boolean()::
+	Whether a websocket compression extension in in use.
+
+websocket_version = 7 | 8 | 13::
+	The version of the Websocket protocol being used.
+
+== Terminate reasons
+
+The following values may be received as the terminate reason
+in the optional `terminate/3` callback.
+
+normal::
+	The connection was closed normally before establishing a Websocket
+	connection. This typically happens if an `ok` tuple is returned
+	from the `init/2` callback.
+
+remote::
+	The remote endpoint closed the connection without giving any
+	further details.
+
+{remote, Code, Payload}::
+	The remote endpoint closed the connection with the given
+	`Code` and `Payload` as the reason.
+
+stop::
+	The handler requested to close the connection, either by returning
+	a `stop` tuple or by sending a `close` frame.
+
+timeout::
+	The connection has been closed due to inactivity. The timeout
+	value can be configured from `init/2`.
+
+{crash, Class, Reason}::
+	A crash occurred in the handler. `Class` and `Reason` can be
+	used to obtain more information about the crash. The function
+	`erlang:get_stacktrace/0` can also be called to obtain the
+	stacktrace of the process when the crash occurred.
+
+{error, badencoding}::
+	A text frame was sent by the client with invalid encoding. All
+	text frames must be valid UTF-8.
+
+{error, badframe}::
+	A protocol error has been detected.
+
+{error, closed}::
+	The socket has been closed brutally without a close frame being
+	received first.
+
+{error, Reason}::
+	A socket error ocurred.
+
+== Callbacks
+
+=== websocket_handle(InFrame, Req, State) -> Ret
+
+[source,erlang]
+----
+Ret = {ok, Req, State}
+	| {ok, Req, State, hibernate}
+	| {reply, OutFrame | [OutFrame], Req, State}
+	| {reply, OutFrame | [OutFrame], Req, State, hibernate}
+	| {stop, Req, State}
+
+InFrame = {text | binary | ping | pong, binary()}
+Req = cowboy_req:req()
+State = any()
+OutFrame = cow_ws:frame()
+----
+
+Handle the data received from the Websocket connection.
+
+This function will be called every time data is received
+from the Websocket connection.
+
+The `stop` return value can be used to close the
+connection. A close reply will also result in the connection
+being closed.
+
+The `hibernate` option will hibernate the process until
+it receives new data from the Websocket connection or an
+Erlang message.
+
+=== websocket_info(Info, Req, State) -> Ret
+
+[source,erlang]
+----
+Ret = {ok, Req, State}
+	| {ok, Req, State, hibernate}
+	| {reply, OutFrame | [OutFrame], Req, State}
+	| {reply, OutFrame | [OutFrame], Req, State, hibernate}
+	| {stop, Req, State}
+
+Info = any()
+Req = cowboy_req:req()
+State = any()
+OutFrame = cow_ws:frame()
+----
+
+Handle the Erlang message received.
+
+This function will be called every time an Erlang message
+has been received. The message can be any Erlang term.
+
+The `stop` return value can be used to close the
+connection. A close reply will also result in the connection
+being closed.
+
+The `hibernate` option will hibernate the process until
+it receives another message or new data from the Websocket
+connection.

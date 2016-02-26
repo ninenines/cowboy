@@ -1,0 +1,72 @@
+// a2x: --dblatex-opts "-P latex.output.revhistory=0 -P doc.publisher.show=0 -P index.numbered=0"
+// a2x: -d book --attribute tabsize=4
+
+= Cowboy User Guide
+
+= Rationale
+
+include::modern_web.asciidoc[The modern Web]
+
+include::erlang_web.asciidoc[Erlang and the Web]
+
+= Introduction
+
+include::introduction.asciidoc[Introduction]
+
+include::getting_started.asciidoc[Getting started]
+
+include::overview.asciidoc[Request overview]
+
+include::erlang_beginners.asciidoc[Erlang for beginners]
+
+= Configuration
+
+include::routing.asciidoc[routing]
+
+include::constraints.asciidoc[Constraints]
+
+include::static_files.asciidoc[Static files]
+
+= Request and response
+
+include::handlers.asciidoc[Handlers]
+
+include::loop_handlers.asciidoc[Loop handlers]
+
+include::req.asciidoc[The Req object]
+
+include::req_body.asciidoc[Reading the request body]
+
+include::resp.asciidoc[Sending a response]
+
+include::cookies.asciidoc[Using cookies]
+
+include::multipart.asciidoc[Multipart]
+
+= REST
+
+include::rest_principles.asciidoc[REST principles]
+
+include::rest_handlers.asciidoc[Handling REST requests]
+
+include::rest_flowcharts.asciidoc[REST flowcharts]
+
+include::resource_design.asciidoc[Designing a resource handler]
+
+= Websocket
+
+include::ws_protocol.asciidoc[The Websocket protocol]
+
+include::ws_handlers.asciidoc[Handling Websocket connections]
+
+= Internals
+
+include::architecture.asciidoc[Architecture]
+
+include::broken_clients.asciidoc[Dealing with broken clients]
+
+include::middlewares.asciidoc[Middlewares]
+
+include::sub_protocols.asciidoc[Sub protocols]
+
+include::hooks.asciidoc[Hooks]

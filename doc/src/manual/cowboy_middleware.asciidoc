@@ -1,0 +1,48 @@
+= cowboy_middleware(3)
+
+== Name
+
+cowboy_middleware - behaviour for middlewares
+
+== Description
+
+The `cowboy_middleware` behaviour defines the interface used
+by Cowboy middleware modules.
+
+Middlewares process the request sequentially in the order they
+are configured.
+
+== Types
+
+=== env() = [{atom(), any()}]
+
+The environment variable.
+
+One is created for every request. It is passed to each
+middleware module executed and subsequently returned,
+optionally with its contents modified.
+
+== Callbacks
+
+=== execute(Req, Env) -> {ok, Req, Env} | {suspend, Module, Function, Args} | {stop, Req}
+
+Req = cowboy_req:req():: The Req object.
+Env = env():: The request environment.
+Module = module():: MFA to call when resuming the process.
+Function = atom():: MFA to call when resuming the process.
+Args = [any()]:: MFA to call when resuming the process.
+
+Execute the middleware.
+
+The `ok` return value indicates that everything went well
+and that Cowboy should continue processing the request. A
+response may or may not have been sent.
+
+The `suspend` return value will hibernate the process until
+an Erlang message is received. Note that when resuming, any
+previous stacktrace information will be gone.
+
+The `stop` return value stops Cowboy from doing any further
+processing of the request, even if there are middlewares
+that haven't been executed yet. The connection may be left
+open to receive more requests from the client.

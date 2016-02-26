@@ -1,0 +1,529 @@
+= cowboy_rest(3)
+
+== Name
+
+cowboy_rest - REST handlers
+
+== Description
+
+The `cowboy_rest` module implements REST semantics on top of
+the HTTP protocol.
+
+This module is a sub protocol that defines many callbacks
+be implemented by handlers. The `init/2` and `terminate/3`
+callbacks are common to all handler types and are documented
+in the manual for the link:cowboy_handler.asciidoc[cowboy_handler] module.
+
+All other callbacks are optional, though some may become
+required depending on the return value of previous callbacks.
+
+== Meta values
+
+charset = binary()::
+	Negotiated charset.
+	+
+	This value may not be defined if no charset was negotiated.
+
+language = binary()::
+	Negotiated language.
+	+
+	This value may not be defined if no language was negotiated.
+
+media_type = {binary(), binary(), '*' | [{binary(), binary()}]}::
+	Negotiated media-type.
+	+
+	The media-type is the content-type, excluding the charset.
+	+
+	This value is always defined after the call to
+	`content_types_provided/2`.
+
+== Terminate reasons
+
+The following values may be received as the terminate reason
+in the optional `terminate/3` callback.
+
+normal::
+	The connection was closed normally.
+
+{crash, Class, Reason}::
+	A crash occurred in the handler. `Class` and `Reason` can be
+	used to obtain more information about the crash. The function
+	`erlang:get_stacktrace/0` can also be called to obtain the
+	stacktrace of the process when the crash occurred.
+
+== Callbacks
+
+=== Callback(Req, State) -> {Value, Req, State} | {stop, Req, State}
+
+Callback:: One of the REST callbacks described below.
+Req = cowboy_req:req():: The Req object.
+State = any():: Handler state.
+Value:: See the REST callbacks description below.
+
+Please see the REST callbacks description below for details
+on the `Value` type, the default value if the callback is
+not defined, and more general information on when the
+callback is called and what its intended use is.
+
+The `stop` tuple can be returned to stop REST processing.
+It is up to the resource code to send a reply before that,
+otherwise a `204 No Content` will be sent.
+
+== REST callbacks description
+
+=== allowed_methods
+
+Methods:: all
+Value type:: [binary()]
+Default value:: `[<<"GET">>, <<"HEAD">>, <<"OPTIONS">>]`
+
+Return the list of allowed methods.
+
+Methods are case sensitive. Standard methods are always uppercase.
+
+=== allow_missing_post
+
+Methods:: POST
+Value type:: boolean()
+Default value:: true
+
+Return whether POST is allowed when the resource doesn't exist.
+
+Returning `true` here means that a new resource will be
+created. The URL to the created resource should also be
+returned from the `AcceptResource` callback.
+
+=== charsets_provided
+
+Methods:: GET, HEAD, POST, PUT, PATCH, DELETE
+Value type:: [binary()]
+Default behavior:: Skip to the next step if undefined.
+
+Return the list of charsets the resource provides.
+
+The list must be ordered in order of preference.
+
+If the accept-charset header was not sent, the first charset
+in the list will be selected. Otherwise Cowboy will select
+the most appropriate charset from the list.
+
+The chosen charset will be set in the `Req` object as the meta
+value `charset`.
+
+While charsets are case insensitive, this callback is expected
+to return them as lowercase binary.
+
+=== content_types_accepted
+
+Methods:: POST, PUT, PATCH
+Value type:: [{binary() | {Type, SubType, Params}, AcceptResource}]
+Default behavior:: Crash if undefined.
+
+With types:
+
+* Type = SubType = binary()
+* Params = '*' | [{binary(), binary()}]
+* AcceptResource = atom()
+
+Return the list of content-types the resource accepts.
+
+The list must be ordered in order of preference.
+
+Each content-type can be given either as a binary string or as
+a tuple containing the type, subtype and parameters.
+
+Cowboy will select the most appropriate content-type from the list.
+If any parameter is acceptable, then the tuple form should be used
+with parameters set to `'*'`. If the parameters value is set to `[]`
+only content-type values with no parameters will be accepted. All
+parameter values are treated in a case sensitive manner except the
+`charset` parameter, if present, which is case insensitive.
+
+This function will be called for POST, PUT and PATCH requests.
+It is entirely possible to define different callbacks for different
+methods if the handling of the request differs. Simply verify
+what the method is with `cowboy_req:method/1` and return a
+different list for each methods.
+
+The `AcceptResource` value is the name of the callback that will
+be called if the content-type matches. It is defined as follows.
+
+Value type:: true | {true, URL} | false
+Default behavior:: Crash if undefined.
+
+Process the request body.
+
+This function should create or update the resource with the
+information contained in the request body. This information
+may be full or partial depending on the request method.
+
+If the request body was processed successfully, `true` must
+be returned. If the request method is POST, `{true, URL}` may
+be returned instead, and Cowboy will redirect the client to
+the location of the newly created resource.
+
+If a response body must be sent, the appropriate media-type, charset
+and language can be retrieved using the `cowboy_req:meta/{2,3}`
+functions. The respective keys are `media_type`, `charset`
+and `language`. The body can be set using `cowboy_req:set_resp_body/2`.
+
+=== content_types_provided
+
+Methods:: GET, HEAD, POST, PUT, PATCH, DELETE
+Value type:: [{binary() | {Type, SubType, Params}, ProvideResource}]
+Default value:: `[{{<<"text">>, <<"html">>, '*'}, to_html}]`
+
+With types:
+
+* Type = SubType = binary()
+* Params = '*' | [{binary(), binary()}]
+* ProvideResource = atom()
+
+Return the list of content-types the resource provides.
+
+The list must be ordered in order of preference.
+
+Each content-type can be given either as a binary string or as
+a tuple containing the type, subtype and parameters.
+
+Cowboy will select the most appropriate content-type from the list.
+If any parameter is acceptable, then the tuple form should be used
+with parameters set to `'*'`. If the parameters value is set to `[]`
+only content-type values with no parameters will be accepted. All
+parameter values are treated in a case sensitive manner except the
+`charset` parameter, if present, which is case insensitive.
+
+The `ProvideResource` value is the name of the callback that will
+be called if the content-type matches. It will only be called when
+a representation of the resource needs to be returned. It is defined
+as follow.
+
+Methods:: GET, HEAD
+Value type:: iodata() | {stream, Fun} | {stream, Len, Fun} | {chunked, ChunkedFun}
+Default behavior:: Crash if undefined.
+
+Return the response body.
+
+The response body may be provided directly or through a fun.
+If a fun tuple is returned, the appropriate `set_resp_body_fun`
+function will be called. Please refer to the documentation for
+these functions for more information about the types.
+
+The call to this callback happens a good time after the call to
+`content_types_provided/2`, when it is time to start rendering
+the response body.
+
+=== delete_completed
+
+Methods:: DELETE
+Value type:: boolean()
+Default value:: true
+
+Return whether the delete action has been completed.
+
+This function should return `false` if there is no guarantee
+that the resource gets deleted immediately from the system,
+including from any internal cache.
+
+When this function returns `false`, a `202 Accepted`
+response will be sent instead of a `200 OK` or `204 No Content`.
+
+=== delete_resource
+
+Methods:: DELETE
+Value type:: boolean()
+Default value:: false
+
+Delete the resource.
+
+The value returned indicates if the action was successful,
+regardless of whether the resource is immediately deleted
+from the system.
+
+=== expires
+
+Methods:: GET, HEAD
+Value type:: calendar:datetime() | binary() | undefined
+Default value:: undefined
+
+Return the date of expiration of the resource.
+
+This date will be sent as the value of the expires header.
+
+=== forbidden
+
+Methods:: all
+Value type:: boolean()
+Default value:: false
+
+Return whether access to the resource is forbidden.
+
+A `403 Forbidden` response will be sent if this
+function returns `true`. This status code means that
+access is forbidden regardless of authentication,
+and that the request shouldn't be repeated.
+
+=== generate_etag
+
+Methods:: GET, HEAD, POST, PUT, PATCH, DELETE
+Value type:: binary() | {weak | strong, binary()}
+Default value:: undefined
+
+Return the entity tag of the resource.
+
+This value will be sent as the value of the etag header.
+
+If a binary is returned, then the value will be parsed
+to the tuple form automatically. The value must be in
+the same format as the etag header, including quotes.
+
+=== is_authorized
+
+Methods:: all
+Value type:: true | {false, AuthHeader}
+Default value:: true
+
+With types:
+
+* AuthHead = iodata()
+
+Return whether the user is authorized to perform the action.
+
+This function should be used to perform any necessary
+authentication of the user before attempting to perform
+any action on the resource.
+
+If the authentication fails, the value returned will be sent
+as the value for the www-authenticate header in the
+`401 Unauthorized` response.
+
+=== is_conflict
+
+Methods:: PUT
+Value type:: boolean()
+Default value:: false
+
+Return whether the put action results in a conflict.
+
+A `409 Conflict` response will be sent if this function
+returns `true`.
+
+=== known_methods
+
+Methods:: all
+Value type:: [binary()]
+Default value:: `[<<"GET">>, <<"HEAD">>, <<"POST">>, <<"PUT">>, <<"PATCH">>, <<"DELETE">>, <<"OPTIONS">>]`
+
+Return the list of known methods.
+
+The full list of methods known by the server should be
+returned, regardless of their use in the resource.
+
+The default value lists the methods Cowboy knows and
+implement in `cowboy_rest`.
+
+Methods are case sensitive. Standard methods are always uppercase.
+
+=== languages_provided
+
+Methods:: GET, HEAD, POST, PUT, PATCH, DELETE
+Value type:: [binary()]
+Default behavior:: Skip to the next step if undefined.
+
+Return the list of languages the resource provides.
+
+The list must be ordered in order of preference.
+
+If the accept-language header was not sent, the first language
+in the list will be selected. Otherwise Cowboy will select
+the most appropriate language from the list.
+
+The chosen language will be set in the `Req` object as the meta
+value `language`.
+
+While languages are case insensitive, this callback is expected
+to return them as lowercase binary.
+
+=== last_modified
+
+Methods:: GET, HEAD, POST, PUT, PATCH, DELETE
+Value type:: calendar:datetime()
+Default value:: undefined
+
+Return the date of last modification of the resource.
+
+This date will be used to test against the if-modified-since
+and if-unmodified-since headers, and sent as the last-modified
+header in the response of GET and HEAD requests.
+
+=== malformed_request
+
+Methods:: all
+Value type:: boolean()
+Default value:: false
+
+Return whether the request is malformed.
+
+Cowboy has already performed all the necessary checks
+by the time this function is called, so few resources
+are expected to implement it.
+
+The check is to be done on the request itself, not on
+the request body, which is processed later.
+
+=== moved_permanently
+
+Methods:: GET, HEAD, POST, PUT, PATCH, DELETE
+Value type:: {true, URL} | false
+Default value:: false
+
+With types:
+
+* URL = iodata()
+
+Return whether the resource was permanently moved.
+
+If it was, its new URL is also returned and sent in the
+location header in the response.
+
+=== moved_temporarily
+
+Methods:: GET, HEAD, POST, PATCH, DELETE
+Value type:: {true, URL} | false
+Default value:: false
+
+With types:
+
+* URL = iodata()
+
+Return whether the resource was temporarily moved.
+
+If it was, its new URL is also returned and sent in the
+location header in the response.
+
+=== multiple_choices
+
+Methods:: GET, HEAD, POST, PUT, PATCH, DELETE
+Value type:: boolean()
+Default value:: false
+
+Return whether there are multiple representations of the resource.
+
+This function should be used to inform the client if there
+are different representations of the resource, for example
+different content-type. If this function returns `true`,
+the response body should include information about these
+different representations using `cowboy_req:set_resp_body/2`.
+The content-type of the response should be the one previously
+negociated and that can be obtained by calling
+`cowboy_req:meta(media_type, Req)`.
+
+=== options
+
+Methods:: OPTIONS
+Value type:: ok
+Default value:: ok
+
+Handle a request for information.
+
+The response should inform the client the communication
+options available for this resource.
+
+By default, Cowboy will send a `200 OK` response with the
+allow header set.
+
+=== previously_existed
+
+Methods:: GET, HEAD, POST, PATCH, DELETE
+Value type:: boolean()
+Default value:: false
+
+Return whether the resource existed previously.
+
+=== resource_exists
+
+Methods:: GET, HEAD, POST, PUT, PATCH, DELETE
+Value type:: boolean()
+Default value:: true
+
+Return whether the resource exists.
+
+If it exists, conditional headers will be tested before
+attempting to perform the action. Otherwise, Cowboy will
+check if the resource previously existed first.
+
+=== service_available
+
+Methods:: all
+Value type:: boolean()
+Default value:: true
+
+Return whether the service is available.
+
+This function can be used to test that all relevant backend
+systems are up and able to handle requests.
+
+A `503 Service Unavailable` response will be sent if this
+function returns `false`.
+
+=== uri_too_long
+
+Methods:: all
+Value type:: boolean()
+Default value:: false
+
+Return whether the requested URI is too long.
+
+Cowboy has already performed all the necessary checks
+by the time this function is called, so few resources
+are expected to implement it.
+
+A `414 Request-URI Too Long` response will be sent if this
+function returns `true`.
+
+=== valid_content_headers
+
+Methods:: all
+Value type:: boolean()
+Default value:: true
+
+Return whether the content-* headers are valid.
+
+This also applies to the transfer-encoding header. This
+function must return `false` for any unknown content-*
+headers, or if the headers can't be understood. The
+function `cowboy_req:parse_header/2` can be used to
+quickly check the headers can be parsed.
+
+A `501 Not Implemented` response will be sent if this
+function returns `false`.
+
+=== valid_entity_length
+
+Methods:: all
+Value type:: boolean()
+Default value:: true
+
+Return whether the request body length is within acceptable boundaries.
+
+A `413 Request Entity Too Large` response will be sent if this
+function returns `false`.
+
+=== variances
+
+Methods:: GET, HEAD, POST, PUT, PATCH, DELETE
+Value type:: [binary()]
+Default value:: []
+
+Return the list of headers that affect the representation of the resource.
+
+These request headers return the same resource but with different
+parameters, like another language or a different content-type.
+
+Cowboy will automatically add the accept, accept-language and
+accept-charset headers to the list if the respective functions
+were defined in the resource.
+
+This operation is performed right before the `resource_exists/2`
+callback. All responses past that point will contain the vary
+header which holds this list.

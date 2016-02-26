@@ -1,0 +1,46 @@
+[[hooks]]
+== Hooks
+
+Hooks allow the user to customize Cowboy's behavior during specific
+operations.
+
+=== Onresponse
+
+The `onresponse` hook is called right before sending the response
+to the socket. It can be used for the purposes of logging responses,
+or for modifying the response headers or body. The best example is
+providing custom error pages.
+
+Note that this function MUST NOT crash. Cowboy may or may not send a
+reply if this function crashes. If a reply is sent, the hook MUST
+explicitly provide all headers that are needed.
+
+You can specify the `onresponse` hook when creating the listener.
+
+[source,erlang]
+----
+cowboy:start_http(my_http_listener, 100,
+    [{port, 8080}],
+    [
+        {env, [{dispatch, Dispatch}]},
+        {onresponse, fun ?MODULE:custom_404_hook/4}
+    ]
+).
+----
+
+The following hook function will provide a custom body for 404 errors
+when it has not been provided before, and will let Cowboy proceed with
+the default response otherwise.
+
+[source,erlang]
+----
+custom_404_hook(404, Headers, <<>>, Req) ->
+    Body = <<"404 Not Found.">>,
+    Headers2 = lists:keyreplace(<<"content-length">>, 1, Headers,
+        {<<"content-length">>, integer_to_list(byte_size(Body))}),
+    cowboy_req:reply(404, Headers2, Body, Req);
+custom_404_hook(_, _, _, Req) ->
+    Req.
+----
+
+Again, make sure to always return the last request object obtained.
