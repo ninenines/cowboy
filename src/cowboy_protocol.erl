@@ -215,6 +215,7 @@ parse_uri_path(<< C, Rest/bits >>, State, Method, SoFar) ->
 		$\s -> parse_version(Rest, State, Method, SoFar, <<>>);
 		$? -> parse_uri_query(Rest, State, Method, SoFar, <<>>);
 		$# -> skip_uri_fragment(Rest, State, Method, SoFar, <<>>);
+		$+ -> parse_uri_path(Rest, State, Method, << SoFar/binary, "%2B" >>);
 		_ -> parse_uri_path(Rest, State, Method, << SoFar/binary, C >>)
 	end.
 
