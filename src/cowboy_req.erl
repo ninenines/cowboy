@@ -747,6 +747,7 @@ do_reply(Status, Headers, Body, Req=#{pid := Pid, streamid := StreamID}) ->
 	Pid ! {{Pid, StreamID}, {response, Status, response_headers(Headers, Req), Body}},
 	ok.
 
+-spec send_body(iodata(), fin | nofin, req()) -> ok.
 send_body(Data, IsFin, #{pid := Pid, streamid := StreamID}) ->
 	Pid ! {{Pid, StreamID}, {data, IsFin, Data}},
 	ok.
@@ -1016,129 +1017,6 @@ to_list(Req) ->
 	lists:zip(record_info(fields, http_req), tl(tuple_to_list(Req))).
 
 %% Internal.
-
-%-spec chunked_response(cowboy:http_status(), cowboy:http_headers(), Req) ->
-%	{normal | hook, Req} when Req::req().
-%chunked_response(Status, Headers, Req=#http_req{
-%		version=Version, connection=Connection,
-%		resp_state=RespState, resp_headers=RespHeaders})
-%		when RespState =:= waiting; RespState =:= waiting_stream ->
-%	RespConn = response_connection(Headers, Connection),
-%	HTTP11Headers = if
-%		Version =:= 'HTTP/1.0', Connection =:= keepalive ->
-%			[{<<"connection">>, atom_to_connection(Connection)}];
-%		Version =:= 'HTTP/1.0' -> [];
-%		true ->
-%			MaybeTE = if
-%				RespState =:= waiting_stream -> [];
-%				true -> [{<<"transfer-encoding">>, <<"chunked">>}]
-%			end,
-%			if
-%				Connection =:= close ->
-%					[{<<"connection">>, atom_to_connection(Connection)}|MaybeTE];
-%				true ->
-%					MaybeTE
-%			end
-%	end,
-%	RespState2 = if
-%		Version =:= 'HTTP/1.1', RespState =:= 'waiting' -> chunks;
-%		true -> stream
-%	end,
-%	{RespType, Req2} = response(Status, Headers, RespHeaders, [
-%		{<<"date">>, cowboy_clock:rfc1123()},
-%		{<<"server">>, <<"Cowboy">>}
-%	|HTTP11Headers], <<>>, Req),
-%	{RespType, Req2#http_req{connection=RespConn, resp_state=RespState2,
-%			resp_headers=[], resp_body= <<>>}}.
-%
--spec response(cowboy:http_status(), cowboy:http_headers(),
-	cowboy:http_headers(), cowboy:http_headers(), stream | iodata(), Req)
-	-> {normal | hook, Req} when Req::req().
-response(Status, Headers, RespHeaders, DefaultHeaders, Body, Req=#http_req{
-		socket=Socket, transport=Transport, version=Version,
-		pid=ReqPid, onresponse=OnResponse}) ->
-	FullHeaders = case OnResponse of
-		already_called -> Headers;
-		_ -> response_merge_headers(Headers, RespHeaders, DefaultHeaders)
-	end,
-	Body2 = case Body of stream -> <<>>; _ -> Body end,
-	{Status2, FullHeaders2, Req2} = case OnResponse of
-		already_called -> {Status, FullHeaders, Req};
-		undefined -> {Status, FullHeaders, Req};
-		OnResponse ->
-			case OnResponse(Status, FullHeaders, Body2,
-					%% Don't call 'onresponse' from the hook itself.
-					Req#http_req{resp_headers=[], resp_body= <<>>,
-						onresponse=already_called}) of
-				StHdReq = {_, _, _} ->
-					StHdReq;
-				Req1 ->
-					{Status, FullHeaders, Req1}
-			end
-	end,
-	ReplyType = case Req2#http_req.resp_state of
-		RespState when RespState =:= waiting; RespState =:= waiting_stream ->
-			HTTPVer = atom_to_binary(Version, latin1),
-			StatusLine = << HTTPVer/binary, " ",
-				(status(Status2))/binary, "\r\n" >>,
-			HeaderLines = [[Key, <<": ">>, Value, <<"\r\n">>]
-				|| {Key, Value} <- FullHeaders2],
-			ok = Transport:send(Socket, [StatusLine, HeaderLines, <<"\r\n">>, Body2]),
-			ReqPid ! {?MODULE, resp_sent},
-			normal;
-		_ ->
-			hook
-	end,
-	{ReplyType, Req2}.
-%
-%-spec response_connection(cowboy:http_headers(), keepalive | close)
-%	-> keepalive | close.
-%response_connection([], Connection) ->
-%	Connection;
-%response_connection([{Name, Value}|Tail], Connection) ->
-%	case Name of
-%		<<"connection">> ->
-%			Tokens = cow_http_hd:parse_connection(Value),
-%			connection_to_atom(Tokens);
-%		_ ->
-%			response_connection(Tail, Connection)
-%	end.
-%
--spec response_merge_headers(cowboy:http_headers(), cowboy:http_headers(),
-	cowboy:http_headers()) -> cowboy:http_headers().
-response_merge_headers(Headers, RespHeaders, DefaultHeaders) ->
-	Headers2 = [{Key, Value} || {Key, Value} <- Headers],
-	merge_headers(
-		merge_headers(Headers2, RespHeaders),
-		DefaultHeaders).
-
--spec merge_headers(cowboy:http_headers(), cowboy:http_headers())
-	-> cowboy:http_headers().
-
-%% Merge headers by prepending the tuples in the second list to the
-%% first list. It also handles Set-Cookie properly, which supports
-%% duplicated entries. Notice that, while the RFC2109 does allow more
-%% than one cookie to be set per Set-Cookie header, we are following
-%% the implementation of common web servers and applications which
-%% return many distinct headers per each Set-Cookie entry to avoid
-%% issues with clients/browser which may not support it.
-merge_headers(Headers, []) ->
-	Headers;
-merge_headers(Headers, [{<<"set-cookie">>, Value}|Tail]) ->
-	merge_headers([{<<"set-cookie">>, Value}|Headers], Tail);
-merge_headers(Headers, [{Name, Value}|Tail]) ->
-	Headers2 = case lists:keymember(Name, 1, Headers) of
-		true -> Headers;
-		false -> [{Name, Value}|Headers]
-	end,
-	merge_headers(Headers2, Tail).
-%
-%-spec atom_to_connection(keepalive) -> <<_:80>>;
-%						(close) -> <<_:40>>.
-%atom_to_connection(keepalive) ->
-%	<<"keep-alive">>;
-%atom_to_connection(close) ->
-%	<<"close">>.
 
 %% We don't match on "keep-alive" since it is the default value.
 -spec connection_to_atom([binary()]) -> keepalive | close.

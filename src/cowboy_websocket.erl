@@ -101,9 +101,13 @@ websocket_upgrade(State, Req) ->
 -spec websocket_extensions(#state{}, Req)
 	-> {ok, #state{}, Req} when Req::cowboy_req:req().
 websocket_extensions(State, Req) ->
-	%% @todo Proper options for this.
-%	[Compress] = cowboy_req:get([resp_compress], Req),
-	Compress = false,
+	%% @todo We want different options for this. For example
+	%% * compress everything auto
+	%% * compress only text auto
+	%% * compress only binary auto
+	%% * compress nothing auto (but still enabled it)
+	%% * disable compression
+	Compress = maps:get(websocket_compress, Req, false),
 	Req2 = Req#{websocket_compress => false},
 	case {Compress, cowboy_req:parse_header(<<"sec-websocket-extensions">>, Req2)} of
 		{true, Extensions} when Extensions =/= undefined ->
@@ -144,7 +148,7 @@ websocket_extensions(State, Req, [_|Tail], RespHeader) ->
 -spec websocket_handshake(#state{}, Req, any(), Env)
 	-> {ok, Req, Env}
 	when Req::cowboy_req:req(), Env::cowboy_middleware:env().
-websocket_handshake(State=#state{transport=Transport, key=Key},
+websocket_handshake(State=#state{key=Key},
 		Req=#{pid := Pid, streamid := StreamID}, HandlerState, Env) ->
 	Challenge = base64:encode(crypto:hash(sha,
 		<< Key/binary, "258EAFA5-E914-47DA-95CA-C5AB0DC85B11" >>)),
@@ -159,7 +163,11 @@ websocket_handshake(State=#state{transport=Transport, key=Key},
 
 %% Connection process.
 
-takeover(Parent, Ref, Socket, Transport, Opts, Buffer, {Req0, State=#state{handler=Handler}, HandlerState0}) ->
+%% @todo Keep parent and handle system messages.
+-spec takeover(pid(), ranch:ref(), inet:socket(), module(), any(), binary(),
+	{cowboy_req:req(), #state{}, any()}) -> ok.
+takeover(_Parent, Ref, Socket, Transport, _Opts, Buffer,
+		{Req0, State=#state{handler=Handler}, HandlerState0}) ->
 	ranch:remove_connection(Ref),
 	%% @todo Remove Req from Websocket callbacks.
 	%% @todo Allow sending a reply from websocket_init.

@@ -121,45 +121,13 @@ timeout(State=#state{timeout=Timeout,
 -spec loop(Req, #state{}, module(), any())
 	-> {ok, Req, cowboy_middleware:env()} | {suspend, module(), atom(), [any()]}
 	when Req::cowboy_req:req().
-loop(Req, State=#state{buffer_size=NbBytes,
-		max_buffer=Threshold, timeout_ref=TRef,
-		resp_sent=RespSent}, Handler, HandlerState) ->
-%	[Socket, Transport] = cowboy_req:get([socket, transport], Req),
-%	{OK, Closed, Error} = Transport:messages(),
+loop(Req, State=#state{timeout_ref=TRef}, Handler, HandlerState) ->
 	receive
-%		{OK, Socket, Data} ->
-%			NbBytes2 = NbBytes + byte_size(Data),
-%			if	NbBytes2 > Threshold ->
-%					_ = if RespSent -> ok; true ->
-%						cowboy_req:reply(500, Req)
-%					end,
-%					cowboy_handler:terminate({error, overflow}, Req, HandlerState, Handler),
-%					exit(normal);
-%				true ->
-%					Req2 = cowboy_req:append_buffer(Data, Req),
-%					State2 = timeout(State#state{buffer_size=NbBytes2}),
-%					before_loop(Req2, State2, Handler, HandlerState)
-%			end;
-%		{Closed, Socket} ->
-%			terminate(Req, State, Handler, HandlerState, {error, closed});
-%		{Error, Socket, Reason} ->
-%			terminate(Req, State, Handler, HandlerState, {error, Reason});
 		{timeout, TRef, ?MODULE} ->
 			after_loop(Req, State, Handler, HandlerState, timeout);
 		{timeout, OlderTRef, ?MODULE} when is_reference(OlderTRef) ->
 			loop(Req, State, Handler, HandlerState);
 		Message ->
-			%% We set the socket back to {active, false} mode in case
-			%% the handler is going to call recv. We also flush any
-			%% data received after that and put it into the buffer.
-			%% We do not check the size here, if data keeps coming
-			%% we'll error out on the next packet received.
-%			Transport:setopts(Socket, [{active, false}]),
-%			Req2 = receive {OK, Socket, Data} ->
-%				cowboy_req:append_buffer(Data, Req)
-%			after 0 ->
-%				Req
-%			end,
 			call(Req, State, Handler, HandlerState, Message)
 	end.
 

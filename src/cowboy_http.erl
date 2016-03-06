@@ -201,13 +201,13 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 		terminate(State, {internal_error, timeout, 'No message or data received before timeout.'})
 	end.
 
-set_request_timeout(State0=#state{timer=TimerRef0, opts=Opts}) ->
+set_request_timeout(State0=#state{opts=Opts}) ->
 	State = cancel_request_timeout(State0),
 	Timeout = maps:get(request_timeout, Opts, 5000),
 	TimerRef = erlang:start_timer(Timeout, self(), request_timeout),
 	State#state{timer=TimerRef}.
 
-cancel_request_timeout(State=#state{timer=TimerRef, opts=Opts}) ->
+cancel_request_timeout(State=#state{timer=TimerRef}) ->
 	ok = case TimerRef of
 		undefined -> ok;
 		_ -> erlang:cancel_timer(TimerRef, [{async, true}, {info, false}])
@@ -779,7 +779,7 @@ commands(State0=#state{socket=Socket, transport=Transport, streams=Streams}, Str
 commands(State=#state{socket=Socket, transport=Transport, streams=Streams}, StreamID,
 		[{data, IsFin, Data}|Tail]) ->
 	%% @todo Same as above.
-	Headers1 = case lists:keyfind(StreamID, #stream.id, Streams) of
+	case lists:keyfind(StreamID, #stream.id, Streams) of
 		#stream{version='HTTP/1.1'} ->
 			Size = iolist_size(Data),
 			Transport:send(Socket, [integer_to_list(Size, 16), <<"\r\n">>, Data, <<"\r\n">>]);
