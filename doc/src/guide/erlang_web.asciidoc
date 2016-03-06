@@ -106,7 +106,7 @@ new messages, and perform the operations required by only activating
 the required parts of the system.
 
 The more recent Web technologies, like Websocket of course, but also
-SPDY and HTTP/2.0, are all fully asynchronous protocols. The concept
+HTTP/2.0, are all fully asynchronous protocols. The concept
 of requests and responses is retained of course, but anything could
 be sent in between, by both the client or the browser, and the
 responses could also be received in a completely different order.

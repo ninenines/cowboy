@@ -4,7 +4,7 @@
 Cowboy is a small, fast and modular HTTP server written in Erlang.
 
 Cowboy aims to provide a complete HTTP stack, including its derivatives
-SPDY, Websocket and REST. Cowboy currently supports HTTP/1.0, HTTP/1.1,
+Websocket and REST. Cowboy currently supports HTTP/1.0, HTTP/1.1, HTTP/2,
 Websocket (all implemented drafts + standard) and Webmachine-based REST.
 
 Cowboy is a high quality project. It has a small code base, is very

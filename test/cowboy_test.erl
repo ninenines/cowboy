@@ -30,39 +30,27 @@ init_https(Ref, ProtoOpts, Config) ->
 	Port = ranch:get_port(Ref),
 	[{type, ssl}, {protocol, http}, {port, Port}, {opts, Opts}|Config].
 
-init_spdy(Ref, ProtoOpts, Config) ->
-	Opts = ct_helper:get_certs_from_ets(),
-	{ok, _} = cowboy:start_tls(Ref, 100, Opts ++ [{port, 0}], ProtoOpts),
-	Port = ranch:get_port(Ref),
-	[{type, ssl}, {protocol, spdy}, {port, Port}, {opts, Opts}|Config].
-
 %% Common group of listeners used by most suites.
 
 common_all() ->
 	[
 		{group, http},
 		{group, https},
-		{group, spdy},
 		{group, http_compress},
-		{group, https_compress},
-		{group, spdy_compress}
+		{group, https_compress}
 	].
 
 common_groups(Tests) ->
 	[
 		{http, [parallel], Tests},
 		{https, [parallel], Tests},
-		{spdy, [parallel], Tests},
 		{http_compress, [parallel], Tests},
-		{https_compress, [parallel], Tests},
-		{spdy_compress, [parallel], Tests}
+		{https_compress, [parallel], Tests}
 	].
 
 init_common_groups(Name = http, Config, Mod) ->
 	init_http(Name, #{env => #{dispatch => Mod:init_dispatch(Config)}}, Config);
 init_common_groups(Name = https, Config, Mod) ->
-	init_https(Name, #{env => #{dispatch => Mod:init_dispatch(Config)}}, Config);
-init_common_groups(Name = spdy, Config, Mod) ->
 	init_https(Name, #{env => #{dispatch => Mod:init_dispatch(Config)}}, Config);
 init_common_groups(Name = http_compress, Config, Mod) ->
 	init_http(Name, #{
@@ -71,11 +59,6 @@ init_common_groups(Name = http_compress, Config, Mod) ->
 	}, Config);
 init_common_groups(Name = https_compress, Config, Mod) ->
 	init_https(Name, #{
-		env => #{dispatch => Mod:init_dispatch(Config)},
-		compress => true
-	}, Config);
-init_common_groups(Name = spdy_compress, Config, Mod) ->
-	init_spdy(Name, #{
 		env => #{dispatch => Mod:init_dispatch(Config)},
 		compress => true
 	}, Config).

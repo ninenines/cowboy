@@ -67,16 +67,6 @@ ProtoOpts = cowboy_protocol:opts():: HTTP protocol options.
 Start listening for HTTPS connections. Returns the pid for this
 listener's supervisor.
 
-=== start_spdy(Ref, NbAcceptors, TransOpts, ProtoOpts) -> {ok, pid()}
-
-Ref = ranch:ref():: Listener name.
-NbAcceptors = non_neg_integer():: Number of acceptor processes.
-TransOpts = ranch_ssl:opts():: SSL transport options.
-ProtoOpts = cowboy_spdy:opts():: SPDY protocol options.
-
-Start listening for SPDY connections. Returns the pid for this
-listener's supervisor.
-
 === stop_listener(Ref) -> ok | {error, not_found}
 
 Ref = ranch:ref():: Listener name.

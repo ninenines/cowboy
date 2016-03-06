@@ -769,11 +769,6 @@ response_headers(Headers, Req) ->
 %			%% We stream the response body until we close the connection.
 %			RespConn = close,
 %			{RespType, Req2} = if
-%				Transport =:= cowboy_spdy ->
-%					response(Status, Headers, RespHeaders, [
-%						{<<"date">>, cowboy_clock:rfc1123()},
-%						{<<"server">>, <<"Cowboy">>}
-%					], stream, Req);
 %				true ->
 %					response(Status, Headers, RespHeaders, [
 %						{<<"connection">>, <<"close">>},
@@ -896,9 +891,6 @@ chunk(Data, #{pid := Pid, streamid := StreamID}) ->
 
 %% If ever made public, need to send nothing if HEAD.
 -spec last_chunk(Req) -> Req when Req::req().
-last_chunk(Req=#http_req{socket=Socket, transport=cowboy_spdy}) ->
-	_ = cowboy_spdy:stream_close(Socket),
-	Req#http_req{resp_state=done};
 last_chunk(Req=#http_req{socket=Socket, transport=Transport}) ->
 	_ = Transport:send(Socket, <<"0\r\n\r\n">>),
 	Req#http_req{resp_state=done}.
@@ -1028,15 +1020,6 @@ to_list(Req) ->
 %-spec chunked_response(cowboy:http_status(), cowboy:http_headers(), Req) ->
 %	{normal | hook, Req} when Req::req().
 %chunked_response(Status, Headers, Req=#http_req{
-%		transport=cowboy_spdy, resp_state=waiting,
-%		resp_headers=RespHeaders}) ->
-%	{RespType, Req2} = response(Status, Headers, RespHeaders, [
-%		{<<"date">>, cowboy_clock:rfc1123()},
-%		{<<"server">>, <<"Cowboy">>}
-%	], stream, Req),
-%	{RespType, Req2#http_req{resp_state=chunks,
-%		resp_headers=[], resp_body= <<>>}};
-%chunked_response(Status, Headers, Req=#http_req{
 %		version=Version, connection=Connection,
 %		resp_state=RespState, resp_headers=RespHeaders})
 %		when RespState =:= waiting; RespState =:= waiting_stream ->
@@ -1094,14 +1077,6 @@ response(Status, Headers, RespHeaders, DefaultHeaders, Body, Req=#http_req{
 			end
 	end,
 	ReplyType = case Req2#http_req.resp_state of
-		waiting when Transport =:= cowboy_spdy, Body =:= stream ->
-			cowboy_spdy:stream_reply(Socket, status(Status2), FullHeaders2),
-			ReqPid ! {?MODULE, resp_sent},
-			normal;
-		waiting when Transport =:= cowboy_spdy ->
-			cowboy_spdy:reply(Socket, status(Status2), FullHeaders2, Body),
-			ReqPid ! {?MODULE, resp_sent},
-			normal;
 		RespState when RespState =:= waiting; RespState =:= waiting_stream ->
 			HTTPVer = atom_to_binary(Version, latin1),
 			StatusLine = << HTTPVer/binary, " ",

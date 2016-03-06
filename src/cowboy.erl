@@ -52,8 +52,8 @@ start_tls(Ref, NbAcceptors, TransOpts0, ProtoOpts)
 		when is_integer(NbAcceptors), NbAcceptors > 0 ->
 	TransOpts = [
 		connection_type(ProtoOpts),
-		{next_protocols_advertised, [<<"h2">>, <<"spdy/3">>, <<"http/1.1">>]},
-		{alpn_preferred_protocols, [<<"h2">>, <<"spdy/3">>, <<"http/1.1">>]}
+		{next_protocols_advertised, [<<"h2">>, <<"http/1.1">>]},
+		{alpn_preferred_protocols, [<<"h2">>, <<"http/1.1">>]}
 	|TransOpts0],
 	ranch:start_listener(Ref, NbAcceptors, ranch_ssl, TransOpts, cowboy_tls, ProtoOpts).
 

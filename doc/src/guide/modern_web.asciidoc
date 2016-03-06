@@ -180,35 +180,21 @@ A Websocket connection can be used to transfer any kind of data,
 small or big, text or binary. Because of this Websocket is
 sometimes used for communication between systems.
 
-=== SPDY
+=== HTTP/2
 
-SPDY is an attempt to reduce page loading time by opening a
+HTTP/2 is an attempt to reduce page loading time by opening a
 single connection per server, keeping it open for subsequent
 requests, and also by compressing the HTTP headers to reduce
 the size of requests.
 
-SPDY is compatible with HTTP/1.1 semantics, and is actually
+HTTP/2 is compatible with HTTP/1.1 semantics, and is actually
 just a different way of performing HTTP requests and responses,
 by using binary frames instead of a text-based protocol.
-SPDY also allows the server to send extra responses following
+HTTP/2 also allows the server to send extra responses following
 a request. This is meant to allow sending the resources
 associated with the request before the client requests them,
 saving latency when loading websites.
 
-SPDY is an experiment that has proven successful and is used
-as the basis for the HTTP/2.0 standard.
-
-Browsers make use of TLS Next Protocol Negotiation to upgrade
-to a SPDY connection seamlessly if the protocol supports it.
-
-The protocol itself has a few shortcomings which are being
-fixed in HTTP/2.0.
-
-=== HTTP/2.0
-
-HTTP/2.0 is the long-awaited update to the HTTP/1.1 protocol.
-It is based on SPDY although a lot has been improved at the
-time of writing.
-
-HTTP/2.0 is an asynchronous two-ways communication channel
-between two endpoints.
+Browsers make use of TLS Application-Layer Protocol Negotiation
+extension to upgrade to an HTTP/2 connection seamlessly if the
+server supports it.

@@ -29,9 +29,6 @@ init(Parent, Ref, Socket, Transport, Opts) ->
 	case ssl:negotiated_protocol(Socket) of
 		{ok, <<"h2">>} ->
 			init(Parent, Ref, Socket, Transport, Opts, cowboy_http2);
-		%% @todo Implement cowboy_spdy and cowboy_http.
-		{ok, <<"spdy/3">>} ->
-			init(Parent, Ref, Socket, Transport, Opts, cowboy_spdy);
 		_ -> %% http/1.1 or no protocol negotiated.
 			init(Parent, Ref, Socket, Transport, Opts, cowboy_http)
 	end.
