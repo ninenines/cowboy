@@ -302,7 +302,7 @@ parse_request(<< $\s, _/bits >>, State, _) ->
 		''}); %% @todo
 %% We limit the length of the Request-line to MaxLength to avoid endlessly
 %% reading from the socket and eventually crashing.
-parse_request(Buffer, State=#state{opts=Opts}, EmptyLines) ->
+parse_request(Buffer, State=#state{opts=Opts, in_streamid=InStreamID}, EmptyLines) ->
 	MaxLength = maps:get(max_request_line_length, Opts, 8000),
 	MaxEmptyLines = maps:get(max_empty_lines, Opts, 5),
 	case match_eol(Buffer, 0) of
@@ -324,6 +324,10 @@ parse_request(Buffer, State=#state{opts=Opts}, EmptyLines) ->
 					parse_version(Rest, State, <<"OPTIONS">>, <<"*">>, <<>>);
 %				<< "CONNECT ", Rest/bits >> ->
 %					parse_authority( %% @todo
+				%% Accept direct HTTP/2 only at the beginning of the connection.
+				<< "PRI * HTTP/2.0\r\n", _/bits >> when InStreamID =:= 1 ->
+					%% @todo Might be worth throwing to get a clean stacktrace.
+					http2_upgrade(State, Buffer, undefined);
 				_ ->
 					parse_method(Buffer, State, <<>>,
 						maps:get(max_method_length, Opts, 32))
@@ -635,6 +639,19 @@ request(Buffer, State0=#state{ref=Ref, transport=Transport, in_streamid=StreamID
 			set_request_timeout(State0#state{in_streamid=StreamID + 1, in_state=#ps_request_line{}})
 	end,
 	{request, Req, State, Buffer}.
+
+%% HTTP/2 upgrade.
+
+http2_upgrade(State=#state{parent=Parent, ref=Ref, socket=Socket, transport=Transport,
+		opts=Opts, handler=Handler}, Buffer, Settings) ->
+	case Transport:secure() of
+		false ->
+			_ = cancel_request_timeout(State),
+			cowboy_http2:init(Parent, Ref, Socket, Transport, Opts, Handler, Buffer, Settings);
+		true ->
+			error_terminate(400, State, {connection_error, protocol_error,
+				'Clients that support HTTP/2 over TLS MUST use ALPN. (RFC7540 3.4)'})
+	end.
 
 %% Request body parsing.
 

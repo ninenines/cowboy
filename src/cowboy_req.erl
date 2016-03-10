@@ -1187,20 +1187,4 @@ connection_to_atom_test_() ->
 	],
 	[{lists:flatten(io_lib:format("~p", [T])),
 		fun() -> R = connection_to_atom(T) end} || {T, R} <- Tests].
-
-merge_headers_test_() ->
-	Tests = [
-		{[{<<"content-length">>,<<"13">>},{<<"server">>,<<"Cowboy">>}],
-		 [{<<"set-cookie">>,<<"foo=bar">>},{<<"content-length">>,<<"11">>}],
-		 [{<<"set-cookie">>,<<"foo=bar">>},
-		  {<<"content-length">>,<<"13">>},
-		  {<<"server">>,<<"Cowboy">>}]},
-		{[{<<"content-length">>,<<"13">>},{<<"server">>,<<"Cowboy">>}],
-		 [{<<"set-cookie">>,<<"foo=bar">>},{<<"set-cookie">>,<<"bar=baz">>}],
-		 [{<<"set-cookie">>,<<"bar=baz">>},
-		  {<<"set-cookie">>,<<"foo=bar">>},
-		  {<<"content-length">>,<<"13">>},
-		  {<<"server">>,<<"Cowboy">>}]}
-	],
-	[fun() -> Res = merge_headers(L,R) end || {L, R, Res} <- Tests].
 -endif.

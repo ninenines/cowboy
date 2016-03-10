@@ -30,6 +30,12 @@ init_https(Ref, ProtoOpts, Config) ->
 	Port = ranch:get_port(Ref),
 	[{type, ssl}, {protocol, http}, {port, Port}, {opts, Opts}|Config].
 
+init_http2(Ref, ProtoOpts, Config) ->
+	Opts = ct_helper:get_certs_from_ets(),
+	{ok, _} = cowboy:start_tls(Ref, 100, Opts ++ [{port, 0}], ProtoOpts),
+	Port = ranch:get_port(Ref),
+	[{type, ssl}, {protocol, http2}, {port, Port}, {opts, Opts}|Config].
+
 %% Common group of listeners used by most suites.
 
 common_all() ->

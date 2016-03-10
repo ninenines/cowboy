@@ -15,6 +15,7 @@
 -module(cowboy_http2).
 
 -export([init/6]).
+-export([init/8]).
 
 -export([system_continue/3]).
 -export([system_terminate/4]).
@@ -79,8 +80,22 @@
 
 -spec init(pid(), ranch:ref(), inet:socket(), module(), cowboy:opts(), module()) -> ok.
 init(Parent, Ref, Socket, Transport, Opts, Handler) ->
-	before_loop(#state{parent=Parent, ref=Ref, socket=Socket,
-		transport=Transport, opts=Opts, handler=Handler}, <<>>).
+	init(Parent, Ref, Socket, Transport, Opts, Handler, <<>>, undefined).
+
+-spec init(pid(), ranch:ref(), inet:socket(), module(), cowboy:opts(), module(),
+	binary(), binary() | undefined) -> ok.
+init(Parent, Ref, Socket, Transport, Opts, Handler, Buffer, SettingsPayload) ->
+	State = #state{parent=Parent, ref=Ref, socket=Socket,
+		transport=Transport, opts=Opts, handler=Handler},
+	preface(State),
+	case Buffer of
+		<<>> -> before_loop(State, Buffer);
+		_ -> parse(State, Buffer)
+	end.
+
+preface(#state{socket=Socket, transport=Transport, next_settings=Settings}) ->
+	%% We send next_settings and use defaults until we get a ack.
+	ok = Transport:send(Socket, cow_http2:settings(Settings)).
 
 %% @todo Add the timeout for last time since we heard of connection.
 before_loop(State, Buffer) ->
@@ -130,19 +145,26 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport, children=Ch
 		terminate(State, {internal_error, timeout, 'No message or data received before timeout.'})
 	end.
 
-parse(State=#state{socket=Socket, transport=Transport, next_settings=Settings, parse_state=preface}, Data) ->
+parse(State=#state{socket=Socket, transport=Transport, parse_state=preface}, Data) ->
 	case Data of
 		<< "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n", Rest/bits >> ->
-			%% @todo To speed up connection we may be able to construct the frame when starting the listener.
-			%% We send next_settings and use defaults until we get a ack.
-			Transport:send(Socket, cow_http2:settings(Settings)),
 			parse(State#state{parse_state=settings}, Rest);
 		_ when byte_size(Data) >= 24 ->
 			Transport:close(Socket),
 			exit({shutdown, {connection_error, protocol_error,
 				'The connection preface was invalid. (RFC7540 3.5)'}});
 		_ ->
-			before_loop(State, Data)
+			Len = byte_size(Data),
+			<< Preface:Len/binary, _/bits >> = <<"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n">>,
+			case Data of
+				Preface ->
+					%% @todo OK we should have a timeout when waiting for the preface.
+					before_loop(State, Data);
+				_ ->
+					Transport:close(Socket),
+					exit({shutdown, {connection_error, protocol_error,
+						'The connection preface was invalid. (RFC7540 3.5)'}})
+			end
 	end;
 %% @todo Perhaps instead of just more we can have {more, Len} to avoid all the checks.
 parse(State=#state{parse_state=ParseState}, Data) ->
@@ -209,9 +231,10 @@ frame(State, {priority, _StreamID, _IsExclusive, _DepStreamID, _Weight}) ->
 frame(State, {rst_stream, StreamID, Reason}) ->
 	stream_reset(State, StreamID, {stream_error, Reason, 'Stream reset requested by client.'});
 %% SETTINGS frame.
-frame(State, {settings, Settings}) ->
+frame(State=#state{socket=Socket, transport=Transport}, {settings, Settings}) ->
 	%% @todo Apply SETTINGS.
 	io:format("settings ~p~n", [Settings]),
+	Transport:send(Socket, cow_http2:settings_ack()),
 	State;
 %% Ack for a previously sent SETTINGS frame.
 frame(State=#state{next_settings=_NextSettings}, settings_ack) ->
