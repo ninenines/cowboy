@@ -327,7 +327,7 @@ parse_request(Buffer, State=#state{opts=Opts, in_streamid=InStreamID}, EmptyLine
 				%% Accept direct HTTP/2 only at the beginning of the connection.
 				<< "PRI * HTTP/2.0\r\n", _/bits >> when InStreamID =:= 1 ->
 					%% @todo Might be worth throwing to get a clean stacktrace.
-					http2_upgrade(State, Buffer, undefined);
+					http2_upgrade(State, Buffer);
 				_ ->
 					parse_method(Buffer, State, <<>>,
 						maps:get(max_method_length, Opts, 32))
@@ -628,30 +628,75 @@ request(Buffer, State0=#state{ref=Ref, transport=Transport, in_streamid=StreamID
 
 		%% meta values (cowboy_websocket, cowboy_rest)
 	},
-	State = case HasBody of
-		true ->
-			cancel_request_timeout(State0#state{in_state=#ps_body{
-				%% @todo Don't need length anymore?
-				transfer_decode_fun = TDecodeFun,
-				transfer_decode_state = TDecodeState
-			}});
+	case is_http2_upgrade(Headers, Version) of
 		false ->
-			set_request_timeout(State0#state{in_streamid=StreamID + 1, in_state=#ps_request_line{}})
-	end,
-	{request, Req, State, Buffer}.
+			State = case HasBody of
+				true ->
+					cancel_request_timeout(State0#state{in_state=#ps_body{
+						%% @todo Don't need length anymore?
+						transfer_decode_fun = TDecodeFun,
+						transfer_decode_state = TDecodeState
+					}});
+				false ->
+					set_request_timeout(State0#state{in_streamid=StreamID + 1, in_state=#ps_request_line{}})
+			end,
+			{request, Req, State, Buffer};
+		{true, SettingsPayload} ->
+			http2_upgrade(State0, Buffer, SettingsPayload, Req)
+	end.
 
 %% HTTP/2 upgrade.
 
+is_http2_upgrade(#{<<"connection">> := Conn, <<"upgrade">> := Upgrade,
+		<<"http2-settings">> := HTTP2Settings}, 'HTTP/1.1') ->
+	Conns = cow_http_hd:parse_connection(Conn),
+	io:format(user, "CONNS ~p~n", [Conns]),
+	case {lists:member(<<"upgrade">>, Conns), lists:member(<<"http2-settings">>, Conns)} of
+		{true, true} ->
+			Protocols = cow_http_hd:parse_upgrade(Upgrade),
+			io:format(user, "PROTOCOLS ~p~n", [Protocols]),
+			case lists:member(<<"h2c">>, Protocols) of
+				true ->
+					SettingsPayload = cow_http_hd:parse_http2_settings(HTTP2Settings),
+					{true, SettingsPayload};
+				false ->
+					false
+			end;
+		_ ->
+			false
+	end;
+is_http2_upgrade(_, _) ->
+	false.
+
+%% Upgrade through an HTTP/1.1 request.
+
+%% Prior knowledge upgrade, without an HTTP/1.1 request.
 http2_upgrade(State=#state{parent=Parent, ref=Ref, socket=Socket, transport=Transport,
-		opts=Opts, handler=Handler}, Buffer, Settings) ->
+		opts=Opts, handler=Handler}, Buffer) ->
 	case Transport:secure() of
 		false ->
 			_ = cancel_request_timeout(State),
-			cowboy_http2:init(Parent, Ref, Socket, Transport, Opts, Handler, Buffer, Settings);
+			cowboy_http2:init(Parent, Ref, Socket, Transport, Opts, Handler, Buffer);
 		true ->
 			error_terminate(400, State, {connection_error, protocol_error,
 				'Clients that support HTTP/2 over TLS MUST use ALPN. (RFC7540 3.4)'})
 	end.
+
+http2_upgrade(State=#state{parent=Parent, ref=Ref, socket=Socket, transport=Transport,
+		opts=Opts, handler=Handler}, Buffer, SettingsPayload, Req) ->
+	%% @todo
+	%% However if the client sent a body, we need to read the body in full
+	%% and if we can't do that, return a 413 response. Some options are in order.
+	%% Always half-closed stream coming from this side.
+
+	Transport:send(Socket, cow_http:response(101, 'HTTP/1.1', maps:to_list(#{
+		<<"connection">> => <<"Upgrade">>,
+		<<"upgrade">> => <<"h2c">>
+	}))),
+
+	%% @todo Possibly redirect the request if it was https.
+	_ = cancel_request_timeout(State),
+	cowboy_http2:init(Parent, Ref, Socket, Transport, Opts, Handler, Buffer, SettingsPayload, Req).
 
 %% Request body parsing.
 

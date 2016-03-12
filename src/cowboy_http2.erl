@@ -15,7 +15,8 @@
 -module(cowboy_http2).
 
 -export([init/6]).
--export([init/8]).
+-export([init/7]).
+-export([init/9]).
 
 -export([system_continue/3]).
 -export([system_terminate/4]).
@@ -80,14 +81,29 @@
 
 -spec init(pid(), ranch:ref(), inet:socket(), module(), cowboy:opts(), module()) -> ok.
 init(Parent, Ref, Socket, Transport, Opts, Handler) ->
-	init(Parent, Ref, Socket, Transport, Opts, Handler, <<>>, undefined).
+	init(Parent, Ref, Socket, Transport, Opts, Handler, <<>>).
 
--spec init(pid(), ranch:ref(), inet:socket(), module(), cowboy:opts(), module(),
-	binary(), binary() | undefined) -> ok.
-init(Parent, Ref, Socket, Transport, Opts, Handler, Buffer, SettingsPayload) ->
+-spec init(pid(), ranch:ref(), inet:socket(), module(), cowboy:opts(), module(), binary()) -> ok.
+init(Parent, Ref, Socket, Transport, Opts, Handler, Buffer) ->
 	State = #state{parent=Parent, ref=Ref, socket=Socket,
 		transport=Transport, opts=Opts, handler=Handler},
 	preface(State),
+	case Buffer of
+		<<>> -> before_loop(State, Buffer);
+		_ -> parse(State, Buffer)
+	end.
+
+%% @todo Add an argument for the request body.
+-spec init(pid(), ranch:ref(), inet:socket(), module(), cowboy:opts(), module(),
+	binary(), binary() | undefined, cowboy_req:req()) -> ok.
+init(Parent, Ref, Socket, Transport, Opts, Handler, Buffer, SettingsPayload, Req) ->
+	State0 = #state{parent=Parent, ref=Ref, socket=Socket,
+		transport=Transport, opts=Opts, handler=Handler},
+	preface(State0),
+	%% @todo SettingsPayload.
+	%% StreamID from HTTP/1.1 Upgrade requests is always 1.
+	%% The stream is always in the half-closed (remote) state.
+	State = stream_handler_init(State0, 1, fin, Req),
 	case Buffer of
 		<<>> -> before_loop(State, Buffer);
 		_ -> parse(State, Buffer)
@@ -317,10 +333,13 @@ commands(State, _, []) ->
 %% @todo Keep IsFin in the state.
 %% @todo Same two things above apply to DATA, possibly promise too.
 commands(State=#state{socket=Socket, transport=Transport, encode_state=EncodeState0}, StreamID,
-		[{response, IsFin, StatusCode, Headers0}|Tail]) ->
+		[{response, StatusCode, Headers0, Body}|Tail]) ->
 	Headers = Headers0#{<<":status">> => integer_to_binary(StatusCode)},
 	{HeaderBlock, EncodeState} = headers_encode(Headers, EncodeState0),
-	Transport:send(Socket, cow_http2:headers(StreamID, IsFin, HeaderBlock)),
+	Transport:send(Socket, [
+		cow_http2:headers(StreamID, nofin, HeaderBlock),
+		cow_http2:data(StreamID, fin, Body)
+	]),
 	commands(State#state{encode_state=EncodeState}, StreamID, Tail);
 %% Send a response body chunk.
 %%
@@ -361,7 +380,10 @@ commands(State, StreamID, [{upgrade, _Mod, _ModState}]) ->
 	commands(State, StreamID, []);
 commands(State, StreamID, [{upgrade, _Mod, _ModState}|Tail]) ->
 	%% @todo This is an error. Not sure what to do here yet.
-	commands(State, StreamID, Tail).
+	commands(State, StreamID, Tail);
+commands(State, StreamID, [stop|Tail]) ->
+	%% @todo Do we want to run the commands after a stop?
+	stream_terminate(State, StreamID, stop).
 
 terminate(#state{socket=Socket, transport=Transport, handler=Handler,
 		streams=Streams, children=Children}, Reason) ->
@@ -379,8 +401,8 @@ terminate_all_streams([#stream{id=StreamID, state=StreamState}|Tail], Reason, Ha
 
 %% Stream functions.
 
-stream_init(State0=#state{ref=Ref, socket=Socket, transport=Transport, handler=Handler, opts=Opts,
-		streams=Streams0, decode_state=DecodeState0}, StreamID, IsFin, HeaderBlock) ->
+stream_init(State0=#state{ref=Ref, socket=Socket, transport=Transport, decode_state=DecodeState0},
+		StreamID, IsFin, HeaderBlock) ->
 	%% @todo Add clause for CONNECT requests (no scheme/path).
 	try headers_decode(HeaderBlock, DecodeState0) of
 		{Headers0=#{
@@ -425,24 +447,26 @@ stream_init(State0=#state{ref=Ref, socket=Socket, transport=Transport, handler=H
 
 				%% meta values (cowboy_websocket, cowboy_rest)
 			},
-
-			try Handler:init(StreamID, Req, Opts) of
-				{Commands, StreamState} ->
-					Streams = [#stream{id=StreamID, state=StreamState}|Streams0],
-					commands(State#state{streams=Streams}, StreamID, Commands)
-			catch Class:Reason ->
-				error_logger:error_msg("Exception occurred in ~s:init(~p, ~p, ~p, ~p, ~p, ~p, ~p) "
-					"with reason ~p:~p.",
-					[Handler, StreamID, IsFin, Method, Scheme, Authority, Path, Headers, Class, Reason]),
-				stream_reset(State, StreamID, {internal_error, {Class, Reason},
-					'Exception occurred in StreamHandler:init/7 call.'}) %% @todo Check final arity.
-			end;
+			stream_handler_init(State, StreamID, IsFin, Req);
 		{_, DecodeState} ->
 			Transport:send(Socket, cow_http2:rst_stream(StreamID, protocol_error)),
 			State0#state{decode_state=DecodeState}
 	catch _:_ ->
 		terminate(State0, {connection_error, compression_error,
 			'Error while trying to decode HPACK-encoded header block. (RFC7540 4.3)'})
+	end.
+
+stream_handler_init(State=#state{handler=Handler, opts=Opts, streams=Streams0}, StreamID, IsFin, Req) ->
+	try Handler:init(StreamID, Req, Opts) of
+		{Commands, StreamState} ->
+			Streams = [#stream{id=StreamID, state=StreamState, remote=IsFin}|Streams0],
+			commands(State#state{streams=Streams}, StreamID, Commands)
+	catch Class:Reason ->
+		error_logger:error_msg("Exception occurred in ~s:init(~p, ~p, ~p) "
+			"with reason ~p:~p.",
+			[Handler, StreamID, IsFin, Req, Class, Reason]),
+		stream_reset(State, StreamID, {internal_error, {Class, Reason},
+			'Exception occurred in StreamHandler:init/7 call.'}) %% @todo Check final arity.
 	end.
 
 %% @todo We might need to keep track of which stream has been reset so we don't send lots of them.

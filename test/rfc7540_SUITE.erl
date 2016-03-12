@@ -70,7 +70,7 @@ http_upgrade_ignore_if_http_10(Config) ->
 		"GET / HTTP/1.0\r\n"
 		"Host: localhost\r\n"
 		"Connection: Upgrade, HTTP2-Settings\r\n"
-		"Upgrade: h2\r\n"
+		"Upgrade: h2c\r\n"
 		"HTTP2-Settings: ", base64:encode(cow_http2:settings_payload(#{})), "\r\n",
 		"\r\n"]),
 	{ok, <<"HTTP/1.1 200">>} = gen_tcp:recv(Socket, 12, 1000),
@@ -84,13 +84,13 @@ http_upgrade_ignore_missing_upgrade_in_connection(Config) ->
 		"GET / HTTP/1.1\r\n"
 		"Host: localhost\r\n"
 		"Connection: HTTP2-Settings\r\n"
-		"Upgrade: h2\r\n"
+		"Upgrade: h2c\r\n"
 		"HTTP2-Settings: ", base64:encode(cow_http2:settings_payload(#{})), "\r\n",
 		"\r\n"]),
 	{ok, <<"HTTP/1.1 200">>} = gen_tcp:recv(Socket, 12, 1000),
 	ok.
 
-http_upgrade_reject_missing_http2_settings_in_connection(Config) ->
+http_upgrade_ignore_missing_http2_settings_in_connection(Config) ->
 	doc("The HTTP2-Settings header must be listed in the "
 		"Connection header field. (RFC7540 3.2.1, RFC7230 6.7)"),
 	{ok, Socket} = gen_tcp:connect("localhost", config(port, Config), [binary, {active, false}]),
@@ -98,10 +98,10 @@ http_upgrade_reject_missing_http2_settings_in_connection(Config) ->
 		"GET / HTTP/1.1\r\n"
 		"Host: localhost\r\n"
 		"Connection: Upgrade\r\n"
-		"Upgrade: h2\r\n"
+		"Upgrade: h2c\r\n"
 		"HTTP2-Settings: ", base64:encode(cow_http2:settings_payload(#{})), "\r\n",
 		"\r\n"]),
-	{ok, <<"HTTP/1.1 400">>} = gen_tcp:recv(Socket, 12, 1000),
+	{ok, <<"HTTP/1.1 200">>} = gen_tcp:recv(Socket, 12, 1000),
 	ok.
 
 http_upgrade_reject_zero_http2_settings_header(Config) ->
@@ -112,7 +112,7 @@ http_upgrade_reject_zero_http2_settings_header(Config) ->
 		"GET / HTTP/1.1\r\n"
 		"Host: localhost\r\n"
 		"Connection: Upgrade, HTTP2-Settings\r\n"
-		"Upgrade: h2\r\n"
+		"Upgrade: h2c\r\n"
 		"\r\n"]),
 	{ok, <<"HTTP/1.1 400">>} = gen_tcp:recv(Socket, 12, 1000),
 	ok.
@@ -125,7 +125,7 @@ http_upgrade_reject_two_http2_settings_header(Config) ->
 		"GET / HTTP/1.1\r\n"
 		"Host: localhost\r\n"
 		"Connection: Upgrade, HTTP2-Settings\r\n"
-		"Upgrade: h2\r\n"
+		"Upgrade: h2c\r\n"
 		"HTTP2-Settings: ", base64:encode(cow_http2:settings_payload(#{})), "\r\n",
 		"HTTP2-Settings: ", base64:encode(cow_http2:settings_payload(#{})), "\r\n",
 		"\r\n"]),
@@ -140,11 +140,21 @@ http_upgrade_reject_bad_http2_settings_header(Config) ->
 		"GET / HTTP/1.1\r\n"
 		"Host: localhost\r\n"
 		"Connection: Upgrade, HTTP2-Settings\r\n"
-		"Upgrade: h2\r\n"
+		"Upgrade: h2c\r\n"
 		%% We send a full SETTINGS frame on purpose.
 		"HTTP2-Settings: ", base64:encode(cow_http2:settings(#{})), "\r\n",
 		"\r\n"]),
 	{ok, <<"HTTP/1.1 400">>} = gen_tcp:recv(Socket, 12, 1000),
+	ok.
+
+%% Match directly for now.
+do_recv_101(Socket) ->
+	{ok, <<
+		"HTTP/1.1 101 Switching Protocols\r\n"
+		"connection: Upgrade\r\n"
+		"upgrade: h2c\r\n"
+		"\r\n"
+	>>} = gen_tcp:recv(Socket, 71, 1000),
 	ok.
 
 http_upgrade_101(Config) ->
@@ -155,10 +165,10 @@ http_upgrade_101(Config) ->
 		"GET / HTTP/1.1\r\n"
 		"Host: localhost\r\n"
 		"Connection: Upgrade, HTTP2-Settings\r\n"
-		"Upgrade: h2\r\n"
+		"Upgrade: h2c\r\n"
 		"HTTP2-Settings: ", base64:encode(cow_http2:settings_payload(#{})), "\r\n",
 		"\r\n"]),
-	{ok, <<"HTTP/1.1 101 Switching Protocols\r\n">>} = gen_tcp:recv(Socket, 36, 1000),
+	ok = do_recv_101(Socket),
 	ok.
 
 http_upgrade_server_preface(Config) ->
@@ -169,10 +179,10 @@ http_upgrade_server_preface(Config) ->
 		"GET / HTTP/1.1\r\n"
 		"Host: localhost\r\n"
 		"Connection: Upgrade, HTTP2-Settings\r\n"
-		"Upgrade: h2\r\n"
+		"Upgrade: h2c\r\n"
 		"HTTP2-Settings: ", base64:encode(cow_http2:settings_payload(#{})), "\r\n",
 		"\r\n"]),
-	{ok, <<"HTTP/1.1 101 Switching Protocols\r\n">>} = gen_tcp:recv(Socket, 36, 1000),
+	ok = do_recv_101(Socket),
 	%% Receive the server preface.
 	{ok, << _:24, 4:8, 0:40 >>} = gen_tcp:recv(Socket, 9, 1000),
 	ok.
@@ -185,15 +195,15 @@ http_upgrade_client_preface_timeout(Config) ->
 		"GET / HTTP/1.1\r\n"
 		"Host: localhost\r\n"
 		"Connection: Upgrade, HTTP2-Settings\r\n"
-		"Upgrade: h2\r\n"
+		"Upgrade: h2c\r\n"
 		"HTTP2-Settings: ", base64:encode(cow_http2:settings_payload(#{})), "\r\n",
 		"\r\n"]),
-	{ok, <<"HTTP/1.1 101 Switching Protocols\r\n">>} = gen_tcp:recv(Socket, 36, 1000),
+	ok = do_recv_101(Socket),
 	%% Receive the server preface.
 	{ok, << Len:24 >>} = gen_tcp:recv(Socket, 3, 1000),
 	{ok, << 4:8, 0:40, _:Len/binary >>} = gen_tcp:recv(Socket, 6 + Len, 1000),
 	%% Do not send the preface. Wait for the server to disconnect us.
-	{error, closed} = gen_tcp:recv(Socket, 3, 6000),
+	{error, closed} = gen_tcp:recv(Socket, 9, 6000),
 	ok.
 
 http_upgrade_reject_missing_client_preface(Config) ->
@@ -204,17 +214,17 @@ http_upgrade_reject_missing_client_preface(Config) ->
 		"GET / HTTP/1.1\r\n"
 		"Host: localhost\r\n"
 		"Connection: Upgrade, HTTP2-Settings\r\n"
-		"Upgrade: h2\r\n"
+		"Upgrade: h2c\r\n"
 		"HTTP2-Settings: ", base64:encode(cow_http2:settings_payload(#{})), "\r\n",
 		"\r\n"]),
-	{ok, <<"HTTP/1.1 101 Switching Protocols\r\n">>} = gen_tcp:recv(Socket, 36, 1000),
+	ok = do_recv_101(Socket),
 	%% Send a SETTINGS frame directly instead of the proper preface.
 	ok = gen_tcp:send(Socket, cow_http2:settings(#{})),
 	%% Receive the server preface.
 	{ok, << Len:24 >>} = gen_tcp:recv(Socket, 3, 1000),
 	{ok, << 4:8, 0:40, _:Len/binary >>} = gen_tcp:recv(Socket, 6 + Len, 1000),
 	%% We expect the server to close the connection when it receives a bad preface.
-	{error, closed} = gen_tcp:recv(Socket, 3, 1000),
+	{error, closed} = gen_tcp:recv(Socket, 9, 1000),
 	ok.
 
 http_upgrade_reject_invalid_client_preface(Config) ->
@@ -225,18 +235,35 @@ http_upgrade_reject_invalid_client_preface(Config) ->
 		"GET / HTTP/1.1\r\n"
 		"Host: localhost\r\n"
 		"Connection: Upgrade, HTTP2-Settings\r\n"
-		"Upgrade: h2\r\n"
+		"Upgrade: h2c\r\n"
 		"HTTP2-Settings: ", base64:encode(cow_http2:settings_payload(#{})), "\r\n",
 		"\r\n"]),
-	{ok, <<"HTTP/1.1 101 Switching Protocols\r\n">>} = gen_tcp:recv(Socket, 36, 1000),
+	ok = do_recv_101(Socket),
 	%% Send a slightly incorrect preface.
 	ok = gen_tcp:send(Socket, "PRI * HTTP/2.0\r\n\r\nSM: Value\r\n\r\n"),
 	%% Receive the server preface.
 	{ok, << Len:24 >>} = gen_tcp:recv(Socket, 3, 1000),
 	{ok, << 4:8, 0:40, _:Len/binary >>} = gen_tcp:recv(Socket, 6 + Len, 1000),
 	%% We expect the server to close the connection when it receives a bad preface.
-	{error, closed} = gen_tcp:recv(Socket, 3, 1000),
-	ok.
+	%% The server may however have already started sending the response to the
+	%% initial HTTP/1.1 request.
+	Received = lists:reverse(lists:foldl(fun(_, Acc) ->
+		case gen_tcp:recv(Socket, 9, 1000) of
+			{ok, << SkipLen:24, 1:8, _:8, 1:32 >>} ->
+				{ok, _} = gen_tcp:recv(Socket, SkipLen, 1000),
+				[headers|Acc];
+			{ok, << SkipLen:24, 0:8, _:8, 1:32 >>} ->
+				{ok, _} = gen_tcp:recv(Socket, SkipLen, 1000),
+				[data|Acc];
+			{error, _} ->
+				[closed|Acc]
+		end
+	end, [], [1, 2, 3])),
+	case Received of
+		[closed|_] -> ok;
+		[headers, closed|_] -> ok;
+		[headers, data, closed] -> ok
+	end.
 
 http_upgrade_reject_missing_client_preface_settings(Config) ->
 	doc("Servers must treat an invalid connection preface as a "
@@ -246,17 +273,17 @@ http_upgrade_reject_missing_client_preface_settings(Config) ->
 		"GET / HTTP/1.1\r\n"
 		"Host: localhost\r\n"
 		"Connection: Upgrade, HTTP2-Settings\r\n"
-		"Upgrade: h2\r\n"
+		"Upgrade: h2c\r\n"
 		"HTTP2-Settings: ", base64:encode(cow_http2:settings_payload(#{})), "\r\n",
 		"\r\n"]),
-	{ok, <<"HTTP/1.1 101 Switching Protocols\r\n">>} = gen_tcp:recv(Socket, 36, 1000),
+	ok = do_recv_101(Socket),
 	%% Send a valid preface sequence except followed by a PING instead of a SETTINGS frame.
 	ok = gen_tcp:send(Socket, ["PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n", cow_http2:ping(0)]),
 	%% Receive the server preface.
 	{ok, << Len:24 >>} = gen_tcp:recv(Socket, 3, 1000),
 	{ok, << 4:8, 0:40, _:Len/binary >>} = gen_tcp:recv(Socket, 6 + Len, 1000),
 	%% We expect the server to close the connection when it receives a bad preface.
-	{error, closed} = gen_tcp:recv(Socket, 3, 1000),
+	{error, closed} = gen_tcp:recv(Socket, 9, 1000),
 	ok.
 
 http_upgrade_reject_invalid_client_preface_settings(Config) ->
@@ -267,18 +294,35 @@ http_upgrade_reject_invalid_client_preface_settings(Config) ->
 		"GET / HTTP/1.1\r\n"
 		"Host: localhost\r\n"
 		"Connection: Upgrade, HTTP2-Settings\r\n"
-		"Upgrade: h2\r\n"
+		"Upgrade: h2c\r\n"
 		"HTTP2-Settings: ", base64:encode(cow_http2:settings_payload(#{})), "\r\n",
 		"\r\n"]),
-	{ok, <<"HTTP/1.1 101 Switching Protocols\r\n">>} = gen_tcp:recv(Socket, 36, 1000),
+	ok = do_recv_101(Socket),
 	%% Send a valid preface sequence except followed by a badly formed SETTINGS frame.
 	ok = gen_tcp:send(Socket, ["PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n", << 0:24, 4:8, 0:9, 1:31 >>]),
 	%% Receive the server preface.
 	{ok, << Len:24 >>} = gen_tcp:recv(Socket, 3, 1000),
 	{ok, << 4:8, 0:40, _:Len/binary >>} = gen_tcp:recv(Socket, 6 + Len, 1000),
 	%% We expect the server to close the connection when it receives a bad preface.
-	{error, closed} = gen_tcp:recv(Socket, 3, 1000),
-	ok.
+	%% The server may however have already started sending the response to the
+	%% initial HTTP/1.1 request.
+	Received = lists:reverse(lists:foldl(fun(_, Acc) ->
+		case gen_tcp:recv(Socket, 9, 1000) of
+			{ok, << SkipLen:24, 1:8, _:8, 1:32 >>} ->
+				{ok, _} = gen_tcp:recv(Socket, SkipLen, 1000),
+				[headers|Acc];
+			{ok, << SkipLen:24, 0:8, _:8, 1:32 >>} ->
+				{ok, _} = gen_tcp:recv(Socket, SkipLen, 1000),
+				[data|Acc];
+			{error, _} ->
+				[closed|Acc]
+		end
+	end, [], [1, 2, 3])),
+	case Received of
+		[closed|_] -> ok;
+		[headers, closed|_] -> ok;
+		[headers, data, closed] -> ok
+	end.
 
 http_upgrade_accept_client_preface_empty_settings(Config) ->
 	doc("The SETTINGS frame in the client preface may be empty. (RFC7540 3.2, RFC7540 3.5)"),
@@ -287,10 +331,10 @@ http_upgrade_accept_client_preface_empty_settings(Config) ->
 		"GET / HTTP/1.1\r\n"
 		"Host: localhost\r\n"
 		"Connection: Upgrade, HTTP2-Settings\r\n"
-		"Upgrade: h2\r\n"
+		"Upgrade: h2c\r\n"
 		"HTTP2-Settings: ", base64:encode(cow_http2:settings_payload(#{})), "\r\n",
 		"\r\n"]),
-	{ok, <<"HTTP/1.1 101 Switching Protocols\r\n">>} = gen_tcp:recv(Socket, 36, 1000),
+	ok = do_recv_101(Socket),
 	%% Send a valid preface sequence except followed by an empty SETTINGS frame.
 	ok = gen_tcp:send(Socket, ["PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n", cow_http2:settings(#{})]),
 	%% Receive the server preface.
@@ -307,10 +351,10 @@ http_upgrade_client_preface_settings_ack_timeout(Config) ->
 		"GET / HTTP/1.1\r\n"
 		"Host: localhost\r\n"
 		"Connection: Upgrade, HTTP2-Settings\r\n"
-		"Upgrade: h2\r\n"
+		"Upgrade: h2c\r\n"
 		"HTTP2-Settings: ", base64:encode(cow_http2:settings_payload(#{})), "\r\n",
 		"\r\n"]),
-	{ok, <<"HTTP/1.1 101 Switching Protocols\r\n">>} = gen_tcp:recv(Socket, 36, 1000),
+	ok = do_recv_101(Socket),
 	%% Send a valid preface.
 	ok = gen_tcp:send(Socket, ["PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n", cow_http2:settings(#{})]),
 	%% Receive the server preface.
@@ -324,6 +368,8 @@ http_upgrade_client_preface_settings_ack_timeout(Config) ->
 
 %% @todo We need a successful test with actual options in HTTP2-Settings.
 
+%% @todo We need to test an upgrade with a request body (small and too large).
+
 %% @todo Also assigned default priority values but not sure how to test that.
 http_upgrade_response(Config) ->
 	doc("A response must be sent to the initial HTTP/1.1 request "
@@ -334,10 +380,10 @@ http_upgrade_response(Config) ->
 		"GET / HTTP/1.1\r\n"
 		"Host: localhost\r\n"
 		"Connection: Upgrade, HTTP2-Settings\r\n"
-		"Upgrade: h2\r\n"
+		"Upgrade: h2c\r\n"
 		"HTTP2-Settings: ", base64:encode(cow_http2:settings_payload(#{})), "\r\n",
 		"\r\n"]),
-	{ok, <<"HTTP/1.1 101 Switching Protocols\r\n">>} = gen_tcp:recv(Socket, 36, 1000),
+	ok = do_recv_101(Socket),
 	%% Send a valid preface.
 	%% @todo Use non-empty SETTINGS here. Just because.
 	ok = gen_tcp:send(Socket, ["PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n", cow_http2:settings(#{})]),
@@ -346,12 +392,24 @@ http_upgrade_response(Config) ->
 	{ok, << 4:8, 0:40, _:Len/binary >>} = gen_tcp:recv(Socket, 6 + Len, 1000),
 	%% Send the SETTINGS ack.
 	ok = gen_tcp:send(Socket, cow_http2:settings_ack()),
-	%% Receive the SETTINGS ack.
-	%% @todo It's possible that we receive the response before the SETTINGS ack.
-	{ok, << 0:24, 4:8, 1:8, 0:32 >>} = gen_tcp:recv(Socket, 9, 1000),
-	%% Receive the response to the original request. It uses streamid 1.
-	{ok, << _:24, 1:8, _:8, 1:32 >>} = gen_tcp:recv(Socket, 9, 1000),
-	ok.
+	%% Receive the SETTINGS ack, and the response HEADERS and DATA (streamid 1).
+	Received = lists:reverse(lists:foldl(fun(_, Acc) ->
+		case gen_tcp:recv(Socket, 9, 1000) of
+			{ok, << 0:24, 4:8, 1:8, 0:32 >>} ->
+				[settings_ack|Acc];
+			{ok, << SkipLen:24, 1:8, _:8, 1:32 >>} ->
+				{ok, _} = gen_tcp:recv(Socket, SkipLen, 1000),
+				[headers|Acc];
+			{ok, << SkipLen:24, 0:8, _:8, 1:32 >>} ->
+				{ok, _} = gen_tcp:recv(Socket, SkipLen, 1000),
+				[data|Acc]
+		end
+	end, [], [1, 2, 3])),
+	case Received of
+		[settings_ack, headers, data] -> ok;
+		[headers, settings_ack, data] -> ok;
+		[headers, data, settings_ack] -> ok
+	end.
 
 http_upgrade_response_half_closed(Config) ->
 	doc("The stream for the initial HTTP/1.1 request is half-closed. (RFC7540 3.2)"),
@@ -361,10 +419,10 @@ http_upgrade_response_half_closed(Config) ->
 		"GET / HTTP/1.1\r\n"
 		"Host: localhost\r\n"
 		"Connection: Upgrade, HTTP2-Settings\r\n"
-		"Upgrade: h2\r\n"
+		"Upgrade: h2c\r\n"
 		"HTTP2-Settings: ", base64:encode(cow_http2:settings_payload(#{})), "\r\n",
 		"\r\n"]),
-	{ok, <<"HTTP/1.1 101 Switching Protocols\r\n">>} = gen_tcp:recv(Socket, 36, 1000),
+	ok = do_recv_101(Socket),
 	%% Send a valid preface.
 	ok = gen_tcp:send(Socket, ["PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n", cow_http2:settings(#{})]),
 	%% Send more data on the stream to trigger an error.
@@ -567,7 +625,7 @@ prior_knowledge_reject_invalid_client_preface(Config) ->
 	{ok, << Len:24 >>} = gen_tcp:recv(Socket, 3, 1000),
 	{ok, << 4:8, 0:40, _:Len/binary >>} = gen_tcp:recv(Socket, 6 + Len, 1000),
 	%% We expect the server to close the connection when it receives a bad preface.
-	{error, closed} = gen_tcp:recv(Socket, 3, 1000),
+	{error, closed} = gen_tcp:recv(Socket, 9, 1000),
 	ok.
 
 prior_knowledge_reject_missing_client_preface_settings(Config) ->
@@ -580,7 +638,7 @@ prior_knowledge_reject_missing_client_preface_settings(Config) ->
 	{ok, << Len:24 >>} = gen_tcp:recv(Socket, 3, 1000),
 	{ok, << 4:8, 0:40, _:Len/binary >>} = gen_tcp:recv(Socket, 6 + Len, 1000),
 	%% We expect the server to close the connection when it receives a bad preface.
-	{error, closed} = gen_tcp:recv(Socket, 3, 1000),
+	{error, closed} = gen_tcp:recv(Socket, 9, 1000),
 	ok.
 
 prior_knowledge_reject_invalid_client_preface_settings(Config) ->
@@ -593,7 +651,7 @@ prior_knowledge_reject_invalid_client_preface_settings(Config) ->
 	{ok, << Len:24 >>} = gen_tcp:recv(Socket, 3, 1000),
 	{ok, << 4:8, 0:40, _:Len/binary >>} = gen_tcp:recv(Socket, 6 + Len, 1000),
 	%% We expect the server to close the connection when it receives a bad preface.
-	{error, closed} = gen_tcp:recv(Socket, 3, 1000),
+	{error, closed} = gen_tcp:recv(Socket, 9, 1000),
 	ok.
 
 prior_knowledge_accept_client_preface_empty_settings(Config) ->
