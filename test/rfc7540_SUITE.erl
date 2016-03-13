@@ -202,6 +202,11 @@ http_upgrade_client_preface_timeout(Config) ->
 	%% Receive the server preface.
 	{ok, << Len:24 >>} = gen_tcp:recv(Socket, 3, 1000),
 	{ok, << 4:8, 0:40, _:Len/binary >>} = gen_tcp:recv(Socket, 6 + Len, 1000),
+	%% Receive the response to the initial HTTP/1.1 request.
+	{ok, << HeadersSkipLen:24, 1:8, _:8, 1:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+	{ok, _} = gen_tcp:recv(Socket, HeadersSkipLen, 1000),
+	{ok, << DataSkipLen:24, 0:8, _:8, 1:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+	{ok, _} = gen_tcp:recv(Socket, DataSkipLen, 1000),
 	%% Do not send the preface. Wait for the server to disconnect us.
 	{error, closed} = gen_tcp:recv(Socket, 9, 6000),
 	ok.
@@ -224,8 +229,25 @@ http_upgrade_reject_missing_client_preface(Config) ->
 	{ok, << Len:24 >>} = gen_tcp:recv(Socket, 3, 1000),
 	{ok, << 4:8, 0:40, _:Len/binary >>} = gen_tcp:recv(Socket, 6 + Len, 1000),
 	%% We expect the server to close the connection when it receives a bad preface.
-	{error, closed} = gen_tcp:recv(Socket, 9, 1000),
-	ok.
+	%% The server may however have already started sending the response to the
+	%% initial HTTP/1.1 request.
+	Received = lists:reverse(lists:foldl(fun(_, Acc) ->
+		case gen_tcp:recv(Socket, 9, 1000) of
+			{ok, << SkipLen:24, 1:8, _:8, 1:32 >>} ->
+				{ok, _} = gen_tcp:recv(Socket, SkipLen, 1000),
+				[headers|Acc];
+			{ok, << SkipLen:24, 0:8, _:8, 1:32 >>} ->
+				{ok, _} = gen_tcp:recv(Socket, SkipLen, 1000),
+				[data|Acc];
+			{error, _} ->
+				[closed|Acc]
+		end
+	end, [], [1, 2, 3])),
+	case Received of
+		[closed|_] -> ok;
+		[headers, closed|_] -> ok;
+		[headers, data, closed] -> ok
+	end.
 
 http_upgrade_reject_invalid_client_preface(Config) ->
 	doc("Servers must treat an invalid connection preface as a "
@@ -283,8 +305,25 @@ http_upgrade_reject_missing_client_preface_settings(Config) ->
 	{ok, << Len:24 >>} = gen_tcp:recv(Socket, 3, 1000),
 	{ok, << 4:8, 0:40, _:Len/binary >>} = gen_tcp:recv(Socket, 6 + Len, 1000),
 	%% We expect the server to close the connection when it receives a bad preface.
-	{error, closed} = gen_tcp:recv(Socket, 9, 1000),
-	ok.
+	%% The server may however have already started sending the response to the
+	%% initial HTTP/1.1 request.
+	Received = lists:reverse(lists:foldl(fun(_, Acc) ->
+		case gen_tcp:recv(Socket, 9, 1000) of
+			{ok, << SkipLen:24, 1:8, _:8, 1:32 >>} ->
+				{ok, _} = gen_tcp:recv(Socket, SkipLen, 1000),
+				[headers|Acc];
+			{ok, << SkipLen:24, 0:8, _:8, 1:32 >>} ->
+				{ok, _} = gen_tcp:recv(Socket, SkipLen, 1000),
+				[data|Acc];
+			{error, _} ->
+				[closed|Acc]
+		end
+	end, [], [1, 2, 3])),
+	case Received of
+		[closed|_] -> ok;
+		[headers, closed|_] -> ok;
+		[headers, data, closed] -> ok
+	end.
 
 http_upgrade_reject_invalid_client_preface_settings(Config) ->
 	doc("Servers must treat an invalid connection preface as a "
