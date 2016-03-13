@@ -384,7 +384,6 @@ read_body(Req=#{pid := Pid, streamid := StreamID}, Opts) ->
 	end,
 	Ref = make_ref(),
 	Pid ! {{Pid, StreamID}, {read_body, Ref, Length}},
-%	io:format("READ_BODY ~p ~p ~p ~p~n", [Pid, StreamID, Ref, Length]),
 	receive
 		{request_body, Ref, nofin, Body} ->
 			{more, Body, Req};

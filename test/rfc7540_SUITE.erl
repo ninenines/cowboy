@@ -104,7 +104,7 @@ http_upgrade_ignore_missing_http2_settings_in_connection(Config) ->
 	{ok, <<"HTTP/1.1 200">>} = gen_tcp:recv(Socket, 12, 1000),
 	ok.
 
-http_upgrade_reject_zero_http2_settings_header(Config) ->
+http_upgrade_ignore_zero_http2_settings_header(Config) ->
 	doc("The HTTP Upgrade request must include "
 		"exactly one HTTP2-Settings header field (RFC7540 3.2, RFC7540 3.2.1)"),
 	{ok, Socket} = gen_tcp:connect("localhost", config(port, Config), [binary, {active, false}]),
@@ -114,7 +114,7 @@ http_upgrade_reject_zero_http2_settings_header(Config) ->
 		"Connection: Upgrade, HTTP2-Settings\r\n"
 		"Upgrade: h2c\r\n"
 		"\r\n"]),
-	{ok, <<"HTTP/1.1 400">>} = gen_tcp:recv(Socket, 12, 1000),
+	{ok, <<"HTTP/1.1 200">>} = gen_tcp:recv(Socket, 12, 1000),
 	ok.
 
 http_upgrade_reject_two_http2_settings_header(Config) ->
@@ -423,19 +423,40 @@ http_upgrade_response_half_closed(Config) ->
 		"HTTP2-Settings: ", base64:encode(cow_http2:settings_payload(#{})), "\r\n",
 		"\r\n"]),
 	ok = do_recv_101(Socket),
-	%% Send a valid preface.
-	ok = gen_tcp:send(Socket, ["PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n", cow_http2:settings(#{})]),
-	%% Send more data on the stream to trigger an error.
-	ok = gen_tcp:send(Socket, cow_http2:data(1, fin, <<>>)),
+	%% Send a valid preface followed by an unexpected DATA frame.
+	ok = gen_tcp:send(Socket, [
+		"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n",
+		cow_http2:settings(#{}),
+		cow_http2:data(1, fin, <<"Unexpected DATA frame.">>)
+	]),
 	%% Receive the server preface.
 	{ok, << Len:24 >>} = gen_tcp:recv(Socket, 3, 1000),
 	{ok, << 4:8, 0:40, _:Len/binary >>} = gen_tcp:recv(Socket, 6 + Len, 1000),
-	%% Receive the SETTINGS ack.
-	%% @todo It's possible that we receive the response before the SETTINGS ack or RST_STREAM.
-	{ok, << 0:24, 4:8, 1:8, 0:32 >>} = gen_tcp:recv(Socket, 9, 1000),
-	%% The server resets the stream with reason STREAM_CLOSED.
-	{ok, << 4:24, 3:8, 0:8, 1:32, 5:32 >>} = gen_tcp:recv(Socket, 13, 1000),
-	ok.
+	%% Skip the SETTINGS ack, receive the response HEADERS, DATA and RST_STREAM (streamid 1).
+	Received = lists:reverse(lists:foldl(fun(_, Acc) ->
+		case gen_tcp:recv(Socket, 9, 1000) of
+			{ok, << 0:24, 4:8, 1:8, 0:32 >>} ->
+				Acc;
+			{ok, << SkipLen:24, 1:8, _:8, 1:32 >>} ->
+				{ok, _} = gen_tcp:recv(Socket, SkipLen, 1000),
+				[headers|Acc];
+			{ok, << SkipLen:24, 0:8, _:8, 1:32 >>} ->
+				{ok, _} = gen_tcp:recv(Socket, SkipLen, 1000),
+				[data|Acc];
+			{ok, << 4:24, 3:8, 0:8, 1:32 >>} ->
+				%% We expect a STREAM_CLOSED reason.
+				{ok, << 5:32 >>} = gen_tcp:recv(Socket, 4, 1000),
+				[rst_stream|Acc];
+			{error, _} ->
+				%% Can be timeouts, ignore them.
+				Acc
+		end
+	end, [], [1, 2, 3, 4])),
+	case Received of
+		[rst_stream] -> ok;
+		[headers, rst_stream] -> ok;
+		[headers, data, rst_stream] -> ok
+	end.
 
 %% Starting HTTP/2 for "https" URIs.
 

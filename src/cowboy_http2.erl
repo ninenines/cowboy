@@ -96,11 +96,11 @@ init(Parent, Ref, Socket, Transport, Opts, Handler, Buffer) ->
 %% @todo Add an argument for the request body.
 -spec init(pid(), ranch:ref(), inet:socket(), module(), cowboy:opts(), module(),
 	binary(), binary() | undefined, cowboy_req:req()) -> ok.
-init(Parent, Ref, Socket, Transport, Opts, Handler, Buffer, SettingsPayload, Req) ->
+init(Parent, Ref, Socket, Transport, Opts, Handler, Buffer, _Settings, Req) ->
 	State0 = #state{parent=Parent, ref=Ref, socket=Socket,
 		transport=Transport, opts=Opts, handler=Handler},
 	preface(State0),
-	%% @todo SettingsPayload.
+	%% @todo Apply settings.
 	%% StreamID from HTTP/1.1 Upgrade requests is always 1.
 	%% The stream is always in the half-closed (remote) state.
 	State = stream_handler_init(State0, 1, fin, Req),
@@ -247,9 +247,8 @@ frame(State, {priority, _StreamID, _IsExclusive, _DepStreamID, _Weight}) ->
 frame(State, {rst_stream, StreamID, Reason}) ->
 	stream_reset(State, StreamID, {stream_error, Reason, 'Stream reset requested by client.'});
 %% SETTINGS frame.
-frame(State=#state{socket=Socket, transport=Transport}, {settings, Settings}) ->
+frame(State=#state{socket=Socket, transport=Transport}, {settings, _Settings}) ->
 	%% @todo Apply SETTINGS.
-	io:format("settings ~p~n", [Settings]),
 	Transport:send(Socket, cow_http2:settings_ack()),
 	State;
 %% Ack for a previously sent SETTINGS frame.
@@ -381,7 +380,7 @@ commands(State, StreamID, [{upgrade, _Mod, _ModState}]) ->
 commands(State, StreamID, [{upgrade, _Mod, _ModState}|Tail]) ->
 	%% @todo This is an error. Not sure what to do here yet.
 	commands(State, StreamID, Tail);
-commands(State, StreamID, [stop|Tail]) ->
+commands(State, StreamID, [stop|_Tail]) ->
 	%% @todo Do we want to run the commands after a stop?
 	stream_terminate(State, StreamID, stop).
 

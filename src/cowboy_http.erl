@@ -489,9 +489,13 @@ parse_hd_before_value(Buffer, State=#state{opts=Opts, in_state=PS}, H, N) ->
 			parse_hd_value(Buffer, State, H, N, <<>>)
 	end.
 
-parse_hd_value(<< $\r, $\n, Rest/bits >>, S, Headers, Name, SoFar) ->
-	%% @todo What to do about duplicate header names.
-	parse_header(Rest, S, Headers#{Name => clean_value_ws_end(SoFar, byte_size(SoFar) - 1)});
+parse_hd_value(<< $\r, $\n, Rest/bits >>, S, Headers0, Name, SoFar) ->
+	Value = clean_value_ws_end(SoFar, byte_size(SoFar) - 1),
+	Headers = case maps:get(Name, Headers0, undefined) of
+		undefined -> Headers0#{Name => Value};
+		Value0 -> Headers0#{Name => << Value0/binary, ", ", Value/binary >>}
+	end,
+	parse_header(Rest, S, Headers);
 parse_hd_value(<< C, Rest/bits >>, S, H, N, SoFar) ->
 	parse_hd_value(Rest, S, H, N, << SoFar/binary, C >>).
 
@@ -641,8 +645,8 @@ request(Buffer, State0=#state{ref=Ref, transport=Transport, in_streamid=StreamID
 					set_request_timeout(State0#state{in_streamid=StreamID + 1, in_state=#ps_request_line{}})
 			end,
 			{request, Req, State, Buffer};
-		{true, SettingsPayload} ->
-			http2_upgrade(State0, Buffer, SettingsPayload, Req)
+		{true, HTTP2Settings} ->
+			http2_upgrade(State0, Buffer, HTTP2Settings, Req)
 	end.
 
 %% HTTP/2 upgrade.
@@ -650,15 +654,12 @@ request(Buffer, State0=#state{ref=Ref, transport=Transport, in_streamid=StreamID
 is_http2_upgrade(#{<<"connection">> := Conn, <<"upgrade">> := Upgrade,
 		<<"http2-settings">> := HTTP2Settings}, 'HTTP/1.1') ->
 	Conns = cow_http_hd:parse_connection(Conn),
-	io:format(user, "CONNS ~p~n", [Conns]),
 	case {lists:member(<<"upgrade">>, Conns), lists:member(<<"http2-settings">>, Conns)} of
 		{true, true} ->
 			Protocols = cow_http_hd:parse_upgrade(Upgrade),
-			io:format(user, "PROTOCOLS ~p~n", [Protocols]),
 			case lists:member(<<"h2c">>, Protocols) of
 				true ->
-					SettingsPayload = cow_http_hd:parse_http2_settings(HTTP2Settings),
-					{true, SettingsPayload};
+					{true, HTTP2Settings};
 				false ->
 					false
 			end;
@@ -683,20 +684,26 @@ http2_upgrade(State=#state{parent=Parent, ref=Ref, socket=Socket, transport=Tran
 	end.
 
 http2_upgrade(State=#state{parent=Parent, ref=Ref, socket=Socket, transport=Transport,
-		opts=Opts, handler=Handler}, Buffer, SettingsPayload, Req) ->
+		opts=Opts, handler=Handler}, Buffer, HTTP2Settings, Req) ->
 	%% @todo
 	%% However if the client sent a body, we need to read the body in full
 	%% and if we can't do that, return a 413 response. Some options are in order.
 	%% Always half-closed stream coming from this side.
 
-	Transport:send(Socket, cow_http:response(101, 'HTTP/1.1', maps:to_list(#{
-		<<"connection">> => <<"Upgrade">>,
-		<<"upgrade">> => <<"h2c">>
-	}))),
+	try cow_http_hd:parse_http2_settings(HTTP2Settings) of
+		Settings ->
+			Transport:send(Socket, cow_http:response(101, 'HTTP/1.1', maps:to_list(#{
+				<<"connection">> => <<"Upgrade">>,
+				<<"upgrade">> => <<"h2c">>
+			}))),
 
-	%% @todo Possibly redirect the request if it was https.
-	_ = cancel_request_timeout(State),
-	cowboy_http2:init(Parent, Ref, Socket, Transport, Opts, Handler, Buffer, SettingsPayload, Req).
+			%% @todo Possibly redirect the request if it was https.
+			_ = cancel_request_timeout(State),
+			cowboy_http2:init(Parent, Ref, Socket, Transport, Opts, Handler, Buffer, Settings, Req)
+	catch _:_ ->
+		error_terminate(400, State, {connection_error, protocol_error,
+			'The HTTP2-Settings header contains a base64 SETTINGS payload. (RFC7540 3.2, RFC7540 3.2.1)'})
+	end.
 
 %% Request body parsing.
 
