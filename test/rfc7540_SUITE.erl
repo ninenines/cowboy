@@ -406,10 +406,43 @@ http_upgrade_client_preface_settings_ack_timeout(Config) ->
 	ok.
 
 %% @todo We need a successful test with actual options in HTTP2-Settings.
+%% SETTINGS_MAX_FRAME_SIZE is probably the easiest to test. The relevant
+%% RFC quote is:
+%%
+%% 3.2.1
+%%   A server decodes and interprets these values as it would any other
+%%   SETTINGS frame. Explicit acknowledgement of these settings
+%%   (Section 6.5.3) is not necessary, since a 101 response serves as
+%%   implicit acknowledgement.
 
-%% @todo We need to test an upgrade with a request body (small and too large).
+%% @todo We need to test an upgrade with a request body. It is probably
+%% worth having a configuration value for how much we accept while still
+%% upgrading (if too big, we would just stay on HTTP/1.1). We therefore
+%% needs a test for when the body is small enough, and one for when the
+%% body is larger than we accept. The relevant RFC quote is:
+%%
+%% 3.2
+%%   Requests that contain a payload body MUST be sent in their entirety
+%%   before the client can send HTTP/2 frames.  This means that a large
+%%   request can block the use of the connection until it is completely
+%%   sent.
 
-%% @todo Also assigned default priority values but not sure how to test that.
+%% @todo We should definitely have a test with OPTIONS. The relevant
+%% RFC quote is:
+%%
+%% 3.2
+%%   If concurrency of an initial request with subsequent requests is
+%%   important, an OPTIONS request can be used to perform the upgrade to
+%%   HTTP/2, at the cost of an additional round trip.
+
+%% @todo If we ever handle priority, we need to check that the initial
+%% HTTP/1.1 request has default priority. The relevant RFC quote is:
+%%
+%% 3.2
+%%   The HTTP/1.1 request that is sent prior to upgrade is assigned a
+%%   stream identifier of 1 (see Section 5.1.1) with default priority
+%%   values (Section 5.3.5).
+
 http_upgrade_response(Config) ->
 	doc("A response must be sent to the initial HTTP/1.1 request "
 		"after switching to HTTP/2. The response must use "
@@ -431,7 +464,7 @@ http_upgrade_response(Config) ->
 	{ok, << 4:8, 0:40, _:Len/binary >>} = gen_tcp:recv(Socket, 6 + Len, 1000),
 	%% Send the SETTINGS ack.
 	ok = gen_tcp:send(Socket, cow_http2:settings_ack()),
-	%% Receive the SETTINGS ack, and the response HEADERS and DATA (streamid 1).
+	%% Receive the SETTINGS ack, and the response HEADERS and DATA (Stream ID 1).
 	Received = lists:reverse(lists:foldl(fun(_, Acc) ->
 		case gen_tcp:recv(Socket, 9, 1000) of
 			{ok, << 0:24, 4:8, 1:8, 0:32 >>} ->
@@ -762,42 +795,10 @@ prior_knowledge(Config) ->
 	{ok, << 8:24, 6:8, 0:7, 1:1, 0:96 >>} = gen_tcp:recv(Socket, 17, 1000),
 	ok.
 
-
-
-%% Tests still need to be added for the following points:
-
-%% @todo how to test this?
-%3.2.1
-%   A server decodes and interprets these values as it would any other
-%   SETTINGS frame.
-
-%3.2
-% @todo (maybe an option to disable HTTP/2?)
-%   A server that does not support HTTP/2 can respond to the request as
-%   though the Upgrade header field were absent
-
-%% @todo Do we reject "http" requests over TLS and "https" requests over TCP?
-%% Yes, see 421 status code. But maybe some configuration is in order.
-
-%3.5
-%% @todo yeah idk
-%(if the upgrade failed and the connection send this before 101 then
-% we should 400 and close the connection, but not sure how it can fail)
-% @todo (maybe an option to disable HTTP/2?)
-%	The client sends
-%   the client connection preface immediately upon receipt of a 101
-%   (Switching Protocols) response (indicating a successful upgrade)
-
-%% @todo
-%3.5
-%(big mess)
-%   To avoid unnecessary latency, clients are permitted to send
-%   additional frames to the server immediately after sending the client
-%   connection preface, without waiting to receive the server connection
-%   preface.  It is important to note, however, that the server
-%   connection preface SETTINGS frame might include parameters that
-%   necessarily alter how a client is expected to communicate with the
-%   server.  Upon receiving the SETTINGS frame, the client is expected to
-%   honor any parameters established.  In some configurations, it is
-%   possible for the server to transmit SETTINGS before the client sends
-%   additional frames, providing an opportunity to avoid this issue.
+%% @todo If we ever add an option to disable HTTP/2, we need to check
+%% the following things:
+%% * HTTP/1.1 Upgrade returns an HTTP/1.1 response (3.2)
+%% * HTTP/1.1 Upgrade errors out if the client sends HTTP/2 frames
+%%   without waiting for the 101 response (3.2, 3.5)
+%% * Prior knowledge handshake fails (3.4)
+%% * ALPN selects HTTP/1.1 (3.3)
