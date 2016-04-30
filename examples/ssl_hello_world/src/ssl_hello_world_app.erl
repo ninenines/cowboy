@@ -22,7 +22,7 @@ start(_Type, _Args) ->
 		{cacertfile, PrivDir ++ "/ssl/cowboy-ca.crt"},
 		{certfile, PrivDir ++ "/ssl/server.crt"},
 		{keyfile, PrivDir ++ "/ssl/server.key"}
-	], #{env, [{dispatch, Dispatch}]}),
+	], #{env => #{dispatch => Dispatch}}),
 	ssl_hello_world_sup:start_link().
 
 stop(_State) ->
