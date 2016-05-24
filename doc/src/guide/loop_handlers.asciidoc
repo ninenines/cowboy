@@ -1,6 +1,8 @@
 [[loop_handlers]]
 == Loop handlers
 
+// @todo This description needs to be updated.
+
 Loop handlers are a special kind of HTTP handlers used when the
 response can not be sent right away. The handler enters instead
 a receive loop waiting for the right message before it can send
@@ -64,8 +66,8 @@ message otherwise.
 [source,erlang]
 ----
 info({reply, Body}, Req, State) ->
-    Req2 = cowboy_req:reply(200, [], Body, Req),
-    {stop, Req2, State};
+    cowboy_req:reply(200, [], Body, Req),
+    {stop, Req, State};
 info(_Msg, Req, State) ->
     {ok, Req, State, hibernate}.
 ----

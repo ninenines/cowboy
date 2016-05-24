@@ -1,6 +1,10 @@
 [[erlang_web]]
 == Erlang and the Web
 
+Erlang is the ideal platform for writing Web applications.
+Its features are a perfect match for the requirements of
+modern Web applications.
+
 === The Web is concurrent
 
 When you access a website there is little concurrency
@@ -130,7 +134,7 @@ their applications to be always available and if it's having
 too many issues they just move on.
 
 Despite this, when developers choose a product to use for building
-web applications, their only concern seem to be "Is it fast?",
+web applications, their only concern seems to be "Is it fast?",
 and they look around for synthetic benchmarks showing which one
 is the fastest at sending "Hello world" with only a handful
 concurrent connections. Web benchmarks haven't been representative
@@ -146,15 +150,15 @@ Erlang is built for fault tolerance. When writing code in any other
 language, you have to check all the return values and act accordingly
 to avoid any unforeseen issues. If you're lucky, you won't miss
 anything important. When writing Erlang code, you can just check
-the success condition and ignore all errors. If an error happen,
+the success condition and ignore all errors. If an error happens,
 the Erlang process crashes and is then restarted by a special
 process called a supervisor.
 
-The Erlang developer thus has no need to fear about unhandled
+Erlang developers thus have no need to fear unhandled
 errors, and can focus on handling only the errors that should
 give some feedback to the user and let the system take care of
-the rest. This also has the advantage of allowing him to write
-a lot less code, and letting him sleep at night.
+the rest. This also has the advantage of allowing them to write
+a lot less code, and let them sleep at night.
 
 Erlang's fault tolerance oriented design is the first piece of
 what makes it the best choice for the omnipresent, always available
@@ -168,9 +172,38 @@ down, or even a data center entirely.
 Fault tolerance and distribution are important today, and will be
 vital in the future of the Web. Erlang is ready.
 
-=== Erlang is the ideal platform for the Web
+=== Learn Erlang
 
-Erlang provides all the important features that the Web requires
-or will require in the near future. Erlang is a perfect match
-for the Web, and it only makes sense to use it to build web
-applications.
+If you are new to Erlang, you may want to grab a book or
+two to get started. Those are my recommendations as the
+author of Cowboy.
+
+==== The Erlanger Playbook
+
+The Erlanger Playbook is an ebook I am currently writing,
+which covers a number of different topics from code to
+documentation to testing Erlang applications. It also has
+an Erlang section where it covers directly the building
+blocks and patterns, rather than details like the syntax.
+
+You can most likely read it as a complete beginner, but
+you will need a companion book to make the most of it.
+Buy it from the http://ninenines.eu[Nine Nines website].
+
+==== Programming Erlang
+
+This book is from one of the creator of Erlang, Joe
+Armstrong. It provides a very good explanation of what
+Erlang is and why it is so. It serves as a very good
+introduction to the language and platform.
+
+The book is http://pragprog.com/book/jaerlang2/programming-erlang[Programming Erlang],
+and it also features a chapter on Cowboy.
+
+==== Learn You Some Erlang for Great Good!
+
+http://learnyousomeerlang.com[LYSE] is a much more complete
+book covering many aspects of Erlang, while also providing
+stories and humor. Be warned: it's pretty verbose. It comes
+with a free online version and a more refined paper and
+ebook version.

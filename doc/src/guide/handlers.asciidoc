@@ -28,18 +28,16 @@ We need to use the Req object for sending a reply.
 
 [source,erlang]
 ----
-init(Req, _Opts) ->
-    Req2 = cowboy_req:reply(200, [
+init(Req, State) ->
+    cowboy_req:reply(200, [
         {<<"content-type">>, <<"text/plain">>}
     ], <<"Hello World!">>, Req),
-    {ok, Req2, #state{}}.
+    {ok, Req, State}.
 ----
 
 As you can see we return a 3-tuple. `ok` means that the
-handler ran successfully. The Req object is returned as
-it may have been modified as is the case here: replying
-returns a modified Req object that you need to return
-back to Cowboy for proper operations.
+handler ran successfully. Note that Cowboy will immediately
+send a response when `cowboy:reply/4` is called.
 
 The last value of the tuple is a state that will be used
 in every subsequent callbacks to this handler. Plain HTTP
@@ -94,12 +92,8 @@ This callback is strictly reserved for any required cleanup.
 You cannot send a response from this function. There is no
 other return value.
 
-If you used the process dictionary, timers, monitors or may
-be receiving messages, then you can use this function to clean
-them up, as Cowboy might reuse the process for the next
-keep-alive request.
+This callback is optional because it is rarely necessary.
+Cleanup should be done in separate processes directly (by
+monitoring the handler process to detect when it exits).
 
-Note that while this function may be called in a Websocket
-handler, it is generally not useful to do any clean up as
-the process terminates immediately after calling this callback
-when using Websocket.
+Cowboy does not reuse processes for different requests.
