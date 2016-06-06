@@ -21,10 +21,12 @@
 -export([info/3]).
 -export([terminate/3]).
 
+-export([proc_lib_hack/3]).
 -export([execute/3]).
 -export([resume/5]).
 
 -record(state, {
+	ref = undefined :: ranch:ref(),
 	pid = undefined :: pid(),
 	read_body_ref = undefined :: reference(),
 	read_body_length = 0 :: non_neg_integer(),
@@ -38,12 +40,12 @@
 
 %% @todo proper specs
 -spec init(_,_,_) -> _.
-init(_StreamID, Req, Opts) ->
+init(_StreamID, Req=#{ref := Ref}, Opts) ->
 	Env = maps:get(env, Opts, #{}),
 	Middlewares = maps:get(middlewares, Opts, [cowboy_router, cowboy_handler]),
 	Shutdown = maps:get(shutdown, Opts, 5000),
-	Pid = proc_lib:spawn_link(?MODULE, execute, [Req, Env, Middlewares]),
-	{[{spawn, Pid, Shutdown}], #state{pid=Pid}}.
+	Pid = proc_lib:spawn_link(?MODULE, proc_lib_hack, [Req, Env, Middlewares]),
+	{[{spawn, Pid, Shutdown}], #state{ref=Ref, pid=Pid}}.
 
 %% If we receive data and stream is waiting for data:
 %%	If we accumulated enough data or IsFin=fin, send it.
@@ -64,8 +66,29 @@ data(_StreamID, IsFin, Data, State=#state{pid=Pid, read_body_ref=Ref, read_body_
 -spec info(_,_,_) -> _.
 info(_StreamID, {'EXIT', Pid, normal}, State=#state{pid=Pid}) ->
 	{[stop], State};
-info(_StreamID, Reason = {'EXIT', Pid, _}, State=#state{pid=Pid}) ->
-	{[{internal_error, Reason, 'Stream process crashed.'}], State};
+%% @todo Transition.
+%% In the future it would be better to simplify things
+%% and only catch this at the stream level.
+%%
+%% Maybe we don't need specific error messages
+%% for every single callbacks anymore?
+info(_StreamID, Exit = {'EXIT', Pid, {cowboy_handler, _}}, State=#state{pid=Pid}) ->
+	%% No crash report; one has already been sent.
+	{[
+		{response, 500, #{<<"content-length">> => <<"0">>}, <<>>},
+		{internal_error, Exit, 'Stream process crashed.'}
+	], State};
+info(_StreamID, {'EXIT', Pid, {_Reason, [_, {cow_http_hd, _, _, _}|_]}}, State=#state{pid=Pid}) ->
+	%% @todo Have an option to enable/disable this specific crash report?
+	%%report_crash(Ref, StreamID, Pid, Reason, Stacktrace),
+	%% @todo Headers? Details in body? More stuff in debug only?
+	{[{response, 400, #{}, <<>>}, stop], State};
+info(StreamID, Exit = {'EXIT', Pid, {Reason, Stacktrace}}, State=#state{ref=Ref, pid=Pid}) ->
+	report_crash(Ref, StreamID, Pid, Reason, Stacktrace),
+	{[
+		{response, 500, #{<<"content-length">> => <<"0">>}, <<>>},
+		{internal_error, Exit, 'Stream process crashed.'}
+	], State};
 %% Request body, no body buffer but IsFin=fin.
 info(_StreamID, {read_body, Ref, _}, State=#state{pid=Pid, read_body_is_fin=fin, read_body_buffer= <<>>}) ->
 	Pid ! {request_body, Ref, fin, <<>>},
@@ -89,6 +112,7 @@ info(_StreamID, SwitchProtocol = {switch_protocol, _, _, _}, State) ->
 	{[SwitchProtocol], State};
 %% Stray message.
 info(_StreamID, _Msg, State) ->
+	%% @todo Error report.
 	%% @todo Cleanup if no reply was sent when stream ends.
 	{[], State}.
 
@@ -97,7 +121,39 @@ info(_StreamID, _Msg, State) ->
 terminate(_StreamID, _Reason, _State) ->
 	ok.
 
+%% We use ~999999p here instead of ~w because the latter doesn't
+%% support printable strings.
+report_crash(_, _, _, normal, _) ->
+	ok;
+report_crash(_, _, _, shutdown, _) ->
+	ok;
+report_crash(_, _, _, {shutdown, _}, _) ->
+	ok;
+report_crash(Ref, StreamID, Pid, Reason, Stacktrace) ->
+	error_logger:error_msg(
+		"Ranch listener ~p, connection process ~p, stream ~p "
+		"had its request process ~p exit with reason "
+		"~999999p and stacktrace ~999999p~n",
+		[Ref, self(), StreamID, Pid, Reason, Stacktrace]).
+
 %% Request process.
+
+%% This hack is necessary because proc_lib does not propagate
+%% stacktraces by default. This is ugly because we end up
+%% having two try/catch instead of one (the one in proc_lib),
+%% just to add the stacktrace information.
+%%
+%% @todo Remove whenever proc_lib propagates stacktraces.
+-spec proc_lib_hack(_, _, _) -> _.
+proc_lib_hack(Req, Env, Middlewares) ->
+	try
+		execute(Req, Env, Middlewares)
+	catch
+		_:Reason when element(1, Reason) =:= cowboy_handler ->
+			exit(Reason);
+		_:Reason ->
+			exit({Reason, erlang:get_stacktrace()})
+	end.
 
 %% @todo
 %-spec execute(cowboy_req:req(), #state{}, cowboy_middleware:env(), [module()])
