@@ -322,9 +322,9 @@ split_path(Path, Acc) ->
 	try
 		case binary:match(Path, <<"/">>) of
 			nomatch when Path =:= <<>> ->
-				lists:reverse([cow_qs:urldecode(S) || S <- Acc]);
+				remove_dot_segments(lists:reverse([cow_uri:urldecode(S) || S <- Acc]), []);
 			nomatch ->
-				lists:reverse([cow_qs:urldecode(S) || S <- [Path|Acc]]);
+				remove_dot_segments(lists:reverse([cow_uri:urldecode(S) || S <- [Path|Acc]]), []);
 			{Pos, _} ->
 				<< Segment:Pos/binary, _:8, Rest/bits >> = Path,
 				split_path(Rest, [Segment|Acc])
@@ -333,6 +333,27 @@ split_path(Path, Acc) ->
 		error:badarg ->
 			badrequest
 	end.
+
+remove_dot_segments([], Acc) ->
+	lists:reverse(Acc);
+remove_dot_segments([<<".">>|Segments], Acc) ->
+	remove_dot_segments(Segments, Acc);
+remove_dot_segments([<<"..">>|Segments], Acc=[]) ->
+	remove_dot_segments(Segments, Acc);
+remove_dot_segments([<<"..">>|Segments], [_|Acc]) ->
+	remove_dot_segments(Segments, Acc);
+remove_dot_segments([S|Segments], Acc) ->
+	remove_dot_segments(Segments, [S|Acc]).
+
+-ifdef(TEST).
+remove_dot_segments_test_() ->
+	Tests = [
+		{[<<"a">>, <<"b">>, <<"c">>, <<".">>, <<"..">>, <<"..">>, <<"g">>], [<<"a">>, <<"g">>]},
+		{[<<"mid">>, <<"content=5">>, <<"..">>, <<"6">>], [<<"mid">>, <<"6">>]},
+		{[<<"..">>, <<"a">>], [<<"a">>]}
+	],
+	[fun() -> R = remove_dot_segments(S, []) end || {S, R} <- Tests].
+-endif.
 
 -spec list_match(tokens(), dispatch_match(), bindings())
 	-> {true, bindings(), undefined | tokens()} | false.
