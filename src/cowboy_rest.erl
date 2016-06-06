@@ -198,7 +198,6 @@
 %% End of REST callbacks. Whew!
 
 -record(state, {
-	env :: cowboy_middleware:env(),
 	method = undefined :: binary(),
 
 	%% Handler.
@@ -235,10 +234,11 @@
 
 -spec upgrade(Req, Env, module(), any(), infinity, run)
 	-> {ok, Req, Env} when Req::cowboy_req:req(), Env::cowboy_middleware:env().
-upgrade(Req, Env, Handler, HandlerState, infinity, run) ->
-	Method = cowboy_req:method(Req),
-	service_available(Req, #state{env=Env, method=Method,
-		handler=Handler, handler_state=HandlerState}).
+upgrade(Req0, Env, Handler, HandlerState, infinity, run) ->
+	Method = cowboy_req:method(Req0),
+	{ok, Req, Result} = service_available(Req0, #state{method=Method,
+		handler=Handler, handler_state=HandlerState}),
+	{ok, Req, [{result, Result}|Env]}.
 
 service_available(Req, State) ->
 	expect(Req, State, service_available, true, fun known_methods/2, 503).
@@ -1156,6 +1156,6 @@ error_terminate(Req, #state{handler=Handler, handler_state=HandlerState},
 		{state, HandlerState}
 	]}).
 
-terminate(Req, #state{env=Env, handler=Handler, handler_state=HandlerState}) ->
+terminate(Req, #state{handler=Handler, handler_state=HandlerState}) ->
 	Result = cowboy_handler:terminate(normal, Req, HandlerState, Handler),
-	{ok, Req, [{result, Result}|Env]}.
+	{ok, Req, Result}.
