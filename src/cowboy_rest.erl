@@ -741,7 +741,7 @@ if_none_match(Req, State, EtagsList) ->
 				undefined ->
 					precondition_failed(Req2, State2);
 				Etag ->
-					case lists:member(Etag, EtagsList) of
+					case is_weak_match(Etag, EtagsList) of
 						true -> precondition_is_head_get(Req2, State2);
 						false -> if_modified_since_exists(Req2, State2)
 					end
@@ -749,6 +749,14 @@ if_none_match(Req, State, EtagsList) ->
 	catch Class:Reason ->
 		error_terminate(Req, State, Class, Reason, generate_etag)
 	end.
+
+%% Weak Etag comparison: only check the opaque tag.
+is_weak_match(_, []) ->
+	false;
+is_weak_match({_, Tag}, [{_, Tag}|_]) ->
+	true;
+is_weak_match(Etag, [_|Tail]) ->
+	is_weak_match(Etag, Tail).
 
 precondition_is_head_get(Req, State=#state{method=Method})
 		when Method =:= <<"HEAD">>; Method =:= <<"GET">> ->
