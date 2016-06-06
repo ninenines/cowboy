@@ -683,6 +683,9 @@ if_match_exists(Req, State) ->
 
 if_match(Req, State, EtagsList) ->
 	try generate_etag(Req, State) of
+		%% Strong Etag comparison: weak Etag never matches.
+		{{weak, _}, Req2, State2} ->
+			precondition_failed(Req2, State2);
 		{Etag, Req2, State2} ->
 			case lists:member(Etag, EtagsList) of
 				true -> if_unmodified_since_exists(Req2, State2);
