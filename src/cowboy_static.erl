@@ -86,6 +86,8 @@ init_dir(Req, Path, Extra) ->
 	case fullpath(Filepath) of
 		<< Dir:Len/binary, $/, _/binary >> ->
 			init_info(Req, Filepath, Extra);
+		<< Dir:Len/binary >> ->
+			init_info(Req, Filepath, Extra);
 		_ ->
 			{cowboy_rest, Req, error}
 	end.
