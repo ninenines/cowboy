@@ -44,7 +44,7 @@
 	cowboy_protocol:opts()) -> {ok, pid()} | {error, any()}.
 start_clear(Ref, NbAcceptors, TransOpts0, ProtoOpts)
 		when is_integer(NbAcceptors), NbAcceptors > 0 ->
-	TransOpts = TransOpts0,%[connection_type(ProtoOpts)|TransOpts0],
+	TransOpts = [connection_type(ProtoOpts)|TransOpts0],
 	ranch:start_listener(Ref, NbAcceptors, ranch_tcp, TransOpts, cowboy_clear, ProtoOpts).
 
 -spec start_tls(ranch:ref(), non_neg_integer(), ranch_ssl:opts(), opts()) -> {ok, pid()} | {error, any()}.
