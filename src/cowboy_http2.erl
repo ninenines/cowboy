@@ -432,6 +432,10 @@ commands(State, StreamID, [{flow, _Size}|Tail]) ->
 %% Supervise a child process.
 commands(State=#state{children=Children}, StreamID, [{spawn, Pid, _Shutdown}|Tail]) -> %% @todo Shutdown
 	 commands(State#state{children=[{Pid, StreamID}|Children]}, StreamID, Tail);
+%% Error handling.
+commands(State, StreamID, [Error = {internal_error, _, _}|Tail]) ->
+	%% @todo Only reset when the stream still exists.
+	commands(stream_reset(State, StreamID, Error), StreamID, Tail);
 %% Upgrade to a new protocol.
 %%
 %% @todo Implementation.
