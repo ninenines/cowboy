@@ -483,8 +483,7 @@ stream_init(State0=#state{ref=Ref, socket=Socket, transport=Transport, decode_st
 
 			Host = Authority, %% @todo
 			Port = todo, %% @todo
-			Path = PathWithQs, %% @todo
-			Qs = todo, %% @todo
+			{Path, Qs} = cow_http:parse_fullpath(PathWithQs),
 
 			Req = #{
 				ref => Ref,
