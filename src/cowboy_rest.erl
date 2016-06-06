@@ -688,7 +688,7 @@ if_match(Req, State, EtagsList) ->
 			precondition_failed(Req2, State2);
 		{Etag, Req2, State2} ->
 			case lists:member(Etag, EtagsList) of
-				true -> if_unmodified_since_exists(Req2, State2);
+				true -> if_none_match_exists(Req2, State2);
 				%% Etag may be `undefined' which cannot be a member.
 				false -> precondition_failed(Req2, State2)
 			end
@@ -743,7 +743,7 @@ if_none_match(Req, State, EtagsList) ->
 				Etag ->
 					case is_weak_match(Etag, EtagsList) of
 						true -> precondition_is_head_get(Req2, State2);
-						false -> if_modified_since_exists(Req2, State2)
+						false -> method(Req2, State2)
 					end
 			end
 	catch Class:Reason ->
