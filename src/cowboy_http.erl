@@ -900,15 +900,15 @@ maybe_terminate(State=#state{last_streamid=StreamID}, StreamID, _Tail, fin) ->
 maybe_terminate(State, StreamID, _Tail, fin) ->
 	stream_terminate(State, StreamID, normal).
 
-stream_reset(State=#state{socket=Socket, transport=Transport}, StreamID,
-		StreamError={internal_error, _, _}) ->
+stream_reset(State, StreamID, StreamError={internal_error, _, _}) ->
 	%% @todo headers
 	%% @todo Don't send this if there are no streams left.
-	Transport:send(Socket, cow_http:response(500, 'HTTP/1.1', [
-		{<<"content-length">>, <<"0">>}
-	])),
+%	Transport:send(Socket, cow_http:response(500, 'HTTP/1.1', [
+%		{<<"content-length">>, <<"0">>}
+%	])),
 	%% @todo update IsFin local
-	stream_terminate(State#state{out_state=done}, StreamID, StreamError).
+%	stream_terminate(State#state{out_state=done}, StreamID, StreamError).
+	stream_terminate(State, StreamID, StreamError).
 
 stream_terminate(State=#state{socket=Socket, transport=Transport, handler=Handler,
 		out_streamid=OutStreamID, out_state=OutState,
