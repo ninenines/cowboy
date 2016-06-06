@@ -365,17 +365,49 @@ commands(State=#state{socket=Socket, transport=Transport, encode_state=EncodeSta
 		[{response, StatusCode, Headers0, Body}|Tail]) ->
 	Headers = Headers0#{<<":status">> => integer_to_binary(StatusCode)},
 	{HeaderBlock, EncodeState} = headers_encode(Headers, EncodeState0),
-	Transport:send(Socket, [
-		cow_http2:headers(StreamID, nofin, HeaderBlock),
-		cow_http2:data(StreamID, fin, Body)
-	]),
-	commands(State#state{encode_state=EncodeState}, StreamID, Tail);
+	Response = cow_http2:headers(StreamID, nofin, HeaderBlock),
+	case Body of
+		{sendfile, O, B, P} ->
+			Transport:send(Socket, Response),
+			commands(State#state{encode_state=EncodeState}, StreamID,
+				[{sendfile, fin, O, B, P}|Tail]);
+		_ ->
+			Transport:send(Socket, [
+				Response,
+				cow_http2:data(StreamID, fin, Body)
+			]),
+			commands(State#state{encode_state=EncodeState}, StreamID, Tail)
+	end;
 %% Send a response body chunk.
 %%
 %% @todo WINDOW_UPDATE stuff require us to buffer some data.
+%%
+%% When the body is sent using sendfile, the current solution is not
+%% very good. The body could be too large, blocking the connection.
+%% Also sendfile technically only works over TCP, so it's not that
+%% useful for HTTP/2. At the very least the sendfile call should be
+%% split into multiple calls and flow control should be used to make
+%% sure we only send as fast as the client can receive and don't block
+%% anything.
 commands(State=#state{socket=Socket, transport=Transport}, StreamID,
 		[{data, IsFin, Data}|Tail]) ->
 	Transport:send(Socket, cow_http2:data(StreamID, IsFin, Data)),
+	commands(State, StreamID, Tail);
+%% Send a file.
+%%
+%% @todo This implementation is terrible. A good implementation would
+%% need to check that Bytes is exact (or we need to document that we
+%% trust it to be exact), and would need to send the file asynchronously
+%% in many data frames. Perhaps a sendfile call should result in a
+%% process being created specifically for this purpose. Or perhaps
+%% the protocol should be "dumb" and the stream handler be the one
+%% to ensure the file is sent in chunks (which would require a better
+%% flow control at the stream handler level). One thing for sure, the
+%% implementation necessarily varies between HTTP/1.1 and HTTP/2.
+commands(State=#state{socket=Socket, transport=Transport}, StreamID,
+		[{sendfile, IsFin, Offset, Bytes, Path}|Tail]) ->
+	Transport:send(Socket, cow_http2:data_header(StreamID, IsFin, Bytes)),
+	Transport:sendfile(Socket, Path, Offset, Bytes),
 	commands(State, StreamID, Tail);
 %% Send a push promise.
 %%
