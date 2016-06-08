@@ -42,19 +42,22 @@ do_get_paths(Example0) ->
 	{ok, CWD} = file:get_cwd(),
 	Dir = CWD ++ "/../../examples/" ++ Example,
 	Rel = Dir ++ "/_rel/" ++ Example ++ "_example/bin/" ++ Example ++ "_example",
-	{Dir, Rel}.
+	Log = Dir ++ "/_rel/" ++ Example ++ "_example/log/erlang.log.1",
+	{Dir, Rel, Log}.
 
 do_compile_and_start(Example) ->
-	{Dir, Rel} = do_get_paths(Example),
-	ct:comment("~s~n", [os:cmd("cd " ++ Dir ++ " && make distclean && make all")]),
-	ct:comment("~s~n", [os:cmd(Rel ++ " stop")]),
-	ct:comment("~s~n", [os:cmd(Rel ++ " start")]),
+	{Dir, Rel, _} = do_get_paths(Example),
+	%% TERM=dumb disables relx coloring.
+	ct:log("~s~n", [os:cmd("cd " ++ Dir ++ " && make distclean && TERM=dumb make all")]),
+	ct:log("~s~n", [os:cmd(Rel ++ " stop")]),
+	ct:log("~s~n", [os:cmd(Rel ++ " start")]),
 	timer:sleep(2000),
 	ok.
 
 do_stop(Example) ->
-	{_, Rel} = do_get_paths(Example),
-	ct:comment("~s~n", [os:cmd(Rel ++ " stop")]),
+	{_, Rel, Log} = do_get_paths(Example),
+	ct:log("~s~n", [os:cmd(Rel ++ " stop")]),
+	ct:log("~s~n", [element(2, file:read_file(Log))]),
 	ok.
 
 %% TCP and SSL Hello World.
@@ -88,4 +91,23 @@ do_hello_world(Transport, Protocol, Config) ->
 	Ref = gun:get(ConnPid, "/"),
 	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
 	{ok, <<"Hello world!">>} = gun:await_body(ConnPid, Ref),
+	ok.
+
+%% Echo GET and POST.
+
+echo_get(Config) ->
+	doc("GET parameter echo example."),
+	try
+		do_compile_and_start(echo_get),
+		do_echo_get(tcp, http, Config),
+		do_echo_get(tcp, http2, Config)
+	after
+		do_stop(echo_get)
+	end.
+
+do_echo_get(Transport, Protocol, Config) ->
+	ConnPid = gun_open([{port, 8080}, {type, Transport}, {protocol, Protocol}|Config]),
+	Ref = gun:get(ConnPid, "/?echo=this+is+fun"),
+	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
+	{ok, <<"this is fun">>} = gun:await_body(ConnPid, Ref),
 	ok.
