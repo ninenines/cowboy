@@ -111,3 +111,22 @@ do_echo_get(Transport, Protocol, Config) ->
 	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
 	{ok, <<"this is fun">>} = gun:await_body(ConnPid, Ref),
 	ok.
+
+echo_post(Config) ->
+	doc("POST parameter echo example."),
+	try
+		do_compile_and_start(echo_post),
+		do_echo_post(tcp, http, Config),
+		do_echo_post(tcp, http2, Config)
+	after
+		do_stop(echo_post)
+	end.
+
+do_echo_post(Transport, Protocol, Config) ->
+	ConnPid = gun_open([{port, 8080}, {type, Transport}, {protocol, Protocol}|Config]),
+	Ref = gun:post(ConnPid, "/", [
+		{<<"content-type">>, <<"application/octet-stream">>}
+	], <<"echo=this+is+fun">>),
+	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
+	{ok, <<"this is fun">>} = gun:await_body(ConnPid, Ref),
+	ok.
