@@ -28,7 +28,9 @@
 	%% Whether we finished sending data.
 	local = nofin :: cowboy_stream:fin(),
 	%% Whether we finished receiving data.
-	remote = nofin :: cowboy_stream:fin()
+	remote = nofin :: cowboy_stream:fin(),
+	%% Request body length.
+	body_length = 0 :: non_neg_integer()
 }).
 
 -type stream() :: #stream{}.
@@ -233,17 +235,22 @@ parse_settings_preface(State, _, _, _) ->
 %% and terminate the stream if this is the end of it.
 
 %% DATA frame.
-frame(State=#state{handler=Handler, streams=Streams0}, {data, StreamID, IsFin, Data}) ->
+frame(State=#state{handler=Handler, streams=Streams0}, {data, StreamID, IsFin0, Data}) ->
 	case lists:keyfind(StreamID, #stream.id, Streams0) of
-		Stream = #stream{state=StreamState0, remote=nofin} ->
+		Stream = #stream{state=StreamState0, remote=nofin, body_length=Len0} ->
+			Len = Len0 + byte_size(Data),
+			IsFin = case IsFin0 of
+				fin -> {fin, Len};
+				nofin -> nofin
+			end,
 			try Handler:data(StreamID, IsFin, Data, StreamState0) of
 				{Commands, StreamState} ->
 					Streams = lists:keyreplace(StreamID, #stream.id, Streams0,
-						Stream#stream{state=StreamState}),
+						Stream#stream{state=StreamState, body_length=Len}),
 					commands(State#state{streams=Streams}, StreamID, Commands)
 			catch Class:Reason ->
 				error_logger:error_msg("Exception occurred in ~s:data(~p, ~p, ~p, ~p) with reason ~p:~p.",
-					[Handler, StreamID, IsFin, Data, StreamState0, Class, Reason]),
+					[Handler, StreamID, IsFin0, Data, StreamState0, Class, Reason]),
 				stream_reset(State, StreamID, {internal_error, {Class, Reason},
 					'Exception occurred in StreamHandler:data/4 call.'})
 			end;
