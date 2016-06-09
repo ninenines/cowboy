@@ -93,7 +93,7 @@ do_hello_world(Transport, Protocol, Config) ->
 	{ok, <<"Hello world!">>} = gun:await_body(ConnPid, Ref),
 	ok.
 
-%% Echo GET and POST.
+%% Echo GET.
 
 echo_get(Config) ->
 	doc("GET parameter echo example."),
@@ -111,6 +111,8 @@ do_echo_get(Transport, Protocol, Config) ->
 	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
 	{ok, <<"this is fun">>} = gun:await_body(ConnPid, Ref),
 	ok.
+
+%% Echo POST.
 
 echo_post(Config) ->
 	doc("POST parameter echo example."),
@@ -130,3 +132,41 @@ do_echo_post(Transport, Protocol, Config) ->
 	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
 	{ok, <<"this is fun">>} = gun:await_body(ConnPid, Ref),
 	ok.
+
+%% REST Hello World.
+
+rest_hello_world(Config) ->
+	doc("REST Hello World example."),
+	try
+		do_compile_and_start(rest_hello_world),
+		do_rest_hello_world(tcp, http, Config),
+		do_rest_hello_world(tcp, http2, Config)
+	after
+		do_stop(rest_hello_world)
+	end.
+
+do_rest_hello_world(Transport, Protocol, Config) ->
+	<< "<html>", _/bits >> = do_rest_hello_world_get(Transport, Protocol, undefined, Config),
+	<< "REST Hello World as text!" >> = do_rest_hello_world_get(Transport, Protocol, <<"text/plain">>, Config),
+	<< "{\"rest\": \"Hello World!\"}" >> = do_rest_hello_world_get(Transport, Protocol, <<"application/json">>, Config),
+	not_acceptable = do_rest_hello_world_get(Transport, Protocol, <<"text/css">>, Config),
+	ok.
+
+do_rest_hello_world_get(Transport, Protocol, Accept, Config) ->
+	Port = case Transport of
+		tcp -> 8080;
+		ssl -> 8443
+	end,
+	ConnPid = gun_open([{port, Port}, {type, Transport}, {protocol, Protocol}|Config]),
+	Headers = case Accept of
+		undefined -> [];
+		_ -> [{<<"accept">>, Accept}]
+	end,
+	Ref = gun:get(ConnPid, "/", Headers),
+	case gun:await(ConnPid, Ref) of
+		{response, nofin, 200, _} ->
+			{ok, Body} = gun:await_body(ConnPid, Ref),
+			Body;
+		{response, _, 406, _} ->
+			not_acceptable
+	end.
