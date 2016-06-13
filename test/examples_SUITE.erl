@@ -232,3 +232,20 @@ do_file_server(Transport, Protocol, Config) ->
 	{200, _, _} = do_get(Transport, Protocol, "/test.txt", Config),
 	{200, _, _} = do_get(Transport, Protocol, "/video.html", Config),
 	ok.
+
+%% Markdown middleware.
+
+markdown_middleware(Config) ->
+	doc("Markdown middleware example."),
+	try
+		do_compile_and_start(markdown_middleware),
+		do_markdown_middleware(tcp, http, Config),
+		do_markdown_middleware(tcp, http2, Config)
+	after
+		do_stop(markdown_middleware)
+	end.
+
+do_markdown_middleware(Transport, Protocol, Config) ->
+	{200, Headers, <<"<h1>", _/bits >>} = do_get(Transport, Protocol, "/video.html", Config),
+	{_, <<"text/html">>} = lists:keyfind(<<"content-type">>, 1, Headers),
+	ok.
