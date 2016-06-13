@@ -106,6 +106,35 @@ do_hello_world(Transport, Protocol, Config) ->
 	{200, _, <<"Hello world!">>} = do_get(Transport, Protocol, "/", Config),
 	ok.
 
+%% Chunked Hello World.
+
+chunked_hello_world(Config) ->
+	doc("Chunked Hello World example."),
+	try
+		do_compile_and_start(chunked_hello_world),
+		do_chunked_hello_world(tcp, http, Config),
+		do_chunked_hello_world(tcp, http2, Config)
+	after
+		do_stop(chunked_hello_world)
+	end.
+
+do_chunked_hello_world(Transport, Protocol, Config) ->
+	ConnPid = gun_open([{port, 8080}, {type, Transport}, {protocol, Protocol}|Config]),
+	Ref = gun:get(ConnPid, "/"),
+	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
+	%% We expect to receive a chunk every second, three total.
+	{data, nofin, <<"Hello\r\n">>} = gun:await(ConnPid, Ref, 2000),
+	{data, nofin, <<"World\r\n">>} = gun:await(ConnPid, Ref, 2000),
+	{data, IsFin, <<"Chunked!\r\n">>} = gun:await(ConnPid, Ref, 2000),
+	%% We may get an extra empty chunk (last chunk for HTTP/1.1,
+	%% empty DATA frame with the FIN bit set for HTTP/2).
+	case IsFin of
+		fin -> ok;
+		nofin ->
+			{data, fin, <<>>} = gun:await(ConnPid, Ref, 500),
+			ok
+	end.
+
 %% Echo GET.
 
 echo_get(Config) ->
