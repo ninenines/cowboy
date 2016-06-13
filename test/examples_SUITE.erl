@@ -60,6 +60,26 @@ do_stop(Example) ->
 	ct:log("~s~n", [element(2, file:read_file(Log))]),
 	ok.
 
+%% Fetch a response.
+
+do_get(Transport, Protocol, Path, Config) ->
+	do_get(Transport, Protocol, Path, [], Config).
+
+do_get(Transport, Protocol, Path, ReqHeaders, Config) ->
+	Port = case Transport of
+		tcp -> 8080;
+		ssl -> 8443
+	end,
+	ConnPid = gun_open([{port, Port}, {type, Transport}, {protocol, Protocol}|Config]),
+	Ref = gun:get(ConnPid, Path, ReqHeaders),
+	case gun:await(ConnPid, Ref) of
+		{response, nofin, Status, RespHeaders} ->
+			{ok, Body} = gun:await_body(ConnPid, Ref),
+			{Status, RespHeaders, Body};
+		{response, fin, Status, RespHeaders} ->
+			{Status, RespHeaders, <<>>}
+	end.
+
 %% TCP and SSL Hello World.
 
 hello_world(Config) ->
@@ -83,14 +103,7 @@ ssl_hello_world(Config) ->
 	end.
 
 do_hello_world(Transport, Protocol, Config) ->
-	Port = case Transport of
-		tcp -> 8080;
-		ssl -> 8443
-	end,
-	ConnPid = gun_open([{port, Port}, {type, Transport}, {protocol, Protocol}|Config]),
-	Ref = gun:get(ConnPid, "/"),
-	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
-	{ok, <<"Hello world!">>} = gun:await_body(ConnPid, Ref),
+	{200, _, <<"Hello world!">>} = do_get(Transport, Protocol, "/", Config),
 	ok.
 
 %% Echo GET.
@@ -106,10 +119,7 @@ echo_get(Config) ->
 	end.
 
 do_echo_get(Transport, Protocol, Config) ->
-	ConnPid = gun_open([{port, 8080}, {type, Transport}, {protocol, Protocol}|Config]),
-	Ref = gun:get(ConnPid, "/?echo=this+is+fun"),
-	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
-	{ok, <<"this is fun">>} = gun:await_body(ConnPid, Ref),
+	{200, _, <<"this is fun">>} = do_get(Transport, Protocol, "/?echo=this+is+fun", Config),
 	ok.
 
 %% Echo POST.
@@ -146,27 +156,50 @@ rest_hello_world(Config) ->
 	end.
 
 do_rest_hello_world(Transport, Protocol, Config) ->
-	<< "<html>", _/bits >> = do_rest_hello_world_get(Transport, Protocol, undefined, Config),
-	<< "REST Hello World as text!" >> = do_rest_hello_world_get(Transport, Protocol, <<"text/plain">>, Config),
-	<< "{\"rest\": \"Hello World!\"}" >> = do_rest_hello_world_get(Transport, Protocol, <<"application/json">>, Config),
-	not_acceptable = do_rest_hello_world_get(Transport, Protocol, <<"text/css">>, Config),
+	<< "<html>", _/bits >> = do_rest_get(Transport, Protocol, "/", undefined, Config),
+	<< "REST Hello World as text!" >> = do_rest_get(Transport, Protocol, "/", <<"text/plain">>, Config),
+	<< "{\"rest\": \"Hello World!\"}" >> = do_rest_get(Transport, Protocol, "/", <<"application/json">>, Config),
+	not_acceptable = do_rest_get(Transport, Protocol, "/", <<"text/css">>, Config),
 	ok.
 
-do_rest_hello_world_get(Transport, Protocol, Accept, Config) ->
-	Port = case Transport of
-		tcp -> 8080;
-		ssl -> 8443
-	end,
-	ConnPid = gun_open([{port, Port}, {type, Transport}, {protocol, Protocol}|Config]),
-	Headers = case Accept of
+do_rest_get(Transport, Protocol, Path, Accept, Config) ->
+	ReqHeaders = case Accept of
 		undefined -> [];
 		_ -> [{<<"accept">>, Accept}]
 	end,
-	Ref = gun:get(ConnPid, "/", Headers),
-	case gun:await(ConnPid, Ref) of
-		{response, nofin, 200, _} ->
-			{ok, Body} = gun:await_body(ConnPid, Ref),
+	case do_get(Transport, Protocol, Path, ReqHeaders, Config) of
+		{200, RespHeaders, Body} ->
+			Accept = case Accept of
+				undefined -> undefined;
+				_ ->
+					{_, ContentType} = lists:keyfind(<<"content-type">>, 1, RespHeaders),
+					ContentType
+			end,
 			Body;
-		{response, _, 406, _} ->
+		{406, _, _} ->
 			not_acceptable
 	end.
+
+%% File server.
+
+file_server(Config) ->
+	doc("File server example with directory listing."),
+	try
+		do_compile_and_start(file_server),
+		do_file_server(tcp, http, Config),
+		do_file_server(tcp, http2, Config)
+	after
+		do_stop(file_server)
+	end.
+
+do_file_server(Transport, Protocol, Config) ->
+	%% Directory.
+	{200, DirHeaders, <<"<!DOCTYPE html><html>", _/bits >>} = do_get(Transport, Protocol, "/", Config),
+	{_, <<"text/html">>} = lists:keyfind(<<"content-type">>, 1, DirHeaders),
+	_ = do_rest_get(Transport, Protocol, "/", <<"application/json">>, Config),
+	%% Files.
+	{200, _, _} = do_get(Transport, Protocol, "/small.mp4", Config),
+	{200, _, _} = do_get(Transport, Protocol, "/small.ogv", Config),
+	{200, _, _} = do_get(Transport, Protocol, "/test.txt", Config),
+	{200, _, _} = do_get(Transport, Protocol, "/video.html", Config),
+	ok.

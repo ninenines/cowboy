@@ -27,12 +27,12 @@ resource_exists(Req, {ReqPath, FilePath}) ->
 
 content_types_provided(Req, State) ->
 	{[
-		{{<<"application">>, <<"json">>, []}, list_json},
-		{{<<"text">>, <<"html">>, []}, list_html}
+		{{<<"text">>, <<"html">>, []}, list_html},
+		{{<<"application">>, <<"json">>, []}, list_json}
 	], Req, State}.
 
 list_json(Req, {Path, Fs}) ->
-	Files = [[ <<(list_to_binary(F))/binary>> || F <- Fs ]],
+	Files = [ <<(list_to_binary(F))/binary>> || F <- Fs ],
 	{jsx:encode(Files), Req, Path}.
 
 list_html(Req, {Path, Fs}) ->

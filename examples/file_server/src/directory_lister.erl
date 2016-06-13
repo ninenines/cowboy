@@ -5,16 +5,14 @@
 
 -export([execute/2]).
 
+execute(Req, Env=#{handler := cowboy_static}) ->
+	redirect_directory(Req, Env);
 execute(Req, Env) ->
-	case lists:keyfind(handler, 1, Env) of
-		{handler, cowboy_static} -> redirect_directory(Req, Env);
-		_H -> {ok, Req, Env}
-	end.
+	{ok, Req, Env}.
 
-redirect_directory(Req, Env) ->
+redirect_directory(Req, Env=#{handler_opts := {_, _, _, Extra}}) ->
 	Path = cowboy_req:path_info(Req),
 	Path1 = << <<S/binary, $/>> || S <- Path >>,
-	{handler_opts, {_, _, _, Extra}} = lists:keyfind(handler_opts, 1, Env),
 	{dir_handler, DirHandler} = lists:keyfind(dir_handler, 1, Extra),
 	FullPath = resource_path(Path1),
 	case valid_path(Path) and filelib:is_dir(FullPath) of
@@ -23,9 +21,7 @@ redirect_directory(Req, Env) ->
 	end.
 
 handle_directory(Req, Env, Prefix, Path, DirHandler) ->
-	Env1 = lists:keydelete(handler, 1,
-		lists:keydelete(handler_opts, 1, Env)),
-	{ok, Req, [{handler, DirHandler}, {handler_opts, {Prefix, Path}} | Env1]}.
+	{ok, Req, Env#{handler => DirHandler, handler_opts => {Prefix, Path}}}.
 
 valid_path([]) -> true;
 valid_path([<<"..">> | _T]) -> false;
@@ -33,4 +29,4 @@ valid_path([<<"/", _/binary>> | _T]) -> false;
 valid_path([_H | Rest]) -> valid_path(Rest).
 
 resource_path(Path) ->
-	filename:join([code:priv_dir(web_server), Path]).
+	filename:join([code:priv_dir(file_server), Path]).
