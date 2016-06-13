@@ -385,6 +385,13 @@ commands(State=#state{socket=Socket, transport=Transport, encode_state=EncodeSta
 			]),
 			commands(State#state{encode_state=EncodeState}, StreamID, Tail)
 	end;
+%% Send response headers and initiate chunked encoding.
+commands(State=#state{socket=Socket, transport=Transport, encode_state=EncodeState0}, StreamID,
+		[{headers, StatusCode, Headers0}|Tail]) ->
+	Headers = Headers0#{<<":status">> => integer_to_binary(StatusCode)},
+	{HeaderBlock, EncodeState} = headers_encode(Headers, EncodeState0),
+	Transport:send(Socket, cow_http2:headers(StreamID, nofin, HeaderBlock)),
+	commands(State#state{encode_state=EncodeState}, StreamID, Tail);
 %% Send a response body chunk.
 %%
 %% @todo WINDOW_UPDATE stuff require us to buffer some data.
@@ -455,7 +462,7 @@ commands(State, StreamID, [{upgrade, _Mod, _ModState}|Tail]) ->
 	commands(State, StreamID, Tail);
 commands(State, StreamID, [stop|_Tail]) ->
 	%% @todo Do we want to run the commands after a stop?
-	stream_terminate(State, StreamID, stop).
+	stream_terminate(State, StreamID, normal).
 
 terminate(#state{socket=Socket, transport=Transport, handler=Handler,
 		streams=Streams, children=Children}, Reason) ->
@@ -550,8 +557,14 @@ stream_reset(State=#state{socket=Socket, transport=Transport}, StreamID,
 	Transport:send(Socket, cow_http2:rst_stream(StreamID, Reason)),
 	stream_terminate(State, StreamID, StreamError).
 
-stream_terminate(State=#state{handler=Handler, streams=Streams0, children=Children0}, StreamID, Reason) ->
+stream_terminate(State=#state{socket=Socket, transport=Transport,
+		handler=Handler, streams=Streams0, children=Children0}, StreamID, Reason) ->
 	case lists:keytake(StreamID, #stream.id, Streams0) of
+		{value, #stream{state=StreamState, local=nofin}, Streams} when Reason =:= normal ->
+			Transport:send(Socket, cow_http2:data(StreamID, fin, <<>>)),
+			stream_call_terminate(StreamID, Reason, Handler, StreamState),
+			Children = stream_terminate_children(Children0, StreamID, []),
+			State#state{streams=Streams, children=Children};
 		{value, #stream{state=StreamState}, Streams} ->
 			stream_call_terminate(StreamID, Reason, Handler, StreamState),
 			Children = stream_terminate_children(Children0, StreamID, []),
