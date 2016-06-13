@@ -249,3 +249,32 @@ do_markdown_middleware(Transport, Protocol, Config) ->
 	{200, Headers, <<"<h1>", _/bits >>} = do_get(Transport, Protocol, "/video.html", Config),
 	{_, <<"text/html">>} = lists:keyfind(<<"content-type">>, 1, Headers),
 	ok.
+
+%% Websocket.
+
+websocket(_) ->
+	doc("Websocket example."),
+	try
+		do_compile_and_start(websocket),
+		%% We can only initiate a Websocket connection from HTTP/1.1.
+		{ok, Pid} = gun:open("127.0.0.1", 8080, #{protocols => [http], retry => 0}),
+		{ok, http} = gun:await_up(Pid),
+		_ = monitor(process, Pid),
+		gun:ws_upgrade(Pid, "/websocket", [], #{compress => true}),
+		receive
+			{gun_ws_upgrade, Pid, ok, _} ->
+				ok;
+			Msg1 ->
+				exit({connection_failed, Msg1})
+		end,
+		gun:ws_send(Pid, {text, <<"hello">>}),
+		receive
+			{gun_ws, Pid, {text, <<"That's what she said! hello">>}} ->
+				ok;
+			Msg2 ->
+				exit({receive_failed, Msg2})
+		end,
+		gun:ws_send(Pid, close)
+	after
+		do_stop(websocket)
+	end.

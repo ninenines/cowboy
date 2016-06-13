@@ -17,8 +17,9 @@ start(_Type, _Args) ->
 			{"/static/[...]", cowboy_static, {priv_dir, websocket, "static"}}
 		]}
 	]),
-	{ok, _} = cowboy:start_http(http, 100, [{port, 8080}],
-		[{env, [{dispatch, Dispatch}]}]),
+	{ok, _} = cowboy:start_clear(http, 100, [{port, 8080}], #{
+		env => #{dispatch => Dispatch}
+	}),
 	websocket_sup:start_link().
 
 stop(_State) ->
