@@ -135,6 +135,24 @@ do_chunked_hello_world(Transport, Protocol, Config) ->
 			ok
 	end.
 
+%% Cookie.
+
+cookie(Config) ->
+	doc("Cookie example."),
+	try
+		do_compile_and_start(cookie),
+		do_cookie(tcp, http, Config),
+		do_cookie(tcp, http2, Config)
+	after
+		do_stop(cookie)
+	end.
+
+do_cookie(Transport, Protocol, Config) ->
+	{200, _, One} = do_get(Transport, Protocol, "/", Config),
+	{200, _, Two} = do_get(Transport, Protocol, "/", [{<<"cookie">>, <<"server=abcdef">>}], Config),
+	true = One =/= Two,
+	ok.
+
 %% Echo GET.
 
 echo_get(Config) ->
@@ -171,6 +189,29 @@ do_echo_post(Transport, Protocol, Config) ->
 	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
 	{ok, <<"this is fun">>} = gun:await_body(ConnPid, Ref),
 	ok.
+
+%% Eventsource.
+
+eventsource(Config) ->
+	doc("Eventsource example."),
+	try
+		do_compile_and_start(eventsource),
+		do_eventsource(tcp, http, Config),
+		do_eventsource(tcp, http2, Config)
+	after
+		do_stop(eventsource)
+	end.
+
+do_eventsource(Transport, Protocol, Config) ->
+	ConnPid = gun_open([{port, 8080}, {type, Transport}, {protocol, Protocol}|Config]),
+	Ref = gun:get(ConnPid, "/eventsource"),
+	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"text/event-stream">>} = lists:keyfind(<<"content-type">>, 1, Headers),
+	%% Receive a few events.
+	{data, nofin, << "id: ", _/bits >>} = gun:await(ConnPid, Ref, 2000),
+	{data, nofin, << "id: ", _/bits >>} = gun:await(ConnPid, Ref, 2000),
+	{data, nofin, << "id: ", _/bits >>} = gun:await(ConnPid, Ref, 2000),
+	gun:close(ConnPid).
 
 %% REST Hello World.
 

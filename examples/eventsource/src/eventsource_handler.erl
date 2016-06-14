@@ -7,8 +7,9 @@
 -export([info/3]).
 
 init(Req, Opts) ->
-	Headers = [{<<"content-type">>, <<"text/event-stream">>}],
-	Req2 = cowboy_req:chunked_reply(200, Headers, Req),
+	Req2 = cowboy_req:chunked_reply(200, #{
+		<<"content-type">> => <<"text/event-stream">>
+	}, Req),
 	erlang:send_after(1000, self(), {message, "Tick"}),
 	{cowboy_loop, Req2, Opts, 5000}.
 
