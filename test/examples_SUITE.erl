@@ -190,6 +190,29 @@ do_echo_post(Transport, Protocol, Config) ->
 	{ok, <<"this is fun">>} = gun:await_body(ConnPid, Ref),
 	ok.
 
+%% Eventsource.
+
+eventsource(Config) ->
+	doc("Eventsource example."),
+	try
+		do_compile_and_start(eventsource),
+		do_eventsource(tcp, http, Config),
+		do_eventsource(tcp, http2, Config)
+	after
+		do_stop(eventsource)
+	end.
+
+do_eventsource(Transport, Protocol, Config) ->
+	ConnPid = gun_open([{port, 8080}, {type, Transport}, {protocol, Protocol}|Config]),
+	Ref = gun:get(ConnPid, "/eventsource"),
+	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"text/event-stream">>} = lists:keyfind(<<"content-type">>, 1, Headers),
+	%% Receive a few events.
+	{data, nofin, << "id: ", _/bits >>} = gun:await(ConnPid, Ref, 2000),
+	{data, nofin, << "id: ", _/bits >>} = gun:await(ConnPid, Ref, 2000),
+	{data, nofin, << "id: ", _/bits >>} = gun:await(ConnPid, Ref, 2000),
+	gun:close(ConnPid).
+
 %% REST Hello World.
 
 rest_hello_world(Config) ->
