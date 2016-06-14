@@ -185,16 +185,24 @@ rest_hello_world(Config) ->
 	end.
 
 do_rest_hello_world(Transport, Protocol, Config) ->
-	<< "<html>", _/bits >> = do_rest_get(Transport, Protocol, "/", undefined, Config),
-	<< "REST Hello World as text!" >> = do_rest_get(Transport, Protocol, "/", <<"text/plain">>, Config),
-	<< "{\"rest\": \"Hello World!\"}" >> = do_rest_get(Transport, Protocol, "/", <<"application/json">>, Config),
-	not_acceptable = do_rest_get(Transport, Protocol, "/", <<"text/css">>, Config),
+	<< "<html>", _/bits >> = do_rest_get(Transport, Protocol,
+		"/", undefined, undefined, Config),
+	<< "REST Hello World as text!" >> = do_rest_get(Transport, Protocol,
+		"/", <<"text/plain">>, undefined, Config),
+	<< "{\"rest\": \"Hello World!\"}" >> = do_rest_get(Transport, Protocol,
+		"/", <<"application/json">>, undefined, Config),
+	not_acceptable = do_rest_get(Transport, Protocol,
+		"/", <<"text/css">>, undefined, Config),
 	ok.
 
-do_rest_get(Transport, Protocol, Path, Accept, Config) ->
-	ReqHeaders = case Accept of
+do_rest_get(Transport, Protocol, Path, Accept, Auth, Config) ->
+	ReqHeaders0 = case Accept of
 		undefined -> [];
 		_ -> [{<<"accept">>, Accept}]
+	end,
+	ReqHeaders = case Auth of
+		undefined -> ReqHeaders0;
+		_ -> [{<<"authorization">>, [<<"Basic ">>, base64:encode(Auth)]}|ReqHeaders0]
 	end,
 	case do_get(Transport, Protocol, Path, ReqHeaders, Config) of
 		{200, RespHeaders, Body} ->
@@ -205,9 +213,28 @@ do_rest_get(Transport, Protocol, Path, Accept, Config) ->
 					ContentType
 			end,
 			Body;
+		{401, _, _} ->
+			unauthorized;
 		{406, _, _} ->
 			not_acceptable
 	end.
+
+%% REST basic auth.
+
+rest_basic_auth(Config) ->
+	doc("REST basic authorization example."),
+	try
+		do_compile_and_start(rest_basic_auth),
+		do_rest_basic_auth(tcp, http, Config),
+		do_rest_basic_auth(tcp, http2, Config)
+	after
+		do_stop(rest_basic_auth)
+	end.
+
+do_rest_basic_auth(Transport, Protocol, Config) ->
+	unauthorized = do_rest_get(Transport, Protocol, "/", undefined, undefined, Config),
+	<<"Hello, Alladin!\n">> = do_rest_get(Transport, Protocol, "/", undefined, "Alladin:open sesame", Config),
+	ok.
 
 %% File server.
 
@@ -225,7 +252,7 @@ do_file_server(Transport, Protocol, Config) ->
 	%% Directory.
 	{200, DirHeaders, <<"<!DOCTYPE html><html>", _/bits >>} = do_get(Transport, Protocol, "/", Config),
 	{_, <<"text/html">>} = lists:keyfind(<<"content-type">>, 1, DirHeaders),
-	_ = do_rest_get(Transport, Protocol, "/", <<"application/json">>, Config),
+	_ = do_rest_get(Transport, Protocol, "/", <<"application/json">>, undefined, Config),
 	%% Files.
 	{200, _, _} = do_get(Transport, Protocol, "/small.mp4", Config),
 	{200, _, _} = do_get(Transport, Protocol, "/small.ogv", Config),
