@@ -1,4 +1,4 @@
-%% Copyright (c) 2015, Loïc Hoguin <essen@ninenines.eu>
+%% Copyright (c) 2016, Loïc Hoguin <essen@ninenines.eu>
 %%
 %% Permission to use, copy, modify, and/or distribute this software for any
 %% purpose with or without fee is hereby granted, provided that the above
@@ -12,7 +12,7 @@
 %% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
--module(cowboy_tls).
+-module(cowboy_clear).
 -behavior(ranch_protocol).
 
 -export([start_link/4]).
@@ -37,12 +37,7 @@ proc_lib_hack(Parent, Ref, Socket, Transport, Opts) ->
 -spec init(pid(), ranch:ref(), inet:socket(), module(), cowboy:opts()) -> ok.
 init(Parent, Ref, Socket, Transport, Opts) ->
 	ok = ranch:accept_ack(Ref),
-	case ssl:negotiated_protocol(Socket) of
-		{ok, <<"h2">>} ->
-			init(Parent, Ref, Socket, Transport, Opts, cowboy_http2);
-		_ -> %% http/1.1 or no protocol negotiated.
-			init(Parent, Ref, Socket, Transport, Opts, cowboy_http)
-	end.
+	init(Parent, Ref, Socket, Transport, Opts, cowboy_http).
 
 init(Parent, Ref, Socket, Transport, Opts, Protocol) ->
 	{Handler, Type} = maps:get(stream_handler, Opts, {cowboy_stream_h, supervisor}),

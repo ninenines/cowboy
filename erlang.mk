@@ -16,7 +16,7 @@
 
 ERLANG_MK_FILENAME := $(realpath $(lastword $(MAKEFILE_LIST)))
 
-ERLANG_MK_VERSION = 2.0.0-pre.2-73-g87285ad-dirty
+ERLANG_MK_VERSION = 2.0.0-pre.2-75-g18a7074-dirty
 
 # Core configuration.
 
@@ -147,11 +147,6 @@ else
 core_native_path = $1
 endif
 
-ifeq ($(shell which wget 2>/dev/null | wc -l), 1)
-define core_http_get
-	wget --no-check-certificate -O $(1) $(2)|| rm $(1)
-endef
-else
 define core_http_get.erl
 	ssl:start(),
 	inets:start(),
@@ -170,7 +165,6 @@ endef
 define core_http_get
 	$(call erlang,$(call core_http_get.erl,$(call core_native_path,$1),$2))
 endef
-endif
 
 core_eq = $(and $(findstring $(1),$(2)),$(findstring $(2),$(1)))
 
@@ -4646,7 +4640,7 @@ dtl_verbose = $(dtl_verbose_$(V))
 
 # Core targets.
 
-DTL_FILES = $(sort $(call core_find,$(DTL_PATH),*.dtl))
+DTL_FILES := $(sort $(call core_find,$(DTL_PATH),*.dtl))
 
 ifneq ($(DTL_FILES),)
 
@@ -4711,10 +4705,11 @@ define compile_proto.erl
 	halt().
 endef
 
-ifneq ($(wildcard src/),)
+# @todo Convert like erlydtl was.
+# @todo Give access to ALL_SRC_FILES.
+
 ebin/$(PROJECT).app:: $(sort $(call core_find,src/,*.proto))
 	$(if $(strip $?),$(call compile_proto,$?))
-endif
 
 # Copyright (c) 2013-2015, Loïc Hoguin <essen@ninenines.eu>
 # This file is part of erlang.mk and subject to the terms of the ISC License.
@@ -4807,8 +4802,11 @@ app-build: ebin/$(PROJECT).app
 
 # Source files.
 
-ERL_FILES = $(sort $(call core_find,src/,*.erl))
-CORE_FILES = $(sort $(call core_find,src/,*.core))
+# @todo have "all test/ files" also.
+ALL_SRC_FILES := $(sort $(call core_find,src/,*))
+
+ERL_FILES := $(filter %.erl,$(ALL_SRC_FILES))
+CORE_FILES := $(filter %.core,$(ALL_SRC_FILES))
 
 # ASN.1 files.
 
@@ -4841,11 +4839,11 @@ endif
 
 # Leex and Yecc files.
 
-XRL_FILES = $(sort $(call core_find,src/,*.xrl))
+XRL_FILES := $(filter %.xrl,$(ALL_SRC_FILES))
 XRL_ERL_FILES = $(addprefix src/,$(patsubst %.xrl,%.erl,$(notdir $(XRL_FILES))))
 ERL_FILES += $(XRL_ERL_FILES)
 
-YRL_FILES = $(sort $(call core_find,src/,*.yrl))
+YRL_FILES := $(filter %.yrl,$(ALL_SRC_FILES))
 YRL_ERL_FILES = $(addprefix src/,$(patsubst %.yrl,%.erl,$(notdir $(YRL_FILES))))
 ERL_FILES += $(YRL_ERL_FILES)
 
@@ -4932,6 +4930,7 @@ define makedep.erl
 endef
 
 ifeq ($(if $(NO_MAKEDEP),$(wildcard $(PROJECT).d),),)
+# @todo Not src/*.hrl?
 $(PROJECT).d:: $(ERL_FILES) $(call core_find,include/,*.hrl)
 	$(makedep_verbose) $(call erlang,$(call makedep.erl,$@))
 endif
@@ -5852,6 +5851,12 @@ endif
 
 .PHONY: ci ci-prepare ci-setup distclean-kerl
 
+CI_OTP ?=
+
+ifeq ($(strip $(CI_OTP)),)
+ci::
+else
+
 ifndef KERL
 KERL := $(shell which kerl 2>/dev/null)
 
@@ -5870,11 +5875,7 @@ KERL_MAKEFLAGS ?=
 OTP_GIT ?= https://github.com/erlang/otp
 
 CI_INSTALL_DIR ?= $(HOME)/erlang
-CI_OTP ?=
 
-ifeq ($(strip $(CI_OTP)),)
-ci::
-else
 ci:: $(addprefix ci-,$(CI_OTP))
 
 ci-prepare: $(addprefix $(CI_INSTALL_DIR)/,$(CI_OTP))
@@ -5933,11 +5934,13 @@ endif
 # Configuration.
 
 CT_OPTS ?=
+
 ifneq ($(wildcard $(TEST_DIR)),)
-	CT_SUITES ?= $(sort $(subst _SUITE.erl,,$(notdir $(call core_find,$(TEST_DIR)/,*_SUITE.erl))))
-else
-	CT_SUITES ?=
+ifndef CT_SUITES
+CT_SUITES := $(sort $(subst _SUITE.erl,,$(notdir $(call core_find,$(TEST_DIR)/,*_SUITE.erl))))
 endif
+endif
+CT_SUITES ?=
 
 # Core targets.
 
@@ -5967,7 +5970,7 @@ ct: $(if $(IS_APP),,apps-ct)
 else
 ct: test-build $(if $(IS_APP),,apps-ct)
 	$(verbose) mkdir -p $(CURDIR)/logs/
-	$(gen_verbose) $(CT_RUN) -suite $(addsuffix _SUITE,$(CT_SUITES)) $(CT_OPTS)
+	$(gen_verbose) $(CT_RUN) -sname ct_$(PROJECT) -suite $(addsuffix _SUITE,$(CT_SUITES)) $(CT_OPTS)
 endif
 
 ifneq ($(ALL_APPS_DIRS),)
@@ -5989,7 +5992,7 @@ endif
 define ct_suite_target
 ct-$(1): test-build
 	$(verbose) mkdir -p $(CURDIR)/logs/
-	$(gen_verbose) $(CT_RUN) -suite $(addsuffix _SUITE,$(1)) $(CT_EXTRA) $(CT_OPTS)
+	$(gen_verbose) $(CT_RUN) -sname ct_$(PROJECT) -suite $(addsuffix _SUITE,$(1)) $(CT_EXTRA) $(CT_OPTS)
 endef
 
 $(foreach test,$(CT_SUITES),$(eval $(call ct_suite_target,$(test))))
@@ -6196,8 +6199,9 @@ eunit: test-build
 	$(gen_verbose) $(call erlang,$(call eunit.erl,fun $(t)/0),$(EUNIT_ERL_OPTS))
 endif
 else
-EUNIT_EBIN_MODS = $(notdir $(basename $(call core_find,ebin/,*.beam)))
-EUNIT_TEST_MODS = $(notdir $(basename $(call core_find,$(TEST_DIR)/,*.beam)))
+EUNIT_EBIN_MODS = $(notdir $(basename $(ERL_FILES) $(BEAM_FILES)))
+EUNIT_TEST_MODS = $(notdir $(basename $(call core_find,$(TEST_DIR)/,*.erl)))
+
 EUNIT_MODS = $(foreach mod,$(EUNIT_EBIN_MODS) $(filter-out \
 	$(patsubst %,%_tests,$(EUNIT_EBIN_MODS)),$(EUNIT_TEST_MODS)),'$(mod)')
 
@@ -6314,6 +6318,7 @@ shell: build-shell-deps
 # Copyright (c) 2015, Loïc Hoguin <essen@ninenines.eu>
 # This file is part of erlang.mk and subject to the terms of the ISC License.
 
+# @todo BUILD_DEPS too?
 ifeq ($(filter triq,$(DEPS) $(TEST_DEPS)),triq)
 .PHONY: triq
 

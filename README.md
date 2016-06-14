@@ -24,8 +24,9 @@ Sponsors
 The project is currently sponsored by
 [Sameroom](https://sameroom.io).
 
-The SPDY implementation was sponsored by
+The original SPDY implementation was sponsored by
 [LeoFS Cloud Storage](http://leo-project.net/leofs/).
+It has since been superseded by HTTP/2.
 
 Online documentation
 --------------------

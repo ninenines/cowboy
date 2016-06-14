@@ -81,14 +81,31 @@ init_dir(Req, Path, Extra) when is_list(Path) ->
 init_dir(Req, Path, Extra) ->
 	Dir = fullpath(filename:absname(Path)),
 	PathInfo = cowboy_req:path_info(Req),
-	Filepath = filename:join([Dir|PathInfo]),
+	Filepath = filename:join([Dir|[escape_reserved(P, <<>>) || P <- PathInfo]]),
 	Len = byte_size(Dir),
 	case fullpath(Filepath) of
 		<< Dir:Len/binary, $/, _/binary >> ->
 			init_info(Req, Filepath, Extra);
+		<< Dir:Len/binary >> ->
+			init_info(Req, Filepath, Extra);
 		_ ->
 			{cowboy_rest, Req, error}
 	end.
+
+%% We escape the slash found in path segments because
+%% a segment corresponds to a directory entry, and
+%% therefore those slashes are expected to be part of
+%% the directory name.
+%%
+%% Note that on most systems the slash is prohibited
+%% and cannot appear in filenames, which means the
+%% requested file will end up being not found.
+escape_reserved(<<>>, Acc) ->
+	Acc;
+escape_reserved(<< $/, Rest/bits >>, Acc) ->
+	escape_reserved(Rest, << Acc/binary, $\\, $/ >>);
+escape_reserved(<< C, Rest/bits >>, Acc) ->
+	escape_reserved(Rest, << Acc/binary, C >>).
 
 fullpath(Path) ->
 	fullpath(filename:split(Path), []).
@@ -274,11 +291,4 @@ last_modified(Req, State={_, {ok, #file_info{mtime=Modified}}, _}) ->
 	-> {{stream, non_neg_integer(), fun()}, Req, State}
 	when State::state().
 get_file(Req, State={Path, {ok, #file_info{size=Size}}, _}) ->
-	Sendfile = fun (Socket, Transport) ->
-		case Transport:sendfile(Socket, Path) of
-			{ok, _} -> ok;
-			{error, closed} -> ok;
-			{error, etimedout} -> ok
-		end
-	end,
-	{{stream, Size, Sendfile}, Req, State}.
+	{{sendfile, 0, Size, Path}, Req, State}.

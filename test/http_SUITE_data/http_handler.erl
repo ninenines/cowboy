@@ -5,6 +5,6 @@
 -export([init/2]).
 
 init(Req, Opts) ->
-	Headers = proplists:get_value(headers, Opts, []),
+	Headers = proplists:get_value(headers, Opts, #{}),
 	Body = proplists:get_value(body, Opts, "http_handler"),
 	{ok, cowboy_req:reply(200, Headers, Body, Req), Opts}.

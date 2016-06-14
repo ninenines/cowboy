@@ -6,7 +6,7 @@
 
 init(Req, Opts) ->
 	{Result, Req2} = acc_multipart(Req, []),
-	{ok, cowboy_req:reply(200, [], term_to_binary(Result), Req2), Opts}.
+	{ok, cowboy_req:reply(200, #{}, term_to_binary(Result), Req2), Opts}.
 
 acc_multipart(Req, Acc) ->
 	case cowboy_req:part(Req) of

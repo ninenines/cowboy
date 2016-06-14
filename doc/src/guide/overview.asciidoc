@@ -55,7 +55,7 @@ HTTP/1.1 allows the client to request that the server
 keeps the connection alive. This mechanism is described
 in the next section.
 
-SPDY is designed to allow sending multiple requests
+HTTP/2 is designed to allow sending multiple requests
 asynchronously on the same connection. Details on what
 this means for your application is described in this
 chapter.
@@ -126,9 +126,9 @@ static files for example.
 
 This is handled automatically by the server.
 
-=== Asynchronous requests (SPDY)
+=== Asynchronous requests (HTTP/2)
 
-In SPDY, the client can send a request at any time.
+In HTTP/2, the client can send a request at any time.
 And the server can send a response at any time too.
 
 This means for example that the client does not need
@@ -142,7 +142,7 @@ Cowboy creates a new process for each request, and these
 processes are managed by another process that handles the
 connection itself.
 
-SPDY servers may also decide to send resources to the
+HTTP/2 servers may also decide to send resources to the
 client before the client requests them. This is especially
 useful for sending static files associated with the HTML
 page requested, as this reduces the latency of the overall

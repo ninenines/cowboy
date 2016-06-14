@@ -13,11 +13,14 @@ Cowboy, writing your first application and generating your first
 release. At the end of this chapter you should know everything
 you need to push your first Cowboy application to production.
 
-=== Bootstrap
+=== Prerequisites
 
 We are going to use the https://github.com/ninenines/erlang.mk[Erlang.mk]
-build system. It also offers bootstrap features allowing us to
-quickly get started without having to deal with minute details.
+build system. If you are using Windows, please check the
+http://erlang.mk/guide/installation.html[Installation instructions]
+to get your environment setup before you continue.
+
+=== Bootstrap
 
 First, let's create the directory for our application.
 
@@ -29,7 +32,7 @@ Then we need to download Erlang.mk. Either use the following
 command or download it manually.
 
 [source,bash]
-$ wget https://raw.githubusercontent.com/ninenines/erlang.mk/master/erlang.mk
+$ wget https://erlang.mk/erlang.mk
 
 We can now bootstrap our application. Since we are going to generate
 a release, we will also bootstrap it at the same time.
@@ -58,9 +61,8 @@ handler.
 
 === Cowboy setup
 
-Modifying the 'Makefile' allows the build system to know it needs to
-fetch and compile Cowboy. To do that we simply need to add two lines
-to our Makefile to make it look like this:
+We will modify the 'Makefile' to tell the build system it needs to
+fetch and compile Cowboy:
 
 [source,make]
 ----
@@ -79,10 +81,9 @@ listen for connections.
 
 === Listening for connections
 
-We will do this when our application starts. It's a two step process.
-First we need to define and compile the dispatch list, a list of
-routes that Cowboy will use to map requests to handler modules.
-Then we tell Cowboy to listen for connections.
+First we define the routes that Cowboy will use to map requests
+to handler modules, and then we start the listener. This is best
+done at application startup.
 
 Open the 'src/hello_erlang_app.erl' file and add the necessary
 code to the `start/2` function to make it look like this:
@@ -93,19 +94,19 @@ start(_Type, _Args) ->
 	Dispatch = cowboy_router:compile([
 		{'_', [{"/", hello_handler, []}]}
 	]),
-	{ok, _} = cowboy:start_http(my_http_listener, 100, [{port, 8080}],
-		[{env, [{dispatch, Dispatch}]}]
+	{ok, _} = cowboy:start_clear(my_http_listener, 100,
+		[{port, 8080}],
+		#{env => #{dispatch => Dispatch}}
 	),
 	hello_erlang_sup:start_link().
 ----
 
-The dispatch list is explained in great details in the
-xref:routing[Routing] chapter. For this tutorial we map the
-path `/` to the handler module `hello_handler`. This module
-doesn't exist yet, we still have to write it.
+Routes are explained in details in the xref:routing[Routing]
+chapter. For this tutorial we map the path `/` to the handler
+module `hello_handler`. This module doesn't exist yet.
 
-If you build and start the release, then open http://localhost:8080
-in your browser, you will get an error because the module is missing.
+Build and start the release, then open http://localhost:8080
+in your browser. You will get an error because the module is missing.
 Any other URL, like http://localhost:8080/test, will result in a
 404 error.
 
@@ -115,26 +116,26 @@ Cowboy features different kinds of handlers, including REST
 and Websocket handlers. For this tutorial we will use a plain
 HTTP handler.
 
-First, let's generate a handler from a template.
+Generate a handler from a template:
 
 [source,bash]
 $ make new t=cowboy_http n=hello_handler
 
-You can then open the 'src/hello_handler.erl' file and modify
+Then, open the 'src/hello_handler.erl' file and modify
 the `init/2` function like this to send a reply.
 
 [source,erlang]
 ----
-init(Req, Opts) ->
-	Req2 = cowboy_req:reply(200,
-		[{<<"content-type">>, <<"text/plain">>}],
+init(Req, State) ->
+	cowboy_req:reply(200,
+		#{<<"content-type">> => <<"text/plain">>},
 		<<"Hello Erlang!">>,
 		Req),
-	{ok, Req2, Opts}.
+	{ok, Req, State}.
 ----
 
 What the above code does is send a `200 OK` reply, with the
-`content-type` header set to `text/plain` and the response
+Content-type header set to `text/plain` and the response
 body set to `Hello Erlang!`.
 
 If you run the release and open http://localhost:8080

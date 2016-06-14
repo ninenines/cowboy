@@ -124,8 +124,8 @@ a binary string is also allowed (but will require extra
 processing). If the function can't figure out the mimetype,
 then it should return `{<<"application">>, <<"octet-stream">>, []}`.
 
-When the static handler fails to find the extension in the
-list, it will send the file as `application/octet-stream`.
+When the static handler fails to find the extension,
+it will send the file as `application/octet-stream`.
 A browser receiving such file will attempt to download it
 directly to disk.
 

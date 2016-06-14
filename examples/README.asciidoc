@@ -21,6 +21,9 @@
 * link:eventsource[]:
   eventsource emitter and consumer
 
+* link:file_server[]:
+  file server with directory listing
+
 * link:hello_world[]:
   simplest example application
 
@@ -42,14 +45,8 @@
 * link:ssl_hello_world[]:
   simplest SSL application
 
-* link:static_world[]:
-  static file handler
-
 * link:upload[]:
   multipart/form-data upload
-
-* link:web_server[]:
-  serve files with lists directory entries
 
 * link:websocket[]:
   websocket example

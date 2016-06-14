@@ -12,4 +12,4 @@ init(Req, Opts) ->
 	Host = cowboy_req:host(Req),
 	Port = cowboy_req:port(Req),
 	Value = [Host, "\n", integer_to_list(Port)],
-	{ok, cowboy_req:reply(200, [], Value, Req), Opts}.
+	{ok, cowboy_req:reply(200, #{}, Value, Req), Opts}.

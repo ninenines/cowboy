@@ -10,6 +10,7 @@ doc/man7
 ebin/*.beam
 ebin/test
 examples/*/ebin
+examples/*/*.d
 logs
 relx
 test/*.beam
