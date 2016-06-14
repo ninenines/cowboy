@@ -135,6 +135,24 @@ do_chunked_hello_world(Transport, Protocol, Config) ->
 			ok
 	end.
 
+%% Cookie.
+
+cookie(Config) ->
+	doc("Cookie example."),
+	try
+		do_compile_and_start(cookie),
+		do_cookie(tcp, http, Config),
+		do_cookie(tcp, http2, Config)
+	after
+		do_stop(cookie)
+	end.
+
+do_cookie(Transport, Protocol, Config) ->
+	{200, _, One} = do_get(Transport, Protocol, "/", Config),
+	{200, _, Two} = do_get(Transport, Protocol, "/", [{<<"cookie">>, <<"server=abcdef">>}], Config),
+	true = One =/= Two,
+	ok.
+
 %% Echo GET.
 
 echo_get(Config) ->
