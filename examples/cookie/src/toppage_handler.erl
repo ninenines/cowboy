@@ -6,7 +6,7 @@
 -export([init/2]).
 
 init(Req, Opts) ->
-	NewValue = integer_to_list(random:uniform(1000000)),
+	NewValue = integer_to_list(rand:uniform(1000000)),
 	Req2 = cowboy_req:set_resp_cookie(
 		<<"server">>, NewValue, [{path, <<"/">>}], Req),
 	#{client := ClientCookie, server := ServerCookie}
@@ -15,7 +15,7 @@ init(Req, Opts) ->
 		{client, ClientCookie},
 		{server, ServerCookie}
 	]),
-	Req3 = cowboy_req:reply(200,
-		[{<<"content-type">>, <<"text/html">>}],
-		Body, Req2),
-	{ok, Req3, Opts}.
+	cowboy_req:reply(200, #{
+		<<"content-type">> => <<"text/html">>
+	}, Body, Req2),
+	{ok, Req2, Opts}.
