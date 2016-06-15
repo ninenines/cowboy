@@ -277,6 +277,36 @@ do_rest_basic_auth(Transport, Protocol, Config) ->
 	<<"Hello, Alladin!\n">> = do_rest_get(Transport, Protocol, "/", undefined, "Alladin:open sesame", Config),
 	ok.
 
+%% REST pastebin.
+
+rest_pastebin(Config) ->
+	doc("REST pastebin example."),
+	try
+		do_compile_and_start(rest_pastebin),
+		do_rest_pastebin(tcp, http, Config),
+		do_rest_pastebin(tcp, http2, Config)
+	after
+		do_stop(rest_pastebin)
+	end.
+
+do_rest_pastebin(Transport, Protocol, Config) ->
+	%% Existing files.
+	_ = do_rest_get(Transport, Protocol, "/", <<"text/html">>, undefined, Config),
+	_ = do_rest_get(Transport, Protocol, "/", <<"text/plain">>, undefined, Config),
+	%% Use POST to upload a new file and download it back.
+	ConnPid = gun_open([{port, 8080}, {type, Transport}, {protocol, Protocol}|Config]),
+	Ref = gun:post(ConnPid, "/", [
+		{<<"content-type">>, <<"application/x-www-form-urlencoded">>}
+	], <<"paste=this+is+fun">>),
+	%% @todo Not too happy about 303 here,
+	%% will need to revisit this example.
+	{response, _, 303, Headers} = gun:await(ConnPid, Ref),
+	{_, Location} = lists:keyfind(<<"location">>, 1, Headers),
+	<<"this is fun">> = do_rest_get(Transport, Protocol, Location, <<"text/plain">>, undefined, Config),
+	<< "<!DOCTYPE html><html>", _/bits >>
+		= do_rest_get(Transport, Protocol, Location, <<"text/html">>, undefined, Config),
+	ok.
+
 %% File server.
 
 file_server(Config) ->
