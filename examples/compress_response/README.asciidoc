@@ -1,5 +1,7 @@
 = Compressed response example
 
+*This example is currently broken on master.*
+
 To try this example, you need GNU `make` and `git` in your PATH.
 
 To build and run the example, use the following command:
