@@ -348,6 +348,34 @@ do_markdown_middleware(Transport, Protocol, Config) ->
 	{_, <<"text/html">>} = lists:keyfind(<<"content-type">>, 1, Headers),
 	ok.
 
+%% Upload.
+
+upload(Config) ->
+	doc("Upload example."),
+	try
+		do_compile_and_start(upload),
+		do_upload(tcp, http, Config),
+		do_upload(tcp, http2, Config)
+	after
+		do_stop(upload)
+	end.
+
+do_upload(Transport, Protocol, Config) ->
+	{200, _, << "<html>", _/bits >>} = do_get(Transport, Protocol, "/", Config),
+	%% Use POST to upload a file using multipart.
+	ConnPid = gun_open([{port, 8080}, {type, Transport}, {protocol, Protocol}|Config]),
+	Ref = gun:post(ConnPid, "/upload", [
+		{<<"content-type">>, <<"multipart/form-data;boundary=deadbeef">>}
+	], <<
+		"--deadbeef\r\n"
+		"Content-Disposition: form-data; name=\"inputfile\"; filename=\"test.txt\"\r\n"
+		"Content-Type: text/plain\r\n"
+		"\r\n"
+		"Cowboy upload example!\r\n"
+		"--deadbeef--">>),
+	{response, fin, 204, _} = gun:await(ConnPid, Ref),
+	ok.
+
 %% Websocket.
 
 websocket(_) ->
