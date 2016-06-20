@@ -15,8 +15,8 @@
 -module(cowboy_http2).
 
 -export([init/6]).
--export([init/7]).
--export([init/9]).
+-export([init/8]).
+-export([init/10]).
 
 -export([system_continue/3]).
 -export([system_terminate/4]).
@@ -45,6 +45,9 @@
 	transport :: module(),
 	opts = #{} :: map(),
 	handler :: module(),
+
+	%% Remote address and port for the connection.
+	peer = undefined :: {inet:ip_address(), inet:port_number()},
 
 	%% Settings are separate for each endpoint. In addition, settings
 	%% must be acknowledged before they can be expected to be applied.
@@ -88,12 +91,19 @@
 
 -spec init(pid(), ranch:ref(), inet:socket(), module(), cowboy:opts(), module()) -> ok.
 init(Parent, Ref, Socket, Transport, Opts, Handler) ->
-	init(Parent, Ref, Socket, Transport, Opts, Handler, <<>>).
+	case Transport:peername(Socket) of
+		{ok, Peer} ->
+			init(Parent, Ref, Socket, Transport, Opts, Handler, Peer, <<>>);
+		{error, Reason} ->
+			%% Couldn't read the peer address; connection is gone.
+			terminate(undefined, {socket_error, Reason, 'An error has occurred on the socket.'})
+	end.
 
--spec init(pid(), ranch:ref(), inet:socket(), module(), cowboy:opts(), module(), binary()) -> ok.
-init(Parent, Ref, Socket, Transport, Opts, Handler, Buffer) ->
+-spec init(pid(), ranch:ref(), inet:socket(), module(), cowboy:opts(), module(),
+	{inet:ip_address(), inet:port_number()}, binary()) -> ok.
+init(Parent, Ref, Socket, Transport, Opts, Handler, Peer, Buffer) ->
 	State = #state{parent=Parent, ref=Ref, socket=Socket,
-		transport=Transport, opts=Opts, handler=Handler,
+		transport=Transport, opts=Opts, handler=Handler, peer=Peer,
 		parse_state={preface, sequence, preface_timeout(Opts)}},
 	preface(State),
 	case Buffer of
@@ -103,10 +113,10 @@ init(Parent, Ref, Socket, Transport, Opts, Handler, Buffer) ->
 
 %% @todo Add an argument for the request body.
 -spec init(pid(), ranch:ref(), inet:socket(), module(), cowboy:opts(), module(),
-	binary(), binary() | undefined, cowboy_req:req()) -> ok.
-init(Parent, Ref, Socket, Transport, Opts, Handler, Buffer, _Settings, Req) ->
+	{inet:ip_address(), inet:port_number()}, binary(), binary() | undefined, cowboy_req:req()) -> ok.
+init(Parent, Ref, Socket, Transport, Opts, Handler, Peer, Buffer, _Settings, Req) ->
 	State0 = #state{parent=Parent, ref=Ref, socket=Socket,
-		transport=Transport, opts=Opts, handler=Handler,
+		transport=Transport, opts=Opts, handler=Handler, peer=Peer,
 		parse_state={preface, sequence, preface_timeout(Opts)}},
 	preface(State0),
 	%% @todo Apply settings.
@@ -490,7 +500,7 @@ terminate_all_streams([#stream{id=StreamID, state=StreamState}|Tail], Reason, Ha
 
 %% Stream functions.
 
-stream_init(State0=#state{ref=Ref, socket=Socket, transport=Transport, decode_state=DecodeState0},
+stream_init(State0=#state{ref=Ref, socket=Socket, transport=Transport, peer=Peer, decode_state=DecodeState0},
 		StreamID, IsFin, HeaderBlock) ->
 	%% @todo Add clause for CONNECT requests (no scheme/path).
 	try headers_decode(HeaderBlock, DecodeState0) of
@@ -513,19 +523,12 @@ stream_init(State0=#state{ref=Ref, socket=Socket, transport=Transport, decode_st
 				ref => Ref,
 				pid => self(),
 				streamid => StreamID,
-
-				%% @todo peer
-				%% @todo sockname
-				%% @todo ssl client cert?
-
+				peer => Peer,
 				method => Method,
 				scheme => Scheme,
 				host => Host,
-				%% host_info (cowboy_router)
 				port => Port,
 				path => Path,
-				%% path_info (cowboy_router)
-				%% bindings (cowboy_router)
 				qs => Qs,
 				version => 'HTTP/2',
 				headers => Headers,

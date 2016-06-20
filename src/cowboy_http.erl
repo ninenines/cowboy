@@ -90,6 +90,9 @@
 	opts = #{} :: map(),
 	handler :: module(),
 
+	%% Remote address and port for the connection.
+	peer = undefined :: {inet:ip_address(), inet:port_number()},
+
 	timer = undefined :: undefined | reference(),
 
 	%% Identifier for the stream currently being read (or waiting to be received).
@@ -124,11 +127,17 @@
 
 -spec init(pid(), ranch:ref(), inet:socket(), module(), cowboy:opts(), module()) -> ok.
 init(Parent, Ref, Socket, Transport, Opts, Handler) ->
-	LastStreamID = maps:get(max_keepalive, Opts, 100),
-	before_loop(set_request_timeout(#state{
-		parent=Parent, ref=Ref, socket=Socket,
-		transport=Transport, opts=Opts, handler=Handler,
-		last_streamid=LastStreamID}), <<>>).
+	case Transport:peername(Socket) of
+		{ok, Peer} ->
+			LastStreamID = maps:get(max_keepalive, Opts, 100),
+			before_loop(set_request_timeout(#state{
+				parent=Parent, ref=Ref, socket=Socket,
+				transport=Transport, opts=Opts, handler=Handler,
+				peer=Peer, last_streamid=LastStreamID}), <<>>);
+		{error, Reason} ->
+			%% Couldn't read the peer address; connection is gone.
+			terminate(undefined, {socket_error, Reason, 'An error has occurred on the socket.'})
+	end.
 
 %% @todo Send a response depending on in_state and whether one was already sent.
 
@@ -574,11 +583,7 @@ parse_host(<< C, Rest/bits >>, E, Acc) ->
 
 %% End of request parsing.
 
-%% @todo We used to get the peername here, bad idea, should
-%% get it at the very start of the connection, or the first
-%% time requested if we go the route of handler sending a
-%% message to get it (we probably shouldn't).
-request(Buffer, State0=#state{ref=Ref, transport=Transport, in_streamid=StreamID,
+request(Buffer, State0=#state{ref=Ref, transport=Transport, peer=Peer, in_streamid=StreamID,
 		in_state=#ps_header{method=Method, path=Path, qs=Qs, version=Version}},
 		Headers, Host, Port) ->
 	Scheme = case Transport:secure() of
@@ -607,19 +612,12 @@ request(Buffer, State0=#state{ref=Ref, transport=Transport, in_streamid=StreamID
 		ref => Ref,
 		pid => self(),
 		streamid => StreamID,
-
-		%% @todo peer
-		%% @todo sockname
-		%% @todo ssl client cert?
-
+		peer => Peer,
 		method => Method,
 		scheme => Scheme,
 		host => Host,
-		%% host_info (cowboy_router)
 		port => Port,
 		path => Path,
-		%% path_info (cowboy_router)
-		%% bindings (cowboy_router)
 		qs => Qs,
 		version => Version,
 		%% We are transparently taking care of transfer-encodings so
@@ -673,18 +671,18 @@ is_http2_upgrade(_, _) ->
 
 %% Prior knowledge upgrade, without an HTTP/1.1 request.
 http2_upgrade(State=#state{parent=Parent, ref=Ref, socket=Socket, transport=Transport,
-		opts=Opts, handler=Handler}, Buffer) ->
+		opts=Opts, handler=Handler, peer=Peer}, Buffer) ->
 	case Transport:secure() of
 		false ->
 			_ = cancel_request_timeout(State),
-			cowboy_http2:init(Parent, Ref, Socket, Transport, Opts, Handler, Buffer);
+			cowboy_http2:init(Parent, Ref, Socket, Transport, Opts, Handler, Peer, Buffer);
 		true ->
 			error_terminate(400, State, {connection_error, protocol_error,
 				'Clients that support HTTP/2 over TLS MUST use ALPN. (RFC7540 3.4)'})
 	end.
 
 http2_upgrade(State=#state{parent=Parent, ref=Ref, socket=Socket, transport=Transport,
-		opts=Opts, handler=Handler}, Buffer, HTTP2Settings, Req) ->
+		opts=Opts, handler=Handler, peer=Peer}, Buffer, HTTP2Settings, Req) ->
 	%% @todo
 	%% However if the client sent a body, we need to read the body in full
 	%% and if we can't do that, return a 413 response. Some options are in order.
@@ -699,7 +697,7 @@ http2_upgrade(State=#state{parent=Parent, ref=Ref, socket=Socket, transport=Tran
 
 			%% @todo Possibly redirect the request if it was https.
 			_ = cancel_request_timeout(State),
-			cowboy_http2:init(Parent, Ref, Socket, Transport, Opts, Handler, Buffer, Settings, Req)
+			cowboy_http2:init(Parent, Ref, Socket, Transport, Opts, Handler, Peer, Buffer, Settings, Req)
 	catch _:_ ->
 		error_terminate(400, State, {connection_error, protocol_error,
 			'The HTTP2-Settings header contains a base64 SETTINGS payload. (RFC7540 3.2, RFC7540 3.2.1)'})

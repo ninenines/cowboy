@@ -194,9 +194,9 @@ method(#{method := Method}) ->
 version(#{version := Version}) ->
 	Version.
 
--spec peer(req()) -> {inet:ip_address(), inet:port_number()} | undefined.
-peer(Req) ->
-	Req#http_req.peer.
+-spec peer(req()) -> {inet:ip_address(), inet:port_number()}.
+peer(#{peer := Peer}) ->
+	Peer.
 
 -spec host(req()) -> binary().
 host(#{host := Host}) ->
