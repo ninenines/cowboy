@@ -511,14 +511,8 @@ stream_init(State0=#state{ref=Ref, socket=Socket, transport=Transport, peer=Peer
 				<<":path">> := PathWithQs}, DecodeState} ->
 			State = State0#state{decode_state=DecodeState},
 			Headers = maps:without([<<":method">>, <<":scheme">>, <<":authority">>, <<":path">>], Headers0),
-			%% @todo We need to parse the port out of :authority.
-			%% @todo We need to parse the query string out of :path.
-			%% @todo We need to give a way to get the socket infos.
-
-			Host = Authority, %% @todo
-			Port = todo, %% @todo
+			{Host, Port} = cow_http_hd:parse_host(Authority),
 			{Path, Qs} = cow_http:parse_fullpath(PathWithQs),
-
 			Req = #{
 				ref => Ref,
 				pid => self(),
