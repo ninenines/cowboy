@@ -20,6 +20,7 @@
 -export([method/1]).
 -export([version/1]).
 -export([peer/1]).
+-export([scheme/1]).
 -export([host/1]).
 -export([host_info/1]).
 -export([port/1]).
@@ -197,6 +198,10 @@ version(#{version := Version}) ->
 -spec peer(req()) -> {inet:ip_address(), inet:port_number()}.
 peer(#{peer := Peer}) ->
 	Peer.
+
+-spec scheme(req()) -> binary().
+scheme(#{scheme := Scheme}) ->
+	Scheme.
 
 -spec host(req()) -> binary().
 host(#{host := Host}) ->
