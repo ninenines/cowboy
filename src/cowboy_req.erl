@@ -28,8 +28,8 @@
 -export([qs/1]).
 -export([parse_qs/1]).
 -export([match_qs/2]).
--export([host_url/1]).
--export([url/1]).
+-export([uri/1]).
+-export([uri/2]).
 -export([binding/2]).
 -export([binding/3]).
 -export([bindings/1]).
@@ -204,31 +204,135 @@ parse_qs(#{qs := Qs}) ->
 match_qs(Fields, Req) ->
 	filter(Fields, kvlist_to_map(Fields, parse_qs(Req))).
 
-%% The URL includes the scheme, host and port only.
--spec host_url(req()) -> undefined | binary().
-host_url(#{port := undefined}) ->
-	undefined;
-host_url(#{scheme := Scheme, host := Host, port := Port}) ->
-	PortBin = case {Scheme, Port} of
-		{<<"https">>, 443} -> <<>>;
-		{<<"http">>, 80} -> <<>>;
-		_ -> << ":", (integer_to_binary(Port))/binary >>
-	end,
-	<< Scheme/binary, "://", Host/binary, PortBin/binary >>.
+-spec uri(req()) -> iodata().
+uri(Req) ->
+	uri(Req, #{}).
 
-%% The URL includes the scheme, host, port, path and query string.
--spec url(req()) -> undefined | binary().
-url(Req) ->
-	url(Req, host_url(Req)).
-
-url(_, undefined) ->
-	undefined;
-url(#{path := Path, qs := QS}, HostURL) ->
-	QS2 = case QS of
-		<<>> -> <<>>;
-		_ -> << "?", QS/binary >>
+-spec uri(req(), map()) -> iodata().
+uri(#{scheme := Scheme0, host := Host0, port := Port0,
+		path := Path0, qs := Qs0}, Opts) ->
+	Scheme = case maps:get(scheme, Opts, Scheme0) of
+		S = undefined -> S;
+		S -> iolist_to_binary(S)
 	end,
-	<< HostURL/binary, Path/binary, QS2/binary >>.
+	Host = maps:get(host, Opts, Host0),
+	Port = maps:get(port, Opts, Port0),
+	Path = maps:get(path, Opts, Path0),
+	Qs = maps:get(qs, Opts, Qs0),
+	Fragment = maps:get(fragment, Opts, undefined),
+	[uri_host(Scheme, Scheme0, Port, Host), uri_path(Path), uri_qs(Qs), uri_fragment(Fragment)].
+
+uri_host(_, _, _, undefined) -> <<>>;
+uri_host(Scheme, Scheme0, Port, Host) ->
+	case iolist_size(Host) of
+		0 -> <<>>;
+		_ -> [uri_scheme(Scheme), <<"//">>, Host, uri_port(Scheme, Scheme0, Port)]
+	end.
+
+uri_scheme(undefined) -> <<>>;
+uri_scheme(Scheme) ->
+	case iolist_size(Scheme) of
+		0 -> Scheme;
+		_ -> [Scheme, $:]
+	end.
+
+uri_port(_, _, undefined) -> <<>>;
+uri_port(undefined, <<"http">>, 80) -> <<>>;
+uri_port(undefined, <<"https">>, 443) -> <<>>;
+uri_port(<<"http">>, _, 80) -> <<>>;
+uri_port(<<"https">>, _, 443) -> <<>>;
+uri_port(_, _, Port) ->
+	[$:, integer_to_binary(Port)].
+
+uri_path(undefined) -> <<>>;
+uri_path(Path) -> Path.
+
+uri_qs(undefined) -> <<>>;
+uri_qs(Qs) ->
+	case iolist_size(Qs) of
+		0 -> Qs;
+		_ -> [$?, Qs]
+	end.
+
+uri_fragment(undefined) -> <<>>;
+uri_fragment(Fragment) ->
+	case iolist_size(Fragment) of
+		0 -> Fragment;
+		_ -> [$#, Fragment]
+	end.
+
+-ifdef(TEST).
+uri1_test() ->
+	<<"http://localhost/path">> = iolist_to_binary(uri(#{
+		scheme => <<"http">>, host => <<"localhost">>, port => 80,
+		path => <<"/path">>, qs => <<>>})),
+	<<"http://localhost:443/path">> = iolist_to_binary(uri(#{
+		scheme => <<"http">>, host => <<"localhost">>, port => 443,
+		path => <<"/path">>, qs => <<>>})),
+	<<"http://localhost:8080/path">> = iolist_to_binary(uri(#{
+		scheme => <<"http">>, host => <<"localhost">>, port => 8080,
+		path => <<"/path">>, qs => <<>>})),
+	<<"http://localhost:8080/path?dummy=2785">> = iolist_to_binary(uri(#{
+		scheme => <<"http">>, host => <<"localhost">>, port => 8080,
+		path => <<"/path">>, qs => <<"dummy=2785">>})),
+	<<"https://localhost/path">> = iolist_to_binary(uri(#{
+		scheme => <<"https">>, host => <<"localhost">>, port => 443,
+		path => <<"/path">>, qs => <<>>})),
+	<<"https://localhost:8443/path">> = iolist_to_binary(uri(#{
+		scheme => <<"https">>, host => <<"localhost">>, port => 8443,
+		path => <<"/path">>, qs => <<>>})),
+	<<"https://localhost:8443/path?dummy=2785">> = iolist_to_binary(uri(#{
+		scheme => <<"https">>, host => <<"localhost">>, port => 8443,
+		path => <<"/path">>, qs => <<"dummy=2785">>})),
+	ok.
+
+uri2_test() ->
+	Req = #{
+		scheme => <<"http">>, host => <<"localhost">>, port => 8080,
+		path => <<"/path">>, qs => <<"dummy=2785">>
+	},
+	<<"http://localhost:8080/path?dummy=2785">> = iolist_to_binary(uri(Req, #{})),
+	%% Disable individual components.
+	<<"//localhost:8080/path?dummy=2785">> = iolist_to_binary(uri(Req, #{scheme => undefined})),
+	<<"/path?dummy=2785">> = iolist_to_binary(uri(Req, #{host => undefined})),
+	<<"http://localhost/path?dummy=2785">> = iolist_to_binary(uri(Req, #{port => undefined})),
+	<<"http://localhost:8080?dummy=2785">> = iolist_to_binary(uri(Req, #{path => undefined})),
+	<<"http://localhost:8080/path">> = iolist_to_binary(uri(Req, #{qs => undefined})),
+	<<"http://localhost:8080/path?dummy=2785">> = iolist_to_binary(uri(Req, #{fragment => undefined})),
+	<<"http://localhost:8080">> = iolist_to_binary(uri(Req, #{path => undefined, qs => undefined})),
+	<<>> = iolist_to_binary(uri(Req, #{host => undefined, path => undefined, qs => undefined})),
+	%% Empty values.
+	<<"//localhost:8080/path?dummy=2785">> = iolist_to_binary(uri(Req, #{scheme => <<>>})),
+	<<"//localhost:8080/path?dummy=2785">> = iolist_to_binary(uri(Req, #{scheme => ""})),
+	<<"//localhost:8080/path?dummy=2785">> = iolist_to_binary(uri(Req, #{scheme => [<<>>]})),
+	<<"/path?dummy=2785">> = iolist_to_binary(uri(Req, #{host => <<>>})),
+	<<"/path?dummy=2785">> = iolist_to_binary(uri(Req, #{host => ""})),
+	<<"/path?dummy=2785">> = iolist_to_binary(uri(Req, #{host => [<<>>]})),
+	<<"http://localhost:8080?dummy=2785">> = iolist_to_binary(uri(Req, #{path => <<>>})),
+	<<"http://localhost:8080?dummy=2785">> = iolist_to_binary(uri(Req, #{path => ""})),
+	<<"http://localhost:8080?dummy=2785">> = iolist_to_binary(uri(Req, #{path => [<<>>]})),
+	<<"http://localhost:8080/path">> = iolist_to_binary(uri(Req, #{qs => <<>>})),
+	<<"http://localhost:8080/path">> = iolist_to_binary(uri(Req, #{qs => ""})),
+	<<"http://localhost:8080/path">> = iolist_to_binary(uri(Req, #{qs => [<<>>]})),
+	<<"http://localhost:8080/path?dummy=2785">> = iolist_to_binary(uri(Req, #{fragment => <<>>})),
+	<<"http://localhost:8080/path?dummy=2785">> = iolist_to_binary(uri(Req, #{fragment => ""})),
+	<<"http://localhost:8080/path?dummy=2785">> = iolist_to_binary(uri(Req, #{fragment => [<<>>]})),
+	%% Port is integer() | undefined.
+	{'EXIT', _} = (catch iolist_to_binary(uri(Req, #{port => <<>>}))),
+	{'EXIT', _} = (catch iolist_to_binary(uri(Req, #{port => ""}))),
+	{'EXIT', _} = (catch iolist_to_binary(uri(Req, #{port => [<<>>]}))),
+	%% Update components.
+	<<"https://localhost:8080/path?dummy=2785">> = iolist_to_binary(uri(Req, #{scheme => "https"})),
+	<<"http://example.org:8080/path?dummy=2785">> = iolist_to_binary(uri(Req, #{host => "example.org"})),
+	<<"http://localhost:123/path?dummy=2785">> = iolist_to_binary(uri(Req, #{port => 123})),
+	<<"http://localhost:8080/custom?dummy=2785">> = iolist_to_binary(uri(Req, #{path => "/custom"})),
+	<<"http://localhost:8080/path?smart=42">> = iolist_to_binary(uri(Req, #{qs => "smart=42"})),
+	<<"http://localhost:8080/path?dummy=2785#intro">> = iolist_to_binary(uri(Req, #{fragment => "intro"})),
+	%% Interesting combinations.
+	<<"http://localhost/path?dummy=2785">> = iolist_to_binary(uri(Req, #{port => 80})),
+	<<"https://localhost/path?dummy=2785">> = iolist_to_binary(uri(Req, #{scheme => "https", port => 443})),
+	ok.
+-endif.
 
 -spec binding(atom(), req()) -> any() | undefined.
 binding(Name, Req) ->
@@ -1125,33 +1229,6 @@ filter_constraints(Tail, Map, Key, Value, Constraints) ->
 %% Tests.
 
 -ifdef(TEST).
-url_test() ->
-	undefined =
-		url(#http_req{transport=ranch_tcp, host= <<>>, port= undefined,
-			path= <<>>, qs= <<>>, pid=self()}),
-	<<"http://localhost/path">> =
-		url(#http_req{transport=ranch_tcp, host= <<"localhost">>, port=80,
-			path= <<"/path">>, qs= <<>>, pid=self()}),
-	<<"http://localhost:443/path">> =
-		url(#http_req{transport=ranch_tcp, host= <<"localhost">>, port=443,
-			path= <<"/path">>, qs= <<>>, pid=self()}),
-	<<"http://localhost:8080/path">> =
-		url(#http_req{transport=ranch_tcp, host= <<"localhost">>, port=8080,
-			path= <<"/path">>, qs= <<>>, pid=self()}),
-	<<"http://localhost:8080/path?dummy=2785">> =
-		url(#http_req{transport=ranch_tcp, host= <<"localhost">>, port=8080,
-			path= <<"/path">>, qs= <<"dummy=2785">>, pid=self()}),
-	<<"https://localhost/path">> =
-		url(#http_req{transport=ranch_ssl, host= <<"localhost">>, port=443,
-			path= <<"/path">>, qs= <<>>, pid=self()}),
-	<<"https://localhost:8443/path">> =
-		url(#http_req{transport=ranch_ssl, host= <<"localhost">>, port=8443,
-			path= <<"/path">>, qs= <<>>, pid=self()}),
-	<<"https://localhost:8443/path?dummy=2785">> =
-		url(#http_req{transport=ranch_ssl, host= <<"localhost">>, port=8443,
-			path= <<"/path">>, qs= <<"dummy=2785">>, pid=self()}),
-	ok.
-
 connection_to_atom_test_() ->
 	Tests = [
 		{[<<"close">>], close},

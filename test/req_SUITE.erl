@@ -73,6 +73,32 @@ do_get_body(Path, Headers, Config) ->
 
 %% Tests.
 
+binding(Config) ->
+	doc("Value bound from request URI path with/without default."),
+	<<"binding">> = do_get_body("/args/binding/key", Config),
+	<<"binding">> = do_get_body("/args/binding/key/default", Config),
+	<<"default">> = do_get_body("/args/binding/undefined/default", Config),
+	ok.
+
+%% @todo Do we really want a key/value list here instead of a map?
+bindings(Config) ->
+	doc("Values bound from request URI path."),
+	<<"[{key,<<\"bindings\">>}]">> = do_get_body("/bindings", Config),
+	ok.
+
+header(Config) ->
+	doc("Request header with/without default."),
+	<<"value">> = do_get_body("/args/header/defined", [{<<"defined">>, "value"}], Config),
+	<<"value">> = do_get_body("/args/header/defined/default", [{<<"defined">>, "value"}], Config),
+	<<"default">> = do_get_body("/args/header/undefined/default", [{<<"defined">>, "value"}], Config),
+	ok.
+
+headers(Config) ->
+	doc("Request headers."),
+	<< "#{<<\"header\">> => <<\"value\">>", _/bits >>
+		= do_get_body("/headers", [{<<"header">>, "value"}], Config),
+	ok.
+
 host(Config) ->
 	doc("Request URI host."),
 	<<"localhost">> = do_get_body("/host", Config),
@@ -92,6 +118,30 @@ method(Config) ->
 	<<"POST">> = do_body("POST", "/method", Config),
 	<<"PUT">> = do_body("PUT", "/method", Config),
 	<<"ZZZZZZZZ">> = do_body("ZZZZZZZZ", "/method", Config),
+	ok.
+
+%% @todo Do we really want a key/value list here instead of a map?
+parse_cookies(Config) ->
+	doc("Request cookies."),
+	<<"[]">> = do_get_body("/parse_cookies", Config),
+	<<"[{<<\"cake\">>,<<\"strawberry\">>}]">>
+		= do_get_body("/parse_cookies", [{<<"cookie">>, "cake=strawberry"}], Config),
+	<<"[{<<\"cake\">>,<<\"strawberry\">>},{<<\"color\">>,<<\"blue\">>}]">>
+		= do_get_body("/parse_cookies", [{<<"cookie">>, "cake=strawberry; color=blue"}], Config),
+	ok.
+
+parse_header(Config) ->
+	doc("Parsed request header with/without default."),
+	<<"[{{<<\"text\">>,<<\"html\">>,[]},1000,[]}]">>
+		= do_get_body("/args/parse_header/accept", [{<<"accept">>, "text/html"}], Config),
+	<<"[{{<<\"text\">>,<<\"html\">>,[]},1000,[]}]">>
+		= do_get_body("/args/parse_header/accept/default", [{<<"accept">>, "text/html"}], Config),
+	%% Header not in request but with default defined by Cowboy.
+	<<"0">> = do_get_body("/args/parse_header/content-length", Config),
+	%% Header not in request and no default from Cowboy.
+	<<"undefined">> = do_get_body("/args/parse_header/upgrade", Config),
+	%% Header in request and with default provided.
+	<<"100-continue">> = do_get_body("/args/parse_header/expect/100-continue", Config),
 	ok.
 
 %% @todo Do we really want a key/value list here instead of a map?
@@ -146,6 +196,35 @@ scheme(Config) ->
 		<<"http">> when Transport =:= tcp -> ok;
 		<<"https">> when Transport =:= ssl -> ok
 	end.
+
+uri(Config) ->
+	doc("Request URI building/modification."),
+	Scheme = case config(type, Config) of
+		tcp -> <<"http">>;
+		ssl -> <<"https">>
+	end,
+	SLen = byte_size(Scheme),
+	Port = integer_to_binary(config(port, Config)),
+	PLen = byte_size(Port),
+	%% Absolute form.
+	<< Scheme:SLen/binary, "://localhost:", Port:PLen/binary, "/uri?qs" >>
+		= do_get_body("/uri?qs", Config),
+	%% Origin form.
+	<< "/uri/origin?qs" >> = do_get_body("/uri/origin?qs", Config),
+	%% Protocol relative.
+	<< "//localhost:", Port:PLen/binary, "/uri/protocol-relative?qs" >>
+		= do_get_body("/uri/protocol-relative?qs", Config),
+	%% No query string.
+	<< Scheme:SLen/binary, "://localhost:", Port:PLen/binary, "/uri/no-qs" >>
+		= do_get_body("/uri/no-qs?qs", Config),
+	%% No path or query string.
+	<< Scheme:SLen/binary, "://localhost:", Port:PLen/binary >>
+		= do_get_body("/uri/no-path?qs", Config),
+	%% Changed port.
+	<< Scheme:SLen/binary, "://localhost:123/uri/set-port?qs" >>
+		= do_get_body("/uri/set-port?qs", Config),
+	%% This function is tested more extensively through unit tests.
+	ok.
 
 version(Config) ->
 	doc("Request HTTP version."),
