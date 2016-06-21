@@ -40,9 +40,6 @@
 -export([parse_header/3]).
 -export([parse_cookies/1]).
 -export([match_cookies/2]).
--export([meta/2]).
--export([meta/3]).
--export([set_meta/3]).
 
 %% Request body API.
 -export([has_body/1]).
@@ -413,21 +410,6 @@ parse_cookies(Req) ->
 -spec match_cookies(cowboy:fields(), req()) -> map().
 match_cookies(Fields, Req) ->
 	filter(Fields, kvlist_to_map(Fields, parse_cookies(Req))).
-
--spec meta(atom(), req()) -> any() | undefined.
-meta(Name, Req) ->
-	meta(Name, Req, undefined).
-
--spec meta(atom(), req(), any()) -> any().
-meta(Name, Req, Default) ->
-	case lists:keyfind(Name, 1, Req#http_req.meta) of
-		{Name, Value} -> Value;
-		false -> Default
-	end.
-
--spec set_meta(atom(), any(), Req) -> Req when Req::req().
-set_meta(Name, Value, Req=#http_req{meta=Meta}) ->
-	Req#http_req{meta=lists:keystore(Name, 1, Meta, {Name, Value})}.
 
 %% Request Body API.
 
