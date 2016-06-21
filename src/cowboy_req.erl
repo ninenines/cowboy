@@ -16,7 +16,6 @@
 -module(cowboy_req).
 
 %% Request API.
--export([new/14]).
 -export([method/1]).
 -export([version/1]).
 -export([peer/1]).
@@ -156,36 +155,6 @@
 -export_type([req/0]).
 
 %% Request API.
-
--spec new(any(), module(),
-	undefined | {inet:ip_address(), inet:port_number()},
-	binary(), binary(), binary(),
-	cowboy:http_version(), cowboy:http_headers(), binary(),
-	inet:port_number() | undefined, binary(), boolean(), boolean(),
-	undefined | cowboy:onresponse_fun())
-	-> req().
-new(Socket, Transport, Peer, Method, Path, Query,
-		Version, Headers, Host, Port, Buffer, CanKeepalive,
-		Compress, OnResponse) ->
-	Req = #http_req{socket=Socket, transport=Transport, pid=self(), peer=Peer,
-		method=Method, path=Path, qs=Query, version=Version,
-		headers=Headers, host=Host, port=Port, buffer=Buffer,
-		resp_compress=Compress, onresponse=OnResponse},
-	case CanKeepalive of
-		false ->
-			Req#http_req{connection=close};
-		true ->
-			case parse_header(<<"connection">>, Req) of
-				undefined ->
-					case Version of
-						'HTTP/1.1' -> Req; %% keepalive
-						'HTTP/1.0' -> Req#http_req{connection=close}
-					end;
-				Tokens ->
-					Connection = connection_to_atom(Tokens),
-					Req#http_req{connection=Connection}
-			end
-	end.
 
 -spec method(req()) -> binary().
 method(#{method := Method}) ->
