@@ -27,6 +27,15 @@ echo(<<"uri">>, Req, Opts) ->
 	end,
 	cowboy_req:reply(200, #{}, Value, Req),
 	{ok, Req, Opts};
+echo(<<"match">>, Req, Opts) ->
+	[Type|Fields0] = cowboy_req:path_info(Req),
+	Fields = [binary_to_atom(F, latin1) || F <- Fields0],
+	Value = case Type of
+		<<"qs">> -> cowboy_req:match_qs(Fields, Req);
+		<<"cookies">> -> cowboy_req:match_cookies(Fields, Req)
+	end,
+	cowboy_req:reply(200, #{}, value_to_iodata(Value), Req),
+	{ok, Req, Opts};
 echo(What, Req, Opts) ->
 	F = binary_to_atom(What, latin1),
 	Value = cowboy_req:F(Req),
