@@ -427,6 +427,8 @@ cookie(Name, Req) when is_binary(Name) ->
 	-> {binary() | Default, Req} when Req::req(), Default::any().
 cookie(Name, Req=#http_req{cookies=undefined}, Default) when is_binary(Name) ->
 	case parse_header(<<"cookie">>, Req) of
+                {error, badarg} ->
+                        {Default, Req#http_req{cookies=[]}};
 		{ok, undefined, Req2} ->
 			{Default, Req2#http_req{cookies=[]}};
 		{ok, Cookies, Req2} ->
