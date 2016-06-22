@@ -80,10 +80,6 @@
 -export([maybe_reply/2]).
 -export([ensure_response/2]).
 
-%% Private setter/getter API.
--export([get/2]).
--export([set/2]).
-
 -type cookie_opts() :: cow_cookie:cookie_opts().
 -export_type([cookie_opts/0]).
 
@@ -993,65 +989,6 @@ ensure_response(Req=#http_req{resp_state=chunks}, _) ->
 	ok;
 ensure_response(#http_req{}, _) ->
 	ok.
-
-%% Private setter/getter API.
-
--spec get(atom(), req()) -> any(); ([atom()], req()) -> any().
-get(List, Req) when is_list(List) ->
-	[g(Atom, Req) || Atom <- List];
-get(Atom, Req) when is_atom(Atom) ->
-	g(Atom, Req).
-
-g(bindings, #http_req{bindings=Ret}) -> Ret;
-g(body_state, #http_req{body_state=Ret}) -> Ret;
-g(buffer, #http_req{buffer=Ret}) -> Ret;
-g(connection, #http_req{connection=Ret}) -> Ret;
-g(headers, #http_req{headers=Ret}) -> Ret;
-g(host, #http_req{host=Ret}) -> Ret;
-g(host_info, #http_req{host_info=Ret}) -> Ret;
-g(meta, #http_req{meta=Ret}) -> Ret;
-g(method, #http_req{method=Ret}) -> Ret;
-g(multipart, #http_req{multipart=Ret}) -> Ret;
-g(onresponse, #http_req{onresponse=Ret}) -> Ret;
-g(path, #http_req{path=Ret}) -> Ret;
-g(path_info, #http_req{path_info=Ret}) -> Ret;
-g(peer, #http_req{peer=Ret}) -> Ret;
-g(pid, #http_req{pid=Ret}) -> Ret;
-g(port, #http_req{port=Ret}) -> Ret;
-g(qs, #http_req{qs=Ret}) -> Ret;
-g(resp_body, #http_req{resp_body=Ret}) -> Ret;
-g(resp_compress, #http_req{resp_compress=Ret}) -> Ret;
-g(resp_headers, #http_req{resp_headers=Ret}) -> Ret;
-g(resp_state, #http_req{resp_state=Ret}) -> Ret;
-g(socket, #http_req{socket=Ret}) -> Ret;
-g(transport, #http_req{transport=Ret}) -> Ret;
-g(version, #http_req{version=Ret}) -> Ret.
-
--spec set([{atom(), any()}], Req) -> Req when Req::req().
-set([], Req) -> Req;
-set([{bindings, Val}|Tail], Req) -> set(Tail, Req#http_req{bindings=Val});
-set([{body_state, Val}|Tail], Req) -> set(Tail, Req#http_req{body_state=Val});
-set([{buffer, Val}|Tail], Req) -> set(Tail, Req#http_req{buffer=Val});
-set([{connection, Val}|Tail], Req) -> set(Tail, Req#http_req{connection=Val});
-set([{headers, Val}|Tail], Req) -> set(Tail, Req#http_req{headers=Val});
-set([{host, Val}|Tail], Req) -> set(Tail, Req#http_req{host=Val});
-set([{host_info, Val}|Tail], Req) -> set(Tail, Req#http_req{host_info=Val});
-set([{meta, Val}|Tail], Req) -> set(Tail, Req#http_req{meta=Val});
-set([{method, Val}|Tail], Req) -> set(Tail, Req#http_req{method=Val});
-set([{multipart, Val}|Tail], Req) -> set(Tail, Req#http_req{multipart=Val});
-set([{onresponse, Val}|Tail], Req) -> set(Tail, Req#http_req{onresponse=Val});
-set([{path, Val}|Tail], Req) -> set(Tail, Req#http_req{path=Val});
-set([{path_info, Val}|Tail], Req) -> set(Tail, Req#http_req{path_info=Val});
-set([{peer, Val}|Tail], Req) -> set(Tail, Req#http_req{peer=Val});
-set([{pid, Val}|Tail], Req) -> set(Tail, Req#http_req{pid=Val});
-set([{port, Val}|Tail], Req) -> set(Tail, Req#http_req{port=Val});
-set([{qs, Val}|Tail], Req) -> set(Tail, Req#http_req{qs=Val});
-set([{resp_body, Val}|Tail], Req) -> set(Tail, Req#http_req{resp_body=Val});
-set([{resp_headers, Val}|Tail], Req) -> set(Tail, Req#http_req{resp_headers=Val});
-set([{resp_state, Val}|Tail], Req) -> set(Tail, Req#http_req{resp_state=Val});
-set([{socket, Val}|Tail], Req) -> set(Tail, Req#http_req{socket=Val});
-set([{transport, Val}|Tail], Req) -> set(Tail, Req#http_req{transport=Val});
-set([{version, Val}|Tail], Req) -> set(Tail, Req#http_req{version=Val}).
 
 %% Internal.
 
