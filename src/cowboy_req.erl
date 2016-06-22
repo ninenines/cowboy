@@ -67,6 +67,8 @@
 -export([has_resp_header/2]).
 -export([has_resp_body/1]).
 -export([delete_resp_header/2]).
+-export([set_cors_headers/2]).
+-export([set_cors_preflight_headers/2]).
 -export([reply/2]).
 -export([reply/3]).
 -export([reply/4]).
@@ -372,6 +374,8 @@ parse_header_fun(<<"accept">>) -> fun cow_http_hd:parse_accept/1;
 parse_header_fun(<<"accept-charset">>) -> fun cow_http_hd:parse_accept_charset/1;
 parse_header_fun(<<"accept-encoding">>) -> fun cow_http_hd:parse_accept_encoding/1;
 parse_header_fun(<<"accept-language">>) -> fun cow_http_hd:parse_accept_language/1;
+parse_header_fun(<<"access-control-request-headers">>) -> fun cow_http_hd:parse_access_control_request_headers/1;
+parse_header_fun(<<"access-control-request-method">>) -> fun cow_http_hd:parse_access_control_request_method/1;
 parse_header_fun(<<"authorization">>) -> fun cow_http_hd:parse_authorization/1;
 parse_header_fun(<<"connection">>) -> fun cow_http_hd:parse_connection/1;
 parse_header_fun(<<"content-length">>) -> fun cow_http_hd:parse_content_length/1;
@@ -382,6 +386,7 @@ parse_header_fun(<<"if-match">>) -> fun cow_http_hd:parse_if_match/1;
 parse_header_fun(<<"if-modified-since">>) -> fun cow_http_hd:parse_if_modified_since/1;
 parse_header_fun(<<"if-none-match">>) -> fun cow_http_hd:parse_if_none_match/1;
 parse_header_fun(<<"if-unmodified-since">>) -> fun cow_http_hd:parse_if_unmodified_since/1;
+parse_header_fun(<<"origin">>) -> fun cow_http_hd:parse_origin/1;
 parse_header_fun(<<"range">>) -> fun cow_http_hd:parse_range/1;
 parse_header_fun(<<"sec-websocket-extensions">>) -> fun cow_http_hd:parse_sec_websocket_extensions/1;
 parse_header_fun(<<"sec-websocket-protocol">>) -> fun cow_http_hd:parse_sec_websocket_protocol_req/1;
@@ -758,6 +763,126 @@ has_resp_body(_) ->
 	-> Req when Req::req().
 delete_resp_header(Name, Req=#{resp_headers := RespHeaders}) ->
 	Req#{resp_headers => maps:remove(Name, RespHeaders)}.
+
+-spec set_cors_headers(map(), Req) -> Req when Req :: req().
+set_cors_headers(M, Req) ->
+	try
+		AllowedOrigins = maps:get(origins, M, []),
+		Origin =
+			match_cors_origin(
+				%% Validating each origin in the list, picking up the first.
+				case parse_header(<<"origin">>, Req) of
+					undefined -> throw({bad_origin, undefined, AllowedOrigins});
+					[H|T] -> _ = [match_cors_origin(Val, AllowedOrigins) || Val <- T], H;
+					L -> throw({bad_origin, L, AllowedOrigins})
+				end,
+				AllowedOrigins),
+
+		Req2 = set_cors_allow_credentials(maps:get(credentials, M, false), Origin, Req),
+		set_cors_exposed_headers(maps:get(exposed_headers, M, []), Req2)
+	catch throw:_Reason ->
+		Req
+	end.
+
+-spec set_cors_preflight_headers(map(), Req) -> Req when Req :: req().
+set_cors_preflight_headers(M, Req) ->
+	try
+		AllowedOrigins = maps:get(origins, M, []),
+		Origin =
+			match_cors_origin(
+				%% The Origin header can only contain a single origin as the user agent will not follow redirects.
+				case parse_header(<<"origin">>, Req) of
+					undefined -> throw({bad_origin, undefined, AllowedOrigins});
+					[H] -> H;
+					L -> throw({bad_origin, L, AllowedOrigins})
+				end,
+				AllowedOrigins),
+		Method =
+			match_cors_method(
+				parse_header(<<"access-control-request-method">>, Req),
+				maps:get(methods, M, [])),
+		Headers =
+			match_cors_headers(
+				parse_header(<<"access-control-request-headers">>, Req, []),
+				maps:get(headers, M, [])),
+
+		Req2 = set_cors_allow_credentials(maps:get(credentials, M, false), Origin, Req),
+		Req3 = set_cors_max_age(maps:get(max_age, M, undefined), Req2),
+		Req4 = set_cors_allowed_methods([Method], Req3),
+		set_cors_allowed_headers(Headers, Req4)
+	catch throw:_Reason ->
+		Req
+	end.
+
+-spec set_cors_allow_credentials(boolean(), {binary(), binary(), 0..65535} | reference(), Req) -> Req when Req :: req(). 
+set_cors_allow_credentials(Credentials, Origin, Req) ->
+	case match_cors_credentials(Credentials, Origin) of
+		true ->
+			Req2 = set_resp_header(<<"access-control-allow-origin">>, cow_http_hd:access_control_allow_origin(Origin), Req),
+			set_resp_header(<<"access-control-allow-credentials">>, cow_http_hd:access_control_allow_credentials(), Req2);
+		_ ->
+			set_resp_header(<<"access-control-allow-origin">>, cow_http_hd:access_control_allow_origin(Origin), Req)
+	end.
+
+-spec set_cors_max_age(non_neg_integer() | undefined, Req) -> Req when Req :: req().
+set_cors_max_age(undefined, Req) ->
+	Req;
+set_cors_max_age(Val, Req) ->
+	set_resp_header(<<"access-control-max-age">>, cow_http_hd:access_control_max_age(Val), Req).
+
+-spec set_cors_allowed_methods([binary()], Req) -> Req when Req :: req().
+set_cors_allowed_methods(L, Req) ->
+	set_resp_header(<<"access-control-allow-methods">>, cow_http_hd:access_control_allow_methods(L), Req).
+
+-spec set_cors_allowed_headers([binary()], Req) -> Req when Req :: req().
+set_cors_allowed_headers([], Req) ->
+	Req;
+set_cors_allowed_headers(L, Req) ->
+	set_resp_header(<<"access-control-allow-headers">>, cow_http_hd:access_control_allow_headers(L), Req).
+
+-spec set_cors_exposed_headers([binary()], Req) -> Req when Req :: req().
+set_cors_exposed_headers([], Req) ->
+	Req;
+set_cors_exposed_headers(L, Req) ->
+	set_resp_header(<<"access-control-expose-headers">>, cow_http_hd:access_control_expose_headers(L), Req).
+
+-spec match_cors_origin(Origin | reference(), [Origin] | Origin | '*')
+	-> Origin | '*' when Origin :: {binary(), binary(), 0..65535}.
+match_cors_origin(Val, '*') when is_reference(Val) ->
+	'*';
+match_cors_origin(Val, '*') ->
+	Val;
+match_cors_origin(Val, Val) ->
+	Val;
+match_cors_origin(Val, AllowedOrigins) when is_list(AllowedOrigins) ->
+	case lists:member(Val, AllowedOrigins) of
+		true -> Val;
+		_ -> throw({nomatch_origin, Val, AllowedOrigins})
+	end;
+match_cors_origin(Val, AllowedOrigins) ->
+	throw({nomatch_origin, Val, AllowedOrigins}).
+
+-spec match_cors_method(binary() | undefined, [binary()]) -> binary().
+match_cors_method(undefined, Methods) ->
+	throw({bad_method, undefined, Methods});
+match_cors_method(Val, AllowedMethods) ->
+	case lists:member(Val, AllowedMethods) of
+		true -> Val;
+		_ -> throw({nomatch_method, Val, AllowedMethods})
+	end.
+
+-spec match_cors_headers([binary()], [binary()]) -> [binary()].
+match_cors_headers(L, AllowedHeaders) ->
+	[case lists:member(Header, AllowedHeaders) of
+		false -> throw({nomatch_header, Header, AllowedHeaders});
+		_ -> Header
+	end || Header <- L].
+
+-spec match_cors_credentials(boolean(), {binary(), binary(), 0..65535} | reference() | '*') -> boolean().
+match_cors_credentials(true, '*') ->
+	throw({bad_credentials, true, '*'});
+match_cors_credentials(Val, _) ->
+	Val.
 
 -spec reply(cowboy:http_status(), Req) -> Req when Req::req().
 reply(Status, Req) ->
