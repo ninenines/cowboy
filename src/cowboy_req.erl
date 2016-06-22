@@ -1060,15 +1060,6 @@ set([{version, Val}|Tail], Req) -> set(Tail, Req#http_req{version=Val}).
 
 %% Internal.
 
-%% We don't match on "keep-alive" since it is the default value.
--spec connection_to_atom([binary()]) -> keepalive | close.
-connection_to_atom([]) ->
-	keepalive;
-connection_to_atom([<<"close">>|_]) ->
-	close;
-connection_to_atom([_|Tail]) ->
-	connection_to_atom(Tail).
-
 -spec status(cowboy:http_status()) -> binary().
 status(100) -> <<"100 Continue">>;
 status(101) -> <<"101 Switching Protocols">>;
@@ -1190,16 +1181,3 @@ filter_constraints(Tail, Map, Key, Value, Constraints) ->
 		{true, Value2} ->
 			filter(Tail, Map#{Key => Value2})
 	end.
-
-%% Tests.
-
--ifdef(TEST).
-connection_to_atom_test_() ->
-	Tests = [
-		{[<<"close">>], close},
-		{[<<"keep-alive">>], keepalive},
-		{[<<"keep-alive">>, <<"upgrade">>], keepalive}
-	],
-	[{lists:flatten(io_lib:format("~p", [T])),
-		fun() -> R = connection_to_atom(T) end} || {T, R} <- Tests].
--endif.
