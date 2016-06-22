@@ -109,6 +109,25 @@ host_info(Config) ->
 	<<"[<<\"localhost\">>]">> = do_get_body("/host_info", Config),
 	ok.
 
+match_cookies(Config) ->
+	doc("Matched request cookies."),
+	<<"#{}">> = do_get_body("/match/cookies", [{<<"cookie">>, "a=b; c=d"}], Config),
+	<<"#{a => <<\"b\">>}">> = do_get_body("/match/cookies/a", [{<<"cookie">>, "a=b; c=d"}], Config),
+	<<"#{c => <<\"d\">>}">> = do_get_body("/match/cookies/c", [{<<"cookie">>, "a=b; c=d"}], Config),
+	<<"#{a => <<\"b\">>,c => <<\"d\">>}">> = do_get_body("/match/cookies/a/c",
+		[{<<"cookie">>, "a=b; c=d"}], Config),
+	%% This function is tested more extensively through unit tests.
+	ok.
+
+match_qs(Config) ->
+	doc("Matched request URI query string."),
+	<<"#{}">> = do_get_body("/match/qs?a=b&c=d", Config),
+	<<"#{a => <<\"b\">>}">> = do_get_body("/match/qs/a?a=b&c=d", Config),
+	<<"#{c => <<\"d\">>}">> = do_get_body("/match/qs/c?a=b&c=d", Config),
+	<<"#{a => <<\"b\">>,c => <<\"d\">>}">> = do_get_body("/match/qs/a/c?a=b&c=d", Config),
+	%% This function is tested more extensively through unit tests.
+	ok.
+
 method(Config) ->
 	doc("Request method."),
 	<<"GET">> = do_body("GET", "/method", Config),
