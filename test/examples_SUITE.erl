@@ -48,7 +48,7 @@ do_get_paths(Example0) ->
 do_compile_and_start(Example) ->
 	{Dir, Rel, _} = do_get_paths(Example),
 	%% TERM=dumb disables relx coloring.
-	ct:log("~s~n", [os:cmd("cd " ++ Dir ++ " && make distclean && TERM=dumb make all")]),
+	ct:log("~s~n", [os:cmd("cd " ++ Dir ++ " && make distclean && make all TERM=dumb")]),
 	ct:log("~s~n", [os:cmd(Rel ++ " stop")]),
 	ct:log("~s~n", [os:cmd(Rel ++ " start")]),
 	timer:sleep(2000),
