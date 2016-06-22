@@ -124,7 +124,7 @@ timeout(State=#state{timeout=Timeout,
 loop(Req, State=#state{timeout_ref=TRef}, Handler, HandlerState) ->
 	receive
 		{timeout, TRef, ?MODULE} ->
-			after_loop(Req, State, Handler, HandlerState, timeout);
+			terminate(Req, State, Handler, HandlerState, timeout);
 		{timeout, OlderTRef, ?MODULE} when is_reference(OlderTRef) ->
 			loop(Req, State, Handler, HandlerState);
 		Message ->
@@ -139,7 +139,7 @@ call(Req, State=#state{resp_sent=RespSent},
 		{ok, Req2, HandlerState2, hibernate} ->
 			after_call(Req2, State#state{hibernate=true}, Handler, HandlerState2);
 		{stop, Req2, HandlerState2} ->
-			after_loop(Req2, State, Handler, HandlerState2, stop)
+			terminate(Req2, State, Handler, HandlerState2, stop)
 	catch Class:Reason ->
 		Stacktrace = erlang:get_stacktrace(),
 		if RespSent -> ok; true ->
@@ -155,22 +155,6 @@ call(Req, State=#state{resp_sent=RespSent},
 			{state, HandlerState}
 		]})
 	end.
-
-%% It is sometimes important to make a socket passive as it was initially
-%% and as it is expected to be by cowboy_protocol, right after we're done
-%% with loop handling. The browser may freely pipeline a bunch of requests
-%% if previous one was, say, a JSONP long-polling request.
-after_loop(Req, State, Handler, HandlerState, Reason) ->
-	[Socket, Transport] = cowboy_req:get([socket, transport], Req),
-	Transport:setopts(Socket, [{active, false}]),
-	{OK, _Closed, _Error} = Transport:messages(),
-	Req2 = receive
-		{OK, Socket, Data} ->
-			cowboy_req:append_buffer(Data, Req)
-	after 0 ->
-		Req
-	end,
-	terminate(Req2, State, Handler, HandlerState, Reason).
 
 terminate(Req, #state{env=Env, timeout_ref=TRef},
 		Handler, HandlerState, Reason) ->

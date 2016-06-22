@@ -81,7 +81,6 @@
 -export([ensure_response/2]).
 
 %% Private setter/getter API.
--export([append_buffer/2]).
 -export([get/2]).
 -export([set/2]).
 
@@ -996,10 +995,6 @@ ensure_response(#http_req{}, _) ->
 	ok.
 
 %% Private setter/getter API.
-
--spec append_buffer(binary(), Req) -> Req when Req::req().
-append_buffer(Suffix, Req=#http_req{buffer=Buffer}) ->
-	Req#http_req{buffer= << Buffer/binary, Suffix/binary >>}.
 
 -spec get(atom(), req()) -> any(); ([atom()], req()) -> any().
 get(List, Req) when is_list(List) ->
