@@ -84,7 +84,6 @@
 -export([append_buffer/2]).
 -export([get/2]).
 -export([set/2]).
--export([set_bindings/4]).
 
 -type cookie_opts() :: cow_cookie:cookie_opts().
 -export_type([cookie_opts/0]).
@@ -1058,12 +1057,6 @@ set([{resp_state, Val}|Tail], Req) -> set(Tail, Req#http_req{resp_state=Val});
 set([{socket, Val}|Tail], Req) -> set(Tail, Req#http_req{socket=Val});
 set([{transport, Val}|Tail], Req) -> set(Tail, Req#http_req{transport=Val});
 set([{version, Val}|Tail], Req) -> set(Tail, Req#http_req{version=Val}).
-
--spec set_bindings(cowboy_router:tokens(), cowboy_router:tokens(),
-	cowboy_router:bindings(), Req) -> Req when Req::req().
-set_bindings(HostInfo, PathInfo, Bindings, Req) ->
-	Req#http_req{host_info=HostInfo, path_info=PathInfo,
-		bindings=Bindings}.
 
 %% Internal.
 
