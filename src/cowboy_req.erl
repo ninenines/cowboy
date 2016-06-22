@@ -86,7 +86,6 @@
 -export([set/2]).
 -export([set_bindings/4]).
 -export([lock/1]).
--export([to_list/1]).
 
 -type cookie_opts() :: cow_cookie:cookie_opts().
 -export_type([cookie_opts/0]).
@@ -1070,10 +1069,6 @@ set_bindings(HostInfo, PathInfo, Bindings, Req) ->
 -spec lock(Req) -> Req when Req::req().
 lock(Req) ->
 	Req#http_req{resp_state=locked}.
-
--spec to_list(req()) -> [{atom(), any()}].
-to_list(Req) ->
-	lists:zip(record_info(fields, http_req), tl(tuple_to_list(Req))).
 
 %% Internal.
 
