@@ -54,7 +54,7 @@ execute(Req, Env=#{handler := Handler, handler_opts := HandlerOpts}) ->
 terminate(Reason, Req, State, Handler) ->
 	case erlang:function_exported(Handler, terminate, 3) of
 		true ->
-			Handler:terminate(Reason, cowboy_req:lock(Req), State);
+			Handler:terminate(Reason, Req, State);
 		false ->
 			ok
 	end.
