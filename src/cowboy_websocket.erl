@@ -152,12 +152,13 @@ websocket_handshake(State=#state{key=Key},
 		Req=#{pid := Pid, streamid := StreamID}, HandlerState, Env) ->
 	Challenge = base64:encode(crypto:hash(sha,
 		<< Key/binary, "258EAFA5-E914-47DA-95CA-C5AB0DC85B11" >>)),
-	Headers = #{
+	RespHeaders = maps:get(resp_headers, Req, #{}),
+	Headers = maps:merge(RespHeaders, #{
 		%% @todo Hmm should those be here or in cowboy_http?
 		<<"connection">> => <<"Upgrade">>,
 		<<"upgrade">> => <<"websocket">>,
 		<<"sec-websocket-accept">> => Challenge
-	},
+	}),
 	Pid ! {{Pid, StreamID}, {switch_protocol, Headers, ?MODULE, {Req, State, HandlerState}}},
 	{ok, Req, Env}.
 
