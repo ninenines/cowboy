@@ -389,7 +389,7 @@ parse_host(<< $[, Rest/bits >>, false, <<>>) ->
 parse_host(<<>>, false, Acc) ->
 	{Acc, undefined};
 parse_host(<< $:, Rest/bits >>, false, Acc) ->
-	{Acc, list_to_integer(binary_to_list(Rest))};
+	{Acc, list_to_integer(string:strip(binary_to_list(Rest)))};
 parse_host(<< $], Rest/bits >>, true, Acc) ->
 	parse_host(Rest, false, << Acc/binary, $] >>);
 parse_host(<< C, Rest/bits >>, E, Acc) ->
