@@ -12,9 +12,31 @@ init(Req, Opts) ->
 			echo_arg(Arg, Req, Opts)
 	end.
 
-echo(<<"body">>, Req0, Opts) ->
-	{ok, Body, Req} = cowboy_req:read_body(Req0),
+echo(<<"read_body">>, Req0, Opts) ->
+	case Opts of
+		#{crash := true} -> ct_helper:ignore(cowboy_req, read_body, 2);
+		_ -> ok
+	end,
+	{_, Body, Req} = case cowboy_req:path(Req0) of
+		<<"/full", _/bits>> -> read_body(Req0, <<>>);
+		<<"/opts", _/bits>> -> cowboy_req:read_body(Req0, Opts);
+		_ -> cowboy_req:read_body(Req0)
+	end,
 	cowboy_req:reply(200, #{}, Body, Req),
+	{ok, Req, Opts};
+echo(<<"read_urlencoded_body">>, Req0, Opts) ->
+	Path = cowboy_req:path(Req0),
+	case {Path, Opts} of
+		{<<"/opts", _/bits>>, #{crash := true}} -> ct_helper:ignore(cowboy_req, read_body, 2);
+		{_, #{crash := true}} -> ct_helper:ignore(cowboy_req, read_urlencoded_body, 2);
+		_ -> ok
+	end,
+	{ok, Body, Req} = case Path of
+		<<"/opts", _/bits>> -> cowboy_req:read_urlencoded_body(Req0, Opts);
+		<<"/crash", _/bits>> -> cowboy_req:read_urlencoded_body(Req0, Opts);
+		_ -> cowboy_req:read_urlencoded_body(Req0)
+	end,
+	cowboy_req:reply(200, #{}, value_to_iodata(Body), Req),
 	{ok, Req, Opts};
 echo(<<"uri">>, Req, Opts) ->
 	Value = case cowboy_req:path_info(Req) of
@@ -54,6 +76,12 @@ echo_arg(Arg0, Req, Opts) ->
 	end,
 	cowboy_req:reply(200, #{}, value_to_iodata(Value), Req),
 	{ok, Req, Opts}.
+
+read_body(Req0, Acc) ->
+	case cowboy_req:read_body(Req0) of
+		{ok, Data, Req} -> {ok, << Acc/binary, Data/binary >>, Req};
+		{more, Data, Req} -> read_body(Req, << Acc/binary, Data/binary >>)
+	end.
 
 value_to_iodata(V) when is_integer(V) -> integer_to_binary(V);
 value_to_iodata(V) when is_atom(V) -> atom_to_binary(V, latin1);

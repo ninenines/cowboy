@@ -27,18 +27,14 @@
 	| {atom(), cowboy_constraints:constraint() | [cowboy_constraints:constraint()], any()}].
 -export_type([fields/0]).
 
--type http_headers() :: [{binary(), iodata()}].
+-type http_headers() :: #{binary() => iodata()}.
 -export_type([http_headers/0]).
 
 -type http_status() :: non_neg_integer() | binary().
 -export_type([http_status/0]).
 
--type http_version() :: 'HTTP/1.1' | 'HTTP/1.0'.
+-type http_version() :: 'HTTP/2' | 'HTTP/1.1' | 'HTTP/1.0'.
 -export_type([http_version/0]).
-
--type onresponse_fun() ::
-	fun((http_status(), http_headers(), iodata(), Req) -> Req).
--export_type([onresponse_fun/0]).
 
 -spec start_clear(ranch:ref(), non_neg_integer(), ranch_tcp:opts(),
 	cowboy_protocol:opts()) -> {ok, pid()} | {error, any()}.

@@ -16,7 +16,6 @@
 -export([paste_text/2]).
 
 init(Req, Opts) ->
-	random:seed(os:timestamp()),
 	{cowboy_rest, Req, Opts}.
 
 allowed_methods(Req, State) ->
@@ -87,13 +86,13 @@ valid_path(<<$/, _T/binary>>) -> false;
 valid_path(<<_Char, T/binary>>) -> valid_path(T).
 
 new_paste_id() ->
-	Initial = random:uniform(62) - 1,
+	Initial = rand:uniform(62) - 1,
 	new_paste_id(<<Initial>>, 7).
 new_paste_id(Bin, 0) ->
 	Chars = <<"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890">>,
 	<< <<(binary_part(Chars, B, 1))/binary>> || <<B>> <= Bin >>;
 new_paste_id(Bin, Rem) ->
-	Next = random:uniform(62) - 1,
+	Next = rand:uniform(62) - 1,
 	new_paste_id(<<Bin/binary, Next>>, Rem - 1).
 
 format_html(Paste, plain) ->

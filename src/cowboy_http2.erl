@@ -376,7 +376,7 @@ commands(State, Stream, []) ->
 %% @todo Same two things above apply to DATA, possibly promise too.
 commands(State=#state{socket=Socket, transport=Transport, encode_state=EncodeState0},
 		Stream=#stream{id=StreamID, local=idle}, [{response, StatusCode, Headers0, Body}|Tail]) ->
-	Headers = Headers0#{<<":status">> => integer_to_binary(StatusCode)},
+	Headers = Headers0#{<<":status">> => status(StatusCode)},
 	{HeaderBlock, EncodeState} = headers_encode(Headers, EncodeState0),
 	case Body of
 		<<>> ->
@@ -387,17 +387,18 @@ commands(State=#state{socket=Socket, transport=Transport, encode_state=EncodeSta
 			commands(State#state{encode_state=EncodeState}, Stream#stream{local=nofin},
 				[{sendfile, fin, O, B, P}|Tail]);
 		_ ->
-			Transport:send(Socket, [
-				cow_http2:headers(StreamID, nofin, HeaderBlock),
-				cow_http2:data(StreamID, fin, Body)
-			]),
+			Transport:send(Socket, cow_http2:headers(StreamID, nofin, HeaderBlock)),
+			%% @todo 16384 is the default SETTINGS_MAX_FRAME_SIZE.
+			%% Use the length set by the server instead, if any.
+			%% @todo Would be better if we didn't have to convert to binary.
+			send_data(Socket, Transport, StreamID, fin, iolist_to_binary(Body), 16384),
 			commands(State#state{encode_state=EncodeState}, Stream#stream{local=fin}, Tail)
 	end;
 %% @todo response when local!=idle
 %% Send response headers and initiate chunked encoding.
 commands(State=#state{socket=Socket, transport=Transport, encode_state=EncodeState0},
 		Stream=#stream{id=StreamID, local=idle}, [{headers, StatusCode, Headers0}|Tail]) ->
-	Headers = Headers0#{<<":status">> => integer_to_binary(StatusCode)},
+	Headers = Headers0#{<<":status">> => status(StatusCode)},
 	{HeaderBlock, EncodeState} = headers_encode(Headers, EncodeState0),
 	Transport:send(Socket, cow_http2:headers(StreamID, nofin, HeaderBlock)),
 	commands(State#state{encode_state=EncodeState}, Stream#stream{local=nofin}, Tail);
@@ -441,11 +442,20 @@ commands(State=#state{socket=Socket, transport=Transport}, Stream=#stream{id=Str
 %% end up with an infinite loop of promises.
 commands(State0=#state{socket=Socket, transport=Transport, server_streamid=PromisedStreamID,
 		encode_state=EncodeState0}, Stream=#stream{id=StreamID},
-		[{promise, Method, Scheme, Authority, Path, Headers0}|Tail]) ->
+		[{push, Method, Scheme, Host, Port, Path, Qs, Headers0}|Tail]) ->
+	Authority = case {Scheme, Port} of
+		{<<"http">>, 80} -> Host;
+		{<<"https">>, 443} -> Host;
+		_ -> [Host, $:, integer_to_binary(Port)]
+	end,
+	PathWithQs = case Qs of
+		<<>> -> Path;
+		_ -> [Path, $?, Qs]
+	end,
 	Headers = Headers0#{<<":method">> => Method,
 			<<":scheme">> => Scheme,
 			<<":authority">> => Authority,
-			<<":path">> => Path},
+			<<":path">> => PathWithQs},
 	{HeaderBlock, EncodeState} = headers_encode(Headers, EncodeState0),
 	Transport:send(Socket, cow_http2:push_promise(StreamID, PromisedStreamID, HeaderBlock)),
 	%% @todo iolist_to_binary(HeaderBlock) isn't optimal. Need a shortcut.
@@ -484,6 +494,22 @@ after_commands(State=#state{streams=Streams0}, Stream=#stream{id=StreamID}) ->
 	Streams = lists:keystore(StreamID, #stream.id, Streams0, Stream),
 	State#state{streams=Streams}.
 
+status(Status) when is_integer(Status) ->
+	integer_to_binary(Status);
+status(<< H, T, U, _/bits >>) when H >= $1, H =< $9, T >= $0, T =< $9, U >= $0, U =< $9 ->
+	<< H, T, U >>.
+
+%% This same function is found in gun_http2.
+send_data(Socket, Transport, StreamID, IsFin, Data, Length) ->
+	if
+		Length < byte_size(Data) ->
+			<< Payload:Length/binary, Rest/bits >> = Data,
+			Transport:send(Socket, cow_http2:data(StreamID, nofin, Payload)),
+			send_data(Socket, Transport, StreamID, IsFin, Rest, Length);
+		true ->
+			Transport:send(Socket, cow_http2:data(StreamID, IsFin, Data))
+	end.
+
 terminate(#state{socket=Socket, transport=Transport, handler=Handler,
 		streams=Streams, children=Children}, Reason) ->
 	%% @todo Send GOAWAY frame; need to keep track of last good stream id; how?
@@ -511,6 +537,23 @@ stream_init(State0=#state{ref=Ref, socket=Socket, transport=Transport, peer=Peer
 				<<":path">> := PathWithQs}, DecodeState} ->
 			State = State0#state{decode_state=DecodeState},
 			Headers = maps:without([<<":method">>, <<":scheme">>, <<":authority">>, <<":path">>], Headers0),
+			BodyLength = case Headers of
+				_ when IsFin =:= fin ->
+					0;
+				#{<<"content-length">> := <<"0">>} ->
+					0;
+				#{<<"content-length">> := BinLength} ->
+					Length = try
+						cow_http_hd:parse_content_length(BinLength)
+					catch _:_ ->
+						terminate(State0, {stream_error, StreamID, protocol_error,
+							''}) %% @todo
+						%% @todo Err should terminate here...
+					end,
+					Length;
+				_ ->
+					undefined
+			end,
 			{Host, Port} = cow_http_hd:parse_host(Authority),
 			{Path, Qs} = cow_http:parse_fullpath(PathWithQs),
 			Req = #{
@@ -527,7 +570,8 @@ stream_init(State0=#state{ref=Ref, socket=Socket, transport=Transport, peer=Peer
 				version => 'HTTP/2',
 				headers => Headers,
 
-				has_body => IsFin =:= nofin
+				has_body => IsFin =:= nofin,
+				body_length => BodyLength
 				%% @todo multipart? keep state separate
 
 				%% meta values (cowboy_websocket, cowboy_rest)
@@ -609,9 +653,26 @@ stream_terminate_children([Child|Tail], StreamID, Acc) ->
 
 headers_decode(HeaderBlock, DecodeState0) ->
 	{Headers, DecodeState} = cow_hpack:decode(HeaderBlock, DecodeState0),
-	{maps:from_list(Headers), DecodeState}.
+	{headers_to_map(Headers, #{}), DecodeState}.
 
-%% @todo We will need to special-case the set-cookie header here.
+%% This function is necessary to properly handle duplicate headers
+%% and the special-case cookie header.
+headers_to_map([], Acc) ->
+	Acc;
+headers_to_map([{Name, Value}|Tail], Acc0) ->
+	Acc = case Acc0 of
+		%% The cookie header does not use proper HTTP header lists.
+		#{Name := Value0} when Name =:= <<"cookie">> -> Acc0#{Name => << Value0/binary, "; ", Value/binary >>};
+		#{Name := Value0} -> Acc0#{Name => << Value0/binary, ", ", Value/binary >>};
+		_ -> Acc0#{Name => Value}
+	end,
+	headers_to_map(Tail, Acc).
+
+%% The set-cookie header is special; we can only send one cookie per header.
+headers_encode(Headers0=#{<<"set-cookie">> := SetCookies}, EncodeState) ->
+	Headers1 = maps:to_list(maps:remove(<<"set-cookie">>, Headers0)),
+	Headers = Headers1 ++ [{<<"set-cookie">>, Value} || Value <- SetCookies],
+	cow_hpack:encode(Headers, EncodeState);
 headers_encode(Headers0, EncodeState) ->
 	Headers = maps:to_list(Headers0),
 	cow_hpack:encode(Headers, EncodeState).

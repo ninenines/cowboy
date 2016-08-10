@@ -34,6 +34,13 @@ groups() ->
 		%% @todo With compression enabled.
 	].
 
+init_per_suite(Config) ->
+	ct_helper:create_static_dir(config(priv_dir, Config) ++ "/static"),
+	Config.
+
+end_per_suite(Config) ->
+	ct_helper:delete_static_dir(config(priv_dir, Config) ++ "/static").
+
 init_per_group(Name, Config) ->
 	cowboy_test:init_common_groups(Name, Config, ?MODULE).
 
@@ -42,10 +49,20 @@ end_per_group(Name, _) ->
 
 %% Routes.
 
-init_dispatch(_) ->
+init_dispatch(Config) ->
 	cowboy_router:compile([{"[...]", [
-		{"/no/:key", echo_h, []},
+		{"/static/[...]", cowboy_static, {dir, config(priv_dir, Config) ++ "/static"}},
+		%% @todo Seriously InitialState should be optional.
+		{"/resp/:key[/:arg]", resp_h, []},
+		{"/multipart[/:key]", multipart_h, []},
 		{"/args/:key/:arg[/:default]", echo_h, []},
+		{"/crash/:key/period", echo_h, #{length => infinity, period => 1000, crash => true}},
+		{"/no-opts/:key", echo_h, #{crash => true}},
+		{"/opts/:key/length", echo_h, #{length => 1000}},
+		{"/opts/:key/period", echo_h, #{length => infinity, period => 1000}},
+		{"/opts/:key/timeout", echo_h, #{timeout => 1000, crash => true}},
+		{"/full/:key", echo_h, []},
+		{"/no/:key", echo_h, []},
 		{"/:key/[...]", echo_h, []}
 	]}]).
 
@@ -55,15 +72,32 @@ do_body(Method, Path, Config) ->
 	do_body(Method, Path, [], Config).
 
 do_body(Method, Path, Headers, Config) ->
+	do_body(Method, Path, Headers, <<>>, Config).
+
+do_body(Method, Path, Headers, Body, Config) ->
 	ConnPid = gun_open(Config),
-	Ref = gun:request(ConnPid, Method, Path, Headers),
+	Ref = case Body of
+		<<>> -> gun:request(ConnPid, Method, Path, Headers);
+		_ -> gun:request(ConnPid, Method, Path, Headers, Body)
+	end,
 	{response, IsFin, 200, _} = gun:await(ConnPid, Ref),
-	{ok, Body} = case IsFin of
+	{ok, RespBody} = case IsFin of
 		nofin -> gun:await_body(ConnPid, Ref);
 		fin -> {ok, <<>>}
 	end,
 	gun:close(ConnPid),
-	Body.
+	RespBody.
+
+do_get(Path, Config) ->
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, Path, []),
+	{response, IsFin, Status, Headers} = gun:await(ConnPid, Ref),
+	{ok, RespBody} = case IsFin of
+		nofin -> gun:await_body(ConnPid, Ref);
+		fin -> {ok, <<>>}
+	end,
+	gun:close(ConnPid),
+	{Status, Headers, RespBody}.
 
 do_get_body(Path, Config) ->
 	do_get_body(Path, [], Config).
@@ -71,7 +105,7 @@ do_get_body(Path, Config) ->
 do_get_body(Path, Headers, Config) ->
 	do_body("GET", Path, Headers, Config).
 
-%% Tests.
+%% Tests: Request.
 
 binding(Config) ->
 	doc("Value bound from request URI path with/without default."),
@@ -109,6 +143,7 @@ host_info(Config) ->
 	<<"[<<\"localhost\">>]">> = do_get_body("/host_info", Config),
 	ok.
 
+%% @todo Actually write the related unit tests.
 match_cookies(Config) ->
 	doc("Matched request cookies."),
 	<<"#{}">> = do_get_body("/match/cookies", [{<<"cookie">>, "a=b; c=d"}], Config),
@@ -119,6 +154,7 @@ match_cookies(Config) ->
 	%% This function is tested more extensively through unit tests.
 	ok.
 
+%% @todo Actually write the related unit tests.
 match_qs(Config) ->
 	doc("Matched request URI query string."),
 	<<"#{}">> = do_get_body("/match/qs?a=b&c=d", Config),
@@ -131,7 +167,7 @@ match_qs(Config) ->
 method(Config) ->
 	doc("Request method."),
 	<<"GET">> = do_body("GET", "/method", Config),
-	<<"HEAD">> = do_body("HEAD", "/method", Config),
+	<<>> = do_body("HEAD", "/method", Config),
 	<<"OPTIONS">> = do_body("OPTIONS", "/method", Config),
 	<<"PATCH">> = do_body("PATCH", "/method", Config),
 	<<"POST">> = do_body("POST", "/method", Config),
@@ -147,6 +183,9 @@ parse_cookies(Config) ->
 		= do_get_body("/parse_cookies", [{<<"cookie">>, "cake=strawberry"}], Config),
 	<<"[{<<\"cake\">>,<<\"strawberry\">>},{<<\"color\">>,<<\"blue\">>}]">>
 		= do_get_body("/parse_cookies", [{<<"cookie">>, "cake=strawberry; color=blue"}], Config),
+	<<"[{<<\"cake\">>,<<\"strawberry\">>},{<<\"color\">>,<<\"blue\">>}]">>
+		= do_get_body("/parse_cookies",
+			[{<<"cookie">>, "cake=strawberry"}, {<<"cookie">>, "color=blue"}], Config),
 	ok.
 
 parse_header(Config) ->
@@ -252,3 +291,394 @@ version(Config) ->
 		<<"HTTP/1.1">> when Protocol =:= http -> ok;
 		<<"HTTP/2">> when Protocol =:= http2 -> ok
 	end.
+
+%% Tests: Request body.
+
+body_length(Config) ->
+	doc("Request body length."),
+	<<"0">> = do_get_body("/body_length", Config),
+	<<"12">> = do_body("POST", "/body_length", [], "hello world!", Config),
+	ok.
+
+has_body(Config) ->
+	doc("Has a request body?"),
+	<<"false">> = do_get_body("/has_body", Config),
+	<<"true">> = do_body("POST", "/has_body", [], "hello world!", Config),
+	ok.
+
+read_body(Config) ->
+	doc("Request body."),
+	<<>> = do_get_body("/read_body", Config),
+	<<"hello world!">> = do_body("POST", "/read_body", [], "hello world!", Config),
+	%% We expect to have read *at least* 1000 bytes.
+	<<0:8000, _/bits>> = do_body("POST", "/opts/read_body/length", [], <<0:8000000>>, Config),
+	%% We read any length for at most 1 second.
+	%%
+	%% The body is sent twice, first with nofin, then wait 2 seconds, then again with fin.
+	<<0:8000000>> = do_read_body_period("/opts/read_body/period", <<0:8000000>>, Config),
+	%% The timeout value is set too low on purpose to ensure a crash occurs.
+	ok = do_read_body_timeout("/opts/read_body/timeout", <<0:8000000>>, Config),
+	%% 10MB body larger than default length.
+	<<0:80000000>> = do_body("POST", "/full/read_body", [], <<0:80000000>>, Config),
+	ok.
+
+do_read_body_period(Path, Body, Config) ->
+	ConnPid = gun_open(Config),
+	Ref = gun:request(ConnPid, "POST", Path, [
+		{<<"content-length">>, integer_to_binary(byte_size(Body) * 2)}
+	]),
+	gun:data(ConnPid, Ref, nofin, Body),
+	timer:sleep(2000),
+	gun:data(ConnPid, Ref, fin, Body),
+	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
+	{ok, RespBody} = gun:await_body(ConnPid, Ref),
+	gun:close(ConnPid),
+	RespBody.
+
+%% We expect a crash.
+do_read_body_timeout(Path, Body, Config) ->
+	ConnPid = gun_open(Config),
+	Ref = gun:request(ConnPid, "POST", Path, [
+		{<<"content-length">>, integer_to_binary(byte_size(Body))}
+	]),
+	{response, _, 500, _} = gun:await(ConnPid, Ref),
+	gun:close(ConnPid).
+
+%% @todo Do we really want a key/value list here instead of a map?
+read_urlencoded_body(Config) ->
+	doc("application/x-www-form-urlencoded request body."),
+	<<"[]">> = do_body("POST", "/read_urlencoded_body", [], <<>>, Config),
+	<<"[{<<\"abc\">>,true}]">> = do_body("POST", "/read_urlencoded_body", [], "abc", Config),
+	<<"[{<<\"a\">>,<<\"b\">>},{<<\"c\">>,<<\"d e\">>}]">>
+		= do_body("POST", "/read_urlencoded_body", [], "a=b&c=d+e", Config),
+	%% Send a 10MB body, larger than the default length, to ensure a crash occurs.
+	ok = do_read_urlencoded_body_too_large("/no-opts/read_urlencoded_body",
+		string:chars($a, 10000000), Config),
+	%% We read any length for at most 1 second.
+	%%
+	%% The body is sent twice, first with nofin, then wait 1.1 second, then again with fin.
+	%% We expect the handler to crash because read_urlencoded_body expects the full body.
+	ok = do_read_urlencoded_body_too_long("/crash/read_urlencoded_body/period", <<"abc">>, Config),
+	%% The timeout value is set too low on purpose to ensure a crash occurs.
+	ok = do_read_body_timeout("/opts/read_urlencoded_body/timeout", <<"abc">>, Config),
+	ok.
+
+%% We expect a crash.
+do_read_urlencoded_body_too_large(Path, Body, Config) ->
+	ConnPid = gun_open(Config),
+	Ref = gun:request(ConnPid, "POST", Path, [
+		{<<"content-length">>, integer_to_binary(iolist_size(Body))}
+	]),
+	gun:data(ConnPid, Ref, fin, Body),
+	{response, _, 500, _} = gun:await(ConnPid, Ref),
+	gun:close(ConnPid).
+
+%% We expect a crash.
+do_read_urlencoded_body_too_long(Path, Body, Config) ->
+	ConnPid = gun_open(Config),
+	Ref = gun:request(ConnPid, "POST", Path, [
+		{<<"content-length">>, integer_to_binary(byte_size(Body) * 2)}
+	]),
+	gun:data(ConnPid, Ref, nofin, Body),
+	timer:sleep(1100),
+	gun:data(ConnPid, Ref, fin, Body),
+	{response, _, 500, _} = gun:await(ConnPid, Ref),
+	gun:close(ConnPid).
+
+multipart(Config) ->
+	doc("Multipart request body."),
+	do_multipart("/multipart", Config).
+
+do_multipart(Path, Config) ->
+	LargeBody = iolist_to_binary(string:chars($a, 10000000)),
+	ReqBody = [
+		"--deadbeef\r\nContent-Type: text/plain\r\n\r\nCowboy is an HTTP server.\r\n"
+		"--deadbeef\r\nContent-Type: application/octet-stream\r\nX-Custom: value\r\n\r\n", LargeBody, "\r\n"
+		"--deadbeef--"
+	],
+	RespBody = do_body("POST", Path, [
+		{<<"content-type">>, <<"multipart/mixed; boundary=deadbeef">>}
+	], ReqBody, Config),
+	[
+		{[{<<"content-type">>, <<"text/plain">>}], <<"Cowboy is an HTTP server.">>},
+		{LargeHeaders, LargeBody}
+	] = binary_to_term(RespBody),
+	%% @todo Multipart header order is currently undefined.
+	[
+		{<<"content-type">>, <<"application/octet-stream">>},
+		{<<"x-custom">>, <<"value">>}
+	] = lists:sort(LargeHeaders),
+	ok.
+
+read_part_skip_body(Config) ->
+	doc("Multipart request body skipping part bodies."),
+	LargeBody = iolist_to_binary(string:chars($a, 10000000)),
+	ReqBody = [
+		"--deadbeef\r\nContent-Type: text/plain\r\n\r\nCowboy is an HTTP server.\r\n"
+		"--deadbeef\r\nContent-Type: application/octet-stream\r\nX-Custom: value\r\n\r\n", LargeBody, "\r\n"
+		"--deadbeef--"
+	],
+	RespBody = do_body("POST", "/multipart/skip_body", [
+		{<<"content-type">>, <<"multipart/mixed; boundary=deadbeef">>}
+	], ReqBody, Config),
+	[
+		[{<<"content-type">>, <<"text/plain">>}],
+		LargeHeaders
+	] = binary_to_term(RespBody),
+	%% @todo Multipart header order is currently undefined.
+	[
+		{<<"content-type">>, <<"application/octet-stream">>},
+		{<<"x-custom">>, <<"value">>}
+	] = lists:sort(LargeHeaders),
+	ok.
+
+%% @todo When reading a multipart body, length and period
+%% only apply to a single read_body call. We may want a
+%% separate option to know how many reads we want to do
+%% before we give up.
+
+read_part2(Config) ->
+	doc("Multipart request body using read_part/2."),
+	%% Override the length and period values only, making
+	%% the request process use more read_body calls.
+	%%
+	%% We do not try a custom timeout value since this would
+	%% be the same test as read_body/2.
+	do_multipart("/multipart/read_part2", Config).
+
+read_part_body2(Config) ->
+	doc("Multipart request body using read_part_body/2."),
+	%% Override the length and period values only, making
+	%% the request process use more read_body calls.
+	%%
+	%% We do not try a custom timeout value since this would
+	%% be the same test as read_body/2.
+	do_multipart("/multipart/read_part_body2", Config).
+
+%% Tests: Response.
+
+%% @todo We want to crash when calling set_resp_* or related
+%% functions after the reply has been sent.
+
+set_resp_cookie(Config) ->
+	doc("Response using set_resp_cookie."),
+	%% Single cookie, no options.
+	{200, Headers1, _} = do_get("/resp/set_resp_cookie3", Config),
+	{_, <<"mycookie=myvalue; Version=1">>}
+		= lists:keyfind(<<"set-cookie">>, 1, Headers1),
+	%% Single cookie, with options.
+	{200, Headers2, _} = do_get("/resp/set_resp_cookie4", Config),
+	{_, <<"mycookie=myvalue; Version=1; Path=/resp/set_resp_cookie4">>}
+		= lists:keyfind(<<"set-cookie">>, 1, Headers2),
+	%% Multiple cookies.
+	{200, Headers3, _} = do_get("/resp/set_resp_cookie3/multiple", Config),
+	[_, _] = [H || H={<<"set-cookie">>, _} <- Headers3],
+	%% Overwrite previously set cookie.
+	{200, Headers4, _} = do_get("/resp/set_resp_cookie3/overwrite", Config),
+	{_, <<"mycookie=overwrite; Version=1">>}
+		= lists:keyfind(<<"set-cookie">>, 1, Headers4),
+	ok.
+
+set_resp_header(Config) ->
+	doc("Response using set_resp_header."),
+	{200, Headers, <<"OK">>} = do_get("/resp/set_resp_header", Config),
+	true = lists:keymember(<<"content-type">>, 1, Headers),
+	ok.
+
+set_resp_body(Config) ->
+	doc("Response using set_resp_body."),
+	{200, _, <<"OK">>} = do_get("/resp/set_resp_body", Config),
+	{200, _, <<"OVERRIDE">>} = do_get("/resp/set_resp_body/override", Config),
+	{ok, AppFile} = file:read_file(code:where_is_file("cowboy.app")),
+	{200, _, AppFile} = do_get("/resp/set_resp_body/sendfile", Config),
+	ok.
+
+has_resp_header(Config) ->
+	doc("Has response header?"),
+	{200, Headers, <<"OK">>} = do_get("/resp/has_resp_header", Config),
+	true = lists:keymember(<<"content-type">>, 1, Headers),
+	ok.
+
+has_resp_body(Config) ->
+	doc("Has response body?"),
+	{200, _, <<"OK">>} = do_get("/resp/has_resp_body", Config),
+	{200, _, <<"OK">>} = do_get("/resp/has_resp_body/sendfile", Config),
+	ok.
+
+delete_resp_header(Config) ->
+	doc("Delete response header."),
+	{200, Headers, <<"OK">>} = do_get("/resp/delete_resp_header", Config),
+	false = lists:keymember(<<"content-type">>, 1, Headers),
+	ok.
+
+reply2(Config) ->
+	doc("Response with default headers and no body."),
+	{200, _, _} = do_get("/resp/reply2/200", Config),
+	{201, _, _} = do_get("/resp/reply2/201", Config),
+	{404, _, _} = do_get("/resp/reply2/404", Config),
+	{200, _, _} = do_get("/resp/reply2/binary", Config),
+	{500, _, _} = do_get("/resp/reply2/error", Config),
+	%% @todo We want to crash when reply or stream_reply is called twice.
+	%% How to test this properly? This isn't enough.
+	{200, _, _} = do_get("/resp/reply2/twice", Config),
+	ok.
+
+reply3(Config) ->
+	doc("Response with additional headers and no body."),
+	{200, Headers1, _} = do_get("/resp/reply3/200", Config),
+	true = lists:keymember(<<"content-type">>, 1, Headers1),
+	{201, Headers2, _} = do_get("/resp/reply3/201", Config),
+	true = lists:keymember(<<"content-type">>, 1, Headers2),
+	{404, Headers3, _} = do_get("/resp/reply3/404", Config),
+	true = lists:keymember(<<"content-type">>, 1, Headers3),
+	{500, _, _} = do_get("/resp/reply3/error", Config),
+	ok.
+
+reply4(Config) ->
+	doc("Response with additional headers and body."),
+	{200, _, <<"OK">>} = do_get("/resp/reply4/200", Config),
+	{201, _, <<"OK">>} = do_get("/resp/reply4/201", Config),
+	{404, _, <<"OK">>} = do_get("/resp/reply4/404", Config),
+	{500, _, _} = do_get("/resp/reply4/error", Config),
+	ok.
+
+%% @todo Crash when stream_reply is called twice.
+
+stream_reply2(Config) ->
+	doc("Response with default headers and streamed body."),
+	Body = <<0:8000000>>,
+	{200, _, Body} = do_get("/resp/stream_reply2/200", Config),
+	{201, _, Body} = do_get("/resp/stream_reply2/201", Config),
+	{404, _, Body} = do_get("/resp/stream_reply2/404", Config),
+	{200, _, Body} = do_get("/resp/stream_reply2/binary", Config),
+	{500, _, _} = do_get("/resp/stream_reply2/error", Config),
+	ok.
+
+stream_reply3(Config) ->
+	doc("Response with additional headers and streamed body."),
+	Body = <<0:8000000>>,
+	{200, Headers1, Body} = do_get("/resp/stream_reply3/200", Config),
+	true = lists:keymember(<<"content-type">>, 1, Headers1),
+	{201, Headers2, Body} = do_get("/resp/stream_reply3/201", Config),
+	true = lists:keymember(<<"content-type">>, 1, Headers2),
+	{404, Headers3, Body} = do_get("/resp/stream_reply3/404", Config),
+	true = lists:keymember(<<"content-type">>, 1, Headers3),
+	{500, _, _} = do_get("/resp/stream_reply3/error", Config),
+	ok.
+
+%% @todo Crash when calling stream_body after the fin flag has been set.
+%% @todo Crash when calling stream_body after calling reply.
+%% @todo Crash when calling stream_body before calling stream_reply.
+
+%% Tests: Push.
+
+%% @todo We want to crash when push is called after reply has been initiated.
+
+push(Config) ->
+	case config(protocol, Config) of
+		http -> do_push_http("/resp/push", Config);
+		http2 -> do_push_http2(Config)
+	end.
+
+push_method(Config) ->
+	case config(protocol, Config) of
+		http -> do_push_http("/resp/push/method", Config);
+		http2 -> do_push_http2_method(Config)
+	end.
+
+
+push_origin(Config) ->
+	case config(protocol, Config) of
+		http -> do_push_http("/resp/push/origin", Config);
+		http2 -> do_push_http2_origin(Config)
+	end.
+
+push_qs(Config) ->
+	case config(protocol, Config) of
+		http -> do_push_http("/resp/push/qs", Config);
+		http2 -> do_push_http2_qs(Config)
+	end.
+
+do_push_http(Path, Config) ->
+	doc("Ignore pushed responses when protocol is HTTP/1.1."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, Path, []),
+	{response, fin, 200, _} = gun:await(ConnPid, Ref),
+	ok.
+
+do_push_http2(Config) ->
+	doc("Pushed responses."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/resp/push", []),
+	%% We expect two pushed resources.
+	Origin = iolist_to_binary([
+		case config(type, Config) of
+			tcp -> "http";
+			ssl -> "https"
+		end,
+		"://localhost:",
+		integer_to_binary(config(port, Config))
+	]),
+	OriginLen = byte_size(Origin),
+	{push, PushCSS, <<"GET">>, <<Origin:OriginLen/binary, "/static/style.css">>,
+		[{<<"accept">>,<<"text/css">>}]} = gun:await(ConnPid, Ref),
+	{push, PushTXT, <<"GET">>, <<Origin:OriginLen/binary, "/static/plain.txt">>,
+		[{<<"accept">>,<<"text/plain">>}]} = gun:await(ConnPid, Ref),
+	%% Pushed CSS.
+	{response, nofin, 200, HeadersCSS} = gun:await(ConnPid, PushCSS),
+	{_, <<"text/css">>} = lists:keyfind(<<"content-type">>, 1, HeadersCSS),
+	{ok, <<"body{color:red}\n">>} = gun:await_body(ConnPid, PushCSS),
+	%% Pushed TXT is 406 because the pushed accept header uses an undefined type.
+	{response, fin, 406, _} = gun:await(ConnPid, PushTXT),
+	%% Let's not forget about the response to the client's request.
+	{response, fin, 200, _} = gun:await(ConnPid, Ref),
+	gun:close(ConnPid).
+
+do_push_http2_method(Config) ->
+	doc("Pushed response with non-GET method."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/resp/push/method", []),
+	%% Pushed CSS.
+	{push, PushCSS, <<"HEAD">>, _, [{<<"accept">>,<<"text/css">>}]} = gun:await(ConnPid, Ref),
+	{response, fin, 200, HeadersCSS} = gun:await(ConnPid, PushCSS),
+	{_, <<"text/css">>} = lists:keyfind(<<"content-type">>, 1, HeadersCSS),
+	%% Let's not forget about the response to the client's request.
+	{response, fin, 200, _} = gun:await(ConnPid, Ref),
+	gun:close(ConnPid).
+
+do_push_http2_origin(Config) ->
+	doc("Pushed response with custom scheme/host/port."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/resp/push/origin", []),
+	%% Pushed CSS.
+	{push, PushCSS, <<"GET">>, <<"ftp://127.0.0.1:21/static/style.css">>,
+		[{<<"accept">>,<<"text/css">>}]} = gun:await(ConnPid, Ref),
+	{response, nofin, 200, HeadersCSS} = gun:await(ConnPid, PushCSS),
+	{_, <<"text/css">>} = lists:keyfind(<<"content-type">>, 1, HeadersCSS),
+	{ok, <<"body{color:red}\n">>} = gun:await_body(ConnPid, PushCSS),
+	%% Let's not forget about the response to the client's request.
+	{response, fin, 200, _} = gun:await(ConnPid, Ref),
+	gun:close(ConnPid).
+
+do_push_http2_qs(Config) ->
+	doc("Pushed response with query string."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/resp/push/qs", []),
+	%% Pushed CSS.
+	Origin = iolist_to_binary([
+		case config(type, Config) of
+			tcp -> "http";
+			ssl -> "https"
+		end,
+		"://localhost:",
+		integer_to_binary(config(port, Config))
+	]),
+	OriginLen = byte_size(Origin),
+	{push, PushCSS, <<"GET">>, <<Origin:OriginLen/binary, "/static/style.css?server=cowboy&version=2.0">>,
+		[{<<"accept">>,<<"text/css">>}]} = gun:await(ConnPid, Ref),
+	{response, nofin, 200, HeadersCSS} = gun:await(ConnPid, PushCSS),
+	{_, <<"text/css">>} = lists:keyfind(<<"content-type">>, 1, HeadersCSS),
+	{ok, <<"body{color:red}\n">>} = gun:await_body(ConnPid, PushCSS),
+	%% Let's not forget about the response to the client's request.
+	{response, fin, 200, _} = gun:await(ConnPid, Ref),
+	gun:close(ConnPid).

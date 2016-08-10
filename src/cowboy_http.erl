@@ -111,8 +111,7 @@
 	%% The connection will be closed after this stream.
 	last_streamid = undefined :: pos_integer(),
 
-	%% Currently active HTTP/1.1 streams. Streams may be initiated either
-	%% by the client or by the server through PUSH_PROMISE frames.
+	%% Currently active HTTP/1.1 streams.
 	streams = [] :: [stream()],
 
 	%% Children which are in the process of shutting down.
@@ -202,7 +201,7 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 			loop(State, Buffer);
 		%% Unknown messages.
 		Msg ->
-			error_logger:error_msg("Received stray message ~p.", [Msg]),
+			error_logger:error_msg("Received stray message ~p.~n", [Msg]),
 			loop(State, Buffer)
 	%% @todo Configurable timeout. This should be a global inactivity timeout
 	%% that triggers when really nothing happens (ie something went really wrong).
@@ -502,6 +501,8 @@ parse_hd_value(<< $\r, $\n, Rest/bits >>, S, Headers0, Name, SoFar) ->
 	Value = clean_value_ws_end(SoFar, byte_size(SoFar) - 1),
 	Headers = case maps:get(Name, Headers0, undefined) of
 		undefined -> Headers0#{Name => Value};
+		%% The cookie header does not use proper HTTP header lists.
+		Value0 when Name =:= <<"cookie">> -> Headers0#{Name => << Value0/binary, "; ", Value/binary >>};
 		Value0 -> Headers0#{Name => << Value0/binary, ", ", Value/binary >>}
 	end,
 	parse_header(Rest, S, Headers);
@@ -741,7 +742,7 @@ down(State=#state{children=Children0}, Pid, Msg) ->
 		{value, {_, StreamID, _}, Children} ->
 			info(State#state{children=Children}, StreamID, Msg);
 		false ->
-			error_logger:error_msg("Received EXIT signal ~p for unknown process ~p.", [Msg, Pid]),
+			error_logger:error_msg("Received EXIT signal ~p for unknown process ~p.~n", [Msg, Pid]),
 			State
 	end.
 
@@ -762,15 +763,9 @@ info(State=#state{handler=Handler, streams=Streams0}, StreamID, Msg) ->
 %					'Exception occurred in StreamHandler:info/3 call.'})
 			end;
 		false ->
-			error_logger:error_msg("Received message ~p for unknown stream ~p.", [Msg, StreamID]),
+			error_logger:error_msg("Received message ~p for unknown stream ~p.~n", [Msg, StreamID]),
 			State
 	end.
-
-%% @todo commands/3
-%% @todo stream_reset
-
-
-
 
 %% Commands.
 
@@ -800,20 +795,19 @@ commands(State, StreamID, [{flow, _Length}|Tail]) ->
 	%% @todo Set the body reading length to min(Length, BodyLength)
 
 	commands(State, StreamID, Tail);
-%% @todo Probably a good idea to have an atomic response send (single send call for resp+body).
 %% Send a full response.
 %%
 %% @todo Kill the stream if it sent a response when one has already been sent.
 %% @todo Keep IsFin in the state.
 %% @todo Same two things above apply to DATA, possibly promise too.
-commands(State0=#state{socket=Socket, transport=Transport, streams=Streams}, StreamID,
+commands(State0=#state{socket=Socket, transport=Transport, out_state=wait, streams=Streams}, StreamID,
 		[{response, StatusCode, Headers0, Body}|Tail]) ->
 	%% @todo I'm pretty sure the last stream in the list is the one we want
 	%% considering all others are queued.
 	#stream{version=Version} = lists:keyfind(StreamID, #stream.id, Streams),
 	{State, Headers} = connection(State0, Headers0, StreamID, Version),
 	%% @todo Ensure content-length is set.
-	Response = cow_http:response(StatusCode, 'HTTP/1.1', maps:to_list(Headers)),
+	Response = cow_http:response(StatusCode, 'HTTP/1.1', headers_to_list(Headers)),
 	case Body of
 		{sendfile, O, B, P} ->
 			Transport:send(Socket, Response),
@@ -838,7 +832,7 @@ commands(State0=#state{socket=Socket, transport=Transport, streams=Streams}, Str
 			{State0#state{last_streamid=StreamID}, Headers0}
 	end,
 	{State, Headers} = connection(State1, Headers1, StreamID, Version),
-	Transport:send(Socket, cow_http:response(StatusCode, 'HTTP/1.1', maps:to_list(Headers))),
+	Transport:send(Socket, cow_http:response(StatusCode, 'HTTP/1.1', headers_to_list(Headers))),
 	commands(State#state{out_state=chunked}, StreamID, Tail);
 %% Send a response body chunk.
 %%
@@ -885,7 +879,17 @@ commands(State0=#state{ref=Ref, parent=Parent, socket=Socket, transport=Transpor
 commands(State, StreamID, [stop|Tail]) ->
 	%% @todo Do we want to run the commands after a stop?
 %	commands(stream_terminate(State, StreamID, stop), StreamID, Tail).
-	maybe_terminate(State, StreamID, Tail, fin).
+	maybe_terminate(State, StreamID, Tail, fin);
+%% HTTP/1.1 does not support push; ignore.
+commands(State, StreamID, [{push, _, _, _, _, _, _, _}|Tail]) ->
+	commands(State, StreamID, Tail).
+
+%% The set-cookie header is special; we can only send one cookie per header.
+headers_to_list(Headers0=#{<<"set-cookie">> := SetCookies}) ->
+	Headers1 = maps:to_list(maps:remove(<<"set-cookie">>, Headers0)),
+	Headers1 ++ [{<<"set-cookie">>, Value} || Value <- SetCookies];
+headers_to_list(Headers) ->
+	maps:to_list(Headers).
 
 flush() ->
 	receive _ -> flush() after 0 -> ok end.
@@ -1012,18 +1016,6 @@ error_terminate(StatusCode, State=#state{socket=Socket, transport=Transport}, Re
 
 terminate(_State, _Reason) ->
 	exit(normal). %% @todo
-
-
-
-
-
-
-
-
-
-
-
-
 
 %% System callbacks.
 

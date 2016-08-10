@@ -15,7 +15,7 @@ info(stream, Req, undefined) ->
 	stream(Req, 1, <<>>).
 
 stream(Req, ID, Acc) ->
-	case cowboy_req:body(Req) of
+	case cowboy_req:read_body(Req) of
 		{ok, <<>>, Req2} ->
 			{stop, cowboy_req:reply(200, Req2), undefined};
 		{_, Data, Req2} ->
