@@ -19,6 +19,7 @@
 -export([stop_listener/1]).
 -export([set_env/3]).
 
+%% @todo Detailed opts.
 -type opts() :: map().
 -export_type([opts/0]).
 

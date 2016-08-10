@@ -418,7 +418,9 @@ commands(State=#state{socket=Socket, transport=Transport}, Stream=#stream{id=Str
 		[{data, IsFin, Data}|Tail]) ->
 	Transport:send(Socket, cow_http2:data(StreamID, IsFin, Data)),
 	commands(State, Stream#stream{local=IsFin}, Tail);
+
 %% @todo data when local!=nofin
+
 %% Send a file.
 %%
 %% @todo This implementation is terrible. A good implementation would

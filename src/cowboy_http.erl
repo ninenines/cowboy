@@ -270,6 +270,7 @@ after_parse({request, Req=#{streamid := StreamID, headers := Headers, version :=
 		error_logger:error_msg("Exception occurred in ~s:init(~p, ~p, ~p) "
 			"with reason ~p:~p.",
 			[Handler, StreamID, Req, Opts, Class, Reason]),
+		%% @todo Bad value returned here. Crashes.
 		ok
 		%% @todo Status code.
 %		stream_reset(State, StreamID, {internal_error, {Class, Reason},
@@ -287,6 +288,7 @@ after_parse({data, StreamID, IsFin, Data, State=#state{handler=Handler,
 	catch Class:Reason ->
 		error_logger:error_msg("Exception occurred in ~s:data(~p, ~p, ~p, ~p) with reason ~p:~p.",
 			[Handler, StreamID, IsFin, Data, StreamState0, Class, Reason]),
+		%% @todo Bad value returned here. Crashes.
 		ok
 		%% @todo
 %		stream_reset(State, StreamID, {internal_error, {Class, Reason},
@@ -618,6 +620,9 @@ request(Buffer, State0=#state{ref=Ref, transport=Transport, peer=Peer, in_stream
 		scheme => Scheme,
 		host => Host,
 		port => Port,
+
+%% @todo So the path component needs to be normalized.
+
 		path => Path,
 		qs => Qs,
 		version => Version,
@@ -735,6 +740,11 @@ parse_body(Buffer, State=#state{in_streamid=StreamID, in_state=
 
 %% Message handling.
 
+%% @todo There is a difference in behavior between HTTP/1.1 and HTTP/2
+%% when an error or crash occurs after sending a 500 response. In HTTP/2
+%% the error will be printed, in HTTP/1.1 the error will be ignored.
+%% This is due to HTTP/1.1 disabling streams differently after both
+%% requests and responses have been sent.
 down(State=#state{children=Children0}, Pid, Msg) ->
 	case lists:keytake(Pid, 1, Children0) of
 		{value, {_, undefined, _}, Children} ->
@@ -837,8 +847,12 @@ commands(State0=#state{socket=Socket, transport=Transport, streams=Streams}, Str
 %% Send a response body chunk.
 %%
 %% @todo WINDOW_UPDATE stuff require us to buffer some data.
+%% @todo We probably want to allow Data to be the {sendfile, ...} tuple also.
 commands(State=#state{socket=Socket, transport=Transport, streams=Streams}, StreamID,
 		[{data, IsFin, Data}|Tail]) ->
+
+	%% @todo We need to kill the stream if it tries to send data before headers.
+
 	%% @todo Same as above.
 	case lists:keyfind(StreamID, #stream.id, Streams) of
 		#stream{version='HTTP/1.1'} ->
@@ -879,6 +893,9 @@ commands(State0=#state{ref=Ref, parent=Parent, socket=Socket, transport=Transpor
 commands(State, StreamID, [stop|Tail]) ->
 	%% @todo Do we want to run the commands after a stop?
 %	commands(stream_terminate(State, StreamID, stop), StreamID, Tail).
+
+	%% @todo I think that's where we need to terminate streams.
+
 	maybe_terminate(State, StreamID, Tail, fin);
 %% HTTP/1.1 does not support push; ignore.
 commands(State, StreamID, [{push, _, _, _, _, _, _, _}|Tail]) ->

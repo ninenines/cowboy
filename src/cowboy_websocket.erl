@@ -102,6 +102,7 @@ websocket_upgrade(State, Req) ->
 	-> {ok, #state{}, Req} when Req::cowboy_req:req().
 websocket_extensions(State, Req) ->
 	%% @todo We want different options for this. For example
+	%% @todo This should probably be configurable per handler, like timeout/hibernate.
 	%% * compress everything auto
 	%% * compress only text auto
 	%% * compress only binary auto

@@ -59,10 +59,12 @@
 -export([set_resp_cookie/3]).
 -export([set_resp_cookie/4]).
 -export([set_resp_header/3]).
+%% @todo set_resp_headers/2
 -export([has_resp_header/2]).
 %% @todo resp_header
 -export([delete_resp_header/2]).
 -export([set_resp_body/2]). %% @todo Use set_resp_body for iodata() | {sendfile ...}
+%% @todo set_resp_body/3 with a ContentType or even Headers argument, to set content headers.
 -export([has_resp_body/1]).
 -export([reply/2]).
 -export([reply/3]).
@@ -139,6 +141,7 @@ scheme(#{scheme := Scheme}) ->
 host(#{host := Host}) ->
 	Host.
 
+%% @todo The host_info is undefined if cowboy_router isn't used. Do we want to crash?
 -spec host_info(req()) -> cowboy_router:tokens() | undefined.
 host_info(#{host_info := HostInfo}) ->
 	HostInfo.
@@ -151,6 +154,7 @@ port(#{port := Port}) ->
 path(#{path := Path}) ->
 	Path.
 
+%% @todo The path_info is undefined if cowboy_router isn't used. Do we want to crash?
 -spec path_info(req()) -> cowboy_router:tokens() | undefined.
 path_info(#{path_info := PathInfo}) ->
 	PathInfo.
@@ -159,6 +163,7 @@ path_info(#{path_info := PathInfo}) ->
 qs(#{qs := Qs}) ->
 	Qs.
 
+%% @todo Might be useful to limit the number of keys.
 -spec parse_qs(req()) -> [{binary(), binary() | true}].
 parse_qs(#{qs := Qs}) ->
 	cow_qs:parse_qs(Qs).
@@ -333,6 +338,7 @@ parse_header(Name = <<"content-length">>, Req) ->
 	parse_header(Name, Req, 0, fun cow_http_hd:parse_content_length/1);
 parse_header(Name = <<"cookie">>, Req) ->
 	parse_header(Name, Req, [], fun cow_cookie:parse_cookie/1);
+%% @todo That header is abstracted out and should never reach cowboy_req.
 parse_header(Name = <<"transfer-encoding">>, Req) ->
 	parse_header(Name, Req, [<<"identity">>], fun cow_http_hd:parse_transfer_encoding/1);
 parse_header(Name, Req) ->
@@ -459,6 +465,8 @@ part(Buffer, Opts, Req=#{multipart := {Boundary, _}}) ->
 			{Data, Req2} = stream_multipart(Req, Opts),
 			part(<< Buffer2/binary, Data/binary >>, Opts, Req2);
 		{ok, Headers, Rest} ->
+			%% @todo We may want headers as a map. Need to check the
+			%% rules for multipart header parsing before taking a decision.
 			{ok, Headers, Req#{multipart => {Boundary, Rest}}};
 		%% Ignore epilogue.
 		{done, _} ->
@@ -529,6 +537,7 @@ set_resp_cookie(Name, Value, Req) ->
 %%
 %% The cookie value cannot contain any of the following characters:
 %%   ,; \t\r\n\013\014
+%% @todo Fix the cookie_opts() type.
 -spec set_resp_cookie(iodata(), iodata(), cookie_opts(), Req)
 	-> Req when Req::req().
 set_resp_cookie(Name, Value, Opts, Req) ->

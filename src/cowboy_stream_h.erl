@@ -152,6 +152,11 @@ report_crash(Ref, StreamID, Pid, Reason, Stacktrace) ->
 
 %% Request process.
 
+%% @todo This should wrap with try/catch to get the full error
+%% in the stream handler. Only then can we decide what to do
+%% about it. This means that we should remove any other try/catch
+%% in the request process.
+
 %% This hack is necessary because proc_lib does not propagate
 %% stacktraces by default. This is ugly because we end up
 %% having two try/catch instead of one (the one in proc_lib),
