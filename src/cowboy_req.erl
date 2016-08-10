@@ -94,6 +94,9 @@
 	| {sendfile, non_neg_integer(), pos_integer(), file:name_all()}.
 -export_type([resp_body/0]).
 
+-type push_opts() :: map(). %% @todo
+-export_type([push_opts/0]).
+
 -type req() :: map(). %% @todo #{
 %	ref := ranch:ref(),
 %	pid := pid(),
@@ -649,12 +652,14 @@ stream_body(Data, IsFin, #{pid := Pid, streamid := StreamID, has_sent_resp := he
 	Pid ! {{Pid, StreamID}, {data, IsFin, Data}},
 	ok.
 
+-spec push(binary(), cowboy:http_headers(), req()) -> ok.
 push(Path, Headers, Req) ->
 	push(Path, Headers, Req, #{}).
 
 %% @todo Optimization: don't send anything at all for HTTP/1.0 and HTTP/1.1.
 %% @todo Path, Headers, Opts, everything should be in proper binary,
 %% or normalized when creating the Req object.
+-spec push(binary(), cowboy:http_headers(), req(), push_opts()) -> ok.
 push(Path, Headers, #{pid := Pid, streamid := StreamID,
 		scheme := Scheme0, host := Host0, port := Port0}, Opts) ->
 	Method = maps:get(method, Opts, <<"GET">>),
