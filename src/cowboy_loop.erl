@@ -48,45 +48,20 @@
 	buffer_size = 0 :: non_neg_integer(),
 	max_buffer = 5000 :: non_neg_integer() | infinity,
 	timeout = infinity :: timeout(),
-	timeout_ref = undefined :: undefined | reference(),
-	resp_sent = false :: boolean()
+	timeout_ref = undefined :: undefined | reference()
 }).
 
 -spec upgrade(Req, Env, module(), any(), timeout(), run | hibernate)
 	-> {ok, Req, Env} | {suspend, module(), atom(), [any()]}
 	when Req::cowboy_req:req(), Env::cowboy_middleware:env().
-upgrade(Req, Env, Handler, HandlerState, Timeout, run) ->
-	State = #state{env=Env, max_buffer=get_max_buffer(Env), timeout=Timeout},
+upgrade(Req, Env, Handler, HandlerState, Timeout, Hibernate) ->
+	State = #state{env=Env, max_buffer=get_max_buffer(Env), timeout=Timeout,
+		hibernate=Hibernate =:= hibernate},
 	State2 = timeout(State),
-	after_call(Req, State2, Handler, HandlerState);
-upgrade(Req, Env, Handler, HandlerState, Timeout, hibernate) ->
-
-%	dbg:start(),
-%	dbg:tracer(),
-%	dbg:tpl(?MODULE, []),
-%	dbg:tpl(long_polling_h, []),
-%	dbg:tpl(loop_handler_body_h, []),
-%	dbg:tpl(cowboy_req, []),
-%	dbg:p(all, c),
-
-	State = #state{env=Env, max_buffer=get_max_buffer(Env), hibernate=true, timeout=Timeout},
-	State2 = timeout(State),
-	after_call(Req, State2, Handler, HandlerState).
+	before_loop(Req, State2, Handler, HandlerState).
 
 get_max_buffer(#{loop_max_buffer := MaxBuffer}) -> MaxBuffer;
 get_max_buffer(_) -> 5000.
-
-%% Update the state if the response was sent in the callback.
-after_call(Req, State=#state{resp_sent=false}, Handler,
-		HandlerState) ->
-	receive
-		{cowboy_req, resp_sent} ->
-			before_loop(Req, State#state{resp_sent=true}, Handler, HandlerState)
-	after 0 ->
-		before_loop(Req, State, Handler, HandlerState)
-	end;
-after_call(Req, State, Handler, HandlerState) ->
-	before_loop(Req, State, Handler, HandlerState).
 
 before_loop(Req, State=#state{hibernate=true}, Handler, HandlerState) ->
 
@@ -131,20 +106,16 @@ loop(Req, State=#state{timeout_ref=TRef}, Handler, HandlerState) ->
 			call(Req, State, Handler, HandlerState, Message)
 	end.
 
-call(Req, State=#state{resp_sent=RespSent},
-		Handler, HandlerState, Message) ->
+call(Req, State, Handler, HandlerState, Message) ->
 	try Handler:info(Message, Req, HandlerState) of
 		{ok, Req2, HandlerState2} ->
-			after_call(Req2, State, Handler, HandlerState2);
+			before_loop(Req2, State, Handler, HandlerState2);
 		{ok, Req2, HandlerState2, hibernate} ->
-			after_call(Req2, State#state{hibernate=true}, Handler, HandlerState2);
+			before_loop(Req2, State#state{hibernate=true}, Handler, HandlerState2);
 		{stop, Req2, HandlerState2} ->
 			terminate(Req2, State, Handler, HandlerState2, stop)
 	catch Class:Reason ->
 		Stacktrace = erlang:get_stacktrace(),
-		if RespSent -> ok; true ->
-			cowboy_req:maybe_reply(Stacktrace, Req)
-		end,
 		cowboy_handler:terminate({crash, Class, Reason}, Req, HandlerState, Handler),
 		exit({cowboy_handler, [
 			{class, Class},
