@@ -369,6 +369,11 @@ info(State=#state{handler=Handler, streams=Streams}, StreamID, Msg) ->
 
 commands(State, Stream, []) ->
 	after_commands(State, Stream);
+%% Error responses are sent only if a response wasn't sent already.
+commands(State, Stream=#stream{local=idle}, [{error_response, StatusCode, Headers, Body}|Tail]) ->
+	commands(State, Stream, [{response, StatusCode, Headers, Body}|Tail]);
+commands(State, Stream, [{error_response, _, _, _}|Tail]) ->
+	commands(State, Stream, Tail);
 %% Send response headers.
 %%
 %% @todo Kill the stream if it sent a response when one has already been sent.

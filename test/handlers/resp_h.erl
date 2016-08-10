@@ -18,38 +18,34 @@ do(<<"set_resp_cookie3">>, Req0, Opts) ->
 			Req1 = cowboy_req:set_resp_cookie(<<"mycookie">>, "myvalue", Req0),
 			cowboy_req:set_resp_cookie(<<"mycookie">>, <<"overwrite">>, Req1)
 	end,
-	cowboy_req:reply(200, #{}, "OK", Req),
-	{ok, Req, Opts};
+	{ok, cowboy_req:reply(200, #{}, "OK", Req), Opts};
 do(<<"set_resp_cookie4">>, Req0, Opts) ->
 	Req = cowboy_req:set_resp_cookie(<<"mycookie">>, "myvalue", #{path => cowboy_req:path(Req0)}, Req0),
-	cowboy_req:reply(200, #{}, "OK", Req),
-	{ok, Req, Opts};
+	{ok, cowboy_req:reply(200, #{}, "OK", Req), Opts};
 do(<<"set_resp_header">>, Req0, Opts) ->
 	Req = cowboy_req:set_resp_header(<<"content-type">>, <<"text/plain">>, Req0),
-	cowboy_req:reply(200, #{}, "OK", Req),
-	{ok, Req, Opts};
+	{ok, cowboy_req:reply(200, #{}, "OK", Req), Opts};
 do(<<"set_resp_body">>, Req0, Opts) ->
 	Arg = cowboy_req:binding(arg, Req0),
-	Req = case Arg of
+	Req1 = case Arg of
 		<<"sendfile">> ->
 			AppFile = code:where_is_file("cowboy.app"),
 			cowboy_req:set_resp_body({sendfile, 0, filelib:file_size(AppFile), AppFile}, Req0);
 		_ ->
 			cowboy_req:set_resp_body(<<"OK">>, Req0)
 	end,
-	case Arg of
+	Req = case Arg of
 		<<"override">> ->
-			cowboy_req:reply(200, #{}, <<"OVERRIDE">>, Req);
+			cowboy_req:reply(200, #{}, <<"OVERRIDE">>, Req1);
 		_ ->
-			cowboy_req:reply(200, Req)
+			cowboy_req:reply(200, Req1)
 	end,
 	{ok, Req, Opts};
 do(<<"has_resp_header">>, Req0, Opts) ->
 	false = cowboy_req:has_resp_header(<<"content-type">>, Req0),
 	Req = cowboy_req:set_resp_header(<<"content-type">>, <<"text/plain">>, Req0),
 	true = cowboy_req:has_resp_header(<<"content-type">>, Req),
-	cowboy_req:reply(200, #{}, "OK", Req),
-	{ok, Req, Opts};
+	{ok, cowboy_req:reply(200, #{}, "OK", Req), Opts};
 do(<<"has_resp_body">>, Req0, Opts) ->
 	case cowboy_req:binding(arg, Req0) of
 		<<"sendfile">> ->
@@ -57,14 +53,12 @@ do(<<"has_resp_body">>, Req0, Opts) ->
 			false = cowboy_req:has_resp_body(Req0),
 			Req = cowboy_req:set_resp_body({sendfile, 0, 10, code:where_is_file("cowboy.app")}, Req0),
 			true = cowboy_req:has_resp_body(Req),
-			cowboy_req:reply(200, #{}, <<"OK">>, Req),
-			{ok, Req, Opts};
+			{ok, cowboy_req:reply(200, #{}, <<"OK">>, Req), Opts};
 		undefined ->
 			false = cowboy_req:has_resp_body(Req0),
 			Req = cowboy_req:set_resp_body(<<"OK">>, Req0),
 			true = cowboy_req:has_resp_body(Req),
-			cowboy_req:reply(200, #{}, Req),
-			{ok, Req, Opts}
+			{ok, cowboy_req:reply(200, #{}, Req), Opts}
 	end;
 do(<<"delete_resp_header">>, Req0, Opts) ->
 	false = cowboy_req:has_resp_header(<<"content-type">>, Req0),
@@ -72,61 +66,61 @@ do(<<"delete_resp_header">>, Req0, Opts) ->
 	true = cowboy_req:has_resp_header(<<"content-type">>, Req1),
 	Req = cowboy_req:delete_resp_header(<<"content-type">>, Req1),
 	false = cowboy_req:has_resp_header(<<"content-type">>, Req),
-	cowboy_req:reply(200, #{}, "OK", Req),
-	{ok, Req, Opts};
-do(<<"reply2">>, Req, Opts) ->
-	case cowboy_req:binding(arg, Req) of
+	{ok, cowboy_req:reply(200, #{}, "OK", Req), Opts};
+do(<<"reply2">>, Req0, Opts) ->
+	Req = case cowboy_req:binding(arg, Req0) of
 		<<"binary">> ->
-			cowboy_req:reply(<<"200 GOOD">>, Req);
+			cowboy_req:reply(<<"200 GOOD">>, Req0);
 		<<"error">> ->
 			ct_helper:ignore(cowboy_req, reply, 4),
-			cowboy_req:reply(ok, Req);
+			cowboy_req:reply(ok, Req0);
 		<<"twice">> ->
-			cowboy_req:reply(200, Req),
-			cowboy_req:reply(200, Req);
+			ct_helper:ignore(cowboy_req, reply, 4),
+			Req1 = cowboy_req:reply(200, Req0),
+			cowboy_req:reply(200, Req1);
 		Status ->
-			cowboy_req:reply(binary_to_integer(Status), Req)
+			cowboy_req:reply(binary_to_integer(Status), Req0)
 	end,
 	{ok, Req, Opts};
-do(<<"reply3">>, Req, Opts) ->
-	case cowboy_req:binding(arg, Req) of
+do(<<"reply3">>, Req0, Opts) ->
+	Req = case cowboy_req:binding(arg, Req0) of
 		<<"error">> ->
 			ct_helper:ignore(cowboy_req, reply, 4),
-			cowboy_req:reply(200, ok, Req);
+			cowboy_req:reply(200, ok, Req0);
 		Status ->
 			cowboy_req:reply(binary_to_integer(Status),
-				#{<<"content-type">> => <<"text/plain">>}, Req)
+				#{<<"content-type">> => <<"text/plain">>}, Req0)
 	end,
 	{ok, Req, Opts};
-do(<<"reply4">>, Req, Opts) ->
-	case cowboy_req:binding(arg, Req) of
+do(<<"reply4">>, Req0, Opts) ->
+	Req = case cowboy_req:binding(arg, Req0) of
 		<<"error">> ->
 			ct_helper:ignore(erlang, iolist_size, 1),
-			cowboy_req:reply(200, #{}, ok, Req);
+			cowboy_req:reply(200, #{}, ok, Req0);
 		Status ->
-			cowboy_req:reply(binary_to_integer(Status), #{}, <<"OK">>, Req)
+			cowboy_req:reply(binary_to_integer(Status), #{}, <<"OK">>, Req0)
 	end,
 	{ok, Req, Opts};
-do(<<"stream_reply2">>, Req, Opts) ->
-	case cowboy_req:binding(arg, Req) of
+do(<<"stream_reply2">>, Req0, Opts) ->
+	Req = case cowboy_req:binding(arg, Req0) of
 		<<"binary">> ->
-			cowboy_req:stream_reply(<<"200 GOOD">>, Req);
+			cowboy_req:stream_reply(<<"200 GOOD">>, Req0);
 		<<"error">> ->
 			ct_helper:ignore(cowboy_req, stream_reply, 3),
-			cowboy_req:stream_reply(ok, Req);
+			cowboy_req:stream_reply(ok, Req0);
 		Status ->
-			cowboy_req:stream_reply(binary_to_integer(Status), Req)
+			cowboy_req:stream_reply(binary_to_integer(Status), Req0)
 	end,
 	stream_body(Req),
 	{ok, Req, Opts};
-do(<<"stream_reply3">>, Req, Opts) ->
-	case cowboy_req:binding(arg, Req) of
+do(<<"stream_reply3">>, Req0, Opts) ->
+	Req = case cowboy_req:binding(arg, Req0) of
 		<<"error">> ->
 			ct_helper:ignore(cowboy_req, stream_reply, 3),
-			cowboy_req:stream_reply(200, ok, Req);
+			cowboy_req:stream_reply(200, ok, Req0);
 		Status ->
 			cowboy_req:stream_reply(binary_to_integer(Status),
-				#{<<"content-type">> => <<"text/plain">>}, Req)
+				#{<<"content-type">> => <<"text/plain">>}, Req0)
 	end,
 	stream_body(Req),
 	{ok, Req, Opts};
@@ -150,8 +144,7 @@ do(<<"push">>, Req, Opts) ->
 			%% The text/plain mime is not defined by default, so a 406 will be returned.
 			cowboy_req:push("/static/plain.txt", #{<<"accept">> => <<"text/plain">>}, Req)
 	end,
-	cowboy_req:reply(200, Req),
-	{ok, Req, Opts}.
+	{ok, cowboy_req:reply(200, Req), Opts}.
 
 stream_body(Req) ->
 	_ = [cowboy_req:stream_body(<<0:800000>>, nofin, Req) || _ <- lists:seq(1,9)],

@@ -22,8 +22,7 @@ echo(<<"read_body">>, Req0, Opts) ->
 		<<"/opts", _/bits>> -> cowboy_req:read_body(Req0, Opts);
 		_ -> cowboy_req:read_body(Req0)
 	end,
-	cowboy_req:reply(200, #{}, Body, Req),
-	{ok, Req, Opts};
+	{ok, cowboy_req:reply(200, #{}, Body, Req), Opts};
 echo(<<"read_urlencoded_body">>, Req0, Opts) ->
 	Path = cowboy_req:path(Req0),
 	case {Path, Opts} of
@@ -36,8 +35,7 @@ echo(<<"read_urlencoded_body">>, Req0, Opts) ->
 		<<"/crash", _/bits>> -> cowboy_req:read_urlencoded_body(Req0, Opts);
 		_ -> cowboy_req:read_urlencoded_body(Req0)
 	end,
-	cowboy_req:reply(200, #{}, value_to_iodata(Body), Req),
-	{ok, Req, Opts};
+	{ok, cowboy_req:reply(200, #{}, value_to_iodata(Body), Req), Opts};
 echo(<<"uri">>, Req, Opts) ->
 	Value = case cowboy_req:path_info(Req) of
 		[<<"origin">>] -> cowboy_req:uri(Req, #{host => undefined});
@@ -47,8 +45,7 @@ echo(<<"uri">>, Req, Opts) ->
 		[<<"set-port">>] -> cowboy_req:uri(Req, #{port => 123});
 		[] -> cowboy_req:uri(Req)
 	end,
-	cowboy_req:reply(200, #{}, Value, Req),
-	{ok, Req, Opts};
+	{ok, cowboy_req:reply(200, #{}, Value, Req), Opts};
 echo(<<"match">>, Req, Opts) ->
 	[Type|Fields0] = cowboy_req:path_info(Req),
 	Fields = [binary_to_atom(F, latin1) || F <- Fields0],
@@ -56,13 +53,11 @@ echo(<<"match">>, Req, Opts) ->
 		<<"qs">> -> cowboy_req:match_qs(Fields, Req);
 		<<"cookies">> -> cowboy_req:match_cookies(Fields, Req)
 	end,
-	cowboy_req:reply(200, #{}, value_to_iodata(Value), Req),
-	{ok, Req, Opts};
+	{ok, cowboy_req:reply(200, #{}, value_to_iodata(Value), Req), Opts};
 echo(What, Req, Opts) ->
 	F = binary_to_atom(What, latin1),
 	Value = cowboy_req:F(Req),
-	cowboy_req:reply(200, #{}, value_to_iodata(Value), Req),
-	{ok, Req, Opts}.
+	{ok, cowboy_req:reply(200, #{}, value_to_iodata(Value), Req), Opts}.
 
 echo_arg(Arg0, Req, Opts) ->
 	F = binary_to_atom(cowboy_req:binding(key, Req), latin1),
@@ -74,8 +69,7 @@ echo_arg(Arg0, Req, Opts) ->
 		undefined -> cowboy_req:F(Arg, Req);
 		Default -> cowboy_req:F(Arg, Req, Default)
 	end,
-	cowboy_req:reply(200, #{}, value_to_iodata(Value), Req),
-	{ok, Req, Opts}.
+	{ok, cowboy_req:reply(200, #{}, value_to_iodata(Value), Req), Opts}.
 
 read_body(Req0, Acc) ->
 	case cowboy_req:read_body(Req0) of

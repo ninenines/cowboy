@@ -805,6 +805,11 @@ commands(State, StreamID, [{flow, _Length}|Tail]) ->
 	%% @todo Set the body reading length to min(Length, BodyLength)
 
 	commands(State, StreamID, Tail);
+%% Error responses are sent only if a response wasn't sent already.
+commands(State=#state{out_state=wait}, StreamID, [{error_response, StatusCode, Headers, Body}|Tail]) ->
+	commands(State, StreamID, [{response, StatusCode, Headers, Body}|Tail]);
+commands(State, StreamID, [{error_response, _, _, _}|Tail]) ->
+	commands(State, StreamID, Tail);
 %% Send a full response.
 %%
 %% @todo Kill the stream if it sent a response when one has already been sent.

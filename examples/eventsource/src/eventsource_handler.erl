@@ -6,10 +6,10 @@
 -export([init/2]).
 -export([info/3]).
 
-init(Req, Opts) ->
-	cowboy_req:stream_reply(200, #{
+init(Req0, Opts) ->
+	Req = cowboy_req:stream_reply(200, #{
 		<<"content-type">> => <<"text/event-stream">>
-	}, Req),
+	}, Req0),
 	erlang:send_after(1000, self(), {message, "Tick"}),
 	{cowboy_loop, Req, Opts, 5000}.
 

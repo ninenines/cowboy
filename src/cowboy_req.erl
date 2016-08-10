@@ -592,6 +592,8 @@ reply(Status, Headers, Req) ->
 
 -spec reply(cowboy:http_status(), cowboy:http_headers(), resp_body(), Req)
 	-> Req when Req::req().
+reply(_, _, _, #{has_sent_resp := _}) ->
+	error(function_clause);
 reply(Status, Headers, SendFile = {sendfile, _, Len, _}, Req)
 		when is_integer(Status); is_binary(Status) ->
 	do_reply(Status, Headers#{
@@ -608,10 +610,13 @@ reply(Status, Headers, Body, Req)
 %% data around if we can avoid it.
 do_reply(Status, Headers, _, Req=#{pid := Pid, streamid := StreamID, method := <<"HEAD">>}) ->
 	Pid ! {{Pid, StreamID}, {response, Status, response_headers(Headers, Req), <<>>}},
-	ok;
+	done_replying(Req, true);
 do_reply(Status, Headers, Body, Req=#{pid := Pid, streamid := StreamID}) ->
 	Pid ! {{Pid, StreamID}, {response, Status, response_headers(Headers, Req), Body}},
-	ok.
+	done_replying(Req, true).
+
+done_replying(Req, HasSentResp) ->
+	maps:without([resp_cookies, resp_headers, resp_body], Req#{has_sent_resp => HasSentResp}).
 
 -spec stream_reply(cowboy:http_status(), Req) -> Req when Req::req().
 stream_reply(Status, Req) ->
@@ -619,25 +624,28 @@ stream_reply(Status, Req) ->
 
 -spec stream_reply(cowboy:http_status(), cowboy:http_headers(), Req)
 	-> Req when Req::req().
+stream_reply(_, _, #{has_sent_resp := _}) ->
+	error(function_clause);
 stream_reply(Status, Headers=#{}, Req=#{pid := Pid, streamid := StreamID})
 		when is_integer(Status); is_binary(Status) ->
 	Pid ! {{Pid, StreamID}, {headers, Status, response_headers(Headers, Req)}},
-	ok.
+	done_replying(Req, headers).
 
 -spec stream_body(iodata(), fin | nofin, req()) -> ok.
+%% Error out if headers were not sent.
 %% Don't send any body for HEAD responses.
-stream_body(_, _, #{method := <<"HEAD">>}) ->
+stream_body(_, _, #{method := <<"HEAD">>, has_sent_resp := headers}) ->
 	ok;
 %% Don't send a message if the data is empty, except for the
 %% very last message with IsFin=fin.
-stream_body(Data, IsFin=nofin, #{pid := Pid, streamid := StreamID}) ->
+stream_body(Data, IsFin=nofin, #{pid := Pid, streamid := StreamID, has_sent_resp := headers}) ->
 	case iolist_size(Data) of
 		0 -> ok;
 		_ ->
 			Pid ! {{Pid, StreamID}, {data, IsFin, Data}},
 			ok
 	end;
-stream_body(Data, IsFin, #{pid := Pid, streamid := StreamID}) ->
+stream_body(Data, IsFin, #{pid := Pid, streamid := StreamID, has_sent_resp := headers}) ->
 	Pid ! {{Pid, StreamID}, {data, IsFin, Data}},
 	ok.
 

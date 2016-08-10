@@ -78,18 +78,18 @@ info(_StreamID, {'EXIT', Pid, normal}, State=#state{pid=Pid}) ->
 info(_StreamID, Exit = {'EXIT', Pid, {cowboy_handler, _}}, State=#state{pid=Pid}) ->
 	%% No crash report; one has already been sent.
 	{[
-		{response, 500, #{<<"content-length">> => <<"0">>}, <<>>},
+		{error_response, 500, #{<<"content-length">> => <<"0">>}, <<>>},
 		{internal_error, Exit, 'Stream process crashed.'}
 	], State};
 info(_StreamID, {'EXIT', Pid, {_Reason, [_, {cow_http_hd, _, _, _}|_]}}, State=#state{pid=Pid}) ->
 	%% @todo Have an option to enable/disable this specific crash report?
 	%%report_crash(Ref, StreamID, Pid, Reason, Stacktrace),
 	%% @todo Headers? Details in body? More stuff in debug only?
-	{[{response, 400, #{}, <<>>}, stop], State};
+	{[{error_response, 400, #{}, <<>>}, stop], State};
 info(StreamID, Exit = {'EXIT', Pid, {Reason, Stacktrace}}, State=#state{ref=Ref, pid=Pid}) ->
 	report_crash(Ref, StreamID, Pid, Reason, Stacktrace),
 	{[
-		{response, 500, #{<<"content-length">> => <<"0">>}, <<>>},
+		{error_response, 500, #{<<"content-length">> => <<"0">>}, <<>>},
 		{internal_error, Exit, 'Stream process crashed.'}
 	], State};
 %% Request body, no body buffer but IsFin=fin.

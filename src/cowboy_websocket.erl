@@ -79,8 +79,8 @@ upgrade(Req, Env, Handler, HandlerState, Timeout, Hibernate) ->
 			websocket_handshake(State2, Req2, HandlerState, Env)
 	catch _:_ ->
 		%% @todo Test that we can have 2 /ws 400 status code in a row on the same connection.
-		cowboy_req:reply(400, Req),
-		{ok, Req, Env}
+		%% @todo Does this even work?
+		{ok, cowboy_req:reply(400, Req), Env}
 	end.
 
 -spec websocket_upgrade(#state{}, Req)
