@@ -14,7 +14,7 @@ init(Req0, State) ->
 	{ok, cowboy_req:reply(200, #{}, term_to_binary(Result), Req), State}.
 
 acc_multipart(Req0, Acc) ->
-	case cowboy_req:part(Req0) of
+	case cowboy_req:read_part(Req0) of
 		{ok, Headers, Req1} ->
 			{ok, Body, Req} = stream_body(Req1, <<>>),
 			acc_multipart(Req, [{Headers, Body}|Acc]);
@@ -23,7 +23,7 @@ acc_multipart(Req0, Acc) ->
 	end.
 
 stream_body(Req0, Acc) ->
-	case cowboy_req:part_body(Req0) of
+	case cowboy_req:read_part_body(Req0) of
 		{more, Data, Req} ->
 			stream_body(Req, << Acc/binary, Data/binary >>);
 		{ok, Data, Req} ->
@@ -31,7 +31,7 @@ stream_body(Req0, Acc) ->
 	end.
 
 skip_body_multipart(Req0, Acc) ->
-	case cowboy_req:part(Req0) of
+	case cowboy_req:read_part(Req0) of
 		{ok, Headers, Req} ->
 			skip_body_multipart(Req, [Headers|Acc]);
 		{done, Req} ->
@@ -39,7 +39,7 @@ skip_body_multipart(Req0, Acc) ->
 	end.
 
 read_part2_multipart(Req0, Acc) ->
-	case cowboy_req:part(Req0, #{length => 1, period => 1}) of
+	case cowboy_req:read_part(Req0, #{length => 1, period => 1}) of
 		{ok, Headers, Req1} ->
 			{ok, Body, Req} = stream_body(Req1, <<>>),
 			acc_multipart(Req, [{Headers, Body}|Acc]);
@@ -48,7 +48,7 @@ read_part2_multipart(Req0, Acc) ->
 	end.
 
 read_part_body2_multipart(Req0, Acc) ->
-	case cowboy_req:part(Req0) of
+	case cowboy_req:read_part(Req0) of
 		{ok, Headers, Req1} ->
 			{ok, Body, Req} = stream_body2(Req1, <<>>),
 			acc_multipart(Req, [{Headers, Body}|Acc]);
@@ -57,7 +57,7 @@ read_part_body2_multipart(Req0, Acc) ->
 	end.
 
 stream_body2(Req0, Acc) ->
-	case cowboy_req:part_body(Req0, #{length => 1, period => 1}) of
+	case cowboy_req:read_part_body(Req0, #{length => 1, period => 1}) of
 		{more, Data, Req} ->
 			stream_body(Req, << Acc/binary, Data/binary >>);
 		{ok, Data, Req} ->

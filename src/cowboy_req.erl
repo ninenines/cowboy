@@ -50,10 +50,10 @@
 -export([read_urlencoded_body/2]).
 
 %% Multipart.
--export([part/1]). %% @todo read_part?
--export([part/2]). %% @todo read_part?
--export([part_body/1]). %% @todo read_part_body?
--export([part_body/2]). %% @todo read_part_body?
+-export([read_part/1]).
+-export([read_part/2]).
+-export([read_part_body/1]).
+-export([read_part_body/2]).
 
 %% Response.
 -export([set_resp_cookie/3]).
@@ -71,7 +71,9 @@
 -export([reply/4]).
 -export([stream_reply/2]).
 -export([stream_reply/3]).
+%% @todo stream_reply/2 (nofin)
 -export([stream_body/3]).
+%% @todo stream_event/2,3
 -export([push/3]).
 -export([push/4]).
 
@@ -438,32 +440,32 @@ read_urlencoded_body(Req0, Opts) ->
 
 %% Multipart.
 
--spec part(Req)
+-spec read_part(Req)
 	-> {ok, cow_multipart:headers(), Req} | {done, Req}
 	when Req::req().
-part(Req) ->
-	part(Req, #{length => 64000, period => 5000}).
+read_part(Req) ->
+	read_part(Req, #{length => 64000, period => 5000}).
 
--spec part(Req, body_opts())
+-spec read_part(Req, body_opts())
 	-> {ok, cow_multipart:headers(), Req} | {done, Req}
 	when Req::req().
-part(Req, Opts) ->
+read_part(Req, Opts) ->
 	case maps:is_key(multipart, Req) of
 		true ->
 			{Data, Req2} = stream_multipart(Req, Opts),
-			part(Data, Opts, Req2);
+			read_part(Data, Opts, Req2);
 		false ->
-			part(init_multipart(Req), Opts)
+			read_part(init_multipart(Req), Opts)
 	end.
 
-part(Buffer, Opts, Req=#{multipart := {Boundary, _}}) ->
+read_part(Buffer, Opts, Req=#{multipart := {Boundary, _}}) ->
 	case cow_multipart:parse_headers(Buffer, Boundary) of
 		more ->
 			{Data, Req2} = stream_multipart(Req, Opts),
-			part(<< Buffer/binary, Data/binary >>, Opts, Req2);
+			read_part(<< Buffer/binary, Data/binary >>, Opts, Req2);
 		{more, Buffer2} ->
 			{Data, Req2} = stream_multipart(Req, Opts),
-			part(<< Buffer2/binary, Data/binary >>, Opts, Req2);
+			read_part(<< Buffer2/binary, Data/binary >>, Opts, Req2);
 		{ok, Headers, Rest} ->
 			%% @todo We may want headers as a map. Need to check the
 			%% rules for multipart header parsing before taking a decision.
@@ -473,24 +475,24 @@ part(Buffer, Opts, Req=#{multipart := {Boundary, _}}) ->
 			{done, Req#{multipart => done}}
 	end.
 
--spec part_body(Req)
+-spec read_part_body(Req)
 	-> {ok, binary(), Req} | {more, binary(), Req}
 	when Req::req().
-part_body(Req) ->
-	part_body(Req, #{}).
+read_part_body(Req) ->
+	read_part_body(Req, #{}).
 
--spec part_body(Req, body_opts())
+-spec read_part_body(Req, body_opts())
 	-> {ok, binary(), Req} | {more, binary(), Req}
 	when Req::req().
-part_body(Req, Opts) ->
+read_part_body(Req, Opts) ->
 	case maps:is_key(multipart, Req) of
 		true ->
-			part_body(<<>>, Opts, Req, <<>>);
+			read_part_body(<<>>, Opts, Req, <<>>);
 		false ->
-			part_body(init_multipart(Req), Opts)
+			read_part_body(init_multipart(Req), Opts)
 	end.
 
-part_body(Buffer, Opts, Req=#{multipart := {Boundary, _}}, Acc) ->
+read_part_body(Buffer, Opts, Req=#{multipart := {Boundary, _}}, Acc) ->
 	Length = maps:get(length, Opts, 8000000),
 	case byte_size(Acc) > Length of
 		true ->
@@ -499,9 +501,9 @@ part_body(Buffer, Opts, Req=#{multipart := {Boundary, _}}, Acc) ->
 			{Data, Req2} = stream_multipart(Req, Opts),
 			case cow_multipart:parse_body(<< Buffer/binary, Data/binary >>, Boundary) of
 				{ok, Body} ->
-					part_body(<<>>, Opts, Req2, << Acc/binary, Body/binary >>);
+					read_part_body(<<>>, Opts, Req2, << Acc/binary, Body/binary >>);
 				{ok, Body, Rest} ->
-					part_body(Rest, Opts, Req2, << Acc/binary, Body/binary >>);
+					read_part_body(Rest, Opts, Req2, << Acc/binary, Body/binary >>);
 				done ->
 					{ok, Acc, Req2};
 				{done, Body} ->
