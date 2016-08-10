@@ -69,18 +69,6 @@ data(_StreamID, IsFin, Data, State=#state{pid=Pid, read_body_ref=Ref,
 -spec info(_,_,_) -> _.
 info(_StreamID, {'EXIT', Pid, normal}, State=#state{pid=Pid}) ->
 	{[stop], State};
-%% @todo Transition.
-%% In the future it would be better to simplify things
-%% and only catch this at the stream level.
-%%
-%% Maybe we don't need specific error messages
-%% for every single callbacks anymore?
-info(_StreamID, Exit = {'EXIT', Pid, {cowboy_handler, _}}, State=#state{pid=Pid}) ->
-	%% No crash report; one has already been sent.
-	{[
-		{error_response, 500, #{<<"content-length">> => <<"0">>}, <<>>},
-		{internal_error, Exit, 'Stream process crashed.'}
-	], State};
 info(_StreamID, {'EXIT', Pid, {_Reason, [_, {cow_http_hd, _, _, _}|_]}}, State=#state{pid=Pid}) ->
 	%% @todo Have an option to enable/disable this specific crash report?
 	%%report_crash(Ref, StreamID, Pid, Reason, Stacktrace),

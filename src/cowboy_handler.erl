@@ -36,7 +36,7 @@
 -spec execute(Req, Env) -> {ok, Req, Env}
 	when Req::cowboy_req:req(), Env::cowboy_middleware:env().
 execute(Req, Env=#{handler := Handler, handler_opts := HandlerOpts}) ->
-	case Handler:init(Req, HandlerOpts) of
+	try Handler:init(Req, HandlerOpts) of
 		{ok, Req2, State} ->
 			Result = terminate(normal, Req2, State, Handler),
 			{ok, Req2, [{result, Result}|Env]};
@@ -48,6 +48,9 @@ execute(Req, Env=#{handler := Handler, handler_opts := HandlerOpts}) ->
 			Mod:upgrade(Req2, Env, Handler, State, Timeout, run);
 		{Mod, Req2, State, Timeout, hibernate} ->
 			Mod:upgrade(Req2, Env, Handler, State, Timeout, hibernate)
+	catch Class:Reason ->
+		terminate({crash, Class, Reason}, Req, HandlerOpts, Handler),
+		erlang:raise(Class, Reason, erlang:get_stacktrace())
 	end.
 
 -spec terminate(any(), Req, any(), module()) -> ok when Req::cowboy_req:req().

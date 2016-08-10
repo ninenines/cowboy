@@ -369,15 +369,7 @@ handler_call(State=#state{handler=Handler}, Req, HandlerState,
 			websocket_close(State, Req2, HandlerState2, stop)
 	catch Class:Reason ->
 		_ = websocket_close(State, Req, HandlerState, {crash, Class, Reason}),
-		exit({cowboy_handler, [
-			{class, Class},
-			{reason, Reason},
-			{mfa, {Handler, Callback, 3}},
-			{stacktrace, erlang:get_stacktrace()},
-			{msg, Message},
-			{req, Req},
-			{state, HandlerState}
-		]})
+		erlang:raise(Class, Reason, erlang:get_stacktrace())
 	end.
 
 -spec websocket_send(cow_ws:frame(), #state{}) -> ok | stop | {error, atom()}.

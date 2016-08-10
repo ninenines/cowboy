@@ -115,16 +115,8 @@ call(Req, State, Handler, HandlerState, Message) ->
 		{stop, Req2, HandlerState2} ->
 			terminate(Req2, State, Handler, HandlerState2, stop)
 	catch Class:Reason ->
-		Stacktrace = erlang:get_stacktrace(),
 		cowboy_handler:terminate({crash, Class, Reason}, Req, HandlerState, Handler),
-		exit({cowboy_handler, [
-			{class, Class},
-			{reason, Reason},
-			{mfa, {Handler, info, 3}},
-			{stacktrace, Stacktrace},
-			{req, Req},
-			{state, HandlerState}
-		]})
+		erlang:raise(Class, Reason, erlang:get_stacktrace())
 	end.
 
 terminate(Req, #state{env=Env, timeout_ref=TRef},
