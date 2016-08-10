@@ -11,7 +11,7 @@ init(Req, Opts) ->
 multipart(Req) ->
 	case cowboy_req:read_part(Req) of
 		{ok, [{<<"content-length">>, BinLength}], Req2} ->
-			Length = list_to_integer(binary_to_list(BinLength)),
+			Length = binary_to_integer(BinLength),
 			{Length, Req3} = stream_body(Req2, 0),
 			multipart(Req3);
 		{done, Req2} ->

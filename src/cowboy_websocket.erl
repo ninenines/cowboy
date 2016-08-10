@@ -91,7 +91,7 @@ websocket_upgrade(State, Req) ->
 	%% @todo Should probably send a 426 if the Upgrade header is missing.
 	[<<"websocket">>] = cowboy_req:parse_header(<<"upgrade">>, Req),
 	Version = cowboy_req:header(<<"sec-websocket-version">>, Req),
-	IntVersion = list_to_integer(binary_to_list(Version)),
+	IntVersion = binary_to_integer(Version),
 	true = (IntVersion =:= 7) orelse (IntVersion =:= 8)
 		orelse (IntVersion =:= 13),
 	Key = cowboy_req:header(<<"sec-websocket-key">>, Req),

@@ -52,7 +52,7 @@ apply_constraint(Value, F) when is_function(F) ->
 %% Constraint functions.
 
 int(Value) when is_binary(Value) ->
-	try {true, list_to_integer(binary_to_list(Value))}
+	try {true, binary_to_integer(Value)}
 	catch _:_ -> false
 	end.
 
