@@ -6,10 +6,10 @@
 -export([init/2]).
 
 init(Req, Opts) ->
-	cowboy_req:chunked_reply(200, Req),
-	cowboy_req:chunk("Hello\r\n", Req),
+	cowboy_req:stream_reply(200, Req),
+	cowboy_req:stream_body("Hello\r\n", nofin, Req),
 	timer:sleep(1000),
-	cowboy_req:chunk("World\r\n", Req),
+	cowboy_req:stream_body("World\r\n", nofin, Req),
 	timer:sleep(1000),
-	cowboy_req:chunk("Chunked!\r\n", Req),
+	cowboy_req:stream_body("Chunked!\r\n", fin, Req),
 	{ok, Req, Opts}.

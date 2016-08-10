@@ -12,7 +12,7 @@ init(Req, Opts) ->
 	{ok, Req2, Opts}.
 
 maybe_echo(<<"POST">>, true, Req) ->
-	{ok, PostVals, Req2} = cowboy_req:body_qs(Req),
+	{ok, PostVals, Req2} = cowboy_req:read_urlencoded_body(Req),
 	Echo = proplists:get_value(<<"echo">>, PostVals),
 	echo(Echo, Req2),
 	Req2;

@@ -44,7 +44,7 @@ resource_exists(Req, _State) ->
 
 create_paste(Req, State) ->
 	PasteID = new_paste_id(),
-	{ok, [{<<"paste">>, Paste}], Req2} = cowboy_req:body_qs(Req),
+	{ok, [{<<"paste">>, Paste}], Req2} = cowboy_req:read_urlencoded_body(Req),
 	ok = file:write_file(full_path(PasteID), Paste),
 	case cowboy_req:method(Req2) of
 		<<"POST">> ->

@@ -7,14 +7,14 @@
 -export([info/3]).
 
 init(Req, Opts) ->
-	Req2 = cowboy_req:chunked_reply(200, #{
+	cowboy_req:stream_reply(200, #{
 		<<"content-type">> => <<"text/event-stream">>
 	}, Req),
 	erlang:send_after(1000, self(), {message, "Tick"}),
-	{cowboy_loop, Req2, Opts, 5000}.
+	{cowboy_loop, Req, Opts, 5000}.
 
 info({message, Msg}, Req, State) ->
-	cowboy_req:chunk(["id: ", id(), "\ndata: ", Msg, "\n\n"], Req),
+	cowboy_req:stream_body(["id: ", id(), "\ndata: ", Msg, "\n\n"], nofin, Req),
 	erlang:send_after(1000, self(), {message, "Tick"}),
 	{ok, Req, State}.
 
