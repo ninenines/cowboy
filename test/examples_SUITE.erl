@@ -393,12 +393,27 @@ websocket(_) ->
 			Msg1 ->
 				exit({connection_failed, Msg1})
 		end,
+		%% Check that we receive the message sent on timer on init.
+		receive
+			{gun_ws, Pid, {text, <<"Hello!">>}} ->
+				ok
+		after 2000 ->
+			exit(timeout)
+		end,
+		%% Check that we receive subsequent messages sent on timer.
+		receive
+			{gun_ws, Pid, {text, <<"How' you doin'?">>}} ->
+				ok
+		after 2000 ->
+			exit(timeout)
+		end,
+		%% Check that we receive the echoed message.
 		gun:ws_send(Pid, {text, <<"hello">>}),
 		receive
 			{gun_ws, Pid, {text, <<"That's what she said! hello">>}} ->
-				ok;
-			Msg2 ->
-				exit({receive_failed, Msg2})
+				ok
+		after 500 ->
+			exit(timeout)
 		end,
 		gun:ws_send(Pid, close)
 	after

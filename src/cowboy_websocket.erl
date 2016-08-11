@@ -32,6 +32,12 @@
 	| {module(), Req, any(), timeout()}
 	| {module(), Req, any(), timeout(), hibernate}
 	when Req::cowboy_req:req().
+
+-callback websocket_init(Req, State)
+	-> {ok, Req, State}
+	when Req::cowboy_req:req(), State::any().
+-optional_callbacks([websocket_init/2]).
+
 -callback websocket_handle({text | binary | ping | pong, binary()}, Req, State)
 	-> {ok, Req, State}
 	| {ok, Req, State, hibernate}
