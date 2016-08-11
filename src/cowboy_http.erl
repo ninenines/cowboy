@@ -555,7 +555,7 @@ request(Buffer, State=#state{transport=Transport, in_streamid=StreamID,
 		undefined ->
 			request(Buffer, State, Headers, <<>>, default_port(Transport:secure()));
 		RawHost ->
-			try parse_host(RawHost, false, <<>>) of
+			try cow_http_hd:parse_host(RawHost) of
 				{Host, undefined} ->
 					request(Buffer, State, Headers, Host, default_port(Transport:secure()));
 				{Host, Port} ->
@@ -569,20 +569,6 @@ request(Buffer, State=#state{transport=Transport, in_streamid=StreamID,
 -spec default_port(boolean()) -> 80 | 443.
 default_port(true) -> 443;
 default_port(_) -> 80.
-
-%% @todo Yeah probably just call the cowlib function.
-%% Same code as cow_http:parse_fullhost/1, but inline because we
-%% really want this to go fast.
-parse_host(<< $[, Rest/bits >>, false, <<>>) ->
-	parse_host(Rest, true, << $[ >>);
-parse_host(<<>>, false, Acc) ->
-	{Acc, undefined};
-parse_host(<< $:, Rest/bits >>, false, Acc) ->
-	{Acc, binary_to_integer(Rest)};
-parse_host(<< $], Rest/bits >>, true, Acc) ->
-	parse_host(Rest, false, << Acc/binary, $] >>);
-parse_host(<< C, Rest/bits >>, E, Acc) ->
-	?LOWER(parse_host, Rest, E, Acc).
 
 %% End of request parsing.
 
