@@ -167,6 +167,7 @@ echo_get(Config) ->
 
 do_echo_get(Transport, Protocol, Config) ->
 	{200, _, <<"this is fun">>} = do_get(Transport, Protocol, "/?echo=this+is+fun", Config),
+	{400, _, _} = do_get(Transport, Protocol, "/", Config),
 	ok.
 
 %% Echo POST.
