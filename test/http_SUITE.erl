@@ -945,7 +945,7 @@ do_body_to_chunks(ChunkSize, Body, Acc) ->
 		false -> ChunkSize
 	end,
 	<< Chunk:ChunkSize2/binary, Rest/binary >> = Body,
-	ChunkSizeBin = list_to_binary(integer_to_list(ChunkSize2, 16)),
+	ChunkSizeBin = integer_to_binary(ChunkSize2, 16),
 	do_body_to_chunks(ChunkSize, Rest,
 		[<< ChunkSizeBin/binary, "\r\n", Chunk/binary, "\r\n" >>|Acc]).
 

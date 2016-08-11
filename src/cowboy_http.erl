@@ -862,7 +862,7 @@ commands(State=#state{socket=Socket, transport=Transport, streams=Streams}, Stre
 	case lists:keyfind(StreamID, #stream.id, Streams) of
 		#stream{version='HTTP/1.1'} ->
 			Size = iolist_size(Data),
-			Transport:send(Socket, [integer_to_list(Size, 16), <<"\r\n">>, Data, <<"\r\n">>]);
+			Transport:send(Socket, [integer_to_binary(Size, 16), <<"\r\n">>, Data, <<"\r\n">>]);
 		#stream{version='HTTP/1.0'} ->
 			Transport:send(Socket, Data)
 	end,
