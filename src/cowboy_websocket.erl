@@ -215,14 +215,15 @@ handler_loop_timeout(State=#state{timeout=Timeout, timeout_ref=PrevRef}) ->
 	when Req::cowboy_req:req().
 handler_loop(State=#state{socket=Socket, messages={OK, Closed, Error},
 		timeout_ref=TRef}, Req, HandlerState, SoFar) ->
+        S = get_real_socket(Socket),
 	receive
-		{OK, Socket, Data} ->
+		{OK, S, Data} ->
 			State2 = handler_loop_timeout(State),
 			websocket_data(State2, Req, HandlerState,
 				<< SoFar/binary, Data/binary >>);
-		{Closed, Socket} ->
+		{Closed, S} ->
 			handler_terminate(State, Req, HandlerState, {error, closed});
-		{Error, Socket, Reason} ->
+		{Error, S, Reason} ->
 			handler_terminate(State, Req, HandlerState, {error, Reason});
 		{timeout, TRef, ?MODULE} ->
 			websocket_close(State, Req, HandlerState, timeout);
@@ -426,3 +427,10 @@ handler_terminate(#state{handler=Handler},
 		Req, HandlerState, Reason) ->
 	cowboy_handler:terminate(Reason, Req, HandlerState, Handler),
 	exit(normal).
+	
+	
+%% @private
+get_real_socket({proxy_socket, _, Socket, _, _, _, _, _, _}) -> Socket;
+get_real_socket(Socket) -> Socket.
+
+
