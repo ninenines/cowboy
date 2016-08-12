@@ -76,17 +76,18 @@
 -spec upgrade(Req, Env, module(), any(), timeout(), run | hibernate)
 	-> {ok, Req, Env}
 	when Req::cowboy_req:req(), Env::cowboy_middleware:env().
-upgrade(Req, Env, Handler, HandlerState, Timeout, Hibernate) ->
-	State = #state{handler=Handler, timeout=Timeout,
-		hibernate=Hibernate =:= hibernate},
-	%% @todo We need to fail if HTTP/2.
-	try websocket_upgrade(State, Req) of
-		{ok, State2, Req2} ->
-			websocket_handshake(State2, Req2, HandlerState, Env)
+%% @todo Immediately crash if a response has already been sent.
+%% @todo Error out if HTTP/2.
+upgrade(Req0, Env, Handler, HandlerState, Timeout, Hibernate) ->
+	try websocket_upgrade(#state{handler=Handler, timeout=Timeout,
+			hibernate=Hibernate =:= hibernate}, Req0) of
+		{ok, State, Req} ->
+			websocket_handshake(State, Req, HandlerState, Env)
 	catch _:_ ->
+		%% @todo Probably log something here?
 		%% @todo Test that we can have 2 /ws 400 status code in a row on the same connection.
 		%% @todo Does this even work?
-		{ok, cowboy_req:reply(400, Req), Env}
+		{ok, cowboy_req:reply(400, Req0), Env}
 	end.
 
 -spec websocket_upgrade(#state{}, Req)
@@ -106,46 +107,44 @@ websocket_upgrade(State, Req) ->
 
 -spec websocket_extensions(#state{}, Req)
 	-> {ok, #state{}, Req} when Req::cowboy_req:req().
-websocket_extensions(State, Req) ->
+websocket_extensions(State, Req=#{ref := Ref}) ->
 	%% @todo We want different options for this. For example
-	%% @todo This should probably be configurable per handler, like timeout/hibernate.
 	%% * compress everything auto
 	%% * compress only text auto
 	%% * compress only binary auto
 	%% * compress nothing auto (but still enabled it)
 	%% * disable compression
-	Compress = maps:get(websocket_compress, Req, false),
-	Req2 = Req#{websocket_compress => false},
-	case {Compress, cowboy_req:parse_header(<<"sec-websocket-extensions">>, Req2)} of
+	Compress = maps:get(websocket_compress, ranch:get_protocol_options(Ref), false),
+	case {Compress, cowboy_req:parse_header(<<"sec-websocket-extensions">>, Req)} of
 		{true, Extensions} when Extensions =/= undefined ->
-			websocket_extensions(State, Req2, Extensions, []);
+			websocket_extensions(State, Req, Extensions, []);
 		_ ->
-			{ok, State, Req2}
+			{ok, State, Req}
 	end.
 
 websocket_extensions(State, Req, [], []) ->
 	{ok, State, Req};
 websocket_extensions(State, Req, [], [<<", ">>|RespHeader]) ->
 	{ok, State, cowboy_req:set_resp_header(<<"sec-websocket-extensions">>, lists:reverse(RespHeader), Req)};
-websocket_extensions(State=#state{extensions=Extensions}, Req, [{<<"permessage-deflate">>, Params}|Tail], RespHeader) ->
+websocket_extensions(State=#state{extensions=Extensions}, Req=#{pid := Pid},
+		[{<<"permessage-deflate">>, Params}|Tail], RespHeader) ->
 	%% @todo Make deflate options configurable.
 	Opts = #{level => best_compression, mem_level => 8, strategy => default},
-	case cow_ws:negotiate_permessage_deflate(Params, Extensions, Opts) of
+	case cow_ws:negotiate_permessage_deflate(Params, Extensions, Opts#{owner => Pid}) of
 		{ok, RespExt, Extensions2} ->
-			Req2 = Req#{websocket_compress => true},
 			websocket_extensions(State#state{extensions=Extensions2},
-				Req2, Tail, [<<", ">>, RespExt|RespHeader]);
+				Req, Tail, [<<", ">>, RespExt|RespHeader]);
 		ignore ->
 			websocket_extensions(State, Req, Tail, RespHeader)
 	end;
-websocket_extensions(State=#state{extensions=Extensions}, Req, [{<<"x-webkit-deflate-frame">>, Params}|Tail], RespHeader) ->
+websocket_extensions(State=#state{extensions=Extensions}, Req=#{pid := Pid},
+		[{<<"x-webkit-deflate-frame">>, Params}|Tail], RespHeader) ->
 	%% @todo Make deflate options configurable.
 	Opts = #{level => best_compression, mem_level => 8, strategy => default},
-	case cow_ws:negotiate_x_webkit_deflate_frame(Params, Extensions, Opts) of
+	case cow_ws:negotiate_x_webkit_deflate_frame(Params, Extensions, Opts#{owner => Pid}) of
 		{ok, RespExt, Extensions2} ->
-			Req2 = cowboy_req:set_meta(websocket_compress, true, Req),
 			websocket_extensions(State#state{extensions=Extensions2},
-				Req2, Tail, [<<", ">>, RespExt|RespHeader]);
+				Req, Tail, [<<", ">>, RespExt|RespHeader]);
 		ignore ->
 			websocket_extensions(State, Req, Tail, RespHeader)
 	end;
