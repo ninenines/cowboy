@@ -19,7 +19,13 @@
 
 -export([upgrade/6]).
 -export([takeover/7]).
--export([handler_loop/4]).
+-export([handler_loop/3]).
+
+-type call_result(State) :: {ok, State}
+	| {ok, State, hibernate}
+	| {reply, cow_ws:frame() | [cow_ws:frame()], State}
+	| {reply, cow_ws:frame() | [cow_ws:frame()], State, hibernate}
+	| {stop, State}.
 
 -type terminate_reason() :: normal | stop | timeout
 	| remote | {remote, cow_ws:close_code(), binary()}
@@ -33,26 +39,18 @@
 	| {module(), Req, any(), timeout(), hibernate}
 	when Req::cowboy_req:req().
 
--callback websocket_init(Req, State)
-	-> {ok, Req, State}
-	when Req::cowboy_req:req(), State::any().
--optional_callbacks([websocket_init/2]).
+-callback websocket_init(State)
+	%% @todo Make that call_result/1.
+	-> {ok, State} when State::any().
+-optional_callbacks([websocket_init/1]).
 
--callback websocket_handle({text | binary | ping | pong, binary()}, Req, State)
-	-> {ok, Req, State}
-	| {ok, Req, State, hibernate}
-	| {reply, cow_ws:frame() | [cow_ws:frame()], Req, State}
-	| {reply, cow_ws:frame() | [cow_ws:frame()], Req, State, hibernate}
-	| {stop, Req, State}
-	when Req::cowboy_req:req(), State::any().
--callback websocket_info(any(), Req, State)
-	-> {ok, Req, State}
-	| {ok, Req, State, hibernate}
-	| {reply, cow_ws:frame() | [cow_ws:frame()], Req, State}
-	| {reply, cow_ws:frame() | [cow_ws:frame()], Req, State, hibernate}
-	| {stop, Req, State}
-	when Req::cowboy_req:req(), State::any().
+-callback websocket_handle({text | binary | ping | pong, binary()}, State)
+	-> call_result(State) when State::any().
+-callback websocket_info(any(), State)
+	-> call_result(State) when State::any().
 
+%% @todo OK this I am not sure what to do about it. We don't have a Req anymore.
+%% We probably should have a websocket_terminate instead.
 -callback terminate(any(), cowboy_req:req(), any()) -> ok.
 -optional_callbacks([terminate/3]).
 
@@ -163,41 +161,40 @@ websocket_handshake(State=#state{key=Key},
 		<<"upgrade">> => <<"websocket">>,
 		<<"sec-websocket-accept">> => Challenge
 	}, Req),
-	Pid ! {{Pid, StreamID}, {switch_protocol, Headers, ?MODULE, {Req, State, HandlerState}}},
+	Pid ! {{Pid, StreamID}, {switch_protocol, Headers, ?MODULE, {State, HandlerState}}},
 	{ok, Req, Env}.
 
 %% Connection process.
 
 %% @todo Keep parent and handle system messages.
 -spec takeover(pid(), ranch:ref(), inet:socket(), module(), any(), binary(),
-	{cowboy_req:req(), #state{}, any()}) -> ok.
+	{#state{}, any()}) -> ok.
 takeover(_Parent, Ref, Socket, Transport, _Opts, Buffer,
-		{Req0, State=#state{handler=Handler}, HandlerState0}) ->
+		{State=#state{handler=Handler}, HandlerState0}) ->
 	ranch:remove_connection(Ref),
-	%% @todo Remove Req from Websocket callbacks.
 	%% @todo Allow sending a reply from websocket_init.
 	%% @todo Try/catch.
-	{ok, Req, HandlerState} = case erlang:function_exported(Handler, websocket_init, 2) of
-		true -> Handler:websocket_init(Req0, HandlerState0);
-		false -> {ok, Req0, HandlerState0}
+	{ok, HandlerState} = case erlang:function_exported(Handler, websocket_init, 1) of
+		true -> Handler:websocket_init(HandlerState0);
+		false -> {ok, HandlerState0}
 	end,
 	State2 = handler_loop_timeout(State#state{socket=Socket, transport=Transport}),
 	handler_before_loop(State2#state{key=undefined,
-		messages=Transport:messages()}, Req, HandlerState, Buffer).
+		messages=Transport:messages()}, HandlerState, Buffer).
 
--spec handler_before_loop(#state{}, Req, any(), binary())
-	-> {ok, Req, cowboy_middleware:env()}
-	when Req::cowboy_req:req().
+-spec handler_before_loop(#state{}, any(), binary())
+%% @todo Yeah not env.
+	-> {ok, cowboy_middleware:env()}.
 handler_before_loop(State=#state{
 			socket=Socket, transport=Transport, hibernate=true},
-		Req, HandlerState, SoFar) ->
+		HandlerState, SoFar) ->
 	Transport:setopts(Socket, [{active, once}]),
 	proc_lib:hibernate(?MODULE, handler_loop,
-		[State#state{hibernate=false}, Req, HandlerState, SoFar]);
+		[State#state{hibernate=false}, HandlerState, SoFar]);
 handler_before_loop(State=#state{socket=Socket, transport=Transport},
-		Req, HandlerState, SoFar) ->
+		HandlerState, SoFar) ->
 	Transport:setopts(Socket, [{active, once}]),
-	handler_loop(State, Req, HandlerState, SoFar).
+	handler_loop(State, HandlerState, SoFar).
 
 -spec handler_loop_timeout(#state{}) -> #state{}.
 handler_loop_timeout(State=#state{timeout=infinity}) ->
@@ -208,171 +205,168 @@ handler_loop_timeout(State=#state{timeout=Timeout, timeout_ref=PrevRef}) ->
 	TRef = erlang:start_timer(Timeout, self(), ?MODULE),
 	State#state{timeout_ref=TRef}.
 
--spec handler_loop(#state{}, Req, any(), binary())
-	-> {ok, Req, cowboy_middleware:env()}
-	when Req::cowboy_req:req().
+-spec handler_loop(#state{}, any(), binary())
+	-> {ok, cowboy_middleware:env()}.
 handler_loop(State=#state{socket=Socket, messages={OK, Closed, Error},
-		timeout_ref=TRef}, Req, HandlerState, SoFar) ->
+		timeout_ref=TRef}, HandlerState, SoFar) ->
 	receive
 		{OK, Socket, Data} ->
 			State2 = handler_loop_timeout(State),
-			websocket_data(State2, Req, HandlerState,
+			websocket_data(State2, HandlerState,
 				<< SoFar/binary, Data/binary >>);
 		{Closed, Socket} ->
-			handler_terminate(State, Req, HandlerState, {error, closed});
+			handler_terminate(State, HandlerState, {error, closed});
 		{Error, Socket, Reason} ->
-			handler_terminate(State, Req, HandlerState, {error, Reason});
+			handler_terminate(State, HandlerState, {error, Reason});
 		{timeout, TRef, ?MODULE} ->
-			websocket_close(State, Req, HandlerState, timeout);
+			websocket_close(State, HandlerState, timeout);
 		{timeout, OlderTRef, ?MODULE} when is_reference(OlderTRef) ->
-			handler_loop(State, Req, HandlerState, SoFar);
+			handler_loop(State, HandlerState, SoFar);
 		Message ->
-			handler_call(State, Req, HandlerState,
-				SoFar, websocket_info, Message, fun handler_before_loop/4)
+			handler_call(State, HandlerState,
+				SoFar, websocket_info, Message, fun handler_before_loop/3)
 	end.
 
--spec websocket_data(#state{}, Req, any(), binary())
-	-> {ok, Req, cowboy_middleware:env()}
-	when Req::cowboy_req:req().
-websocket_data(State=#state{frag_state=FragState, extensions=Extensions}, Req, HandlerState, Data) ->
+-spec websocket_data(#state{}, any(), binary())
+	-> {ok, cowboy_middleware:env()}.
+websocket_data(State=#state{frag_state=FragState, extensions=Extensions}, HandlerState, Data) ->
 	case cow_ws:parse_header(Data, Extensions, FragState) of
 		%% All frames sent from the client to the server are masked.
 		{_, _, _, _, undefined, _} ->
-			websocket_close(State, Req, HandlerState, {error, badframe});
+			websocket_close(State, HandlerState, {error, badframe});
 		{Type, FragState2, Rsv, Len, MaskKey, Rest} ->
-			websocket_payload(State#state{frag_state=FragState2}, Req, HandlerState, Type, Len, MaskKey, Rsv, undefined, <<>>, 0, Rest);
+			websocket_payload(State#state{frag_state=FragState2}, HandlerState, Type, Len, MaskKey, Rsv, undefined, <<>>, 0, Rest);
 		more ->
-			handler_before_loop(State, Req, HandlerState, Data);
+			handler_before_loop(State, HandlerState, Data);
 		error ->
-			websocket_close(State, Req, HandlerState, {error, badframe})
+			websocket_close(State, HandlerState, {error, badframe})
 	end.
 
 websocket_payload(State=#state{frag_state=FragState, utf8_state=Incomplete, extensions=Extensions},
-		Req, HandlerState, Type, Len, MaskKey, Rsv, CloseCode, Unmasked, UnmaskedLen, Data) ->
+		HandlerState, Type, Len, MaskKey, Rsv, CloseCode, Unmasked, UnmaskedLen, Data) ->
 	case cow_ws:parse_payload(Data, MaskKey, Incomplete, UnmaskedLen, Type, Len, FragState, Extensions, Rsv) of
 		{ok, CloseCode2, Payload, Utf8State, Rest} ->
 			websocket_dispatch(State#state{utf8_state=Utf8State},
-				Req, HandlerState, Type, << Unmasked/binary, Payload/binary >>, CloseCode2, Rest);
+				HandlerState, Type, << Unmasked/binary, Payload/binary >>, CloseCode2, Rest);
 		{ok, Payload, Utf8State, Rest} ->
 			websocket_dispatch(State#state{utf8_state=Utf8State},
-				Req, HandlerState, Type, << Unmasked/binary, Payload/binary >>, CloseCode, Rest);
+				HandlerState, Type, << Unmasked/binary, Payload/binary >>, CloseCode, Rest);
 		{more, CloseCode2, Payload, Utf8State} ->
 			websocket_payload_loop(State#state{utf8_state=Utf8State},
-				Req, HandlerState, Type, Len - byte_size(Data), MaskKey, Rsv, CloseCode2,
+				HandlerState, Type, Len - byte_size(Data), MaskKey, Rsv, CloseCode2,
 				<< Unmasked/binary, Payload/binary >>, UnmaskedLen + byte_size(Data));
 		{more, Payload, Utf8State} ->
 			websocket_payload_loop(State#state{utf8_state=Utf8State},
-				Req, HandlerState, Type, Len - byte_size(Data), MaskKey, Rsv, CloseCode,
+				HandlerState, Type, Len - byte_size(Data), MaskKey, Rsv, CloseCode,
 				<< Unmasked/binary, Payload/binary >>, UnmaskedLen + byte_size(Data));
 		Error = {error, _Reason} ->
-			websocket_close(State, Req, HandlerState, Error)
+			websocket_close(State, HandlerState, Error)
 	end.
 
 websocket_payload_loop(State=#state{socket=Socket, transport=Transport,
 		messages={OK, Closed, Error}, timeout_ref=TRef},
-		Req, HandlerState, Type, Len, MaskKey, Rsv, CloseCode, Unmasked, UnmaskedLen) ->
+		HandlerState, Type, Len, MaskKey, Rsv, CloseCode, Unmasked, UnmaskedLen) ->
 	Transport:setopts(Socket, [{active, once}]),
 	receive
 		{OK, Socket, Data} ->
 			State2 = handler_loop_timeout(State),
-			websocket_payload(State2, Req, HandlerState,
+			websocket_payload(State2, HandlerState,
 				Type, Len, MaskKey, Rsv, CloseCode, Unmasked, UnmaskedLen, Data);
 		{Closed, Socket} ->
-			handler_terminate(State, Req, HandlerState, {error, closed});
+			handler_terminate(State, HandlerState, {error, closed});
 		{Error, Socket, Reason} ->
-			handler_terminate(State, Req, HandlerState, {error, Reason});
+			handler_terminate(State, HandlerState, {error, Reason});
 		{timeout, TRef, ?MODULE} ->
-			websocket_close(State, Req, HandlerState, timeout);
+			websocket_close(State, HandlerState, timeout);
 		{timeout, OlderTRef, ?MODULE} when is_reference(OlderTRef) ->
-			websocket_payload_loop(State, Req, HandlerState,
+			websocket_payload_loop(State, HandlerState,
 				Type, Len, MaskKey, Rsv, CloseCode, Unmasked, UnmaskedLen);
 		Message ->
-			handler_call(State, Req, HandlerState,
+			handler_call(State, HandlerState,
 				<<>>, websocket_info, Message,
-				fun (State2, Req2, HandlerState2, _) ->
-					websocket_payload_loop(State2, Req2, HandlerState2,
+				fun (State2, HandlerState2, _) ->
+					websocket_payload_loop(State2, HandlerState2,
 						Type, Len, MaskKey, Rsv, CloseCode, Unmasked, UnmaskedLen)
 				end)
 	end.
 
 websocket_dispatch(State=#state{socket=Socket, transport=Transport, frag_state=FragState, frag_buffer=SoFar, extensions=Extensions},
-		Req, HandlerState, Type0, Payload0, CloseCode0, RemainingData) ->
+		HandlerState, Type0, Payload0, CloseCode0, RemainingData) ->
 	case cow_ws:make_frame(Type0, Payload0, CloseCode0, FragState) of
 		%% @todo Allow receiving fragments.
 		{fragment, nofin, _, Payload} ->
-			websocket_data(State#state{frag_buffer= << SoFar/binary, Payload/binary >>}, Req, HandlerState, RemainingData);
+			websocket_data(State#state{frag_buffer= << SoFar/binary, Payload/binary >>}, HandlerState, RemainingData);
 		{fragment, fin, Type, Payload} ->
-			handler_call(State#state{frag_state=undefined, frag_buffer= <<>>}, Req, HandlerState, RemainingData,
-				websocket_handle, {Type, << SoFar/binary, Payload/binary >>}, fun websocket_data/4);
+			handler_call(State#state{frag_state=undefined, frag_buffer= <<>>}, HandlerState, RemainingData,
+				websocket_handle, {Type, << SoFar/binary, Payload/binary >>}, fun websocket_data/3);
 		close ->
-			websocket_close(State, Req, HandlerState, remote);
+			websocket_close(State, HandlerState, remote);
 		{close, CloseCode, Payload} ->
-			websocket_close(State, Req, HandlerState, {remote, CloseCode, Payload});
+			websocket_close(State, HandlerState, {remote, CloseCode, Payload});
 		Frame = ping ->
 			Transport:send(Socket, cow_ws:frame(pong, Extensions)),
-			handler_call(State, Req, HandlerState, RemainingData, websocket_handle, Frame, fun websocket_data/4);
+			handler_call(State, HandlerState, RemainingData, websocket_handle, Frame, fun websocket_data/3);
 		Frame = {ping, Payload} ->
 			Transport:send(Socket, cow_ws:frame({pong, Payload}, Extensions)),
-			handler_call(State, Req, HandlerState, RemainingData, websocket_handle, Frame, fun websocket_data/4);
+			handler_call(State, HandlerState, RemainingData, websocket_handle, Frame, fun websocket_data/3);
 		Frame ->
-			handler_call(State, Req, HandlerState, RemainingData, websocket_handle, Frame, fun websocket_data/4)
+			handler_call(State, HandlerState, RemainingData, websocket_handle, Frame, fun websocket_data/3)
 	end.
 
--spec handler_call(#state{}, Req, any(), binary(), atom(), any(), fun())
-	-> {ok, Req, cowboy_middleware:env()}
-	when Req::cowboy_req:req().
-handler_call(State=#state{handler=Handler}, Req, HandlerState,
+-spec handler_call(#state{}, any(), binary(), atom(), any(), fun())
+	-> {ok, cowboy_middleware:env()}.
+handler_call(State=#state{handler=Handler}, HandlerState,
 		RemainingData, Callback, Message, NextState) ->
-	try Handler:Callback(Message, Req, HandlerState) of
-		{ok, Req2, HandlerState2} ->
-			NextState(State, Req2, HandlerState2, RemainingData);
-		{ok, Req2, HandlerState2, hibernate} ->
+	try Handler:Callback(Message, HandlerState) of
+		{ok, HandlerState2} ->
+			NextState(State, HandlerState2, RemainingData);
+		{ok, HandlerState2, hibernate} ->
 			NextState(State#state{hibernate=true},
-				Req2, HandlerState2, RemainingData);
-		{reply, Payload, Req2, HandlerState2}
+				HandlerState2, RemainingData);
+		{reply, Payload, HandlerState2}
 				when is_list(Payload) ->
 			case websocket_send_many(Payload, State) of
 				ok ->
-					NextState(State, Req2, HandlerState2, RemainingData);
+					NextState(State, HandlerState2, RemainingData);
 				stop ->
-					handler_terminate(State, Req2, HandlerState2, stop);
+					handler_terminate(State, HandlerState2, stop);
 				Error = {error, _} ->
-					handler_terminate(State, Req2, HandlerState2, Error)
+					handler_terminate(State, HandlerState2, Error)
 			end;
-		{reply, Payload, Req2, HandlerState2, hibernate}
+		{reply, Payload, HandlerState2, hibernate}
 				when is_list(Payload) ->
 			case websocket_send_many(Payload, State) of
 				ok ->
 					NextState(State#state{hibernate=true},
-						Req2, HandlerState2, RemainingData);
+						HandlerState2, RemainingData);
 				stop ->
-					handler_terminate(State, Req2, HandlerState2, stop);
+					handler_terminate(State, HandlerState2, stop);
 				Error = {error, _} ->
-					handler_terminate(State, Req2, HandlerState2, Error)
+					handler_terminate(State, HandlerState2, Error)
 			end;
-		{reply, Payload, Req2, HandlerState2} ->
+		{reply, Payload, HandlerState2} ->
 			case websocket_send(Payload, State) of
 				ok ->
-					NextState(State, Req2, HandlerState2, RemainingData);
+					NextState(State, HandlerState2, RemainingData);
 				stop ->
-					handler_terminate(State, Req2, HandlerState2, stop);
+					handler_terminate(State, HandlerState2, stop);
 				Error = {error, _} ->
-					handler_terminate(State, Req2, HandlerState2, Error)
+					handler_terminate(State, HandlerState2, Error)
 			end;
-		{reply, Payload, Req2, HandlerState2, hibernate} ->
+		{reply, Payload, HandlerState2, hibernate} ->
 			case websocket_send(Payload, State) of
 				ok ->
 					NextState(State#state{hibernate=true},
-						Req2, HandlerState2, RemainingData);
+						HandlerState2, RemainingData);
 				stop ->
-					handler_terminate(State, Req2, HandlerState2, stop);
+					handler_terminate(State, HandlerState2, stop);
 				Error = {error, _} ->
-					handler_terminate(State, Req2, HandlerState2, Error)
+					handler_terminate(State, HandlerState2, Error)
 			end;
-		{stop, Req2, HandlerState2} ->
-			websocket_close(State, Req2, HandlerState2, stop)
+		{stop, HandlerState2} ->
+			websocket_close(State, HandlerState2, stop)
 	catch Class:Reason ->
-		_ = websocket_close(State, Req, HandlerState, {crash, Class, Reason}),
+		_ = websocket_close(State, HandlerState, {crash, Class, Reason}),
 		erlang:raise(Class, Reason, erlang:get_stacktrace())
 	end.
 
@@ -396,11 +390,10 @@ websocket_send_many([Frame|Tail], State) ->
 		Error -> Error
 	end.
 
--spec websocket_close(#state{}, Req, any(), terminate_reason())
-	-> {ok, Req, cowboy_middleware:env()}
-	when Req::cowboy_req:req().
+-spec websocket_close(#state{}, any(), terminate_reason())
+	-> {ok, cowboy_middleware:env()}.
 websocket_close(State=#state{socket=Socket, transport=Transport, extensions=Extensions},
-		Req, HandlerState, Reason) ->
+		HandlerState, Reason) ->
 	case Reason of
 		Normal when Normal =:= stop; Normal =:= timeout ->
 			Transport:send(Socket, cow_ws:frame({close, 1000, <<>>}, Extensions));
@@ -415,12 +408,11 @@ websocket_close(State=#state{socket=Socket, transport=Transport, extensions=Exte
 		{remote, Code, _} ->
 			Transport:send(Socket, cow_ws:frame({close, Code, <<>>}, Extensions))
 	end,
-	handler_terminate(State, Req, HandlerState, Reason).
+	handler_terminate(State, HandlerState, Reason).
 
--spec handler_terminate(#state{}, Req, any(), terminate_reason())
-	-> {ok, Req, cowboy_middleware:env()}
-	when Req::cowboy_req:req().
+-spec handler_terminate(#state{}, any(), terminate_reason())
+	-> {ok, cowboy_middleware:env()}.
 handler_terminate(#state{handler=Handler},
-		Req, HandlerState, Reason) ->
-	cowboy_handler:terminate(Reason, Req, HandlerState, Handler),
+		HandlerState, Reason) ->
+	cowboy_handler:terminate(Reason, undefined, HandlerState, Handler),
 	exit(normal).
