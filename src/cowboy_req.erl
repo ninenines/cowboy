@@ -676,6 +676,7 @@ push(Path, Headers, #{pid := Pid, streamid := StreamID,
 %% Internal.
 
 %% @todo What about set-cookie headers set through set_resp_header or reply?
+-spec response_headers(Headers, req()) -> Headers when Headers::cowboy:http_headers().
 response_headers(Headers0, Req) ->
 	RespHeaders = maps:get(resp_headers, Req, #{}),
 	Headers = maps:merge(#{
