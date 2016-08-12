@@ -158,12 +158,11 @@ websocket_handshake(State=#state{key=Key},
 		Req=#{pid := Pid, streamid := StreamID}, HandlerState, Env) ->
 	Challenge = base64:encode(crypto:hash(sha,
 		<< Key/binary, "258EAFA5-E914-47DA-95CA-C5AB0DC85B11" >>)),
-	Headers = #{
-		%% @todo Hmm should those be here or in cowboy_http?
+	Headers = cowboy_req:response_headers(#{
 		<<"connection">> => <<"Upgrade">>,
 		<<"upgrade">> => <<"websocket">>,
 		<<"sec-websocket-accept">> => Challenge
-	},
+	}, Req),
 	Pid ! {{Pid, StreamID}, {switch_protocol, Headers, ?MODULE, {Req, State, HandlerState}}},
 	{ok, Req, Env}.
 

@@ -77,6 +77,9 @@
 -export([push/3]).
 -export([push/4]).
 
+%% Internal.
+-export([response_headers/2]).
+
 -type cookie_opts() :: cow_cookie:cookie_opts().
 -export_type([cookie_opts/0]).
 
