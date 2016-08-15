@@ -384,6 +384,7 @@ websocket_send(Frame, #state{socket=Socket, transport=Transport, extensions=Exte
 websocket_send_many([], _) ->
 	ok;
 websocket_send_many([Frame|Tail], State) ->
+	%% @todo Send the frames all in one larger TCP packet rather than potentially many small.
 	case websocket_send(Frame, State) of
 		ok -> websocket_send_many(Tail, State);
 		stop -> stop;
