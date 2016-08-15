@@ -60,6 +60,7 @@ init_dispatch() ->
 		{"localhost", [
 			{"/ws_echo", ws_echo, []},
 			{"/ws_echo_timer", ws_echo_timer, []},
+			{"/ws_init", ws_init_h, []},
 			{"/ws_init_shutdown", ws_init_shutdown, []},
 			{"/ws_send_many", ws_send_many, [
 				{sequence, [
@@ -184,7 +185,90 @@ do_ws_version(Socket) ->
 	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
 	ok.
 
-ws_init_shutdown(Config) ->
+ws_init_return_ok(Config) ->
+	doc("Handler does nothing."),
+	{ok, Socket, _} = do_handshake("/ws_init?ok", Config),
+	%% The handler does nothing; nothing should happen here.
+	{error, timeout} = gen_tcp:recv(Socket, 0, 1000),
+	ok.
+
+ws_init_return_ok_hibernate(Config) ->
+	doc("Handler does nothing; hibernates."),
+	{ok, Socket, _} = do_handshake("/ws_init?ok_hibernate", Config),
+	%% The handler does nothing; nothing should happen here.
+	{error, timeout} = gen_tcp:recv(Socket, 0, 1000),
+	ok.
+
+ws_init_return_reply(Config) ->
+	doc("Handler sends a text frame just after the handshake."),
+	{ok, Socket, _} = do_handshake("/ws_init?reply", Config),
+	{ok, << 1:1, 0:3, 1:4, 0:1, 5:7, "Hello" >>} = gen_tcp:recv(Socket, 0, 6000),
+	ok.
+
+ws_init_return_reply_hibernate(Config) ->
+	doc("Handler sends a text frame just after the handshake and then hibernates."),
+	{ok, Socket, _} = do_handshake("/ws_init?reply_hibernate", Config),
+	{ok, << 1:1, 0:3, 1:4, 0:1, 5:7, "Hello" >>} = gen_tcp:recv(Socket, 0, 6000),
+	ok.
+
+ws_init_return_reply_close(Config) ->
+	doc("Handler closes immediately after the handshake."),
+	{ok, Socket, _} = do_handshake("/ws_init?reply_close", Config),
+	{ok, << 1:1, 0:3, 8:4, 0:8 >>} = gen_tcp:recv(Socket, 0, 6000),
+	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
+	ok.
+
+ws_init_return_reply_close_hibernate(Config) ->
+	doc("Handler closes immediately after the handshake, then attempts to hibernate."),
+	{ok, Socket, _} = do_handshake("/ws_init?reply_close_hibernate", Config),
+	{ok, << 1:1, 0:3, 8:4, 0:8 >>} = gen_tcp:recv(Socket, 0, 6000),
+	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
+	ok.
+
+ws_init_return_reply_many(Config) ->
+	doc("Handler sends many frames just after the handshake."),
+	{ok, Socket, _} = do_handshake("/ws_init?reply_many", Config),
+	%% We catch all frames at once and check them directly.
+	{ok, <<
+		1:1, 0:3, 1:4, 0:1, 5:7, "Hello",
+		1:1, 0:3, 2:4, 0:1, 5:7, "World" >>} = gen_tcp:recv(Socket, 14, 6000),
+	ok.
+
+ws_init_return_reply_many_hibernate(Config) ->
+	doc("Handler sends many frames just after the handshake and then hibernates."),
+	{ok, Socket, _} = do_handshake("/ws_init?reply_many_hibernate", Config),
+	%% We catch all frames at once and check them directly.
+	{ok, <<
+		1:1, 0:3, 1:4, 0:1, 5:7, "Hello",
+		1:1, 0:3, 2:4, 0:1, 5:7, "World" >>} = gen_tcp:recv(Socket, 14, 6000),
+	ok.
+
+ws_init_return_reply_many_close(Config) ->
+	doc("Handler sends many frames including a close frame just after the handshake."),
+	{ok, Socket, _} = do_handshake("/ws_init?reply_many_close", Config),
+	%% We catch all frames at once and check them directly.
+	{ok, <<
+		1:1, 0:3, 1:4, 0:1, 5:7, "Hello",
+		1:1, 0:3, 8:4, 0:8 >>} = gen_tcp:recv(Socket, 9, 6000),
+	ok.
+
+ws_init_return_reply_many_close_hibernate(Config) ->
+	doc("Handler sends many frames including a close frame just after the handshake and then hibernates."),
+	{ok, Socket, _} = do_handshake("/ws_init?reply_many_close_hibernate", Config),
+	%% We catch all frames at once and check them directly.
+	{ok, <<
+		1:1, 0:3, 1:4, 0:1, 5:7, "Hello",
+		1:1, 0:3, 8:4, 0:8 >>} = gen_tcp:recv(Socket, 9, 6000),
+	ok.
+
+ws_init_return_stop(Config) ->
+	doc("Handler closes immediately after the handshake."),
+	{ok, Socket, _} = do_handshake("/ws_init?stop", Config),
+	{ok, << 1:1, 0:3, 8:4, 0:1, 2:7, 1000:16 >>} = gen_tcp:recv(Socket, 0, 6000),
+	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
+	ok.
+
+ws_init_shutdown_before_handshake(Config) ->
 	doc("Handler stops before Websocket handshake."),
 	{ok, Socket} = gen_tcp:connect("localhost", config(port, Config), [binary, {active, false}]),
 	ok = gen_tcp:send(Socket, [

@@ -40,8 +40,7 @@
 	when Req::cowboy_req:req().
 
 -callback websocket_init(State)
-	%% @todo Make that call_result/1.
-	-> {ok, State} when State::any().
+	-> call_result(State) when State::any().
 -optional_callbacks([websocket_init/1]).
 
 -callback websocket_handle({text | binary | ping | pong, binary()}, State)
@@ -170,17 +169,14 @@ websocket_handshake(State=#state{key=Key},
 -spec takeover(pid(), ranch:ref(), inet:socket(), module(), any(), binary(),
 	{#state{}, any()}) -> ok.
 takeover(_Parent, Ref, Socket, Transport, _Opts, Buffer,
-		{State=#state{handler=Handler}, HandlerState0}) ->
+		{State0=#state{handler=Handler}, HandlerState}) ->
 	ranch:remove_connection(Ref),
-	%% @todo Allow sending a reply from websocket_init.
-	%% @todo Try/catch.
-	{ok, HandlerState} = case erlang:function_exported(Handler, websocket_init, 1) of
-		true -> Handler:websocket_init(HandlerState0);
-		false -> {ok, HandlerState0}
-	end,
-	State2 = handler_loop_timeout(State#state{socket=Socket, transport=Transport}),
-	handler_before_loop(State2#state{key=undefined,
-		messages=Transport:messages()}, HandlerState, Buffer).
+	State1 = handler_loop_timeout(State0#state{socket=Socket, transport=Transport}),
+	State = State1#state{key=undefined, messages=Transport:messages()},
+	case erlang:function_exported(Handler, websocket_init, 1) of
+		true -> handler_call(State, HandlerState, Buffer, websocket_init, undefined, fun handler_before_loop/3);
+		false -> handler_before_loop(State, HandlerState, Buffer)
+	end.
 
 -spec handler_before_loop(#state{}, any(), binary())
 %% @todo Yeah not env.
@@ -317,7 +313,10 @@ websocket_dispatch(State=#state{socket=Socket, transport=Transport, frag_state=F
 	-> {ok, cowboy_middleware:env()}.
 handler_call(State=#state{handler=Handler}, HandlerState,
 		RemainingData, Callback, Message, NextState) ->
-	try Handler:Callback(Message, HandlerState) of
+	try case Callback of
+		websocket_init -> Handler:websocket_init(HandlerState);
+		_ -> Handler:Callback(Message, HandlerState)
+	end of
 		{ok, HandlerState2} ->
 			NextState(State, HandlerState2, RemainingData);
 		{ok, HandlerState2, hibernate} ->
