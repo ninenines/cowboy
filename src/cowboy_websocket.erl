@@ -320,29 +320,7 @@ handler_call(State=#state{handler=Handler}, HandlerState,
 		{ok, HandlerState2} ->
 			NextState(State, HandlerState2, RemainingData);
 		{ok, HandlerState2, hibernate} ->
-			NextState(State#state{hibernate=true},
-				HandlerState2, RemainingData);
-		{reply, Payload, HandlerState2}
-				when is_list(Payload) ->
-			case websocket_send_many(Payload, State) of
-				ok ->
-					NextState(State, HandlerState2, RemainingData);
-				stop ->
-					handler_terminate(State, HandlerState2, stop);
-				Error = {error, _} ->
-					handler_terminate(State, HandlerState2, Error)
-			end;
-		{reply, Payload, HandlerState2, hibernate}
-				when is_list(Payload) ->
-			case websocket_send_many(Payload, State) of
-				ok ->
-					NextState(State#state{hibernate=true},
-						HandlerState2, RemainingData);
-				stop ->
-					handler_terminate(State, HandlerState2, stop);
-				Error = {error, _} ->
-					handler_terminate(State, HandlerState2, Error)
-			end;
+			NextState(State#state{hibernate=true}, HandlerState2, RemainingData);
 		{reply, Payload, HandlerState2} ->
 			case websocket_send(Payload, State) of
 				ok ->
@@ -370,25 +348,32 @@ handler_call(State=#state{handler=Handler}, HandlerState,
 	end.
 
 -spec websocket_send(cow_ws:frame(), #state{}) -> ok | stop | {error, atom()}.
+websocket_send(Frames, State) when is_list(Frames) ->
+	websocket_send_many(Frames, State, []);
 websocket_send(Frame, #state{socket=Socket, transport=Transport, extensions=Extensions}) ->
 	Res = Transport:send(Socket, cow_ws:frame(Frame, Extensions)),
-	case Frame of
-		close -> stop;
-		{close, _} -> stop;
-		{close, _, _} -> stop;
-		_ -> Res
+	case is_close_frame(Frame) of
+		true -> stop;
+		false -> Res
 	end.
 
--spec websocket_send_many([cow_ws:frame()], #state{}) -> ok | stop | {error, atom()}.
-websocket_send_many([], _) ->
-	ok;
-websocket_send_many([Frame|Tail], State) ->
-	%% @todo Send the frames all in one larger TCP packet rather than potentially many small.
-	case websocket_send(Frame, State) of
-		ok -> websocket_send_many(Tail, State);
-		stop -> stop;
-		Error -> Error
+websocket_send_many([], #state{socket=Socket, transport=Transport}, Acc) ->
+	Transport:send(Socket, lists:reverse(Acc));
+websocket_send_many([Frame|Tail], State=#state{socket=Socket, transport=Transport,
+		extensions=Extensions}, Acc0) ->
+	Acc = [cow_ws:frame(Frame, Extensions)|Acc0],
+	case is_close_frame(Frame) of
+		true ->
+			_ = Transport:send(Socket, lists:reverse(Acc)),
+			stop;
+		false ->
+			websocket_send_many(Tail, State, Acc)
 	end.
+
+is_close_frame(close) -> true;
+is_close_frame({close, _}) -> true;
+is_close_frame({close, _, _}) -> true;
+is_close_frame(_) -> false.
 
 -spec websocket_close(#state{}, any(), terminate_reason())
 	-> {ok, cowboy_middleware:env()}.
