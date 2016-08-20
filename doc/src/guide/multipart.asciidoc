@@ -124,7 +124,7 @@ stream_file(Req) ->
     case cowboy_req:part_body(Req) of
         {ok, _Body, Req2} ->
             Req2;
-        {more, _Body, Req2} ->
+        {more, _MoreBody, Req2} ->
             stream_file(Req2)
     end.
 ----
