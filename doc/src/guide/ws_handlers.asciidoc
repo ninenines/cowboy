@@ -18,8 +18,8 @@ must return a `ws` tuple.
 
 [source,erlang]
 ----
-init(Req, _Opts) ->
-	{cowboy_websocket, Req, #state{}}.
+init(Req, State) ->
+	{cowboy_websocket, Req, State}.
 ----
 
 Upon receiving this tuple, Cowboy will switch to the code
@@ -34,18 +34,18 @@ the connection, assuming no correct subprotocol was found.
 
 [source,erlang]
 ----
-init(Req, _Opts) ->
+init(Req, State) ->
 	case cowboy_req:parse_header(<<"sec-websocket-protocol">>, Req) of
 		undefined ->
-			{ok, Req, #state{}};
+			{ok, Req, State};
 		Subprotocols ->
 			case lists:keymember(<<"mychat2">>, 1, Subprotocols) of
 				true ->
 					Req2 = cowboy_req:set_resp_header(<<"sec-websocket-protocol">>,
 						<<"mychat2">>, Req),
-					{ok, Req2, #state{}};
+					{ok, Req2, State};
 				false ->
-					{stop, Req, undefined}
+					{stop, Req, State}
 			end
 	end.
 ----
@@ -60,12 +60,14 @@ It is also very easy to ensure that this message arrives before
 any message from other processes by sending it before registering
 or enabling timers.
 
+// @todo This doesn't even work.
+
 [source,erlang]
 ----
-init(Req, _Opts) ->
+init(Req, State) ->
 	self() ! post_init,
 	%% Register process here...
-	{cowboy_websocket, Req, #state{}}.
+	{cowboy_websocket, Req, State}.
 
 websocket_info(post_init, Req, State) ->
 	%% Perform post_init initialization here...
@@ -169,8 +171,8 @@ A good timeout value is 60 seconds.
 
 [source,erlang]
 ----
-init(Req, _Opts) ->
-	{cowboy_websocket, Req, #state{}, 60000}.
+init(Req, State) ->
+	{cowboy_websocket, Req, State, 60000}.
 ----
 
 This value cannot be changed once it is set. It defaults to

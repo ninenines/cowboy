@@ -16,8 +16,8 @@ is handled by the sub protocol.
 
 [source,erlang]
 ----
-init(Req, _Opts) ->
-	{cowboy_websocket, Req, #state{}}.
+init(Req, State) ->
+	{cowboy_websocket, Req, State}.
 ----
 
 The return value may also have a `Timeout` value and/or the
@@ -29,10 +29,12 @@ The following snippet switches to the `my_protocol` sub
 protocol, sets the timeout value to 5 seconds and enables
 hibernation:
 
+// @todo Yeah maybe what we really need is an Opts map.
+
 [source,erlang]
 ----
-init(Req, _Opts) ->
-	{my_protocol, Req, #state{}, 5000, hibernate}.
+init(Req, State) ->
+	{my_protocol, Req, State, 5000, hibernate}.
 ----
 
 If a sub protocol does not make use of these options, it should

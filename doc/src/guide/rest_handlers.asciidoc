@@ -15,8 +15,8 @@ must return a `cowboy_rest` tuple.
 
 [source,erlang]
 ----
-init(Req, _Opts) ->
-    {cowboy_rest, Req, #state{}}.
+init(Req, State) ->
+    {cowboy_rest, Req, State}.
 ----
 
 Cowboy will then switch to the REST protocol and start executing

@@ -38,8 +38,8 @@ This snippet enables the loop handler.
 
 [source,erlang]
 ----
-init(Req, _Opts) ->
-    {cowboy_loop, Req, #state{}}.
+init(Req, State) ->
+    {cowboy_loop, Req, State}.
 ----
 
 However it is largely recommended that you set a timeout
@@ -48,8 +48,8 @@ also makes the process hibernate.
 
 [source,erlang]
 ----
-init(Req, _Opts) ->
-    {cowboy_loop, Req, #state{}, 30000, hibernate}.
+init(Req, State) ->
+    {cowboy_loop, Req, State, 30000, hibernate}.
 ----
 
 === Receive loop
@@ -101,9 +101,9 @@ and the loop is stopped by sending an `eof` message.
 
 [source,erlang]
 ----
-init(Req, _Opts) ->
+init(Req, State) ->
     Req2 = cowboy_req:chunked_reply(200, [], Req),
-    {cowboy_loop, Req2, #state{}}.
+    {cowboy_loop, Req2, State}.
 
 info(eof, Req, State) ->
     {stop, Req, State};

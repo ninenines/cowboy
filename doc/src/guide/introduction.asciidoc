@@ -35,7 +35,27 @@ guarantee that the experience will be safe and smooth. You are advised
 to perform the necessary testing and security audits prior to deploying
 on other platforms.
 
-Cowboy is developed for Erlang/OTP 18.0 and newer.
+Cowboy is developed for Erlang/OTP 19.0 and newer.
+
+=== License
+
+Cowboy uses the ISC License.
+
+----
+Copyright (c) 2011-2016, Loïc Hoguin <essen@ninenines.eu>
+
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+----
 
 === Versioning
 
@@ -46,8 +66,10 @@ Cowboy uses http://semver.org/[Semantic Versioning 2.0.0].
 In the HTTP protocol, the method name is case sensitive. All standard
 method names are uppercase.
 
-Header names are case insensitive. Cowboy converts all the request
-header names to lowercase, and expects your application to provide
-lowercase header names in the response.
+Header names are case insensitive. When using HTTP/1.1, Cowboy converts
+all the request header names to lowercase. HTTP/2 requires clients to
+send them as lowercase. Any other header name is expected to be provided
+lowercased, including when querying information about the request or
+when sending responses.
 
 The same applies to any other case insensitive value.

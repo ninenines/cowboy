@@ -106,7 +106,7 @@ chapter. For this tutorial we map the path `/` to the handler
 module `hello_handler`. This module doesn't exist yet.
 
 Build and start the release, then open http://localhost:8080
-in your browser. You will get an error because the module is missing.
+in your browser. You will get a 500 error because the module is missing.
 Any other URL, like http://localhost:8080/test, will result in a
 404 error.
 
@@ -126,11 +126,11 @@ the `init/2` function like this to send a reply.
 
 [source,erlang]
 ----
-init(Req, State) ->
-	cowboy_req:reply(200,
+init(Req0, State) ->
+	Req = cowboy_req:reply(200,
 		#{<<"content-type">> => <<"text/plain">>},
 		<<"Hello Erlang!">>,
-		Req),
+		Req0),
 	{ok, Req, State}.
 ----
 

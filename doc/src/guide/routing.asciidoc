@@ -37,11 +37,11 @@ PathsList = [Path1, Path2, ... PathN].
 
 Finally, each path contains matching rules for the path along with
 optional constraints, and gives us the handler module to be used
-along with options that will be given to it on initialization.
+along with its initial state.
 
 [source,erlang]
-Path1 = {PathMatch, Handler, Opts}.
-Path2 = {PathMatch, Constraints, Handler, Opts}.
+Path1 = {PathMatch, Handler, InitialState}.
+Path2 = {PathMatch, Constraints, Handler, InitialState}.
 
 Continue reading to learn more about the match syntax and the optional
 constraints.
@@ -199,8 +199,8 @@ This can be done with a simple call to `cowboy_router:compile/1`.
 [source,erlang]
 ----
 Dispatch = cowboy_router:compile([
-    %% {HostMatch, list({PathMatch, Handler, Opts})}
-    {'_', [{'_', my_handler, []}]}
+    %% {HostMatch, list({PathMatch, Handler, InitialState})}
+    {'_', [{'_', my_handler, #{}}]}
 ]),
 %% Name, NbAcceptors, TransOpts, ProtoOpts
 cowboy:start_clear(my_http_listener, 100,
