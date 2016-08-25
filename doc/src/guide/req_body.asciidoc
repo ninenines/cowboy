@@ -1,152 +1,130 @@
 [[req_body]]
 == Reading the request body
 
-The Req object also allows you to read the request body.
+The request body can be read using the Req object.
 
-Because the request body can be of any size, all body
-reading operations will only work once, as Cowboy will
-not cache the result of these operations.
+Cowboy will not attempt to read the body until requested.
+You need to call the body reading functions in order to
+retrieve it.
 
-Cowboy will not attempt to read the body until you do.
-If handler execution ends without reading it, Cowboy
-will simply skip it.
+Cowboy will not cache the body, it is therefore only
+possible to read it once.
 
-Cowboy provides different ways to read the request body.
-You can read it directly, stream it, but also read and
-parse in a single call for form urlencoded formats or
-multipart. All of these except multipart are covered in
-this chapter. Multipart is covered later on in the guide.
+You are not required to read it, however. If a body is
+present and was not read, Cowboy will either cancel or
+skip its download, depending on the protocol.
 
-=== Check for request body
+Cowboy provides functions for reading the body raw,
+and read and parse form urlencoded or ^multipart^ bodies.
+The latter is covered in its own chapter.
 
-You can check whether a body was sent with the request.
+=== Request body presence
+
+Not all requests come with a body. You can check for
+the presence of a request body with this function:
 
 [source,erlang]
 cowboy_req:has_body(Req).
 
-It will return `true` if there is a request body, and
-`false` otherwise.
+It returns `true` if there is a body; `false` otherwise.
 
-Note that it is generally safe to assume that a body is
-sent for `POST`, `PUT` and `PATCH` requests, without
-having to explicitly check for it.
+In practice, this function is rarely used. When the
+method is `POST`, `PUT` or `PATCH`, the request body
+is often required by the application, which should
+just attempt to read it directly.
 
 === Request body length
 
-You can obtain the body length if it was sent with the
-request.
+You can obtain the length of the body:
 
 [source,erlang]
 Length = cowboy_req:body_length(Req).
 
-The value returned will be `undefined` if the length
-couldn't be figured out from the request headers. If
-there's a body but no length is given, this means that
-the chunked transfer-encoding was used. You can read
-chunked bodies by using the stream functions.
+Note that the length may not be known in advance. In
+that case `undefined` will be returned. This can happen
+with HTTP/1.1's chunked transfer-encoding, or HTTP/2
+when no content-length was provided.
+
+Cowboy will update the body length in the Req object
+once the body has been read completely. A length will
+always be returned when attempting to call this function
+after reading the body completely.
 
 === Reading the body
 
-You can read the whole body directly in one call.
+You can read the entire body with one function call:
 
 [source,erlang]
-{ok, Body, Req2} = cowboy_req:body(Req).
+{ok, Data, Req} = cowboy_req:read_body(Req0).
 
-By default, Cowboy will attempt to read up to a
-size of 8MB. You can override this limit as needed.
+Cowboy returns an `ok` tuple when the body has been
+read fully.
+
+By default, Cowboy will attempt to read up to 8MB
+of data, for up to 15 seconds. The call will return
+once Cowboy has read at least 8MB of data, or at
+the end of the 15 seconds period.
+
+These values can be customized. For example, to read
+only up to 1MB for up to 5 seconds:
 
 [source,erlang]
-{ok, Body, Req2} = cowboy_req:body(Req, [{length, 100000000}]).
+----
+{ok, Data, Req} = cowboy_req:read_body(Req0,
+	#{length => 1000000, period => 5000}).
+----
 
-You can also disable it.
+You may also disable the length limit:
 
 [source,erlang]
-{ok, Body, Req2} = cowboy_req:body(Req, [{length, infinity}]).
+{ok, Data, Req} = cowboy_req:read_body(Req0, #{length => infinity}).
 
-It is recommended that you do not disable it for public
-facing websites.
+This makes the function wait 15 seconds and return with
+whatever arrived during that period. This is not
+recommended for public facing applications.
 
-If the body is larger than the limit, then Cowboy will return
-a `more` tuple instead, allowing you to stream it if you
-would like to.
+These two options can effectively be used to control
+the rate of transmission of the request body.
 
 === Streaming the body
 
-You can stream the request body by chunks.
-
-Cowboy returns a `more` tuple when there is more body to
-be read, and an `ok` tuple for the last chunk. This allows
-you to loop over all chunks.
+When the body is too large, the first call will return
+a `more` tuple instead of `ok`. You can call the
+function again to read more of the body, reading
+it one chunk at a time.
 
 [source,erlang]
 ----
-body_to_console(Req) ->
-    case cowboy_req:body(Req) of
-        {ok, Data, Req2} ->
+read_body_to_console(Req0) ->
+    case cowboy_req:read_body(Req0) of
+        {ok, Data, Req} ->
             io:format("~s", [Data]),
-            Req2;
-        {more, Data, Req2} ->
+            Req;
+        {more, Data, Req} ->
             io:format("~s", [Data]),
-            body_to_console(Req2)
+            read_body_to_console(Req)
     end.
 ----
 
-You can of course set the `length` option to configure the
-size of chunks.
-
-=== Rate of data transmission
-
-You can control the rate of data transmission by setting
-options when calling body functions. This applies not only
-to the functions described in this chapter, but also to
-the multipart functions.
-
-The `read_length` option defines the maximum amount of data
-to be received from the socket at once, in bytes.
-
-The `read_timeout` option defines the time Cowboy waits
-before that amount is received, in milliseconds.
-
-=== Transfer and content decoding
-
-Cowboy will by default decode the chunked transfer-encoding
-if any. It will not decode any content-encoding by default.
-
-The first time you call a body function you can set the
-`transfer_decode` and `content_decode` options. If the body
-was already started being read these options are simply
-ignored.
-
-The following example shows how to set both options.
-
-[source,erlang]
-----
-{ok, Data, Req2} = cowboy_req:body(Req, [
-    {transfer_decode, fun transfer_decode/2, TransferState},
-    {content_decode, fun content_decode/1}
-]).
-----
+The `length` and `period` options can also be used.
+They need to be passed for every call.
 
 === Reading a form urlencoded body
 
-You can directly obtain a list of key/value pairs if the
-body was sent using the application/x-www-form-urlencoded
-content-type.
+Cowboy provides a convenient function for reading and
+parsing bodies sent as application/x-www-form-urlencoded.
 
 [source,erlang]
-{ok, KeyValues, Req2} = cowboy_req:body_qs(Req).
+{ok, KeyValues, Req} = cowboy_req:read_urlencoded_body(Req0).
 
-You can then retrieve an individual value from that list.
+This function returns a list of key/values, exactly like
+the function `cowboy_req:parse_qs/1`.
 
-[source,erlang]
-{_, Lang} = lists:keyfind(lang, 1, KeyValues).
-
-You should not attempt to match on the list as the order
-of the values is undefined.
-
-By default Cowboy will reject bodies with a size above
-64KB when using this function. You can override this limit
-by setting the `length` option.
+The defaults for this function are different. Cowboy will
+read for up to 64KB and up to 5 seconds. They can be modified:
 
 [source,erlang]
-{ok, KeyValues, Req2} = cowboy_req:body_qs(Req, [{length, 2000000}]).
+----
+{ok, KeyValues, Req} = cowboy_req:read_urlencoded_body(Req0,
+	#{length => 4096, period => 3000}).
+----

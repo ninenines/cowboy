@@ -258,7 +258,8 @@ QsVals = cowboy_req:parse_qs(Req),
 
 Cowboy will only parse the query string, and not do any
 transformation. This function may therefore return duplicates,
-or parameter names without an associated value.
+or parameter names without an associated value. The order of
+the list returned is undefined.
 
 When a query string is `key=1&key=2`, the list returned will
 contain two parameters of name `key`.
