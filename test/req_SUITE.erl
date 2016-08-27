@@ -660,6 +660,17 @@ do_push_http2_origin(Config) ->
 	{response, fin, 200, _} = gun:await(ConnPid, Ref),
 	gun:close(ConnPid).
 
+do_trailers(Config) ->
+	doc("server stream trailers when client accept them"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/resp/trailers", [{<<"te">>, <<"trailers">>}]),
+	{response,nofin, 200, Headers} = gun:await(ConnPid, Ref),
+	{<<"trailer">>, Trailer} = lists:keyfind(<<"trailer">>, 1, Headers),
+	[<<"x-bar-trailer">>] = cow_http_hd:parse_trailer(Trailer),
+	{data,nofin,<<"body">>} = gun:await(ConnPid, Ref),
+	{trailers, [{<<"x-bar-trailer">>, <<"baz">>}]} = gun:await(ConnPid, Ref),
+	gun:close(ConnPid).
+
 do_push_http2_qs(Config) ->
 	doc("Pushed response with query string."),
 	ConnPid = gun_open(Config),

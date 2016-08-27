@@ -73,6 +73,7 @@
 -export([stream_reply/3]).
 %% @todo stream_reply/2 (nofin)
 -export([stream_body/3]).
+-export([stream_trailers/2]).
 %% @todo stream_event/2,3
 -export([push/3]).
 -export([push/4]).
@@ -375,7 +376,8 @@ parse_header_fun(<<"sec-websocket-extensions">>) -> fun cow_http_hd:parse_sec_we
 parse_header_fun(<<"sec-websocket-protocol">>) -> fun cow_http_hd:parse_sec_websocket_protocol_req/1;
 parse_header_fun(<<"transfer-encoding">>) -> fun cow_http_hd:parse_transfer_encoding/1;
 parse_header_fun(<<"upgrade">>) -> fun cow_http_hd:parse_upgrade/1;
-parse_header_fun(<<"x-forwarded-for">>) -> fun cow_http_hd:parse_x_forwarded_for/1.
+parse_header_fun(<<"x-forwarded-for">>) -> fun cow_http_hd:parse_x_forwarded_for/1;
+parse_header_fun(<<"te">>) -> fun cow_http_hd:parse_te/1.
 
 parse_header(Name, Req, Default, ParseFun) ->
 	case header(Name, Req) of
@@ -655,6 +657,15 @@ stream_body(Data, IsFin, #{pid := Pid, streamid := StreamID, has_sent_resp := he
 	Pid ! {{Pid, StreamID}, {data, IsFin, Data}},
 	ok.
 
+-spec stream_trailers(cowboy:http_headers(), req()) -> ok.
+stream_trailers(Trailers=#{}, Req=#{pid := Pid, streamid := StreamID}) ->
+	case is_client_accept_trailers(Req) andalso trailers_preconditions(Req) andalso
+	allowed_trailers_headers(Trailers, Req) of
+		true -> Pid ! {{Pid, StreamID}, {trailers, Trailers}};
+		false -> Pid ! {{Pid, StreamID}, {data, fin, <<"">>}}
+	end,
+	ok.
+
 -spec push(binary(), cowboy:http_headers(), req()) -> ok.
 push(Path, Headers, Req) ->
 	push(Path, Headers, Req, #{}).
@@ -674,6 +685,36 @@ push(Path, Headers, #{pid := Pid, streamid := StreamID,
 	ok.
 
 %% Internal.
+
+-spec is_client_accept_trailers(req()) -> boolean().
+is_client_accept_trailers(Req) ->
+	case parse_header(<<"te">>, Req) of
+		{trailers, []} -> true;
+		_NoTrailers -> false
+	end.
+
+-spec trailers_preconditions(req()) -> boolean().
+trailers_preconditions(#{version := 'HTTP/2', has_sent_resp := headers}) -> true;
+%% @todo we probably should check, that <<"transfer-encoding">> := <<"chunked">>
+%% for HTTP/1.1 ?
+trailers_preconditions(#{version := 'HTTP/1.1', has_sent_resp := headers}) -> true;
+trailers_preconditions(_Req) -> false.
+
+-spec allowed_trailers_headers(cowboy:http_headers(), req()) -> boolean().
+%% @todo Not all headers allowed in trailers for both HTTP/1.1 and HTTP/2.0
+%% consult with https://tools.ietf.org/html/rfc7230#section-4.1.2 for details
+%% but full list of blacklisted headers is huge, so not sure if it make sense
+%% to check such precondition here.
+allowed_trailers_headers(_Trailers, #{version := 'HTTP/2'}) -> true;
+allowed_trailers_headers(Trailers, #{version := 'HTTP/1.1',
+		resp_headers := #{<<"trailer">> := Trailer}}) ->
+	TrailersNames = maps:keys(Trailers),
+	TrailerNames = cow_http_hd:parse_trailer(Trailer),
+	case TrailersNames -- TrailerNames of
+		[] -> true;
+		_	 -> false
+	end;
+allowed_trailers_headers(_Trailers, _Req) -> false.
 
 %% @todo What about set-cookie headers set through set_resp_header or reply?
 -spec response_headers(Headers, req()) -> Headers when Headers::cowboy:http_headers().

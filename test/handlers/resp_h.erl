@@ -144,7 +144,13 @@ do(<<"push">>, Req, Opts) ->
 			%% The text/plain mime is not defined by default, so a 406 will be returned.
 			cowboy_req:push("/static/plain.txt", #{<<"accept">> => <<"text/plain">>}, Req)
 	end,
-	{ok, cowboy_req:reply(200, Req), Opts}.
+	{ok, cowboy_req:reply(200, Req), Opts};
+
+do(<<"trailers">>, Req0, Opts) ->
+	Req1 = cowboy_req:stream_reply(200, #{<<"trailer">> => <<"x-bar-trailer">>}, Req0),
+	ok = cowboy_req:stream_body(<<"body">>, nofin, Req1),
+	ok = cowboy_req:stream_trailers(#{<<"x-bar-trailer">> => <<"baz">>}, Req1),
+	{ok, Req1, Opts}.
 
 stream_body(Req) ->
 	_ = [cowboy_req:stream_body(<<0:800000>>, nofin, Req) || _ <- lists:seq(1,9)],

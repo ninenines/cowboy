@@ -407,6 +407,12 @@ commands(State=#state{socket=Socket, transport=Transport, encode_state=EncodeSta
 	{HeaderBlock, EncodeState} = headers_encode(Headers, EncodeState0),
 	Transport:send(Socket, cow_http2:headers(StreamID, nofin, HeaderBlock)),
 	commands(State#state{encode_state=EncodeState}, Stream#stream{local=nofin}, Tail);
+%% send trailers headers and finish the stream
+commands(State=#state{socket=Socket, transport=Transport, encode_state=EncodeState0},
+		Stream=#stream{id=StreamID, local=nofin}, [{trailers, Headers}|Tail]) ->
+	{HeaderBlock, EncodeState} = headers_encode(Headers, EncodeState0),
+	Transport:send(Socket, cow_http2:headers(StreamID, fin, HeaderBlock)),
+	commands(State#state{encode_state=EncodeState}, Stream#stream{local=fin}, Tail);
 %% @todo headers when local!=idle
 %% Send a response body chunk.
 %%

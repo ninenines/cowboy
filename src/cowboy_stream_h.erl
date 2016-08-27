@@ -106,6 +106,8 @@ info(_StreamID, Response = {response, _, _, _}, State) ->
 	{[Response], State};
 info(_StreamID, Headers = {headers, _, _}, State) ->
 	{[Headers], State};
+info(_StreamID, Trailers = {trailers, _}, State) ->
+	{[Trailers], State};
 info(_StreamID, Data = {data, _, _}, State) ->
 	{[Data], State};
 info(_StreamID, Push = {push, _, _, _, _, _, _, _}, State) ->
