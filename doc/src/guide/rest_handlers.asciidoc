@@ -62,7 +62,8 @@ if it is undefined, moving directly to the next step. Similarly,
 | allow_missing_post     | `true`
 | charsets_provided      | skip
 | content_types_accepted | none
-| content_types_provided | `$$[{{<<"text">>, <<"html">>, '*'}, to_html}]$$`
+// @todo Space required for the time being: https://github.com/spf13/hugo/issues/2398
+| content_types_provided | `[{{ <<"text">>, <<"html">>, '*'}, to_html}]`
 | delete_completed       | `true`
 | delete_resource        | `false`
 | expires                | `undefined`

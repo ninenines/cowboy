@@ -326,7 +326,7 @@ Return the extra tokens from matching against `...` during routing.
 
 === peer(Req) -> Peer
 
-Peer = {inet:ip_address(), inet:port_number()}:: Peer IP address and port number.
+Peer = `{inet:ip_address(), inet:port_number()}`:: Peer IP address and port number.
 
 Return the client's IP address and port number.
 

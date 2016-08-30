@@ -171,7 +171,8 @@ and `language`. The body can be set using `cowboy_req:set_resp_body/2`.
 
 Methods:: GET, HEAD, POST, PUT, PATCH, DELETE
 Value type:: [{binary() | {Type, SubType, Params}, ProvideResource}]
-Default value:: `[{{<<"text">>, <<"html">>, '*'}, to_html}]`
+// @todo Space required for the time being: https://github.com/spf13/hugo/issues/2398
+Default value:: `[{{ <<"text">>, <<"html">>, '*'}, to_html}]`
 
 With types:
 

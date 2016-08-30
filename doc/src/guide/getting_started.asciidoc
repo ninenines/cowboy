@@ -64,7 +64,7 @@ handler.
 We will modify the 'Makefile' to tell the build system it needs to
 fetch and compile Cowboy:
 
-[source,make]
+[source,makefile]
 ----
 PROJECT = hello_erlang
 
