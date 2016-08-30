@@ -1,4 +1,5 @@
 // a2x: --dblatex-opts "-P latex.output.revhistory=0 -P doc.publisher.show=0 -P index.numbered=0"
+// a2x: --dblatex-opts "-s cowboy"
 // a2x: -d book --attribute tabsize=4
 
 = Cowboy User Guide

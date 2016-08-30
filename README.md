@@ -16,7 +16,7 @@ to handlers written in Erlang.
 Because it uses Ranch for managing connections, Cowboy can easily be
 **embedded** in any other application.
 
-No parameterized module. No process dictionary. **Clean** Erlang code.
+Cowboy is **clean** and **well tested** Erlang code.
 
 Sponsors
 --------
@@ -31,8 +31,8 @@ It has since been superseded by HTTP/2.
 Online documentation
 --------------------
 
- *  [User guide](http://ninenines.eu/docs/en/cowboy/HEAD/guide)
- *  [Function reference](http://ninenines.eu/docs/en/cowboy/HEAD/manual)
+ *  [User guide](http://ninenines.eu/docs/en/cowboy/2.0/guide)
+ *  [Function reference](http://ninenines.eu/docs/en/cowboy/2.0/manual)
 
 Offline documentation
 ---------------------

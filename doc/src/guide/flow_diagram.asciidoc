@@ -1,3 +1,4 @@
+[[flow_diagram]]
 == Flow diagram
 
 Placeholder chapter.

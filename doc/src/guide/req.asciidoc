@@ -1,7 +1,3 @@
-+++
-title = "The Req object"
-+++
-
 [[req]]
 == The Req object
 
@@ -160,8 +156,8 @@ The scheme and host are lowercased case insensitive binary
 strings. The port is an integer representing the port number.
 The path and query string are case sensitive binary strings.
 
-Cowboy defines only the <<"http">> and <<"https">> schemes.
-They are chosen so that the scheme will only be <<"https">>
+Cowboy defines only the `<<"http">>` and `<<"https">>` schemes.
+They are chosen so that the scheme will only be `<<"https">>`
 for requests on secure HTTP/1.1 or HTTP/2 connections.
 // @todo Is that tested well?
 
