@@ -15,7 +15,7 @@ present and was not read, Cowboy will either cancel or
 skip its download, depending on the protocol.
 
 Cowboy provides functions for reading the body raw,
-and read and parse form urlencoded or ^multipart^ bodies.
+and read and parse form urlencoded or xref:multipart[multipart bodies].
 The latter is covered in its own chapter.
 
 === Request body presence

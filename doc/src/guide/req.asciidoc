@@ -274,7 +274,7 @@ parameter `key` was defined, but with no value.
 
 The second function Cowboy provides allows you to match out
 only the parameters you are interested in, and at the same
-time do any post processing you require using ^constraints^.
+time do any post processing you require using xref:constraints[constraints].
 This function returns a map.
 
 [source,erlang]
