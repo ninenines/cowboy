@@ -13,7 +13,7 @@ be implemented by handlers. The `init/2` and `terminate/3`
 callbacks are common to all handler types and are documented
 in the manual for the link:cowboy_handler.asciidoc[cowboy_handler] module.
 
-The `websocket_handle/3` and `websocket_info/3` callbacks are
+The `websocket_handle/2` and `websocket_info/2` callbacks are
 specific to Websocket handlers and will be called as many times
 as necessary until the Websocket connection is closed.
 
@@ -84,18 +84,17 @@ timeout::
 
 == Callbacks
 
-=== websocket_handle(InFrame, Req, State) -> Ret
+=== websocket_handle(InFrame, State) -> Ret
 
 [source,erlang]
 ----
-Ret = {ok, Req, State}
-	| {ok, Req, State, hibernate}
-	| {reply, OutFrame | [OutFrame], Req, State}
-	| {reply, OutFrame | [OutFrame], Req, State, hibernate}
-	| {stop, Req, State}
+Ret = {ok, State}
+	| {ok, State, hibernate}
+	| {reply, OutFrame | [OutFrame], State}
+	| {reply, OutFrame | [OutFrame], State, hibernate}
+	| {stop, State}
 
 InFrame = {text | binary | ping | pong, binary()}
-Req = cowboy_req:req()
 State = any()
 OutFrame = cow_ws:frame()
 ----
@@ -113,18 +112,17 @@ The `hibernate` option will hibernate the process until
 it receives new data from the Websocket connection or an
 Erlang message.
 
-=== websocket_info(Info, Req, State) -> Ret
+=== websocket_info(Info, State) -> Ret
 
 [source,erlang]
 ----
-Ret = {ok, Req, State}
-	| {ok, Req, State, hibernate}
-	| {reply, OutFrame | [OutFrame], Req, State}
-	| {reply, OutFrame | [OutFrame], Req, State, hibernate}
-	| {stop, Req, State}
+Ret = {ok, State}
+	| {ok, State, hibernate}
+	| {reply, OutFrame | [OutFrame], State}
+	| {reply, OutFrame | [OutFrame], State, hibernate}
+	| {stop, State}
 
 Info = any()
-Req = cowboy_req:req()
 State = any()
 OutFrame = cow_ws:frame()
 ----
