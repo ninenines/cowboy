@@ -69,14 +69,14 @@ init(Req, State) ->
 	%% Register process here...
 	{cowboy_websocket, Req, State}.
 
-websocket_info(post_init, Req, State) ->
+websocket_info(post_init, State) ->
 	%% Perform post_init initialization here...
-	{ok, Req, State}.
+	{ok, State}.
 ----
 
 === Handling frames from the client
 
-Cowboy will call `websocket_handle/3` whenever a text, binary,
+Cowboy will call `websocket_handle/2` whenever a text, binary,
 ping or pong frame arrives from the client. Note that in the
 case of ping and pong frames, no action is expected as Cowboy
 automatically replies to ping frames.
@@ -89,15 +89,15 @@ ignores all others.
 
 [source,erlang]
 ----
-websocket_handle(Frame = {text, _}, Req, State) ->
-	{reply, Frame, Req, State};
-websocket_handle(_Frame, Req, State) ->
-	{ok, Req, State}.
+websocket_handle(Frame = {text, _}, State) ->
+	{reply, Frame, State};
+websocket_handle(_Frame, State) ->
+	{ok, State}.
 ----
 
 === Handling Erlang messages
 
-Cowboy will call `websocket_info/3` whenever an Erlang message
+Cowboy will call `websocket_info/2` whenever an Erlang message
 arrives.
 
 The handler can decide to send frames to the socket, stop
@@ -108,10 +108,10 @@ and ignores all others.
 
 [source,erlang]
 ----
-websocket_info({log, Text}, Req, State) ->
-	{reply, {text, Text}, Req, State};
-websocket_info(_Info, Req, State) ->
-	{ok, Req, State}.
+websocket_info({log, Text}, State) ->
+	{reply, {text, Text}, State};
+websocket_info(_Info, State) ->
+	{ok, State}.
 ----
 
 === Sending frames to the socket
@@ -126,13 +126,13 @@ tuple.
 
 [source,erlang]
 ----
-websocket_info(hello_world, Req, State) ->
+websocket_info(hello_world, State) ->
 	{reply, [
 		{text, "Hello"},
 		{text, <<"world!">>},
 		{binary, <<0:8000>>}
-	], Req, State};
-%% More websocket_info/3 clauses here...
+	], State};
+%% More websocket_info/2 clauses here...
 ----
 
 Note that the payload for text and binary frames is of type
