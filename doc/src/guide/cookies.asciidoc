@@ -4,112 +4,94 @@
 Cookies are a mechanism allowing applications to maintain
 state on top of the stateless HTTP protocol.
 
-Cowboy provides facilities for handling cookies. It is highly
-recommended to use them instead of writing your own, as the
-implementation of cookies can vary greatly between clients.
+Cookies are a name/value store where the names and values are
+stored in plain text. They expire either after a delay
+or when the browser closes. They can be configured on a
+specific domain name or path, and restricted to secure
+resources (sent or downloaded over HTTPS), or restricted
+to the server (disallowing access from client-side scripts).
+
+Cookie names are de facto case sensitive.
 
 Cookies are stored client-side and sent with every subsequent
 request that matches the domain and path for which they were
-stored, including requests for static files. For this reason
-they can incur a cost which must be taken in consideration.
+stored, until they expire. This can create a non-negligible
+cost.
 
-Also consider that, regardless of the options used, cookies
-are not to be trusted. They may be read and modified by any
-program on the user's computer, but also by proxies. You
-should always validate cookie values before using them. Do
-not store any sensitive information in cookies either.
+Cookies should not be considered secure. They are stored on
+the user's computer in plain text, and can be read by any
+program. They can also be read by proxies when using clear
+connections. Always validate the value before using it,
+and never store any sensitive information inside it.
 
-When explicitly setting the domain, the cookie will be sent
-for the domain and all subdomains from that domain. Otherwise
-the current domain will be used. The same is true for the
-path.
+Cookies set by the server are only available in requests
+following the client reception of the response containing
+them.
 
-When the server sets cookies, they will only be available
-for requests that are sent after the client receives the
-response.
-
-Cookies are sent in HTTP headers, therefore they must have
-text values. It is your responsibility to encode any other
-data type. Also note that cookie names are de facto case
-sensitive.
-
-Cookies can be set for the client session (which generally
-means until the browser is closed), or it can be set for
-a number of seconds. Once it expires, or when the server
-says the cookie must exist for up to 0 seconds, the cookie
-is deleted by the client. To avoid this while the user
-is browsing your site, you should set the cookie for
-every request, essentially resetting the expiration time.
-
-Cookies can be restricted to secure channels. This typically
-means that such a cookie will only be sent over HTTPS,
-and that it will only be available by client-side scripts
-that run from HTTPS webpages.
-
-Finally, cookies can be restricted to HTTP and HTTPS requests,
-essentially disabling their access from client-side scripts.
+Cookies may be sent repeatedly. This is often useful to
+update the expiration time and avoid losing a cookie.
 
 === Setting cookies
 
-By default, cookies you set are defined for the session.
+// @todo So I am not particularly happy about set_resp_cookie/4
+// having Opts as a *third* argument, instead of the *last* like
+// all other functions that come with an Opts argument. We will
+// probably need to change this before 2.0.
+
+By default cookies are defined for the duration of the session:
 
 [source,erlang]
 SessionID = generate_session_id(),
-Req2 = cowboy_req:set_resp_cookie(<<"sessionid">>, SessionID, [], Req).
+Req = cowboy_req:set_resp_cookie(<<"sessionid">>, SessionID, Req0).
 
-You can also make them expire at a specific point in the
-future.
-
-[source,erlang]
-----
-SessionID = generate_session_id(),
-Req2 = cowboy_req:set_resp_cookie(<<"sessionid">>, SessionID, [
-    {max_age, 3600}
-], Req).
-----
-
-You can delete cookies that have already been set. The value
-is ignored.
-
-[source,erlang]
-----
-Req2 = cowboy_req:set_resp_cookie(<<"sessionid">>, <<>>, [
-    {max_age, 0}
-], Req).
-----
-
-You can restrict them to a specific domain and path.
-For example, the following cookie will be set for the domain
-`my.example.org` and all its subdomains, but only on the path
-`/account` and all its subdirectories.
-
-[source,erlang]
-----
-Req2 = cowboy_req:set_resp_cookie(<<"inaccount">>, <<"1">>, [
-    {domain, "my.example.org"},
-    {path, "/account"}
-], Req).
-----
-
-You can restrict the cookie to secure channels, typically HTTPS.
+They can also be set for a duration in seconds:
 
 [source,erlang]
 ----
 SessionID = generate_session_id(),
-Req2 = cowboy_req:set_resp_cookie(<<"sessionid">>, SessionID, [
-    {secure, true}
-], Req).
+Req = cowboy_req:set_resp_cookie(<<"sessionid">>, SessionID,
+	#{max_age => 3600}, Req0).
 ----
 
-You can restrict the cookie to client-server communication
-only. Such a cookie will not be available to client-side scripts.
+To delete cookies, set `max_age` to 0:
 
 [source,erlang]
 ----
 SessionID = generate_session_id(),
-Req2 = cowboy_req:set_resp_cookie(<<"sessionid">>, SessionID, [
-    {http_only, true}
-], Req).
+Req = cowboy_req:set_resp_cookie(<<"sessionid">>, SessionID,
+	#{max_age => 0}, Req0).
+----
+
+To restrict cookies to a specific domain and path, the options
+of the same name can be used:
+
+[source,erlang]
+----
+Req = cowboy_req:set_resp_cookie(<<"inaccount">>, <<"1">>,
+	#{domain => "my.example.org", path => "/account"}, Req0).
+----
+
+Cookies will be sent with requests to this domain and all
+its subdomains, and to resources on this path or deeper
+in the path hierarchy.
+
+To restrict cookies to secure channels (typically resources
+available over HTTPS):
+
+[source,erlang]
+----
+SessionID = generate_session_id(),
+Req = cowboy_req:set_resp_cookie(<<"sessionid">>, SessionID,
+	#{secure => true}, Req0).
+----
+
+To prevent client-side scripts from accessing a cookie:
+
+[source,erlang]
+----
+SessionID = generate_session_id(),
+Req = cowboy_req:set_resp_cookie(<<"sessionid">>, SessionID,
+	#{http_only => true}, Req0).
 ----
 
 Cookies may also be set client-side, for example using
@@ -117,23 +99,23 @@ Javascript.
 
 === Reading cookies
 
-As we said, the client sends cookies with every request.
-But unlike the server, the client only sends the cookie
-name and value.
+The client only ever sends back the cookie name and value.
+All other options that can be set are never sent back.
 
-Cowboy provides two different ways to read cookies. You
-can either parse them as a list of key/value pairs, or
-match them into a map, optionally applying constraints
-to the values or providing a default if they are missing.
+Cowboy provides two functions for reading cookies. Both
+involve parsing the cookie header(s) and so should not
+be called repeatedly.
 
-You can parse the cookies and then use standard library
-functions to access individual values.
+You can get all cookies as a key/value list:
 
 [source,erlang]
 Cookies = cowboy_req:parse_cookies(Req),
 {_, Lang} = lists:keyfind(<<"lang">>, 1, Cookies).
 
-You can match the cookies into a map.
+Or you can perform a match against cookies and retrieve
+only the ones you need, while at the same time doing
+any required post processing using xref:constraints[constraints].
+This function returns a map:
 
 [source,erlang]
 #{id := ID, lang := Lang} = cowboy_req:match_cookies([id, lang], Req).
@@ -141,8 +123,7 @@ You can match the cookies into a map.
 You can use constraints to validate the values while matching
 them. The following snippet will crash if the `id` cookie is
 not an integer number or if the `lang` cookie is empty. Additionally
-the `id` cookie value will be converted to an integer term, saving
-you a conversion step.
+the `id` cookie value will be converted to an integer term:
 
 [source,erlang]
 CookiesMap = cowboy_req:match_cookies([{id, int}, {lang, nonempty}], Req).
@@ -150,14 +131,12 @@ CookiesMap = cowboy_req:match_cookies([{id, int}, {lang, nonempty}], Req).
 Note that if two cookies share the same name, then the map value
 will be a list of the two cookie values.
 
-Read more about xref:constraints[constraints].
-
 A default value can be provided. The default will be used
 if the `lang` cookie is not found. It will not be used if
-the cookie is found but has an empty value.
+the cookie is found but has an empty value:
 
 [source,erlang]
 #{lang := Lang} = cowboy_req:match_cookies([{lang, [], <<"en-US">>}], Req).
 
-If no default is provided and the value is missing, the
-query string is deemed invalid and the process will crash.
+If no default is provided and the value is missing, an
+exception is thrown.
