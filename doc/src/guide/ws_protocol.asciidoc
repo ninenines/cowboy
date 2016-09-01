@@ -11,17 +11,42 @@ connections between the client, typically a Web browser,
 and the server. It uses the HTTP Upgrade mechanism to
 establish the connection.
 
-Websocket connections are asynchronous, unlike HTTP. This
-means that not only can the client send frames to the server
-at any time, but the server can also send frames to the client
-without the client initiating anything other than the
-Websocket connection itself. This allows the server to push
-data to the client directly.
+Websocket connections are fully asynchronous, unlike
+HTTP/1.1 (synchronous) and HTTP/2 (asynchronous, but the
+server can only initiate streams in response to requests).
+With Websocket, the client and the server can both send
+frames at any time without any restriction. It is closer
+to TCP than any of the HTTP protocols.
 
 Websocket is an IETF standard. Cowboy supports the standard
 and all drafts that were previously implemented by browsers,
 excluding the initial flawed draft sometimes known as
 "version 0".
+
+=== Websocket vs HTTP/2
+
+For a few years Websocket was the only way to have a
+bidirectional asynchronous connection with the server.
+This changed when HTTP/2 was introduced. While HTTP/2
+requires the client to first perform a request before
+the server can push data, this is only a minor restriction
+as the client can do so just as it connects.
+
+Websocket was designed as a kind-of-TCP channel to a
+server. It only defines the framing and connection
+management and lets the developer implement a protocol
+on top of it. For example you could implement IRC over
+Websocket and use a Javascript IRC client to speak to
+the server.
+
+HTTP/2 on the other hand is just an improvement over
+the HTTP/1.1 connection and request/response mechanism.
+It has the same semantics as HTTP/1.1.
+
+If all you need is to access an HTTP API, then HTTP/2
+should be your first choice. On the other hand, if what
+you need is a different protocol, then you can use
+Websocket to implement it.
 
 === Implementation
 
@@ -37,7 +62,9 @@ covering all aspects of the protocol. Cowboy passes the
 suite with 100% success, including all optional tests.
 
 Cowboy's Websocket implementation also includes the
-x-webkit-deflate-frame compression draft which is being used
-by some browsers to reduce the size of data being transmitted.
+permessage-deflate and x-webkit-deflate-frame compression
+extensions.
+
 Cowboy will automatically use compression as long as the
-`compress` protocol option is set when starting the listener.
+`websocket_compress` protocol option is set when starting
+the listener.
