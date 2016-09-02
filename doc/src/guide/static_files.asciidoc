@@ -1,25 +1,17 @@
 [[static_files]]
 == Static files
 
-Cowboy comes with a special handler built as a REST handler
-and designed specifically for serving static files. It is
-provided as a convenience and provides a quick solution for
-serving files during development.
+Cowboy comes with a ready to use handler for serving static
+files. It is provided as a convenience for serving files
+during development.
 
 For systems in production, consider using one of the many
 Content Distribution Network (CDN) available on the market,
-as they are the best solution for serving files. They are
-covered in the next chapter. If you decide against using a
-CDN solution, then please look at the chapter after that,
-as it explains how to efficiently serve static files on
-your own.
+as they are the best solution for serving files.
 
 The static handler can serve either one file or all files
-from a given directory. It can also send etag headers for
-client-side caching.
-
-To use the static file handler, simply add routes for it
-with the appropriate options.
+from a given directory. The etag generation and mime types
+can be configured.
 
 === Serve one file
 
@@ -31,13 +23,13 @@ to the given application's private directory.
 
 The following rule will serve the file 'static/index.html'
 from the application `my_app`'s priv directory whenever the
-path `/` is accessed.
+path `/` is accessed:
 
 [source,erlang]
 {"/", cowboy_static, {priv_file, my_app, "static/index.html"}}
 
 You can also specify the absolute path to a file, or the
-path to the file relative to the current directory.
+path to the file relative to the current directory:
 
 [source,erlang]
 {"/", cowboy_static, {file, "/var/www/index.html"}}
@@ -56,13 +48,13 @@ private directory.
 
 The following rule will serve any file found in the application
 `my_app`'s priv directory inside the `static/assets` folder
-whenever the requested path begins with `/assets/`.
+whenever the requested path begins with `/assets/`:
 
 [source,erlang]
 {"/assets/[...]", cowboy_static, {priv_dir, my_app, "static/assets"}}
 
 You can also specify the absolute path to the directory or
-set it relative to the current directory.
+set it relative to the current directory:
 
 [source,erlang]
 {"/assets/[...]", cowboy_static, {dir, "/var/www/assets"}}
@@ -86,7 +78,7 @@ you may have. You can of course create your own function.
 
 To use the default function, you should not have to configure
 anything, as it is the default. If you insist, though, the
-following will do the job.
+following will do the job:
 
 [source,erlang]
 ----
@@ -99,7 +91,7 @@ a list of less used options, like mimetypes or etag. All option
 types have this optional field.
 
 To use the function that will detect almost any mimetype,
-the following configuration will do.
+the following configuration will do:
 
 [source,erlang]
 ----
@@ -109,7 +101,7 @@ the following configuration will do.
 
 You probably noticed the pattern by now. The configuration
 expects a module and a function name, so you can use any
-of your own functions instead.
+of your own functions instead:
 
 [source,erlang]
 ----
@@ -131,7 +123,7 @@ directly to disk.
 
 Finally, the mimetype can be hard-coded for all files.
 This is especially useful in combination with the `file`
-and `priv_file` options as it avoids needless computation.
+and `priv_file` options as it avoids needless computation:
 
 [source,erlang]
 ----
@@ -148,7 +140,7 @@ rather poorly over a cluster of nodes, for example, as the
 file metadata will vary from server to server, giving a
 different etag on each server.
 
-You can however change the way the etag is calculated.
+You can however change the way the etag is calculated:
 
 [source,erlang]
 ----
@@ -162,7 +154,7 @@ time. In a distributed setup, you would typically use the
 file path to retrieve an etag value that is identical across
 all your servers.
 
-You can also completely disable etag handling.
+You can also completely disable etag handling:
 
 [source,erlang]
 ----
