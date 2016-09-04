@@ -3,19 +3,17 @@
 
 Cowboy does nothing by default.
 
-To make Cowboy useful, you need to map URLs to Erlang modules that will
+To make Cowboy useful, you need to map URIs to Erlang modules that will
 handle the requests. This is called routing.
 
 When Cowboy receives a request, it tries to match the requested host and
-path to the resources given in the dispatch rules. If it matches, then
-the associated Erlang code will be executed.
-
-Routing rules are given per host. Cowboy will first match on the host,
-and then try to find a matching path.
+path to the configured routes. When there's a match, the route's
+associated handler is executed.
 
 Routes need to be compiled before they can be used by Cowboy.
+The result of the compilation is the dispatch rules.
 
-=== Structure
+=== Syntax
 
 The general structure for the routes is defined as follow.
 
@@ -190,11 +188,13 @@ Read more about xref:constraints[constraints].
 
 === Compilation
 
-The structure defined in this chapter needs to be compiled before it is
-passed to Cowboy. This allows Cowboy to efficiently lookup the correct
-handler to run instead of having to parse the routes repeatedly.
+The routes must be compiled before Cowboy can use them. The compilation
+step normalizes the routes to simplify the code and speed up the
+execution, but the routes are still looked up one by one in the end.
+Faster compilation strategies could be to compile the routes directly
+to Erlang code, but would require heavier dependencies.
 
-This can be done with a simple call to `cowboy_router:compile/1`.
+To compile routes, just call the appropriate function:
 
 [source,erlang]
 ----
@@ -209,16 +209,13 @@ cowboy:start_clear(my_http_listener, 100,
 ).
 ----
 
-Note that this function will return `{error, badarg}` if the structure
-given is incorrect.
-
 === Live update
 
 You can use the `cowboy:set_env/3` function for updating the dispatch
 list used by routing. This will apply to all new connections accepted
-by the listener.
+by the listener:
 
 [source,erlang]
 cowboy:set_env(my_http_listener, dispatch, cowboy_router:compile(Dispatch)).
 
-Note that you need to compile the routes before updating.
+Note that you need to compile the routes again before updating.
