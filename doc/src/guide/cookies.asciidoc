@@ -50,7 +50,7 @@ They can also be set for a duration in seconds:
 ----
 SessionID = generate_session_id(),
 Req = cowboy_req:set_resp_cookie(<<"sessionid">>, SessionID,
-	#{max_age => 3600}, Req0).
+    #{max_age => 3600}, Req0).
 ----
 
 To delete cookies, set `max_age` to 0:
@@ -59,7 +59,7 @@ To delete cookies, set `max_age` to 0:
 ----
 SessionID = generate_session_id(),
 Req = cowboy_req:set_resp_cookie(<<"sessionid">>, SessionID,
-	#{max_age => 0}, Req0).
+    #{max_age => 0}, Req0).
 ----
 
 To restrict cookies to a specific domain and path, the options
@@ -68,7 +68,7 @@ of the same name can be used:
 [source,erlang]
 ----
 Req = cowboy_req:set_resp_cookie(<<"inaccount">>, <<"1">>,
-	#{domain => "my.example.org", path => "/account"}, Req0).
+    #{domain => "my.example.org", path => "/account"}, Req0).
 ----
 
 Cookies will be sent with requests to this domain and all
@@ -82,7 +82,7 @@ available over HTTPS):
 ----
 SessionID = generate_session_id(),
 Req = cowboy_req:set_resp_cookie(<<"sessionid">>, SessionID,
-	#{secure => true}, Req0).
+    #{secure => true}, Req0).
 ----
 
 To prevent client-side scripts from accessing a cookie:
@@ -91,7 +91,7 @@ To prevent client-side scripts from accessing a cookie:
 ----
 SessionID = generate_session_id(),
 Req = cowboy_req:set_resp_cookie(<<"sessionid">>, SessionID,
-	#{http_only => true}, Req0).
+    #{http_only => true}, Req0).
 ----
 
 Cookies may also be set client-side, for example using

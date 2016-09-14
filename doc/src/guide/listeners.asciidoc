@@ -28,14 +28,14 @@ on port 8080:
 [source,erlang]
 ----
 start(_Type, _Args) ->
-	Dispatch = cowboy_router:compile([
-		{'_', [{"/", hello_handler, []}]}
-	]),
-	{ok, _} = cowboy:start_clear(my_http_listener, 100,
-		[{port, 8080}],
-		#{env => #{dispatch => Dispatch}}
-	),
-	hello_erlang_sup:start_link().
+    Dispatch = cowboy_router:compile([
+        {'_', [{"/", hello_handler, []}]}
+    ]),
+    {ok, _} = cowboy:start_clear(my_http_listener, 100,
+        [{port, 8080}],
+        #{env => #{dispatch => Dispatch}}
+    ),
+    hello_erlang_sup:start_link().
 ----
 
 The xref:getting_started[Getting Started] chapter uses a
@@ -72,18 +72,18 @@ used directly to setup a custom listener.
 [source,erlang]
 ----
 start(_Type, _Args) ->
-	Dispatch = cowboy_router:compile([
-		{'_', [{"/", hello_handler, []}]}
-	]),
-	{ok, _} = cowboy:start_tls(my_http_listener, 100,
-		[
-			{port, 8443},
-			{certfile, "/path/to/certfile"},
-			{keyfile, "/path/to/keyfile"}
-		],
-		#{env => #{dispatch => Dispatch}}
-	),
-	hello_erlang_sup:start_link().
+    Dispatch = cowboy_router:compile([
+        {'_', [{"/", hello_handler, []}]}
+    ]),
+    {ok, _} = cowboy:start_tls(my_http_listener, 100,
+        [
+            {port, 8443},
+            {certfile, "/path/to/certfile"},
+            {keyfile, "/path/to/keyfile"}
+        ],
+        #{env => #{dispatch => Dispatch}}
+    ),
+    hello_erlang_sup:start_link().
 ----
 
 Clients connecting to Cowboy on the secure listener are

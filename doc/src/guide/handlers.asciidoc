@@ -65,7 +65,7 @@ following snippet switches to a Websocket handler:
 [source,erlang]
 ----
 init(Req, State) ->
-	{cowboy_websocket, Req, State}.
+    {cowboy_websocket, Req, State}.
 ----
 
 You can also switch to your own custom handler type:
@@ -73,7 +73,7 @@ You can also switch to your own custom handler type:
 [source,erlang]
 ----
 init(Req, State) ->
-	{my_handler_type, Req, State}.
+    {my_handler_type, Req, State}.
 ----
 
 How to implement a custom handler type is described in the

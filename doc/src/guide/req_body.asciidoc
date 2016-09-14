@@ -71,7 +71,7 @@ only up to 1MB for up to 5 seconds:
 [source,erlang]
 ----
 {ok, Data, Req} = cowboy_req:read_body(Req0,
-	#{length => 1000000, period => 5000}).
+    #{length => 1000000, period => 5000}).
 ----
 
 You may also disable the length limit:
@@ -126,5 +126,5 @@ read for up to 64KB and up to 5 seconds. They can be modified:
 [source,erlang]
 ----
 {ok, KeyValues, Req} = cowboy_req:read_urlencoded_body(Req0,
-	#{length => 4096, period => 3000}).
+    #{length => 4096, period => 3000}).
 ----

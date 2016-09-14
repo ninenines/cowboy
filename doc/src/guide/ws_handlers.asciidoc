@@ -21,7 +21,7 @@ To establish a Websocket connection, you must switch to the
 [source,erlang]
 ----
 init(Req, State) ->
-	{cowboy_websocket, Req, State}.
+    {cowboy_websocket, Req, State}.
 ----
 
 Cowboy will perform the Websocket handshake immediately. Note
@@ -58,19 +58,19 @@ be:
 [source,erlang]
 ----
 init(Req, State) ->
-	case cowboy_req:parse_header(<<"sec-websocket-protocol">>, Req) of
-		undefined ->
-			{ok, Req, State};
-		Subprotocols ->
-			case lists:keymember(<<"mqtt">>, 1, Subprotocols) of
-				true ->
-					Req2 = cowboy_req:set_resp_header(<<"sec-websocket-protocol">>,
-						<<"mqtt">>, Req),
-					{ok, Req2, State};
-				false ->
-					{stop, Req, State}
-			end
-	end.
+    case cowboy_req:parse_header(<<"sec-websocket-protocol">>, Req) of
+        undefined ->
+            {ok, Req, State};
+        Subprotocols ->
+            case lists:keymember(<<"mqtt">>, 1, Subprotocols) of
+                true ->
+                    Req2 = cowboy_req:set_resp_header(<<"sec-websocket-protocol">>,
+                        <<"mqtt">>, Req),
+                    {ok, Req2, State};
+                false ->
+                    {stop, Req, State}
+            end
+    end.
 ----
 
 === Post-upgrade initialization
@@ -93,8 +93,8 @@ The optional `websocket_init/1` can be used instead:
 [source,erlang]
 ----
 websocket_init(State) ->
-	erlang:start_timer(1000, self(), <<"Hello!">>),
-	{ok, State}.
+    erlang:start_timer(1000, self(), <<"Hello!">>),
+    {ok, State}.
 ----
 
 All Websocket callbacks share the same return values. This
@@ -104,7 +104,7 @@ the upgrade:
 [source,erlang]
 ----
 websocket_init(State) ->
-	{reply, {text, <<"Hello!">>}, State}.
+    {reply, {text, <<"Hello!">>}, State}.
 ----
 
 === Receiving frames
@@ -121,9 +121,9 @@ ignores all others:
 [source,erlang]
 ----
 websocket_handle(Frame = {text, _}, State) ->
-	{reply, Frame, State};
+    {reply, Frame, State};
 websocket_handle(_Frame, State) ->
-	{ok, State}.
+    {ok, State}.
 ----
 
 Note that ping and pong frames require no action from the
@@ -144,9 +144,9 @@ and ignores all others:
 [source,erlang]
 ----
 websocket_info({log, Text}, State) ->
-	{reply, {text, Text}, State};
+    {reply, {text, Text}, State};
 websocket_info(_Info, State) ->
-	{ok, State}.
+    {ok, State}.
 ----
 
 === Sending frames
@@ -161,7 +161,7 @@ To send nothing, just return an ok tuple:
 [source,erlang]
 ----
 websocket_info(_Info, State) ->
-	{ok, State}.
+    {ok, State}.
 ----
 
 To send one frame, return a reply tuple with the frame to send:
@@ -169,7 +169,7 @@ To send one frame, return a reply tuple with the frame to send:
 [source,erlang]
 ----
 websocket_info(_Info, State) ->
-	{reply, {text, <<"Hello!">>}, State}.
+    {reply, {text, <<"Hello!">>}, State}.
 ----
 
 You can send frames of any type: text, binary, ping, pong
@@ -181,11 +181,11 @@ list of frames to send:
 [source,erlang]
 ----
 websocket_info(_Info, State) ->
-	{reply, [
-		{text, "Hello"},
-		{text, <<"world!">>},
-		{binary, <<0:8000>>}
-	], State}.
+    {reply, [
+        {text, "Hello"},
+        {text, <<"world!">>},
+        {binary, <<0:8000>>}
+    ], State}.
 ----
 
 They are sent in the given order.
@@ -215,7 +215,7 @@ close connections idle for more than 60 seconds:
 [source,erlang]
 ----
 init(Req, State) ->
-	{cowboy_websocket, Req, State, 60000}.
+    {cowboy_websocket, Req, State, 60000}.
 ----
 
 This value cannot be changed once it is set. It defaults to
@@ -233,13 +233,13 @@ Simply add an `hibernate` field to the ok or reply tuples:
 [source,erlang]
 ----
 websocket_init(State) ->
-	{ok, State, hibernate}.
+    {ok, State, hibernate}.
 
 websocket_handle(_Frame, State) ->
-	{ok, State, hibernate}.
+    {ok, State, hibernate}.
 
 websocket_info(_Info, State) ->
-	{reply, {text, <<"Hello!">>}, State, hibernate}.
+    {reply, {text, <<"Hello!">>}, State, hibernate}.
 ----
 
 It is highly recommended to write your handlers with
@@ -258,7 +258,7 @@ To tell Cowboy to close the connection, use a stop tuple:
 [source,erlang]
 ----
 websocket_info(_Info, State) ->
-	{stop, State}.
+    {stop, State}.
 ----
 
 Sending a `close` frame will immediately initiate the closing

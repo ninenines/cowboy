@@ -71,7 +71,7 @@ Body = <<"Hats off!">>,
 Req = cowboy_req:reply(200, #{
     <<"content-type">> => <<"text/html">>
 }, ["<html><head><title>", Title, "</title></head>",
-	"<body><p>", Body, "</p></body></html>"], Req0).
+    "<body><p>", Body, "</p></body></html>"], Req0).
 ----
 
 This method of building responses is more efficient than
@@ -247,7 +247,7 @@ To send a file while replying:
 [source,erlang]
 ----
 Req = cowboy_req:reply(200, #{
-	<<"content-type">> => "image/png"
+    <<"content-type">> => "image/png"
 }, {sendfile, 0, 12345, "path/to/logo.png"}, Req0).
 ----
 
@@ -289,13 +289,13 @@ in the response:
 [source,erlang]
 ----
 cowboy_req:push("/static/style.css", #{
-	<<"accept">> => <<"text/css">>
+    <<"accept">> => <<"text/css">>
 }, Req0),
 Req = cowboy_req:reply(200, #{
-	<<"content-type">> => <<"text/html">>
+    <<"content-type">> => <<"text/html">>
 }, ["<html><head><title>My web page</title>",
-	"<link rel='stylesheet' type='text/css' href='/static/style.css'>",
-	"<body><p>Welcome to Erlang!</p></body></html>"], Req0).
+    "<link rel='stylesheet' type='text/css' href='/static/style.css'>",
+    "<body><p>Welcome to Erlang!</p></body></html>"], Req0).
 ----
 
 To override the method, scheme, host, port or query string,
@@ -305,7 +305,7 @@ uses a different host name:
 [source,erlang]
 ----
 cowboy_req:push("/static/style.css", #{
-	<<"accept">> => <<"text/css">>
+    <<"accept">> => <<"text/css">>
 }, #{host => <<"cdn.example.org">>}, Req),
 ----
 

@@ -32,15 +32,15 @@ otherwise.
 [source,erlang]
 ----
 init(Req0=#{method := <<"GET">>}, State) ->
-	Req = cowboy_req:reply(200, #{
-		<<"content-type">> => <<"text/plain">>
-	}, <<"Hello world!">>, Req0),
-	{ok, Req, State};
+    Req = cowboy_req:reply(200, #{
+        <<"content-type">> => <<"text/plain">>
+    }, <<"Hello world!">>, Req0),
+    {ok, Req, State};
 init(Req0, State) ->
-	Req = cowboy_req:reply(405, #{
-		<<"allow">> => <<"GET">>
-	}, Req0),
-	{ok, Req, State}.
+    Req = cowboy_req:reply(405, #{
+        <<"allow">> => <<"GET">>
+    }, Req0),
+    {ok, Req, State}.
 ----
 
 Any other field is internal and should not be accessed.
@@ -135,11 +135,11 @@ of the effective request URI can all be retrieved directly:
 [source,erlang]
 ----
 #{
-	scheme := Scheme,
-	host := Host,
-	port := Port,
-	path := Path,
-	qs := Qs
+    scheme := Scheme,
+    host := Host,
+    port := Port,
+    path := Path,
+    qs := Qs
 } = Req.
 ----
 
@@ -348,7 +348,7 @@ directly:
 [source,erlang]
 ----
 ParsedVal = cowboy_req:parse_header(<<"content-type">>, Req,
-	{<<"text">>, <<"plain">>, []}).
+    {<<"text">>, <<"plain">>, []}).
 ----
 
 === Peer

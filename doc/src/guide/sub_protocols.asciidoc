@@ -17,7 +17,7 @@ is handled by the sub protocol.
 [source,erlang]
 ----
 init(Req, State) ->
-	{cowboy_websocket, Req, State}.
+    {cowboy_websocket, Req, State}.
 ----
 
 The return value may also have a `Timeout` value and/or the
@@ -34,7 +34,7 @@ hibernation:
 [source,erlang]
 ----
 init(Req, State) ->
-	{my_protocol, Req, State, 5000, hibernate}.
+    {my_protocol, Req, State, 5000, hibernate}.
 ----
 
 If a sub protocol does not make use of these options, it should
@@ -59,7 +59,7 @@ timeout and hibernate values.
 [source,erlang]
 ----
 upgrade(Req, Env, Handler, HandlerOpts, Timeout, Hibernate) ->
-	%% Sub protocol code here.
+    %% Sub protocol code here.
 ----
 
 This callback is expected to behave like a middleware and to

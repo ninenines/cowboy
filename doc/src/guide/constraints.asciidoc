@@ -74,11 +74,11 @@ to an integer:
 [source,erlang]
 ----
 fun (Value0) when is_binary(Value0) ->
-	try binary_to_integer(Value0) of
-		Value -> {true, Value}
-	catch _:_ ->
-		false
-	end.
+    try binary_to_integer(Value0) of
+        Value -> {true, Value}
+    catch _:_ ->
+        false
+    end.
 ----
 
 Constraint functions should only crash because the programmer

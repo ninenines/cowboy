@@ -91,14 +91,14 @@ code to the `start/2` function to make it look like this:
 [source,erlang]
 ----
 start(_Type, _Args) ->
-	Dispatch = cowboy_router:compile([
-		{'_', [{"/", hello_handler, []}]}
-	]),
-	{ok, _} = cowboy:start_clear(my_http_listener, 100,
-		[{port, 8080}],
-		#{env => #{dispatch => Dispatch}}
-	),
-	hello_erlang_sup:start_link().
+    Dispatch = cowboy_router:compile([
+        {'_', [{"/", hello_handler, []}]}
+    ]),
+    {ok, _} = cowboy:start_clear(my_http_listener, 100,
+        [{port, 8080}],
+        #{env => #{dispatch => Dispatch}}
+    ),
+    hello_erlang_sup:start_link().
 ----
 
 Routes are explained in details in the xref:routing[Routing]
@@ -127,11 +127,11 @@ the `init/2` function like this to send a reply.
 [source,erlang]
 ----
 init(Req0, State) ->
-	Req = cowboy_req:reply(200,
-		#{<<"content-type">> => <<"text/plain">>},
-		<<"Hello Erlang!">>,
-		Req0),
-	{ok, Req, State}.
+    Req = cowboy_req:reply(200,
+        #{<<"content-type">> => <<"text/plain">>},
+        <<"Hello Erlang!">>,
+        Req0),
+    {ok, Req, State}.
 ----
 
 What the above code does is send a `200 OK` reply, with the
