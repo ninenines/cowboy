@@ -19,30 +19,36 @@ Functions:
 
 * link:man:cowboy(3)[cowboy(3)] - Listener management
 * link:man:cowboy_req(3)[cowboy_req(3)] - Request and response
-* link:man:cowboy_router(3)[cowboy_router(3)] - Router middleware
+* link:man:cowboy_router(3)[cowboy_router(3)] - Router
 
 // @todo What about cowboy_constraints?
 
 Protocols:
 
-* link:man:cowboy_http(3)[cowboy_http(3)] - HTTP/1.1 protocol
-* link:man:cowboy_http2(3)[cowboy_http2(3)] - HTTP/2 protocol
-* link:man:cowboy_websocket(3)[cowboy_websocket(3)] - Websocket protocol
-
-Behaviors:
-
-* link:man:cowboy_handler(3)[cowboy_handler(3)] - Handler middleware and behavior
-* link:man:cowboy_loop(3)[cowboy_loop(3)] - Loop handler behavior
-* link:man:cowboy_middleware(3)[cowboy_middleware(3)] - Middleware behavior
-* link:man:cowboy_rest(3)[cowboy_rest(3)] - REST handler behavior
-* link:man:cowboy_stream(3)[cowboy_stream(3)] - Stream behavior
-* link:man:cowboy_sub_protocol(3)[cowboy_sub_protocol(3)] - Sub protocol behavior
+* link:man:cowboy_http(3)[cowboy_http(3)] - HTTP/1.1
+* link:man:cowboy_http2(3)[cowboy_http2(3)] - HTTP/2
+* link:man:cowboy_websocket(3)[cowboy_websocket(3)] - Websocket
 
 Handlers:
 
 * link:man:cowboy_static(3)[cowboy_static(3)] - Static file handler
 
 // @todo What about cowboy_stream_h?
+
+Behaviors:
+
+* link:man:cowboy_handler(3)[cowboy_handler(3)] - Plain HTTP handlers
+* link:man:cowboy_loop(3)[cowboy_loop(3)] - Loop handlers
+* link:man:cowboy_middleware(3)[cowboy_middleware(3)] - Middlewares
+* link:man:cowboy_rest(3)[cowboy_rest(3)] - REST handlers
+* link:man:cowboy_stream(3)[cowboy_stream(3)] - Stream handlers
+* link:man:cowboy_sub_protocol(3)[cowboy_sub_protocol(3)] - Sub protocols
+* link:man:cowboy_websocket(3)[cowboy_websocket(3)] - Websocket handlers
+
+Middlewares:
+
+* link:man:cowboy_router(3)[cowboy_router(3)] - Router middleware
+* link:man:cowboy_handler(3)[cowboy_handler(3)] - Handler middleware
 
 == Dependencies
 
