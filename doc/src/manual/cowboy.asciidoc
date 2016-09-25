@@ -9,80 +9,91 @@ cowboy - HTTP server
 The `cowboy` module provides convenience functions for
 manipulating Ranch listeners.
 
+== Exports
+
+* link:man:cowboy:start_clear(3)[cowboy:start_clear(3)] - Listen for connections using plain TCP
+* link:man:cowboy:start_tls(3)[cowboy:start_tls(3)] - Listen for connections using TLS
+* link:man:cowboy:stop_listener(3)[cowboy:stop_listener(3)] - Stop the given listener
+* link:man:cowboy:set_env(3)[cowboy:set_env(3)] - Update a listener's environment value
+
 == Types
 
-=== fields() = [Field]
+=== fields()
 
 [source,erlang]
 ----
-Field = atom()
-	| {atom(), cowboy_constraints:constraint() | [cowboy_constraints:constraint()]}
-	| {atom(), cowboy_constraints:constraint() | [cowboy_constraints:constraint()], any()}]
+fields() :: [Name
+           | {Name, Constraints}
+           | {Name, Constraints, Default}]
+
+Name :: atom()
+Constraints :: Constraint | [Constraint]
+Constraint :: cowboy_constraints:constraint()
+Default :: any()
 ----
 
-Fields for match operations. Constraint(s) and default value are optional.
+Fields description for match operations.
 
-=== http_headers() = [{binary(), iodata()}]
+This type is used in link:man:cowboy_router(3)[cowboy_router]
+for matching bindings and in the match functions found in
+link:man:cowboy_req(3)[cowboy_req].
 
-HTTP headers as a list of key/values.
+=== http_headers()
 
-=== http_status() = non_neg_integer() | binary()
+[source,erlang]
+----
+http_headers() :: #{binary() => iodata()}
+----
 
-HTTP status.
+HTTP headers.
 
-A binary status can be used to set a custom message.
+=== http_status()
 
-=== http_version() = \'HTTP/1.1' | \'HTTP/1.0'
+[source,erlang]
+----
+http_status() :: non_neg_integer() | binary()
+----
+
+HTTP response status.
+
+A binary status can be used to set a reason phrase. Note
+however that HTTP/2 only sends the status code and drops
+the reason phrase entirely.
+
+=== http_version()
+
+[source,erlang]
+----
+http_version() :: 'HTTP/2' | 'HTTP/1.1' | 'HTTP/1.0'
+----
 
 HTTP version.
 
-=== `onresponse_fun() = fun((http_status(), http_headers(), iodata(), cowboy_req:req()) -> cowboy_req:req())`
+Note that semantically, HTTP/1.1 and HTTP/2 are equivalent.
 
-Fun called immediately before sending the response.
+=== opts()
 
-It can perform any operation on the Req object, including
-reading the request body or replying. If a reply is sent, it
-overrides the reply initially sent. The callback will not be
-called again for the new reply.
+[source,erlang]
+----
+opts() :: map()
+----
 
-== Exports
+Options for the HTTP/1.1, HTTP/2 and Websocket protocols.
 
-=== start_http(Ref, NbAcceptors, TransOpts, ProtoOpts) -> {ok, pid()}
+The protocol options are in a map containing all the options for
+the different protocols that may be involved when connecting
+to the listener, including HTTP/1.1 and HTTP/2 but also
+subprotocols like Websocket.
+// @todo For Websocket this might change in the future.
 
-Ref = ranch:ref():: Listener name.
-NbAcceptors = non_neg_integer():: Number of acceptor processes.
-TransOpts = ranch_tcp:opts():: TCP transport options.
-ProtoOpts = cowboy_protocol:opts():: HTTP protocol options.
-
-Start listening for HTTP connections. Returns the pid for this
-listener's supervisor.
-
-=== start_https(Ref, NbAcceptors, TransOpts, ProtoOpts) -> {ok, pid()}
-
-Ref = ranch:ref():: Listener name.
-NbAcceptors = non_neg_integer():: Number of acceptor processes.
-TransOpts = ranch_ssl:opts():: SSL transport options.
-ProtoOpts = cowboy_protocol:opts():: HTTP protocol options.
-
-Start listening for HTTPS connections. Returns the pid for this
-listener's supervisor.
-
-=== stop_listener(Ref) -> ok | {error, not_found}
-
-Ref = ranch:ref():: Listener name.
-
-Stop a previously started listener.
-
-=== set_env(Ref, Name, Value) -> ok
-
-Ref = ranch:ref():: Listener name.
-Name = atom():: Name of environment value.
-Value = any():: Environment value.
-
-Set or update an environment value for an already running listener.
-This will take effect on all subsequent connections.
+The HTTP/1.1 options are documented in the
+link:man:cowboy_http(3)[cowboy_http(3)] manual;
+the HTTP/2 options in
+link:man:cowboy_http2(3)[cowboy_http2(3)];
+and the Websocket options in
+link:man:cowboy_websocket(3)[cowboy_websocket(3)].
 
 == See also
 
-The http://ninenines.eu/docs/en/ranch/HEAD/guide[Ranch guide]
-provides detailed information about how listeners work.
+link:man:cowboy(7)[cowboy(7)],
+link:man:ranch(3)[ranch(3)]
