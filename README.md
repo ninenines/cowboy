@@ -1,7 +1,6 @@
-Cowboy
-======
+![Cowboy](https://s3.amazonaws.com/dikaio/cowboy.svg)
 
-Cowboy is a small, fast and modular HTTP server written in Erlang.
+**Cowboy** is a small, fast and modular HTTP server written in Erlang.
 
 Goals
 -----
