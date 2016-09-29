@@ -1,7 +1,7 @@
 # See LICENSE for licensing information.
 
 PROJECT = cowboy
-PROJECT_DESCRIPTION = Small, fast, modular HTTP server.
+PROJECT_DESCRIPTION = Small, fast, modern HTTP server.
 PROJECT_VERSION = 2.0.0-pre.4
 PROJECT_REGISTERED = cowboy_clock
 

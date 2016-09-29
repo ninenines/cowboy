@@ -2,7 +2,7 @@
 
 == Name
 
-cowboy - HTTP server for Erlang/OTP
+cowboy - Small, fast, modern HTTP server for Erlang/OTP
 
 == Description
 

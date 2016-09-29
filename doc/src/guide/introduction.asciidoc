@@ -1,7 +1,7 @@
 [[introduction]]
 == Introduction
 
-Cowboy is a small, fast and modular HTTP server written in Erlang.
+Cowboy is a small, fast and modern HTTP server for Erlang/OTP.
 
 Cowboy aims to provide a complete xref:modern_web[modern Web stack].
 This includes HTTP/1.1, HTTP/2, Websocket, Server-Sent Events and
