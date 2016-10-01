@@ -128,4 +128,5 @@ Port = ranch:get_port(Name).
 
 link:man:cowboy(3)[cowboy(3)],
 link:man:cowboy:start_clear(3)[cowboy:start_clear(3)],
+link:man:cowboy:stop_listener(3)[cowboy:stop_listener(3)],
 link:man:ranch(3)[ranch(3)]

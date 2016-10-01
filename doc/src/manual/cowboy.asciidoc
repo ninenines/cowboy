@@ -6,7 +6,7 @@ cowboy - HTTP server
 
 == Description
 
-The `cowboy` module provides convenience functions for
+The module `cowboy` provides convenience functions for
 manipulating Ranch listeners.
 
 == Exports
@@ -34,9 +34,9 @@ Default :: any()
 
 Fields description for match operations.
 
-This type is used in link:man:cowboy_router(3)[cowboy_router]
+This type is used in link:man:cowboy_router(3)[cowboy_router(3)]
 for matching bindings and in the match functions found in
-link:man:cowboy_req(3)[cowboy_req].
+link:man:cowboy_req(3)[cowboy_req(3)].
 
 === http_headers()
 
