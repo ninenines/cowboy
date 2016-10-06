@@ -782,7 +782,7 @@ if_modified_since_now(Req, State, IfModifiedSince) ->
 
 if_modified_since(Req, State, IfModifiedSince) ->
 	try last_modified(Req, State) of
-		{no_call, Req2, State2} ->
+		{undefined, Req2, State2} ->
 			method(Req2, State2);
 		{LastModified, Req2, State2} ->
 			case LastModified > IfModifiedSince of
