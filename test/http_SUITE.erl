@@ -647,6 +647,13 @@ rest_expires_binary(Config) ->
 	{_, <<"0">>} = lists:keyfind(<<"expires">>, 1, Headers),
 	ok.
 
+rest_last_modified_undefined(Config) ->
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/simple",
+		[{<<"if-modified-since">>, <<"Fri, 21 Sep 2012 22:36:14 GMT">>}]),
+	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
+	ok.
+
 rest_keepalive(Config) ->
 	ConnPid = gun_open(Config),
 	Refs = [gun:get(ConnPid, "/simple") || _ <- lists:seq(1, 10)],
