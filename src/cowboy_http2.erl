@@ -517,6 +517,8 @@ send_data(Socket, Transport, StreamID, IsFin, Data, Length) ->
 			Transport:send(Socket, cow_http2:data(StreamID, IsFin, Data))
 	end.
 
+terminate(undefined, Reason) ->
+	exit({shutdown, Reason});
 terminate(#state{socket=Socket, transport=Transport, handler=Handler,
 		streams=Streams, children=Children}, Reason) ->
 	%% @todo Send GOAWAY frame; need to keep track of last good stream id; how?
