@@ -42,7 +42,7 @@ and `middlewares`.
 Value::
 
 The new value.
-
++
 The type of the value differs depending on the key.
 
 == Return value

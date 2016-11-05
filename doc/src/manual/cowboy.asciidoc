@@ -26,10 +26,10 @@ fields() :: [Name
            | {Name, Constraints}
            | {Name, Constraints, Default}]
 
-Name :: atom()
+Name        :: atom()
 Constraints :: Constraint | [Constraint]
-Constraint :: cowboy_constraints:constraint()
-Default :: any()
+Constraint  :: cowboy_constraints:constraint()
+Default     :: any()
 ----
 
 Fields description for match operations.
