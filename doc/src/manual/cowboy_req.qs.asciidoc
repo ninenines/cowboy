@@ -1,0 +1,50 @@
+= cowboy_req:qs(3)
+
+== Name
+
+cowboy_req:qs - URI query string
+
+== Description
+
+[source,erlang]
+----
+qs(Req :: cowboy_req:req()) -> Qs :: binary()
+----
+
+Return the query string of the effective request URI.
+
+The query string can also be obtained using pattern matching:
+
+[source,erlang]
+----
+#{qs := Qs} = Req.
+----
+
+== Arguments
+
+Req::
+
+The Req object.
+
+== Return value
+
+The query string is returned as a binary string. It is case sensitive.
+
+== Changelog
+
+* *2.0*: Only the query string is returned, it is no longer wrapped in a tuple.
+* *1.0*: Function introduced.
+
+== Examples
+
+.Get the effective request URI's query string
+[source,erlang]
+----
+Qs = cowboy_req:qs(Req).
+----
+
+== See also
+
+link:man:cowboy_req(3)[cowboy_req(3)],
+link:man:cowboy_req:parse_qs(3)[cowboy_req:parse_qs(3)],
+link:man:cowboy_req:match_qs(3)[cowboy_req:match_qs(3)]

@@ -1,0 +1,49 @@
+= cowboy_req:version(3)
+
+== Name
+
+cowboy_req:version - HTTP version
+
+== Description
+
+[source,erlang]
+----
+version(Req :: cowboy_req:req()) -> Version :: cowboy:http_version()
+----
+
+Return the HTTP version used for the request.
+
+The version can also be obtained using pattern matching:
+
+[source,erlang]
+----
+#{version := Version} = Req.
+----
+
+== Arguments
+
+Req::
+
+The Req object.
+
+== Return value
+
+The HTTP version used for the request is returned as an
+atom. It is provided for informative purposes only.
+
+== Changelog
+
+* *2.0*: Only the version is returned, it is no longer wrapped in a tuple.
+* *1.0*: Function introduced.
+
+== Examples
+
+.Get the HTTP version
+[source,erlang]
+----
+Version = cowboy_req:version(Req).
+----
+
+== See also
+
+link:man:cowboy_req(3)[cowboy_req(3)]

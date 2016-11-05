@@ -1,0 +1,116 @@
+= cowboy_req:uri(3)
+
+== Name
+
+cowboy_req:uri - Reconstructed URI
+
+== Description
+
+[source,erlang]
+----
+uri(Req :: cowboy_req:req())       -> uri(Req, #{})
+uri(Req :: cowboy_req:req(), Opts) -> URI :: iodata()
+
+Opts :: #{
+    scheme   => iodata()           | undefined,
+    host     => iodata()           | undefined,
+    port     => inet:port_number() | undefined,
+    path     => iodata()           | undefined,
+    qs       => iodata()           | undefined,
+    fragment => iodata()           | undefined
+}
+----
+
+Reconstruct the effective request URI, optionally modifying components.
+
+By default Cowboy will build a URI using the components found
+in the request. Options allow disabling or replacing individual
+components.
+
+== Arguments
+
+Req::
+
+The Req object.
+
+Opts::
+
+Map for overriding individual components.
++
+To replace a component, provide its new value as a binary
+string or an iolist. To disable a component, set its value
+to `undefined`.
++
+As this function always returns a valid URI, there are some
+things to note:
++
+    * Disabling the host also disables the scheme and port.
+    * There is no fragment component by default as these are
+      not sent with the request.
+    * The port number may not appear in the resulting URI if
+      it is the default port for the given scheme (http: 80; https: 443).
+
+== Return value
+
+The reconstructed URI is returned as an iolist or a binary string.
+
+== Changelog
+
+* *2.0*: Individual components can be replaced or disabled.
+* *2.0*: Only the URI is returned, it is no longer wrapped in a tuple.
+* *2.0*: Function introduced. Replaces `host_url/1` and `url/1`.
+
+== Examples
+
+With an effective request URI http://example.org/path/to/res?edit=1
+we can have:
+
+.Protocol relative form
+[source,erlang]
+----
+%% //example.org/path/to/res?edit=1
+cowboy_req:uri(Req, #{scheme => undefined}).
+----
+
+.Serialized origin for use in the origin header
+[source,erlang]
+----
+%% http://example.org
+cowboy_req:uri(Req, #{path => undefined, qs => undefined}).
+----
+
+.HTTP/1.1 origin form (path and query string only)
+[source,erlang]
+----
+%% /path/to/res?edit=1
+cowboy_req:uri(Req, #{host => undefined}).
+----
+
+.Add a fragment to the URI
+[source,erlang]
+----
+%% http://example.org/path/to/res?edit=1#errors
+cowboy_req:uri(Req, #{fragment => <<"errors">>}).
+----
+
+.Ensure the scheme is HTTPS
+[source,erlang]
+----
+%% https://example.org/path/to/res?edit=1
+cowboy_req:uri(Req, #{scheme => <<"https">>}).
+----
+
+.Convert the URI to a binary string
+[source,erlang]
+----
+iolist_to_binary(cowboy_req:uri(Req)).
+----
+
+== See also
+
+link:man:cowboy_req(3)[cowboy_req(3)],
+link:man:cowboy_req:scheme(3)[cowboy_req:scheme(3)],
+link:man:cowboy_req:host(3)[cowboy_req:host(3)],
+link:man:cowboy_req:port(3)[cowboy_req:port(3)],
+link:man:cowboy_req:path(3)[cowboy_req:path(3)],
+link:man:cowboy_req:qs(3)[cowboy_req:qs(3)]
