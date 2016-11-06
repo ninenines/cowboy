@@ -33,7 +33,7 @@ Note that this snippet will crash if the header is missing.
 
 Name::
 
-Desired HTTP header name as a binary string.
+Desired HTTP header name as a lowercase binary string.
 
 Req::
 
