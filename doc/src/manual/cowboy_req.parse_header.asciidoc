@@ -212,7 +212,7 @@ parse_header(_, Req) -> {undefined, RawValue}
 ----
 %% Accept everything when header is missing.
 Accept = cowboy_req:parse_header(<<"accept">>, Req,
-	[{{<<"*">>, <<"*">>, []}, 1000, []}]).
+    [{{ <<"*">>, <<"*">>, []}, 1000, []}]).
 ----
 
 .Parse the content-length header
