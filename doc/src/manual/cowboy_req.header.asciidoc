@@ -8,10 +8,12 @@ cowboy_req:header - HTTP header
 
 [source,erlang]
 ----
-header(Name :: binary(), Req) -> header(Name, Req, undefined)
-header(Name :: binary(), Req, Default) -> binary() | Default
+header(Name, Req)          -> header(Name, Req, undefined)
+header(Name, Req, Default) -> binary() | Default
 
-Req :: cowboy_req:req()
+Name    :: binary()
+Req     :: cowboy_req:req()
+Default :: any()
 ----
 
 Return the value for the given HTTP header.

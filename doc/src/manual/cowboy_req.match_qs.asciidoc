@@ -15,10 +15,20 @@ match_qs(Fields :: cowboy:fields(), Req :: cowboy_req:req())
 Parse the query string and match specific values against
 constraints.
 
-This function allows easily retrieving expected values
-from the query string, validating and converting them
-in one call. In addition, the keys are converted to
-atoms, making manipulation that much simpler.
+Cowboy will only return the query string values specified
+in the fields list, and ignore all others. Fields can be
+either the key requested; the key along with a list of
+constraints; or the key, a list of constraints and a
+default value in case the key is missing.
+
+This function will crash if the key is missing and no
+default value is provided. This function will also crash
+if a constraint fails.
+
+The key must be provided as an atom. The key of the
+returned map will be that atom. The value may be converted
+through the use of constraints, making this function able
+to extract, validate and convert values all in one step.
 
 == Arguments
 
