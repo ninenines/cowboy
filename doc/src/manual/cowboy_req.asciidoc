@@ -67,7 +67,10 @@ Request body:
 Response:
 
 * link:man:cowboy_req:set_resp_cookie(3)[cowboy_req:set_resp_cookie(3)] - Set a cookie
+* link:man:cowboy_req:resp_header(3)[cowboy_req:resp_header(3)] - Access the named HTTP header set for the response
+* link:man:cowboy_req:resp_headers(3)[cowboy_req:resp_headers(3)] - Access HTTP headers set for the response
 * link:man:cowboy_req:set_resp_header(3)[cowboy_req:set_resp_header(3)] - Set a response header
+* link:man:cowboy_req:set_resp_headers(3)[cowboy_req:set_resp_headers(3)] - Set several response headers
 * link:man:cowboy_req:has_resp_header(3)[cowboy_req:has_resp_header(3)] - Is the given response header set?
 * link:man:cowboy_req:delete_resp_header(3)[cowboy_req:delete_resp_header(3)] - Delete a response header
 * link:man:cowboy_req:set_resp_body(3)[cowboy_req:set_resp_body(3)] - Set the response body

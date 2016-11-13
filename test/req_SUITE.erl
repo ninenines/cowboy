@@ -485,6 +485,25 @@ set_resp_header(Config) ->
 	true = lists:keymember(<<"content-type">>, 1, Headers),
 	ok.
 
+set_resp_headers(Config) ->
+	doc("Response using set_resp_headers."),
+	{200, Headers, <<"OK">>} = do_get("/resp/set_resp_headers", Config),
+	true = lists:keymember(<<"x-header-test1">>, 1, Headers),
+	true = lists:keymember(<<"x-header-test2">>, 1, Headers),
+	ok.
+
+resp_header(Config) ->
+	doc("Response header with/without default."),
+	{200, _, <<"OK">>} = do_get("/resp/resp_header_defined", Config),
+	{200, _, <<"OK">>} = do_get("/resp/resp_header_default", Config),
+	ok.
+
+resp_headers(Config) ->
+	doc("Get all response headers."),
+	{200, _, <<"OK">>} = do_get("/resp/resp_headers", Config),
+	{200, _, <<"OK">>} = do_get("/resp/resp_headers_empty", Config),
+	ok.
+
 set_resp_body(Config) ->
 	doc("Response using set_resp_body."),
 	{200, _, <<"OK">>} = do_get("/resp/set_resp_body", Config),

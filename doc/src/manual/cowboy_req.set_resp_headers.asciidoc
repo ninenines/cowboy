@@ -1,0 +1,51 @@
+= cowboy_req:set_resp_headers(3)
+
+== Name
+
+cowboy_req:set_resp_headers - Set several response headers
+
+== Description
+
+[source,erlang]
+----
+set_resp_headers(Headers, Req) -> cowboy_req:req()
+
+Headers :: cowboy:http_headers()
+Req     :: cowboy_req:req()
+----
+
+Add all given headers to the response headers.
+If a given header key already exists in the currently set
+response-header map the given value will overwrite the old.
+
+== Arguments
+
+Headers::
+
+A map with keys and values as binary strings.
+Key values should be lowercase to function properly.
+
+Req::
+
+The Req object.
+
+== Return value
+
+A request object updated with the given response headers.
+
+== Changelog
+
+* *2.0*: Function introduced.
+
+== Examples
+
+.Get all response headers
+[source,erlang]
+----
+Req1 = cowboy_req:set_resp_headers(#{<<"x-header-test">> => <<"1">>}, Req0).
+----
+
+== See also
+
+link:man:cowboy_req(3)[cowboy_req(3)],
+link:man:cowboy_req:resp_headers(3)[cowboy_req:resp_headers(3)]
