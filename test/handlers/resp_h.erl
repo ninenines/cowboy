@@ -25,6 +25,29 @@ do(<<"set_resp_cookie4">>, Req0, Opts) ->
 do(<<"set_resp_header">>, Req0, Opts) ->
 	Req = cowboy_req:set_resp_header(<<"content-type">>, <<"text/plain">>, Req0),
 	{ok, cowboy_req:reply(200, #{}, "OK", Req), Opts};
+do(<<"set_resp_headers">>, Req0, Opts) ->
+	Req = cowboy_req:set_resp_headers(#{<<"x-header-test1">> => <<"test1">>, <<"x-header-test2">> => <<"test2">>}, Req0),
+	{ok, cowboy_req:reply(200, #{}, "OK", Req), Opts};
+do(<<"resp_headers">>, Req0, Opts) ->
+	Req1 = cowboy_req:set_resp_header(<<"x-header-test1">>, <<"test1">>, Req0),
+	Req2 = cowboy_req:set_resp_headers(#{<<"x-header-test2">> => <<"test2">>, <<"x-header-test3">> => <<"test3">>}, Req1),
+	Headers = cowboy_req:resp_headers(Req2),
+	true = maps:is_key(<<"x-header-test1">>, Headers),
+	true = maps:is_key(<<"x-header-test2">>, Headers),
+	true = maps:is_key(<<"x-header-test3">>, Headers),
+	{ok, cowboy_req:reply(200, #{}, "OK", Req2), Opts};
+do(<<"resp_header_defined">>, Req0, Opts) ->
+	Req1 = cowboy_req:set_resp_header(<<"x-header-test1">>, <<"test1">>, Req0),
+	<<"test1">> = cowboy_req:resp_header(<<"x-header-test1">>, Req1),
+	<<"test1">> = cowboy_req:resp_header(<<"x-header-test1">>, Req1, foo),
+	{ok, cowboy_req:reply(200, #{}, "OK", Req0), Opts};
+do(<<"resp_header_default">>, Req0, Opts) ->
+	undefined = cowboy_req:resp_header(<<"x-header-test1">>, Req0),
+	<<"ok">> = cowboy_req:resp_header(<<"x-header-test1">>, Req0, <<"ok">>),
+	{ok, cowboy_req:reply(200, #{}, "OK", Req0), Opts};
+do(<<"resp_headers_empty">>, Req0, Opts) ->
+	#{} = cowboy_req:resp_headers(Req0),
+	{ok, cowboy_req:reply(200, #{}, "OK", Req0), Opts};
 do(<<"set_resp_body">>, Req0, Opts) ->
 	Arg = cowboy_req:binding(arg, Req0),
 	Req1 = case Arg of
