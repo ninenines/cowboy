@@ -61,8 +61,8 @@ Request body:
 * link:man:cowboy_req:body_length(3)[cowboy_req:body_length(3)] - Body length
 * link:man:cowboy_req:read_body(3)[cowboy_req:read_body(3)] - Read the request body
 * link:man:cowboy_req:read_urlencoded_body(3)[cowboy_req:read_urlencoded_body(3)] - Read and parse a urlencoded request body
-* link:man:cowboy_req:read_part(3)[cowboy_req:read_part(3)] - Read the next part of a multipart body
-* link:man:cowboy_req:read_part_body(3)[cowboy_req:read_part_body(3)] - Read the current part's body in a multipart body
+* link:man:cowboy_req:read_part(3)[cowboy_req:read_part(3)] - Read the next multipart headers
+* link:man:cowboy_req:read_part_body(3)[cowboy_req:read_part_body(3)] - Read the current part's body
 
 Response:
 

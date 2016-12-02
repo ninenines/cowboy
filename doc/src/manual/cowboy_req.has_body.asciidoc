@@ -1,0 +1,45 @@
+= cowboy_req:has_body(3)
+
+== Name
+
+cowboy_req:has_body - Is there a request body?
+
+== Description
+
+[source,erlang]
+----
+has_body(Req :: cowboy_req:req()) -> boolean()
+----
+
+Return whether the request has a body.
+
+== Arguments
+
+Req::
+
+The Req object.
+
+== Return value
+
+A boolean indicating whether the request has a body.
+
+== Changelog
+
+* *1.0*: Function introduced.
+
+== Examples
+
+.Ensure the request has a body
+[source,erlang]
+----
+true = cowboy_req:has_body(Req).
+----
+
+== See also
+
+link:man:cowboy_req(3)[cowboy_req(3)],
+link:man:cowboy_req:body_length(3)[cowboy_req:body_length(3)],
+link:man:cowboy_req:read_body(3)[cowboy_req:read_body(3)],
+link:man:cowboy_req:read_urlencoded_body(3)[cowboy_req:read_urlencoded_body(3)],
+link:man:cowboy_req:read_part(3)[cowboy_req:read_part(3)],
+link:man:cowboy_req:read_part_body(3)[cowboy_req:read_part_body(3)]
