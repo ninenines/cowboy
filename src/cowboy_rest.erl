@@ -1092,11 +1092,11 @@ range_satisfiable(Req, FileSize, MaxChunkSize) ->
                     {true, Req2, Offset, Bytes};
                 _ ->
                     BinarySize = erlang:integer_to_binary(FileSize),
-                    Req1 = cowboy_req:set_resp_header(<<"content-range">>,
+                    Req2 = cowboy_req:set_resp_header(<<"content-range">>,
                                                       << "bytes  */",
                                                          BinarySize/binary >>,
                                                       Req),
-                    {false, Req1}
+                    {false, Req2}
             end;
         _ ->
             {false, Req}
@@ -1104,29 +1104,14 @@ range_satisfiable(Req, FileSize, MaxChunkSize) ->
 
 parse_ranges(Size, [{Start, infinity}], MaxChunkSize) when Start < Size ->
     Bytes = Size - Start,
-    case Bytes > MaxChunkSize of
-        true ->
-            {Start, MaxChunkSize};
-        _ ->
-            {Start, Bytes}
-    end;
+    {Start, erlang:min(Bytes, MaxChunkSize)};
 parse_ranges(Size, [{Start, Stop}], MaxChunkSize) when Stop >= Start andalso Size >= Stop ->
     Bytes = Stop - Start + 1,
-    case Bytes > MaxChunkSize of
-        true ->
-            {Start, MaxChunkSize};
-        _ ->
-            {Start, Bytes}
-    end;
+    {Start, erlang:min(Bytes, MaxChunkSize)};
 parse_ranges(Size, [Number], MaxChunkSize) when is_integer(Number) andalso Number < 0 ->
     Start = Size + Number,
     Bytes = 0 - Number,
-    case Bytes > MaxChunkSize of
-        true ->
-            {Start, MaxChunkSize};
-        _ ->
-            {Start, Bytes}
-    end;
+    {Start, erlang:min(Bytes, MaxChunkSize)};
 parse_ranges(_, _, _) ->
     cant_parse.
 
