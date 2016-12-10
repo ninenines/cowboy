@@ -18,6 +18,8 @@
 -behaviour(cowboy_sub_protocol).
 
 -export([upgrade/6]).
+-export([range_satisfiable/2,
+         range_satisfiable/3]).
 
 %% Common handler callbacks.
 
@@ -1011,11 +1013,12 @@ set_resp_body_expires(Req, State) ->
 %% content_types_provided/2 to obtain the request body and add
 %% it to the response.
 set_resp_body(Req, State=#state{content_type_a={_, Callback}}) ->
-	try case call(Req, State, Callback) of
+    {Req1, State1, StatusCode} = range(Req, State),
+	try case call(Req1, State1, Callback) of
 		{stop, Req2, HandlerState2} ->
-			terminate(Req2, State#state{handler_state=HandlerState2});
+			terminate(Req2, State1#state{handler_state=HandlerState2});
 		{Body, Req2, HandlerState2} ->
-			State2 = State#state{handler_state=HandlerState2},
+			State2 = State1#state{handler_state=HandlerState2},
 			Req3 = case Body of
 				{stream, StreamFun} ->
 					cowboy_req:set_resp_body_fun(StreamFun, Req2);
@@ -1026,13 +1029,106 @@ set_resp_body(Req, State=#state{content_type_a={_, Callback}}) ->
 				_ ->
 					cowboy_req:set_resp_body(Body, Req2)
 			end,
-			multiple_choices(Req3, State2)
+			multiple_choices(Req3, State2, StatusCode)
 	end catch Class:Reason = {case_clause, no_call} ->
 		error_terminate(Req, State, Class, Reason)
 	end.
 
 multiple_choices(Req, State) ->
 	expect(Req, State, multiple_choices, false, 200, 300).
+
+multiple_choices(Req, State, StatusCode) ->
+	expect(Req, State, multiple_choices, false, StatusCode, 300).
+
+range(Req, State = #state{handler = Handler, method = <<"GET">>}) ->
+    case erlang:function_exported(Handler, range_satisfiable, 2) of
+		true ->
+            case cowboy_req:parse_header(<<"range">>, Req) of
+                {ok, {<<"bytes">>, _Locations}, Req1} ->
+                    case call(Req1, State, range_satisfiable) of
+                        {true, Req2, HandlerState} ->
+                            {Req2, State#state{handler_state = HandlerState}, 206};
+                        {false, Req2, HandlerState} ->
+                            {Req2, State#state{handler_state = HandlerState}, 416};
+                        _ ->
+                            {Req, State, 200}
+                    end;
+                _ ->
+                    {Req, State, 200}
+            end;
+        _ ->
+            {Req, State, 200}
+    end;
+range(Req, State) ->
+    {Req, State, 200}.
+
+-spec range_satisfiable(Req :: cowboy_req:req(), FileSize :: integer()) ->
+                               {false, Req :: cowboy_req:req()} |
+                               {true, Req :: cowboy_req:req(),
+                                Offset :: integer(), Bytes :: integer()}.
+range_satisfiable(Req, FileSize) ->
+    range_satisfiable(Req, FileSize, undefined).
+
+-spec range_satisfiable(Req :: cowboy_req:req(),
+                        FileSize :: integer(),
+                        MaxChunkSize :: integer() | undefined) ->
+                               {false, Req :: cowboy_req:req()} |
+                               {true, Req :: cowboy_req:req(),
+                                Offset :: integer(), Bytes :: integer()}.
+range_satisfiable(Req, FileSize, MaxChunkSize) ->
+        case cowboy_req:parse_header(<<"range">>, Req, undefined) of
+        {ok, {<<"bytes">>, Locations}, Req1} ->
+            case parse_ranges(FileSize, Locations, MaxChunkSize) of
+                {Offset, Bytes} ->
+                    BinaryOffset = erlang:integer_to_binary(Offset),
+                    BinaryEnd = erlang:integer_to_binary(Offset + Bytes - 1),
+                    BinarySize = erlang:integer_to_binary(FileSize),
+                    Req2 = cowboy_req:set_resp_header(<<"content-range">>,
+                                                      << "bytes ",
+                                                         BinaryOffset/binary,
+                                                         "-", BinaryEnd/binary,
+                                                         "/", BinarySize/binary
+                                                      >>, Req1),
+                    {true, Req2, Offset, Bytes};
+                _ ->
+                    BinarySize = erlang:integer_to_binary(FileSize),
+                    Req1 = cowboy_req:set_resp_header(<<"content-range">>,
+                                                      << "bytes  */",
+                                                         BinarySize/binary >>,
+                                                      Req),
+                    {false, Req1}
+            end;
+        _ ->
+            {false, Req}
+    end.
+
+parse_ranges(Size, [{Start, infinity}], MaxChunkSize) when Start < Size ->
+    Bytes = Size - Start,
+    case Bytes > MaxChunkSize of
+        true ->
+            {Start, MaxChunkSize};
+        _ ->
+            {Start, Bytes}
+    end;
+parse_ranges(Size, [{Start, Stop}], MaxChunkSize) when Stop >= Start andalso Size >= Stop ->
+    Bytes = Stop - Start + 1,
+    case Bytes > MaxChunkSize of
+        true ->
+            {Start, MaxChunkSize};
+        _ ->
+            {Start, Bytes}
+    end;
+parse_ranges(Size, [Number], MaxChunkSize) when is_integer(Number) andalso Number < 0 ->
+    Start = Size + Number,
+    Bytes = 0 - Number,
+    case Bytes > MaxChunkSize of
+        true ->
+            {Start, MaxChunkSize};
+        _ ->
+            {Start, Bytes}
+    end;
+parse_ranges(_, _, _) ->
+    cant_parse.
 
 %% Response utility functions.
 
