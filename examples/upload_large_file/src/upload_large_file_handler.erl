@@ -14,17 +14,15 @@ do_init(Req) ->
 		
 	[{Headers, Body}] = Data,
 	
-	{_, << FileData/binary >>} = lists:keyfind(<<"content-disposition">>, 1, Headers),
+	{_HeaderPart_1, HeaderPart_2 } = cow_multipart:parse_content_disposition(erlang:term_to_binary(Headers)),
+	{<<"filename">>, FilenameBin} = lists:keyfind(<<"filename">>, 1, HeaderPart_2),
+	FileName = erlang:binary_to_list(FilenameBin),
 	
-	%% Note: The FileData looks like this: "form-data; name=\"inputfile\"; filename=\"test_upload.txt\""
-	[_FormData, _Name, FileNameTmp] = string:tokens(erlang:binary_to_list(FileData), ";"),
-	[_, FileNameTmp2] = string:tokens(FileNameTmp, "="),
-	FileName = string:strip(FileNameTmp2, both, $"),
-		
 	%% Put the file into the current directory
 	FileWriteRes = file:write_file(FileName, Body),
 	
 	error_logger:info_report(["Recived file has been saved", 
+							  {headers, Headers},
 							  {result, FileWriteRes},
 							  {fileName, FileName},
 							  {path, os:cmd("pwd")}
