@@ -448,7 +448,7 @@ parse_header(Buffer, State=#state{opts=Opts, in_state=PS}, Headers) ->
 	MaxHeaders = maps:get(max_headers, Opts, 100),
 	case match_colon(Buffer, 0) of
 		nomatch when byte_size(Buffer) > MaxLength ->
-			error_terminate(400, State, {connection_error, limit_reached,
+			error_terminate(431, State, {connection_error, limit_reached,
 				''}); %% @todo
 		nomatch when length(Headers) >= MaxHeaders ->
 			error_terminate(400, State, {connection_error, limit_reached,
@@ -491,7 +491,7 @@ parse_hd_before_value(Buffer, State=#state{opts=Opts, in_state=PS}, H, N) ->
 	MaxLength = maps:get(max_header_value_length, Opts, 4096),
 	case match_eol(Buffer, 0) of
 		nomatch when byte_size(Buffer) > MaxLength ->
-			error_terminate(400, State, {connection_error, limit_reached,
+			error_terminate(431, State, {connection_error, limit_reached,
 				''}); %% @todo
 		nomatch ->
 			{more, State#state{in_state=PS#ps_header{headers=H, name=N}}, Buffer};
