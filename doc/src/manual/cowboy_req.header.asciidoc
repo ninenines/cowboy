@@ -11,7 +11,7 @@ cowboy_req:header - HTTP header
 header(Name, Req)          -> header(Name, Req, undefined)
 header(Name, Req, Default) -> binary() | Default
 
-Name    :: binary()
+Name    :: binary()          %% lowercase; case insensitive
 Req     :: cowboy_req:req()
 Default :: any()
 ----

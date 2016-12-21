@@ -1,0 +1,98 @@
+= cowboy_req:push(3)
+
+== Name
+
+cowboy_req:push - Push a resource to the client
+
+== Description
+
+[source,erlang]
+----
+push(Path, Headers, Req :: cowboy_req:req())
+    -> push(Path, Headers, Req, #{})
+
+push(Path, Headers, Req :: cowboy_req:req(), Opts)
+    -> ok
+
+Path    :: iodata()                %% case sensitive
+Headers :: cowboy:http_headers()
+Opts    :: cowboy_req:push_opts()
+----
+
+Push a resource to the client.
+
+Cowboy handles push requests the same way as if they came
+from the client, including the creation of a request handling
+process, routing and middlewares and so on.
+
+This function does nothing when the HTTP/1.1 protocol is
+used. You may call it safely without first checking whether
+the connection uses HTTP/2.
+
+The header names must be given as lowercase binary strings.
+While header names are case insensitive, Cowboy requires them
+to be given as lowercase to function properly.
+
+Note that the headers must be the headers the client is expected
+to send if it were to perform the request. They are therefore
+request headers, and not response headers.
+
+By default, Cowboy will use the GET method, an empty query string,
+and take the scheme, host and port directly from the current
+request's URI. You can override them by passing options.
+
+It is not possible to push resources after sending a response.
+Any attempt will result in an error.
+
+== Arguments
+
+Path::
+
+The status code for the response.
+
+Headers::
+
+The response headers.
+
+Header names must be given as lowercase binary strings.
+
+Req::
+
+The Req object.
+
+Opts::
+
+Customize the HTTP method or the URI scheme, host, port
+or query string.
+
+== Return value
+
+The atom `ok` is always returned. It can be safely ignored.
+
+== Changelog
+
+* *2.0*: Function introduced.
+
+== Examples
+
+.Push a resource
+[source,erlang]
+----
+cowboy_req:push("/static/style.css", #{
+    <<"accept">> => <<"text/css">>
+}, Req),
+----
+
+.Push a resource with a custom host
+[source,erlang]
+----
+cowboy_req:push("/static/style.css", #{
+    <<"accept">> => <<"text/css">>
+}, #{host => <<"cdn.example.org">>}, Req),
+----
+
+== See also
+
+link:man:cowboy_req(3)[cowboy_req(3)],
+link:man:cowboy_req:reply(3)[cowboy_req:reply(3)],
+link:man:cowboy_req:stream_reply(3)[cowboy_req:stream_reply(3)]

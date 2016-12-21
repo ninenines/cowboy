@@ -1,0 +1,77 @@
+= cowboy_req:stream_body(3)
+
+== Name
+
+cowboy_req:stream_body - Stream the response body
+
+== Description
+
+[source,erlang]
+----
+stream_body(Data, IsFin, Req :: cowboy_req:req()) -> ok
+
+Data  :: iodata()
+IsFin :: fin | nofin
+----
+
+Stream the response body.
+
+This function may be called as many times as needed after
+initiating a response using the
+link:man:cowboy_req:stream_reply(3)[cowboy_req:stream_reply(3)]
+function.
+
+The second argument indicates if this call is the final
+call. Use the `nofin` value until you know no more data
+will be sent. The final call should use `fin` (possibly
+with an empty data value).
+
+Note that not using `fin` for the final call is not an
+error; Cowboy will take care of it when the request
+handler terminates if needed. Depending on the resource
+it may however be more efficient to do it as early as
+possible.
+
+You do not need to handle HEAD requests specifically as
+Cowboy will ensure no data is sent when you call this function.
+
+== Arguments
+
+Data::
+
+The data to be sent.
+
+IsFin::
+
+A flag indicating whether this is the final piece of data
+to be sent.
+
+Req::
+
+The Req object.
+
+== Return value
+
+The atom `ok` is always returned. It can be safely ignored.
+
+== Changelog
+
+* *2.0*: Function introduced. Replaces `chunk/2`.
+
+== Examples
+
+.Stream the response body
+[source,erlang]
+----
+Req = cowboy_req:stream_reply(200, #{
+    <<"content-type">> => <<"text/plain">>
+}, Req0),
+cowboy_req:stream_body(<<"Hello\n">>, nofin, Req),
+timer:sleep(1000),
+cowboy_req:stream_body(<<"World!\n">>, fin, Req).
+----
+
+== See also
+
+link:man:cowboy_req(3)[cowboy_req(3)],
+link:man:cowboy_req:stream_reply(3)[cowboy_req:stream_reply(3)]
