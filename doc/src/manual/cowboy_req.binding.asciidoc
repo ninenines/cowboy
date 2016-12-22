@@ -64,4 +64,5 @@ Branch = cowboy_req:binding(branch, Req, <<"master">>)
 link:man:cowboy_req(3)[cowboy_req(3)],
 link:man:cowboy_req:bindings(3)[cowboy_req:bindings(3)],
 link:man:cowboy_req:host_info(3)[cowboy_req:host_info(3)],
-link:man:cowboy_req:path_info(3)[cowboy_req:path_info(3)]
+link:man:cowboy_req:path_info(3)[cowboy_req:path_info(3)],
+link:man:cowboy_router(3)[cowboy_router(3)]
