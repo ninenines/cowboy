@@ -2,140 +2,164 @@
 
 == Name
 
-cowboy_websocket - Websocket protocol
+cowboy_websocket - Websocket
 
 == Description
 
-The `cowboy_websocket` module implements the Websocket protocol.
+The module `cowboy_websocket` implements Websocket
+as a Ranch protocol. It also defines a callback interface
+for handling Websocket connections.
 
-This module is a sub protocol that defines four callbacks to
-be implemented by handlers. The `init/2` and `terminate/3`
-callbacks are common to all handler types and are documented
-in the manual for the link:cowboy_handler.asciidoc[cowboy_handler] module.
+== Options
 
-The `websocket_handle/2` and `websocket_info/2` callbacks are
-specific to Websocket handlers and will be called as many times
-as necessary until the Websocket connection is closed.
+[source,erlang]
+----
+opts() :: #{
+    websocket_compress := boolean()
+}
+----
 
-The `init/2` callback can be used to negotiate Websocket protocol
-extensions with the client. It is highly recommended to return a
-timeout value from this callback to ensure that the process is
-terminated when no data has been received during that timespan.
-The default timeout is `infinity`, which should only be used if
-you have alternate means of ending inactive connections.
+Configuration for the Websocket protocol.
 
-Cowboy will terminate the process right after closing the
-Websocket connection. This means that there is no real need to
-perform any cleanup in the optional `terminate/3` callback.
+This configuration is passed to Cowboy when starting listeners
+using `cowboy:start_clear/4` or `cowboy:start_tls/4` functions.
 
-== Meta values
+It can be updated without restarting listeners using the
+Ranch functions `ranch:get_protocol_options/1` and
+`ranch:set_protocol_options/2`.
 
-websocket_compress = boolean()::
-	Whether a websocket compression extension in in use.
+The default value is given next to the option name:
 
-websocket_version = 7 | 8 | 13::
-	The version of the Websocket protocol being used.
-
-== Terminate reasons
-
-The following values may be received as the terminate reason
-in the optional `terminate/3` callback.
-
-normal::
-	The connection was closed normally before establishing a Websocket
-	connection. This typically happens if an `ok` tuple is returned
-	from the `init/2` callback.
-
-remote::
-	The remote endpoint closed the connection without giving any
-	further details.
-
-{remote, Code, Payload}::
-	The remote endpoint closed the connection with the given
-	`Code` and `Payload` as the reason.
-
-stop::
-	The handler requested to close the connection, either by returning
-	a `stop` tuple or by sending a `close` frame.
-
-timeout::
-	The connection has been closed due to inactivity. The timeout
-	value can be configured from `init/2`.
-
-{crash, Class, Reason}::
-	A crash occurred in the handler. `Class` and `Reason` can be
-	used to obtain more information about the crash. The function
-	`erlang:get_stacktrace/0` can also be called to obtain the
-	stacktrace of the process when the crash occurred.
-
-{error, badencoding}::
-	A text frame was sent by the client with invalid encoding. All
-	text frames must be valid UTF-8.
-
-{error, badframe}::
-	A protocol error has been detected.
-
-{error, closed}::
-	The socket has been closed brutally without a close frame being
-	received first.
-
-{error, Reason}::
-	A socket error ocurred.
+websocket_compress (false)::
+    Whether to enable the Websocket frame compression
+    extension. Frames will only be compressed for the
+    clients that support this extension.
 
 == Callbacks
 
-=== websocket_handle(InFrame, State) -> Ret
+Websocket handlers must implement the following callback
+interface:
 
 [source,erlang]
 ----
-Ret = {ok, State}
-	| {ok, State, hibernate}
-	| {reply, OutFrame | [OutFrame], State}
-	| {reply, OutFrame | [OutFrame], State, hibernate}
-	| {stop, State}
+init(Req, State)
+    -> {cowboy_websocket, Req, State}
+     | {cowboy_websocket, Req, State, hibernate}
+     | {cowboy_websocket, Req, State, timeout()}
+     | {cowboy_websocket, Req, State, timeout(), hibernate}
 
-InFrame = {text | binary | ping | pong, binary()}
-State = any()
-OutFrame = cow_ws:frame()
+websocket_init(State)            -> CallResult  %% optional
+websocket_handle(InFrame, State) -> CallResult
+websocket_info(Info, State)      -> CallResult
+
+terminate(Reason, undefined, State) -> any()    %% optional
+
+Req        :: cowboy_req:req()
+State      :: any()
+InFrame    :: {text | binary | ping | pong, binary()}
+OutFrame   :: cow_ws:frame()
+Info       :: any()
+
+CallResult :: {ok, State}
+            | {ok, State, hibernate}
+            | {reply, OutFrame | [OutFrame], State}
+            | {reply, OutFrame | [OutFrame], State, hibernate}
+            | {stop, State}
+
+Reason     :: normal | stop | timeout
+            | remote | {remote, cow_ws:close_code(), binary()}
+            | {error, badencoding | badframe | closed | atom()}
+            | {crash, error | exit | throw, any()}
 ----
 
-Handle the data received from the Websocket connection.
+The `init/2` callback is common to all handlers. To upgrade
+the connection to Websocket, it must return `cowboy_websocket`
+as the first element of the tuple.
 
-This function will be called every time data is received
-from the Websocket connection.
+Any operation requiring the HTTP request must be done in the
+`init/2` function, as the Req object will not be available
+after it returns. Websocket sub-protocol selection should
+therefore be done in this function.
 
-The `stop` return value can be used to close the
-connection. A close reply will also result in the connection
-being closed.
+The optional `websocket_init/1` callback will be called once
+the connection has been upgraded to Websocket. It can be used
+to perform any required initialization of the handler.
 
-The `hibernate` option will hibernate the process until
-it receives new data from the Websocket connection or an
-Erlang message.
+Note that the `init/2` function does not run in the same
+process as the Websocket callbacks. Any Websocket-specific
+initialization must be done in `websocket_init/1`.
 
-=== websocket_info(Info, State) -> Ret
+The `websocket_handle/2` callback will be called for every
+frame received. The `websocket_info/2` callback will be
+called for every Erlang message received.
 
-[source,erlang]
-----
-Ret = {ok, State}
-	| {ok, State, hibernate}
-	| {reply, OutFrame | [OutFrame], State}
-	| {reply, OutFrame | [OutFrame], State, hibernate}
-	| {stop, State}
+All three Websocket callbacks may send one or more frames
+back to the client (by returning a `reply` tuple) or terminate
+the connection (by sending a `close` frame or returning a `stop`
+tuple).
 
-Info = any()
-State = any()
-OutFrame = cow_ws:frame()
-----
+The optional `terminate/3` callback will ultimately be called
+with the reason for the termination of the connection. This
+callback is common to all handlers. Note that Websocket has
+no concept of requests so it sets the second argument to
+undefined.
 
-Handle the Erlang message received.
+Cowboy will terminate the process right after closing the
+Websocket connection. This means that there is no need to
+perform any cleanup in the `terminate/3` callback.
 
-This function will be called every time an Erlang message
-has been received. The message can be any Erlang term.
+The following terminate reasons are defined for Websocket
+connections:
 
-The `stop` return value can be used to close the
-connection. A close reply will also result in the connection
-being closed.
+normal::
+    The connection was closed normally before establishing a Websocket
+    connection. This typically happens if an `ok` tuple is returned
+    from the `init/2` callback.
 
-The `hibernate` option will hibernate the process until
-it receives another message or new data from the Websocket
-connection.
+remote::
+    The remote endpoint closed the connection without giving any
+    further details.
+
+{remote, Code, Payload}::
+    The remote endpoint closed the connection with the given
+    `Code` and `Payload` as the reason.
+
+stop::
+    The handler requested to close the connection, either by returning
+    a `stop` tuple or by sending a `close` frame.
+
+timeout::
+    The connection has been closed due to inactivity. The timeout
+    value can be configured from `init/2`.
+
+{crash, Class, Reason}::
+    A crash occurred in the handler. `Class` and `Reason` can be
+    used to obtain more information about the crash. The function
+    `erlang:get_stacktrace/0` can also be called to obtain the
+    stacktrace of the process when the crash occurred.
+
+{error, badencoding}::
+    A text frame was sent by the client with invalid encoding. All
+    text frames must be valid UTF-8.
+
+{error, badframe}::
+    A protocol error has been detected.
+
+{error, closed}::
+    The socket has been closed brutally without a close frame being
+    received first.
+
+{error, Reason}::
+    A socket error ocurred.
+
+== Changelog
+
+* *2.0*: The Req object is no longer passed to Websocket callbacks.
+* *2.0*: The callback `websocket_terminate/3` was removed in favor of `terminate/3`.
+* *1.0*: Protocol introduced.
+
+== See also
+
+link:man:cowboy(7)[cowboy(7)],
+link:man:cowboy_http(3)[cowboy_http(3)],
+link:man:cowboy_http2(3)[cowboy_http2(3)]

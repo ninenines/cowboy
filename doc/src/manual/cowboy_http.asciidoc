@@ -9,9 +9,7 @@ cowboy_http - HTTP/1.1
 The module `cowboy_http` implements HTTP/1.1 and HTTP/1.0
 as a Ranch protocol.
 
-== Types
-
-=== opts()
+== Options
 
 [source,erlang]
 ----
@@ -40,9 +38,7 @@ It can be updated without restarting listeners using the
 Ranch functions `ranch:get_protocol_options/1` and
 `ranch:set_protocol_options/2`.
 
-=== Option descriptions
-
-The default value is given next to the option name.
+The default value is given next to the option name:
 
 env (#{})::
     Middleware environment.
