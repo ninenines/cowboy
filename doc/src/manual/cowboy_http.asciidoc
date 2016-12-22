@@ -74,7 +74,7 @@ request_timeout (5000)::
 
 * *2.0*: The `max_method_length` option was added.
 * *2.0*: The `env` option is now a map instead of a proplist.
-* *2.0*: The `max_header_request_line_length` default was increased from 4096 to 8000.
+* *2.0*: The `max_request_line_length` default was increased from 4096 to 8000.
 * *2.0*: The `compress` option was temporarily removed.
 * *2.0*: Options are now a map instead of a proplist.
 * *2.0*: Protocol introduced. Replaces `cowboy_protocol`.
