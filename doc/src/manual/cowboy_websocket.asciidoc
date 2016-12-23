@@ -161,5 +161,6 @@ timeout::
 == See also
 
 link:man:cowboy(7)[cowboy(7)],
+link:man:cowboy_handler(3)[cowboy_handler(3)],
 link:man:cowboy_http(3)[cowboy_http(3)],
 link:man:cowboy_http2(3)[cowboy_http2(3)]
