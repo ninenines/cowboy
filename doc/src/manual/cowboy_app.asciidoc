@@ -41,14 +41,16 @@ Behaviors:
 * link:man:cowboy_loop(3)[cowboy_loop(3)] - Loop handlers
 * link:man:cowboy_middleware(3)[cowboy_middleware(3)] - Middlewares
 * link:man:cowboy_rest(3)[cowboy_rest(3)] - REST handlers
-* link:man:cowboy_stream(3)[cowboy_stream(3)] - Stream handlers
-* link:man:cowboy_sub_protocol(3)[cowboy_sub_protocol(3)] - Sub protocols
+// @todo * link:man:cowboy_stream(3)[cowboy_stream(3)] - Stream handlers
+// @todo * link:man:cowboy_sub_protocol(3)[cowboy_sub_protocol(3)] - Sub protocols
 * link:man:cowboy_websocket(3)[cowboy_websocket(3)] - Websocket handlers
 
 Middlewares:
 
 * link:man:cowboy_router(3)[cowboy_router(3)] - Router middleware
 * link:man:cowboy_handler(3)[cowboy_handler(3)] - Handler middleware
+
+// @todo http_status_codes is not linked to; what to do with it?
 
 == Dependencies
 
