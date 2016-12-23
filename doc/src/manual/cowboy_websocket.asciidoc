@@ -52,7 +52,7 @@ websocket_init(State)            -> CallResult  %% optional
 websocket_handle(InFrame, State) -> CallResult
 websocket_info(Info, State)      -> CallResult
 
-terminate(Reason, undefined, State) -> any()    %% optional
+terminate(Reason, undefined, State) -> ok       %% optional
 
 Req        :: cowboy_req:req()
 State      :: any()
