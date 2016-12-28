@@ -164,11 +164,10 @@ implement the `moved_permanently` callback.
 
 === The request
 
-Do we need to perform extra checks to make sure the request
-is valid? Cowboy will do many checks when receiving the
-request already, do we need more? Note that this only
-applies to the request-line and headers of the request,
-and not the body. Implement `malformed_request`.
+Do you need to read the query string? Individual headers?
+Implement `malformed_request` and do all the parsing and
+validation in this function. Note that the body should not
+be read at this point.
 
 May there be a request body? Will I know its size?
 What's the maximum size of the request body I'm willing

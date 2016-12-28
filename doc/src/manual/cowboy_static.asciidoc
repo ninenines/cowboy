@@ -100,6 +100,8 @@ ParsedMime :: {Type :: binary(), SubType :: binary(), Params}
 Params     :: [{Key :: binary(), Value :: binary()}]
 ----
 
+// @todo Case sensitivity of parsed mime content?
+
 Cowboy comes with two such functions; the default function
 `cow_mimetypes:web/1`, and a second function generated from
 the Apache 'mime.types' file, `cow_mimetypes:all/1`.
