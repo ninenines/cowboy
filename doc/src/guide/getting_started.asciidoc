@@ -71,10 +71,15 @@ PROJECT = hello_erlang
 DEPS = cowboy
 dep_cowboy_commit = master
 
+DEP_PLUGINS = cowboy
+
 include erlang.mk
 ----
 
-If you run `make run` now, Cowboy will be included in the release
+We also tell the build system to load the plugins Cowboy provides.
+These include predefined templates that we will use soon.
+
+If you do `make run` now, Cowboy will be included in the release
 and started automatically. This is not enough however, as Cowboy
 doesn't do anything by default. We still need to tell Cowboy to
 listen for connections.
@@ -119,7 +124,7 @@ HTTP handler.
 Generate a handler from a template:
 
 [source,bash]
-$ make new t=cowboy_http n=hello_handler
+$ make new t=cowboy.http n=hello_handler
 
 Then, open the 'src/hello_handler.erl' file and modify
 the `init/2` function like this to send a reply.
@@ -134,7 +139,7 @@ init(Req0, State) ->
     {ok, Req, State}.
 ----
 
-What the above code does is send a `200 OK` reply, with the
+What the above code does is send a 200 OK reply, with the
 Content-type header set to `text/plain` and the response
 body set to `Hello Erlang!`.
 
