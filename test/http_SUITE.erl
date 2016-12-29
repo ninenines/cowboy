@@ -74,6 +74,11 @@ groups() ->
 init_per_suite(Config) ->
 	Dir = config(priv_dir, Config) ++ "/static",
 	ct_helper:create_static_dir(Dir),
+	%% Add a simple Erlang application archive containing one file
+	%% in its priv directory.
+	true = code:add_pathz(filename:join(
+		[config(data_dir, Config), "static_files_app", "ebin"])),
+	ok = application:load(static_files_app),
 	[{static_dir, Dir}|Config].
 
 end_per_suite(Config) ->
@@ -189,6 +194,10 @@ init_dispatch(Config) ->
 					[{etag, ?MODULE, do_etag_gen}]}},
 			{"/static_specify_file/[...]", cowboy_static,
 				{file, config(static_dir, Config) ++ "/style.css"}},
+			{"/ez_priv_file/index.html", cowboy_static, {priv_file, static_files_app, "www/index.html"}},
+			{"/bad/ez_priv_file/index.php", cowboy_static, {priv_file, static_files_app, "www/index.php"}},
+			{"/ez_priv_dir/[...]", cowboy_static, {priv_dir, static_files_app, "www"}},
+			{"/bad/ez_priv_dir/[...]", cowboy_static, {priv_dir, static_files_app, "cgi-bin"}},
 			{"/multipart", http_multipart, []},
 			{"/multipart/large", http_multipart_stream, []},
 			{"/echo/body", http_echo_body, []},
@@ -964,6 +973,40 @@ static_test_file_css(Config) ->
 	Ref = gun:get(ConnPid, "/static/style.css"),
 	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
 	{_, <<"text/css">>} = lists:keyfind(<<"content-type">>, 1, Headers),
+	ok.
+
+priv_file_in_ez_archive(Config) ->
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/ez_priv_file/index.html"),
+	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"text/html">>} = lists:keyfind(<<"content-type">>, 1, Headers),
+	{ok, <<"<h1>It works!</h1>\n">>} = gun:await_body(ConnPid, Ref),
+	ok.
+
+bad_priv_file_in_ez_archive(Config) ->
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/bad/ez_priv_file/index.php"),
+	{response, fin, 404, _} = gun:await(ConnPid, Ref),
+	ok.
+
+priv_dir_in_ez_archive(Config) ->
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/ez_priv_dir/index.html"),
+	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"text/html">>} = lists:keyfind(<<"content-type">>, 1, Headers),
+	{ok, <<"<h1>It works!</h1>\n">>} = gun:await_body(ConnPid, Ref),
+	ok.
+
+bad_file_in_priv_dir_in_ez_archive(Config) ->
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/ez_priv_dir/index.php"),
+	{response, fin, 404, _} = gun:await(ConnPid, Ref),
+	ok.
+
+bad_priv_dir_in_ez_archive(Config) ->
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/bad/ez_priv_dir/index.html"),
+	{response, fin, 404, _} = gun:await(ConnPid, Ref),
 	ok.
 
 stream_body_set_resp(Config) ->
