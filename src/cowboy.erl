@@ -37,14 +37,17 @@
 -type http_version() :: 'HTTP/2' | 'HTTP/1.1' | 'HTTP/1.0'.
 -export_type([http_version/0]).
 
--spec start_clear(ranch:ref(), non_neg_integer(), ranch_tcp:opts(),
-	cowboy_protocol:opts()) -> {ok, pid()} | {error, any()}.
+%% @todo We should hide NbAcceptors in a socket variable, even if Ranch
+%% doesn't let us do that yet.
+-spec start_clear(ranch:ref(), non_neg_integer(), ranch_tcp:opts(), opts())
+	-> {ok, pid()} | {error, any()}.
 start_clear(Ref, NbAcceptors, TransOpts0, ProtoOpts)
 		when is_integer(NbAcceptors), NbAcceptors > 0 ->
 	TransOpts = [connection_type(ProtoOpts)|TransOpts0],
 	ranch:start_listener(Ref, NbAcceptors, ranch_tcp, TransOpts, cowboy_clear, ProtoOpts).
 
--spec start_tls(ranch:ref(), non_neg_integer(), ranch_ssl:opts(), opts()) -> {ok, pid()} | {error, any()}.
+-spec start_tls(ranch:ref(), non_neg_integer(), ranch_ssl:opts(), opts())
+	-> {ok, pid()} | {error, any()}.
 start_tls(Ref, NbAcceptors, TransOpts0, ProtoOpts)
 		when is_integer(NbAcceptors), NbAcceptors > 0 ->
 	TransOpts = [

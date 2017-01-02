@@ -58,3 +58,4 @@ int(Value) when is_binary(Value) ->
 
 nonempty(<<>>) -> false;
 nonempty(Value) when is_binary(Value) -> true.
+%% @todo Perhaps return true for any other type except empty list?

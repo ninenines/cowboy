@@ -39,7 +39,7 @@ execute(Req, Env=#{handler := Handler, handler_opts := HandlerOpts}) ->
 	try Handler:init(Req, HandlerOpts) of
 		{ok, Req2, State} ->
 			Result = terminate(normal, Req2, State, Handler),
-			{ok, Req2, [{result, Result}|Env]};
+			{ok, Req2, Env#{result => Result}};
 		{Mod, Req2, State} ->
 			Mod:upgrade(Req2, Env, Handler, State, infinity, run);
 		{Mod, Req2, State, hibernate} ->
@@ -53,7 +53,7 @@ execute(Req, Env=#{handler := Handler, handler_opts := HandlerOpts}) ->
 		erlang:raise(Class, Reason, erlang:get_stacktrace())
 	end.
 
--spec terminate(any(), Req, any(), module()) -> ok when Req::cowboy_req:req().
+-spec terminate(any(), Req | undefined, any(), module()) -> ok when Req::cowboy_req:req().
 terminate(Reason, Req, State, Handler) ->
 	case erlang:function_exported(Handler, terminate, 3) of
 		true ->

@@ -54,7 +54,7 @@
 -optional_callbacks([terminate/3]).
 
 -record(state, {
-	socket = undefined :: inet:socket(),
+	socket = undefined :: inet:socket() | undefined,
 	transport = undefined :: module(),
 	handler :: module(),
 	key = undefined :: undefined | binary(),
@@ -309,8 +309,7 @@ websocket_dispatch(State=#state{socket=Socket, transport=Transport, frag_state=F
 			handler_call(State, HandlerState, RemainingData, websocket_handle, Frame, fun websocket_data/3)
 	end.
 
--spec handler_call(#state{}, any(), binary(), atom(), any(), fun())
-	-> {ok, cowboy_middleware:env()}.
+-spec handler_call(#state{}, any(), binary(), atom(), any(), fun()) -> no_return().
 handler_call(State=#state{handler=Handler}, HandlerState,
 		RemainingData, Callback, Message, NextState) ->
 	try case Callback of
@@ -375,8 +374,7 @@ is_close_frame({close, _}) -> true;
 is_close_frame({close, _, _}) -> true;
 is_close_frame(_) -> false.
 
--spec websocket_close(#state{}, any(), terminate_reason())
-	-> {ok, cowboy_middleware:env()}.
+-spec websocket_close(#state{}, any(), terminate_reason()) -> no_return().
 websocket_close(State=#state{socket=Socket, transport=Transport, extensions=Extensions},
 		HandlerState, Reason) ->
 	case Reason of
@@ -395,8 +393,7 @@ websocket_close(State=#state{socket=Socket, transport=Transport, extensions=Exte
 	end,
 	handler_terminate(State, HandlerState, Reason).
 
--spec handler_terminate(#state{}, any(), terminate_reason())
-	-> {ok, cowboy_middleware:env()}.
+-spec handler_terminate(#state{}, any(), terminate_reason()) -> no_return().
 handler_terminate(#state{handler=Handler},
 		HandlerState, Reason) ->
 	cowboy_handler:terminate(Reason, undefined, HandlerState, Handler),

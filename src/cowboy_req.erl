@@ -48,6 +48,7 @@
 -export([read_body/2]).
 -export([read_urlencoded_body/1]).
 -export([read_urlencoded_body/2]).
+%% @todo read_and_match_urlencoded_body?
 
 %% Multipart.
 -export([read_part/1]).
@@ -63,7 +64,7 @@
 -export([has_resp_header/2]).
 %% @todo resp_header
 -export([delete_resp_header/2]).
--export([set_resp_body/2]). %% @todo Use set_resp_body for iodata() | {sendfile ...}
+-export([set_resp_body/2]).
 %% @todo set_resp_body/3 with a ContentType or even Headers argument, to set content headers.
 -export([has_resp_body/1]).
 -export([reply/2]).
@@ -80,15 +81,16 @@
 %% Internal.
 -export([response_headers/2]).
 
--type cookie_opts() :: cow_cookie:cookie_opts().
+%% @todo Get rid of this type, use cow_cookie directly.
+-type cookie_opts() :: map().
 -export_type([cookie_opts/0]).
 
--type body_opts() :: #{
+-type read_body_opts() :: #{
 	length => non_neg_integer(),
 	period => non_neg_integer(),
 	timeout => timeout()
 }.
--export_type([body_opts/0]).
+-export_type([read_body_opts/0]).
 
 %% While sendfile allows a Len of 0 that means "everything past Offset",
 %% Cowboy expects the real length as it is used as metadata.
@@ -97,7 +99,13 @@
 	| {sendfile, non_neg_integer(), pos_integer(), file:name_all()}.
 -export_type([resp_body/0]).
 
--type push_opts() :: map(). %% @todo
+-type push_opts() :: #{
+	method => binary(),
+	scheme => binary(),
+	host => binary(),
+	port => binary(),
+	qs => binary()
+}.
 -export_type([push_opts/0]).
 
 -type req() :: map(). %% @todo #{
@@ -107,7 +115,7 @@
 %	peer := {inet:ip_address(), inet:port_number()},
 %
 %	method := binary(), %% case sensitive
-%	version := cowboy:http_version(),
+%	version := cowboy:http_version() | atom(),
 %	scheme := binary(), %% <<"http">> or <<"https">>
 %	host := binary(), %% lowercase; case insensitive
 %	port := inet:port_number(),
@@ -408,7 +416,7 @@ body_length(#{body_length := Length}) ->
 read_body(Req) ->
 	read_body(Req, #{}).
 
--spec read_body(Req, body_opts()) -> {ok, binary(), Req} | {more, binary(), Req} when Req::req().
+-spec read_body(Req, read_body_opts()) -> {ok, binary(), Req} | {more, binary(), Req} when Req::req().
 read_body(Req=#{has_body := false}, _) ->
 	{ok, <<>>, Req};
 read_body(Req=#{has_read_body := true}, _) ->
@@ -439,7 +447,7 @@ set_body_length(Req=#{headers := Headers}, BodyLength) ->
 read_urlencoded_body(Req) ->
 	read_urlencoded_body(Req, #{length => 64000, period => 5000}).
 
--spec read_urlencoded_body(Req, body_opts()) -> {ok, [{binary(), binary() | true}], Req} when Req::req().
+-spec read_urlencoded_body(Req, read_body_opts()) -> {ok, [{binary(), binary() | true}], Req} when Req::req().
 read_urlencoded_body(Req0, Opts) ->
 	{ok, Body, Req} = read_body(Req0, Opts),
 	{ok, cow_qs:parse_qs(Body), Req}.
@@ -452,7 +460,7 @@ read_urlencoded_body(Req0, Opts) ->
 read_part(Req) ->
 	read_part(Req, #{length => 64000, period => 5000}).
 
--spec read_part(Req, body_opts())
+-spec read_part(Req, read_body_opts())
 	-> {ok, cow_multipart:headers(), Req} | {done, Req}
 	when Req::req().
 read_part(Req, Opts) ->
@@ -487,7 +495,7 @@ read_part(Buffer, Opts, Req=#{multipart := {Boundary, _}}) ->
 read_part_body(Req) ->
 	read_part_body(Req, #{}).
 
--spec read_part_body(Req, body_opts())
+-spec read_part_body(Req, read_body_opts())
 	-> {ok, binary(), Req} | {more, binary(), Req}
 	when Req::req().
 read_part_body(Req, Opts) ->
@@ -662,7 +670,7 @@ push(Path, Headers, Req) ->
 %% @todo Optimization: don't send anything at all for HTTP/1.0 and HTTP/1.1.
 %% @todo Path, Headers, Opts, everything should be in proper binary,
 %% or normalized when creating the Req object.
--spec push(binary(), cowboy:http_headers(), req(), push_opts()) -> ok.
+-spec push(iodata(), cowboy:http_headers(), req(), push_opts()) -> ok.
 push(Path, Headers, #{pid := Pid, streamid := StreamID,
 		scheme := Scheme0, host := Host0, port := Port0}, Opts) ->
 	Method = maps:get(method, Opts, <<"GET">>),

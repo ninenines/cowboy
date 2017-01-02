@@ -18,12 +18,12 @@
 -export([start_link/4]).
 -export([proc_lib_hack/5]).
 
--spec start_link(ranch:ref(), inet:socket(), module(), cowboy:opts()) -> {ok, pid()}.
+-spec start_link(ranch:ref(), ssl:sslsocket(), module(), cowboy:opts()) -> {ok, pid()}.
 start_link(Ref, Socket, Transport, Opts) ->
 	Pid = proc_lib:spawn_link(?MODULE, proc_lib_hack, [self(), Ref, Socket, Transport, Opts]),
 	{ok, Pid}.
 
--spec proc_lib_hack(pid(), ranch:ref(), inet:socket(), module(), cowboy:opts()) -> ok.
+-spec proc_lib_hack(pid(), ranch:ref(), ssl:sslsocket(), module(), cowboy:opts()) -> ok.
 proc_lib_hack(Parent, Ref, Socket, Transport, Opts) ->
 	try
 		init(Parent, Ref, Socket, Transport, Opts)
@@ -34,7 +34,7 @@ proc_lib_hack(Parent, Ref, Socket, Transport, Opts) ->
 		_:Reason -> exit({Reason, erlang:get_stacktrace()})
 	end.
 
--spec init(pid(), ranch:ref(), inet:socket(), module(), cowboy:opts()) -> ok.
+-spec init(pid(), ranch:ref(), ssl:sslsocket(), module(), cowboy:opts()) -> ok.
 init(Parent, Ref, Socket, Transport, Opts) ->
 	ok = ranch:accept_ack(Ref),
 	case ssl:negotiated_protocol(Socket) of

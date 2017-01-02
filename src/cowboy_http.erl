@@ -44,7 +44,7 @@
 	qs = undefined :: binary(),
 	version = undefined :: cowboy:http_version(),
 	headers = undefined :: map() | undefined, %% @todo better type than map()
-	name = undefined :: binary()
+	name = undefined :: binary() | undefined
 }).
 
 %% @todo We need a state where we wait for the stream process to ask for the body.
@@ -1027,7 +1027,7 @@ terminate(_State, _Reason) ->
 
 %% System callbacks.
 
--spec system_continue(_, _, #state{}) -> ok.
+-spec system_continue(_, _, {#state{}, binary()}) -> ok.
 system_continue(_, _, {State, Buffer}) ->
 	loop(State, Buffer).
 

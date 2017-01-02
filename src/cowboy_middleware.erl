@@ -14,7 +14,7 @@
 
 -module(cowboy_middleware).
 
--type env() :: [{atom(), any()}].
+-type env() :: #{atom() => any()}.
 -export_type([env/0]).
 
 -callback execute(Req, Env)

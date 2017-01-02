@@ -285,10 +285,9 @@ last_modified(Req, State={_, {ok, #file_info{mtime=Modified}}, _}) ->
 	{Modified, Req, State}.
 
 %% Stream the file.
-%% @todo Export cowboy_req:resp_body_fun()?
 
 -spec get_file(Req, State)
-	-> {{stream, non_neg_integer(), fun()}, Req, State}
+	-> {{sendfile, 0, non_neg_integer(), binary()}, Req, State}
 	when State::state().
 get_file(Req, State={Path, {ok, #file_info{size=Size}}, _}) ->
 	{{sendfile, 0, Size, Path}, Req, State}.
