@@ -146,7 +146,7 @@ all bodies:
 [source,erlang]
 ----
 multipart(Req0) ->
-    case cowboy_req:part(Req0) of
+    case cowboy_req:read_part(Req0) of
         {ok, _Headers, Req} ->
             multipart(Req);
         {done, Req} ->

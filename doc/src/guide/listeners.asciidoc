@@ -7,7 +7,7 @@ Depending on the connection handshake, one or another protocol
 may be used.
 
 This chapter is specific to Cowboy. Please refer to the
-http://ninenines.eu/docs/en/ranch/1.2/guide/listeners/[Ranch User Guide]
+http://ninenines.eu/docs/en/ranch/1.3/guide/listeners/[Ranch User Guide]
 for more information about listeners.
 
 Cowboy provides two types of listeners: one listening for

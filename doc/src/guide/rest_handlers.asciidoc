@@ -101,13 +101,13 @@ and in the second case that we send one as HTML.
 
 === Meta data
 
-Cowboy will set informative meta values at various points of the
-execution. You can retrieve them using `cowboy_req:meta/{2,3}`.
-The values are defined in the following table.
+Cowboy will set informative values to the Req object at various
+points of the execution. You can retrieve them by matching the
+Req object directly. The values are defined in the following table:
 
 [cols="<,<",options="header"]
 |===
-| Meta key   | Details
+| Key        | Details
 | media_type | The content-type negotiated for the response entity.
 | language   | The language negotiated for the response entity.
 | charset    | The charset negotiated for the response entity.

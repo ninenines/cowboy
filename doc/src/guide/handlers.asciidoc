@@ -29,9 +29,9 @@ We need to use the Req object to reply.
 [source,erlang]
 ----
 init(Req0, State) ->
-    Req = cowboy_req:reply(200, [
-        {<<"content-type">>, <<"text/plain">>}
-    ], <<"Hello World!">>, Req0),
+    Req = cowboy_req:reply(200, #{
+        <<"content-type">> => <<"text/plain">>
+    }, <<"Hello World!">>, Req0),
     {ok, Req, State}.
 ----
 
@@ -81,8 +81,7 @@ xref:sub_protocols[Sub protocols] chapter.
 
 === Cleaning up
 
-With the exception of Websocket handlers, all handler types
-provide the optional `terminate/3` callback.
+All handler types provide the optional `terminate/3` callback.
 
 [source,erlang]
 ----

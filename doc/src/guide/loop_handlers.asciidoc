@@ -16,7 +16,7 @@ most known example of such practice is known as long polling.
 Loop handlers can also be used for requests where a response is
 partially available and you need to stream the response body
 while the connection is open. The most known example of such
-practice is known as server-sent events.
+practice is server-sent events.
 
 While the same can be accomplished using plain HTTP handlers,
 it is recommended to use loop handlers because they are well-tested
@@ -66,7 +66,7 @@ message otherwise.
 [source,erlang]
 ----
 info({reply, Body}, Req, State) ->
-    cowboy_req:reply(200, [], Body, Req),
+    cowboy_req:reply(200, #{}, Body, Req),
     {stop, Req, State};
 info(_Msg, Req, State) ->
     {ok, Req, State, hibernate}.
@@ -96,19 +96,19 @@ This can be done by initiating a chunked reply in the
 every time a message is received.
 
 The following snippet does exactly that. As you can see
-a chunk is sent every time a `chunk` message is received,
+a chunk is sent every time an `event` message is received,
 and the loop is stopped by sending an `eof` message.
 
 [source,erlang]
 ----
 init(Req, State) ->
-    Req2 = cowboy_req:chunked_reply(200, [], Req),
+    Req2 = cowboy_req:stream_reply(200, Req),
     {cowboy_loop, Req2, State}.
 
 info(eof, Req, State) ->
     {stop, Req, State};
-info({chunk, Chunk}, Req, State) ->
-    cowboy_req:chunk(Chunk, Req),
+info({event, Data}, Req, State) ->
+    cowboy_req:stream_body(Data, nofin, Req),
     {ok, Req, State};
 info(_Msg, Req, State) ->
     {ok, Req, State}.
@@ -124,6 +124,9 @@ Please refer to the xref:handlers[Handlers chapter]
 for general instructions about cleaning up.
 
 === Timeout
+
+Note that this feature currently does not work. It will be
+brought back in a future 2.0 pre-release.
 
 By default Cowboy will not attempt to close the connection
 if there is no activity from the client. This is not always
