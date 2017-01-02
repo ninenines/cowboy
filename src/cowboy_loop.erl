@@ -87,8 +87,8 @@ timeout(State=#state{timeout=infinity}) ->
 timeout(State=#state{timeout=Timeout,
 		timeout_ref=PrevRef}) ->
 	_ = case PrevRef of
-		undefined -> ignore;
-		PrevRef -> erlang:cancel_timer(PrevRef)
+		undefined -> ignore%;
+% @todo		PrevRef -> erlang:cancel_timer(PrevRef)
 	end,
 	TRef = erlang:start_timer(Timeout, self(), ?MODULE),
 	State#state{timeout_ref=TRef}.
@@ -127,7 +127,7 @@ terminate(Req, #state{env=Env, timeout_ref=TRef},
 	end,
 	flush_timeouts(),
 	Result = cowboy_handler:terminate(Reason, Req, HandlerState, Handler),
-	{ok, Req, [{result, Result}|Env]}.
+	{ok, Req, Env#{result => Result}}.
 
 flush_timeouts() ->
 	receive

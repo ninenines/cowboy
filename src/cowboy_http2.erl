@@ -113,7 +113,7 @@ init(Parent, Ref, Socket, Transport, Opts, Handler, Peer, Buffer) ->
 
 %% @todo Add an argument for the request body.
 -spec init(pid(), ranch:ref(), inet:socket(), module(), cowboy:opts(), module(),
-	{inet:ip_address(), inet:port_number()}, binary(), binary() | undefined, cowboy_req:req()) -> ok.
+	{inet:ip_address(), inet:port_number()}, binary(), map() | undefined, cowboy_req:req()) -> ok.
 init(Parent, Ref, Socket, Transport, Opts, Handler, Peer, Buffer, _Settings, Req) ->
 	State0 = #state{parent=Parent, ref=Ref, socket=Socket,
 		transport=Transport, opts=Opts, handler=Handler, peer=Peer,
@@ -235,7 +235,7 @@ parse(State=#state{parse_state=ParseState}, Data) ->
 	end.
 
 parse_settings_preface(State, Frame={settings, _}, Rest, TRef) ->
-	erlang:cancel_timer(TRef, [{async, true}, {info, false}]),
+	_ = erlang:cancel_timer(TRef, [{async, true}, {info, false}]),
 	parse(frame(State#state{parse_state=normal}, Frame), Rest);
 parse_settings_preface(State, _, _, _) ->
 	terminate(State, {connection_error, protocol_error,
@@ -330,11 +330,11 @@ frame(State, {continuation, _, _, _}) ->
 		'CONTINUATION frames MUST be preceded by a HEADERS frame. (RFC7540 6.10)'}).
 
 continuation_frame(State=#state{parse_state={continuation, StreamID, IsFin, HeaderBlockFragment0}},
-		{continuation, StreamID, fin, HeaderBlockFragment1}) ->
+		{continuation, StreamID, head_fin, HeaderBlockFragment1}) ->
 	stream_init(State#state{parse_state=normal}, StreamID, IsFin,
 		<< HeaderBlockFragment0/binary, HeaderBlockFragment1/binary >>);
 continuation_frame(State=#state{parse_state={continuation, StreamID, IsFin, HeaderBlockFragment0}},
-		{continuation, StreamID, nofin, HeaderBlockFragment1}) ->
+		{continuation, StreamID, head_nofin, HeaderBlockFragment1}) ->
 	State#state{parse_state={continuation, StreamID, IsFin,
 		<< HeaderBlockFragment0/binary, HeaderBlockFragment1/binary >>}};
 continuation_frame(State, _) ->
@@ -517,6 +517,7 @@ send_data(Socket, Transport, StreamID, IsFin, Data, Length) ->
 			Transport:send(Socket, cow_http2:data(StreamID, IsFin, Data))
 	end.
 
+-spec terminate(#state{}, _) -> no_return().
 terminate(#state{socket=Socket, transport=Transport, handler=Handler,
 		streams=Streams, children=Children}, Reason) ->
 	%% @todo Send GOAWAY frame; need to keep track of last good stream id; how?
@@ -686,7 +687,7 @@ headers_encode(Headers0, EncodeState) ->
 
 %% System callbacks.
 
--spec system_continue(_, _, #state{}) -> ok.
+-spec system_continue(_, _, {#state{}, binary()}) -> ok.
 system_continue(_, _, {State, Buffer}) ->
 	loop(State, Buffer).
 

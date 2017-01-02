@@ -238,7 +238,7 @@ upgrade(Req0, Env, Handler, HandlerState, infinity, run) ->
 	Method = cowboy_req:method(Req0),
 	{ok, Req, Result} = service_available(Req0, #state{method=Method,
 		handler=Handler, handler_state=HandlerState}),
-	{ok, Req, [{result, Result}|Env]}.
+	{ok, Req, Env#{result => Result}}.
 
 service_available(Req, State) ->
 	expect(Req, State, service_available, true, fun known_methods/2, 503).
@@ -1016,16 +1016,7 @@ set_resp_body(Req, State=#state{content_type_a={_, Callback}}) ->
 			terminate(Req2, State#state{handler_state=HandlerState2});
 		{Body, Req2, HandlerState2} ->
 			State2 = State#state{handler_state=HandlerState2},
-			Req3 = case Body of
-				{stream, StreamFun} ->
-					cowboy_req:set_resp_body_fun(StreamFun, Req2);
-				{stream, Len, StreamFun} ->
-					cowboy_req:set_resp_body_fun(Len, StreamFun, Req2);
-				{chunked, StreamFun} ->
-					cowboy_req:set_resp_body_fun(chunked, StreamFun, Req2);
-				_ ->
-					cowboy_req:set_resp_body(Body, Req2)
-			end,
+			Req3 = cowboy_req:set_resp_body(Body, Req2),
 			multiple_choices(Req3, State2)
 	end catch Class:Reason = {case_clause, no_call} ->
 		error_terminate(Req, State, Class, Reason)

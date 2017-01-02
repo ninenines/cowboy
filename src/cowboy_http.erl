@@ -106,7 +106,7 @@
 	out_streamid = 1 :: pos_integer(),
 
 	%% Whether we finished writing data for the current stream.
-	out_state = wait :: wait | headers | chunked,
+	out_state = wait :: wait | headers | chunked | done,
 
 	%% The connection will be closed after this stream.
 	last_streamid = undefined :: pos_integer(),
@@ -222,6 +222,7 @@ cancel_request_timeout(State=#state{timer=TimerRef}) ->
 	end,
 	State#state{timer=undefined}.
 
+-spec timeout(_, _) -> no_return().
 %% @todo Honestly it would be much better if we didn't enable pipelining yet.
 timeout(State=#state{in_state=#ps_request_line{}}, request_timeout) ->
 	%% @todo If other streams are running, just set the connection to be closed
@@ -302,7 +303,11 @@ after_parse({more, State, Buffer}) ->
 
 %% Request-line.
 
--spec parse_request(binary(), #state{}, non_neg_integer()) -> ok.
+-spec parse_request(Buffer, State, non_neg_integer())
+	-> {request, cowboy_req:req(), State, Buffer}
+	| {data, cowboy_stream:streamid(), cowboy_stream:fin(), binary(), State, Buffer}
+	| {more, State, Buffer}
+	when Buffer::binary(), State::#state{}.
 %% Empty lines must be using \r\n.
 parse_request(<< $\n, _/bits >>, State, _) ->
 	error_terminate(400, State, {connection_error, protocol_error,
@@ -446,11 +451,12 @@ parse_header(<< $\r, $\n, Rest/bits >>, S, Headers) ->
 parse_header(Buffer, State=#state{opts=Opts, in_state=PS}, Headers) ->
 	MaxLength = maps:get(max_header_name_length, Opts, 64),
 	MaxHeaders = maps:get(max_headers, Opts, 100),
+	NumHeaders = maps:size(Headers),
 	case match_colon(Buffer, 0) of
 		nomatch when byte_size(Buffer) > MaxLength ->
 			error_terminate(400, State, {connection_error, limit_reached,
 				''}); %% @todo
-		nomatch when length(Headers) >= MaxHeaders ->
+		nomatch when NumHeaders >= MaxHeaders ->
 			error_terminate(400, State, {connection_error, limit_reached,
 				''}); %% @todo
 		nomatch ->
@@ -1016,12 +1022,14 @@ connection_hd_is_close(Conn) ->
 	Conns = cow_http_hd:parse_connection(iolist_to_binary(Conn)),
 	lists:member(<<"close">>, Conns).
 
+-spec error_terminate(cowboy:http_status(), #state{}, _) -> no_return().
 error_terminate(StatusCode, State=#state{socket=Socket, transport=Transport}, Reason) ->
 	Transport:send(Socket, cow_http:response(StatusCode, 'HTTP/1.1', [
 		{<<"content-length">>, <<"0">>}
 	])),
 	terminate(State, Reason).
 
+-spec terminate(_, _) -> no_return().
 terminate(_State, _Reason) ->
 	exit(normal). %% @todo
 
