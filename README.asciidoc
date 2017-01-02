@@ -16,14 +16,6 @@ Because it uses Ranch for managing connections, Cowboy can easily be
 
 Cowboy is *clean* and *well tested* Erlang code.
 
-== Sponsors
-
-The project is currently sponsored by https://sameroom.io[Sameroom].
-
-The original SPDY implementation was sponsored by
-http://leo-project.net/leofs/[LeoFS Cloud Storage].
-It has since been superseded by HTTP/2.
-
 == Online documentation
 
 * http://ninenines.eu/docs/en/cowboy/2.0/guide[User guide]
@@ -41,4 +33,5 @@ It has since been superseded by HTTP/2.
 == Getting help
 
 * Official IRC Channel: #ninenines on irc.freenode.net
+* https://github.com/ninenines/cowboy/issues[Issues tracker]
 * http://ninenines.eu/services[Commercial Support]
