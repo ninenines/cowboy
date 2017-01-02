@@ -16,7 +16,7 @@
 
 ERLANG_MK_FILENAME := $(realpath $(lastword $(MAKEFILE_LIST)))
 
-ERLANG_MK_VERSION = 2016.11.03-10-g0b1932e-dirty
+ERLANG_MK_VERSION = 2016.12.08-2-g1361da6
 
 # Make 3.81 and 3.82 are deprecated.
 
@@ -4862,7 +4862,7 @@ endif
 
 ifeq ($(wildcard src/$(PROJECT_MOD).erl),)
 define app_file
-{application, $(PROJECT), [
+{application, '$(PROJECT)', [
 	{description, "$(PROJECT_DESCRIPTION)"},
 	{vsn, "$(PROJECT_VERSION)"},$(if $(IS_DEP),
 	{id$(comma)$(space)"$(1)"}$(comma))
@@ -4874,7 +4874,7 @@ define app_file
 endef
 else
 define app_file
-{application, $(PROJECT), [
+{application, '$(PROJECT)', [
 	{description, "$(PROJECT_DESCRIPTION)"},
 	{vsn, "$(PROJECT_VERSION)"},$(if $(IS_DEP),
 	{id$(comma)$(space)"$(1)"}$(comma))
@@ -6309,7 +6309,7 @@ escript:: escript-zip
 	$(verbose) chmod +x $(ESCRIPT_FILE)
 
 distclean-escript:
-	$(gen_verbose) rm -f $(ESCRIPT_NAME)
+	$(gen_verbose) rm -f $(ESCRIPT_FILE)
 
 # Copyright (c) 2015-2016, Loïc Hoguin <essen@ninenines.eu>
 # Copyright (c) 2014, Enrique Fernandez <enrique.fernandez@erlang-solutions.com>
