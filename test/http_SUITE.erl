@@ -307,20 +307,6 @@ echo_body(Config) ->
 	end || Size <- lists:seq(MTU - 500, MTU)],
 	ok.
 
-%% Check if sending request whose header name is bigger than 64 bytes causes 431
-echo_body_max_header_name_length(Config) ->
-	ConnPid = gun_open(Config),
-	Ref = gun:post(ConnPid, "/echo/body", [{binary:copy(<<$a>>, 32768), <<"bad">>}], << "echo=name" >>),
-	{response, fin, 431, _} = gun:await(ConnPid, Ref),
-	ok.
-
-%% Check if sending request whose header name is bigger than 64 bytes causes 431
-echo_body_max_header_value_length(Config) ->
-	ConnPid = gun_open(Config),
-	Ref = gun:post(ConnPid, "/echo/body", [{<<"bad">>, binary:copy(<<$a>>, 32768)}], << "echo=name" >>),
-	{response, fin, 431, _} = gun:await(ConnPid, Ref),
-	ok.
-
 %% Check if sending request whose size is bigger than 1000000 bytes causes 413
 echo_body_max_length(Config) ->
 	ConnPid = gun_open(Config),

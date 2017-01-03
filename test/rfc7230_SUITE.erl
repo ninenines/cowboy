@@ -726,20 +726,33 @@ reject_invalid_whitespace_after_version(Config) ->
 %Messages that contain whitespace between the header name and
 %colon must be rejected with a 400 status code and the closing
 %of the connection. (RFC7230 3.2.4)
-%
-%limit_header_name(Config) ->
-%The header name must be subject to a configurable limit. A
-%good default is 50 characters, well above the longest registered
-%header. Such a request must be rejected with a 431 status code
-%and the closing of the connection. (RFC7230 3.2.5, RFC6585 5, IANA Message Headers registry)
-%
-%limit_header_value(Config) ->
-%The header value and the optional whitespace around it must be
-%subject to a configurable limit. There is no recommendations
-%for the default. 4096 characters is known to work well. Such
-%a request must be rejected with a 431 status code and the closing
-%of the connection. (RFC7230 3.2.5, RFC6585 5)
-%
+
+limit_header_name(Config) ->
+	doc("The header name must be subject to a configurable limit. A "
+		"good default is 50 characters, well above the longest registered "
+		"header. Such a request must be rejected with a 431 status code "
+		"and the closing of the connection. "
+		"(RFC7230 3.2.5, RFC6585 5, IANA Message Headers registry)"),
+	#{code := 431, client := Client} = do_raw(Config, [
+		"GET / HTTP/1.1\r\n"
+		"Host: localhost\r\n",
+		binary:copy(<<$a>>, 32768), ": bad\r\n"
+		"\r\n"]),
+	{error, closed} = raw_recv(Client, 0, 1000).
+
+limit_header_value(Config) ->
+	doc("The header value and the optional whitespace around it must be "
+		"subject to a configurable limit. There is no recommendations "
+		"for the default. 4096 characters is known to work well. Such "
+		"a request must be rejected with a 431 status code and the closing "
+		"of the connection. (RFC7230 3.2.5, RFC6585 5)"),
+	#{code := 431, client := Client} = do_raw(Config, [
+		"GET / HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"bad: ", binary:copy(<<$a>>, 32768), "\r\n"
+		"\r\n"]),
+	{error, closed} = raw_recv(Client, 0, 1000).
+
 %drop_whitespace_before_header_value(Config) ->
 %drop_whitespace_after_header_value(Config) ->
 %Optional whitespace before and after the header value is not
