@@ -59,8 +59,11 @@
 %% Response.
 -export([set_resp_cookie/3]).
 -export([set_resp_cookie/4]).
+-export([resp_header/2]).
+-export([resp_header/3]).
+-export([resp_headers/1]).
 -export([set_resp_header/3]).
-%% @todo set_resp_headers/2
+-export([set_resp_headers/2]).
 -export([has_resp_header/2]).
 %% @todo resp_header
 -export([delete_resp_header/2]).
@@ -569,6 +572,31 @@ set_resp_header(Name, Value, Req=#{resp_headers := RespHeaders}) ->
 	Req#{resp_headers => RespHeaders#{Name => Value}};
 set_resp_header(Name,Value, Req) ->
 	Req#{resp_headers => #{Name => Value}}.
+
+-spec set_resp_headers(cowboy:http_headers(), Req)
+	-> Req when Req::req().
+set_resp_headers(Headers, Req=#{resp_headers := RespHeaders}) ->
+	Req#{resp_headers => maps:merge(RespHeaders, Headers)};
+set_resp_headers(Headers, Req) ->
+	Req#{resp_headers => Headers}.
+
+
+-spec resp_header(binary(), req()) -> binary() | undefined.
+resp_header(Name, Req) ->
+	resp_header(Name, Req, undefined).
+
+-spec resp_header(binary(), req(), Default)
+	-> binary() | Default when Default::any().
+resp_header(Name, #{resp_headers := Headers}, Default) ->
+	maps:get(Name, Headers, Default);
+resp_header(_, #{}, Default) ->
+	Default.
+
+-spec resp_headers(req()) -> cowboy:http_headers().
+resp_headers(#{resp_headers := RespHeaders}) ->
+	RespHeaders;
+resp_headers(#{}) ->
+	#{}.
 
 -spec set_resp_body(resp_body(), Req) -> Req when Req::req().
 set_resp_body(Body, Req) ->
