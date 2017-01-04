@@ -580,7 +580,6 @@ set_resp_headers(Headers, Req=#{resp_headers := RespHeaders}) ->
 set_resp_headers(Headers, Req) ->
 	Req#{resp_headers => Headers}.
 
-
 -spec resp_header(binary(), req()) -> binary() | undefined.
 resp_header(Name, Req) ->
 	resp_header(Name, Req, undefined).

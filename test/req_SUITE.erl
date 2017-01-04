@@ -490,8 +490,8 @@ set_resp_header(Config) ->
 set_resp_headers(Config) ->
 	doc("Response using set_resp_headers."),
 	{200, Headers, <<"OK">>} = do_get("/resp/set_resp_headers", Config),
-	true = lists:keymember(<<"x-header-test1">>, 1, Headers),
-	true = lists:keymember(<<"x-header-test2">>, 1, Headers),
+	true = lists:keymember(<<"content-type">>, 1, Headers),
+	true = lists:keymember(<<"content-encoding">>, 1, Headers),
 	ok.
 
 resp_header(Config) ->
