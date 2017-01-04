@@ -2,7 +2,7 @@
 
 == Name
 
-cowboy_req:resp_header - Access the named HTTP header set for the response
+cowboy_req:resp_header - Response header
 
 == Description
 
@@ -11,18 +11,26 @@ cowboy_req:resp_header - Access the named HTTP header set for the response
 resp_header(Name, Req)          -> resp_header(Name, Req, undefined)
 resp_header(Name, Req, Default) -> binary() | Default
 
-Name    :: binary()
+Name    :: binary()          %% lowercase; case insensitive
 Req     :: cowboy_req:req()
 Default :: any()
 ----
 
-Return the currently set response header value for the given HTTP header.
+Return the value for the given response header.
+
+The response header must have been set previously using
+link:man:cowboy_req:set_resp_header(3)[cowboy_req:set_resp_header(3)] or
+link:man:cowboy_req:set_resp_headers(3)[cowboy_req:set_resp_headers(3)].
+
+The header name must be given as a lowercase binary string.
+While header names are case insensitive, Cowboy requires them
+to be given as lowercase to function properly.
 
 == Arguments
 
 Name::
 
-Desired response HTTP header name as a binary.
+Desired response header name as a lowercase binary string.
 
 Req::
 
@@ -34,7 +42,8 @@ Default value returned when the header is missing.
 
 == Return value
 
-The binary value for the given HTTP header name.
+The header value is returned as a binary string. When the
+header is missing, the default argument is returned.
 
 == Changelog
 
@@ -42,20 +51,21 @@ The binary value for the given HTTP header name.
 
 == Examples
 
-.Get the response header with the given name
+.Get the content-type response header
 [source,erlang]
 ----
-HeaderValue = cowboy_req:resp_header(<<"x-test-header">>, Req).
+Type = cowboy_req:resp_header(<<"content-type">>, Req).
 ----
 
-.Get the response header with the given name and a default
+.Get the content-type response header with a default value
 [source,erlang]
 ----
-HeaderValue = cowboy_req:resp_header(<<"x-test-header">>, Req, <<"bar">>).
+Type = cowboy_req:resp_header(<<"content-type">>, Req, <<"text/html">>).
 ----
 
 == See also
 
 link:man:cowboy_req(3)[cowboy_req(3)],
-link:man:cowboy_req:set_resp_headers(3)[cowboy_req:resp_headers(3)]
-link:man:cowboy_req:set_resp_header(3)[cowboy_req:set_resp_header(3)]
+link:man:cowboy_req:resp_headers(3)[cowboy_req:resp_headers(3)],
+link:man:cowboy_req:set_resp_header(3)[cowboy_req:set_resp_header(3)],
+link:man:cowboy_req:set_resp_headers(3)[cowboy_req:set_resp_headers(3)]

@@ -8,22 +8,32 @@ cowboy_req:set_resp_headers - Set several response headers
 
 [source,erlang]
 ----
-set_resp_headers(Headers, Req) -> cowboy_req:req()
+set_resp_headers(Headers, Req :: cowboy_req:req())
+    -> Req
 
 Headers :: cowboy:http_headers()
-Req     :: cowboy_req:req()
 ----
 
-Add all given headers to the response headers.
-If a given header key already exists in the currently set
-response-header map the given value will overwrite the old.
+Set several headers to be sent with the response.
+
+The header name must be given as a lowercase binary string.
+While header names are case insensitive, Cowboy requires them
+to be given as lowercase to function properly.
+
+Cowboy does not allow duplicate header names. Headers set
+by this function may be overwritten by those set from the
+reply functions. Likewise, headers set by this function may
+overwrite headers that were set previously.
+
+Use link:man:cowboy_req:set_resp_cookie(3)[cowboy_req:set_resp_cookie(3)]
+instead of this function to set cookies.
 
 == Arguments
 
 Headers::
 
-A map with keys and values as binary strings.
-Key values should be lowercase to function properly.
+Headers as a map with keys being lowercase binary strings,
+and values as binary strings.
 
 Req::
 
@@ -31,7 +41,10 @@ The Req object.
 
 == Return value
 
-A request object updated with the given response headers.
+A new Req object is returned.
+
+The returned Req object must be used from that point onward,
+otherwise the headers will not be sent in the response.
 
 == Changelog
 
@@ -39,13 +52,23 @@ A request object updated with the given response headers.
 
 == Examples
 
-.Get all response headers
+.Set several response headers
 [source,erlang]
 ----
-Req1 = cowboy_req:set_resp_headers(#{<<"x-header-test">> => <<"1">>}, Req0).
+Req = cowboy_req:set_resp_headers(#{
+    <<"content-type">>     => <<"text/html">>,
+    <<"content-encoding">> => <<"gzip">>
+}, Req0).
 ----
 
 == See also
 
 link:man:cowboy_req(3)[cowboy_req(3)],
-link:man:cowboy_req:resp_headers(3)[cowboy_req:resp_headers(3)]
+link:man:cowboy_req:set_resp_cookie(3)[cowboy_req:set_resp_cookie(3)],
+link:man:cowboy_req:set_resp_header(3)[cowboy_req:set_resp_header(3)],
+link:man:cowboy_req:has_resp_header(3)[cowboy_req:has_resp_header(3)],
+link:man:cowboy_req:resp_header(3)[cowboy_req:resp_header(3)],
+link:man:cowboy_req:resp_headers(3)[cowboy_req:resp_headers(3)],
+link:man:cowboy_req:delete_resp_header(3)[cowboy_req:delete_resp_header(3)],
+link:man:cowboy_req:reply(3)[cowboy_req:reply(3)],
+link:man:cowboy_req:stream_reply(3)[cowboy_req:stream_reply(3)]

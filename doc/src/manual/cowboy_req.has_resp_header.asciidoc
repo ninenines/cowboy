@@ -51,4 +51,7 @@ true = cowboy_req:has_resp_header(<<"content-type">>, Req).
 
 link:man:cowboy_req(3)[cowboy_req(3)],
 link:man:cowboy_req:set_resp_header(3)[cowboy_req:set_resp_header(3)],
+link:man:cowboy_req:set_resp_headers(3)[cowboy_req:set_resp_headers(3)],
+link:man:cowboy_req:resp_header(3)[cowboy_req:resp_header(3)],
+link:man:cowboy_req:resp_headers(3)[cowboy_req:resp_headers(3)],
 link:man:cowboy_req:delete_resp_header(3)[cowboy_req:delete_resp_header(3)]

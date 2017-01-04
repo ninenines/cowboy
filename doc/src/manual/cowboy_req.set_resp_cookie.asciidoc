@@ -111,5 +111,6 @@ Req = cowboy_req:set_resp_cookie(<<"sessionid">>, SessionID, [
 
 link:man:cowboy_req(3)[cowboy_req(3)],
 link:man:cowboy_req:set_resp_header(3)[cowboy_req:set_resp_header(3)],
+link:man:cowboy_req:set_resp_headers(3)[cowboy_req:set_resp_headers(3)],
 link:man:cowboy_req:reply(3)[cowboy_req:reply(3)],
 link:man:cowboy_req:stream_reply(3)[cowboy_req:stream_reply(3)]

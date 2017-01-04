@@ -2,18 +2,16 @@
 
 == Name
 
-cowboy_req:resp_headers - Access HTTP headers set for the response
+cowboy_req:resp_headers - Response headers
 
 == Description
 
 [source,erlang]
 ----
-resp_headers(Req) -> cowboy:http_headers()
-
-Req :: cowboy_req:req()
+resp_headers(Req :: cowboy_req:req()) -> cowboy:http_headers()
 ----
 
-Return all HTTP response headers.
+Return all response headers.
 
 == Arguments
 
@@ -25,7 +23,6 @@ The Req object.
 
 Headers are returned as a map with keys being lowercase
 binary strings, and values as binary strings.
-If no response headers have been added the empty map is returned.
 
 == Changelog
 
@@ -42,4 +39,6 @@ Headers = cowboy_req:resp_headers(Req).
 == See also
 
 link:man:cowboy_req(3)[cowboy_req(3)],
+link:man:cowboy_req:resp_header(3)[cowboy_req:resp_header(3)],
+link:man:cowboy_req:set_resp_header(3)[cowboy_req:set_resp_header(3)],
 link:man:cowboy_req:set_resp_headers(3)[cowboy_req:set_resp_headers(3)]
