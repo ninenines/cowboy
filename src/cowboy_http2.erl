@@ -14,9 +14,9 @@
 
 -module(cowboy_http2).
 
--export([init/6]).
--export([init/8]).
--export([init/10]).
+-export([init/5]).
+-export([init/7]).
+-export([init/9]).
 
 -export([system_continue/3]).
 -export([system_terminate/4]).
@@ -24,7 +24,8 @@
 
 -record(stream, {
 	id = undefined :: cowboy_stream:streamid(),
-	state = undefined :: any(),
+	%% Stream handlers and their state.
+	state = undefined :: {module(), any()},
 	%% Whether we finished sending data.
 	local = idle :: idle | cowboy_stream:fin(),
 	%% Whether we finished receiving data.
@@ -44,7 +45,6 @@
 	socket = undefined :: inet:socket(),
 	transport :: module(),
 	opts = #{} :: map(),
-	handler :: module(),
 
 	%% Remote address and port for the connection.
 	peer = undefined :: {inet:ip_address(), inet:port_number()},
@@ -89,21 +89,21 @@
 	encode_state = cow_hpack:init() :: cow_hpack:state()
 }).
 
--spec init(pid(), ranch:ref(), inet:socket(), module(), cowboy:opts(), module()) -> ok.
-init(Parent, Ref, Socket, Transport, Opts, Handler) ->
+-spec init(pid(), ranch:ref(), inet:socket(), module(), cowboy:opts()) -> ok.
+init(Parent, Ref, Socket, Transport, Opts) ->
 	case Transport:peername(Socket) of
 		{ok, Peer} ->
-			init(Parent, Ref, Socket, Transport, Opts, Handler, Peer, <<>>);
+			init(Parent, Ref, Socket, Transport, Opts, Peer, <<>>);
 		{error, Reason} ->
 			%% Couldn't read the peer address; connection is gone.
 			terminate(undefined, {socket_error, Reason, 'An error has occurred on the socket.'})
 	end.
 
--spec init(pid(), ranch:ref(), inet:socket(), module(), cowboy:opts(), module(),
+-spec init(pid(), ranch:ref(), inet:socket(), module(), cowboy:opts(),
 	{inet:ip_address(), inet:port_number()}, binary()) -> ok.
-init(Parent, Ref, Socket, Transport, Opts, Handler, Peer, Buffer) ->
+init(Parent, Ref, Socket, Transport, Opts, Peer, Buffer) ->
 	State = #state{parent=Parent, ref=Ref, socket=Socket,
-		transport=Transport, opts=Opts, handler=Handler, peer=Peer,
+		transport=Transport, opts=Opts, peer=Peer,
 		parse_state={preface, sequence, preface_timeout(Opts)}},
 	preface(State),
 	case Buffer of
@@ -112,11 +112,11 @@ init(Parent, Ref, Socket, Transport, Opts, Handler, Peer, Buffer) ->
 	end.
 
 %% @todo Add an argument for the request body.
--spec init(pid(), ranch:ref(), inet:socket(), module(), cowboy:opts(), module(),
+-spec init(pid(), ranch:ref(), inet:socket(), module(), cowboy:opts(),
 	{inet:ip_address(), inet:port_number()}, binary(), map() | undefined, cowboy_req:req()) -> ok.
-init(Parent, Ref, Socket, Transport, Opts, Handler, Peer, Buffer, _Settings, Req) ->
+init(Parent, Ref, Socket, Transport, Opts, Peer, Buffer, _Settings, Req) ->
 	State0 = #state{parent=Parent, ref=Ref, socket=Socket,
-		transport=Transport, opts=Opts, handler=Handler, peer=Peer,
+		transport=Transport, opts=Opts, peer=Peer,
 		parse_state={preface, sequence, preface_timeout(Opts)}},
 	preface(State0),
 	%% @todo Apply settings.
@@ -245,7 +245,7 @@ parse_settings_preface(State, _, _, _) ->
 %% and terminate the stream if this is the end of it.
 
 %% DATA frame.
-frame(State=#state{handler=Handler, streams=Streams}, {data, StreamID, IsFin0, Data}) ->
+frame(State=#state{streams=Streams}, {data, StreamID, IsFin0, Data}) ->
 	case lists:keyfind(StreamID, #stream.id, Streams) of
 		Stream = #stream{state=StreamState0, remote=nofin, body_length=Len0} ->
 			Len = Len0 + byte_size(Data),
@@ -253,14 +253,15 @@ frame(State=#state{handler=Handler, streams=Streams}, {data, StreamID, IsFin0, D
 				fin -> {fin, Len};
 				nofin -> nofin
 			end,
-			try Handler:data(StreamID, IsFin, Data, StreamState0) of
+			try cowboy_stream:data(StreamID, IsFin, Data, StreamState0) of
 				{Commands, StreamState} ->
 					commands(State, Stream#stream{state=StreamState, body_length=Len}, Commands)
 			catch Class:Reason ->
-				error_logger:error_msg("Exception occurred in ~s:data(~p, ~p, ~p, ~p) with reason ~p:~p.",
-					[Handler, StreamID, IsFin0, Data, StreamState0, Class, Reason]),
+				error_logger:error_msg("Exception occurred in "
+					"cowboy_stream:data(~p, ~p, ~p, ~p) with reason ~p:~p.",
+					[StreamID, IsFin0, Data, StreamState0, Class, Reason]),
 				stream_reset(State, StreamID, {internal_error, {Class, Reason},
-					'Exception occurred in StreamHandler:data/4 call.'})
+					'Exception occurred in cowboy_stream:data/4.'})
 			end;
 		_ ->
 			stream_reset(State, StreamID, {stream_error, stream_closed,
@@ -350,17 +351,18 @@ down(State=#state{children=Children0}, Pid, Msg) ->
 			State
 	end.
 
-info(State=#state{handler=Handler, streams=Streams}, StreamID, Msg) ->
+info(State=#state{streams=Streams}, StreamID, Msg) ->
 	case lists:keyfind(StreamID, #stream.id, Streams) of
 		Stream = #stream{state=StreamState0} ->
-			try Handler:info(StreamID, Msg, StreamState0) of
+			try cowboy_stream:info(StreamID, Msg, StreamState0) of
 				{Commands, StreamState} ->
 					commands(State, Stream#stream{state=StreamState}, Commands)
 			catch Class:Reason ->
-				error_logger:error_msg("Exception occurred in ~s:info(~p, ~p, ~p) with reason ~p:~p.",
-					[Handler, StreamID, Msg, StreamState0, Class, Reason]),
+				error_logger:error_msg("Exception occurred in "
+					"cowboy_stream:info(~p, ~p, ~p) with reason ~p:~p.",
+					[StreamID, Msg, StreamState0, Class, Reason]),
 				stream_reset(State, StreamID, {internal_error, {Class, Reason},
-					'Exception occurred in StreamHandler:info/3 call.'})
+					'Exception occurred in cowboy_stream:info/3.'})
 			end;
 		false ->
 			error_logger:error_msg("Received message ~p for unknown stream ~p.", [Msg, StreamID]),
@@ -482,14 +484,8 @@ commands(State, Stream=#stream{id=StreamID}, [Error = {internal_error, _, _}|_Ta
 	%% @todo Do we even allow commands after?
 	%% @todo Only reset when the stream still exists.
 	stream_reset(after_commands(State, Stream), StreamID, Error);
-%% Upgrade to a new protocol.
-%%
-%% @todo Implementation.
-%% @todo Can only upgrade if: there are no other streams and there are no children left alive.
-%% @todo For HTTP/1.1 we should reject upgrading if pipelining is used.
-commands(State, Stream, [{upgrade, _Mod, _ModState}]) ->
-	commands(State, Stream, []);
-commands(State, Stream, [{upgrade, _Mod, _ModState}|Tail]) ->
+%% @todo HTTP/2 has no support for the Upgrade mechanism.
+commands(State, Stream, [{switch_protocol, _Headers, _Mod, _ModState}|Tail]) ->
 	%% @todo This is an error. Not sure what to do here yet.
 	commands(State, Stream, Tail);
 commands(State, Stream=#stream{id=StreamID}, [stop|_Tail]) ->
@@ -518,19 +514,19 @@ send_data(Socket, Transport, StreamID, IsFin, Data, Length) ->
 	end.
 
 -spec terminate(#state{}, _) -> no_return().
-terminate(#state{socket=Socket, transport=Transport, handler=Handler,
+terminate(#state{socket=Socket, transport=Transport,
 		streams=Streams, children=Children}, Reason) ->
 	%% @todo Send GOAWAY frame; need to keep track of last good stream id; how?
-	terminate_all_streams(Streams, Reason, Handler, Children),
+	terminate_all_streams(Streams, Reason, Children),
 	Transport:close(Socket),
 	exit({shutdown, Reason}).
 
-terminate_all_streams([], _, _, []) ->
+terminate_all_streams([], _, []) ->
 	ok;
-terminate_all_streams([#stream{id=StreamID, state=StreamState}|Tail], Reason, Handler, Children0) ->
-	stream_call_terminate(StreamID, Reason, Handler, StreamState),
+terminate_all_streams([#stream{id=StreamID, state=StreamState}|Tail], Reason, Children0) ->
+	stream_call_terminate(StreamID, Reason, StreamState),
 	Children = stream_terminate_children(Children0, StreamID, []),
-	terminate_all_streams(Tail, Reason, Handler, Children).
+	terminate_all_streams(Tail, Reason, Children).
 
 %% Stream functions.
 
@@ -593,16 +589,16 @@ stream_init(State0=#state{ref=Ref, socket=Socket, transport=Transport, peer=Peer
 			'Error while trying to decode HPACK-encoded header block. (RFC7540 4.3)'})
 	end.
 
-stream_handler_init(State=#state{handler=Handler, opts=Opts}, StreamID, IsFin, Req) ->
-	try Handler:init(StreamID, Req, Opts) of
+stream_handler_init(State=#state{opts=Opts}, StreamID, IsFin, Req) ->
+	try cowboy_stream:init(StreamID, Req, Opts) of
 		{Commands, StreamState} ->
 			commands(State, #stream{id=StreamID, state=StreamState, remote=IsFin}, Commands)
 	catch Class:Reason ->
-		error_logger:error_msg("Exception occurred in ~s:init(~p, ~p, ~p) "
-			"with reason ~p:~p.",
-			[Handler, StreamID, IsFin, Req, Class, Reason]),
+		error_logger:error_msg("Exception occurred in "
+			"cowboy_stream:init(~p, ~p, ~p) with reason ~p:~p.",
+			[StreamID, IsFin, Req, Class, Reason]),
 		stream_reset(State, StreamID, {internal_error, {Class, Reason},
-			'Exception occurred in StreamHandler:init/7 call.'}) %% @todo Check final arity.
+			'Exception occurred in cowboy_stream:init/3.'})
 	end.
 
 %% @todo We might need to keep track of which stream has been reset so we don't send lots of them.
@@ -615,23 +611,23 @@ stream_reset(State=#state{socket=Socket, transport=Transport}, StreamID,
 	Transport:send(Socket, cow_http2:rst_stream(StreamID, Reason)),
 	stream_terminate(State, StreamID, StreamError).
 
-stream_terminate(State=#state{socket=Socket, transport=Transport, handler=Handler,
+stream_terminate(State=#state{socket=Socket, transport=Transport,
 		streams=Streams0, children=Children0, encode_state=EncodeState0}, StreamID, Reason) ->
 	case lists:keytake(StreamID, #stream.id, Streams0) of
 		{value, #stream{state=StreamState, local=idle}, Streams} when Reason =:= normal ->
 			Headers = #{<<":status">> => <<"204">>},
 			{HeaderBlock, EncodeState} = headers_encode(Headers, EncodeState0),
 			Transport:send(Socket, cow_http2:headers(StreamID, fin, HeaderBlock)),
-			stream_call_terminate(StreamID, Reason, Handler, StreamState),
+			stream_call_terminate(StreamID, Reason, StreamState),
 			Children = stream_terminate_children(Children0, StreamID, []),
 			State#state{streams=Streams, children=Children, encode_state=EncodeState};
 		{value, #stream{state=StreamState, local=nofin}, Streams} when Reason =:= normal ->
 			Transport:send(Socket, cow_http2:data(StreamID, fin, <<>>)),
-			stream_call_terminate(StreamID, Reason, Handler, StreamState),
+			stream_call_terminate(StreamID, Reason, StreamState),
 			Children = stream_terminate_children(Children0, StreamID, []),
 			State#state{streams=Streams, children=Children};
 		{value, #stream{state=StreamState}, Streams} ->
-			stream_call_terminate(StreamID, Reason, Handler, StreamState),
+			stream_call_terminate(StreamID, Reason, StreamState),
 			Children = stream_terminate_children(Children0, StreamID, []),
 			State#state{streams=Streams, children=Children};
 		false ->
@@ -640,13 +636,13 @@ stream_terminate(State=#state{socket=Socket, transport=Transport, handler=Handle
 			State
 	end.
 
-stream_call_terminate(StreamID, Reason, Handler, StreamState) ->
+stream_call_terminate(StreamID, Reason, StreamState) ->
 	try
-		Handler:terminate(StreamID, Reason, StreamState),
-		ok
+		cowboy_stream:terminate(StreamID, Reason, StreamState)
 	catch Class:Reason ->
-		error_logger:error_msg("Exception occurred in ~s:terminate(~p, ~p, ~p) with reason ~p:~p.",
-			[Handler, StreamID, Reason, StreamState, Class, Reason])
+		error_logger:error_msg("Exception occurred in "
+			"cowboy_stream:terminate(~p, ~p, ~p) with reason ~p:~p.",
+			[StreamID, Reason, StreamState, Class, Reason])
 	end.
 
 stream_terminate_children([], _, Acc) ->

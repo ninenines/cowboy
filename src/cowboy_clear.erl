@@ -40,9 +40,8 @@ init(Parent, Ref, Socket, Transport, Opts) ->
 	init(Parent, Ref, Socket, Transport, Opts, cowboy_http).
 
 init(Parent, Ref, Socket, Transport, Opts, Protocol) ->
-	{Handler, Type} = maps:get(stream_handler, Opts, {cowboy_stream_h, supervisor}),
-	_ = case Type of
+	_ = case maps:get(connection_type, Opts, supervisor) of
 		worker -> ok;
 		supervisor -> process_flag(trap_exit, true)
 	end,
-	Protocol:init(Parent, Ref, Socket, Transport, Opts, Handler).
+	Protocol:init(Parent, Ref, Socket, Transport, Opts).

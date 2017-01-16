@@ -41,26 +41,29 @@
 %% doesn't let us do that yet.
 -spec start_clear(ranch:ref(), non_neg_integer(), ranch_tcp:opts(), opts())
 	-> {ok, pid()} | {error, any()}.
-start_clear(Ref, NbAcceptors, TransOpts0, ProtoOpts)
+start_clear(Ref, NbAcceptors, TransOpts0, ProtoOpts0)
 		when is_integer(NbAcceptors), NbAcceptors > 0 ->
-	TransOpts = [connection_type(ProtoOpts)|TransOpts0],
+	{TransOpts, ConnectionType} = ensure_connection_type(TransOpts0),
+	ProtoOpts = ProtoOpts0#{connection_type => ConnectionType},
 	ranch:start_listener(Ref, NbAcceptors, ranch_tcp, TransOpts, cowboy_clear, ProtoOpts).
 
 -spec start_tls(ranch:ref(), non_neg_integer(), ranch_ssl:opts(), opts())
 	-> {ok, pid()} | {error, any()}.
-start_tls(Ref, NbAcceptors, TransOpts0, ProtoOpts)
+start_tls(Ref, NbAcceptors, TransOpts0, ProtoOpts0)
 		when is_integer(NbAcceptors), NbAcceptors > 0 ->
+	{TransOpts1, ConnectionType} = ensure_connection_type(TransOpts0),
 	TransOpts = [
-		connection_type(ProtoOpts),
 		{next_protocols_advertised, [<<"h2">>, <<"http/1.1">>]},
 		{alpn_preferred_protocols, [<<"h2">>, <<"http/1.1">>]}
-	|TransOpts0],
+	|TransOpts1],
+	ProtoOpts = ProtoOpts0#{connection_type => ConnectionType},
 	ranch:start_listener(Ref, NbAcceptors, ranch_ssl, TransOpts, cowboy_tls, ProtoOpts).
 
--spec connection_type(opts()) -> {connection_type, worker | supervisor}.
-connection_type(ProtoOpts) ->
-	{_, Type} = maps:get(stream_handler, ProtoOpts, {cowboy_stream_h, supervisor}),
-	{connection_type, Type}.
+ensure_connection_type(TransOpts) ->
+	case proplists:get_value(connection_type, TransOpts) of
+		undefined -> {[{connection_type, supervisor}|TransOpts], supervisor};
+		ConnectionType -> {TransOpts, ConnectionType}
+	end.
 
 -spec stop_listener(ranch:ref()) -> ok | {error, not_found}.
 stop_listener(Ref) ->

@@ -13,7 +13,7 @@
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 -module(cowboy_stream_h).
-%% @todo -behaviour(cowboy_stream).
+-behavior(cowboy_stream).
 
 %% @todo Maybe have a callback for the type of process this is, worker or supervisor.
 -export([init/3]).
@@ -24,6 +24,8 @@
 -export([proc_lib_hack/3]).
 -export([execute/3]).
 -export([resume/5]).
+
+%% @todo Need to call subsequent handlers.
 
 -record(state, {
 	ref = undefined :: ranch:ref(),
@@ -39,8 +41,8 @@
 %% the stream like supervisors do. So here just send a message to yourself first,
 %% and then decide what to do when receiving this message.
 
-%% @todo proper specs
--spec init(_,_,_) -> _.
+-spec init(cowboy_stream:streamid(), cowboy_req:req(), cowboy:opts())
+	-> {[{spawn, pid(), timeout()}], #state{}}.
 init(_StreamID, Req=#{ref := Ref}, Opts) ->
 	Env = maps:get(env, Opts, #{}),
 	Middlewares = maps:get(middlewares, Opts, [cowboy_router, cowboy_handler]),
@@ -52,9 +54,8 @@ init(_StreamID, Req=#{ref := Ref}, Opts) ->
 %%	If we accumulated enough data or IsFin=fin, send it.
 %%	If not, buffer it.
 %% If not, buffer it.
-
-%% @todo proper specs
--spec data(_,_,_,_) -> _.
+-spec data(cowboy_stream:streamid(), cowboy_stream:fin(), cowboy_req:resp_body(), State)
+	-> {cowboy_stream:commands(), State} when State::#state{}.
 data(_StreamID, IsFin, Data, State=#state{read_body_ref=undefined, read_body_buffer=Buffer}) ->
 	{[], State#state{read_body_is_fin=IsFin, read_body_buffer= << Buffer/binary, Data/binary >>}};
 data(_StreamID, nofin, Data, State=#state{read_body_length=Length, read_body_buffer=Buffer}) when byte_size(Data) + byte_size(Buffer) < Length ->
@@ -65,9 +66,10 @@ data(_StreamID, IsFin, Data, State=#state{pid=Pid, read_body_ref=Ref,
 	Pid ! {request_body, Ref, IsFin, << Buffer/binary, Data/binary >>},
 	{[], State#state{read_body_ref=undefined, read_body_timer_ref=undefined, read_body_buffer= <<>>}}.
 
-%% @todo proper specs
--spec info(_,_,_) -> _.
+-spec info(cowboy_stream:streamid(), any(), State)
+	-> {cowboy_stream:commands(), State} when State::#state{}.
 info(_StreamID, {'EXIT', Pid, normal}, State=#state{pid=Pid}) ->
+	%% @todo Do we even reach this clause?
 	{[stop], State};
 info(_StreamID, {'EXIT', Pid, {_Reason, [_, {cow_http_hd, _, _, _}|_]}}, State=#state{pid=Pid}) ->
 	%% @todo Have an option to enable/disable this specific crash report?
@@ -113,13 +115,12 @@ info(_StreamID, Push = {push, _, _, _, _, _, _, _}, State) ->
 info(_StreamID, SwitchProtocol = {switch_protocol, _, _, _}, State) ->
 	{[SwitchProtocol], State};
 %% Stray message.
-info(_StreamID, _Msg, State) ->
+info(_StreamID, _Info, State) ->
 	%% @todo Error report.
 	%% @todo Cleanup if no reply was sent when stream ends.
 	{[], State}.
 
-%% @todo proper specs
--spec terminate(_,_,_) -> _.
+-spec terminate(cowboy_stream:streamid(), cowboy_stream:reason(), #state{}) -> ok.
 terminate(_StreamID, _Reason, _State) ->
 	ok.
 
