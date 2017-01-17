@@ -35,6 +35,19 @@ init_per_suite(Config) ->
 end_per_suite(_) ->
 	ok.
 
+%% Find GNU Make.
+
+do_find_make_cmd() ->
+	case os:getenv("MAKE") of
+		false ->
+			case os:find_executable("gmake") of
+				false -> "make";
+				Cmd   -> Cmd
+			end;
+		Cmd ->
+			Cmd
+	end.
+
 %% Compile, start and stop releases.
 
 do_get_paths(Example0) ->
@@ -46,9 +59,10 @@ do_get_paths(Example0) ->
 	{Dir, Rel, Log}.
 
 do_compile_and_start(Example) ->
+	Make = do_find_make_cmd(),
 	{Dir, Rel, _} = do_get_paths(Example),
 	%% TERM=dumb disables relx coloring.
-	ct:log("~s~n", [os:cmd("cd " ++ Dir ++ " && make distclean && make all TERM=dumb")]),
+	ct:log("~s~n", [os:cmd("cd " ++ Dir ++ " && " ++ Make ++ " distclean && " ++ Make ++ " all TERM=dumb")]),
 	ct:log("~s~n", [os:cmd(Rel ++ " stop")]),
 	ct:log("~s~n", [os:cmd(Rel ++ " start")]),
 	timer:sleep(2000),
