@@ -842,16 +842,20 @@ commands(State0=#state{socket=Socket, transport=Transport, streams=Streams}, Str
 %% @todo We probably want to allow Data to be the {sendfile, ...} tuple also.
 commands(State=#state{socket=Socket, transport=Transport, streams=Streams}, StreamID,
 		[{data, IsFin, Data}|Tail]) ->
-
-	%% @todo We need to kill the stream if it tries to send data before headers.
-
-	%% @todo Same as above.
-	case lists:keyfind(StreamID, #stream.id, Streams) of
-		#stream{version='HTTP/1.1'} ->
-			Size = iolist_size(Data),
-			Transport:send(Socket, [integer_to_binary(Size, 16), <<"\r\n">>, Data, <<"\r\n">>]);
-		#stream{version='HTTP/1.0'} ->
-			Transport:send(Socket, Data)
+	%% Do not send anything when the user asks to send an empty
+	%% data frame, as that would break the protocol.
+	Size = iolist_size(Data),
+	case Size of
+		0 -> ok;
+		_ ->
+			%% @todo We need to kill the stream if it tries to send data before headers.
+			%% @todo Same as above.
+			case lists:keyfind(StreamID, #stream.id, Streams) of
+				#stream{version='HTTP/1.1'} ->
+					Transport:send(Socket, [integer_to_binary(Size, 16), <<"\r\n">>, Data, <<"\r\n">>]);
+				#stream{version='HTTP/1.0'} ->
+					Transport:send(Socket, Data)
+			end
 	end,
 	maybe_terminate(State, StreamID, Tail, IsFin);
 %% Send a file.
