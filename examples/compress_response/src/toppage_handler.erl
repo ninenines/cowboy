@@ -19,5 +19,5 @@ have established the ability to work at virtually identical tasks and obtained
 considerable respect for their achievements. There are also cattle handlers
 in many other parts of the world, particularly South America and Australia,
 who perform work similar to the cowboy in their respective nations.\n">>,
-	Req = cowboy_req:reply(200, [], BigBody, Req0),
+	Req = cowboy_req:reply(200, #{}, BigBody, Req0),
 	{ok, Req, Opts}.
