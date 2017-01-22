@@ -43,10 +43,11 @@ common_all() ->
 		{group, http},
 		{group, https},
 		{group, h2},
-		{group, h2c}%,
-%% @todo
-%		{group, http_compress},
-%		{group, https_compress}
+		{group, h2c},
+		{group, http_compress},
+		{group, https_compress},
+		{group, h2_compress},
+		{group, h2c_compress}
 	].
 
 common_groups(Tests) ->
@@ -54,31 +55,51 @@ common_groups(Tests) ->
 		{http, [parallel], Tests},
 		{https, [parallel], Tests},
 		{h2, [parallel], Tests},
-		{h2c, [parallel], Tests}%,
-%% @todo
-%		{http_compress, [parallel], Tests},
-%		{https_compress, [parallel], Tests}
+		{h2c, [parallel], Tests},
+		{http_compress, [parallel], Tests},
+		{https_compress, [parallel], Tests},
+		{h2_compress, [parallel], Tests},
+		{h2c_compress, [parallel], Tests}
 	].
 
 init_common_groups(Name = http, Config, Mod) ->
-	init_http(Name, #{env => #{dispatch => Mod:init_dispatch(Config)}}, Config);
+	init_http(Name, #{
+		env => #{dispatch => Mod:init_dispatch(Config)}
+	}, Config);
 init_common_groups(Name = https, Config, Mod) ->
-	init_https(Name, #{env => #{dispatch => Mod:init_dispatch(Config)}}, Config);
+	init_https(Name, #{
+		env => #{dispatch => Mod:init_dispatch(Config)}
+	}, Config);
 init_common_groups(Name = h2, Config, Mod) ->
-	init_http2(Name, #{env => #{dispatch => Mod:init_dispatch(Config)}}, Config);
+	init_http2(Name, #{
+		env => #{dispatch => Mod:init_dispatch(Config)}
+	}, Config);
 init_common_groups(Name = h2c, Config, Mod) ->
-	Config1 = init_http(Name, #{env => #{dispatch => Mod:init_dispatch(Config)}}, Config),
+	Config1 = init_http(Name, #{
+		env => #{dispatch => Mod:init_dispatch(Config)}
+	}, Config),
 	lists:keyreplace(protocol, 1, Config1, {protocol, http2});
 init_common_groups(Name = http_compress, Config, Mod) ->
 	init_http(Name, #{
 		env => #{dispatch => Mod:init_dispatch(Config)},
-		compress => true
+		stream_handlers => [cowboy_compress_h, cowboy_stream_h]
 	}, Config);
 init_common_groups(Name = https_compress, Config, Mod) ->
 	init_https(Name, #{
 		env => #{dispatch => Mod:init_dispatch(Config)},
-		compress => true
-	}, Config).
+		stream_handlers => [cowboy_compress_h, cowboy_stream_h]
+	}, Config);
+init_common_groups(Name = h2_compress, Config, Mod) ->
+	init_http2(Name, #{
+		env => #{dispatch => Mod:init_dispatch(Config)},
+		stream_handlers => [cowboy_compress_h, cowboy_stream_h]
+	}, Config);
+init_common_groups(Name = h2c_compress, Config, Mod) ->
+	Config1 = init_http(Name, #{
+		env => #{dispatch => Mod:init_dispatch(Config)},
+		stream_handlers => [cowboy_compress_h, cowboy_stream_h]
+	}, Config),
+	lists:keyreplace(protocol, 1, Config1, {protocol, http2}).
 
 %% Support functions for testing using Gun.
 

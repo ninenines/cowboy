@@ -79,5 +79,5 @@ read_body(Req0, Acc) ->
 
 value_to_iodata(V) when is_integer(V) -> integer_to_binary(V);
 value_to_iodata(V) when is_atom(V) -> atom_to_binary(V, latin1);
-value_to_iodata(V) when is_list(V); is_tuple(V); is_map(V) -> io_lib:format("~p", [V]);
+value_to_iodata(V) when is_list(V); is_tuple(V); is_map(V) -> io_lib:format("~999999p", [V]);
 value_to_iodata(V) -> V.

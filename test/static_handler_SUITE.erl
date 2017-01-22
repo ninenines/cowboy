@@ -39,8 +39,11 @@ groups() ->
 		{http, [parallel], GroupTests},
 		{https, [parallel], GroupTests},
 		{h2, [parallel], GroupTests},
-		{h2c, [parallel], GroupTests}
-		%% @todo With compression enabled.
+		{h2c, [parallel], GroupTests},
+		{http_compress, [parallel], GroupTests},
+		{https_compress, [parallel], GroupTests},
+		{h2_compress, [parallel], GroupTests},
+		{h2c_compress, [parallel], GroupTests}
 	].
 
 init_per_suite(Config) ->
@@ -171,7 +174,7 @@ do_get(Path, Config) ->
 
 do_get(Path, ReqHeaders, Config) ->
 	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, Path, ReqHeaders),
+	Ref = gun:get(ConnPid, Path, [{<<"accept-encoding">>, <<"gzip">>}|ReqHeaders]),
 	{response, IsFin, Status, RespHeaders} = gun:await(ConnPid, Ref),
 	{ok, Body} = case IsFin of
 		nofin -> gun:await_body(ConnPid, Ref);

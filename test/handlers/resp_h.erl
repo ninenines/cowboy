@@ -28,7 +28,7 @@ do(<<"set_resp_header">>, Req0, Opts) ->
 do(<<"set_resp_headers">>, Req0, Opts) ->
 	Req = cowboy_req:set_resp_headers(#{
 		<<"content-type">> => <<"text/plain">>,
-		<<"content-encoding">> => <<"gzip">>
+		<<"content-encoding">> => <<"compress">>
 	}, Req0),
 	{ok, cowboy_req:reply(200, #{}, "OK", Req), Opts};
 do(<<"resp_header_defined">>, Req0, Opts) ->
@@ -44,7 +44,7 @@ do(<<"resp_headers">>, Req0, Opts) ->
 	Req1 = cowboy_req:set_resp_header(<<"server">>, <<"nginx">>, Req0),
 	Req = cowboy_req:set_resp_headers(#{
 		<<"content-type">> => <<"text/plain">>,
-		<<"content-encoding">> => <<"gzip">>
+		<<"content-encoding">> => <<"compress">>
 	}, Req1),
 	Headers = cowboy_req:resp_headers(Req),
 	true = maps:is_key(<<"server">>, Headers),

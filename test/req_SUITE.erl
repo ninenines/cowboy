@@ -25,14 +25,7 @@ all() ->
 	cowboy_test:common_all().
 
 groups() ->
-	AllTests = ct_helper:all(?MODULE),
-	[
-		{http, [parallel], AllTests},
-		{https, [parallel], AllTests},
-		{h2, [parallel], AllTests},
-		{h2c, [parallel], AllTests}
-		%% @todo With compression enabled.
-	].
+	cowboy_test:common_groups(ct_helper:all(?MODULE)).
 
 init_per_suite(Config) ->
 	ct_helper:create_static_dir(config(priv_dir, Config) ++ "/static"),
@@ -74,36 +67,43 @@ do_body(Method, Path, Config) ->
 do_body(Method, Path, Headers, Config) ->
 	do_body(Method, Path, Headers, <<>>, Config).
 
-do_body(Method, Path, Headers, Body, Config) ->
+do_body(Method, Path, Headers0, Body, Config) ->
 	ConnPid = gun_open(Config),
+	Headers = [{<<"accept-encoding">>, <<"gzip">>}|Headers0],
 	Ref = case Body of
 		<<>> -> gun:request(ConnPid, Method, Path, Headers);
 		_ -> gun:request(ConnPid, Method, Path, Headers, Body)
 	end,
-	{response, IsFin, 200, _} = gun:await(ConnPid, Ref),
+	{response, IsFin, 200, RespHeaders} = gun:await(ConnPid, Ref),
 	{ok, RespBody} = case IsFin of
 		nofin -> gun:await_body(ConnPid, Ref);
 		fin -> {ok, <<>>}
 	end,
 	gun:close(ConnPid),
-	RespBody.
+	do_decode(RespHeaders, RespBody).
 
 do_get(Path, Config) ->
 	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, Path, []),
-	{response, IsFin, Status, Headers} = gun:await(ConnPid, Ref),
+	Ref = gun:get(ConnPid, Path, [{<<"accept-encoding">>, <<"gzip">>}]),
+	{response, IsFin, Status, RespHeaders} = gun:await(ConnPid, Ref),
 	{ok, RespBody} = case IsFin of
 		nofin -> gun:await_body(ConnPid, Ref);
 		fin -> {ok, <<>>}
 	end,
 	gun:close(ConnPid),
-	{Status, Headers, RespBody}.
+	{Status, RespHeaders, do_decode(RespHeaders, RespBody)}.
 
 do_get_body(Path, Config) ->
 	do_get_body(Path, [], Config).
 
 do_get_body(Path, Headers, Config) ->
 	do_body("GET", Path, Headers, Config).
+
+do_decode(Headers, Body) ->
+	case lists:keyfind(<<"content-encoding">>, 1, Headers) of
+		{_, <<"gzip">>} -> zlib:gunzip(Body);
+		_ -> Body
+	end.
 
 %% Tests: Request.
 
@@ -129,7 +129,8 @@ header(Config) ->
 
 headers(Config) ->
 	doc("Request headers."),
-	<< "#{<<\"header\">> => <<\"value\">>", _/bits >>
+	%% We always send accept-encoding with this test suite's requests.
+	<<"#{<<\"accept-encoding\">> => <<\"gzip\">>,<<\"header\">> => <<\"value\">>", _/bits>>
 		= do_get_body("/headers", [{<<"header">>, "value"}], Config),
 	ok.
 

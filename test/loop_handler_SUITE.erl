@@ -47,41 +47,45 @@ init_dispatch(_) ->
 long_polling(Config) ->
 	doc("Simple long-polling."),
 	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, "/long_polling"),
+	Ref = gun:get(ConnPid, "/long_polling", [{<<"accept-encoding">>, <<"gzip">>}]),
 	{response, fin, 102, _} = gun:await(ConnPid, Ref),
 	ok.
 
 long_polling_body(Config) ->
 	doc("Long-polling with a body that falls within the configurable limits."),
 	ConnPid = gun_open(Config),
-	Ref = gun:post(ConnPid, "/long_polling", [], << 0:5000/unit:8 >>),
+	Ref = gun:post(ConnPid, "/long_polling", [{<<"accept-encoding">>, <<"gzip">>}],
+		<< 0:5000/unit:8 >>),
 	{response, fin, 102, _} = gun:await(ConnPid, Ref),
 	ok.
 
 long_polling_body_too_large(Config) ->
 	doc("Long-polling with a body that exceeds the configurable limits."),
 	ConnPid = gun_open(Config),
-	Ref = gun:post(ConnPid, "/long_polling", [], << 0:100000/unit:8 >>),
+	Ref = gun:post(ConnPid, "/long_polling", [{<<"accept-encoding">>, <<"gzip">>}],
+		<< 0:100000/unit:8 >>),
 	{response, fin, 500, _} = gun:await(ConnPid, Ref),
 	ok.
 
 long_polling_pipeline(Config) ->
 	doc("Pipeline of long-polling calls."),
 	ConnPid = gun_open(Config),
-	Refs = [gun:get(ConnPid, "/long_polling") || _ <- lists:seq(1, 2)],
+	Refs = [gun:get(ConnPid, "/long_polling", [{<<"accept-encoding">>, <<"gzip">>}])
+		|| _ <- lists:seq(1, 2)],
 	_ = [{response, fin, 102, _} = gun:await(ConnPid, Ref) || Ref <- Refs],
 	ok.
 
 loop_body(Config) ->
 	doc("Check that a loop handler can read the request body in info/3."),
 	ConnPid = gun_open(Config),
-	Ref = gun:post(ConnPid, "/loop_body", [], << 0:100000/unit:8 >>),
+	Ref = gun:post(ConnPid, "/loop_body", [{<<"accept-encoding">>, <<"gzip">>}],
+		<< 0:100000/unit:8 >>),
 	{response, fin, 200, _} = gun:await(ConnPid, Ref),
 	ok.
 
 loop_timeout(Config) ->
 	doc("Ensure that the loop handler timeout results in a 204 response."),
 	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, "/loop_timeout"),
+	Ref = gun:get(ConnPid, "/loop_timeout", [{<<"accept-encoding">>, <<"gzip">>}]),
 	{response, fin, 204, _} = gun:await(ConnPid, Ref),
 	ok.
