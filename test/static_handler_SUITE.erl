@@ -59,6 +59,11 @@ init_per_suite(Config) ->
 	ct_helper:create_static_dir(StaticDir),
 	init_large_file(PrivDir ++ "/large.bin"),
 	init_large_file(StaticDir ++ "/large.bin"),
+	%% Add a simple Erlang application archive containing one file
+	%% in its priv directory.
+	true = code:add_pathz(filename:join(
+		[config(data_dir, Config), "static_files_app", "ebin"])),
+	ok = application:load(static_files_app),
 	%% A special folder contains files of 1 character from 0 to 127.
 	CharDir = config(priv_dir, Config) ++ "/char",
 	ok = filelib:ensure_dir(CharDir ++ "/file"),
@@ -146,7 +151,11 @@ init_dispatch(Config) ->
 		{"/bad/options/mime", cowboy_static, {priv_file, ct_helper, "static/style.css", [{mimetypes, bad}]}},
 		{"/bad/options/etag", cowboy_static, {priv_file, ct_helper, "static/style.css", [{etag, true}]}},
 		{"/unknown/option", cowboy_static, {priv_file, ct_helper, "static/style.css", [{bad, option}]}},
-		{"/char/[...]", cowboy_static, {dir, config(char_dir, Config)}}
+		{"/char/[...]", cowboy_static, {dir, config(char_dir, Config)}},
+		{"/ez_priv_file/index.html", cowboy_static, {priv_file, static_files_app, "www/index.html"}},
+		{"/bad/ez_priv_file/index.php", cowboy_static, {priv_file, static_files_app, "www/index.php"}},
+		{"/ez_priv_dir/[...]", cowboy_static, {priv_dir, static_files_app, "www"}},
+		{"/bad/ez_priv_dir/[...]", cowboy_static, {priv_dir, static_files_app, "cgi-bin"}}
 	]}]).
 
 %% Internal functions.
@@ -761,4 +770,31 @@ unknown_option(Config) ->
 	doc("Get a file configured with unknown extra options."),
 	{200, Headers, <<"body{color:red}\n">>} = do_get("/unknown/option", Config),
 	{_, <<"text/css">>} = lists:keyfind(<<"content-type">>, 1, Headers),
+	ok.
+
+priv_file_in_ez_archive(Config) ->
+	doc("Get a file stored in Erlang application .ez archive."),
+	{200, Headers, <<"<h1>It works!</h1>\n">>} = do_get("/ez_priv_file/index.html", Config),
+	{_, <<"text/html">>} = lists:keyfind(<<"content-type">>, 1, Headers),
+	ok.
+
+bad_priv_file_in_ez_archive(Config) ->
+	doc("Bad cowboy_static options: priv_file path missing from Erlang application .ez archive."),
+	{404, _, _} = do_get("/bad/ez_priv_file/index.php", Config),
+	ok.
+
+priv_dir_in_ez_archive(Config) ->
+	doc("Get a file from a priv_dir stored in Erlang application .ez archive."),
+	{200, Headers, <<"<h1>It works!</h1>\n">>} = do_get("/ez_priv_dir/index.html", Config),
+	{_, <<"text/html">>} = lists:keyfind(<<"content-type">>, 1, Headers),
+	ok.
+
+bad_file_in_priv_dir_in_ez_archive(Config) ->
+	doc("Get a missing file from a priv_dir stored in Erlang application .ez archive."),
+	{404, _, _} = do_get("/ez_priv_dir/index.php", Config),
+	ok.
+
+bad_priv_dir_in_ez_archive(Config) ->
+	doc("Bad cowboy_static options: priv_dir path missing from Erlang application .ez archive."),
+	{404, _, _} = do_get("/bad/ez_priv_dir/index.html", Config),
 	ok.
