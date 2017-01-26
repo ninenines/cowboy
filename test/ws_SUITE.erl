@@ -458,10 +458,10 @@ ws_max_frame_size_close(Config) ->
 	ok = gen_tcp:send(Socket, << 0:1, 0:3, 2:4, 1:1, 5:7, Mask:32, MaskedHello1/binary >>),
 	ok = gen_tcp:send(Socket, << 1:1, 0:3, 0:4, 1:1, 5:7, Mask:32, MaskedHello1/binary >>),
 	{ok, << 1:1, 0:3, 2:4, 0:1, 10:7, "HelloHello" >>} = gen_tcp:recv(Socket, 0, 6000),
-  %% When sending more than 8 bytes connection closed
+	%% When sending more than 8 bytes connection closed
 	ok = gen_tcp:send(Socket, << 1:1, 0:3, 2:4, 1:1, 10:7, Mask:32, MaskedHello2/binary >>),
 	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
-  %% Fragments with exceeding size are not allowed too
+	%% Fragments with exceeding size are not allowed too
 	ok = gen_tcp:send(Socket, << 0:1, 0:3, 2:4, 1:1, 10:7, Mask:32, MaskedHello2/binary >>),
 	ok = gen_tcp:send(Socket, << 1:1, 0:3, 0:4, 1:1, 10:7, Mask:32, MaskedHello2/binary >>),
 	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
