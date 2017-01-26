@@ -82,7 +82,8 @@ init_dispatch() ->
 			]},
 			{"/ws_subprotocol", ws_subprotocol, []},
 			{"/ws_timeout_hibernate", ws_timeout_hibernate, []},
-			{"/ws_timeout_cancel", ws_timeout_cancel, []}
+			{"/ws_timeout_cancel", ws_timeout_cancel, []},
+			{"/ws_max_frame_size", ws_max_frame_size, []}
 		]}
 	]).
 
@@ -441,6 +442,29 @@ ws_webkit_deflate_single_bytes(Config) ->
 	ok = gen_tcp:send(Socket, [binary:at(MaskedHello, 5)]), timer:sleep(100),
 	ok = gen_tcp:send(Socket, [binary:at(MaskedHello, 6)]),
 	{ok, << 1:1, 1:1, 0:2, 1:4, 0:1, 7:7, CompressedHello/binary >>} = gen_tcp:recv(Socket, 0, 6000),
+	ok.
+
+ws_max_frame_size_close(Config) ->
+	doc("Server closes connection when frame size exceeds max_frame_size option"),
+	%% max_frame_size is setted to 8 bytes in ws_max_frame_size
+	{ok, Socket, _} = do_handshake("/ws_max_frame_size", Config),
+	Mask = 16#11223344,
+	MaskedHello1 = do_mask(<<"Hello">>, Mask, <<>>),
+	MaskedHello2 = do_mask(<<"HelloHello">>, Mask, <<>>),
+	%% Hello binary frame echoed back.
+	ok = gen_tcp:send(Socket, << 1:1, 0:3, 2:4, 1:1, 5:7, Mask:32, MaskedHello1/binary >>),
+	{ok, << 1:1, 0:3, 2:4, 0:1, 5:7, "Hello" >>} = gen_tcp:recv(Socket, 0, 6000),
+	%% Fragmented HelloHello binary frame echoed back.
+	ok = gen_tcp:send(Socket, << 0:1, 0:3, 2:4, 1:1, 5:7, Mask:32, MaskedHello1/binary >>),
+	ok = gen_tcp:send(Socket, << 1:1, 0:3, 0:4, 1:1, 5:7, Mask:32, MaskedHello1/binary >>),
+	{ok, << 1:1, 0:3, 2:4, 0:1, 10:7, "HelloHello" >>} = gen_tcp:recv(Socket, 0, 6000),
+  %% When sending more than 8 bytes connection closed
+	ok = gen_tcp:send(Socket, << 1:1, 0:3, 2:4, 1:1, 10:7, Mask:32, MaskedHello2/binary >>),
+	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
+  %% Fragments with exceeding size are not allowed too
+	ok = gen_tcp:send(Socket, << 0:1, 0:3, 2:4, 1:1, 10:7, Mask:32, MaskedHello2/binary >>),
+	ok = gen_tcp:send(Socket, << 1:1, 0:3, 0:4, 1:1, 10:7, Mask:32, MaskedHello2/binary >>),
+	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
 	ok.
 
 %% Internal.

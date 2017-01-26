@@ -65,7 +65,8 @@
 	frag_state = undefined :: cow_ws:frag_state(),
 	frag_buffer = <<>> :: binary(),
 	utf8_state = 0 :: cow_ws:utf8_state(),
-	extensions = #{} :: map()
+	extensions = #{} :: map(),
+	max_frame_size = 8388608 :: non_neg_integer() %% 8 megabytes
 }).
 
 %% Stream process.
@@ -229,6 +230,8 @@ websocket_data(State=#state{frag_state=FragState, extensions=Extensions}, Handle
 	case cow_ws:parse_header(Data, Extensions, FragState) of
 		%% All frames sent from the client to the server are masked.
 		{_, _, _, _, undefined, _} ->
+			websocket_close(State, HandlerState, {error, badframe});
+		{_, _, _, Len, _, _} when Len > State#state.max_frame_size ->
 			websocket_close(State, HandlerState, {error, badframe});
 		{Type, FragState2, Rsv, Len, MaskKey, Rest} ->
 			websocket_payload(State#state{frag_state=FragState2}, HandlerState, Type, Len, MaskKey, Rsv, undefined, <<>>, 0, Rest);
