@@ -441,8 +441,13 @@ commands(State=#state{socket=Socket, transport=Transport}, Stream=#stream{id=Str
 %% implementation necessarily varies between HTTP/1.1 and HTTP/2.
 commands(State=#state{socket=Socket, transport=Transport}, Stream=#stream{id=StreamID, local=nofin},
 		[{sendfile, IsFin, Offset, Bytes, Path}|Tail]) ->
-	Transport:send(Socket, cow_http2:data_header(StreamID, IsFin, Bytes)),
-	Transport:sendfile(Socket, Path, Offset, Bytes),
+	%% @todo We currently have a naive implementation without a
+	%% scheduler to prioritize frames that need to be sent.
+	%% A future update will need to queue such data frames
+	%% and only send them when there is nothing currently
+	%% being sent. We would probably also benefit from doing
+	%% asynchronous sends.
+	sendfile(Socket, Transport, StreamID, IsFin, Offset, Bytes, Path, 16384),
 	commands(State, Stream#stream{local=IsFin}, Tail);
 %% @todo sendfile when local!=nofin
 %% Send a push promise.
@@ -511,6 +516,19 @@ send_data(Socket, Transport, StreamID, IsFin, Data, Length) ->
 			send_data(Socket, Transport, StreamID, IsFin, Rest, Length);
 		true ->
 			Transport:send(Socket, cow_http2:data(StreamID, IsFin, Data))
+	end.
+
+%% @todo This is currently awfully slow. But at least it's correct.
+sendfile(Socket, Transport, StreamID, IsFin, Offset, Bytes, Path, Length) ->
+	if
+		Length < Bytes ->
+			Transport:send(Socket, cow_http2:data_header(StreamID, nofin, Length)),
+			Transport:sendfile(Socket, Path, Offset, Length),
+			sendfile(Socket, Transport, StreamID, IsFin,
+				Offset + Length, Bytes - Length, Path, Length);
+		true ->
+			Transport:send(Socket, cow_http2:data_header(StreamID, IsFin, Bytes)),
+			Transport:sendfile(Socket, Path, Offset, Bytes)
 	end.
 
 -spec terminate(#state{}, _) -> no_return().

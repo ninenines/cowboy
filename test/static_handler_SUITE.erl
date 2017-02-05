@@ -391,13 +391,30 @@ dir_html(Config) ->
 	{_, <<"text/html">>} = lists:keyfind(<<"content-type">>, 1, Headers),
 	ok.
 
-%% @todo This test results in a crash dump.
-%dir_large_file(Config) ->
-%	doc("Get a large file."),
-%	{200, Headers, _} = do_get(config(prefix, Config) ++ "/large.bin", Config),
-%	{_, <<"text/html">>} = lists:keyfind(<<"content-type">>, 1, Headers),
-%% @todo Receive body.
-%	ok.
+dir_large_file(Config) ->
+	doc("Get a large file."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, config(prefix, Config) ++ "/large.bin",
+		[{<<"accept-encoding">>, <<"gzip">>}]),
+	{response, nofin, 200, RespHeaders} = gun:await(ConnPid, Ref),
+	{_, <<"application/octet-stream">>} = lists:keyfind(<<"content-type">>, 1, RespHeaders),
+	Size = 512*1024*1024,
+	{ok, Size} = do_dir_large_file(ConnPid, Ref, 0),
+	ok.
+
+do_dir_large_file(ConnPid, Ref, N) ->
+	receive
+		{gun_data, ConnPid, Ref, nofin, Data} ->
+			do_dir_large_file(ConnPid, Ref, N + byte_size(Data));
+		{gun_data, ConnPid, Ref, fin, Data} ->
+			{ok, N + byte_size(Data)};
+		{gun_error, ConnPid, Ref, Reason} ->
+			{error, Reason};
+		{gun_error, ConnPid, Reason} ->
+			{error, Reason}
+	after 5000 ->
+		{error, timeout}
+	end.
 
 dir_text(Config) ->
 	doc("Get a .txt file. The extension is unknown by default."),
