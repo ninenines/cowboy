@@ -305,10 +305,10 @@ after_parse({more, State, Buffer}) ->
 %% Empty lines must be using \r\n.
 parse_request(<< $\n, _/bits >>, State, _) ->
 	error_terminate(400, State, {connection_error, protocol_error,
-		''}); %% @todo
+		'Empty lines between requests must use the CRLF line terminator. (RFC7230 3.5)'});
 parse_request(<< $\s, _/bits >>, State, _) ->
 	error_terminate(400, State, {connection_error, protocol_error,
-		''}); %% @todo
+		'The request-line must not begin with a space. (RFC7230 3.1.1, RFC7230 3.5)'});
 %% We limit the length of the Request-line to MaxLength to avoid endlessly
 %% reading from the socket and eventually crashing.
 parse_request(Buffer, State=#state{opts=Opts, in_streamid=InStreamID}, EmptyLines) ->
@@ -317,12 +317,12 @@ parse_request(Buffer, State=#state{opts=Opts, in_streamid=InStreamID}, EmptyLine
 	case match_eol(Buffer, 0) of
 		nomatch when byte_size(Buffer) > MaxLength ->
 			error_terminate(414, State, {connection_error, limit_reached,
-				''}); %% @todo
+				'The request-line length is larger than configuration allows. (RFC7230 3.1.1)'});
 		nomatch ->
 			{more, State#state{in_state=#ps_request_line{empty_lines=EmptyLines}}, Buffer};
 		1 when EmptyLines =:= MaxEmptyLines ->
 			error_terminate(400, State, {connection_error, limit_reached,
-				''}); %% @todo
+				'More empty lines were received than configuration allows. (RFC7230 3.5)'});
 		1 ->
 			<< _:16, Rest/bits >> = Buffer,
 			parse_request(Rest, State, EmptyLines + 1);
@@ -356,7 +356,7 @@ parse_method(_, State, _, 0) ->
 parse_method(<< C, Rest/bits >>, State, SoFar, Remaining) ->
 	case C of
 		$\r -> error_terminate(400, State, {connection_error, protocol_error,
-			''}); %% @todo
+			'The method name must not be followed with a line break. (RFC7230 3.1.1)'});
 		$\s -> parse_uri(Rest, State, SoFar);
 		_ when ?IS_TOKEN(C) -> parse_method(Rest, State, << SoFar/binary, C >>, Remaining - 1);
 		_ -> error_terminate(400, State, {connection_error, protocol_error,
@@ -380,7 +380,7 @@ parse_uri(_, State, _) ->
 parse_uri_skip_host(<< C, Rest/bits >>, State, Method) ->
 	case C of
 		$\r -> error_terminate(400, State, {connection_error, protocol_error,
-			''}); %% @todo
+			'The request-target must not be followed by a line break. (RFC7230 3.1.1)'});
 		$/ -> parse_uri_path(Rest, State, Method, <<"/">>);
 		$\s -> parse_version(Rest, State, Method, <<"/">>, <<>>);
 		$? -> parse_uri_query(Rest, State, Method, <<"/">>, <<>>);
@@ -391,7 +391,7 @@ parse_uri_skip_host(<< C, Rest/bits >>, State, Method) ->
 parse_uri_path(<< C, Rest/bits >>, State, Method, SoFar) ->
 	case C of
 		$\r -> error_terminate(400, State, {connection_error, protocol_error,
-			''}); %% @todo
+			'The request-target must not be followed by a line break. (RFC7230 3.1.1)'});
 		$\s -> parse_version(Rest, State, Method, SoFar, <<>>);
 		$? -> parse_uri_query(Rest, State, Method, SoFar, <<>>);
 		$# -> skip_uri_fragment(Rest, State, Method, SoFar, <<>>);
@@ -401,7 +401,7 @@ parse_uri_path(<< C, Rest/bits >>, State, Method, SoFar) ->
 parse_uri_query(<< C, Rest/bits >>, State, M, P, SoFar) ->
 	case C of
 		$\r -> error_terminate(400, State, {connection_error, protocol_error,
-			''}); %% @todo
+			'The request-target must not be followed by a line break. (RFC7230 3.1.1)'});
 		$\s -> parse_version(Rest, State, M, P, SoFar);
 		$# -> skip_uri_fragment(Rest, State, M, P, SoFar);
 		_ -> parse_uri_query(Rest, State, M, P, << SoFar/binary, C >>)
@@ -410,7 +410,7 @@ parse_uri_query(<< C, Rest/bits >>, State, M, P, SoFar) ->
 skip_uri_fragment(<< C, Rest/bits >>, State, M, P, Q) ->
 	case C of
 		$\r -> error_terminate(400, State, {connection_error, protocol_error,
-			''}); %% @todo
+			'The request-target must not be followed by a line break. (RFC7230 3.1.1)'});
 		$\s -> parse_version(Rest, State, M, P, Q);
 		_ -> skip_uri_fragment(Rest, State, M, P, Q)
 	end.
@@ -425,10 +425,10 @@ parse_version(<< "HTTP/1.", _, C, _/bits >>, State, _, _, _) when C =:= $\s; C =
 		'Whitespace is not allowed after the HTTP version. (RFC7230 3.1.1)'});
 parse_version(<< C, _/bits >>, State, _, _, _) when C =:= $\s; C =:= $\t ->
 	error_terminate(400, State, {connection_error, protocol_error,
-		'The separator between request target and version must be a single SP.'});
+		'The separator between request target and version must be a single SP. (RFC7230 3.1.1)'});
 parse_version(_, State, _, _, _) ->
 	error_terminate(505, State, {connection_error, protocol_error,
-		''}). %% @todo
+		'Unsupported HTTP version. (RFC7230 2.6)'}).
 
 parse_headers(Rest, State, M, P, Q, V) ->
 	%% @todo Figure out the parse states.
@@ -449,10 +449,10 @@ parse_header(Buffer, State=#state{opts=Opts, in_state=PS}, Headers) ->
 	case match_colon(Buffer, 0) of
 		nomatch when byte_size(Buffer) > MaxLength ->
 			error_terminate(431, State, {connection_error, limit_reached,
-				''}); %% @todo
+				'A header name is larger than configuration allows. (RFC7230 3.2.5, RFC6585 5)'});
 		nomatch when NumHeaders >= MaxHeaders ->
-			error_terminate(400, State, {connection_error, limit_reached,
-				''}); %% @todo
+			error_terminate(431, State, {connection_error, limit_reached,
+				'The number of headers is larger than configuration allows. (RFC7230 3.2.5, RFC6585 5)'});
 		nomatch ->
 			{more, State#state{in_state=PS#ps_header{headers=Headers}}, Buffer};
 		_ ->
@@ -470,7 +470,7 @@ parse_hd_name(<< $:, Rest/bits >>, State, H, SoFar) ->
 	parse_hd_before_value(Rest, State, H, SoFar);
 parse_hd_name(<< C, _/bits >>, State, _, <<>>) when ?IS_WS(C) ->
 	error_terminate(400, State, {connection_error, protocol_error,
-		''}); %% @todo
+		'Whitespace is not allowed between the header name and the colon. (RFC7230 3.2)'});
 parse_hd_name(<< C, Rest/bits >>, State, H, SoFar) when ?IS_WS(C) ->
 	parse_hd_name_ws(Rest, State, H, SoFar);
 parse_hd_name(<< C, Rest/bits >>, State, H, SoFar) ->
@@ -492,7 +492,7 @@ parse_hd_before_value(Buffer, State=#state{opts=Opts, in_state=PS}, H, N) ->
 	case match_eol(Buffer, 0) of
 		nomatch when byte_size(Buffer) > MaxLength ->
 			error_terminate(431, State, {connection_error, limit_reached,
-				''}); %% @todo
+				'A header value is larger than configuration allows. (RFC7230 3.2.5, RFC6585 5)'});
 		nomatch ->
 			{more, State#state{in_state=PS#ps_header{headers=H, name=N}}, Buffer};
 		_ ->
@@ -551,7 +551,7 @@ request(Buffer, State=#state{transport=Transport, in_streamid=StreamID,
 		undefined when Version =:= 'HTTP/1.1' ->
 			%% @todo Might want to not close the connection on this and next one.
 			error_terminate(400, State, {stream_error, StreamID, protocol_error,
-				''}); %% @todo
+				'HTTP/1.1 requests must include a host header. (RFC7230 5.4)'});
 		undefined ->
 			request(Buffer, State, Headers, <<>>, default_port(Transport:secure()));
 		RawHost ->
@@ -562,7 +562,7 @@ request(Buffer, State=#state{transport=Transport, in_streamid=StreamID,
 					request(Buffer, State, Headers, Host, Port)
 			catch _:_ ->
 				error_terminate(400, State, {stream_error, StreamID, protocol_error,
-					''}) %% @todo
+					'The host header is invalid. (RFC7230 5.4)'})
 			end
 	end.
 
@@ -587,7 +587,7 @@ request(Buffer, State0=#state{ref=Ref, transport=Transport, peer=Peer, in_stream
 				cow_http_hd:parse_content_length(BinLength)
 			catch _:_ ->
 				error_terminate(400, State0, {stream_error, StreamID, protocol_error,
-					''}) %% @todo
+					'The content-length header is invalid. (RFC7230 3.3.2)'})
 				%% @todo Err should terminate here...
 			end,
 			{true, Length, fun cow_http_te:stream_identity/2, {0, Length}};
