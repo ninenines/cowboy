@@ -149,6 +149,25 @@ do_chunked_hello_world(Transport, Protocol, Config) ->
 			ok
 	end.
 
+%% Compressed responses.
+
+compress_response(Config) ->
+	doc("Compressed response example."),
+	try
+		do_compile_and_start(compress_response),
+		do_compress_response(tcp, http, Config),
+		do_compress_response(tcp, http2, Config)
+	after
+		do_stop(compress_response)
+	end.
+
+do_compress_response(Transport, Protocol, Config) ->
+	{200, Headers, Body} = do_get(Transport, Protocol, "/",
+		[{<<"accept-encoding">>, <<"gzip">>}], Config),
+	{_, <<"gzip">>} = lists:keyfind(<<"content-encoding">>, 1, Headers),
+	_ = zlib:gunzip(Body),
+	ok.
+
 %% Cookie.
 
 cookie(Config) ->
