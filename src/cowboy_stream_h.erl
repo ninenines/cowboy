@@ -116,7 +116,6 @@ info(_StreamID, SwitchProtocol = {switch_protocol, _, _, _}, State) ->
 	{[SwitchProtocol], State};
 %% Stray message.
 info(_StreamID, _Info, State) ->
-	%% @todo Error report.
 	%% @todo Cleanup if no reply was sent when stream ends.
 	{[], State}.
 

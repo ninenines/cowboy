@@ -111,9 +111,6 @@
 
 	%% Children which are in the process of shutting down.
 	children = [] :: [{pid(), cowboy_stream:streamid(), timeout()}]
-
-	%% @todo Automatic compression. (compress option?)
-	%% @todo onresponse? Equivalent using streams.
 }).
 
 -include_lib("cowlib/include/cow_inline.hrl").
@@ -246,8 +243,6 @@ parse(Buffer, State=#state{in_state=#ps_body{}}) ->
 	%% @todo We do not want to get the body automatically if the request doesn't ask for it.
 	%% We may want to get bodies that are below a threshold without waiting, and buffer them
 	%% until the request asks, though.
-
-	%% @todo Transfer-decoding must be done here.
 	after_parse(parse_body(Buffer, State)).
 %% @todo Don't parse if body is finished but request isn't. Let's not parallelize for now.
 
@@ -415,7 +410,6 @@ skip_uri_fragment(<< C, Rest/bits >>, State, M, P, Q) ->
 		_ -> skip_uri_fragment(Rest, State, M, P, Q)
 	end.
 
-%% @todo Calls to parse_header should update the state.
 parse_version(<< "HTTP/1.1\r\n", Rest/bits >>, State, M, P, Q) ->
 	parse_headers(Rest, State, M, P, Q, 'HTTP/1.1');
 parse_version(<< "HTTP/1.0\r\n", Rest/bits >>, State, M, P, Q) ->
@@ -431,7 +425,6 @@ parse_version(_, State, _, _, _) ->
 		'Unsupported HTTP version. (RFC7230 2.6)'}).
 
 parse_headers(Rest, State, M, P, Q, V) ->
-	%% @todo Figure out the parse states.
 	parse_header(Rest, State#state{in_state=#ps_header{
 		method=M, path=P, qs=Q, version=V}}, #{}).
 
@@ -606,21 +599,15 @@ request(Buffer, State0=#state{ref=Ref, transport=Transport, peer=Peer, in_stream
 		scheme => Scheme,
 		host => Host,
 		port => Port,
-
-%% @todo So the path component needs to be normalized.
-
+		%% @todo The path component needs to be normalized.
 		path => Path,
 		qs => Qs,
 		version => Version,
 		%% We are transparently taking care of transfer-encodings so
 		%% the user code has no need to know about it.
 		headers => maps:remove(<<"transfer-encoding">>, Headers),
-
 		has_body => HasBody,
 		body_length => BodyLength
-		%% @todo multipart? keep state separate
-
-		%% meta values (cowboy_websocket, cowboy_rest)
 	},
 	case is_http2_upgrade(Headers, Version) of
 		false ->
@@ -679,14 +666,12 @@ http2_upgrade(State=#state{parent=Parent, ref=Ref, socket=Socket, transport=Tran
 	%% However if the client sent a body, we need to read the body in full
 	%% and if we can't do that, return a 413 response. Some options are in order.
 	%% Always half-closed stream coming from this side.
-
 	try cow_http_hd:parse_http2_settings(HTTP2Settings) of
 		Settings ->
 			Transport:send(Socket, cow_http:response(101, 'HTTP/1.1', maps:to_list(#{
 				<<"connection">> => <<"Upgrade">>,
 				<<"upgrade">> => <<"h2c">>
 			}))),
-
 			%% @todo Possibly redirect the request if it was https.
 			_ = cancel_request_timeout(State),
 			cowboy_http2:init(Parent, Ref, Socket, Transport, Opts, Peer, Buffer, Settings, Req)
@@ -1030,7 +1015,7 @@ error_terminate(StatusCode, State=#state{socket=Socket, transport=Transport}, Re
 
 -spec terminate(_, _) -> no_return().
 terminate(_State, _Reason) ->
-	exit(normal). %% @todo
+	exit(normal). %% @todo We probably don't want to exit normal on errors.
 
 %% System callbacks.
 

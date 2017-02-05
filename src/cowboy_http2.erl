@@ -36,9 +36,6 @@
 
 -type stream() :: #stream{}.
 
-%% @todo priority: if we receive a message for a stream, do a selective receive
-%% to get all messages in the mailbox and prioritize them. (later)
-
 -record(state, {
 	parent = undefined :: pid(),
 	ref :: ranch:ref(),
@@ -569,7 +566,7 @@ stream_init(State0=#state{ref=Ref, socket=Socket, transport=Transport, peer=Peer
 						cow_http_hd:parse_content_length(BinLength)
 					catch _:_ ->
 						terminate(State0, {stream_error, StreamID, protocol_error,
-							''}) %% @todo
+							'The content-length header is invalid. (RFC7230 3.3.2)'})
 						%% @todo Err should terminate here...
 					end,
 					Length;
@@ -591,12 +588,8 @@ stream_init(State0=#state{ref=Ref, socket=Socket, transport=Transport, peer=Peer
 				qs => Qs,
 				version => 'HTTP/2',
 				headers => Headers,
-
 				has_body => IsFin =:= nofin,
 				body_length => BodyLength
-				%% @todo multipart? keep state separate
-
-				%% meta values (cowboy_websocket, cowboy_rest)
 			},
 			stream_handler_init(State, StreamID, IsFin, Req);
 		{_, DecodeState} ->

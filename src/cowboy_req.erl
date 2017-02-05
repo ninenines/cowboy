@@ -65,7 +65,6 @@
 -export([set_resp_header/3]).
 -export([set_resp_headers/2]).
 -export([has_resp_header/2]).
-%% @todo resp_header
 -export([delete_resp_header/2]).
 -export([set_resp_body/2]).
 %% @todo set_resp_body/3 with a ContentType or even Headers argument, to set content headers.
@@ -75,7 +74,7 @@
 -export([reply/4]).
 -export([stream_reply/2]).
 -export([stream_reply/3]).
-%% @todo stream_reply/2 (nofin)
+%% @todo stream_body/2 (nofin)
 -export([stream_body/3]).
 %% @todo stream_event/2,3
 -export([push/3]).
