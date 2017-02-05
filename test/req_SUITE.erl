@@ -178,7 +178,6 @@ method(Config) ->
 	<<"ZZZZZZZZ">> = do_body("ZZZZZZZZ", "/method", Config),
 	ok.
 
-%% @todo Do we really want a key/value list here instead of a map?
 parse_cookies(Config) ->
 	doc("Request cookies."),
 	<<"[]">> = do_get_body("/parse_cookies", Config),
@@ -205,7 +204,6 @@ parse_header(Config) ->
 	<<"100-continue">> = do_get_body("/args/parse_header/expect/100-continue", Config),
 	ok.
 
-%% @todo Do we really want a key/value list here instead of a map?
 parse_qs(Config) ->
 	doc("Parsed request URI query string."),
 	<<"[]">> = do_get_body("/parse_qs", Config),
@@ -347,7 +345,6 @@ do_read_body_timeout(Path, Body, Config) ->
 	{response, _, 500, _} = gun:await(ConnPid, Ref),
 	gun:close(ConnPid).
 
-%% @todo Do we really want a key/value list here instead of a map?
 read_urlencoded_body(Config) ->
 	doc("application/x-www-form-urlencoded request body."),
 	<<"[]">> = do_body("POST", "/read_urlencoded_body", [], <<>>, Config),
