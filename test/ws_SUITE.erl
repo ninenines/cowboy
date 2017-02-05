@@ -132,7 +132,25 @@ ws0(Config) ->
 	{ok, {http_response, {1, 1}, 400, _}, _} = erlang:decode_packet(http, Handshake, []),
 	ok.
 
-%% @todo What about version 7?
+ws7(Config) ->
+	doc("Websocket version 7 (draft) is supported."),
+	{ok, Socket} = gen_tcp:connect("localhost", config(port, Config), [binary, {active, false}]),
+	ok = gen_tcp:send(Socket, [
+		"GET /ws_echo_timer HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Connection: Upgrade\r\n"
+		"Upgrade: websocket\r\n"
+		"Sec-WebSocket-Origin: http://localhost\r\n"
+		"Sec-WebSocket-Version: 7\r\n"
+		"Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n"
+		"\r\n"]),
+	{ok, Handshake} = gen_tcp:recv(Socket, 0, 6000),
+	{ok, {http_response, {1, 1}, 101, _}, Rest} = erlang:decode_packet(http, Handshake, []),
+	[Headers, <<>>] = do_decode_headers(erlang:decode_packet(httph, Rest, []), []),
+	{_, "Upgrade"} = lists:keyfind('Connection', 1, Headers),
+	{_, "websocket"} = lists:keyfind('Upgrade', 1, Headers),
+	{_, "s3pPLMBiTxaQ9kYGzzhZRbK+xOo="} = lists:keyfind("sec-websocket-accept", 1, Headers),
+	do_ws_version(Socket).
 
 ws8(Config) ->
 	doc("Websocket version 8 (draft) is supported."),
