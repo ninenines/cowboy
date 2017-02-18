@@ -14,12 +14,10 @@ set_resp_cookie(Name, Value, Req :: cowboy_req:req())
 set_resp_cookie(Name, Value, Opts, Req :: cowboy_req:req())
     -> Req
 
-Name  :: iodata()                  %% case sensitive
+Name  :: binary()                  %% case sensitive
 Value :: iodata()                  %% case sensitive
 Opts  :: cow_cookie:cookie_opts()
 ----
-
-// @todo I am not particularly happy about the fact that the name is iodata().
 
 Set a cookie to be sent with the response.
 
@@ -53,6 +51,7 @@ otherwise the cookie will not be sent in the response.
 == Changelog
 
 * *2.0*: `set_resp_cookie/3` introduced as an alias to `set_resp_cookie/4` with no options.
+* *2.0*: The first argument type is now `binary()` instead of `iodata()`.
 * *1.0*: Function introduced.
 
 == Examples

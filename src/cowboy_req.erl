@@ -556,7 +556,7 @@ set_resp_cookie(Name, Value, Req) ->
 %% The cookie value cannot contain any of the following characters:
 %%   ,; \t\r\n\013\014
 %% @todo Fix the cookie_opts() type.
--spec set_resp_cookie(iodata(), iodata(), cookie_opts(), Req)
+-spec set_resp_cookie(binary(), iodata(), cookie_opts(), Req)
 	-> Req when Req::req().
 set_resp_cookie(Name, Value, Opts, Req) ->
 	Cookie = cow_cookie:setcookie(Name, Value, maps:to_list(Opts)),
