@@ -225,9 +225,9 @@ handler_loop(State=#state{socket=Socket, messages={OK, Closed, Error},
 			websocket_data(State2, HandlerState,
 				<< SoFar/binary, Data/binary >>);
 		{Closed, Socket} ->
-			handler_terminate(State, HandlerState, {error, closed});
+			terminate(State, HandlerState, {error, closed});
 		{Error, Socket, Reason} ->
-			handler_terminate(State, HandlerState, {error, Reason});
+			terminate(State, HandlerState, {error, Reason});
 		{timeout, TRef, ?MODULE} ->
 			websocket_close(State, HandlerState, timeout);
 		{timeout, OlderTRef, ?MODULE} when is_reference(OlderTRef) ->
@@ -283,9 +283,9 @@ websocket_payload_loop(State=#state{socket=Socket, transport=Transport,
 			websocket_payload(State2, HandlerState,
 				Type, Len, MaskKey, Rsv, CloseCode, Unmasked, UnmaskedLen, Data);
 		{Closed, Socket} ->
-			handler_terminate(State, HandlerState, {error, closed});
+			terminate(State, HandlerState, {error, closed});
 		{Error, Socket, Reason} ->
-			handler_terminate(State, HandlerState, {error, Reason});
+			terminate(State, HandlerState, {error, Reason});
 		{timeout, TRef, ?MODULE} ->
 			websocket_close(State, HandlerState, timeout);
 		{timeout, OlderTRef, ?MODULE} when is_reference(OlderTRef) ->
@@ -339,9 +339,9 @@ handler_call(State=#state{handler=Handler}, HandlerState,
 				ok ->
 					NextState(State, HandlerState2, RemainingData);
 				stop ->
-					handler_terminate(State, HandlerState2, stop);
+					terminate(State, HandlerState2, stop);
 				Error = {error, _} ->
-					handler_terminate(State, HandlerState2, Error)
+					terminate(State, HandlerState2, Error)
 			end;
 		{reply, Payload, HandlerState2, hibernate} ->
 			case websocket_send(Payload, State) of
@@ -349,14 +349,15 @@ handler_call(State=#state{handler=Handler}, HandlerState,
 					NextState(State#state{hibernate=true},
 						HandlerState2, RemainingData);
 				stop ->
-					handler_terminate(State, HandlerState2, stop);
+					terminate(State, HandlerState2, stop);
 				Error = {error, _} ->
-					handler_terminate(State, HandlerState2, Error)
+					terminate(State, HandlerState2, Error)
 			end;
 		{stop, HandlerState2} ->
 			websocket_close(State, HandlerState2, stop)
 	catch Class:Reason ->
-		_ = websocket_close(State, HandlerState, {crash, Class, Reason}),
+		websocket_send_close(State, {crash, Class, Reason}),
+		handler_terminate(State, HandlerState, {crash, Class, Reason}),
 		erlang:raise(Class, Reason, erlang:get_stacktrace())
 	end.
 
@@ -389,9 +390,13 @@ is_close_frame({close, _, _}) -> true;
 is_close_frame(_) -> false.
 
 -spec websocket_close(#state{}, any(), terminate_reason()) -> no_return().
-websocket_close(State=#state{socket=Socket, transport=Transport, extensions=Extensions},
-		HandlerState, Reason) ->
-	case Reason of
+websocket_close(State, HandlerState, Reason) ->
+	websocket_send_close(State, Reason),
+	terminate(State, HandlerState, Reason).
+
+websocket_send_close(#state{socket=Socket, transport=Transport,
+		extensions=Extensions}, Reason) ->
+	_ = case Reason of
 		Normal when Normal =:= stop; Normal =:= timeout ->
 			Transport:send(Socket, cow_ws:frame({close, 1000, <<>>}, Extensions));
 		{error, badframe} ->
@@ -405,10 +410,12 @@ websocket_close(State=#state{socket=Socket, transport=Transport, extensions=Exte
 		{remote, Code, _} ->
 			Transport:send(Socket, cow_ws:frame({close, Code, <<>>}, Extensions))
 	end,
-	handler_terminate(State, HandlerState, Reason).
+	ok.
 
--spec handler_terminate(#state{}, any(), terminate_reason()) -> no_return().
-handler_terminate(#state{handler=Handler},
-		HandlerState, Reason) ->
-	cowboy_handler:terminate(Reason, undefined, HandlerState, Handler),
+-spec terminate(#state{}, any(), terminate_reason()) -> no_return().
+terminate(State, HandlerState, Reason) ->
+	handler_terminate(State, HandlerState, Reason),
 	exit(normal).
+
+handler_terminate(#state{handler=Handler}, HandlerState, Reason) ->
+	cowboy_handler:terminate(Reason, undefined, HandlerState, Handler).
