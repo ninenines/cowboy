@@ -136,11 +136,10 @@ init(Parent, Ref, Socket, Transport, Opts) ->
 %% Timeouts:
 %% - waiting for new request (if no stream is currently running)
 %%   -> request_timeout: for whole request/headers, set at init/when we set ps_request_line{} state
-%% - waiting for body (if a stream requested the body to be read)
-%%   -> read_body_timeout: amount of time we wait without receiving any data when reading the body
+%% - waiting for new request, or body (when a stream is currently running)
+%%   -> idle_timeout: amount of time we wait without receiving any data
 %% - if we skip the body, skip only for a specific duration
 %%   -> skip_body_timeout: also have a skip_body_length
-%% - none if we have a stream running and it didn't request the body to be read
 %% - global
 %%   -> inactivity_timeout: max time to wait without anything happening before giving up
 

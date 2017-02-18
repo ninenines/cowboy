@@ -11,7 +11,7 @@ init(Req0, Opts) ->
 		<<"content-type">> => <<"text/event-stream">>
 	}, Req0),
 	erlang:send_after(1000, self(), {message, "Tick"}),
-	{cowboy_loop, Req, Opts, 5000}.
+	{cowboy_loop, Req, Opts}.
 
 info({message, Msg}, Req, State) ->
 	cowboy_req:stream_body(["id: ", id(), "\ndata: ", Msg, "\n\n"], nofin, Req),

@@ -60,13 +60,13 @@ be:
 init(Req, State) ->
     case cowboy_req:parse_header(<<"sec-websocket-protocol">>, Req) of
         undefined ->
-            {ok, Req, State};
+            {cowboy_websocket, Req, State};
         Subprotocols ->
             case lists:keymember(<<"mqtt">>, 1, Subprotocols) of
                 true ->
                     Req2 = cowboy_req:set_resp_header(<<"sec-websocket-protocol">>,
                         <<"mqtt">>, Req),
-                    {ok, Req2, State};
+                    {cowboy_websocket, Req2, State};
                 false ->
                     {stop, Req, State}
             end
@@ -210,12 +210,13 @@ than needed.
 
 The `init/2` callback can set the timeout to be used
 for the connection. For example, this would make Cowboy
-close connections idle for more than 60 seconds:
+close connections idle for more than 30 seconds:
 
 [source,erlang]
 ----
 init(Req, State) ->
-    {cowboy_websocket, Req, State, 60000}.
+    {cowboy_websocket, Req, State, #{
+        idle_timeout => 30000}}.
 ----
 
 This value cannot be changed once it is set. It defaults to

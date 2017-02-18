@@ -12,7 +12,7 @@
 
 init(Req, _) ->
 	erlang:send_after(1000, self(), timeout),
-	{cowboy_loop, Req, undefined, 200, hibernate}.
+	{cowboy_loop, Req, undefined, hibernate}.
 
 info(timeout, Req, State) ->
 	{stop, cowboy_req:reply(500, Req), State}.

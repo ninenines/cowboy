@@ -10,31 +10,6 @@ The module `cowboy_websocket` implements Websocket
 as a Ranch protocol. It also defines a callback interface
 for handling Websocket connections.
 
-== Options
-
-[source,erlang]
-----
-opts() :: #{
-    websocket_compress := boolean()
-}
-----
-
-Configuration for the Websocket protocol.
-
-This configuration is passed to Cowboy when starting listeners
-using `cowboy:start_clear/4` or `cowboy:start_tls/4` functions.
-
-It can be updated without restarting listeners using the
-Ranch functions `ranch:get_protocol_options/1` and
-`ranch:set_protocol_options/2`.
-
-The default value is given next to the option name:
-
-websocket_compress (false)::
-    Whether to enable the Websocket frame compression
-    extension. Frames will only be compressed for the
-    clients that support this extension.
-
 == Callbacks
 
 Websocket handlers must implement the following callback
@@ -44,9 +19,7 @@ interface:
 ----
 init(Req, State)
     -> {cowboy_websocket, Req, State}
-     | {cowboy_websocket, Req, State, hibernate}
-     | {cowboy_websocket, Req, State, timeout()}
-     | {cowboy_websocket, Req, State, timeout(), hibernate}
+     | {cowboy_websocket, Req, State, Opts}
 
 websocket_init(State)            -> CallResult  %% optional
 websocket_handle(InFrame, State) -> CallResult
@@ -56,6 +29,7 @@ terminate(Reason, undefined, State) -> ok       %% optional
 
 Req        :: cowboy_req:req()
 State      :: any()
+Opts       :: cowboy_websocket:opts()
 InFrame    :: {text | binary | ping | pong, binary()}
 OutFrame   :: cow_ws:frame()
 Info       :: any()
@@ -151,6 +125,42 @@ timeout::
 
 {error, Reason}::
     A socket error ocurred.
+
+== Types
+
+=== opts()
+
+[source,erlang]
+----
+opts() :: #{
+    compress => boolean(),
+    idle_timeout => timeout()
+}
+----
+
+Websocket handler options.
+
+This configuration is passed to Cowboy from the `init/2`
+function:
+
+[source,erlang]
+----
+init(Req, State) ->
+    Opts = #{compress => true},
+    {cowboy_websocket, Req, State, Opts}.
+----
+
+The default value is given next to the option name:
+
+compress (false)::
+    Whether to enable the Websocket frame compression
+    extension. Frames will only be compressed for the
+    clients that support this extension.
+
+idle_timeout (60000)::
+    Time in milliseconds that Cowboy will keep the
+    connection open without receiving anything from
+    the client.
 
 == Changelog
 

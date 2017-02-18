@@ -8,7 +8,9 @@
 
 init(Req, _) ->
 	erlang:start_timer(500, self(), should_not_cancel_timer),
-	{cowboy_websocket, Req, undefined, 1000}.
+	{cowboy_websocket, Req, undefined, #{
+		idle_timeout => 1000
+	}}.
 
 websocket_handle({text, Data}, State) ->
 	{reply, {text, Data}, State};

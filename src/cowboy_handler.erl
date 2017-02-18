@@ -25,9 +25,7 @@
 
 -callback init(Req, any())
 	-> {ok | module(), Req, any()}
-	| {module(), Req, any(), hibernate}
-	| {module(), Req, any(), timeout()}
-	| {module(), Req, any(), timeout(), hibernate}
+	| {module(), Req, any(), any()}
 	when Req::cowboy_req:req().
 
 -callback terminate(any(), cowboy_req:req(), any()) -> ok.
@@ -41,13 +39,9 @@ execute(Req, Env=#{handler := Handler, handler_opts := HandlerOpts}) ->
 			Result = terminate(normal, Req2, State, Handler),
 			{ok, Req2, Env#{result => Result}};
 		{Mod, Req2, State} ->
-			Mod:upgrade(Req2, Env, Handler, State, infinity, run);
-		{Mod, Req2, State, hibernate} ->
-			Mod:upgrade(Req2, Env, Handler, State, infinity, hibernate);
-		{Mod, Req2, State, Timeout} ->
-			Mod:upgrade(Req2, Env, Handler, State, Timeout, run);
-		{Mod, Req2, State, Timeout, hibernate} ->
-			Mod:upgrade(Req2, Env, Handler, State, Timeout, hibernate)
+			Mod:upgrade(Req2, Env, Handler, State);
+		{Mod, Req2, State, Opts} ->
+			Mod:upgrade(Req2, Env, Handler, State, Opts)
 	catch Class:Reason ->
 		terminate({crash, Class, Reason}, Req, HandlerOpts, Handler),
 		erlang:raise(Class, Reason, erlang:get_stacktrace())

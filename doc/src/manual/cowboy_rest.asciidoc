@@ -21,9 +21,6 @@ REST handlers implement the following interface:
 ----
 init(Req, State)
     -> {cowboy_rest, Req, State}
-     | {cowboy_rest, Req, State, hibernate}
-     | {cowboy_rest, Req, State, timeout()}
-     | {cowboy_rest, Req, State, timeout(), hibernate}
 
 Callback(Req, State)
     -> {Result, Req, State}

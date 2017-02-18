@@ -17,15 +17,14 @@
 -module(cowboy_rest).
 -behaviour(cowboy_sub_protocol).
 
--export([upgrade/6]).
+-export([upgrade/4]).
+-export([upgrade/5]).
 
 %% Common handler callbacks.
 
 -callback init(Req, any())
 	-> {ok | module(), Req, any()}
-	| {module(), Req, any(), hibernate}
-	| {module(), Req, any(), timeout()}
-	| {module(), Req, any(), timeout(), hibernate}
+	| {module(), Req, any(), any()}
 	when Req::cowboy_req:req().
 
 -callback terminate(any(), cowboy_req:req(), any()) -> ok.
@@ -232,13 +231,19 @@
 	expires :: undefined | no_call | calendar:datetime() | binary()
 }).
 
--spec upgrade(Req, Env, module(), any(), infinity, run)
+-spec upgrade(Req, Env, module(), any())
 	-> {ok, Req, Env} when Req::cowboy_req:req(), Env::cowboy_middleware:env().
-upgrade(Req0, Env, Handler, HandlerState, infinity, run) ->
+upgrade(Req0, Env, Handler, HandlerState) ->
 	Method = cowboy_req:method(Req0),
 	{ok, Req, Result} = service_available(Req0, #state{method=Method,
 		handler=Handler, handler_state=HandlerState}),
 	{ok, Req, Env#{result => Result}}.
+
+-spec upgrade(Req, Env, module(), any(), any())
+	-> {ok, Req, Env} when Req::cowboy_req:req(), Env::cowboy_middleware:env().
+%% cowboy_rest takes no options.
+upgrade(Req, Env, Handler, HandlerState, _Opts) ->
+	upgrade(Req, Env, Handler, HandlerState).
 
 service_available(Req, State) ->
 	expect(Req, State, service_available, true, fun known_methods/2, 503).

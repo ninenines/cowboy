@@ -59,8 +59,6 @@ Middlewares:
 * ssl - Secure communication over sockets
 * crypto - Crypto functions
 
-// @todo Explicitly depend on ssl.
-
 All these applications must be started before the `cowboy`
 application. To start Cowboy and all dependencies at once:
 

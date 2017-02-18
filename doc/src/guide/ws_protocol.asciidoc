@@ -65,6 +65,5 @@ Cowboy's Websocket implementation also includes the
 permessage-deflate and x-webkit-deflate-frame compression
 extensions.
 
-Cowboy will automatically use compression as long as the
-`websocket_compress` protocol option is set when starting
-the listener.
+Cowboy will automatically use compression when the
+`compress` option is returned from the `init/2` function.

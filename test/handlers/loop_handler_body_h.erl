@@ -11,7 +11,7 @@
 
 init(Req, _) ->
 	self() ! timeout,
-	{cowboy_loop, Req, undefined, 5000, hibernate}.
+	{cowboy_loop, Req, undefined, hibernate}.
 
 info(timeout, Req0, State) ->
 	{ok, Body, Req} = cowboy_req:read_body(Req0),

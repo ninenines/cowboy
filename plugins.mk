@@ -20,7 +20,7 @@ define tpl_cowboy.loop
 -export([info/3]).
 
 init(Req, State) ->
-	{cowboy_loop, Req, State, 5000, hibernate}.
+	{cowboy_loop, Req, State, hibernate}.
 
 info(_Info, Req, State) ->
 	{ok, Req, State, hibernate}.

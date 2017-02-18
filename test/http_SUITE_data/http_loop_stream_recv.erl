@@ -9,7 +9,7 @@
 init(Req, _) ->
 	receive after 100 -> ok end,
 	self() ! stream,
-	{cowboy_loop, Req, undefined, 100}.
+	{cowboy_loop, Req, undefined}.
 
 info(stream, Req, undefined) ->
 	stream(Req, 1, <<>>).

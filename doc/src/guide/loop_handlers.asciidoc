@@ -34,7 +34,7 @@ loop handler behavior. This tuple may optionally contain
 a timeout value and/or the atom `hibernate` to make the
 process enter hibernation until a message is received.
 
-This snippet enables the loop handler.
+This snippet enables the loop handler:
 
 [source,erlang]
 ----
@@ -42,14 +42,12 @@ init(Req, State) ->
     {cowboy_loop, Req, State}.
 ----
 
-However it is largely recommended that you set a timeout
-value. The next example sets a timeout value of 30s and
-also makes the process hibernate.
+This also makes the process hibernate:
 
 [source,erlang]
 ----
 init(Req, State) ->
-    {cowboy_loop, Req, State, 30000, hibernate}.
+    {cowboy_loop, Req, State, hibernate}.
 ----
 
 === Receive loop
@@ -122,25 +120,6 @@ a subsequent request.
 
 Please refer to the xref:handlers[Handlers chapter]
 for general instructions about cleaning up.
-
-=== Timeout
-
-Note that this feature currently does not work. It will be
-brought back in a future 2.0 pre-release.
-
-By default Cowboy will not attempt to close the connection
-if there is no activity from the client. This is not always
-desirable, which is why you can set a timeout. Cowboy will
-close the connection if no data was received from the client
-after the configured time. The timeout only needs to be set
-once and can't be modified afterwards.
-
-Because the request may have had a body, or may be followed
-by another request, Cowboy is forced to buffer all data it
-receives. This data may grow to become too large though,
-so there is a configurable limit for it. The default buffer
-size is of 5000 bytes, but it may be changed by setting the
-`loop_max_buffer` middleware environment value.
 
 === Hibernate
 

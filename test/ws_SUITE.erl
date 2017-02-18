@@ -39,15 +39,13 @@ init_per_group(Name = autobahn, Config) ->
 			{skip, "Autobahn Test Suite not installed."};
 		_ ->
 			{ok, _} = cowboy:start_clear(Name, 100, [{port, 33080}], #{
-				env => #{dispatch => init_dispatch()},
-				websocket_compress => true
+				env => #{dispatch => init_dispatch()}
 			}),
 			Config
 	end;
 init_per_group(Name = ws, Config) ->
 	cowboy_test:init_http(Name, #{
-		env => #{dispatch => init_dispatch()},
-		websocket_compress => true
+		env => #{dispatch => init_dispatch()}
 	}, Config).
 
 end_per_group(Listener, _Config) ->

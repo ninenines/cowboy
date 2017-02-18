@@ -17,7 +17,8 @@
 -module(cowboy_websocket).
 -behaviour(cowboy_sub_protocol).
 
--export([upgrade/6]).
+-export([upgrade/4]).
+-export([upgrade/5]).
 -export([takeover/7]).
 -export([handler_loop/3]).
 
@@ -34,9 +35,7 @@
 
 -callback init(Req, any())
 	-> {ok | module(), Req, any()}
-	| {module(), Req, any(), hibernate}
-	| {module(), Req, any(), timeout()}
-	| {module(), Req, any(), timeout(), hibernate}
+	| {module(), Req, any(), any()}
 	when Req::cowboy_req:req().
 
 -callback websocket_init(State)
@@ -53,6 +52,12 @@
 -callback terminate(any(), cowboy_req:req(), any()) -> ok.
 -optional_callbacks([terminate/3]).
 
+-type opts() :: #{
+	idle_timeout => timeout(),
+	compress => boolean()
+}.
+-export_type([opts/0]).
+
 -record(state, {
 	socket = undefined :: inet:socket() | undefined,
 	transport = undefined :: module(),
@@ -60,6 +65,7 @@
 	key = undefined :: undefined | binary(),
 	timeout = infinity :: timeout(),
 	timeout_ref = undefined :: undefined | reference(),
+	compress = false :: boolean(),
 	messages = undefined :: undefined | {atom(), atom(), atom()},
 	hibernate = false :: boolean(),
 	frag_state = undefined :: cow_ws:frag_state(),
@@ -70,14 +76,22 @@
 
 %% Stream process.
 
--spec upgrade(Req, Env, module(), any(), timeout(), run | hibernate)
+-spec upgrade(Req, Env, module(), any())
+	-> {ok, Req, Env}
+	when Req::cowboy_req:req(), Env::cowboy_middleware:env().
+upgrade(Req, Env, Handler, HandlerState) ->
+	upgrade(Req, Env, Handler, HandlerState, #{}).
+
+-spec upgrade(Req, Env, module(), any(), opts())
 	-> {ok, Req, Env}
 	when Req::cowboy_req:req(), Env::cowboy_middleware:env().
 %% @todo Immediately crash if a response has already been sent.
 %% @todo Error out if HTTP/2.
-upgrade(Req0, Env, Handler, HandlerState, Timeout, Hibernate) ->
-	try websocket_upgrade(#state{handler=Handler, timeout=Timeout,
-			hibernate=Hibernate =:= hibernate}, Req0) of
+upgrade(Req0, Env, Handler, HandlerState, Opts) ->
+	Timeout = maps:get(idle_timeout, Opts, 60000),
+	Compress = maps:get(compress, Opts, false),
+	State0 = #state{handler=Handler, timeout=Timeout, compress=Compress},
+	try websocket_upgrade(State0, Req0) of
 		{ok, State, Req} ->
 			websocket_handshake(State, Req, HandlerState, Env)
 	catch _:_ ->
@@ -104,14 +118,13 @@ websocket_upgrade(State, Req) ->
 
 -spec websocket_extensions(#state{}, Req)
 	-> {ok, #state{}, Req} when Req::cowboy_req:req().
-websocket_extensions(State, Req=#{ref := Ref}) ->
+websocket_extensions(State=#state{compress=Compress}, Req) ->
 	%% @todo We want different options for this. For example
 	%% * compress everything auto
 	%% * compress only text auto
 	%% * compress only binary auto
 	%% * compress nothing auto (but still enabled it)
 	%% * disable compression
-	Compress = maps:get(websocket_compress, ranch:get_protocol_options(Ref), false),
 	case {Compress, cowboy_req:parse_header(<<"sec-websocket-extensions">>, Req)} of
 		{true, Extensions} when Extensions =/= undefined ->
 			websocket_extensions(State, Req, Extensions, []);
@@ -170,6 +183,7 @@ websocket_handshake(State=#state{key=Key},
 	{#state{}, any()}) -> ok.
 takeover(_Parent, Ref, Socket, Transport, _Opts, Buffer,
 		{State0=#state{handler=Handler}, HandlerState}) ->
+	%% @todo We should have an option to disable this behavior.
 	ranch:remove_connection(Ref),
 	State1 = handler_loop_timeout(State0#state{socket=Socket, transport=Transport}),
 	State = State1#state{key=undefined, messages=Transport:messages()},
