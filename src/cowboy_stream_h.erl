@@ -15,7 +15,6 @@
 -module(cowboy_stream_h).
 -behavior(cowboy_stream).
 
-%% @todo Maybe have a callback for the type of process this is, worker or supervisor.
 -export([init/3]).
 -export([data/4]).
 -export([info/3]).
