@@ -20,7 +20,8 @@ do(<<"set_resp_cookie3">>, Req0, Opts) ->
 	end,
 	{ok, cowboy_req:reply(200, #{}, "OK", Req), Opts};
 do(<<"set_resp_cookie4">>, Req0, Opts) ->
-	Req = cowboy_req:set_resp_cookie(<<"mycookie">>, "myvalue", #{path => cowboy_req:path(Req0)}, Req0),
+	Req = cowboy_req:set_resp_cookie(<<"mycookie">>, "myvalue", Req0,
+		#{path => cowboy_req:path(Req0)}),
 	{ok, cowboy_req:reply(200, #{}, "OK", Req), Opts};
 do(<<"set_resp_header">>, Req0, Opts) ->
 	Req = cowboy_req:set_resp_header(<<"content-type">>, <<"text/plain">>, Req0),

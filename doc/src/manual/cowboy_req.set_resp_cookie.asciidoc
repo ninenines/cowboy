@@ -11,7 +11,7 @@ cowboy_req:set_resp_cookie - Set a cookie
 set_resp_cookie(Name, Value, Req :: cowboy_req:req())
     -> set_resp_cookie(Name, Value, [], Req)
 
-set_resp_cookie(Name, Value, Opts, Req :: cowboy_req:req())
+set_resp_cookie(Name, Value, Req :: cowboy_req:req(), Opts)
     -> Req
 
 Name  :: binary()                  %% case sensitive
@@ -33,13 +33,13 @@ Value::
 
 Cookie value.
 
-Opts::
-
-Optional cookie options.
-
 Req::
 
 The Req object.
+
+Opts::
+
+Cookie options.
 
 == Return value
 
@@ -66,44 +66,38 @@ Req = cowboy_req:set_resp_cookie(<<"sessionid">>, SessionID, Req0).
 .Set a cookie with an expiration time
 [source,erlang]
 ----
-Req = cowboy_req:set_resp_cookie(<<"lang">>, <<"fr-FR">>, [
-    {max_age, 3600}
-], Req0).
+Req = cowboy_req:set_resp_cookie(<<"lang">>, <<"fr-FR">>,
+    Req0, #{max_age => 3600}).
 ----
 
 .Delete a cookie
 [source,erlang]
 ----
-Req = cowboy_req:set_resp_cookie(<<"sessionid">>, <<>>, [
-    {max_age, 0}
-], Req0).
+Req = cowboy_req:set_resp_cookie(<<"sessionid">>, <<>>,
+    Req0, #{max_age => 0}).
 ----
 
 .Set a cookie for a specific domain and path
 [source,erlang]
 ----
-Req = cowboy_req:set_resp_cookie(<<"inaccount">>, <<"1">>, [
-    {domain, "my.example.org"},
-    {path, "/account"}
-], Req0).
+Req = cowboy_req:set_resp_cookie(<<"inaccount">>, <<"1">>,
+    Req0, #{domain => "my.example.org", path => "/account"}).
 ----
 
 .Restrict a cookie to HTTPS
 [source,erlang]
 ----
 SessionID = base64:encode(crypto:strong_rand_bytes(32)),
-Req = cowboy_req:set_resp_cookie(<<"sessionid">>, SessionID, [
-    {secure, true}
-], Req0).
+Req = cowboy_req:set_resp_cookie(<<"sessionid">>, SessionID,
+    Req0, #{secure => true}).
 ----
 
 .Restrict a cookie to HTTP
 [source,erlang]
 ----
 SessionID = base64:encode(crypto:strong_rand_bytes(32)),
-Req = cowboy_req:set_resp_cookie(<<"sessionid">>, SessionID, [
-    {http_only, true}
-], Req0).
+Req = cowboy_req:set_resp_cookie(<<"sessionid">>, SessionID,
+    Req0, #{http_only => true}).
 ----
 
 == See also

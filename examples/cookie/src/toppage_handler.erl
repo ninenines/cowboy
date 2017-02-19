@@ -8,7 +8,7 @@
 init(Req0, Opts) ->
 	NewValue = integer_to_list(rand:uniform(1000000)),
 	Req1 = cowboy_req:set_resp_cookie(<<"server">>, NewValue,
-		#{path => <<"/">>}, Req0),
+		Req0, #{path => <<"/">>}),
 	#{client := ClientCookie, server := ServerCookie}
 		= cowboy_req:match_cookies([{client, [], <<>>}, {server, [], <<>>}], Req1),
 	{ok, Body} = toppage_dtl:render([

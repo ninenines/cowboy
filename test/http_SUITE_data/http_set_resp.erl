@@ -12,7 +12,7 @@ init(Req, Opts) ->
 	end, Req, maps:to_list(Headers)),
 	Req3 = cowboy_req:set_resp_body(Body, Req2),
 	Req4 = cowboy_req:set_resp_header(<<"x-cowboy-test">>, <<"ok">>, Req3),
-	Req5 = cowboy_req:set_resp_cookie(<<"cake">>, <<"lie">>, [], Req4),
+	Req5 = cowboy_req:set_resp_cookie(<<"cake">>, <<"lie">>, Req4),
 	case cowboy_req:has_resp_header(<<"x-cowboy-test">>, Req5) of
 		false -> {ok, Req5, Opts};
 		true ->

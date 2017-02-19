@@ -33,24 +33,21 @@ update the expiration time and avoid losing a cookie.
 
 === Setting cookies
 
-// @todo So I am not particularly happy about set_resp_cookie/4
-// having Opts as a *third* argument, instead of the *last* like
-// all other functions that come with an Opts argument. We will
-// probably need to change this before 2.0.
-
 By default cookies are defined for the duration of the session:
 
 [source,erlang]
+----
 SessionID = generate_session_id(),
 Req = cowboy_req:set_resp_cookie(<<"sessionid">>, SessionID, Req0).
+----
 
 They can also be set for a duration in seconds:
 
 [source,erlang]
 ----
 SessionID = generate_session_id(),
-Req = cowboy_req:set_resp_cookie(<<"sessionid">>, SessionID,
-    #{max_age => 3600}, Req0).
+Req = cowboy_req:set_resp_cookie(<<"sessionid">>, SessionID, Req0,
+    #{max_age => 3600}).
 ----
 
 To delete cookies, set `max_age` to 0:
@@ -58,8 +55,8 @@ To delete cookies, set `max_age` to 0:
 [source,erlang]
 ----
 SessionID = generate_session_id(),
-Req = cowboy_req:set_resp_cookie(<<"sessionid">>, SessionID,
-    #{max_age => 0}, Req0).
+Req = cowboy_req:set_resp_cookie(<<"sessionid">>, SessionID, Req0,
+    #{max_age => 0}).
 ----
 
 To restrict cookies to a specific domain and path, the options
@@ -67,8 +64,8 @@ of the same name can be used:
 
 [source,erlang]
 ----
-Req = cowboy_req:set_resp_cookie(<<"inaccount">>, <<"1">>,
-    #{domain => "my.example.org", path => "/account"}, Req0).
+Req = cowboy_req:set_resp_cookie(<<"inaccount">>, <<"1">>, Req0,
+    #{domain => "my.example.org", path => "/account"}).
 ----
 
 Cookies will be sent with requests to this domain and all
@@ -81,8 +78,8 @@ available over HTTPS):
 [source,erlang]
 ----
 SessionID = generate_session_id(),
-Req = cowboy_req:set_resp_cookie(<<"sessionid">>, SessionID,
-    #{secure => true}, Req0).
+Req = cowboy_req:set_resp_cookie(<<"sessionid">>, SessionID, Req0,
+    #{secure => true}).
 ----
 
 To prevent client-side scripts from accessing a cookie:
@@ -90,8 +87,8 @@ To prevent client-side scripts from accessing a cookie:
 [source,erlang]
 ----
 SessionID = generate_session_id(),
-Req = cowboy_req:set_resp_cookie(<<"sessionid">>, SessionID,
-    #{http_only => true}, Req0).
+Req = cowboy_req:set_resp_cookie(<<"sessionid">>, SessionID, Req0,
+    #{http_only => true}).
 ----
 
 Cookies may also be set client-side, for example using

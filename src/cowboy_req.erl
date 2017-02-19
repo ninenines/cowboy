@@ -548,7 +548,7 @@ stream_multipart(Req=#{multipart := {Boundary, Buffer}}, _) ->
 -spec set_resp_cookie(iodata(), iodata(), Req)
 	-> Req when Req::req().
 set_resp_cookie(Name, Value, Req) ->
-	set_resp_cookie(Name, Value, #{}, Req).
+	set_resp_cookie(Name, Value, Req, #{}).
 
 %% The cookie name cannot contain any of the following characters:
 %%   =,;\s\t\r\n\013\014
@@ -556,9 +556,9 @@ set_resp_cookie(Name, Value, Req) ->
 %% The cookie value cannot contain any of the following characters:
 %%   ,; \t\r\n\013\014
 %% @todo Fix the cookie_opts() type.
--spec set_resp_cookie(binary(), iodata(), cookie_opts(), Req)
+-spec set_resp_cookie(binary(), iodata(), Req, cookie_opts())
 	-> Req when Req::req().
-set_resp_cookie(Name, Value, Opts, Req) ->
+set_resp_cookie(Name, Value, Req, Opts) ->
 	Cookie = cow_cookie:setcookie(Name, Value, maps:to_list(Opts)),
 	RespCookies = maps:get(resp_cookies, Req, #{}),
 	Req#{resp_cookies => RespCookies#{Name => Cookie}}.
