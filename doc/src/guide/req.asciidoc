@@ -197,8 +197,6 @@ And any other combination.
 
 === Bindings
 
-// @todo Bindings should probably be a map themselves.
-
 Bindings are the host and path components that you chose
 to extract when defining the routes of your application.
 They are only available after the routing.
@@ -222,10 +220,7 @@ To retrieve everything that was bound:
 [source,erlang]
 Bindings = cowboy_req:bindings(Req).
 
-They are returned as a list of key/value pairs, with
-keys being atoms.
-
-// ...
+They are returned as a map, with keys being atoms.
 
 The Cowboy router also allows you to capture many host
 or path segments at once using the `...` qualifier.

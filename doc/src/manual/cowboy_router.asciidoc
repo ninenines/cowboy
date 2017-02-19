@@ -33,7 +33,7 @@ a 404 response otherwise.
 
 [source,erlang]
 ----
-bindings() :: [{atom(), binary()}]
+bindings() :: #{atom() => any()}
 ----
 
 Bindings found during routing.

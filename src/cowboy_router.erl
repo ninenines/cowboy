@@ -28,7 +28,7 @@
 -export([compile/1]).
 -export([execute/2]).
 
--type bindings() :: [{atom(), binary()}].
+-type bindings() :: #{atom() => any()}.
 -type tokens() :: [binary()].
 -export_type([bindings/0]).
 -export_type([tokens/0]).
@@ -218,10 +218,10 @@ match([], _, _) ->
 	{error, notfound, host};
 %% If the host is '_' then there can be no constraints.
 match([{'_', [], PathMatchs}|_Tail], _, Path) ->
-	match_path(PathMatchs, undefined, Path, []);
+	match_path(PathMatchs, undefined, Path, #{});
 match([{HostMatch, Fields, PathMatchs}|Tail], Tokens, Path)
 		when is_list(Tokens) ->
-	case list_match(Tokens, HostMatch, []) of
+	case list_match(Tokens, HostMatch, #{}) of
 		false ->
 			match(Tail, Tokens, Path);
 		{true, Bindings, HostInfo} ->
@@ -276,21 +276,19 @@ check_constraints([Field|Tail], Bindings) when is_atom(Field) ->
 	check_constraints(Tail, Bindings);
 check_constraints([Field|Tail], Bindings) ->
 	Name = element(1, Field),
-	case lists:keyfind(Name, 1, Bindings) of
-		false ->
-			check_constraints(Tail, Bindings);
-		{_, Value} ->
+	case Bindings of
+		#{Name := Value} ->
 			Constraints = element(2, Field),
 			case cowboy_constraints:validate(Value, Constraints) of
 				true ->
 					check_constraints(Tail, Bindings);
 				{true, Value2} ->
-					Bindings2 = lists:keyreplace(Name, 1, Bindings,
-						{Name, Value2}),
-					check_constraints(Tail, Bindings2);
+					check_constraints(Tail, Bindings#{Name => Value2});
 				false ->
 					nomatch
-			end
+			end;
+		_ ->
+			check_constraints(Tail, Bindings)
 	end.
 
 -spec split_host(binary()) -> tokens().
@@ -369,13 +367,13 @@ list_match([E|Tail], [E|TailMatch], Binds) ->
 %% Bind E to the variable name V and continue,
 %% unless V was already defined and E isn't identical to the previous value.
 list_match([E|Tail], [V|TailMatch], Binds) when is_atom(V) ->
-	case lists:keyfind(V, 1, Binds) of
-		{_, E} ->
+	case Binds of
+		#{V := E} ->
 			list_match(Tail, TailMatch, Binds);
-		{_, _} ->
+		#{V := _} ->
 			false;
-		false ->
-			list_match(Tail, TailMatch, [{V, E}|Binds])
+		_ ->
+			list_match(Tail, TailMatch, Binds#{V => E})
 	end;
 %% Match complete.
 list_match([], [], Binds) ->

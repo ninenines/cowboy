@@ -114,10 +114,9 @@ binding(Config) ->
 	<<"default">> = do_get_body("/args/binding/undefined/default", Config),
 	ok.
 
-%% @todo Do we really want a key/value list here instead of a map?
 bindings(Config) ->
 	doc("Values bound from request URI path."),
-	<<"[{key,<<\"bindings\">>}]">> = do_get_body("/bindings", Config),
+	<<"#{key => <<\"bindings\">>}">> = do_get_body("/bindings", Config),
 	ok.
 
 header(Config) ->

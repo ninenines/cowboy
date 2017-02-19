@@ -326,18 +326,18 @@ binding(Name, Req) ->
 
 -spec binding(atom(), req(), Default) -> any() | Default when Default::any().
 binding(Name, #{bindings := Bindings}, Default) when is_atom(Name) ->
-	case lists:keyfind(Name, 1, Bindings) of
-		{_, Value} -> Value;
-		false -> Default
+	case Bindings of
+		#{Name := Value} -> Value;
+		_ -> Default
 	end;
 binding(Name, _, Default) when is_atom(Name) ->
 	Default.
 
--spec bindings(req()) -> [{atom(), any()}].
+-spec bindings(req()) -> cowboy_router:bindings().
 bindings(#{bindings := Bindings}) ->
 	Bindings;
 bindings(_) ->
-	[].
+	#{}.
 
 -spec header(binary(), req()) -> binary() | undefined.
 header(Name, Req) ->

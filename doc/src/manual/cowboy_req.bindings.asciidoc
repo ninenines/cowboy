@@ -8,10 +8,10 @@ cowboy_req:bindings - Access all values bound from the route
 
 [source,erlang]
 ----
-bindings(Req :: cowboy_req:req()) -> [{Name :: atom(), any()}]
+bindings(Req :: cowboy_req:req()) -> cowboy_router:bindings()
 ----
 
-Return all bindings as a list of key/value pairs.
+Return a map containing all bindings.
 
 == Arguments
 
@@ -27,7 +27,7 @@ automatically converting numbers to integer).
 
 == Changelog
 
-* *2.0*: Only the values are returned, it is no longer wrapped in a tuple.
+* *2.0*: Only the values are returned, they are no longer wrapped in a tuple.
 * *1.0*: Function introduced.
 
 == Examples
