@@ -1,8 +1,12 @@
 -module(rest_postonly_resource).
--export([init/3, allowed_methods/2, content_types_accepted/2, from_text/2]).
 
-init(_Transport, _Req, _Opts) ->
-	{upgrade, protocol, cowboy_rest}.
+-export([init/2]).
+-export([allowed_methods/2]).
+-export([content_types_accepted/2]).
+-export([from_text/2]).
+
+init(Req, Opts) ->
+	{cowboy_rest, Req, Opts}.
 
 allowed_methods(Req, State) ->
 	{[<<"POST">>], Req, State}.

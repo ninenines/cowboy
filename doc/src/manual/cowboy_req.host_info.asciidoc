@@ -1,0 +1,49 @@
+= cowboy_req:host_info(3)
+
+== Name
+
+cowboy_req:host_info - Access the route's heading host segments
+
+== Description
+
+[source,erlang]
+----
+host_info(Req :: cowboy_req:req()) -> cowboy_router:tokens()
+----
+
+Return the tokens for the heading host segments.
+
+This is the part of the host name that was matched using
+the `...` notation.
+
+== Arguments
+
+Req::
+
+The Req object.
+
+== Return value
+
+The tokens are returned as a list of case insensitive
+binary strings.
+
+== Changelog
+
+* *2.0*: Only the tokens are returned, they are no longer wrapped in a tuple.
+* *1.0*: Function introduced.
+
+== Examples
+
+.Get the host_info tokens
+[source,erlang]
+----
+HostInfo = cowboy_req:host_info(Req).
+----
+
+== See also
+
+link:man:cowboy_req(3)[cowboy_req(3)],
+link:man:cowboy_req:binding(3)[cowboy_req:binding(3)],
+link:man:cowboy_req:bindings(3)[cowboy_req:bindings(3)],
+link:man:cowboy_req:path_info(3)[cowboy_req:path_info(3)],
+link:man:cowboy_router(3)[cowboy_router(3)]

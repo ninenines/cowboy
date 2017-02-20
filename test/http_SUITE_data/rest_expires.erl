@@ -1,13 +1,13 @@
 -module(rest_expires).
 
--export([init/3]).
+-export([init/2]).
 -export([content_types_provided/2]).
 -export([get_text_plain/2]).
 -export([expires/2]).
 -export([last_modified/2]).
 
-init(_Transport, _Req, _Opts) ->
-	{upgrade, protocol, cowboy_rest}.
+init(Req, Opts) ->
+	{cowboy_rest, Req, Opts}.
 
 content_types_provided(Req, State) ->
 	{[{{<<"text">>, <<"plain">>, []}, get_text_plain}], Req, State}.

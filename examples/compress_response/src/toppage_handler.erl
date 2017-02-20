@@ -3,14 +3,9 @@
 %% @doc Compress response handler.
 -module(toppage_handler).
 
--export([init/3]).
--export([handle/2]).
--export([terminate/3]).
+-export([init/2]).
 
-init(_Transport, Req, []) ->
-	{ok, Req, undefined}.
-
-handle(Req, State) ->
+init(Req0, Opts) ->
 	BigBody =
 <<"A cowboy is an animal herder who tends cattle on ranches in North America,
 traditionally on horseback, and often performs a multitude of other ranch-
@@ -24,8 +19,5 @@ have established the ability to work at virtually identical tasks and obtained
 considerable respect for their achievements. There are also cattle handlers
 in many other parts of the world, particularly South America and Australia,
 who perform work similar to the cowboy in their respective nations.\n">>,
-	{ok, Req2} = cowboy_req:reply(200, [], BigBody, Req),
-	{ok, Req2, State}.
-
-terminate(_Reason, _Req, _State) ->
-	ok.
+	Req = cowboy_req:reply(200, #{}, BigBody, Req0),
+	{ok, Req, Opts}.

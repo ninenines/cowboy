@@ -3,16 +3,12 @@
 %% @doc Streaming handler.
 -module(toppage_handler).
 
--export([init/3]).
--export([rest_init/2]).
+-export([init/2]).
 -export([content_types_provided/2]).
 -export([streaming_csv/2]).
 
-init(_Transport, _Req, _Table) ->
-	{upgrade, protocol, cowboy_rest}.
-
-rest_init(Req, Table) ->
-	{ok, Req, Table}.
+init(Req, Table) ->
+	{cowboy_rest, Req, Table}.
 
 content_types_provided(Req, State) ->
 	{[
@@ -20,9 +16,9 @@ content_types_provided(Req, State) ->
 	], Req, State}.
 
 streaming_csv(Req, Table) ->
-	{N, Req1} = cowboy_req:binding(v1, Req, 1),
+	N = cowboy_req:binding(v1, Req, 1),
 	MS = [{{'$1', '$2', '$3'}, [{'==', '$2', N}], ['$$']}],
-	{{stream, result_streamer(Table, MS)}, Req1, Table}.
+	{{stream, result_streamer(Table, MS)}, Req, Table}.
 
 result_streamer(Table, MS) ->
 	fun (Socket, Transport) ->

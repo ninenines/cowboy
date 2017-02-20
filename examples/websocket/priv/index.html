@@ -9,6 +9,7 @@
       $(document).ready(init);
       
       function init() {
+          $('#server').val("ws://" + window.location.host + "/websocket");
           if(!("WebSocket" in window)){  
               $('#status').append('<p><span style="color: red;">websockets are not supported </span></p>');
               $("#navigation").hide();  
@@ -92,7 +93,7 @@
     <div id="navigation">
 
       <p id="connecting">
-	<input type='text' id="server" value="ws://localhost:8080/websocket"></input>
+	<input type='text' id="server" value=""></input>
 	<button type="button" onclick="toggle_connection()">connection</button>
       </p>
       <div id="connected">				

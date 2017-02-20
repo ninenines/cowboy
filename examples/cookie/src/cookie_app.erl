@@ -16,9 +16,9 @@ start(_Type, _Args) ->
 			{'_', toppage_handler, []}
 		]}
 	]),
-	{ok, _} = cowboy:start_http(http, 100, [{port, 8080}], [
-		{env, [{dispatch, Dispatch}]}
-	]),
+	{ok, _} = cowboy:start_clear(http, 100, [{port, 8080}], #{
+		env => #{dispatch => Dispatch}
+	}),
 	cookie_sup:start_link().
 
 stop(_State) ->

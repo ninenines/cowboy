@@ -1,0 +1,91 @@
+= cowboy_req:set_resp_body(3)
+
+== Name
+
+cowboy_req:set_resp_body - Set the response body
+
+== Description
+
+[source,erlang]
+----
+set_resp_body(Body, Req :: cowboy_req:req())
+	-> Req
+
+Body :: cowboy_req:resp_body()
+----
+
+Set the response body.
+
+The response body will be sent when a reply is initiated.
+Note that the functions `stream_reply/2,3` and `reply/4`
+will override the body set by this function.
+
+This function can also be used to remove a response body
+that was set previously. To do so, simply call this function
+with an empty body.
+
+== Arguments
+
+Body::
+
+The body can be either a binary value, an iolist or a
+`sendfile` tuple telling Cowboy to send the contents of
+a file.
+
+Req::
+
+The Req object.
+
+== Return value
+
+A new Req object is returned.
+
+The returned Req object must be used from that point onward,
+otherwise the body will not be sent in the response.
+
+== Changelog
+
+* *2.0*: The function now accepts a `sendfile` tuple.
+* *2.0*: The `set_resp_body_fun/2,3` functions were removed.
+* *1.0*: Function introduced.
+
+== Examples
+
+.Set the response body
+[source,erlang]
+----
+Req = cowboy_req:set_resp_body(<<"Hello world!">>, Req0).
+----
+
+.Set the response body as an iolist
+[source,erlang]
+----
+Req = cowboy_req:set_resp_body([
+    "<html><head><title>",
+    page_title(),
+    "</title></head><body>",
+    page_body(),
+    "</body></html>"
+], Req0).
+----
+
+.Tell Cowboy to send data from a file
+[source,erlang]
+----
+{ok, #file_info{size=Size}} = file:read_file_info(Filename),
+Req = cowboy_req:set_resp_body({sendfile, 0, Size, Filename}, Req0).
+----
+
+.Clear any previously set response body
+[source,erlang]
+----
+Req = cowboy_req:set_resp_body(<<>>, Req0).
+----
+
+== See also
+
+link:man:cowboy_req(3)[cowboy_req(3)],
+link:man:cowboy_req:set_resp_header(3)[cowboy_req:set_resp_header(3)],
+link:man:cowboy_req:set_resp_headers(3)[cowboy_req:set_resp_headers(3)],
+link:man:cowboy_req:reply(3)[cowboy_req:reply(3)],
+link:man:cowboy_req:stream_reply(3)[cowboy_req:stream_reply(3)]

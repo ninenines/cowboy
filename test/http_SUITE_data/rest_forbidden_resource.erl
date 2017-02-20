@@ -1,13 +1,15 @@
 -module(rest_forbidden_resource).
--export([init/3, rest_init/2, allowed_methods/2, forbidden/2,
-		content_types_provided/2, content_types_accepted/2,
-		to_text/2, from_text/2]).
 
-init(_Transport, _Req, _Opts) ->
-	{upgrade, protocol, cowboy_rest}.
+-export([init/2]).
+-export([allowed_methods/2]).
+-export([forbidden/2]).
+-export([content_types_provided/2]).
+-export([content_types_accepted/2]).
+-export([to_text/2]).
+-export([from_text/2]).
 
-rest_init(Req, [Forbidden]) ->
-	{ok, Req, Forbidden}.
+init(Req, [Forbidden]) ->
+	{cowboy_rest, Req, Forbidden}.
 
 allowed_methods(Req, State) ->
 	{[<<"GET">>, <<"HEAD">>, <<"POST">>], Req, State}.
@@ -27,5 +29,4 @@ to_text(Req, State) ->
 	{<<"This is REST!">>, Req, State}.
 
 from_text(Req, State) ->
-	{Path, Req2} = cowboy_req:path(Req),
-	{{true, Path}, Req2, State}.
+	{{true, cowboy_req:path(Req)}, Req, State}.

@@ -1,0 +1,53 @@
+= cowboy_router:compile(3)
+
+== Name
+
+cowboy_router:compile - Compile routes to the resources
+
+== Description
+
+[source,erlang]
+----
+compile(cowboy_router:routes()) -> cowboy_router:dispatch_rules()
+----
+
+Compile routes to the resources.
+
+Takes a human readable list of routes and transforms it
+into a form more efficient to process.
+
+== Arguments
+
+Routes::
+
+Human readable list of routes.
+
+== Return value
+
+An opaque dispatch rules value is returned. This value
+must be given to Cowboy as a middleware environment value.
+
+== Changelog
+
+* *1.0*: Function introduced.
+
+== Examples
+
+.Compile routes and start a listener
+[source,erlang]
+----
+Dispatch = cowboy_router:compile([
+    {'_', [
+        {"/", toppage_h, []},
+        {"/[...], cowboy_static, {priv_dir, my_example_app, ""}}
+    ]}
+]),
+
+{ok, _} = cowboy:start_clear(example, 100, [{port, 8080}], #{
+    env => #{dispatch => Dispatch}
+}).
+----
+
+== See also
+
+link:man:cowboy_router(3)[cowboy_router(3)]

@@ -1,0 +1,887 @@
+::: RFC7230 HTTP/1.1 server
+
+This document lists the rules the Cowboy server follows based
+on the RFC7230 HTTP specifications.
+
+:: Listener
+
+The default port for "http" connections is 80. The connection
+uses plain TCP. (RFC7230 2.7.1)
+
+The default port for "https" connections is 443. The connection
+uses TLS. (RFC7230 2.7.2)
+
+Any other port may be used for either of them.
+
+:: Before the request
+
+A configurable number of empty lines (CRLF) preceding the request
+must be ignored. At least 1 empty line must be ignored. (RFC7230 3.5)
+
+When receiving a response instead of a request, identified by the
+status-line which starts with the HTTP version, the server must
+reject the message with a 501 status code and close the connection. (RFC7230 3.1)
+
+:: Request
+
+It is only necessary to parse elements required to process the
+request. (RFC7230 2.5)
+
+Parsed elements are subject to configurable limits. A server must
+be able to parse elements at least as long as it generates. (RFC7230 2.5)
+
+The request must be parsed as a sequence of octets in an encoding
+that is a superset of US-ASCII. (RFC7230 2.5)
+
+```
+HTTP-request = request-line *( header-field CRLF ) CRLF [ message-body ]
+```
+
+The general format of HTTP requests is strict. No empty line is
+allowed in-between components except for the empty line
+indicating the end of the list of headers.
+
+It is not necessary to read the message-body before processing
+the request as the message-body may be dropped depending on the
+outcome of the processing.
+
+The time the request (request line and headers) takes to be
+received by the server must be limited and subject to configuration.
+A server must wait at least 5 seconds before dropping the connection.
+A 408 status code must be sent if the request line was received
+fully when the timeout is triggered.
+
+An HTTP/1.1 server must understand any valid HTTP/1.0 request,
+and respond to those with an HTTP/1.1 message that only use
+features understood or safely ignored by HTTP/1.0 clients. (RFC7230 A)
+
+:: Request line
+
+It is recommended to limit the request-line length to a configurable
+limit of at least 8000 octets. However, as the possible line length is
+highly dependent on what form the request-target takes, it is preferrable
+to limit each individual components of the request-target. (RFC7230 3.1.1)
+
+A request line too long must be rejected with a 414 status code
+and the closing of the connection. (RFC7230 3.1.1)
+
+```
+method SP request-target SP version CRLF
+```
+
+:: Method
+
+```
+method = token ; case sensitive
+token = 1*tchar
+tchar = "!" / "#" / "$" / "%" / "&" / "'" / "*" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" / DIGIT / ALPHA
+```
+
+The request method is defined as 1+ token characters. An invalid
+or empty method must be rejected with a 400 status code and the
+closing of the connection. (RFC7230 3.1.1, RFC7230 3.2.6)
+
+In practice the only characters in use by registered methods are
+uppercase letters [A-Z] and the dash "-". (IANA HTTP Method Registry)
+
+The length of the method must be subject to a configurable limit.
+A method too long must be rejected with a 501 status code and the
+closing of the connection. (RFC7230 3.1.1)
+
+A good default for the method length limit is the longest method
+length the server implements. (RFC7230 3.1.1)
+
+:: Between method and request-target
+
+A request that uses anything other than SP as separator between
+the method and the request-target must be rejected with a 400
+status code and the closing of the connection. (RFC7230 3.1.1, RFC7230 3.5)
+
+:: Request target
+
+There are four request-target forms. A server must be able to
+handle at least origin-form and absolute-form. The other two
+forms are specific to the CONNECT and site-wide OPTIONS method,
+respectively. (RFC7230 5.3.2)
+
+The fragment part of the target URI is not sent. It must be
+ignored by a server receiving it. (RFC7230 5.1)
+
+```
+request-target = origin-form / absolute-form / authority-form / asterisk-form
+```
+
+Any other form is invalid and must be rejected with a 400
+status code and the closing of the connection.
+
+: origin-form
+
+origin-form is used when the client does not connect to a proxy,
+does not use the CONNECT method and does not issue a site-wide
+OPTIONS request. (RFC7230 5.3.1)
+
+```
+origin-form = absolute-path [ "?" query ]
+absolute-path = 1*( "/" segment )
+segment = *pchar
+query = *( pchar / "/" / "?" )
+
+pchar = unreserved / pct-encoded / sub-delims / ":" / "@"
+unreserved = ALPHA / DIGIT / "-" / "." / "_" / "~"
+pct-encoded = "%" HEXDIG HEXDIG
+sub-delims = "!" / "$" / "&" / "'" / "(" / ")" / "*" / "+" / "," / ";" / "="
+```
+
+The scheme is either resolved from configuration or is "https"
+when on a TLS connection and "http" otherwise. (RFC7230 5.5)
+
+The authority is sent in the host header. (RFC7230 5.3.1, RFC7230 5.5)
+
+The absolute-path always starts with "/" and ends with either "?", "#"
+or the end of the URI. (RFC3986 3.3)
+
+The query starts with "?" and ends with "#" or the end of the URI. (RFC3986 3.4)
+
+The path and query must be subject to a configurable limit.
+This limit must be at least as high as what the server generates.
+A good default would be 8000 characters. (RFC7230 2.5, RFC7230 3.1.1)
+
+A request with a too long origin-form must be rejected with
+a 414 status code and the closing of the connection. (RFC7230 3.1.1)
+
+: absolute-form
+
+absolute-form is used when the client connects to a proxy, though
+its usage is also allowed when connecting to the server directly. (RFC7230 5.3.2)
+
+In practice the scheme will be "http" or "https".
+
+The "http" and "https" schemes based URI take the following form. (RFC7230 2.7.1, RFC7230 2.7.2)
+
+```
+http-URI = "http:" "//" authority path-abempty [ "?" query ] [ "#" fragment ]
+https-URI = "https:" "//" authority path-abempty [ "?" query ] [ "#" fragment ]
+```
+
+The target URI excludes the fragment component. (RFC7230 5.1)
+
+This means that the absolute-form uses a subset of absolute-URI.
+
+```
+absolute-form = ( "http" / "https" ) "://" authority path-abempty [ "?" query ]
+authority = host [ ":" port ]
+path-abempty = *( "/" segment )
+query = *( pchar / "/" / "?" )
+
+host = IP-literal / IPv4address / reg-name
+port = *DIGIT
+
+IP-literal = "[" ( IPv6address / IPvFuture  ) "]"
+
+IPv6address = 6( h16 ":" ) ls32
+	/ "::" 5( h16 ":" ) ls32
+	/ [ h16 ] "::" 4( h16 ":" ) ls32
+	/ [ *1( h16 ":" ) h16 ] "::" 3( h16 ":" ) ls32
+	/ [ *2( h16 ":" ) h16 ] "::" 2( h16 ":" ) ls32
+	/ [ *3( h16 ":" ) h16 ] "::" h16 ":" ls32
+	/ [ *4( h16 ":" ) h16 ] "::" ls32
+	/ [ *5( h16 ":" ) h16 ] "::" h16
+	/ [ *6( h16 ":" ) h16 ] "::"
+
+ls32 = ( h16 ":" h16 ) / IPv4address ; least-significant 32 bits of address
+h16 = 1*4HEXDIG ; 16 bits of address represented in hexadecimal
+
+IPv4address = dec-octet "." dec-octet "." dec-octet "." dec-octet
+
+dec-octet = DIGIT / %x31-39 DIGIT / "1" 2DIGIT / "2" %x30-34 DIGIT / "25" %x30-35
+
+IPvFuture = "v" 1*HEXDIG "." 1*( unreserved / sub-delims / ":" )
+
+reg-name = *( unreserved / pct-encoded / sub-delims )
+
+segment = *pchar
+segment-nz = 1*pchar
+
+pchar = unreserved / pct-encoded / sub-delims / ":" / "@"
+unreserved = ALPHA / DIGIT / "-" / "." / "_" / "~"
+pct-encoded = "%" HEXDIG HEXDIG
+sub-delims = "!" / "$" / "&" / "'" / "(" / ")" / "*" / "+" / "," / ";" / "="
+```
+
+The scheme and host are case insensitive and normally provided in lowercase.
+All other components are case sensitive. (RFC7230 2.7.3)
+
+Unknown schemes must be rejected with a 400 status code and the
+closing of the connection. Because only a fixed number of schemes
+are allowed, it is not necessary to limit its length.
+
+The scheme provided with the request must be dropped. The effective
+scheme is either resolved from configuration or is "https" when on
+a TLS connection and "http" otherwise. (RFC7230 5.5)
+
+An authority component with a userinfo component (and its
+"@" delimiter) is invalid. The request must be rejected with
+a 400 status code and the closing of the connection. (RFC7230 2.7.1)
+
+A URI with a missing host identifier is invalid. The request must
+be rejected with a 400 status code and the closing of the connection. (RFC7230 2.7.1)
+
+The maximum length for an IPv4address is 15 characters. No
+configurable limit is necessary.
+
+The maximum length for an IPv6address is 47 characters. No
+configurable limit is necessary.
+
+The maximum length for the reg-name component must be subject
+to a configurable limit. A good default is 255 characters. (RFC3986 3.2.2, RFC1034 3.1)
+
+It is not possible to distinguish between an IPv4address and
+a reg-name before reaching the end of the string, therefore
+the length limit for IPv4address must be ignored until that
+point.
+
+The maximum length for the port component is 5. No configurable
+limit is necessary.
+
+The authority is sent both in the URI and in the host header.
+The authority from the URI must be dropped, and the host header
+must be used instead. (RFC7230 5.5)
+
+The path always starts with "/" and ends with either "?", "#"
+or the end of the URI. (RFC3986 3.3)
+
+An empty path component is equivalent to "/". (RFC7230 2.7.3)
+
+The query starts with "?" and ends with "#" or the end of the URI. (RFC3986 3.4)
+
+The path and query must be subject to a configurable limit.
+This limit must be at least as high as what the server generates.
+A good default would be 8000 characters. (RFC7230 2.5, RFC7230 3.1.1)
+
+A request with a too long component of absolute-form must be rejected with
+a 414 status code and the closing of the connection. (RFC7230 3.1.1)
+
+: authority-form
+
+When the method is CONNECT, authority-form must be used. This
+form does not apply to any other methods which must reject the
+request with a 400 status code and the closing of the connection. (RFC7230 5.3.3)
+
+```
+authority-form = authority
+authority = host [ ":" port ]
+host = IP-literal / IPv4address / reg-name
+port = *DIGIT
+
+IP-literal = "[" ( IPv6address / IPvFuture  ) "]"
+
+IPv6address = 6( h16 ":" ) ls32
+	/ "::" 5( h16 ":" ) ls32
+	/ [ h16 ] "::" 4( h16 ":" ) ls32
+	/ [ *1( h16 ":" ) h16 ] "::" 3( h16 ":" ) ls32
+	/ [ *2( h16 ":" ) h16 ] "::" 2( h16 ":" ) ls32
+	/ [ *3( h16 ":" ) h16 ] "::" h16 ":" ls32
+	/ [ *4( h16 ":" ) h16 ] "::" ls32
+	/ [ *5( h16 ":" ) h16 ] "::" h16
+	/ [ *6( h16 ":" ) h16 ] "::"
+
+ls32 = ( h16 ":" h16 ) / IPv4address ; least-significant 32 bits of address
+h16 = 1*4HEXDIG ; 16 bits of address represented in hexadecimal
+
+IPv4address = dec-octet "." dec-octet "." dec-octet "." dec-octet
+
+dec-octet = DIGIT / %x31-39 DIGIT / "1" 2DIGIT / "2" %x30-34 DIGIT / "25" %x30-35
+
+IPvFuture = "v" 1*HEXDIG "." 1*( unreserved / sub-delims / ":" )
+
+reg-name = *( unreserved / pct-encoded / sub-delims )
+
+unreserved = ALPHA / DIGIT / "-" / "." / "_" / "~"
+pct-encoded = "%" HEXDIG HEXDIG
+sub-delims = "!" / "$" / "&" / "'" / "(" / ")" / "*" / "+" / "," / ";" / "="
+```
+
+An authority component with a userinfo component (and its
+"@" delimiter) is invalid. The request must be rejected with
+a 400 status code and the closing of the connection. (RFC7230 2.7.1)
+
+The maximum length for an IPv4address is 15 characters. No
+configurable limit is necessary.
+
+The maximum length for an IPv6address is 47 characters. No
+configurable limit is necessary.
+
+The maximum length for the reg-name component must be subject
+to a configurable limit. A good default is 255 characters. (RFC3986 3.2.2, RFC1034 3.1)
+
+It is not possible to distinguish between an IPv4address and
+a reg-name before reaching the end of the string, therefore
+the length limit for IPv4address must be ignored until that
+point.
+
+The maximum length for the port component is 5. No configurable
+limit is necessary.
+
+A request with a too long component of authority-form must be rejected with
+a 414 status code and the closing of the connection. (RFC7230 3.1.1)
+
+The authority is either resolved from configuration or is taken
+directly from authority-form. (RFC7230 5.5)
+
+The path and query are empty when using authority-form. (RFC7230 5.5)
+
+: asterisk-form
+
+asterisk-form is used for server-wide OPTIONS requests.
+It is invalid with any other methods which must reject the
+request with a 400 status code and the closing of the connection. (RFC7230 5.3.4)
+
+```
+asterisk-form  = "*"
+```
+
+The asterisk-form always has a length of 1. No configurable limit
+is necessary.
+
+The authority is empty when using asterisk-form.
+
+The path and query are empty when using asterisk-form. (RFC7230 5.5)
+
+:: Between request-target and version
+
+A request that uses anything other than SP as separator between
+the request-target and the version must be rejected with a 400
+status code and the closing of the connection. (RFC7230 3.1.1, RFC7230 3.5)
+
+:: Request version
+
+```
+version  = "HTTP/1.0" / "HTTP/1.1"
+```
+
+Any version number other than HTTP/1.0 or HTTP/1.1 must be
+rejected by a server or intermediary with a 505 status code. (RFC7230 2.6, RFC7230 A.2)
+
+A request that has any whitespace or characters different than
+CRLF following the version must be rejected with a 400 status
+code and the closing of the connection. (RFC7230 3.1.1)
+
+:: Request headers
+
+```
+headers = *( header-field CRLF ) CRLF
+header-field = field-name ":" OWS field-value OWS
+
+field-name = token
+field-value = *( SP / HTAB / %21-7E / %80-FF )
+
+OWS = *( SP / HTAB )
+```
+
+The header field name is case insensitive. (RFC7230 3.2)
+
+HTTP/2 requires header field names to be lowercase. It is
+perfectly acceptable for a server supporting both to convert
+HTTP/1.1 header names to lowercase when they are received. (draft-ietf-httpbis-http2-15 8.1.2.1)
+
+Messages that contain whitespace before the header name must
+be rejected with a 400 status code and the closing of the
+connection. (RFC7230 3.2.4)
+
+Messages that contain whitespace between the header name and
+colon must be rejected with a 400 status code and the closing
+of the connection. (RFC7230 3.2.4)
+
+The header name must be subject to a configurable limit. A
+good default is 50 characters, well above the longest registered
+header. Such a request must be rejected with a 431 status code
+and the closing of the connection. (RFC7230 3.2.5, RFC6585 5, IANA Message Headers registry)
+
+The header value and the optional whitespace around it must be
+subject to a configurable limit. There is no recommendations
+for the default. 4096 characters is known to work well. Such
+a request must be rejected with a 431 status code and the closing
+of the connection. (RFC7230 3.2.5, RFC6585 5)
+
+Optional whitespace before and after the header value is not
+part of the value and must be dropped.
+
+The order of header fields with differing names is not significant. (RFC7230 3.2.2)
+
+The normal procedure for parsing headers is to read each header
+field into a hash table by field name until the empty line. (RFC7230 3)
+
+Requests with duplicate content-length or host headers must be rejected
+with a 400 status code and the closing of the connection. (RFC7230 3.3.2)
+
+Other duplicate header fields must be combined by inserting a comma
+between the values in the order they were received. (RFC7230 3.2.2)
+
+Duplicate header field names are only allowed when their value is
+a comma-separated list. In practice there is no need to perform
+a check while reading the headers as the value will become invalid
+and the error can be handled while parsing the header later on. (RFC7230 3.2.2)
+
+The request must not be processed until all headers have arrived. (RFC7230 3.2.2)
+
+The number of headers allowed in a request must be subject to
+a configurable limit. There is no recommendations for the default.
+100 headers is known to work well. Such a request must be rejected
+with a 431 status code and the closing of the connection. (RFC7230 3.2.5, RFC6585 5)
+
+When parsing header field values, the server must ignore empty
+list elements, and not count those as the count of elements present. (RFC7230 7)
+
+The information in the via header is largely unreliable. (RFC7230 5.7.1)
+
+:: Request body
+
+```
+message-body = *OCTET
+```
+
+The message body is the octets after decoding any transfer
+codings. (RFC7230 3.3)
+
+A request has a message body only if it includes a transfer-encoding
+header or a non-zero content-length header. (RFC7230 3.3)
+
+```
+Transfer-Encoding = 1#transfer-coding
+
+transfer-coding = "chunked" / "compress" / "deflate" / "gzip" / transfer-extension
+transfer-extension = token *( OWS ";" OWS transfer-parameter )
+transfer-parameter = token BWS "=" BWS ( token / quoted-string )
+```
+
+The transfer-coding is case insensitive. (RFC7230 4)
+
+There are no known other transfer-extension with the exception of
+deprecated aliases "x-compress" and "x-gzip". (IANA HTTP Transfer Coding Registry,
+RFC7230 4.2.1, RFC7230 4.2.3, RFC7230 8.4.2)
+
+A server must be able to handle at least chunked transfer-encoding.
+This is also the only coding that sees widespread use. (RFC7230 3.3.1, RFC7230 4.1)
+
+Messages encoded more than once with chunked transfer-encoding
+must be rejected with a 400 status code and the closing of the
+connection. (RFC7230 3.3.1)
+
+Messages where chunked, when present, is not the last
+transfer-encoding must be rejected with a 400 status code
+and the closing of the connection. (RFC7230 3.3.3)
+
+Some non-conformant implementations send the "deflate" compressed
+data without the zlib wrapper. (RFC7230 4.2.2)
+
+Messages encoded with a transfer-encoding the server does not
+understand must be rejected with a 501 status code and the
+closing of the connection. (RFC7230 3.3.1)
+
+A server can reject requests with a body and no content-length
+header with a 411 status code. (RFC7230 3.3.3)
+
+```
+Content-Length = 1*DIGIT
+```
+
+A request with an invalid content-length header must be rejected
+with a 400 status code and the closing of the connection. (RFC7230 3.3.3)
+
+The content-length header ranges from 0 to infinity. Requests
+with a message body too large must be rejected with a 413 status
+code and the closing of the connection. (RFC7230 3.3.2)
+
+When a message includes both transfer-encoding and content-length
+headers, the content-length header must be removed before processing
+the request. (RFC7230 3.3.3)
+
+If a socket error occurs while reading the body the server
+must send a 400 status code response and close the connection. (RFC7230 3.3.3, RFC7230 3.4)
+
+If a timeout occurs while reading the body the server must
+send a 408 status code response and close the connection. (RFC7230 3.3.3, RFC7230 3.4)
+
+: Body length
+
+The length of a message with a transfer-encoding header can
+only be determined on decoding completion. (RFC7230 3.3.3)
+
+The length of a message with a content-length header is
+the numeric value in octets found in the header. (RFC7230 3.3.3)
+
+A message with no transfer-encoding or content-length header
+has a body length of 0. (RFC7230 3.3.3)
+
+: Chunked transfer-encoding
+
+```
+chunked-body = *chunk last-chunk trailer-part CRLF
+
+chunk = chunk-size [ chunk-ext ] CRLF chunk-data CRLF
+chunk-size = 1*HEXDIG
+chunk-data = 1*OCTET ; a sequence of chunk-size octets
+
+last-chunk = 1*("0") [ chunk-ext ] CRLF
+```
+
+The chunk-size field is a string of hex digits indicating the size of
+the chunk-data in octets.
+
+```
+chunk-ext = *( ";" chunk-ext-name [ "=" chunk-ext-val ] )
+chunk-ext-name = token
+chunk-ext-val = token / quoted-string
+```
+
+Unknown chunk extensions must be ignored. (RFC7230 4.1.1)
+
+The chunk-size line length must be subject to configuration.
+There are no recommended defaults, although 100 octets should work.
+Requests with a too long line must be rejected with a 400 status
+code and the closing of the connection.
+
+```
+trailer-part = *( header-field CRLF )
+```
+
+Trailing headers must not include transfer-encoding, content-length,
+host, cache-control, expect, max-forwards, pragma, range, te,
+if-match, if-none-match, if-modified-since, if-unmodified-since,
+if-range, www-authenticate, authorization, proxy-authenticate,
+proxy-authorization, age, cache-control, expires, date, location,
+retry-after, vary, warning, content-encoding, content-type,
+content-range, or trailer. (RFC7230 4.1.2)
+
+Trailer headers can be ignored safely. (RFC7230 4.1.2)
+
+When trailer headers are processed, invalid headers must be ignored.
+Valid headers must be added to the list of headers of the request. (RFC7230 4.1.2)
+
+The number of trailer headers must be subject to configuration.
+There is no known recommendations for the default. A value of 10
+should cover most cases. Requests with too many trailer headers
+must be rejected with a 431 status code and the closing of the
+connection. (RFC6585 5)
+
+Upon completion of chunk decoding the server must add a content-length
+header with the value set to the total length of data read. (RFC7230 4.1.3)
+
+Upon completion of chunk decoding the server must remove "chunked"
+from the transfer-encoding header. This header must be removed if
+it becomes empty following this removal. (RFC7230 4.1.3)
+
+Upon completion of chunk decoding the server must remove the trailer
+header from the list of headers. (RFC7230 4.1.3)
+
+```
+Trailer = 1#field-name
+```
+
+The trailer header can be used to list the headers found in the
+trailer. A server must have the option of ignoring trailer headers
+that were not listed in the trailer header. (RFC7230 4.4)
+
+The trailer header must be listed in the connection header field.
+Trailers must be ignored otherwise.
+
+:: Connection management
+
+Never assume any two requests on a single connection come
+from the same user agent. (RFC7230 2.3)
+
+```
+Connection = 1#token ; case-insensitive
+```
+
+The connection token is either case insensitive "close", "keep-alive"
+or a header field name.
+
+There are no corresponding "close" or "keep-alive" headers. (RFC7230 8.1, RFC7230 A.2)
+
+The connection header is valid only for the immediate connection,
+alongside any header field it lists. (RFC7230 6.1)
+
+The server must determine if the connection is persistent for
+every message received by looking at the connection header and
+HTTP version. (RFC7230 6.3)
+
+HTTP/1.1 requests with no "close" option and HTTP/1.0 with the
+"keep-alive" option indicate the connection will persist. (RFC7230 6.1, RFC7230 6.3)
+
+HTTP/1.1 requests with the "close" option and HTTP/1.0 with no
+"keep-alive" option indicate the connection will be closed
+upon reception of the response by the client. (RFC7230 6.1, RFC7230 6.3)
+
+The maximum number of requests sent using a persistent connection
+must be subject to configuration. The connection must be closed
+when the limit is reached. (RFC7230 6.3)
+
+A server that doesn't want to read the entire body of a message
+must close the connection, if possible after sending the "close"
+connection option in the response. (RFC7230 6.3)
+
+A server can receive more than one request before any response
+is sent. This is called pipelining. The requests can be processed
+in parallel if they all have safe methods. Responses must be sent
+in the same order as the requests. (RFC7230 6.3.2)
+
+The server must reject abusive traffic by closing the connection.
+Abusive traffic can come from the form of too many requests in a
+given amount of time, or too many concurrent connections. Limits
+must be subject to configuration. (RFC7230 6.4)
+
+The server must close inactive connections. The timeout
+must be subject to configuration. (RFC7230 6.5)
+
+The server must monitor connections for the close signal
+and close the socket on its end accordingly. (RFC7230 6.5)
+
+A connection close may occur at any time. (RFC7230 6.5)
+
+The server must not process any request after sending or
+receiving the "close" connection option. (RFC7230 6.6)
+
+The server must close the connection in stages to avoid the
+TCP reset problem. The server starts by closing the write
+side of the socket. The server then reads until it detects
+the socket has been closed, until it can be certain its
+last response has been received by the client, or until
+a close or timeout occurs. The server then fully close the
+connection. (6.6)
+
+:: Routing
+
+```
+Host = authority ; same as authority-form
+```
+
+An HTTP/1.1 request that lack a host header must be rejected with
+a 400 status code and the closing of the connection. (RFC7230 5.4)
+
+An HTTP/1.0 request that lack a host header is valid. Behavior
+for these requests is configuration dependent. (RFC7230 5.5)
+
+A request with an invalid host header must be rejected with a
+400 status code and the closing of the connection. (RFC7230 5.4)
+
+An authority component with a userinfo component (and its
+"@" delimiter) is invalid. The request must be rejected with
+a 400 status code and the closing of the connection. (RFC7230 2.7.1)
+
+When using absolute-form the URI authority component must be
+identical to the host header. Invalid requests must be rejected
+with a 400 status code and the closing of the connection. (RFC7230 5.4)
+
+When using authority-form the URI authority component must be
+identical to the host header. Invalid requests must be rejected
+with a 400 status code and the closing of the connection.
+
+The host header is empty when the authority component is undefined. (RFC7230 5.4)
+
+The effective request URI can be rebuilt by concatenating scheme,
+"://", authority, path and query components. (RFC7230 5.5)
+
+Resources with identical URI except for the scheme component
+must be treated as different. (RFC7230 2.7.2)
+
+:: Response
+
+A server can send more than one response per request only when a
+1xx response is sent preceding the final response. (RFC7230 5.6)
+
+A server that does parallel pipelining must send responses in the
+same order as the requests came in. (RFC7230 5.6)
+
+```
+HTTP-response = status-line *( header-field CRLF ) CRLF [ message-body ]
+```
+
+The response format must be followed strictly.
+
+```
+status-line   = HTTP-version SP status-code SP reason-phrase CRLF
+status-code   = 3DIGIT
+reason-phrase = *( HTAB / SP / VCHAR / obs-text )
+```
+
+A server must send its own version. (RFC7230 2.6)
+
+An HTTP/1.1 server may send an HTTP/1.0 version for compatibility purposes. (RFC7230 2.6)
+
+RFC6585 defines additional status code a server can use to reject
+messages. (RFC7230 9.3, RFC6585)
+
+:: Response headers
+
+In responses, OWS must be generated as SP or not generated
+at all. RWS must be generated as SP. BWS must not be
+generated. (RFC7230 3.2.3)
+
+```
+header-field = field-name ":" SP field-value
+
+field-name = token ; case-insensitive
+field-value = *( SP / %21-7E / %80-FF )
+```
+
+In quoted-string found in field-value, quoted-pair must only be
+used for DQUOTE and backslash. (RFC7230 3.2.6)
+
+The server must not generate comments in header values.
+
+HTTP header values must use US-ASCII encoding and must only send
+printable characters or SP. (RFC7230 3.2.4, RFC7230 9.4)
+
+The server must not generate empty list elements in headers. (RFC7230 7)
+
+When encoding an URI as part of a response, only characters that
+are reserved need to be percent-encoded. (RFC7230 2.7.3)
+
+The set-cookie header must be handled as a special case. There
+must be exactly one set-cookie header field per cookie. (RFC7230 3.2.2)
+
+The server must list headers for or about the immediate connection
+in the connection header field. (RFC7230 6.1)
+
+A server that does not support persistent connections must
+send "close" in every non-1xx response. (RFC7230 6.1)
+
+A server must not send a "close" connection option
+in 1xx responses. (RFC7230 6.1)
+
+The "close" connection must be sent in a message when the
+sender knows it will close the connection after fully sending
+the response. (RFC7230 6.6)
+
+A server must close the connection after sending or
+receiving a "close" once the response has been sent. (RFC7230 6.6)
+
+A server must send a "close" in a response to a request
+containing a "close". (RFC7230 6.6)
+
+:: Response body
+
+Responses to HEAD requests never include a message body. (RFC7230 3.3)
+
+2xx responses to CONNECT requests never include a message
+body. (RFC7230 3.3)
+
+1xx, 204 and 304 responses never include a message body. (RFC7230 3.3)
+
+Responses to HEAD requests and 304 responses can include a
+content-length or transfer-encoding header. Their value must
+be the same as if the request was an unconditional GET. (RFC7230 3.3, RFC7230 3.3.1, RFC7230 3.3.2)
+
+1xx, 204 responses and 2xx responses to CONNECT requests must
+not include a content-length or transfer-encoding header. (RFC7230 3.3.1, RFC7230 3.3.2)
+
+```
+message-body = *OCTET
+```
+
+The message body is the octets after decoding any transfer
+codings. (RFC7230 3.3)
+
+When the length is known in advance, the server must send a
+content-length header, including if the length is 0. (RFC7230 3.3.2, RFC7230 3.3.3)
+
+When the length is not known in advance, the chunked transfer-encoding
+must be used. (RFC7230 3.3.2, RFC7230 3.3.3)
+
+For compatibility purposes a server can send no content-length or
+transfer-encoding header. In this case the connection must be
+closed after the response has been sent fully. (RFC7230 3.3.2, RFC7230 3.3.3)
+
+The content-length header must not be sent when a transfer-encoding
+header already exists. (RFC7230 3.3.2)
+
+The server must not apply the chunked transfer-encoding more than
+once. (RFC7230 3.3.1)
+
+The server must apply the chunked transfer-encoding last. (RFC7230 3.3.1)
+
+The transfer-encoding header must not be sent in responses to
+HTTP/1.0 requests, or in responses that use the HTTP/1.0 version.
+No transfer codings must be applied in these cases. (RFC7230 3.3.1)
+
+```
+TE = #t-codings
+
+t-codings = "trailers" / ( transfer-coding [ t-ranking ] )
+t-ranking = OWS ";" OWS "q=" rank
+rank = ( "0" [ "." 0*3DIGIT ] ) / ( "1" [ "." 0*3("0") ] )
+```
+
+Trailers can only be sent if the request includes a TE header
+containing "trailers". (RFC7230 4.1.2)
+
+The presence of "chunked" in a TE header must be ignored as it
+is always acceptable with HTTP/1.1. (RFC7230 4.3)
+
+A qvalue of 0 in the TE header means "not acceptable". (RFC7230 4.3)
+
+The lack of a TE header or an empty TE header means only "chunked"
+(with no trailers) or no transfer-encoding is acceptable. (RFC7230 4.3)
+
+The TE header must be listed in the connection header field,
+or must be ignored otherwise.
+
+Trailer headers must be listed in the trailer header field value. (RFC7230 4.4)
+
+When defined, the trailer header must also be listed in the connection header. (RFC7230 4.4)
+
+:: Upgrade
+
+```
+Upgrade = 1#protocol
+
+protocol = protocol-name ["/" protocol-version]
+protocol-name = token
+protocol-version = token
+```
+
+The upgrade header contains the list of protocols the
+client wishes to upgrade to, in order of preference. (RFC7230 6.7)
+
+The upgrade header can be safely ignored. (RFC7230 6.7)
+
+The upgrade header must be listed under the connection header,
+or must be ignored otherwise. (RFC7230 6.7)
+
+A server accepting an upgrade request must send a 101 status
+code with a upgrade header listing the protocol(s) it upgrades
+to, in layer-ascending order. In addition the upgrade header
+must be listed in the connection header. (RFC7230 6.7)
+
+A server must not switch to a protocol not listed in the
+request's upgrade header. (RFC7230 6.7)
+
+A server that sends a 426 status code must include a upgrade
+header listing acceptable protocols in order of preference. (RFC7230 6.7)
+
+A server can send a upgrade header to any response to advertise
+its support for other protocols listed in order of preference. (RFC7230 6.7)
+
+Immediately after a server responds with a 101 status code
+it must respond to the original request using the new protocol. (RFC7230 6.7)
+
+A server must not switch protocols unless the original message's
+semantics can be honored by the new protocol. OPTIONS requests
+can be honored by any protocol. (RFC7230 6.7)
+
+A server must ignore an upgrade header received by an HTTP/1.0
+request. (RFC7230 6.7)
+
+A server receiving both an upgrade header and an expect header
+containing "100-continue" must send a 100 response before the
+101 response. (RFC7230 6.7)
+
+The upgrade header field cannot be used for switching the
+connection protocol (e.g. TCP) or switching connections. (RFC7230 6.7)
+
+:: Compatibility
+
+A server can choose to be non-conformant to the specifications
+for the sake of compatibility. Such behavior can be enabled
+through configuration and/or software identification. (RFC7230 2.5)

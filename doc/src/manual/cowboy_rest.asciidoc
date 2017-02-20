@@ -1,0 +1,666 @@
+= cowboy_rest(3)
+
+== Name
+
+cowboy_rest - REST handlers
+
+== Description
+
+The module `cowboy_rest` implements the HTTP state machine.
+
+Implementing REST handlers is not enough to provide a REST
+interface; this interface must also follow the REST
+constraints including HATEOAS (hypermedia as the engine
+of application state).
+
+== Callbacks
+
+REST handlers implement the following interface:
+
+[source,erlang]
+----
+init(Req, State)
+    -> {cowboy_rest, Req, State}
+
+Callback(Req, State)
+    -> {Result, Req, State}
+     | {stop, Req, State}
+
+terminate(Reason, Req, State) -> ok  %% optional
+
+Req    :: cowboy_req:req()
+State  :: any()
+Reason :: normal
+        | {crash, error | exit | throw, any()}
+
+Callback - see below
+Result   - see below
+Default  - see below
+----
+
+The `init/2` callback is common to all handlers. To switch
+to the REST handler behavior, it must return `cowboy_rest`
+as the first element of the tuple.
+
+The `Callback/2` above represents all the REST-specific
+callbacks. They are described in the following section
+of this manual. REST-specific callbacks differ by their
+name, semantics, result and default values. The default
+value is the one used when the callback has not been
+implemented. They otherwise all follow the same interface.
+
+The `stop` tuple can be returned to stop REST processing.
+If no response was sent before then, Cowboy will send a
+'204 No Content'.
+
+The optional `terminate/3` callback will ultimately be called
+with the reason for the termination of the handler.
+Cowboy will terminate the process right after this. There
+is no need to perform any cleanup in this callback.
+
+The following terminate reasons are defined for loop handlers:
+
+normal::
+    The handler terminated normally.
+
+{crash, Class, Reason}::
+    A crash occurred in the handler. `Class` and `Reason` can be
+    used to obtain more information about the crash. The function
+    `erlang:get_stacktrace/0` can also be called to obtain the
+    stacktrace of the process when the crash occurred.
+
+== REST callbacks
+
+=== AcceptCallback
+
+// @todo The flowcharts should rename AcceptResource into AcceptCallback.
+
+[source,erlang]
+----
+AcceptCallback(Req, State) -> {Result, Req, State}
+
+Result  :: true | {true, URI :: iodata()} | false}
+Default  - crash
+----
+
+Process the request body.
+
+This function should create or update the resource using the
+request body.
+
+For PUT requests, the body is a representation of the resource
+that is being created or replaced.
+
+For POST requests, the body is typically application-specific
+instructions on how to process the request, but it may also
+be a representation of the resource. When creating a new
+resource with POST at a different location, return `{true, URI}`
+with `URI` the new location.
+
+For PATCH requests, the body is a series of instructions on
+how to update the resource. Patch files or JSON Patch are
+examples of such media types.
+
+A response body may be sent. The appropriate media type, charset
+and language for the response can be retrieved from the Req
+object using the `media_type`, `charset` and `language` keys,
+respectively. The body can be set using
+link:man:cowboy_req:set_resp_body(3)[cowboy_req:set_resp_body(3)].
+
+=== allowed_methods
+
+[source,erlang]
+----
+allowed_methods(Req, State) -> {Result, Req, State}
+
+Result  :: [binary()]  %% case sensitive
+Default :: [<<"GET">>, <<"HEAD">>, <<"OPTIONS">>]
+----
+
+Return the list of allowed methods.
+
+=== allow_missing_post
+
+[source,erlang]
+----
+allow_missing_post(Req, State) -> {Result, Req, State}
+
+Result  :: boolean()
+Default :: true
+----
+
+Return whether POST is allowed when the resource doesn't exist.
+
+Returning `true` here means that a new resource will be
+created. The URI for the newly created resource should be
+returned from the `AcceptCallback` function.
+
+=== charsets_provided
+
+[source,erlang]
+----
+charsets_provided(Req, State) -> {Result, Req, State}
+
+Result  :: [binary()]  %% lowercase; case insensitive
+Default  - skip this step
+----
+
+Return the list of charsets the resource provides in order
+of preference.
+
+During content negotiation Cowboy will pick the most
+appropriate charset for the client. The client advertises
+charsets it prefers with the accept-charset header. When
+that header is missing, Cowboy picks the first charset
+from the resource.
+
+// @todo We should explain precisely how charsets are picked.
+
+Cowboy will add the negotiated `charset` to the Req object
+after this step completes:
+
+[source,erlang]
+----
+req() :: #{
+    charset => binary()  %% lowercase; case insensitive
+}
+----
+
+=== content_types_accepted
+
+[source,erlang]
+----
+content_types_accepted(Req, State) -> {Result, Req, State}
+
+Result     :: [{binary() | ParsedMime, AcceptCallback :: atom()}]
+ParsedMime :: {Type :: binary(), SubType :: binary(), '*' | Params}
+Params     :: [{Key :: binary(), Value :: binary()}]
+
+Default     - crash
+----
+
+// @todo Case sensitivity of parsed mime content?
+
+Return the list of media types the resource accepts in
+order of preference.
+
+A media type is made of different parts. The media type
+`text/html;charset=utf-8` is of type `text`, subtype `html`
+and has a single parameter `charset` with value `utf-8`.
+
+// @todo Cowboy needs to ignore the boundary parameter for
+// multipart, as we never want to match against it. Or allow
+// ignoring specific parameters at the very least.
+
+Cowboy will match the content-type request header against
+the media types the server accepts and select the appropriate
+callback. When that header is missing, or when the server does not
+accept this media type, the request fails and an error response
+is returned. Cowboy will execute the callback immediately otherwise.
+
+// @todo We should explain precisely how media types are picked.
+
+An empty parameters list `[]` means that no parameters will be
+accepted. When any parameter is acceptable, the tuple form
+should be used with parameters as the atom `'*'`.
+
+Cowboy treats all parameters as case sensitive, except for the
+`charset` parameter, which is known to be case insensitive. You
+should therefore always provide the charset as a lowercase
+binary string.
+
+// @todo Maybe this should be in the user guide instead.
+//This function will be called for POST, PUT and PATCH requests.
+//It is entirely possible to define different callbacks for different
+//methods if the handling of the request differs. Simply verify
+//what the method is with `cowboy_req:method/1` and return a
+//different list for each methods.
+
+=== content_types_provided
+
+[source,erlang]
+----
+content_types_provided(Req, State) -> {Result, Req, State}
+
+Result     :: [{binary() | ParsedMime, ProvideCallback :: atom()}]
+ParsedMime :: {Type :: binary(), SubType :: binary(), '*' | Params}
+Params     :: [{Key :: binary(), Value :: binary()}]
+
+Default     - [{{ <<"text">>, <<"html">>, '*'}, to_html}]
+----
+
+// @todo Case sensitivity of parsed mime content?
+// @todo Space required for the time being: https://github.com/spf13/hugo/issues/2398
+
+Return the list of media types the resource provides in
+order of preference.
+
+A media type is made of different parts. The media type
+`text/html;charset=utf-8` is of type `text`, subtype `html`
+and has a single parameter `charset` with value `utf-8`.
+
+// @todo Cowboy needs to ignore the boundary parameter for
+// multipart, as we never want to match against it. Or allow
+// ignoring specific parameters at the very least.
+
+During content negotiation Cowboy will pick the most appropriate
+media type for the client. The client advertises media types it
+prefers with the accept header. When that header is missing,
+the content negotiation fails and an error response is returned.
+
+The callback given for the selected media type will be called
+at the end of the execution of GET and HEAD requests when a
+representation must be sent to the client.
+
+// @todo We should explain precisely how media types are picked.
+
+An empty parameters list `[]` means that no parameters will be
+accepted. When any parameter is acceptable, the tuple form
+should be used with parameters as the atom `'*'`.
+
+Cowboy treats all parameters as case sensitive, except for the
+`charset` parameter, which is known to be case insensitive. You
+should therefore always provide the charset as a lowercase
+binary string.
+
+Cowboy will add the negotiated `media_type` to the Req object
+after this step completes:
+
+[source,erlang]
+----
+req() :: #{
+    media_type => ParsedMime
+}
+----
+
+// @todo Case sensitivity of parsed mime content?
+
+=== delete_completed
+
+[source,erlang]
+----
+delete_completed(Req, State) -> {Result, Req, State}
+
+Result  :: boolean()
+Default :: true
+----
+
+Return whether the resource has been fully deleted from the
+system, including from any internal cache.
+
+Returning `false` will result in a '202 Accepted' response
+being sent instead of a '200 OK' or '204 No Content'.
+
+=== delete_resource
+
+[source,erlang]
+----
+delete_resource(Req, State) -> {Result, Req, State}
+
+Result  :: boolean()
+Default :: false
+----
+
+Delete the resource.
+
+Cowboy will send an error response when this function
+returns `false`.
+
+=== expires
+
+[source,erlang]
+----
+expires(Req, State) -> {Result, Req, State}
+
+Result  :: calendar:datetime() | binary() | undefined
+Default :: undefined
+----
+
+Return the resource's expiration date.
+
+=== forbidden
+
+[source,erlang]
+----
+forbidden(Req, State) -> {Result, Req, State}
+
+Result  :: boolean()
+Default :: false
+----
+
+Return whether access to the resource is forbidden.
+
+A '403 Forbidden' response will be sent if this
+function returns `true`. This status code means that
+access is forbidden regardless of authentication,
+and that the request shouldn't be repeated.
+
+=== generate_etag
+
+[source,erlang]
+----
+generate_etag(Req, State) -> {Result, Req, State}
+
+Result  :: binary() | {weak | strong, binary()}
+Default  - no etag value
+----
+
+Return the entity tag of the resource.
+
+When a binary is returned, the value is automatically
+parsed to a tuple. The binary must be in the same
+format as the etag header, including quotes.
+
+=== is_authorized
+
+[source,erlang]
+----
+is_authorized(Req, State) -> {Result, Req, State}
+
+Result  :: true | {false, AuthHeader :: iodata()}
+Default  - true
+----
+
+Return whether the user is authorized to perform the action.
+
+This function should be used to perform any necessary
+authentication of the user before attempting to perform
+any action on the resource.
+
+When authentication fails, the `AuthHeader` value will
+be sent in the www-authenticate header for the
+'401 Unauthorized' response.
+
+=== is_conflict
+
+[source,erlang]
+----
+is_conflict(Req, State) -> {Result, Req, State}
+
+Result  :: boolean()
+Default :: false
+----
+
+Return whether the PUT request results in a conflict.
+
+A '409 Conflict' response is sent when `true`.
+
+=== known_methods
+
+[source,erlang]
+----
+known_methods(Req, State) -> {Result, Req, State}
+
+Result  :: [binary()]  %% case sensitive
+Default :: [<<"GET">>, <<"HEAD">>, <<"POST">>, <<"PUT">>,
+            <<"PATCH">>, <<"DELETE">>, <<"OPTIONS">>]
+----
+
+Return the list of known methods.
+
+The full list of methods known by the server should be
+returned, regardless of their use in the resource.
+
+The default value lists the methods Cowboy knows and
+implement in `cowboy_rest`.
+
+=== languages_provided
+
+[source,erlang]
+----
+languages_provided(Req, State) -> {Result, Req, State}
+
+Result  :: [binary()]  %% lowercase; case insensitive
+Default  - skip this step
+----
+
+Return the list of languages the resource provides in order
+of preference.
+
+During content negotiation Cowboy will pick the most
+appropriate language for the client. The client advertises
+languages it prefers with the accept-language header. When
+that header is missing, Cowboy picks the first language
+from the resource.
+
+// @todo We should explain precisely how languages are picked.
+
+Cowboy will add the negotiated `language` to the Req object
+after this step completes:
+
+[source,erlang]
+----
+req() :: #{
+    language => binary()  %% lowercase; case insensitive
+}
+----
+
+=== last_modified
+
+[source,erlang]
+----
+last_modified(Req, State) -> {Result, Req, State}
+
+Result  :: calendar:datetime()
+Default  - no last modified value
+----
+
+Return the resource's last modification date.
+
+This date will be used to test against the if-modified-since
+and if-unmodified-since headers, and sent as the last-modified
+header in the response to GET and HEAD requests.
+
+=== malformed_request
+
+[source,erlang]
+----
+malformed_request(Req, State) -> {Result, Req, State}
+
+Result  :: boolean()
+Default :: false
+----
+
+Return whether the request is malformed.
+
+A request is malformed when a component required by the
+resource is invalid. This may include the query string
+or individual headers. They should be parsed and validated
+in this function. The body should not be read at this point.
+
+=== moved_permanently
+
+[source,erlang]
+----
+moved_permanently(Req, State) -> {Result, Req, State}
+
+Result  :: {true, URI :: iodata()} | false
+Default :: false
+----
+
+Return whether the resource was permanently moved, and
+what its new location is.
+
+=== moved_temporarily
+
+[source,erlang]
+----
+moved_temporarily(Req, State) -> {Result, Req, State}
+
+Result  :: {true, URI :: iodata()} | false
+Default :: false
+----
+
+Return whether the resource was temporarily moved, and
+what its new location is.
+
+=== multiple_choices
+
+[source,erlang]
+----
+multiple_choices(Req, State) -> {Result, Req, State}
+
+Result  :: boolean()
+Default :: false
+----
+
+Return whether the client should engage in reactive
+negotiation.
+
+Return `true` when the server has multiple representations
+of a resource, each with their specific identifier, but is
+unable to determine which is best for the client. For
+example an image might have different sizes and the server
+is unable to determine the capabilities of the client.
+
+When returning `true` the server should send a body with
+links to the different representations. If the server has
+a preferred representation it can send its link inside a
+location header.
+
+=== options
+
+[source,erlang]
+----
+options(Req, State) -> {ok, Req, State}
+----
+
+Respond to an OPTIONS request.
+
+The response should inform the client the communication
+options available for this resource. By default Cowboy
+will send a '200 OK' response with the allow header set.
+
+=== previously_existed
+
+[source,erlang]
+----
+previously_existed(Req, State) -> {Result, Req, State}
+
+Result  :: boolean()
+Default :: false
+----
+
+Return whether the resource existed previously.
+
+=== ProvideCallback
+
+[source,erlang]
+----
+ProvideCallback(Req, State) -> {Result, Req, State}
+
+Result  :: cowboy_req:resp_body()
+Default  - crash
+----
+
+Return the response body.
+
+The response body can be provided either as the actual data
+to be sent or a tuple indicating which file to send.
+
+This function is called for both GET and HEAD requests. For
+the latter the body is not sent, however.
+
+// @todo Perhaps we can optimize HEAD requests and just
+// allow calculating the length instead of returning the
+// whole thing.
+
+Note that there used to be a way to stream the response body.
+It was temporarily removed and will be added back in a later
+release.
+
+// @todo Add a way to switch to loop handler for streaming the body.
+
+=== resource_exists
+
+[source,erlang]
+----
+resource_exists(Req, State) -> {Result, Req, State}
+
+Result  :: boolean()
+Default :: true
+----
+
+Return whether the resource exists.
+
+=== service_available
+
+[source,erlang]
+----
+service_available(Req, State) -> {Result, Req, State}
+
+Result  :: boolean()
+Default :: true
+----
+
+Return whether the service is available.
+
+A '503 Service Unavailable' response will be sent when this
+function returns `false`.
+
+=== uri_too_long
+
+[source,erlang]
+----
+uri_too_long(Req, State) -> {Result, Req, State}
+
+Result  :: boolean()
+Default :: false
+----
+
+Return whether the requested URI is too long.
+
+This function can be used to further restrict the length
+of the URI for this specific resource.
+
+=== valid_content_headers
+
+[source,erlang]
+----
+valid_content_headers(Req, State) -> {Result, Req, State}
+
+Result  :: boolean()
+Default :: true
+----
+
+Return whether the content headers are valid.
+
+This callback can be used to reject requests that have
+invalid content header values, for example an unsupported
+content-encoding.
+
+=== valid_entity_length
+
+[source,erlang]
+----
+valid_entity_length(Req, State) -> {Result, Req, State}
+
+Result  :: boolean()
+Default :: true
+----
+
+Return whether the request body length is within acceptable boundaries.
+
+A '413 Request Entity Too Large' response will be sent if this
+function returns `false`.
+
+=== variances
+
+[source,erlang]
+----
+variances(Req, State) -> {Result, Req, State}
+
+Result  :: [binary()]  %% case insensitive
+Default :: []
+----
+
+Return the list of request headers that affect the
+representation of the resource.
+
+Cowboy automatically adds the accept, accept-charset and
+accept-language headers when necessary.
+
+== See also
+
+link:man:cowboy(7)[cowboy(7)],
+link:man:cowboy_handler(3)[cowboy_handler(3)]

@@ -1,4 +1,4 @@
-%% Copyright (c) 2011-2013, Loïc Hoguin <essen@ninenines.eu>
+%% Copyright (c) 2011-2017, Loïc Hoguin <essen@ninenines.eu>
 %%
 %% Permission to use, copy, modify, and/or distribute this software for any
 %% purpose with or without fee is hereby granted, provided that the above
@@ -12,8 +12,6 @@
 %% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-%% @doc Date and time related functions.
-%%
 %% While a gen_server process runs in the background to update
 %% the cache of formatted dates every second, all API calls are
 %% local and directly read from the ETS cache table, providing
@@ -26,7 +24,6 @@
 -export([stop/0]).
 -export([rfc1123/0]).
 -export([rfc1123/1]).
--export([rfc2109/1]).
 
 %% gen_server.
 -export([init/1]).
@@ -39,83 +36,69 @@
 -record(state, {
 	universaltime = undefined :: undefined | calendar:datetime(),
 	rfc1123 = <<>> :: binary(),
-	tref = undefined :: undefined | timer:tref()
+	tref = undefined :: undefined | reference()
 }).
-
--define(SERVER, ?MODULE).
--define(TABLE, ?MODULE).
 
 %% API.
 
-%% @private
 -spec start_link() -> {ok, pid()}.
 start_link() ->
-	gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
+	gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
-%% @private
 -spec stop() -> stopped.
 stop() ->
-	gen_server:call(?SERVER, stop).
+	gen_server:call(?MODULE, stop).
 
-%% @doc Return the current date and time formatted according to RFC-1123.
 -spec rfc1123() -> binary().
 rfc1123() ->
-	ets:lookup_element(?TABLE, rfc1123, 2).
+	ets:lookup_element(?MODULE, rfc1123, 2).
 
-%% @doc Return the given date and time formatted according to RFC-1123.
 -spec rfc1123(calendar:datetime()) -> binary().
 rfc1123(DateTime) ->
 	update_rfc1123(<<>>, undefined, DateTime).
 
-%% @doc Return the given date and time formatted according to RFC-2109.
-%%
-%% This format is used in the <em>set-cookie</em> header sent with
-%% HTTP responses.
--spec rfc2109(calendar:datetime()) -> binary().
-rfc2109({Date = {Y, Mo, D}, {H, Mi, S}}) ->
-	Wday = calendar:day_of_the_week(Date),
-	<< (weekday(Wday))/binary, ", ", (pad_int(D))/binary, "-",
-		(month(Mo))/binary, "-", (list_to_binary(integer_to_list(Y)))/binary,
-		" ", (pad_int(H))/binary, $:, (pad_int(Mi))/binary,
-		$:, (pad_int(S))/binary, " GMT" >>.
-
 %% gen_server.
 
-%% @private
+-spec init([]) -> {ok, #state{}}.
 init([]) ->
-	?TABLE = ets:new(?TABLE, [set, protected,
+	?MODULE = ets:new(?MODULE, [set, protected,
 		named_table, {read_concurrency, true}]),
 	T = erlang:universaltime(),
 	B = update_rfc1123(<<>>, undefined, T),
-	{ok, TRef} = timer:send_interval(1000, update),
-	ets:insert(?TABLE, {rfc1123, B}),
+	TRef = erlang:send_after(1000, self(), update),
+	ets:insert(?MODULE, {rfc1123, B}),
 	{ok, #state{universaltime=T, rfc1123=B, tref=TRef}}.
 
-%% @private
-handle_call(stop, _From, State=#state{tref=TRef}) ->
-	{ok, cancel} = timer:cancel(TRef),
+-type from() :: {pid(), term()}.
+-spec handle_call
+	(stop, from(), State) -> {stop, normal, stopped, State}
+	when State::#state{}.
+handle_call(stop, _From, State) ->
 	{stop, normal, stopped, State};
 handle_call(_Request, _From, State) ->
 	{reply, ignored, State}.
 
-%% @private
+-spec handle_cast(_, State) -> {noreply, State} when State::#state{}.
 handle_cast(_Msg, State) ->
 	{noreply, State}.
 
-%% @private
-handle_info(update, #state{universaltime=Prev, rfc1123=B1, tref=TRef}) ->
+-spec handle_info(any(), State) -> {noreply, State} when State::#state{}.
+handle_info(update, #state{universaltime=Prev, rfc1123=B1, tref=TRef0}) ->
+	%% Cancel the timer in case an external process sent an update message.
+	_ = erlang:cancel_timer(TRef0),
 	T = erlang:universaltime(),
 	B2 = update_rfc1123(B1, Prev, T),
-	ets:insert(?TABLE, {rfc1123, B2}),
+	ets:insert(?MODULE, {rfc1123, B2}),
+	TRef = erlang:send_after(1000, self(), update),
 	{noreply, #state{universaltime=T, rfc1123=B2, tref=TRef}};
 handle_info(_Info, State) ->
 	{noreply, State}.
 
-%% @private
+-spec terminate(_, _) -> ok.
 terminate(_Reason, _State) ->
 	ok.
 
-%% @private
+-spec code_change(_, State, _) -> {ok, State} when State::#state{}.
 code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
 
@@ -150,7 +133,7 @@ update_rfc1123(<< _:11/binary, Keep:6/binary, _/bits >>,
 update_rfc1123(_, _, {Date = {Y, Mo, D}, {H, M, S}}) ->
 	Wday = calendar:day_of_the_week(Date),
 	<< (weekday(Wday))/binary, ", ", (pad_int(D))/binary, " ",
-		(month(Mo))/binary, " ", (list_to_binary(integer_to_list(Y)))/binary,
+		(month(Mo))/binary, " ", (integer_to_binary(Y))/binary,
 		" ", (pad_int(H))/binary, $:, (pad_int(M))/binary,
 		$:, (pad_int(S))/binary, " GMT" >>.
 
@@ -159,7 +142,7 @@ update_rfc1123(_, _, {Date = {Y, Mo, D}, {H, M, S}}) ->
 pad_int(X) when X < 10 ->
 	<< $0, ($0 + X) >>;
 pad_int(X) ->
-	list_to_binary(integer_to_list(X)).
+	integer_to_binary(X).
 
 -spec weekday(1..7) -> <<_:24>>.
 weekday(1) -> <<"Mon">>;
@@ -187,14 +170,6 @@ month(12) -> <<"Dec">>.
 %% Tests.
 
 -ifdef(TEST).
-
-rfc2109_test_() ->
-	Tests = [
-		{<<"Sat, 14-May-2011 14:25:33 GMT">>, {{2011, 5, 14}, {14, 25, 33}}},
-		{<<"Sun, 01-Jan-2012 00:00:00 GMT">>, {{2012, 1,  1}, { 0,  0,  0}}}
-	],
-	[{R, fun() -> R = rfc2109(D) end} || {R, D} <- Tests].
-
 update_rfc1123_test_() ->
 	Tests = [
 		{<<"Sat, 14 May 2011 14:25:33 GMT">>, undefined,
@@ -235,5 +210,4 @@ pad_int_test_() ->
 		{56, <<"56">>}, {57, <<"57">>}, {58, <<"58">>}, {59, <<"59">>}
 	],
 	[{I, fun() -> O = pad_int(I) end} || {I, O} <- Tests].
-
 -endif.

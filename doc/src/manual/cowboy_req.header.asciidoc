@@ -1,0 +1,76 @@
+= cowboy_req:header(3)
+
+== Name
+
+cowboy_req:header - HTTP header
+
+== Description
+
+[source,erlang]
+----
+header(Name, Req)          -> header(Name, Req, undefined)
+header(Name, Req, Default) -> binary() | Default
+
+Name    :: binary()          %% lowercase; case insensitive
+Req     :: cowboy_req:req()
+Default :: any()
+----
+
+Return the value for the given HTTP header.
+
+The header name must be given as a lowercase binary string.
+While header names are case insensitive, Cowboy requires them
+to be given as lowercase to function properly.
+
+Headers can also be obtained using pattern matching:
+
+[source,erlang]
+----
+#{headers := #{Name := Value}} = Req.
+----
+
+Note that this snippet will crash if the header is missing.
+
+== Arguments
+
+Name::
+
+Desired HTTP header name as a lowercase binary string.
+
+Req::
+
+The Req object.
+
+Default::
+
+Default value returned when the header is missing.
+
+== Return value
+
+The header value is returned as a binary string. When the
+header is missing, the default argument is returned.
+
+== Changelog
+
+* *2.0*: Only the header value is returned, it is no longer wrapped in a tuple.
+* *1.0*: Function introduced.
+
+== Examples
+
+.Get the accept header
+[source,erlang]
+----
+Accept = cowboy_req:header(<<"accept">>, Req).
+----
+
+.Get the content-length header with a default value
+[source,erlang]
+----
+Length = cowboy_req:header(<<"content-length">>, Req, <<"0">>).
+----
+
+== See also
+
+link:man:cowboy_req(3)[cowboy_req(3)],
+link:man:cowboy_req:headers(3)[cowboy_req:headers(3)],
+link:man:cowboy_req:parse_header(3)[cowboy_req:parse_header(3)]

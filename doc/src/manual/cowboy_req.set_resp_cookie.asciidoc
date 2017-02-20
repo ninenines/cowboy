@@ -1,0 +1,109 @@
+= cowboy_req:set_resp_cookie(3)
+
+== Name
+
+cowboy_req:set_resp_cookie - Set a cookie
+
+== Description
+
+[source,erlang]
+----
+set_resp_cookie(Name, Value, Req :: cowboy_req:req())
+    -> set_resp_cookie(Name, Value, [], Req)
+
+set_resp_cookie(Name, Value, Req :: cowboy_req:req(), Opts)
+    -> Req
+
+Name  :: binary()                  %% case sensitive
+Value :: iodata()                  %% case sensitive
+Opts  :: cow_cookie:cookie_opts()
+----
+
+Set a cookie to be sent with the response.
+
+Note that cookie names are case sensitive.
+
+== Arguments
+
+Name::
+
+Cookie name.
+
+Value::
+
+Cookie value.
+
+Req::
+
+The Req object.
+
+Opts::
+
+Cookie options.
+
+== Return value
+
+A new Req object is returned.
+
+The returned Req object must be used from that point onward,
+otherwise the cookie will not be sent in the response.
+
+== Changelog
+
+* *2.0*: `set_resp_cookie/3` introduced as an alias to `set_resp_cookie/4` with no options.
+* *2.0*: The first argument type is now `binary()` instead of `iodata()`.
+* *1.0*: Function introduced.
+
+== Examples
+
+.Set a session cookie
+[source,erlang]
+----
+SessionID = base64:encode(crypto:strong_rand_bytes(32)),
+Req = cowboy_req:set_resp_cookie(<<"sessionid">>, SessionID, Req0).
+----
+
+.Set a cookie with an expiration time
+[source,erlang]
+----
+Req = cowboy_req:set_resp_cookie(<<"lang">>, <<"fr-FR">>,
+    Req0, #{max_age => 3600}).
+----
+
+.Delete a cookie
+[source,erlang]
+----
+Req = cowboy_req:set_resp_cookie(<<"sessionid">>, <<>>,
+    Req0, #{max_age => 0}).
+----
+
+.Set a cookie for a specific domain and path
+[source,erlang]
+----
+Req = cowboy_req:set_resp_cookie(<<"inaccount">>, <<"1">>,
+    Req0, #{domain => "my.example.org", path => "/account"}).
+----
+
+.Restrict a cookie to HTTPS
+[source,erlang]
+----
+SessionID = base64:encode(crypto:strong_rand_bytes(32)),
+Req = cowboy_req:set_resp_cookie(<<"sessionid">>, SessionID,
+    Req0, #{secure => true}).
+----
+
+.Restrict a cookie to HTTP
+[source,erlang]
+----
+SessionID = base64:encode(crypto:strong_rand_bytes(32)),
+Req = cowboy_req:set_resp_cookie(<<"sessionid">>, SessionID,
+    Req0, #{http_only => true}).
+----
+
+== See also
+
+link:man:cowboy_req(3)[cowboy_req(3)],
+link:man:cowboy_req:set_resp_header(3)[cowboy_req:set_resp_header(3)],
+link:man:cowboy_req:set_resp_headers(3)[cowboy_req:set_resp_headers(3)],
+link:man:cowboy_req:reply(3)[cowboy_req:reply(3)],
+link:man:cowboy_req:stream_reply(3)[cowboy_req:stream_reply(3)]

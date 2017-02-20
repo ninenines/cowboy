@@ -1,4 +1,4 @@
-%% Copyright (c) 2013, Loïc Hoguin <essen@ninenines.eu>
+%% Copyright (c) 2013-2017, Loïc Hoguin <essen@ninenines.eu>
 %%
 %% Permission to use, copy, modify, and/or distribute this software for any
 %% purpose with or without fee is hereby granted, provided that the above
@@ -12,25 +12,13 @@
 %% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-%% @doc Behaviour for middlewares.
-%%
-%% Only one function needs to be implemented, <em>execute/2</em>.
-%% It receives the Req and the environment and returns them
-%% optionally modified. It can decide to stop the processing with
-%% or without an error. It is also possible to hibernate the process
-%% if needed.
-%%
-%% A middleware can perform any operation. Make sure you always return
-%% the last modified Req so that Cowboy has the up to date information
-%% about the request.
 -module(cowboy_middleware).
 
--type env() :: [{atom(), any()}].
+-type env() :: #{atom() => any()}.
 -export_type([env/0]).
 
 -callback execute(Req, Env)
 	-> {ok, Req, Env}
 	| {suspend, module(), atom(), [any()]}
-	| {halt, Req}
-	| {error, cowboy:http_status(), Req}
+	| {stop, Req}
 	when Req::cowboy_req:req(), Env::env().

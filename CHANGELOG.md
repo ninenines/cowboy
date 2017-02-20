@@ -1,6 +1,250 @@
 CHANGELOG
 =========
 
+2.0.0-pre.1
+-----------
+
+ *  Drop R16 support
+
+ *  Breaking update of the cowboy_req interface
+
+    Simplify the interface for most cowboy_req functions. They all return
+    a single value except the four body reading functions. The reply functions
+    now only return a Req value.
+
+    Access functions do not return a Req anymore.
+
+    Functions that used to cache results do not have a cache anymore.
+
+    The interface for accessing query string and cookies has therefore
+    been changed.
+
+    None of the functions return an error tuple anymore. It either works
+    or crashes. Cowboy will attempt to provide an appropriate status code
+    in the response of crashed handlers.
+
+    As a result, the content decode function has its return value changed
+    to a simple binary, and the body reading functions only return on success.
+
+ *  Change interface for reading the query string and cookies
+
+    There are now three query string functions: qs/1 provides access
+    to the raw query string value; parse_qs/1 returns the query string
+    as a list of key/values; match_qs/2 returns a map containing the
+    values requested in the second argument, after applying constraints
+    and default value.
+
+    Similarly, there are two cookie functions: parse_cookies/1 and
+    match_cookies/2. More match functions will be added in future commits.
+
+ *  Unify the init and terminate callbacks
+
+    `init/3` becomes `init/2`, its first argument was removed. Its return
+    value has changed, it now returns an `ok` tuple or a `Mod` tuple, the
+    latter allowing to switch to a different handler type and also able
+    to take timeout and hibernate options. The sub protocol interface has
+    been changed and receives these options now.
+
+    rest_init/2 and rest_terminate/2 have been removed.
+
+    websocket_init/3 and websocket_terminate/3 have been removed.
+
+    terminate/3 is now optional. It is called regardless of
+    the type of handler, including REST and Websocket.
+
+    Terminate reasons for all handler types have been documented.
+    The terminate callback is now appropriately called in all cases
+    (or should be).
+
+ *  Plain HTTP handlers are virtually removed
+
+    You can use the `init/2` function to do the work of a plain HTTP
+    handler. The behavior is defined in `cowboy_handler`.
+
+ *  Loop handlers are now the `cowboy_loop` sub protocol
+
+ *  Loop handlers now use the same return values as Websocket
+
+ *  Behaviors have been moved into the module implementing them
+
+    That means `cowboy_loop`, `cowboy_rest` and `cowboy_websocket`.
+
+ *  Change the format for constraints used by the router
+
+ *  Remove the onrequest hook
+
+    Use a middleware instead.
+
+ *  Remove the `error` return value from middlewares
+
+ *  Remove the REST `known_content_type` callback
+
+ *  Improve absolute URI support
+
+ *  Fix two edge cases when the request-line is invalid
+
+ *  Guide reorganization and partial rewrite
+
+1.0.0
+-----
+
+ *  Drop R15 support
+
+ *  Update erlang.mk, Ranch and Cowlib to 1.0.0
+
+ *  Complete the user guide and simplify the Getting started chapter
+
+ *  Document the HTTP status codes Cowboy may send in the manual
+
+ *  Provide installable man pages (see README)
+
+ *  Support ad-hoc keep-alive for HTTP/1.0 clients
+
+ *  Fix SPDY parsing error when many frames were received in one packet
+
+ *  Reply with 400 instead of 422 in cowboy_rest
+
+ *  Reply with 400 instead of 500 on header parsing crash
+
+ *  Remove deprecated body reading interface (see 0.10.0 notes)
+
+0.10.0
+------
+
+ *  Update Ranch to 0.10 and Cowlib to 0.6.2
+
+ *  Update the body reading API to allow controlling rate of transfer
+
+    The lack of this feature was causing various timeout issues
+    in some environments.
+
+    The body/2 function now takes a Req and a list of options. The older
+    interface can still be used until Cowboy 1.0.
+
+    The body_qs/2, part/2 and part_body/2 also accept this list of
+    options, and pass it down to the body/2 call. The default options
+    vary between the different functions.
+
+    The return value of the function has changed. Older code should work
+    without modification but you should definitely still test it.
+
+    All functions appropriately decode transfer and content encoding.
+    There is no need to have a special case for that anymore.
+
+    The body/1,2 function supports streaming, with the same interface
+    as the part_body/1,2 function.
+
+ *  Deprecate the cowboy_req:init_stream, stream_body and skip_body functions
+
+    They will be removed in Cowboy 1.0.
+
+ *  Add support for multipart
+
+    The cowboy_req:part/1,2 and cowboy_req:part_body/1,2 can be
+    used for reading a multipart body.
+
+    Documentation has been added.
+
+    The old undocumented multipart functions were removed.
+
+ *  Allow the onresponse hook to override only status and headers
+
+    Previously it wasn't possible to override them without also
+    overriding the body. The new return value is currently marked
+    as experimental.
+
+ *  Make loop handlers work with SPDY
+
+ *  Fix a race condition with loop handlers and keepalive requests
+
+ *  Fix parsing of accept-language header
+
+ *  Fix parsing of authorization header with empty passwords
+
+ *  Fix multiline headers handling
+
+ *  Various optimizations
+
+    All code that is moved to cowlib is optimized at the same time
+    and benchmarks get added for all functions.
+
+    The parsing of connection, content-length and transfer-encoding
+    has been optimized.
+
+    Chunked transfer decoding has been optimized.
+
+ *  Enable +warn_missing_spec by default and fix specs
+
+ *  Remove the non-documented cowboy_client module; use gun instead
+
+ *  Numerous documentation updates and tweaks
+
+    The guide now has a REST principles chapter and revised
+    and completed Websocket chapters, alongside a new multipart chapter.
+
+ *  Add a multipart file upload example
+
+ *  Test suites are being reworked and greatly improved
+   *  Test Cowboy across all releases from R15B01 to 17.0, plus maint and master
+   *  The Autobahn test suite is now always ran (as long as it's installed)
+   *  Expected error reports are now silenced (but still logged)
+   *  Applications are now only started once from a ct hook
+
+0.9.0
+-----
+
+ *  Update Ranch to 0.9.0
+
+ *  SPDY is no longer experimental and is documented
+
+    The SPDY development has been sponsored by the LeoFS project.
+
+ *  Review, improve and document cowboy_static
+   *  Much simplified configuration
+   *  Etag generation is now enabled by default
+   *  Web mimetypes are now detected by default
+   *  Optionally a huge list of mimetypes can also be used
+   *  It not try to magically find the priv directory anymore, use ERL_LIBS
+
+ *  Remove the pretty printing of errors
+
+    Cowboy will no longer print errors, it will instead let the process
+    crash properly, so that links can work with Cowboy. Ranch will catch
+    errors and print a one-liner containing all the error information
+    instead.
+
+ *  Trigger a human readable error when routes lack the starting slash
+
+ *  Add websocket_compress metadata
+
+ *  Fix parsing of hosts given as IPv6 addresses
+
+ *  Fix the decoding of chunked bodies
+
+ *  Fix handling of close, ping and pong Websocket replies
+
+ *  Fix the x-webkit-deflate-frame Websocket extension
+
+ *  Fix PUT behavior in cowboy_rest when creating a resource at the request URL
+
+ *  Fix warnings with the reltool GUI
+
+ *  Start moving code in a new dependency, cowlib
+
+    The code moved there is mostly parsing code and utility functions.
+    Most of it was in the undocumented cowboy_http module before.
+
+ *  Optimize cookie date building and query string building/parsing
+
+ *  Great number of improvements and additions to the user guide
+
+ *  Convert all examples to releases using the erlang.mk+relx combo
+
+    Some examples have also been fixed or slightly improved.
+    The elixir example is now on a separate repository maintained
+    independently. More examples in this language exist in that
+    other repository.
+
 0.8.6
 -----
 

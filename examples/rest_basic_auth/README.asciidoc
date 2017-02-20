@@ -1,0 +1,152 @@
+= Basic authorization example using REST
+
+To try this example, you need GNU `make` and `git` in your PATH.
+
+To build and run the example, use the following command:
+
+[source,bash]
+$ make run
+
+Then point your browser to http://localhost:8080
+
+== HTTP/1.1 example output
+
+Request with no authentication:
+
+[source,bash]
+----
+$ curl -i http://localhost:8080
+HTTP/1.1 401 Unauthorized
+connection: keep-alive
+server: Cowboy
+date: Sun, 20 Jan 2013 14:10:27 GMT
+content-length: 0
+www-authenticate: Basic realm="cowboy"
+----
+
+Request with authentication:
+
+[source,bash]
+----
+$ curl -i -u "Alladin:open sesame" http://localhost:8080
+HTTP/1.1 200 OK
+connection: keep-alive
+server: Cowboy
+date: Sun, 20 Jan 2013 14:11:12 GMT
+content-length: 16
+content-type: text/plain
+
+Hello, Alladin!
+----
+
+== HTTP/2 example output
+
+Request with no authentication:
+
+[source,bash]
+----
+$ nghttp -v http://localhost:8080
+[  0.000] Connected
+[  0.000] send SETTINGS frame <length=12, flags=0x00, stream_id=0>
+          (niv=2)
+          [SETTINGS_MAX_CONCURRENT_STREAMS(0x03):100]
+          [SETTINGS_INITIAL_WINDOW_SIZE(0x04):65535]
+[  0.000] send PRIORITY frame <length=5, flags=0x00, stream_id=3>
+          (dep_stream_id=0, weight=201, exclusive=0)
+[  0.000] send PRIORITY frame <length=5, flags=0x00, stream_id=5>
+          (dep_stream_id=0, weight=101, exclusive=0)
+[  0.000] send PRIORITY frame <length=5, flags=0x00, stream_id=7>
+          (dep_stream_id=0, weight=1, exclusive=0)
+[  0.000] send PRIORITY frame <length=5, flags=0x00, stream_id=9>
+          (dep_stream_id=7, weight=1, exclusive=0)
+[  0.000] send PRIORITY frame <length=5, flags=0x00, stream_id=11>
+          (dep_stream_id=3, weight=1, exclusive=0)
+[  0.000] send HEADERS frame <length=38, flags=0x25, stream_id=13>
+          ; END_STREAM | END_HEADERS | PRIORITY
+          (padlen=0, dep_stream_id=11, weight=16, exclusive=0)
+          ; Open new stream
+          :method: GET
+          :path: /
+          :scheme: http
+          :authority: localhost:8080
+          accept: */*
+          accept-encoding: gzip, deflate
+          user-agent: nghttp2/1.7.1
+[  0.004] recv SETTINGS frame <length=0, flags=0x00, stream_id=0>
+          (niv=0)
+[  0.004] recv SETTINGS frame <length=0, flags=0x01, stream_id=0>
+          ; ACK
+          (niv=0)
+[  0.004] send SETTINGS frame <length=0, flags=0x01, stream_id=0>
+          ; ACK
+          (niv=0)
+[  0.004] recv (stream_id=13) :status: 401
+[  0.004] recv (stream_id=13) content-length: 0
+[  0.004] recv (stream_id=13) date: Tue, 14 Jun 2016 09:15:56 GMT
+[  0.004] recv (stream_id=13) server: Cowboy
+[  0.004] recv (stream_id=13) www-authenticate: Basic realm="cowboy"
+[  0.004] recv HEADERS frame <length=56, flags=0x04, stream_id=13>
+          ; END_HEADERS
+          (padlen=0)
+          ; First response header
+[  0.004] recv DATA frame <length=0, flags=0x01, stream_id=13>
+          ; END_STREAM
+[  0.004] send GOAWAY frame <length=8, flags=0x00, stream_id=0>
+          (last_stream_id=0, error_code=NO_ERROR(0x00), opaque_data(0)=[])
+----
+
+Request with authentication:
+
+[source,bash]
+----
+$ nghttp -v -H "Authorization: Basic `echo -n Alladin:open sesame | base64`" http://localhost:8080
+[  0.000] Connected
+[  0.000] send SETTINGS frame <length=12, flags=0x00, stream_id=0>
+          (niv=2)
+          [SETTINGS_MAX_CONCURRENT_STREAMS(0x03):100]
+          [SETTINGS_INITIAL_WINDOW_SIZE(0x04):65535]
+[  0.000] send PRIORITY frame <length=5, flags=0x00, stream_id=3>
+          (dep_stream_id=0, weight=201, exclusive=0)
+[  0.000] send PRIORITY frame <length=5, flags=0x00, stream_id=5>
+          (dep_stream_id=0, weight=101, exclusive=0)
+[  0.000] send PRIORITY frame <length=5, flags=0x00, stream_id=7>
+          (dep_stream_id=0, weight=1, exclusive=0)
+[  0.000] send PRIORITY frame <length=5, flags=0x00, stream_id=9>
+          (dep_stream_id=7, weight=1, exclusive=0)
+[  0.001] send PRIORITY frame <length=5, flags=0x00, stream_id=11>
+          (dep_stream_id=3, weight=1, exclusive=0)
+[  0.001] send HEADERS frame <length=68, flags=0x25, stream_id=13>
+          ; END_STREAM | END_HEADERS | PRIORITY
+          (padlen=0, dep_stream_id=11, weight=16, exclusive=0)
+          ; Open new stream
+          :method: GET
+          :path: /
+          :scheme: http
+          :authority: localhost:8080
+          accept: */*
+          accept-encoding: gzip, deflate
+          user-agent: nghttp2/1.7.1
+          authorization: Basic QWxsYWRpbjpvcGVuIHNlc2FtZQ==
+[  0.002] recv SETTINGS frame <length=0, flags=0x00, stream_id=0>
+          (niv=0)
+[  0.002] recv SETTINGS frame <length=0, flags=0x01, stream_id=0>
+          ; ACK
+          (niv=0)
+[  0.002] send SETTINGS frame <length=0, flags=0x01, stream_id=0>
+          ; ACK
+          (niv=0)
+[  0.004] recv (stream_id=13) :status: 200
+[  0.004] recv (stream_id=13) content-length: 16
+[  0.004] recv (stream_id=13) content-type: text/plain
+[  0.004] recv (stream_id=13) date: Tue, 14 Jun 2016 09:15:48 GMT
+[  0.004] recv (stream_id=13) server: Cowboy
+[  0.004] recv HEADERS frame <length=45, flags=0x04, stream_id=13>
+          ; END_HEADERS
+          (padlen=0)
+          ; First response header
+Hello, Alladin!
+[  0.004] recv DATA frame <length=16, flags=0x01, stream_id=13>
+          ; END_STREAM
+[  0.004] send GOAWAY frame <length=8, flags=0x00, stream_id=0>
+          (last_stream_id=0, error_code=NO_ERROR(0x00), opaque_data(0)=[])
+----

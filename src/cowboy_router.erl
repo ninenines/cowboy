@@ -1,4 +1,4 @@
-%% Copyright (c) 2011-2013, Loïc Hoguin <essen@ninenines.eu>
+%% Copyright (c) 2011-2017, Loïc Hoguin <essen@ninenines.eu>
 %%
 %% Permission to use, copy, modify, and/or distribute this software for any
 %% purpose with or without fee is hereby granted, provided that the above
@@ -12,7 +12,7 @@
 %% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-%% @doc Routing middleware.
+%% Routing middleware.
 %%
 %% Resolve the handler to be used for the request based on the
 %% routing information found in the <em>dispatch</em> environment value.
@@ -28,31 +28,25 @@
 -export([compile/1]).
 -export([execute/2]).
 
--type bindings() :: [{atom(), binary()}].
+-type bindings() :: #{atom() => any()}.
 -type tokens() :: [binary()].
 -export_type([bindings/0]).
 -export_type([tokens/0]).
 
--type constraints() :: [{atom(), int}
-	| {atom(), function, fun ((binary()) -> true | {true, any()} | false)}].
--export_type([constraints/0]).
-
 -type route_match() :: '_' | iodata().
 -type route_path() :: {Path::route_match(), Handler::module(), Opts::any()}
-	| {Path::route_match(), constraints(), Handler::module(), Opts::any()}.
+	| {Path::route_match(), cowboy:fields(), Handler::module(), Opts::any()}.
 -type route_rule() :: {Host::route_match(), Paths::[route_path()]}
-	| {Host::route_match(), constraints(), Paths::[route_path()]}.
+	| {Host::route_match(), cowboy:fields(), Paths::[route_path()]}.
 -type routes() :: [route_rule()].
 -export_type([routes/0]).
 
 -type dispatch_match() :: '_' | <<_:8>> | [binary() | '_' | '...' | atom()].
--type dispatch_path() :: {dispatch_match(), module(), any()}.
--type dispatch_rule() :: {Host::dispatch_match(), Paths::[dispatch_path()]}.
+-type dispatch_path() :: {dispatch_match(), cowboy:fields(), module(), any()}.
+-type dispatch_rule() :: {Host::dispatch_match(), cowboy:fields(), Paths::[dispatch_path()]}.
 -opaque dispatch_rules() :: [dispatch_rule()].
 -export_type([dispatch_rules/0]).
 
-%% @doc Compile a list of routes into the dispatch format used
-%% by Cowboy's routing.
 -spec compile(routes()) -> dispatch_rules().
 compile(Routes) ->
 	compile(Routes, []).
@@ -61,15 +55,15 @@ compile([], Acc) ->
 	lists:reverse(Acc);
 compile([{Host, Paths}|Tail], Acc) ->
 	compile([{Host, [], Paths}|Tail], Acc);
-compile([{HostMatch, Constraints, Paths}|Tail], Acc) ->
+compile([{HostMatch, Fields, Paths}|Tail], Acc) ->
 	HostRules = case HostMatch of
 		'_' -> '_';
 		_ -> compile_host(HostMatch)
 	end,
 	PathRules = compile_paths(Paths, []),
 	Hosts = case HostRules of
-		'_' -> [{'_', Constraints, PathRules}];
-		_ -> [{R, Constraints, PathRules} || R <- HostRules]
+		'_' -> [{'_', Fields, PathRules}];
+		_ -> [{R, Fields, PathRules} || R <- HostRules]
 	end,
 	compile(Tail, Hosts ++ Acc).
 
@@ -82,60 +76,63 @@ compile_paths([], Acc) ->
 	lists:reverse(Acc);
 compile_paths([{PathMatch, Handler, Opts}|Tail], Acc) ->
 	compile_paths([{PathMatch, [], Handler, Opts}|Tail], Acc);
-compile_paths([{PathMatch, Constraints, Handler, Opts}|Tail], Acc)
+compile_paths([{PathMatch, Fields, Handler, Opts}|Tail], Acc)
 		when is_list(PathMatch) ->
 	compile_paths([{iolist_to_binary(PathMatch),
-		Constraints, Handler, Opts}|Tail], Acc);
-compile_paths([{'_', Constraints, Handler, Opts}|Tail], Acc) ->
-	compile_paths(Tail, [{'_', Constraints, Handler, Opts}] ++ Acc);
-compile_paths([{<< $/, PathMatch/binary >>, Constraints, Handler, Opts}|Tail],
+		Fields, Handler, Opts}|Tail], Acc);
+compile_paths([{'_', Fields, Handler, Opts}|Tail], Acc) ->
+	compile_paths(Tail, [{'_', Fields, Handler, Opts}] ++ Acc);
+compile_paths([{<< $/, PathMatch/bits >>, Fields, Handler, Opts}|Tail],
 		Acc) ->
 	PathRules = compile_rules(PathMatch, $/, [], [], <<>>),
-	Paths = [{lists:reverse(R), Constraints, Handler, Opts} || R <- PathRules],
-	compile_paths(Tail, Paths ++ Acc).
+	Paths = [{lists:reverse(R), Fields, Handler, Opts} || R <- PathRules],
+	compile_paths(Tail, Paths ++ Acc);
+compile_paths([{PathMatch, _, _, _}|_], _) ->
+	error({badarg, "The following route MUST begin with a slash: "
+		++ binary_to_list(PathMatch)}).
 
 compile_rules(<<>>, _, Segments, Rules, <<>>) ->
 	[Segments|Rules];
 compile_rules(<<>>, _, Segments, Rules, Acc) ->
 	[[Acc|Segments]|Rules];
-compile_rules(<< S, Rest/binary >>, S, Segments, Rules, <<>>) ->
+compile_rules(<< S, Rest/bits >>, S, Segments, Rules, <<>>) ->
 	compile_rules(Rest, S, Segments, Rules, <<>>);
-compile_rules(<< S, Rest/binary >>, S, Segments, Rules, Acc) ->
+compile_rules(<< S, Rest/bits >>, S, Segments, Rules, Acc) ->
 	compile_rules(Rest, S, [Acc|Segments], Rules, <<>>);
-compile_rules(<< $:, Rest/binary >>, S, Segments, Rules, <<>>) ->
+compile_rules(<< $:, Rest/bits >>, S, Segments, Rules, <<>>) ->
 	{NameBin, Rest2} = compile_binding(Rest, S, <<>>),
 	Name = binary_to_atom(NameBin, utf8),
 	compile_rules(Rest2, S, Segments, Rules, Name);
-compile_rules(<< $:, _/binary >>, _, _, _, _) ->
-	erlang:error(badarg);
-compile_rules(<< $[, $., $., $., $], Rest/binary >>, S, Segments, Rules, Acc)
+compile_rules(<< $:, _/bits >>, _, _, _, _) ->
+	error(badarg);
+compile_rules(<< $[, $., $., $., $], Rest/bits >>, S, Segments, Rules, Acc)
 		when Acc =:= <<>> ->
 	compile_rules(Rest, S, ['...'|Segments], Rules, Acc);
-compile_rules(<< $[, $., $., $., $], Rest/binary >>, S, Segments, Rules, Acc) ->
+compile_rules(<< $[, $., $., $., $], Rest/bits >>, S, Segments, Rules, Acc) ->
 	compile_rules(Rest, S, ['...', Acc|Segments], Rules, Acc);
-compile_rules(<< $[, S, Rest/binary >>, S, Segments, Rules, Acc) ->
+compile_rules(<< $[, S, Rest/bits >>, S, Segments, Rules, Acc) ->
 	compile_brackets(Rest, S, [Acc|Segments], Rules);
-compile_rules(<< $[, Rest/binary >>, S, Segments, Rules, <<>>) ->
+compile_rules(<< $[, Rest/bits >>, S, Segments, Rules, <<>>) ->
 	compile_brackets(Rest, S, Segments, Rules);
 %% Open bracket in the middle of a segment.
-compile_rules(<< $[, _/binary >>, _, _, _, _) ->
-	erlang:error(badarg);
+compile_rules(<< $[, _/bits >>, _, _, _, _) ->
+	error(badarg);
 %% Missing an open bracket.
-compile_rules(<< $], _/binary >>, _, _, _, _) ->
-	erlang:error(badarg);
-compile_rules(<< C, Rest/binary >>, S, Segments, Rules, Acc) ->
+compile_rules(<< $], _/bits >>, _, _, _, _) ->
+	error(badarg);
+compile_rules(<< C, Rest/bits >>, S, Segments, Rules, Acc) ->
 	compile_rules(Rest, S, Segments, Rules, << Acc/binary, C >>).
 
 %% Everything past $: until the segment separator ($. for hosts,
 %% $/ for paths) or $[ or $] or end of binary is the binding name.
 compile_binding(<<>>, _, <<>>) ->
-	erlang:error(badarg);
+	error(badarg);
 compile_binding(Rest = <<>>, _, Acc) ->
 	{Acc, Rest};
-compile_binding(Rest = << C, _/binary >>, S, Acc)
+compile_binding(Rest = << C, _/bits >>, S, Acc)
 		when C =:= S; C =:= $[; C =:= $] ->
 	{Acc, Rest};
-compile_binding(<< C, Rest/binary >>, S, Acc) ->
+compile_binding(<< C, Rest/bits >>, S, Acc) ->
 	compile_binding(Rest, S, << Acc/binary, C >>).
 
 compile_brackets(Rest, S, Segments, Rules) ->
@@ -147,40 +144,43 @@ compile_brackets(Rest, S, Segments, Rules) ->
 
 %% Missing a close bracket.
 compile_brackets_split(<<>>, _, _) ->
-	erlang:error(badarg);
+	error(badarg);
 %% Make sure we don't confuse the closing bracket we're looking for.
-compile_brackets_split(<< C, Rest/binary >>, Acc, N) when C =:= $[ ->
+compile_brackets_split(<< C, Rest/bits >>, Acc, N) when C =:= $[ ->
 	compile_brackets_split(Rest, << Acc/binary, C >>, N + 1);
-compile_brackets_split(<< C, Rest/binary >>, Acc, N) when C =:= $], N > 0 ->
+compile_brackets_split(<< C, Rest/bits >>, Acc, N) when C =:= $], N > 0 ->
 	compile_brackets_split(Rest, << Acc/binary, C >>, N - 1);
 %% That's the right one.
-compile_brackets_split(<< $], Rest/binary >>, Acc, 0) ->
+compile_brackets_split(<< $], Rest/bits >>, Acc, 0) ->
 	{Acc, Rest};
-compile_brackets_split(<< C, Rest/binary >>, Acc, N) ->
+compile_brackets_split(<< C, Rest/bits >>, Acc, N) ->
 	compile_brackets_split(Rest, << Acc/binary, C >>, N).
 
-%% @private
 -spec execute(Req, Env)
-	-> {ok, Req, Env} | {error, 400 | 404, Req}
+	-> {ok, Req, Env} | {stop, Req}
 	when Req::cowboy_req:req(), Env::cowboy_middleware:env().
-execute(Req, Env) ->
-	{_, Dispatch} = lists:keyfind(dispatch, 1, Env),
-	[Host, Path] = cowboy_req:get([host, path], Req),
+execute(Req=#{host := Host, path := Path}, Env=#{dispatch := Dispatch}) ->
 	case match(Dispatch, Host, Path) of
 		{ok, Handler, HandlerOpts, Bindings, HostInfo, PathInfo} ->
-			Req2 = cowboy_req:set_bindings(HostInfo, PathInfo, Bindings, Req),
-			{ok, Req2, [{handler, Handler}, {handler_opts, HandlerOpts}|Env]};
+			{ok, Req#{
+				host_info => HostInfo,
+				path_info => PathInfo,
+				bindings => Bindings
+			}, Env#{
+				handler => Handler,
+				handler_opts => HandlerOpts
+			}};
 		{error, notfound, host} ->
-			{error, 400, Req};
+			{stop, cowboy_req:reply(400, Req)};
 		{error, badrequest, path} ->
-			{error, 400, Req};
+			{stop, cowboy_req:reply(400, Req)};
 		{error, notfound, path} ->
-			{error, 404, Req}
+			{stop, cowboy_req:reply(404, Req)}
 	end.
 
 %% Internal.
 
-%% @doc Match hostname tokens and path tokens against dispatch rules.
+%% Match hostname tokens and path tokens against dispatch rules.
 %%
 %% It is typically used for matching tokens for the hostname and path of
 %% the request against a global dispatch rule for your listener.
@@ -218,10 +218,10 @@ match([], _, _) ->
 	{error, notfound, host};
 %% If the host is '_' then there can be no constraints.
 match([{'_', [], PathMatchs}|_Tail], _, Path) ->
-	match_path(PathMatchs, undefined, Path, []);
-match([{HostMatch, Constraints, PathMatchs}|Tail], Tokens, Path)
+	match_path(PathMatchs, undefined, Path, #{});
+match([{HostMatch, Fields, PathMatchs}|Tail], Tokens, Path)
 		when is_list(Tokens) ->
-	case list_match(Tokens, HostMatch, []) of
+	case list_match(Tokens, HostMatch, #{}) of
 		false ->
 			match(Tail, Tokens, Path);
 		{true, Bindings, HostInfo} ->
@@ -229,7 +229,7 @@ match([{HostMatch, Constraints, PathMatchs}|Tail], Tokens, Path)
 				undefined -> undefined;
 				_ -> lists:reverse(HostInfo)
 			end,
-			case check_constraints(Constraints, Bindings) of
+			case check_constraints(Fields, Bindings) of
 				{ok, Bindings2} ->
 					match_path(PathMatchs, HostInfo2, Path, Bindings2);
 				nomatch ->
@@ -250,15 +250,15 @@ match_path([], _, _, _) ->
 %% If the path is '_' then there can be no constraints.
 match_path([{'_', [], Handler, Opts}|_Tail], HostInfo, _, Bindings) ->
 	{ok, Handler, Opts, Bindings, HostInfo, undefined};
-match_path([{<<"*">>, _Constraints, Handler, Opts}|_Tail], HostInfo, <<"*">>, Bindings) ->
+match_path([{<<"*">>, _, Handler, Opts}|_Tail], HostInfo, <<"*">>, Bindings) ->
 	{ok, Handler, Opts, Bindings, HostInfo, undefined};
-match_path([{PathMatch, Constraints, Handler, Opts}|Tail], HostInfo, Tokens,
+match_path([{PathMatch, Fields, Handler, Opts}|Tail], HostInfo, Tokens,
 		Bindings) when is_list(Tokens) ->
 	case list_match(Tokens, PathMatch, Bindings) of
 		false ->
 			match_path(Tail, HostInfo, Tokens, Bindings);
 		{true, PathBinds, PathInfo} ->
-			case check_constraints(Constraints, PathBinds) of
+			case check_constraints(Fields, PathBinds) of
 				{ok, PathBinds2} ->
 					{ok, Handler, Opts, PathBinds2, HostInfo, PathInfo};
 				nomatch ->
@@ -272,32 +272,25 @@ match_path(Dispatch, HostInfo, Path, Bindings) ->
 
 check_constraints([], Bindings) ->
 	{ok, Bindings};
-check_constraints([Constraint|Tail], Bindings) ->
-	Name = element(1, Constraint),
-	case lists:keyfind(Name, 1, Bindings) of
-		false ->
-			check_constraints(Tail, Bindings);
-		{_, Value} ->
-			case check_constraint(Constraint, Value) of
+check_constraints([Field|Tail], Bindings) when is_atom(Field) ->
+	check_constraints(Tail, Bindings);
+check_constraints([Field|Tail], Bindings) ->
+	Name = element(1, Field),
+	case Bindings of
+		#{Name := Value} ->
+			Constraints = element(2, Field),
+			case cowboy_constraints:validate(Value, Constraints) of
 				true ->
 					check_constraints(Tail, Bindings);
 				{true, Value2} ->
-					Bindings2 = lists:keyreplace(Name, 1, Bindings,
-						{Name, Value2}),
-					check_constraints(Tail, Bindings2);
+					check_constraints(Tail, Bindings#{Name => Value2});
 				false ->
 					nomatch
-			end
+			end;
+		_ ->
+			check_constraints(Tail, Bindings)
 	end.
 
-check_constraint({_, int}, Value) ->
-	try {true, list_to_integer(binary_to_list(Value))}
-	catch _:_ -> false
-	end;
-check_constraint({_, function, Fun}, Value) ->
-	Fun(Value).
-
-%% @doc Split a hostname into a list of tokens.
 -spec split_host(binary()) -> tokens().
 split_host(Host) ->
 	split_host(Host, []).
@@ -314,12 +307,10 @@ split_host(Host, Acc) ->
 			split_host(Rest, [Segment|Acc])
 	end.
 
-%% @doc Split a path into a list of path segments.
-%%
 %% Following RFC2396, this function may return path segments containing any
 %% character, including <em>/</em> if, and only if, a <em>/</em> was escaped
 %% and part of a path segment.
--spec split_path(binary()) -> tokens().
+-spec split_path(binary()) -> tokens() | badrequest.
 split_path(<< $/, Path/bits >>) ->
 	split_path(Path, []);
 split_path(_) ->
@@ -329,9 +320,9 @@ split_path(Path, Acc) ->
 	try
 		case binary:match(Path, <<"/">>) of
 			nomatch when Path =:= <<>> ->
-				lists:reverse([cowboy_http:urldecode(S) || S <- Acc]);
+				remove_dot_segments(lists:reverse([cow_uri:urldecode(S) || S <- Acc]), []);
 			nomatch ->
-				lists:reverse([cowboy_http:urldecode(S) || S <- [Path|Acc]]);
+				remove_dot_segments(lists:reverse([cow_uri:urldecode(S) || S <- [Path|Acc]]), []);
 			{Pos, _} ->
 				<< Segment:Pos/binary, _:8, Rest/bits >> = Path,
 				split_path(Rest, [Segment|Acc])
@@ -340,6 +331,27 @@ split_path(Path, Acc) ->
 		error:badarg ->
 			badrequest
 	end.
+
+remove_dot_segments([], Acc) ->
+	lists:reverse(Acc);
+remove_dot_segments([<<".">>|Segments], Acc) ->
+	remove_dot_segments(Segments, Acc);
+remove_dot_segments([<<"..">>|Segments], Acc=[]) ->
+	remove_dot_segments(Segments, Acc);
+remove_dot_segments([<<"..">>|Segments], [_|Acc]) ->
+	remove_dot_segments(Segments, Acc);
+remove_dot_segments([S|Segments], Acc) ->
+	remove_dot_segments(Segments, [S|Acc]).
+
+-ifdef(TEST).
+remove_dot_segments_test_() ->
+	Tests = [
+		{[<<"a">>, <<"b">>, <<"c">>, <<".">>, <<"..">>, <<"..">>, <<"g">>], [<<"a">>, <<"g">>]},
+		{[<<"mid">>, <<"content=5">>, <<"..">>, <<"6">>], [<<"mid">>, <<"6">>]},
+		{[<<"..">>, <<"a">>], [<<"a">>]}
+	],
+	[fun() -> R = remove_dot_segments(S, []) end || {S, R} <- Tests].
+-endif.
 
 -spec list_match(tokens(), dispatch_match(), bindings())
 	-> {true, bindings(), undefined | tokens()} | false.
@@ -355,13 +367,13 @@ list_match([E|Tail], [E|TailMatch], Binds) ->
 %% Bind E to the variable name V and continue,
 %% unless V was already defined and E isn't identical to the previous value.
 list_match([E|Tail], [V|TailMatch], Binds) when is_atom(V) ->
-	case lists:keyfind(V, 1, Binds) of
-		{_, E} ->
+	case Binds of
+		#{V := E} ->
 			list_match(Tail, TailMatch, Binds);
-		{_, _} ->
+		#{V := _} ->
 			false;
-		false ->
-			list_match(Tail, TailMatch, [{V, E}|Binds])
+		_ ->
+			list_match(Tail, TailMatch, Binds#{V => E})
 	end;
 %% Match complete.
 list_match([], [], Binds) ->
@@ -373,9 +385,7 @@ list_match(_List, _Match, _Binds) ->
 %% Tests.
 
 -ifdef(TEST).
-
 compile_test_() ->
-	%% {Routes, Result}
 	Tests = [
 		%% Match any host and path.
 		{[{'_', [{'_', h, o}]}],
@@ -387,14 +397,22 @@ compile_test_() ->
 				{[<<"path">>, <<"to">>, <<"resource">>], [], hb, ob}]}]},
 		{[{'_', [{"/path/to/resource/", h, o}]}],
 			[{'_', [], [{[<<"path">>, <<"to">>, <<"resource">>], [], h, o}]}]},
-		{[{'_', [{"/путь/к/ресурсу/", h, o}]}],
-			[{'_', [], [{[<<"путь">>, <<"к">>, <<"ресурсу">>], [], h, o}]}]},
+		% Cyrillic from a latin1 encoded file.
+		{[{'_', [{[47,208,191,209,131,209,130,209,140,47,208,186,47,209,128,
+				208,181,209,129,209,131,209,128,209,129,209,131,47], h, o}]}],
+			[{'_', [], [{[<<208,191,209,131,209,130,209,140>>, <<208,186>>,
+				<<209,128,208,181,209,129,209,131,209,128,209,129,209,131>>],
+				[], h, o}]}]},
 		{[{"cowboy.example.org.", [{'_', h, o}]}],
 			[{[<<"org">>, <<"example">>, <<"cowboy">>], [], [{'_', [], h, o}]}]},
 		{[{".cowboy.example.org", [{'_', h, o}]}],
 			[{[<<"org">>, <<"example">>, <<"cowboy">>], [], [{'_', [], h, o}]}]},
-		{[{"некий.сайт.рф.", [{'_', h, o}]}],
-			[{[<<"рф">>, <<"сайт">>, <<"некий">>], [], [{'_', [], h, o}]}]},
+		% Cyrillic from a latin1 encoded file.
+		{[{[208,189,208,181,208,186,208,184,208,185,46,209,129,208,176,
+				208,185,209,130,46,209,128,209,132,46], [{'_', h, o}]}],
+			[{[<<209,128,209,132>>, <<209,129,208,176,208,185,209,130>>,
+				<<208,189,208,181,208,186,208,184,208,185>>],
+				[], [{'_', [], h, o}]}]},
 		{[{":subdomain.example.org", [{"/hats/:name/prices", h, o}]}],
 			[{[<<"org">>, <<"example">>, subdomain], [], [
 				{[<<"hats">>, name, <<"prices">>], [], h, o}]}]},
@@ -422,13 +440,14 @@ compile_test_() ->
 		fun() -> Rs = compile(Rt) end} || {Rt, Rs} <- Tests].
 
 split_host_test_() ->
-	%% {Host, Result}
 	Tests = [
 		{<<"">>, []},
 		{<<"*">>, [<<"*">>]},
 		{<<"cowboy.ninenines.eu">>,
 			[<<"eu">>, <<"ninenines">>, <<"cowboy">>]},
 		{<<"ninenines.eu">>,
+			[<<"eu">>, <<"ninenines">>]},
+		{<<"ninenines.eu.">>,
 			[<<"eu">>, <<"ninenines">>]},
 		{<<"a.b.c.d.e.f.g.h.i.j.k.l.m.n.o.p.q.r.s.t.u.v.w.x.y.z">>,
 			[<<"z">>, <<"y">>, <<"x">>, <<"w">>, <<"v">>, <<"u">>, <<"t">>,
@@ -439,7 +458,6 @@ split_host_test_() ->
 	[{H, fun() -> R = split_host(H) end} || {H, R} <- Tests].
 
 split_path_test_() ->
-	%% {Path, Result, QueryString}
 	Tests = [
 		{<<"/">>, []},
 		{<<"/extend//cowboy">>, [<<"extend">>, <<>>, <<"cowboy">>]},
@@ -470,7 +488,6 @@ match_test_() ->
 			{'_', [], match_any, []}
 		]}
 	],
-	%% {Host, Path, Result}
 	Tests = [
 		{<<"any">>, <<"/">>, {ok, match_any, [], []}},
 		{<<"www.any.ninenines.eu">>, <<"/users/42/mails">>,
@@ -503,8 +520,9 @@ match_info_test_() ->
 		{[<<"eu">>, <<"ninenines">>, '...'], [], [
 			{'_', [], match_any, []}
 		]},
-		{[<<"рф">>, <<"сайт">>], [], [
-			{[<<"путь">>, '...'], [], match_path, []}
+		% Cyrillic from a latin1 encoded file.
+		{[<<209,128,209,132>>, <<209,129,208,176,208,185,209,130>>], [], [
+			{[<<208,191,209,131,209,130,209,140>>, '...'], [], match_path, []}
 		]}
 	],
 	Tests = [
@@ -520,8 +538,10 @@ match_info_test_() ->
 			{ok, match_path, [], [], undefined, [<<"path_info">>]}},
 		{<<"www.ninenines.eu">>, <<"/pathinfo/is/next/foo/bar">>,
 			{ok, match_path, [], [], undefined, [<<"foo">>, <<"bar">>]}},
-		{<<"сайт.рф">>, <<"/путь/домой">>,
-			{ok, match_path, [], [], undefined, [<<"домой">>]}}
+		% Cyrillic from a latin1 encoded file.
+		{<<209,129,208,176,208,185,209,130,46,209,128,209,132>>,
+			<<47,208,191,209,131,209,130,209,140,47,208,180,208,190,208,188,208,190,208,185>>,
+			{ok, match_path, [], [], undefined, [<<208,180,208,190,208,188,208,190,208,185>>]}}
 	],
 	[{lists:flatten(io_lib:format("~p, ~p", [H, P])), fun() ->
 		R = match(Dispatch, H, P)
@@ -536,9 +556,8 @@ match_constraints_test() ->
 		<<"ninenines.eu">>, <<"/path/123/">>),
 	{error, notfound, path} = match(Dispatch,
 		<<"ninenines.eu">>, <<"/path/NaN/">>),
-	Dispatch2 = [{'_', [],
-		[{[<<"path">>, username], [{username, function,
-		fun(Value) -> Value =:= cowboy_bstr:to_lower(Value) end}],
+	Dispatch2 = [{'_', [], [{[<<"path">>, username],
+		[{username, fun(Value) -> Value =:= cowboy_bstr:to_lower(Value) end}],
 		match, []}]}],
 	{ok, _, [], [{username, <<"essen">>}], _, _} = match(Dispatch2,
 		<<"ninenines.eu">>, <<"/path/essen">>),
@@ -566,5 +585,4 @@ match_same_bindings_test() ->
 	{error, notfound, path} = match(Dispatch3,
 		<<"ninenines.eu">>, <<"/path/to">>),
 	ok.
-
 -endif.

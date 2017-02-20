@@ -1,0 +1,14 @@
+{
+	"options": {"failByDrop": false},
+	"enable-ssl": false,
+
+	"servers": [{
+		"agent": "Cowboy",
+		"url": "ws://localhost:33080/ws_echo",
+		"options": {"version": 18}
+	}],
+
+	"cases": ["*"],
+	"exclude-cases": [],
+	"exclude-agent-cases": {}
+} 

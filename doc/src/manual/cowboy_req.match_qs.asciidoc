@@ -1,0 +1,88 @@
+= cowboy_req:match_qs(3)
+
+== Name
+
+cowboy_req:match_qs - Match the query string against constraints
+
+== Description
+
+[source,erlang]
+----
+match_qs(Fields :: cowboy:fields(), Req :: cowboy_req:req())
+    -> #{atom() => any()}
+----
+
+Parse the query string and match specific values against
+constraints.
+
+Cowboy will only return the query string values specified
+in the fields list, and ignore all others. Fields can be
+either the key requested; the key along with a list of
+constraints; or the key, a list of constraints and a
+default value in case the key is missing.
+
+This function will crash if the key is missing and no
+default value is provided. This function will also crash
+if a constraint fails.
+
+The key must be provided as an atom. The key of the
+returned map will be that atom. The value may be converted
+through the use of constraints, making this function able
+to extract, validate and convert values all in one step.
+
+== Arguments
+
+Fields::
+
+Fields to retrieve from the query string.
++
+See link:man:cowboy(3)[cowboy(3)] for a complete description.
+
+Req::
+
+The Req object.
+
+== Return value
+
+Desired values are returned as a map. The key is the atom
+that was given in the list of fields, and the value is the
+optionally converted value after applying constraints.
+
+The map contains the same keys that were given in the fields.
+
+An exception is triggered when the match fails.
+
+== Changelog
+
+* *2.0*: Function introduced.
+
+== Examples
+
+.Match fields
+[source,erlang]
+----
+%% ID and Lang are binaries.
+#{id := ID, lang := Lang}
+    = cowboy_req:match_qs([id, lang], Req).
+----
+
+.Match fields and apply constraints
+[source,erlang]
+----
+%% ID is an integer and Lang a non-empty binary.
+#{id := ID, lang := Lang}
+    = cowboy_req:match_qs([{id, int}, {lang, nonempty}], Req).
+----
+
+.Match fields with default values
+[source,erlang]
+----
+#{lang := Lang}
+    = cowboy_req:match_qs([{lang, [], <<"en-US">>}], Req).
+----
+
+== See also
+
+link:man:cowboy_req(3)[cowboy_req(3)],
+link:man:cowboy_req:qs(3)[cowboy_req:qs(3)],
+link:man:cowboy_req:parse_qs(3)[cowboy_req:parse_qs(3)]

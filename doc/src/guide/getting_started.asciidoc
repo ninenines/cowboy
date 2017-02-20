@@ -1,0 +1,147 @@
+[[getting_started]]
+== Getting started
+
+Erlang is more than a language, it is also an operating system
+for your applications. Erlang developers rarely write standalone
+modules, they write libraries or applications, and then bundle
+those into what is called a release. A release contains the
+Erlang VM plus all applications required to run the node, so
+it can be pushed to production directly.
+
+This chapter walks you through all the steps of setting up
+Cowboy, writing your first application and generating your first
+release. At the end of this chapter you should know everything
+you need to push your first Cowboy application to production.
+
+=== Prerequisites
+
+We are going to use the https://github.com/ninenines/erlang.mk[Erlang.mk]
+build system. If you are using Windows, please check the
+http://erlang.mk/guide/installation.html[Installation instructions]
+to get your environment setup before you continue.
+
+=== Bootstrap
+
+First, let's create the directory for our application.
+
+[source,bash]
+$ mkdir hello_erlang
+$ cd hello_erlang
+
+Then we need to download Erlang.mk. Either use the following
+command or download it manually.
+
+[source,bash]
+$ wget https://erlang.mk/erlang.mk
+
+We can now bootstrap our application. Since we are going to generate
+a release, we will also bootstrap it at the same time.
+
+[source,bash]
+$ make -f erlang.mk bootstrap bootstrap-rel
+
+This creates a Makefile, a base application, and the release files
+necessary for creating the release. We can already build and start
+this release.
+
+[source,bash]
+----
+$ make run
+...
+(hello_erlang@127.0.0.1)1>
+----
+
+Entering the command `i().` will show the running processes, including
+one called `hello_erlang_sup`. This is the supervisor for our
+application.
+
+The release currently does nothing. In the rest of this chapter we
+will add Cowboy as a dependency and write a simple "Hello world!"
+handler.
+
+=== Cowboy setup
+
+We will modify the 'Makefile' to tell the build system it needs to
+fetch and compile Cowboy:
+
+[source,makefile]
+----
+PROJECT = hello_erlang
+
+DEPS = cowboy
+dep_cowboy_commit = master
+
+DEP_PLUGINS = cowboy
+
+include erlang.mk
+----
+
+We also tell the build system to load the plugins Cowboy provides.
+These include predefined templates that we will use soon.
+
+If you do `make run` now, Cowboy will be included in the release
+and started automatically. This is not enough however, as Cowboy
+doesn't do anything by default. We still need to tell Cowboy to
+listen for connections.
+
+=== Listening for connections
+
+First we define the routes that Cowboy will use to map requests
+to handler modules, and then we start the listener. This is best
+done at application startup.
+
+Open the 'src/hello_erlang_app.erl' file and add the necessary
+code to the `start/2` function to make it look like this:
+
+[source,erlang]
+----
+start(_Type, _Args) ->
+    Dispatch = cowboy_router:compile([
+        {'_', [{"/", hello_handler, []}]}
+    ]),
+    {ok, _} = cowboy:start_clear(my_http_listener, 100,
+        [{port, 8080}],
+        #{env => #{dispatch => Dispatch}}
+    ),
+    hello_erlang_sup:start_link().
+----
+
+Routes are explained in details in the xref:routing[Routing]
+chapter. For this tutorial we map the path `/` to the handler
+module `hello_handler`. This module doesn't exist yet.
+
+Build and start the release, then open http://localhost:8080
+in your browser. You will get a 500 error because the module is missing.
+Any other URL, like http://localhost:8080/test, will result in a
+404 error.
+
+=== Handling requests
+
+Cowboy features different kinds of handlers, including REST
+and Websocket handlers. For this tutorial we will use a plain
+HTTP handler.
+
+Generate a handler from a template:
+
+[source,bash]
+$ make new t=cowboy.http n=hello_handler
+
+Then, open the 'src/hello_handler.erl' file and modify
+the `init/2` function like this to send a reply.
+
+[source,erlang]
+----
+init(Req0, State) ->
+    Req = cowboy_req:reply(200,
+        #{<<"content-type">> => <<"text/plain">>},
+        <<"Hello Erlang!">>,
+        Req0),
+    {ok, Req, State}.
+----
+
+What the above code does is send a 200 OK reply, with the
+Content-type header set to `text/plain` and the response
+body set to `Hello Erlang!`.
+
+If you run the release and open http://localhost:8080
+in your browser, you should get a nice `Hello Erlang!` displayed!

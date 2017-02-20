@@ -1,0 +1,87 @@
+= POST parameter echo example
+
+To try this example, you need GNU `make` and `git` in your PATH.
+
+To build and run the example, use the following command:
+
+[source,bash]
+$ make run
+
+As this example echoes a POST parameter, it is a little more
+complex to test. Some browsers feature tools that allow you
+to perform one such request, or you can use the command line
+tool `curl` as we will demonstrate.
+
+== HTTP/1.1 example output
+
+[source,bash]
+----
+$ curl -i -d echo=echomeplz http://localhost:8080
+HTTP/1.1 200 OK
+connection: keep-alive
+server: Cowboy
+date: Fri, 28 Sep 2012 04:12:36 GMT
+content-length: 9
+content-type: text/plain; charset=utf-8
+
+echomeplz
+----
+
+== HTTP/2 example output
+
+[source,bash]
+----
+$ echo echo=echomeplz | nghttp -v -d - http://localhost:8080
+[  0.000] Connected
+[  0.000] send SETTINGS frame <length=12, flags=0x00, stream_id=0>
+          (niv=2)
+          [SETTINGS_MAX_CONCURRENT_STREAMS(0x03):100]
+          [SETTINGS_INITIAL_WINDOW_SIZE(0x04):65535]
+[  0.000] send PRIORITY frame <length=5, flags=0x00, stream_id=3>
+          (dep_stream_id=0, weight=201, exclusive=0)
+[  0.000] send PRIORITY frame <length=5, flags=0x00, stream_id=5>
+          (dep_stream_id=0, weight=101, exclusive=0)
+[  0.001] send PRIORITY frame <length=5, flags=0x00, stream_id=7>
+          (dep_stream_id=0, weight=1, exclusive=0)
+[  0.001] send PRIORITY frame <length=5, flags=0x00, stream_id=9>
+          (dep_stream_id=7, weight=1, exclusive=0)
+[  0.001] send PRIORITY frame <length=5, flags=0x00, stream_id=11>
+          (dep_stream_id=3, weight=1, exclusive=0)
+[  0.001] send HEADERS frame <length=43, flags=0x24, stream_id=13>
+          ; END_HEADERS | PRIORITY
+          (padlen=0, dep_stream_id=11, weight=16, exclusive=0)
+          ; Open new stream
+          :method: POST
+          :path: /
+          :scheme: http
+          :authority: localhost:8080
+          accept: */*
+          accept-encoding: gzip, deflate
+          user-agent: nghttp2/1.7.1
+          content-length: 15
+[  0.001] send DATA frame <length=15, flags=0x00, stream_id=13>
+[  0.001] send DATA frame <length=0, flags=0x01, stream_id=13>
+          ; END_STREAM
+[  0.012] recv SETTINGS frame <length=0, flags=0x00, stream_id=0>
+          (niv=0)
+[  0.012] recv SETTINGS frame <length=0, flags=0x01, stream_id=0>
+          ; ACK
+          (niv=0)
+[  0.012] send SETTINGS frame <length=0, flags=0x01, stream_id=0>
+          ; ACK
+          (niv=0)
+[  0.020] recv (stream_id=13) :status: 200
+[  0.020] recv (stream_id=13) content-length: 10
+[  0.020] recv (stream_id=13) content-type: text/plain; charset=utf-8
+[  0.020] recv (stream_id=13) date: Thu, 09 Jun 2016 09:19:35 GMT
+[  0.020] recv (stream_id=13) server: Cowboy
+[  0.020] recv HEADERS frame <length=57, flags=0x04, stream_id=13>
+          ; END_HEADERS
+          (padlen=0)
+          ; First response header
+echomeplz
+[  0.020] recv DATA frame <length=10, flags=0x01, stream_id=13>
+          ; END_STREAM
+[  0.020] send GOAWAY frame <length=8, flags=0x00, stream_id=0>
+          (last_stream_id=0, error_code=NO_ERROR(0x00), opaque_data(0)=[])
+----

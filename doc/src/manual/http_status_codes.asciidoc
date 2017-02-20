@@ -1,0 +1,157 @@
+= HTTP status codes(7)
+
+== Name
+
+HTTP status codes - status codes used by Cowboy
+
+== Description
+
+This chapter aims to list all HTTP status codes that Cowboy
+may return, with details on the reasons why. The list given
+here only includes the replies that Cowboy sends, not user
+replies.
+
+== 100 Continue
+
+When the client sends an `expect: 100-continue` header,
+Cowboy automatically sends a this status code before
+trying to read the request body. This behavior can be
+disabled using the appropriate body option.
+
+== 101 Switching Protocols
+
+This is the status code sent when switching to the
+Websocket protocol.
+
+== 200 OK
+
+This status code is sent by `cowboy_rest`.
+
+== 201 Created
+
+This status code is sent by `cowboy_rest`.
+
+== 202 Accepted
+
+This status code is sent by `cowboy_rest`.
+
+== 204 No Content
+
+This status code is sent when the processing of a request
+ends without any reply having been sent. It may also be
+sent by `cowboy_rest` under normal conditions.
+
+== 300 Multiple Choices
+
+This status code is sent by `cowboy_rest`.
+
+== 301 Moved Permanently
+
+This status code is sent by `cowboy_rest`.
+
+== 303 See Other
+
+This status code is sent by `cowboy_rest`.
+
+== 304 Not Modified
+
+This status code is sent by `cowboy_rest`.
+
+== 307 Temporary Redirect
+
+This status code is sent by `cowboy_rest`.
+
+== 400 Bad Request
+
+Cowboy will send this status code for any of the
+following reasons:
+
+* Too many empty lines were sent before the request.
+* The request-line could not be parsed.
+* Too many headers were sent.
+* A header name was too long.
+* A header value was too long.
+* The host header was missing from an HTTP/1.1 request.
+* The host header could not be parsed.
+* The requested host was not found.
+* The requested path could not be parsed.
+* The accept header could not be parsed when using REST.
+* REST under normal conditions.
+* A Websocket upgrade failed.
+
+== 401 Unauthorized
+
+This status code is sent by `cowboy_rest`.
+
+== 403 Forbidden
+
+This status code is sent by `cowboy_rest`.
+
+== 404 Not Found
+
+This status code is sent when the router successfully
+resolved the host but didn't find a matching path for
+the request. It may also be sent by `cowboy_rest` under
+normal conditions.
+
+== 405 Method Not Allowed
+
+This status code is sent by `cowboy_rest`.
+
+== 406 Not Acceptable
+
+This status code is sent by `cowboy_rest`.
+
+== 408 Request Timeout
+
+Cowboy will send this status code to the client if the
+client started to send a request, indicated by the
+request-line being received fully, but failed to send
+all headers in a reasonable time.
+
+== 409 Conflict
+
+This status code is sent by `cowboy_rest`.
+
+== 410 Gone
+
+This status code is sent by `cowboy_rest`.
+
+== 412 Precondition Failed
+
+This status code is sent by `cowboy_rest`.
+
+== 413 Request Entity Too Large
+
+This status code is sent by `cowboy_rest`.
+
+== 414 Request-URI Too Long
+
+Cowboy will send this status code to the client if the
+request-line is too long. It may also be sent by
+`cowboy_rest` under normal conditions.
+
+== 415 Unsupported Media Type
+
+This status code is sent by `cowboy_rest`.
+
+== 500 Internal Server Error
+
+This status code is sent when a crash occurs in HTTP, loop
+or REST handlers, or when an invalid return value is
+returned. It may also be sent by `cowboy_rest` under
+normal conditions.
+
+== 501 Not Implemented
+
+This status code is sent by `cowboy_rest`.
+
+== 503 Service Unavailable
+
+This status code is sent by `cowboy_rest`.
+
+== 505 HTTP Version Not Supported
+
+Cowboy only supports the versions 1.0 and 1.1 of HTTP.
+In all other cases this status code is sent back to the
+client and the connection is closed.

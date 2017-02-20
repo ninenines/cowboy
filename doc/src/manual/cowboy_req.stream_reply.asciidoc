@@ -1,0 +1,108 @@
+= cowboy_req:stream_reply(3)
+
+== Name
+
+cowboy_req:stream_reply - Send the response headers
+
+== Description
+
+[source,erlang]
+----
+stream_reply(Status, Req :: cowboy_req:req())
+    -> stream_reply(StatusCode, #{}, Req)
+
+stream_reply(Status, Headers, Req :: cowboy_req:req())
+    -> Req
+
+Status  :: cowboy:http_status()
+Headers :: cowboy:http_headers()
+----
+
+Send the response headers.
+
+The header names must be given as lowercase binary strings.
+While header names are case insensitive, Cowboy requires them
+to be given as lowercase to function properly.
+
+Cowboy does not allow duplicate header names. Headers set
+by this function may overwrite those set by `set_resp_header/3`.
+
+Use link:man:cowboy_req:set_resp_cookie(3)[cowboy_req:set_resp_cookie(3)]
+instead of this function to set cookies.
+
+If a response body was set before calling this function,
+it will not be sent.
+
+Use link:man:cowboy_req:stream_body(3)[cowboy_req:stream_body(3)]
+to stream the response body.
+
+You may want to set the content-length header when using
+this function, if it is known in advance. This will allow
+clients using HTTP/2 and HTTP/1.0 to process the response
+more efficiently.
+
+The streaming method varies depending on the protocol being
+used. HTTP/2 will use the usual DATA frames. HTTP/1.1 will
+use chunked transfer-encoding. HTTP/1.0 will send the body
+unmodified and close the connection at the end if no
+content-length was set.
+
+It is not possible to push resources after this function
+returns. Any attempt will result in an error.
+
+== Arguments
+
+Status::
+
+The status code for the response.
+
+Headers::
+
+The response headers.
+
+Header names must be given as lowercase binary strings.
+
+Req::
+
+The Req object.
+
+== Return value
+
+A new Req object is returned.
+
+The returned Req object must be used from that point onward
+in order to be able to stream the response body.
+
+== Changelog
+
+* *2.0*: Only the Req is returned, it is no longer wrapped in a tuple.
+* *2.0*: Function introduced. Replaces `chunked_reply/1,2`.
+
+== Examples
+
+.Initiate the response
+[source,erlang]
+----
+Req = cowboy_req:stream_reply(200, Req0).
+----
+
+.Stream the response with custom headers
+[source,erlang]
+----
+Req = cowboy_req:stream_reply(200, #{
+    <<"content-type">> => <<"text/plain">>
+}, Req0),
+cowboy_req:stream_body(<<"Hello\n">>, nofin, Req),
+timer:sleep(1000),
+cowboy_req:stream_body(<<"World!\n">>, fin, Req).
+----
+
+== See also
+
+link:man:cowboy_req(3)[cowboy_req(3)],
+link:man:cowboy_req:set_resp_cookie(3)[cowboy_req:set_resp_cookie(3)],
+link:man:cowboy_req:set_resp_header(3)[cowboy_req:set_resp_header(3)],
+link:man:cowboy_req:set_resp_headers(3)[cowboy_req:set_resp_headers(3)],
+link:man:cowboy_req:reply(3)[cowboy_req:reply(3)],
+link:man:cowboy_req:stream_body(3)[cowboy_req:stream_body(3)],
+link:man:cowboy_req:push(3)[cowboy_req:push(3)]

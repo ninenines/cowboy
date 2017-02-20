@@ -1,0 +1,61 @@
+= cowboy_req:peer(3)
+
+== Name
+
+cowboy_req:peer - Peer address and port
+
+== Description
+
+[source,erlang]
+----
+peer(Req :: cowboy_req:req()) -> Peer
+
+Peer :: {inet:ip_address(), inet:port_number()}
+----
+
+Return the peer's IP address and port number.
+
+The peer can also be obtained using pattern matching:
+
+[source,erlang]
+----
+#{peer := {IP, Port}} = Req.
+----
+
+// @todo So we need tests for accessing the Req directly.
+
+== Arguments
+
+Req::
+
+The Req object.
+
+== Return value
+
+The peer's IP address and port number.
+
+The peer is not necessarily the client's IP address and port.
+It is the IP address of the endpoint connecting directly to
+the server, which may be a gateway or a proxy.
+
+The forwarded header can be used to get better information
+about the different endpoints from the client to the server.
+Note however that it is only informative; there is no reliable
+way of determining the source of an HTTP request.
+
+== Changelog
+
+* *2.0*: Only the peer is returned, it is no longer wrapped in a tuple.
+* *1.0*: Function introduced.
+
+== Examples
+
+.Get the peer IP address and port number.
+[source,erlang]
+----
+{IP, Port} = cowboy_req:peer(Req).
+----
+
+== See also
+
+link:man:cowboy_req(3)[cowboy_req(3)]

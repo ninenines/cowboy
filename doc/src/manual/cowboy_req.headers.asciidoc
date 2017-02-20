@@ -1,0 +1,51 @@
+= cowboy_req:headers(3)
+
+== Name
+
+cowboy_req:headers - HTTP headers
+
+== Description
+
+[source,erlang]
+----
+headers(Req :: cowboy_req:req()) -> cowboy:http_headers()
+----
+
+Return all request headers.
+
+Request headers can also be obtained using pattern matching:
+
+[source,erlang]
+----
+#{headers := Headers} = Req.
+----
+
+== Arguments
+
+Req::
+
+The Req object.
+
+== Return value
+
+Headers are returned as a map with keys being lowercase
+binary strings, and values as binary strings.
+
+== Changelog
+
+* *2.0*: Only the headers are returned, they are no longer wrapped in a tuple.
+* *1.0*: Function introduced.
+
+== Examples
+
+.Get all headers
+[source,erlang]
+----
+Headers = cowboy_req:headers(Req).
+----
+
+== See also
+
+link:man:cowboy_req(3)[cowboy_req(3)],
+link:man:cowboy_req:header(3)[cowboy_req:header(3)],
+link:man:cowboy_req:parse_header(3)[cowboy_req:parse_header(3)]

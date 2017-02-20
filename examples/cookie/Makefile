@@ -1,15 +1,8 @@
 PROJECT = cookie
+PROJECT_DESCRIPTION = Cowboy Cookie example
+PROJECT_VERSION = 1
 
 DEPS = cowboy erlydtl
-dep_cowboy = pkg://cowboy master
-dep_erlydtl = pkg://erlydtl master
-
-.PHONY: release clean-release
-
-release: clean-release all
-	relx
-
-clean-release:
-	rm -rf _rel
+dep_cowboy_commit = master
 
 include ../../erlang.mk

@@ -1,26 +1,22 @@
 %% Feel free to use, reuse and abuse the code in this file.
 
 -module(ws_timeout_cancel).
--behaviour(cowboy_websocket_handler).
--export([init/3]).
--export([websocket_init/3, websocket_handle/3,
-	websocket_info/3, websocket_terminate/3]).
 
-init(_Any, _Req, _Opts) ->
-	{upgrade, protocol, cowboy_websocket}.
+-export([init/2]).
+-export([websocket_handle/2]).
+-export([websocket_info/2]).
 
-websocket_init(_TransportName, Req, _Opts) ->
+init(Req, _) ->
 	erlang:start_timer(500, self(), should_not_cancel_timer),
-	{ok, Req, undefined, 1000}.
+	{cowboy_websocket, Req, undefined, #{
+		idle_timeout => 1000
+	}}.
 
-websocket_handle({text, Data}, Req, State) ->
-	{reply, {text, Data}, Req, State};
-websocket_handle({binary, Data}, Req, State) ->
-	{reply, {binary, Data}, Req, State}.
+websocket_handle({text, Data}, State) ->
+	{reply, {text, Data}, State};
+websocket_handle({binary, Data}, State) ->
+	{reply, {binary, Data}, State}.
 
-websocket_info(_Info, Req, State) ->
+websocket_info(_Info, State) ->
 	erlang:start_timer(500, self(), should_not_cancel_timer),
-	{ok, Req, State}.
-
-websocket_terminate(_Reason, _Req, _State) ->
-	ok.
+	{ok, State}.

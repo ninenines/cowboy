@@ -1,0 +1,86 @@
+= cowboy_http(3)
+
+== Name
+
+cowboy_http - HTTP/1.1
+
+== Description
+
+The module `cowboy_http` implements HTTP/1.1 and HTTP/1.0
+as a Ranch protocol.
+
+== Options
+
+[source,erlang]
+----
+opts() :: #{
+    env                     := cowboy_middleware:env(),
+    max_empty_lines         := non_neg_integer(),
+    max_header_name_length  := non_neg_integer(),
+    max_header_value_length := non_neg_integer(),
+    max_headers             := non_neg_integer(),
+    max_keepalive           := non_neg_integer(),
+    max_method_length       := non_neg_integer(),
+    max_request_line_length := non_neg_integer(),
+    middlewares             := [module()],
+    request_timeout         := timeout()
+}
+----
+
+// @todo Document the shutdown option.
+
+Configuration for the HTTP/1.1 protocol.
+
+This configuration is passed to Cowboy when starting listeners
+using `cowboy:start_clear/4` or `cowboy:start_tls/4` functions.
+
+It can be updated without restarting listeners using the
+Ranch functions `ranch:get_protocol_options/1` and
+`ranch:set_protocol_options/2`.
+
+The default value is given next to the option name:
+
+env (#{})::
+    Middleware environment.
+
+max_empty_lines (5)::
+    Maximum number of empty lines before a request.
+
+max_header_name_length (64)::
+    Maximum length of header names.
+
+max_header_value_length (4096)::
+    Maximum length of header values.
+
+max_headers (100)::
+    Maximum number of headers allowed per request.
+
+max_keepalive (100)::
+    Maximum number of requests allowed per connection.
+
+max_request_line_length (8000)::
+    Maximum length of the request line.
+
+max_method_length (32)::
+    Maximum length of the method.
+
+middlewares ([cowboy_router, cowboy_handler])::
+    Middlewares to run for every request.
+
+request_timeout (5000)::
+    Time in ms with no requests before Cowboy closes the connection.
+
+== Changelog
+
+* *2.0*: The `max_method_length` option was added.
+* *2.0*: The `env` option is now a map instead of a proplist.
+* *2.0*: The `max_request_line_length` default was increased from 4096 to 8000.
+* *2.0*: The `compress` option was temporarily removed.
+* *2.0*: Options are now a map instead of a proplist.
+* *2.0*: Protocol introduced. Replaces `cowboy_protocol`.
+
+== See also
+
+link:man:cowboy(7)[cowboy(7)],
+link:man:cowboy_http2(3)[cowboy_http2(3)],
+link:man:cowboy_websocket(3)[cowboy_websocket(3)]

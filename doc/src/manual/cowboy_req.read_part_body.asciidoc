@@ -1,0 +1,100 @@
+= cowboy_req:read_part_body(3)
+
+== Name
+
+cowboy_req:read_part_body - Read the current part's body
+
+== Description
+
+[source,erlang]
+----
+read_part_body(Req :: cowboy_req:req())
+    -> read_part_body(Req, #{})
+
+read_part_body(Req :: cowboy_req:req(), Opts)
+    -> {ok,   Data :: binary(), Req}
+     | {more, Data :: binary(), Req}
+
+Opts :: cowboy_req:read_body_opts()
+----
+
+Read the body of the current part of the multipart message.
+
+This function reads the request body and parses it as
+multipart. Each parts of a multipart representation have
+their own headers and body. This function returns the
+body of the current part. Examples of multipart media types
+are `multipart/form-data` and `multipart/byteranges`.
+
+This function reads a chunk of the part's body. A `more` tuple
+is returned when more data remains to be read. Call the function
+repeatedly until an `ok` tuple is returned to read the entire body.
+
+Once a part has been read, it can not be read again.
+
+Once the body has been read, Cowboy sets the content-length
+header if it was not previously provided.
+
+// @todo Limit the maximum size of multipart headers.
+
+== Arguments
+
+Req::
+
+The Req object.
+
+Opts::
+
+A map of body reading options. Please refer to
+link:man:cowboy_req:read_body(3)[cowboy_req:read_body(3)]
+for details about each option.
++
+This function uses the same default options as the
+link:man:cowboy_req:read_body(3)[cowboy_req:read_body(3)]
+function.
+
+== Return value
+
+A `more` tuple is returned when there are more data to be read.
+
+An `ok` tuple is returned when there are no more data to be read.
+
+The data is always returned as a binary.
+
+The Req object returned in the tuple must be used for that point
+onward. It contains a more up to date representation of the request.
+For example it may have an added content-length header once the
+body has been read.
+
+== Changelog
+
+* *2.0*: Function introduced. Replaces `part_body/1,2`.
+
+== Examples
+
+.Read a full part's body
+[source,erlang]
+----
+stream_body(Req0, Acc) ->
+    case cowboy_req:read_part_body(Req0) of
+        {more, Data, Req} ->
+            stream_body(Req, << Acc/binary, Data/binary >>);
+        {ok, Data, Req} ->
+            {ok, << Acc/binary, Data/binary >>, Req}
+    end.
+----
+
+.Ensure a part's body is smaller than 64KB
+[source,erlang]
+----
+{ok, Body, Req} = cowboy_req:read_part_body(Req0, #{length => 64000}).
+----
+
+== See also
+
+link:man:cowboy_req(3)[cowboy_req(3)],
+link:man:cowboy_req:has_body(3)[cowboy_req:has_body(3)],
+link:man:cowboy_req:body_length(3)[cowboy_req:body_length(3)],
+link:man:cowboy_req:read_body(3)[cowboy_req:read_body(3)],
+link:man:cowboy_req:read_urlencoded_body(3)[cowboy_req:read_urlencoded_body(3)],
+link:man:cowboy_req:read_part(3)[cowboy_req:read_part(3)]

@@ -1,0 +1,268 @@
+[[ws_handlers]]
+== Websocket handlers
+
+Websocket handlers provide an interface for upgrading HTTP/1.1
+connections to Websocket and sending or receiving frames on
+the Websocket connection.
+
+As Websocket connections are established through the HTTP/1.1
+upgrade mechanism, Websocket handlers need to be able to first
+receive the HTTP request for the upgrade, before switching to
+Websocket and taking over the connection. They can then receive
+or send Websocket frames, handle incoming Erlang messages or
+close the connection.
+
+=== Upgrade
+
+The `init/2` callback is called when the request is received.
+To establish a Websocket connection, you must switch to the
+`cowboy_websocket` module:
+
+[source,erlang]
+----
+init(Req, State) ->
+    {cowboy_websocket, Req, State}.
+----
+
+Cowboy will perform the Websocket handshake immediately. Note
+that the handshake will fail if the client did not request an
+upgrade to Websocket.
+
+The Req object becomes unavailable after this function returns.
+Any information required for proper execution of the Websocket
+handler must be saved in the state.
+
+=== Subprotocol
+
+The client may provide a list of Websocket subprotocols it
+supports in the sec-websocket-protocol header. The server *must*
+select one of them and send it back to the client or the
+handshake will fail.
+
+For example, a client could understand both STOMP and MQTT over
+Websocket, and provide the header:
+
+----
+sec-websocket-protocol: v12.stomp, mqtt
+----
+
+If the server only understands MQTT it can return:
+
+----
+sec-websocket-protocol: mqtt
+----
+
+This selection must be done in `init/2`. An example usage could
+be:
+
+[source,erlang]
+----
+init(Req, State) ->
+    case cowboy_req:parse_header(<<"sec-websocket-protocol">>, Req) of
+        undefined ->
+            {cowboy_websocket, Req, State};
+        Subprotocols ->
+            case lists:keymember(<<"mqtt">>, 1, Subprotocols) of
+                true ->
+                    Req2 = cowboy_req:set_resp_header(<<"sec-websocket-protocol">>,
+                        <<"mqtt">>, Req),
+                    {cowboy_websocket, Req2, State};
+                false ->
+                    {stop, Req, State}
+            end
+    end.
+----
+
+=== Post-upgrade initialization
+
+Cowboy has separate processes for handling the connection
+and requests. Because Websocket takes over the connection,
+the Websocket protocol handling occurs in a different
+process than the request handling.
+
+This is reflected in the different callbacks Websocket
+handlers have. The `init/2` callback is called from the
+temporary request process and the `websocket_` callbacks
+from the connection process.
+
+This means that some initialization cannot be done from
+`init/2`. Anything that would require the current pid,
+or be tied to the current pid, will not work as intended.
+The optional `websocket_init/1` can be used instead:
+
+[source,erlang]
+----
+websocket_init(State) ->
+    erlang:start_timer(1000, self(), <<"Hello!">>),
+    {ok, State}.
+----
+
+All Websocket callbacks share the same return values. This
+means that we can send frames to the client right after
+the upgrade:
+
+[source,erlang]
+----
+websocket_init(State) ->
+    {reply, {text, <<"Hello!">>}, State}.
+----
+
+=== Receiving frames
+
+Cowboy will call `websocket_handle/2` whenever a text, binary,
+ping or pong frame arrives from the client.
+
+The handler can handle or ignore the frames. It can also
+send frames back to the client or stop the connection.
+
+The following snippet echoes back any text frame received and
+ignores all others:
+
+[source,erlang]
+----
+websocket_handle(Frame = {text, _}, State) ->
+    {reply, Frame, State};
+websocket_handle(_Frame, State) ->
+    {ok, State}.
+----
+
+Note that ping and pong frames require no action from the
+handler as Cowboy will automatically reply to ping frames.
+They are provided for informative purposes only.
+
+=== Receiving Erlang messages
+
+Cowboy will call `websocket_info/2` whenever an Erlang message
+arrives.
+
+The handler can handle or ignore the messages. It can also
+send frames to the client or stop the connection.
+
+The following snippet forwards log messages to the client
+and ignores all others:
+
+[source,erlang]
+----
+websocket_info({log, Text}, State) ->
+    {reply, {text, Text}, State};
+websocket_info(_Info, State) ->
+    {ok, State}.
+----
+
+=== Sending frames
+
+// @todo So yeah, reply makes no sense. Maybe change it to send. Sigh.
+
+All `websocket_` callbacks share return values. They may
+send zero, one or many frames to the client.
+
+To send nothing, just return an ok tuple:
+
+[source,erlang]
+----
+websocket_info(_Info, State) ->
+    {ok, State}.
+----
+
+To send one frame, return a reply tuple with the frame to send:
+
+[source,erlang]
+----
+websocket_info(_Info, State) ->
+    {reply, {text, <<"Hello!">>}, State}.
+----
+
+You can send frames of any type: text, binary, ping, pong
+or close frames.
+
+To send many frames at once, return a reply tuple with the
+list of frames to send:
+
+[source,erlang]
+----
+websocket_info(_Info, State) ->
+    {reply, [
+        {text, "Hello"},
+        {text, <<"world!">>},
+        {binary, <<0:8000>>}
+    ], State}.
+----
+
+They are sent in the given order.
+
+=== Keeping the connection alive
+
+Cowboy will automatically respond to ping frames sent by
+the client. They are still forwarded to the handler for
+informative purposes, but no further action is required.
+
+Cowboy does not send ping frames itself. The handler can
+do it if required. A better solution in most cases is to
+let the client handle pings. Doing it from the handler
+would imply having an additional timer per connection and
+this can be a considerable cost for servers that need to
+handle large numbers of connections.
+
+Cowboy can be configured to close idle connections
+automatically. It is highly recommended to configure
+a timeout here, to avoid having processes linger longer
+than needed.
+
+The `init/2` callback can set the timeout to be used
+for the connection. For example, this would make Cowboy
+close connections idle for more than 30 seconds:
+
+[source,erlang]
+----
+init(Req, State) ->
+    {cowboy_websocket, Req, State, #{
+        idle_timeout => 30000}}.
+----
+
+This value cannot be changed once it is set. It defaults to
+`infinity`.
+
+// @todo Perhaps the default should be changed.
+
+=== Saving memory
+
+The Websocket connection process can be set to hibernate
+after the callback returns.
+
+Simply add an `hibernate` field to the ok or reply tuples:
+
+[source,erlang]
+----
+websocket_init(State) ->
+    {ok, State, hibernate}.
+
+websocket_handle(_Frame, State) ->
+    {ok, State, hibernate}.
+
+websocket_info(_Info, State) ->
+    {reply, {text, <<"Hello!">>}, State, hibernate}.
+----
+
+It is highly recommended to write your handlers with
+hibernate enabled, as this allows to greatly reduce the
+memory usage. Do note however that an increase in the
+CPU usage or latency can be observed instead, in particular
+for the more busy connections.
+
+=== Closing the connection
+
+The connection can be closed at any time, either by telling
+Cowboy to stop it or by sending a close frame.
+
+To tell Cowboy to close the connection, use a stop tuple:
+
+[source,erlang]
+----
+websocket_info(_Info, State) ->
+    {stop, State}.
+----
+
+Sending a `close` frame will immediately initiate the closing
+of the Websocket connection. Note that when sending a list of
+frames that include a close frame, any frame found after the
+close frame will not be sent.

@@ -1,26 +1,33 @@
 -module(rest_resource_etags).
--export([init/3, generate_etag/2, content_types_provided/2, get_text_plain/2]).
 
-init(_Transport, _Req, _Opts) ->
-	{upgrade, protocol, cowboy_rest}.
+-export([init/2]).
+-export([generate_etag/2]).
+-export([content_types_provided/2]).
+-export([get_text_plain/2]).
+
+init(Req, Opts) ->
+	{cowboy_rest, Req, Opts}.
 
 generate_etag(Req, State) ->
-	case cowboy_req:qs_val(<<"type">>, Req) of
+	#{type := Type} = cowboy_req:match_qs([type], Req),
+	case Type of
 		%% Correct return values from generate_etag/2.
-		{<<"tuple-weak">>, Req2} ->
-			{{weak, <<"etag-header-value">>}, Req2, State};
-		{<<"tuple-strong">>, Req2} ->
-			{{strong, <<"etag-header-value">>}, Req2, State};
+		<<"tuple-weak">> ->
+			{{weak, <<"etag-header-value">>}, Req, State};
+		<<"tuple-strong">> ->
+			{{strong, <<"etag-header-value">>}, Req, State};
 		%% Backwards compatible return values from generate_etag/2.
-		{<<"binary-weak-quoted">>, Req2} ->
-			{<<"W/\"etag-header-value\"">>, Req2, State};
-		{<<"binary-strong-quoted">>, Req2} ->
-			{<<"\"etag-header-value\"">>, Req2, State};
+		<<"binary-weak-quoted">> ->
+			{<<"W/\"etag-header-value\"">>, Req, State};
+		<<"binary-strong-quoted">> ->
+			{<<"\"etag-header-value\"">>, Req, State};
 		%% Invalid return values from generate_etag/2.
-		{<<"binary-strong-unquoted">>, Req2} ->
-			{<<"etag-header-value">>, Req2, State};
-		{<<"binary-weak-unquoted">>, Req2} ->
-			{<<"W/etag-header-value">>, Req2, State}
+		<<"binary-strong-unquoted">> ->
+			ct_helper_error_h:ignore(cow_http_hd, parse_etag, 1),
+			{<<"etag-header-value">>, Req, State};
+		<<"binary-weak-unquoted">> ->
+			ct_helper_error_h:ignore(cow_http_hd, parse_etag, 1),
+			{<<"W/etag-header-value">>, Req, State}
 	end.
 
 content_types_provided(Req, State) ->

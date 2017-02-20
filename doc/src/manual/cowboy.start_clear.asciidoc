@@ -1,0 +1,127 @@
+= cowboy:start_clear(3)
+
+== Name
+
+cowboy:start_clear - Listen for connections using plain TCP
+
+== Description
+
+[source,erlang]
+----
+start_clear(Name          :: ranch:ref(),
+            NumAcceptors  :: non_neg_integer(),
+            TransportOpts :: ranch_tcp:opts(),
+            ProtocolOpts  :: opts())
+    -> {ok, ListenerPid :: pid()}
+     | {error, any()}
+----
+
+Start listening for connections over a clear TCP channel.
+
+Both HTTP/1.1 and HTTP/2 are supported on this listener.
+HTTP/2 has two methods of establishing a connection over
+a clear TCP channel. Both the upgrade and the prior knowledge
+methods are supported.
+
+== Arguments
+
+Name::
+
+The listener name is used to refer to this listener in
+future calls, for example when stopping it or when
+updating the routes defined.
++
+It can be any Erlang term. An atom is generally good enough,
+for example `api`, `my_app_clear` or `my_app_tls`.
+
+NumAcceptors::
+
+The number of acceptors is the number of processes that
+will accept connections. Tweak this value to improve the
+accept rate for incoming connections.
++
+The ideal value is between 10 and 100 on most systems.
+Larger values may have the opposite effect and reduce the
+accept rate. It's generally safe to start with a value of
+100 (or 10 on low memory systems). Then, when accept rates
+become a concern, measure the performance and update the
+value accordingly.
++
+This value is unrelated to the maximum number of concurrent
+connections.
+
+TransportOpts::
+
+The transport options are where the TCP options, including
+the listener's port number, are defined. Transport options
+are provided as a list of keys and values, for example
+`[{port, 8080}]`.
++
+The available options are documented in the
+link:man:ranch_tcp(3)[ranch_tcp(3)] manual.
+
+ProtocolOpts::
+
+The protocol options are in a map containing all the options for
+the different protocols that may be involved when connecting
+to the listener, including HTTP/1.1 and HTTP/2 but also
+subprotocols like Websocket.
+// @todo For Websocket this might change in the future.
++
+The HTTP/1.1 options are documented in the
+link:man:cowboy_http(3)[cowboy_http(3)] manual;
+the HTTP/2 options in
+link:man:cowboy_http2(3)[cowboy_http2(3)];
+and the Websocket options in
+link:man:cowboy_websocket(3)[cowboy_websocket(3)].
+
+== Return value
+
+An ok tuple is returned on success. It contains the pid of
+the top-level supervisor for the listener.
+
+An error tuple is returned on error. The error reason may
+be any Erlang term.
+
+A common error is `eaddrinuse`. It indicates that the port
+configured for Cowboy is already in use.
+
+== Changelog
+
+* *2.0*: HTTP/2 support added.
+* *2.0*: Function introduced. Replaces `cowboy:start_http/4`.
+
+== Examples
+
+.Start a listener
+[source,erlang]
+----
+Dispatch = cowboy_router:compile([
+    {'_', [
+        {"/", toppage_h, []}
+    ]}
+]),
+
+{ok, _} = cowboy:start_clear(example, 100, [{port, 8080}], #{
+    env => #{dispatch => Dispatch}
+}).
+----
+
+.Start a listener on a random port
+[source,erlang]
+----
+Name = example,
+
+{ok, _} = cowboy:start_clear(Name, 100, [], #{
+    env => #{dispatch => Dispatch}
+}),
+
+Port = ranch:get_port(Name).
+----
+
+== See also
+
+link:man:cowboy(3)[cowboy(3)],
+link:man:cowboy:start_tls(3)[cowboy:start_tls(3)],
+link:man:cowboy:stop_listener(3)[cowboy:stop_listener(3)],
+link:man:ranch(3)[ranch(3)]

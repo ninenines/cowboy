@@ -1,0 +1,51 @@
+= cowboy_http2(3)
+
+== Name
+
+cowboy_http2 - HTTP/2
+
+== Description
+
+The module `cowboy_http2` implements HTTP/2
+as a Ranch protocol.
+
+== Options
+
+[source,erlang]
+----
+opts() :: #{
+    env             := cowboy_middleware:env(),
+    middlewares     := [module()],
+    preface_timeout := timeout()
+}
+----
+
+Configuration for the HTTP/2 protocol.
+
+This configuration is passed to Cowboy when starting listeners
+using `cowboy:start_clear/4` or `cowboy:start_tls/4` functions.
+
+It can be updated without restarting listeners using the
+Ranch functions `ranch:get_protocol_options/1` and
+`ranch:set_protocol_options/2`.
+
+The default value is given next to the option name:
+
+env (#{})::
+    Middleware environment.
+
+middlewares ([cowboy_router, cowboy_handler])::
+    Middlewares to run for every request.
+
+preface_timeout (5000)::
+    Time in ms Cowboy is willing to wait for the connection preface.
+
+== Changelog
+
+* *2.0*: Protocol introduced.
+
+== See also
+
+link:man:cowboy(7)[cowboy(7)],
+link:man:cowboy_http(3)[cowboy_http(3)],
+link:man:cowboy_websocket(3)[cowboy_websocket(3)]

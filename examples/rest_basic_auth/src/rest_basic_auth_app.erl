@@ -16,9 +16,9 @@ start(_Type, _Args) ->
 			{"/", toppage_handler, []}
 		]}
 	]),
-	{ok, _} = cowboy:start_http(http, 100, [{port, 8080}], [
-		{env, [{dispatch, Dispatch}]}
-	]),
+	{ok, _} = cowboy:start_clear(http, 100, [{port, 8080}], #{
+		env => #{dispatch => Dispatch}
+	}),
 	rest_basic_auth_sup:start_link().
 
 stop(_State) ->

@@ -1,0 +1,101 @@
+[[handlers]]
+== Handlers
+
+Handlers are Erlang modules that handle HTTP requests.
+
+=== Plain HTTP handlers
+
+The most basic handler in Cowboy implements the mandatory
+`init/2` callback, manipulates the request, optionally
+sends a response and then returns.
+
+This callback receives the xref:req[Req object] and the initial
+state defined in the xref:routing[router configuration].
+
+A handler that does nothing would look like this:
+
+[source,erlang]
+----
+init(Req, State) ->
+    {ok, Req, State}.
+----
+
+Despite sending no reply, a `204 No Content` response will be
+sent to the client, as Cowboy makes sure that a response is
+sent for every request.
+
+We need to use the Req object to reply.
+
+[source,erlang]
+----
+init(Req0, State) ->
+    Req = cowboy_req:reply(200, #{
+        <<"content-type">> => <<"text/plain">>
+    }, <<"Hello World!">>, Req0),
+    {ok, Req, State}.
+----
+
+Cowboy will immediately send a response when `cowboy:reply/4`
+is called.
+
+We then return a 3-tuple. `ok` means that the handler ran
+successfully. We also give the modified Req back to Cowboy.
+
+The last value of the tuple is a state that will be used
+in every subsequent callbacks to this handler. Plain HTTP
+handlers only have one additional callback, the optional
+and rarely used `terminate/3`.
+
+=== Other handlers
+
+The `init/2` callback can also be used to inform Cowboy
+that this is a different kind of handler and that Cowboy
+should switch to it. To do this you simply need to return
+the module name of the handler type you want to switch to.
+
+Cowboy comes with three handler types you can switch to:
+xref:rest_handlers[cowboy_rest], xref:ws_handlers[cowboy_websocket]
+and xref:loop_handlers[cowboy_loop]. In addition to those you
+can define your own handler types.
+
+Switching is simple. Instead of returning `ok`, you simply
+return the name of the handler type you want to use. The
+following snippet switches to a Websocket handler:
+
+[source,erlang]
+----
+init(Req, State) ->
+    {cowboy_websocket, Req, State}.
+----
+
+You can also switch to your own custom handler type:
+
+[source,erlang]
+----
+init(Req, State) ->
+    {my_handler_type, Req, State}.
+----
+
+How to implement a custom handler type is described in the
+xref:sub_protocols[Sub protocols] chapter.
+
+=== Cleaning up
+
+All handler types provide the optional `terminate/3` callback.
+
+[source,erlang]
+----
+terminate(_Reason, _Req, _State) ->
+    ok.
+----
+
+This callback is strictly reserved for any required cleanup.
+You cannot send a response from this function. There is no
+other return value.
+
+This callback is optional because it is rarely necessary.
+Cleanup should be done in separate processes directly (by
+monitoring the handler process to detect when it exits).
+
+Cowboy does not reuse processes for different requests. The
+process will terminate soon after this call returns.

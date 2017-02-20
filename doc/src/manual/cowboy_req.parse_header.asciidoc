@@ -1,0 +1,229 @@
+= cowboy_req:parse_header(3)
+
+== Name
+
+cowboy_req:parse_header - Parse the given HTTP header
+
+== Description
+
+[source,erlang]
+----
+parse_header(Name, Req)          -> ParsedValue | Default
+parse_header(Name, Req, Default) -> ParsedValue | Default
+
+Name        :: binary()
+Req         :: cowboy_req:req()
+ParsedValue :: any()
+Default     :: any()
+----
+
+Parse the given HTTP header.
+
+The header name must be given as a lowercase binary string.
+While header names are case insensitive, Cowboy requires them
+to be given as lowercase to function properly.
+
+The type of the parsed value varies depending on
+the header. Similarly, the default value when calling
+`cowboy_req:parse_header/2` differs depending on the
+header.
+
+== Arguments
+
+Name::
+
+Desired HTTP header name as a lowercase binary string.
+
+Req::
+
+The Req object.
+
+Default::
+
+Default value returned when the header is missing.
+
+== Return value
+
+The parsed header value varies depending on the header.
+When the header is missing, the default argument is returned.
+
+== Headers
+
+The following snippets detail the types returned by the
+different headers. Unless mentioned otherwise, the
+default value when the header is missing will be `undefined`:
+
+.accept
+[source,erlang]
+----
+parse_header(<<"accept">>, Req)
+    -> [{{Type, SubType, Params}, Quality, AcceptExt}]
+
+Type      :: binary()               %% case insensitive
+SubType   :: binary()               %% case insensitive
+Params    :: [{Key, Value}]
+Quality   :: 0..1000
+AcceptExt :: [Key | {Key, Value}]
+Key       :: binary()               %% case insensitive
+Value     :: binary()               %% case sensitive
+----
+
+.accept-charset, accept-encoding and accept-language
+[source,erlang]
+----
+parse_header(Name, Req) -> [{Value, Quality}]
+
+Name    :: <<"accept-charset">>
+         | <<"accept-encoding">>
+         | <<"accept-language">>
+Value   :: binary()                 %% case insensitive
+Quality :: 0..1000
+----
+
+.authorization
+[source,erlang]
+----
+parse_header(<<"authorization">>, Req)
+    -> {basic, Username :: binary(), Password :: binary()}
+     | {bearer, Token :: binary()}
+     | {digest, [{Key :: binary(), Value :: binary()}]}
+----
+
+// @todo Currently also parses connection. Do we want this? Should it be documented? Use case?
+
+.content-length
+[source,erlang]
+----
+parse_header(<<"content-length">>, Req) -> non_neg_integer()
+----
+
+When the content-length header is missing, `0` is returned.
+
+.content-type
+[source,erlang]
+----
+parse_header(<<"content-type">>, Req)
+    -> {Type, SubType, Params}
+
+Type      :: binary()               %% case insensitive
+SubType   :: binary()               %% case insensitive
+Params    :: [{Key, Value}]
+Key       :: binary()               %% case insensitive
+Value     :: binary()               %% case sensitive;
+----
+
+Note that the value for the charset parameter is case insensitive
+and returned as a lowercase binary string.
+
+.cookie
+[source,erlang]
+----
+parse_header(<<"cookie">>, Req) -> [{Name, Value}]
+
+Name  :: binary()                   %% case sensitive
+Value :: binary()                   %% case sensitive
+----
+
+When the cookie header is missing, `[]` is returned.
+
+While an empty cookie header is not valid, some clients do
+send it. Cowboy will in this case also return `[]`.
+
+.expect
+[source,erlang]
+----
+parse_header(<<"expect">>, Req) -> continue
+----
+
+.if-match and if-none-match
+[source,erlang]
+----
+parse_header(Name, Req)
+    -> '*' | [{weak | strong, OpaqueTag}]
+
+Name      :: <<"if-match">>
+           | <<"if-none-match">>
+OpaqueTag :: binary()               %% case sensitive
+----
+
+.if-modified-since and if-unmodified-since
+[source,erlang]
+----
+parse_header(Name, Req) -> calendar:datetime()
+----
+
+.range
+[source,erlang]
+----
+parse_header(<<"range">>, Req) -> {From, To} | Final
+
+From  :: non_neg_integer()
+To    :: non_neg_integer() | infinity
+Final :: neg_integer()
+----
+
+// @todo Remove transfer-encoding from the headers parsed by this function.
+
+.sec-websocket-extensions
+[source,erlang]
+----
+parse_header(<<"sec-websocket-extensions">>, Req)
+    -> [{Extension, Params}]
+
+Extension :: binary()               %% case sensitive
+Params    :: [Key | {Key, Value}]
+Key       :: binary()               %% case sensitive
+Value     :: binary()               %% case sensitive
+----
+
+.sec-websocket-protocol and upgrade
+[source,erlang]
+----
+parse_header(Name, Req) -> [Token]
+
+Name  :: <<"sec-websocket-protocol">>
+       | <<"upgrade">>
+Token :: binary()                   %% case insensitive
+----
+
+.x-forwarded-for
+[source,erlang]
+----
+parse_header(<<"x-forwarded-for">>, Req) -> [Token]
+
+Token :: binary()                   %% case sensitive
+----
+
+.Unknown headers
+[source,erlang]
+----
+parse_header(_, Req) -> {undefined, RawValue}
+----
+
+== Changelog
+
+* *2.0*: Only the parsed header value is returned, it is no longer wrapped in a tuple.
+* *1.0*: Function introduced.
+
+== Examples
+
+.Parse the accept header with a custom default value
+[source,erlang]
+----
+%% Accept everything when header is missing.
+Accept = cowboy_req:parse_header(<<"accept">>, Req,
+    [{{ <<"*">>, <<"*">>, []}, 1000, []}]).
+----
+
+.Parse the content-length header
+[source,erlang]
+----
+%% Default content-length is 0.
+Length = cowboy_req:header(<<"content-length">>, Req).
+----
+
+== See also
+
+link:man:cowboy_req(3)[cowboy_req(3)],
+link:man:cowboy_req:header(3)[cowboy_req:header(3)],
+link:man:cowboy_req:headers(3)[cowboy_req:headers(3)]

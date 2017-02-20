@@ -1,0 +1,55 @@
+= cowboy_req:parse_cookies(3)
+
+== Name
+
+cowboy_req:parse_cookies - Parse cookie headers
+
+== Description
+
+[source,erlang]
+----
+parse_cookies(Req) -> [{Name, Value}]
+
+Name  :: binary() %% case sensitive
+Value :: binary() %% case sensitive
+----
+
+Parse cookie headers.
+
+Alias for link:man:cowboy_req:parse_header(3)[cowboy_req:parse_header(<<"cookie">>, Req)].
+
+When the cookie header is missing, `[]` is returned.
+
+While an empty cookie header is not valid, some clients do
+send it. Cowboy will in this case also return `[]`.
+
+== Arguments
+
+Req::
+
+The Req object.
+
+== Return value
+
+The cookies are returned as a list of key/values. Keys and
+values are case sensitive binary strings.
+
+== Changelog
+
+* *2.0*: Only the parsed header value is returned, it is no longer wrapped in a tuple.
+* *2.0*: Function introduced. Replaces `cookie/2,3` and `cookies/1`.
+
+== Examples
+
+.Look for a specific cookie
+[source,erlang]
+----
+Cookies = cowboy_req:parse_cookies(Req),
+{_, Token} = lists:keyfind(token, 1, Cookies).
+----
+
+== See also
+
+link:man:cowboy_req(3)[cowboy_req(3)],
+link:man:cowboy_req:parse_header(3)[cowboy_req:parse_header(3)],
+link:man:cowboy_req:match_cookies(3)[cowboy_req:match_cookies(3)]

@@ -1,0 +1,117 @@
+= cowboy_req:reply(3)
+
+== Name
+
+cowboy_req:reply - Send the response
+
+== Description
+
+[source,erlang]
+----
+reply(Status, Req :: cowboy_req:req())
+    -> reply(StatusCode, #{}, Req)
+
+reply(Status, Headers, Req :: cowboy_req:req())
+    -> Req
+
+reply(Status, Headers, Body, Req :: cowboy_req:req())
+    -> Req
+
+Status  :: cowboy:http_status()
+Headers :: cowboy:http_headers()
+Body    :: cowboy_req:resp_body()
+----
+
+Send the response.
+
+The header names must be given as lowercase binary strings.
+While header names are case insensitive, Cowboy requires them
+to be given as lowercase to function properly.
+
+Cowboy does not allow duplicate header names. Headers set
+by this function may overwrite those set by `set_resp_header/3`
+and `set_resp_headers/2`.
+
+Use link:man:cowboy_req:set_resp_cookie(3)[cowboy_req:set_resp_cookie(3)]
+instead of this function to set cookies.
+
+The `reply/2,3` functions will send the body set previously,
+if any. The `reply/4` function always sends the given body,
+overriding any previously set.
+
+You do not need to set the content-length header when
+sending a response body. Cowboy takes care of it automatically.
+You should however provide a content-type header.
+
+No further data can be transmitted after this function
+returns. This includes the push mechanism. Attempting to
+send two replies, or to push resources after a reply has
+been sent, will result in an error.
+
+== Arguments
+
+Status::
+
+The status code for the response.
+
+Headers::
+
+The response headers.
+
+Header names must be given as lowercase binary strings.
+
+Body::
+
+The body can be either a binary value, an iolist or a
+`sendfile` tuple telling Cowboy to send the contents of
+a file.
+
+Req::
+
+The Req object.
+
+== Return value
+
+A new Req object is returned.
+
+The returned Req object should be used from that point onward
+as it contains updated information about the state of the request.
+
+== Changelog
+
+* *2.0*: Only the Req is returned, it is no longer wrapped in a tuple.
+* *1.0*: Function introduced.
+
+== Examples
+
+.Reply
+[source,erlang]
+----
+Req = cowboy_req:reply(404, Req0).
+----
+
+.Reply with custom headers
+[source,erlang]
+----
+Req = cowboy_req:reply(401, #{
+    <<"www-authenticate">> => <<"Basic realm=\"erlang.org\"">>
+}, Req0).
+----
+
+.Reply with custom headers and a body
+[source,erlang]
+----
+Req = cowboy_req:reply(200, #{
+    <<"content-type">> => <<"text/plain">>
+}, "Hello world!", Req0).
+----
+
+== See also
+
+link:man:cowboy_req(3)[cowboy_req(3)],
+link:man:cowboy_req:set_resp_cookie(3)[cowboy_req:set_resp_cookie(3)],
+link:man:cowboy_req:set_resp_header(3)[cowboy_req:set_resp_header(3)],
+link:man:cowboy_req:set_resp_headers(3)[cowboy_req:set_resp_headers(3)],
+link:man:cowboy_req:set_resp_body(3)[cowboy_req:set_resp_body(3)],
+link:man:cowboy_req:stream_reply(3)[cowboy_req:stream_reply(3)],
+link:man:cowboy_req:push(3)[cowboy_req:push(3)]

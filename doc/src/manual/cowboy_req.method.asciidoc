@@ -1,0 +1,60 @@
+= cowboy_req:method(3)
+
+== Name
+
+cowboy_req:method - HTTP method
+
+== Description
+
+[source,erlang]
+----
+method(Req :: cowboy_req:req()) -> Method :: binary()
+----
+
+Return the request's HTTP method.
+
+The method can also be obtained using pattern matching:
+
+[source,erlang]
+----
+#{method := Method} = Req.
+----
+
+== Arguments
+
+Req::
+
+The Req object.
+
+== Return value
+
+The request's HTTP method is returned as a binary string.
+While methods are case sensitive, standard methods are
+always uppercase.
+
+== Changelog
+
+* *2.0*: Only the method is returned, it is no longer wrapped in a tuple.
+* *1.0*: Function introduced.
+
+== Examples
+
+.Ensure the request's method is GET
+[source,erlang]
+----
+<<"GET">> = cowboy_req:method(Req).
+----
+
+.Allow methods from list
+[source,erlang]
+----
+init(Req, State) ->
+    case lists:member(cowboy_req:method(Req), [<<"GET">>, <<"POST">>]) of
+        true -> handle(Req, State);
+        false -> method_not_allowed(Req, State)
+    end.
+----
+
+== See also
+
+link:man:cowboy_req(3)[cowboy_req(3)]
