@@ -3,14 +3,18 @@
 %% @doc Hello world handler.
 -module(toppage_handler).
 
--export([init/2]).
+-export([init/3]).
+-export([rest_init/2]).
 -export([content_types_provided/2]).
 -export([hello_to_html/2]).
 -export([hello_to_json/2]).
 -export([hello_to_text/2]).
 
-init(Req, Opts) ->
-	{cowboy_rest, Req, Opts}.
+init(_Transport, _Req, _Init) ->
+    {upgrade, protocol, cowboy_rest}.
+
+rest_init(Req, _Opts) ->
+    {ok, Req, undefined_state}.
 
 content_types_provided(Req, State) ->
 	{[
