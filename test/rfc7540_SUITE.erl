@@ -44,7 +44,8 @@ end_per_group(Name, _) ->
 
 init_routes(_) -> [
 	{"localhost", [
-		{"/", hello_h, []}
+		{"/", hello_h, []},
+		{"/echo/:key", echo_h, []}
 	]}
 ].
 
@@ -773,12 +774,10 @@ prior_knowledge_client_preface_settings_ack_timeout(Config) ->
 	{ok, << _:24, 7:8, _:72, 4:32 >>} = gen_tcp:recv(Socket, 17, 6000),
 	ok.
 
-prior_knowledge(Config) ->
-	doc("Streams can be initiated after a successful HTTP/2 connection "
-		"with prior knowledge of server capabilities. (RFC7540 3.4)"),
+%% Do a prior knowledge handshake.
+do_handshake(Config) ->
 	{ok, Socket} = gen_tcp:connect("localhost", config(port, Config), [binary, {active, false}]),
 	%% Send a valid preface.
-	%% @todo Use non-empty SETTINGS here. Just because.
 	ok = gen_tcp:send(Socket, ["PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n", cow_http2:settings(#{})]),
 	%% Receive the server preface.
 	{ok, << Len:24 >>} = gen_tcp:recv(Socket, 3, 1000),
@@ -787,6 +786,13 @@ prior_knowledge(Config) ->
 	ok = gen_tcp:send(Socket, cow_http2:settings_ack()),
 	%% Receive the SETTINGS ack.
 	{ok, << 0:24, 4:8, 1:8, 0:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+	{ok, Socket}.
+
+prior_knowledge(Config) ->
+	doc("Streams can be initiated after a successful HTTP/2 connection "
+		"with prior knowledge of server capabilities. (RFC7540 3.4)"),
+	%% @todo Use non-empty SETTINGS here. Just because.
+	{ok, Socket} = do_handshake(Config),
 	%% Wait until after the SETTINGS ack timeout was supposed to trigger.
 	receive after 6000 -> ok end,
 	%% Send a PING.
@@ -802,3 +808,414 @@ prior_knowledge(Config) ->
 %%   without waiting for the 101 response (3.2, 3.5)
 %% * Prior knowledge handshake fails (3.4)
 %% * ALPN selects HTTP/1.1 (3.3)
+
+%% Frame size.
+
+max_frame_size_allow_exactly_default(Config) ->
+	doc("All implementations must allow frame sizes of at least 16384. (RFC7540 4.1, RFC7540 4.2)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a POST request with a DATA frame of exactly 16384 bytes.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"POST">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/echo/read_body">>}
+	]),
+	ok = gen_tcp:send(Socket, [
+		cow_http2:headers(1, nofin, HeadersBlock),
+		cow_http2:data(1, fin, << 0:16384/unit:8 >>)
+	]),
+	%% Receive a response with the same DATA frame.
+	{ok, << SkipLen:24, 1:8, _:8, 1:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+	{ok, _} = gen_tcp:recv(Socket, SkipLen, 1000),
+	{ok, << 16384:24, 0:8, 1:8, 1:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+	{ok, << 0:16384/unit:8 >>} = gen_tcp:recv(Socket, 16384, 1000),
+	ok.
+
+max_frame_size_reject_larger_than_default(Config) ->
+	doc("A FRAME_SIZE_ERROR connection error must be sent when receiving "
+		"frames larger than the default 16384 length. (RFC7540 4.1, RFC7540 4.2)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a POST request with a DATA frame larger than 16384 bytes.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"POST">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/echo/read_body">>}
+	]),
+	ok = gen_tcp:send(Socket, [
+		cow_http2:headers(1, nofin, HeadersBlock),
+		cow_http2:data(1, fin, << 0:16385/unit:8 >>)
+	]),
+	%% Receive a FRAME_SIZE_ERROR connection error.
+	{ok, << _:24, 7:8, _:72, 6:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+%% @todo We need configurable SETTINGS in Cowboy for these tests.
+%%	max_frame_size_config_reject_too_small(Config) ->
+%%		doc("SETTINGS_MAX_FRAME_SIZE configuration values smaller than "
+%%			"16384 must be rejected. (RFC7540 6.5.2)"),
+%%		%% @todo This requires us to have a configurable SETTINGS in Cowboy.
+%%		todo.
+%%
+%%	max_frame_size_config_reject_too_large(Config) ->
+%%		doc("SETTINGS_MAX_FRAME_SIZE configuration values larger than "
+%%			"16777215 must be rejected. (RFC7540 6.5.2)"),
+%%		%% @todo This requires us to have a configurable SETTINGS in Cowboy.
+%%		todo.
+%%
+%%	max_frame_size_allow_exactly_custom(Config) ->
+%%		doc("An endpoint that sets SETTINGS_MAX_FRAME_SIZE must allow frames "
+%%			"of up to that size. (RFC7540 4.2, RFC7540 6.5.2)"),
+%%		%% @todo This requires us to have a configurable SETTINGS in Cowboy.
+%%		todo.
+%%
+%%	max_frame_size_reject_larger_than_custom(Config) ->
+%%		doc("An endpoint that sets SETTINGS_MAX_FRAME_SIZE must reject frames "
+%%			"of up to that size with a FRAME_SIZE_ERROR connection error. (RFC7540 4.2, RFC7540 6.5.2)"),
+%%		%% @todo This requires us to have a configurable SETTINGS in Cowboy.
+%%		todo.
+
+%% @todo How do I test this?
+%%
+%%	max_frame_size_client_default_respect_limits(Config) ->
+%%		doc("The server must not send frame sizes of more "
+%%			"than 16384 by default. (RFC7540 4.1, RFC7540 4.2)"),
+
+%% This is about the client sending a SETTINGS frame.
+max_frame_size_client_override_reject_too_small(Config) ->
+	doc("A SETTINGS_MAX_FRAME_SIZE smaller than 16384 must be rejected "
+		"with a PROTOCOL_ERROR connection error. (RFC7540 6.5.2)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a SETTINGS frame with a SETTINGS_MAX_FRAME_SIZE lower than 16384.
+	ok = gen_tcp:send(Socket, << 6:24, 4:8, 0:40, 5:16, 16383:32 >>),
+	%% Receive a PROTOCOL_ERROR connection error.
+	{ok, << _:24, 7:8, _:72, 1:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+%% This is about the client sending a SETTINGS frame.
+max_frame_size_client_override_reject_too_large(Config) ->
+	doc("A SETTINGS_MAX_FRAME_SIZE larger than 16777215 must be rejected "
+		"with a PROTOCOL_ERROR connection error. (RFC7540 6.5.2)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a SETTINGS frame with a SETTINGS_MAX_FRAME_SIZE larger than 16777215.
+	ok = gen_tcp:send(Socket, << 6:24, 4:8, 0:40, 5:16, 16777216:32 >>),
+	%% Receive a PROTOCOL_ERROR connection error.
+	{ok, << _:24, 7:8, _:72, 1:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+%% @todo How do I test this?
+%%
+%%	max_frame_size_client_custom_respect_limits(Config) ->
+%%		doc("The server must not send frame sizes of more than "
+%%			"client's advertised limits. (RFC7540 4.1, RFC7540 4.2)"),
+
+%% I am using FRAME_SIZE_ERROR here because the information in the
+%% frame header tells us this frame is at least 1 byte long, while
+%% the given length is smaller; i.e. it is too small to contain
+%% mandatory frame data (the pad length).
+
+data_reject_frame_size_0_padded_flag(Config) ->
+	doc("DATA frames of size 0 with the PADDED flag set must be rejected "
+		"with a FRAME_SIZE_ERROR connection error. (RFC7540 4.2, RFC7540 6.1)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a POST request with an incorrect padded DATA frame size.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"POST">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/echo/read_body">>}
+	]),
+	ok = gen_tcp:send(Socket, [
+		cow_http2:headers(1, nofin, HeadersBlock),
+		<< 0:24, 0:8, 0:4, 1:1, 0:2, 1:1, 0:1, 1:31 >>
+	]),
+	%% Receive a FRAME_SIZE_ERROR connection error.
+	{ok, << _:24, 7:8, _:72, 6:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+%% This case on the other hand is noted specifically in the RFC
+%% as being a PROTOCOL_ERROR. It can be thought of as the Pad Length
+%% being incorrect, rather than the frame size.
+
+data_reject_frame_size_too_small_padded_flag(Config) ->
+	doc("DATA frames with Pad Length >= Length must be rejected "
+		"with a PROTOCOL_ERROR connection error. (RFC7540 6.1)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a POST request with an incorrect padded DATA frame size.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"POST">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/echo/read_body">>}
+	]),
+	ok = gen_tcp:send(Socket, [
+		cow_http2:headers(1, nofin, HeadersBlock),
+		<< 10:24, 0:8, 0:4, 1:1, 0:2, 1:1, 0:1, 1:31, 10:8, 0:80  >>
+	]),
+	%% Receive a PROTOCOL_ERROR connection error.
+	{ok, << _:24, 7:8, _:72, 1:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+headers_reject_frame_size_0_padded_flag(Config) ->
+	doc("HEADERS frames of size 0 with the PADDED flag set must be rejected "
+		"with a FRAME_SIZE_ERROR connection error. (RFC7540 4.2, RFC7540 6.2)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a padded HEADERS frame with an incorrect size.
+	ok = gen_tcp:send(Socket, << 0:24, 1:8, 0:4, 1:1, 0:2, 1:1, 0:1, 1:31 >>),
+	%% Receive a FRAME_SIZE_ERROR connection error.
+	{ok, << _:24, 7:8, _:72, 6:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+headers_reject_frame_size_too_small_padded_flag(Config) ->
+	doc("HEADERS frames with no priority flag and Pad Length >= Length "
+		"must be rejected with a PROTOCOL_ERROR connection error. (RFC7540 6.2)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a padded HEADERS frame with an incorrect size.
+	ok = gen_tcp:send(Socket, << 10:24, 1:8, 0:4, 1:1, 0:2, 1:1, 0:1, 1:31, 10:8, 0:80 >>),
+	%% Receive a PROTOCOL_ERROR connection error.
+	{ok, << _:24, 7:8, _:72, 1:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+headers_reject_frame_size_too_small_priority_flag(Config) ->
+	doc("HEADERS frames of size smaller than 5 with the PRIORITY flag set must be rejected "
+		"with a FRAME_SIZE_ERROR connection error. (RFC7540 4.2, RFC7540 6.2)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame with priority set and an incorrect size.
+	ok = gen_tcp:send(Socket, << 4:24, 1:8,
+		0:2, 1:1, 0:4, 1:1, 0:1, 1:31, 0:1, 3:31, 0:8 >>),
+	%% Receive a FRAME_SIZE_ERROR connection error.
+	{ok, << _:24, 7:8, _:72, 6:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+headers_reject_frame_size_5_padded_and_priority_flags(Config) ->
+	doc("HEADERS frames of size smaller than 6 with the PADDED "
+		"and PRIORITY flags set must be rejected "
+		"with a FRAME_SIZE_ERROR connection error. (RFC7540 4.2, RFC7540 6.2)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a padded HEADERS frame with an incorrect size.
+	ok = gen_tcp:send(Socket, << 5:24, 1:8,
+		0:2, 1:1, 0:1, 1:1, 0:2, 1:1, 0:1, 1:31, 0:8, 0:1, 3:31, 0:8 >>),
+	%% Receive a FRAME_SIZE_ERROR connection error.
+	{ok, << _:24, 7:8, _:72, 6:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+headers_reject_frame_size_too_small_padded_and_priority_flags(Config) ->
+	doc("HEADERS frames of size smaller than Length+6 with the PADDED and PRIORITY flags set "
+		"must be rejected with a FRAME_SIZE_ERROR connection error. (RFC7540 4.2, RFC7540 6.2)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a padded HEADERS frame with an incorrect size.
+	ok = gen_tcp:send(Socket, << 15:24, 1:8,
+		0:2, 1:1, 0:1, 1:1, 0:2, 1:1, 0:1, 1:31, 10:8, 0:1, 3:31, 0:8, 0:80 >>),
+	%% Receive a PROTOCOL_ERROR connection error.
+	{ok, << _:24, 7:8, _:72, 1:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+priority_reject_frame_size_too_small(Config) ->
+	doc("PRIORITY frames of size smaller than 5 must be rejected "
+		"with a FRAME_SIZE_ERROR connection error. (RFC7540 4.2, RFC7540 6.3)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a PRIORITY frame with an incorrect size.
+	ok = gen_tcp:send(Socket, << 4:24, 2:8, 0:9, 1:31, 0:1, 3:31, 0:8 >>),
+	%% Receive a FRAME_SIZE_ERROR stream error.
+	{ok, << _:24, 3:8, _:40, 6:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+	ok.
+
+priority_reject_frame_size_too_large(Config) ->
+	doc("PRIORITY frames of size larger than 5 must be rejected "
+		"with a FRAME_SIZE_ERROR connection error. (RFC7540 4.2, RFC7540 6.3)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a PRIORITY frame with an incorrect size.
+	ok = gen_tcp:send(Socket, << 6:24, 2:8, 0:9, 1:31, 0:1, 3:31, 0:16 >>),
+	%% Receive a FRAME_SIZE_ERROR stream error.
+	{ok, << _:24, 3:8, _:40, 6:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+	ok.
+
+rst_stream_reject_frame_size_too_small(Config) ->
+	doc("RST_STREAM frames of size smaller than 4 must be rejected "
+		"with a FRAME_SIZE_ERROR connection error. (RFC7540 4.2, RFC7540 6.4)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a request and reset it immediately.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>}
+	]),
+	ok = gen_tcp:send(Socket, [
+		cow_http2:headers(1, fin, HeadersBlock),
+		<< 3:24, 3:8, 0:9, 1:31, 8:32 >>
+	]),
+	%% Receive a FRAME_SIZE_ERROR connection error.
+	{ok, << _:24, 7:8, _:72, 6:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+rst_stream_reject_frame_size_too_large(Config) ->
+	doc("RST_STREAM frames of size larger than 4 must be rejected "
+		"with a FRAME_SIZE_ERROR connection error. (RFC7540 4.2, RFC7540 6.4)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a request and reset it immediately.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>}
+	]),
+	ok = gen_tcp:send(Socket, [
+		cow_http2:headers(1, fin, HeadersBlock),
+		<< 5:24, 3:8, 0:9, 1:31, 8:32 >>
+	]),
+	%% Receive a FRAME_SIZE_ERROR connection error.
+	{ok, << _:24, 7:8, _:72, 6:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+settings_reject_bad_frame_size(Config) ->
+	doc("SETTINGS frames must have a size multiple of 6 or be rejected "
+		"with a FRAME_SIZE_ERROR connection error. (RFC7540 4.2, RFC7540 6.5)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a SETTINGS frame with an incorrect size.
+	ok = gen_tcp:send(Socket, << 5:24, 4:8, 0:40, 1:16, 4096:32 >>),
+	%% Receive a FRAME_SIZE_ERROR connection error.
+	{ok, << _:24, 7:8, _:72, 6:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+settings_ack_reject_non_empty_frame_size(Config) ->
+	doc("SETTINGS frames with the ACK flag set and a non-empty payload "
+		"must be rejected with a FRAME_SIZE_ERROR connection error (RFC7540 4.2, RFC7540 6.5)"),
+	{ok, Socket} = gen_tcp:connect("localhost", config(port, Config), [binary, {active, false}]),
+	%% Send a valid preface.
+	ok = gen_tcp:send(Socket, ["PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n", cow_http2:settings(#{})]),
+	%% Receive the server preface.
+	{ok, << Len:24 >>} = gen_tcp:recv(Socket, 3, 1000),
+	{ok, << 4:8, 0:40, _:Len/binary >>} = gen_tcp:recv(Socket, 6 + Len, 1000),
+	%% Send a SETTINGS ack with a payload.
+	ok = gen_tcp:send(Socket, << 6:24, 4:8, 0:7, 1:1, 0:32, 1:16, 4096:32 >>),
+	%% Receive the SETTINGS ack.
+	{ok, << 0:24, 4:8, 1:8, 0:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+	%% Receive a FRAME_SIZE_ERROR connection error.
+	{ok, << _:24, 7:8, _:72, 6:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+%% Note that clients are not supposed to send PUSH_PROMISE frames.
+%% However when they do, we need to be able to parse it in order
+%% to reject it, and so these errors may still occur.
+
+push_promise_reject_frame_size_too_small(Config) ->
+	doc("PUSH_PROMISE frames of size smaller than 4 must be rejected "
+		"with a FRAME_SIZE_ERROR connection error. (RFC7540 4.2, RFC7540 6.6)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a PUSH_PROMISE frame with an incorrect size.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>}
+	]),
+	ok = gen_tcp:send(Socket, [
+		<< 3:24, 5:8, 0:5, 1:1, 0:3, 1:31, 0:1, 3:31 >>,
+		HeadersBlock
+	]),
+	%% Receive a FRAME_SIZE_ERROR connection error.
+	{ok, << _:24, 7:8, _:72, 6:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+push_promise_reject_frame_size_4_padded_flag(Config) ->
+	doc("PUSH_PROMISE frames of size smaller than 5 with the PADDED flag set must be rejected "
+		"with a FRAME_SIZE_ERROR connection error. (RFC7540 4.2, RFC7540 6.6)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a PUSH_PROMISE frame with an incorrect size.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>}
+	]),
+	ok = gen_tcp:send(Socket, [
+		<< 4:24, 5:8, 0:4, 1:1, 1:1, 0:3, 1:31, 0:1, 0:8, 3:31 >>,
+		HeadersBlock
+	]),
+	%% Receive a FRAME_SIZE_ERROR connection error.
+	{ok, << _:24, 7:8, _:72, 6:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+push_promise_reject_frame_size_too_small_padded_flag(Config) ->
+	doc("PUSH_PROMISE frames of size smaller than Length+5 with the PADDED flag set "
+		"must be rejected with a PROTOCOL_ERROR connection error. (RFC7540 4.2, RFC7540 6.6)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a PUSH_PROMISE frame with an incorrect size.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>}
+	]),
+	ok = gen_tcp:send(Socket, [
+		<< 14:24, 5:8, 0:4, 1:1, 1:1, 0:3, 1:31, 10:8, 0:1, 3:31 >>,
+		HeadersBlock,
+		<< 0:80 >>
+	]),
+	%% Receive a PROTOCOL_ERROR connection error.
+	{ok, << _:24, 7:8, _:72, 1:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+ping_reject_frame_size_too_small(Config) ->
+	doc("PING frames of size smaller than 8 must be rejected "
+		"with a FRAME_SIZE_ERROR connection error. (RFC7540 4.2, RFC7540 6.7)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a PING frame with an incorrect size.
+	ok = gen_tcp:send(Socket, << 7:24, 6:8, 0:40, 0:56 >>),
+	%% Receive a FRAME_SIZE_ERROR connection error.
+	{ok, << _:24, 7:8, _:72, 6:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+ping_reject_frame_size_too_large(Config) ->
+	doc("PING frames of size larger than 8 must be rejected "
+		"with a FRAME_SIZE_ERROR connection error. (RFC7540 4.2, RFC7540 6.7)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a PING frame with an incorrect size.
+	ok = gen_tcp:send(Socket, << 9:24, 6:8, 0:40, 0:72 >>),
+	%% Receive a FRAME_SIZE_ERROR connection error.
+	{ok, << _:24, 7:8, _:72, 6:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+goaway_reject_frame_size_too_small(Config) ->
+	doc("GOAWAY frames of size smaller than 8 must be rejected "
+		"with a FRAME_SIZE_ERROR connection error. (RFC7540 4.2, RFC7540 6.8)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a GOAWAY frame with an incorrect size.
+	ok = gen_tcp:send(Socket, << 7:24, 7:8, 0:40, 0:56 >>),
+	%% Receive a FRAME_SIZE_ERROR connection error.
+	{ok, << _:24, 7:8, _:72, 6:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+goaway_allow_frame_size_too_large(Config) ->
+	doc("GOAWAY frames of size larger than 8 must be allowed. (RFC7540 6.8)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a GOAWAY frame with debug data.
+	ok = gen_tcp:send(Socket, << 12:24, 7:8, 0:40, 0:64, 99999:32 >>),
+	%% Receive a GOAWAY frame back.
+	{ok, << _:24, 7:8, _:72, 0:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+window_update_reject_frame_size_too_small(Config) ->
+	doc("WINDOW_UPDATE frames of size smaller than 4 must be rejected "
+		"with a FRAME_SIZE_ERROR connection error. (RFC7540 4.2, RFC7540 6.9)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a WINDOW_UPDATE frame with an incorrect size.
+	ok = gen_tcp:send(Socket, << 3:24, 8:8, 0:40, 1000:24 >>),
+	%% Receive a FRAME_SIZE_ERROR connection error.
+	{ok, << _:24, 7:8, _:72, 6:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+window_update_reject_frame_size_too_large(Config) ->
+	doc("WINDOW_UPDATE frames of size larger than 4 must be rejected "
+		"with a FRAME_SIZE_ERROR connection error. (RFC7540 4.2, RFC7540 6.9)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a WINDOW_UPDATE frame with an incorrect size.
+	ok = gen_tcp:send(Socket, << 5:24, 8:8, 0:40, 1000:40 >>),
+	%% Receive a FRAME_SIZE_ERROR connection error.
+	{ok, << _:24, 7:8, _:72, 6:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+%% Note: There is no particular limits on the size of CONTINUATION frames,
+%% they can go from 0 to SETTINGS_MAX_FRAME_SIZE.

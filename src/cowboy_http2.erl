@@ -52,7 +52,14 @@
 	%% @todo Since the ack is required, we must timeout if we don't receive it.
 	%% @todo I haven't put as much thought as I should have on this,
 	%% the final settings handling will be very different.
-	local_settings = #{} :: map(),
+	local_settings = #{
+%		header_table_size => 4096,
+%		enable_push => false, %% We are the server. Push is never enabled.
+%		max_concurrent_streams => infinity,
+%		initial_window_size => 65535,
+		max_frame_size => 16384
+%		max_header_list_size => infinity
+	} :: map(),
 	%% @todo We need a TimerRef to do SETTINGS_TIMEOUT errors.
 	%% We need to be careful there. It's well possible that we send
 	%% two SETTINGS frames before we receive a SETTINGS ack.
@@ -60,8 +67,8 @@
 	remote_settings = #{} :: map(),
 
 	%% Stream identifiers.
+	client_streamid = 0 :: non_neg_integer(),
 	server_streamid = 2 :: pos_integer(),
-	%% @todo last known good streamid
 
 	%% Currently active HTTP/2 streams. Streams may be initiated either
 	%% by the client or by the server through PUSH_PROMISE frames.
@@ -212,8 +219,9 @@ parse(State=#state{socket=Socket, transport=Transport, parse_state={preface, seq
 			end
 	end;
 %% @todo Perhaps instead of just more we can have {more, Len} to avoid all the checks.
-parse(State=#state{parse_state=ParseState}, Data) ->
-	case cow_http2:parse(Data) of
+parse(State=#state{local_settings=#{max_frame_size := MaxFrameSize},
+		parse_state=ParseState}, Data) ->
+	case cow_http2:parse(Data, MaxFrameSize) of
 		{ok, Frame, Rest} ->
 			case ParseState of
 				normal ->
@@ -529,12 +537,21 @@ sendfile(Socket, Transport, StreamID, IsFin, Offset, Bytes, Path, Length) ->
 	end.
 
 -spec terminate(#state{}, _) -> no_return().
-terminate(#state{socket=Socket, transport=Transport,
+terminate(undefined, Reason) ->
+	exit({shutdown, Reason});
+terminate(#state{socket=Socket, transport=Transport, client_streamid=LastStreamID,
 		streams=Streams, children=Children}, Reason) ->
-	%% @todo Send GOAWAY frame; need to keep track of last good stream id; how?
+	%% @todo We might want to optionally send the Reason value
+	%% as debug data in the GOAWAY frame here. Perhaps more.
+	Transport:send(Socket, cow_http2:goaway(LastStreamID, terminate_reason(Reason), <<>>)),
 	terminate_all_streams(Streams, Reason, Children),
 	Transport:close(Socket),
 	exit({shutdown, Reason}).
+
+terminate_reason({connection_error, Reason, _}) -> Reason;
+terminate_reason({stop, _, _}) -> no_error;
+terminate_reason({socket_error, _, _}) -> internal_error;
+terminate_reason({internal_error, _, _}) -> internal_error.
 
 terminate_all_streams([], _, []) ->
 	ok;
@@ -603,7 +620,8 @@ stream_init(State0=#state{ref=Ref, socket=Socket, transport=Transport, peer=Peer
 stream_handler_init(State=#state{opts=Opts}, StreamID, IsFin, Req) ->
 	try cowboy_stream:init(StreamID, Req, Opts) of
 		{Commands, StreamState} ->
-			commands(State, #stream{id=StreamID, state=StreamState, remote=IsFin}, Commands)
+			commands(State#state{client_streamid=StreamID},
+				#stream{id=StreamID, state=StreamState, remote=IsFin}, Commands)
 	catch Class:Reason ->
 		error_logger:error_msg("Exception occurred in "
 			"cowboy_stream:init(~p, ~p, ~p) with reason ~p:~p.",
