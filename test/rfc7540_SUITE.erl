@@ -809,6 +809,31 @@ prior_knowledge(Config) ->
 %% * Prior knowledge handshake fails (3.4)
 %% * ALPN selects HTTP/1.1 (3.3)
 
+%% Frame format.
+
+ignore_unknown_frames(Config) ->
+	doc("Frames of unknown type must be ignored and discarded. (RFC7540 4.1)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a POST request with a single DATA frame,
+	%% and an unknown frame type interleaved.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"POST">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/echo/read_body">>}
+	]),
+	ok = gen_tcp:send(Socket, [
+		cow_http2:headers(1, nofin, HeadersBlock),
+		<< 10:24, 99:8, 0:40, 0:80 >>,
+		cow_http2:data(1, fin, << 0:100/unit:8 >>)
+	]),
+	%% Receive a response with the same DATA frame.
+	{ok, << SkipLen:24, 1:8, _:8, 1:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+	{ok, _} = gen_tcp:recv(Socket, SkipLen, 1000),
+	{ok, << 100:24, 0:8, 1:8, 1:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+	{ok, << 0:100/unit:8 >>} = gen_tcp:recv(Socket, 100, 1000),
+	ok.
+
 %% Frame size.
 
 max_frame_size_allow_exactly_default(Config) ->

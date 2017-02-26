@@ -231,6 +231,8 @@ parse(State=#state{local_settings=#{max_frame_size := MaxFrameSize},
 				{continuation, _, _, _} ->
 					parse(continuation_frame(State, Frame), Rest)
 			end;
+		{ignore, Rest} ->
+			parse(State, Rest);
 		{stream_error, StreamID, Reason, Human, Rest} ->
 			parse(stream_reset(State, StreamID, {stream_error, Reason, Human}), Rest);
 		Error = {connection_error, _, _} ->
