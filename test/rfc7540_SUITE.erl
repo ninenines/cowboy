@@ -834,6 +834,395 @@ ignore_unknown_frames(Config) ->
 	{ok, << 0:100/unit:8 >>} = gen_tcp:recv(Socket, 100, 1000),
 	ok.
 
+ignore_data_unknown_flags(Config) ->
+	doc("Undefined DATA frame flags must be ignored. (RFC7540 4.1, RFC7540 6.1)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a POST request with a DATA frame with unknown flags.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"POST">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/echo/read_body">>}
+	]),
+	ok = gen_tcp:send(Socket, [
+		cow_http2:headers(1, nofin, HeadersBlock),
+		<< 100:24, 0:8,
+			1:1, 1:1, 1:1, 1:1, %% Undefined.
+			0:1, %% PADDED.
+			1:1, 1:1, %% Undefined.
+			1:1, %% END_STREAM.
+			0:1, 1:31, 0:100/unit:8 >>
+	]),
+	%% Receive a response with the same DATA frame.
+	{ok, << SkipLen:24, 1:8, _:8, 1:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+	{ok, _} = gen_tcp:recv(Socket, SkipLen, 1000),
+	{ok, << 100:24, 0:8, 1:8, 1:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+	{ok, << 0:100/unit:8 >>} = gen_tcp:recv(Socket, 100, 1000),
+	ok.
+
+ignore_headers_unknown_flags(Config) ->
+	doc("Undefined HEADERS frame flags must be ignored. (RFC7540 4.1, RFC7540 6.2)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a POST request with a HEADERS frame with unknown flags.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"POST">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/echo/read_body">>}
+	]),
+	Len = iolist_size(HeadersBlock),
+	ok = gen_tcp:send(Socket, [
+		<< Len:24, 1:8,
+			1:1, 1:1, %% Undefined.
+			0:1, %% PRIORITY.
+			1:1, %% Undefined.
+			0:1, %% PADDED.
+			1:1, %% END_HEADERS.
+			1:1, %% Undefined.
+			0:1, %% END_STREAM.
+			0:1, 1:31 >>,
+		HeadersBlock,
+		cow_http2:data(1, fin, << 0:100/unit:8 >>)
+	]),
+	%% Receive a response with the same DATA frame.
+	{ok, << SkipLen:24, 1:8, _:8, 1:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+	{ok, _} = gen_tcp:recv(Socket, SkipLen, 1000),
+	{ok, << 100:24, 0:8, 1:8, 1:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+	{ok, << 0:100/unit:8 >>} = gen_tcp:recv(Socket, 100, 1000),
+	ok.
+
+ignore_priority_unknown_flags(Config) ->
+	doc("Undefined PRIORITY frame flags must be ignored. (RFC7540 4.1, RFC7540 6.3)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a POST request with an interleaved PRIORITY frame with unknown flags.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"POST">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/echo/read_body">>}
+	]),
+	ok = gen_tcp:send(Socket, [
+		cow_http2:headers(1, nofin, HeadersBlock),
+		<< 5:24, 2:8,
+			1:1, 1:1, 1:1, 1:1, 1:1, 1:1, 1:1, 1:1, %% Undefined.
+			0:1, 1:31, 0:1, 3:31, 0:8 >>,
+		cow_http2:data(1, fin, << 0:100/unit:8 >>)
+	]),
+	%% Receive a response with the same DATA frame.
+	{ok, << SkipLen:24, 1:8, _:8, 1:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+	{ok, _} = gen_tcp:recv(Socket, SkipLen, 1000),
+	{ok, << 100:24, 0:8, 1:8, 1:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+	{ok, << 0:100/unit:8 >>} = gen_tcp:recv(Socket, 100, 1000),
+	ok.
+
+ignore_rst_stream_unknown_flags(Config) ->
+	doc("Undefined RST_STREAM frame flags must be ignored. (RFC7540 4.1, RFC7540 6.4)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a POST request then cancel it with an RST_STREAM frame with unknown flags.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"POST">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/echo/read_body">>}
+	]),
+	ok = gen_tcp:send(Socket, [
+		cow_http2:headers(1, nofin, HeadersBlock),
+		<< 4:24, 3:8,
+			1:1, 1:1, 1:1, 1:1, 1:1, 1:1, 1:1, 1:1, %% Undefined.
+			0:1, 1:31, 8:32 >>,
+		cow_http2:headers(3, nofin, HeadersBlock),
+		cow_http2:data(3, fin, << 0:100/unit:8 >>)
+	]),
+	%% Receive a response with the same DATA frame.
+	{ok, << SkipLen:24, 1:8, _:8, 3:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+	{ok, _} = gen_tcp:recv(Socket, SkipLen, 1000),
+	{ok, << 100:24, 0:8, 1:8, 3:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+	{ok, << 0:100/unit:8 >>} = gen_tcp:recv(Socket, 100, 1000),
+	ok.
+
+ignore_settings_unknown_flags(Config) ->
+	doc("Undefined SETTINGS frame flags must be ignored. (RFC7540 4.1, RFC7540 6.5)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a SETTINGS frame with unknown flags.
+	ok = gen_tcp:send(Socket, << 6:24, 4:8,
+		1:1, 1:1, 1:1, 1:1, 1:1, 1:1, 1:1, %% Undefined.
+		0:1, %% ACK.
+		0:32, 2:16, 0:32 >>),
+	%% Receive a SETTINGS ack.
+	{ok, << 0:24, 4:8, 0:7, 1:1, 0:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+	ok.
+
+ignore_push_promise_unknown_flags(Config) ->
+	doc("Undefined PUSH_PROMISE frame flags must be ignored. (RFC7540 4.1, RFC7540 6.6)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a PUSH_PROMISE frame with unknown flags.
+	ok = gen_tcp:send(Socket, << 4:24, 5:8,
+		1:1, 1:1, 1:1, 1:1, %% Undefined.
+		0:1, %% PADDED.
+		1:1, %% END_HEADERS.
+		1:1, 1:1, %% Undefined.
+		0:1, 1:31, 0:1, 3:31 >>
+	),
+	%% Receive a PROTOCOL_ERROR connection error.
+	%%
+	%% Note that it is not possible to distinguish between the expected
+	%% result and the server rejecting PUSH_PROMISE frames.
+	{ok, << _:24, 7:8, _:72, 1:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+ignore_ping_unknown_flags(Config) ->
+	doc("Undefined PING frame flags must be ignored. (RFC7540 4.1, RFC7540 6.7)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a PING frame with unknown flags.
+	ok = gen_tcp:send(Socket, << 8:24, 6:8,
+		1:1, 1:1, 1:1, 1:1, 1:1, 1:1, 1:1, %% Undefined.
+		0:1, %% ACK.
+		0:32, 0:64 >>),
+	%% Receive a PING ACK in return.
+	{ok, << 8:24, 6:8, _:7, 1:1, _:32, 0:64 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+ignore_goaway_unknown_flags(Config) ->
+	doc("Undefined GOAWAY frame flags must be ignored. (RFC7540 4.1, RFC7540 6.8)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a GOAWAY frame with unknown flags.
+	ok = gen_tcp:send(Socket, << 8:24, 7:8,
+		1:1, 1:1, 1:1, 1:1, 1:1, 1:1, 1:1, 1:1, %% Undefined.
+		0:32, 0:64 >>),
+	%% Receive a GOAWAY frame back.
+	{ok, << _:24, 7:8, _:72, 0:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+ignore_window_update_unknown_flags(Config) ->
+	doc("Undefined WINDOW_UPDATE frame flags must be ignored. (RFC7540 4.1, RFC7540 6.9)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a WINDOW_UPDATE frame with unknown flags.
+	ok = gen_tcp:send(Socket, << 4:24, 8:8,
+		1:1, 1:1, 1:1, 1:1, 1:1, 1:1, 1:1, 1:1, %% Undefined.
+		0:32, 1000:32 >>),
+	%% We expect no errors or replies, therefore we send a PING frame.
+	ok = gen_tcp:send(Socket, cow_http2:ping(0)),
+	%% And receive a PING ACK in return.
+	{ok, << 8:24, 6:8, _:7, 1:1, _:32, 0:64 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+ignore_continuation_unknown_flags(Config) ->
+	doc("Undefined CONTINUATION frame flags must be ignored. (RFC7540 4.1, RFC7540 6.10)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a POST request with a CONTINUATION frame with unknown flags.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"POST">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/echo/read_body">>}
+	]),
+	Len = iolist_size(HeadersBlock),
+	ok = gen_tcp:send(Socket, [
+		<< 0:24, 1:8, 0:8, 0:1, 1:31 >>,
+		<< Len:24, 9:8,
+			1:1, 1:1, 1:1, 1:1, 1:1, %% Undefined.
+			1:1, %% END_HEADERS.
+			1:1, 1:1, %% Undefined.
+			0:1, 1:31 >>,
+		HeadersBlock,
+		cow_http2:data(1, fin, << 0:100/unit:8 >>)
+	]),
+	%% Receive a response with the same DATA frame.
+	{ok, << SkipLen:24, 1:8, _:8, 1:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+	{ok, _} = gen_tcp:recv(Socket, SkipLen, 1000),
+	{ok, << 100:24, 0:8, 1:8, 1:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+	{ok, << 0:100/unit:8 >>} = gen_tcp:recv(Socket, 100, 1000),
+	ok.
+
+%% @todo Flags that have no defined semantics for
+%% a particular frame type MUST be left unset (0x0) when sending. (RFC7540 4.1)
+
+ignore_data_reserved_bit(Config) ->
+	doc("Reserved 1-bit field of DATA frame must be ignored. (RFC7540 4.1, RFC7540 6.1)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a POST request with a DATA frame with the reserved bit set.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"POST">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/echo/read_body">>}
+	]),
+	ok = gen_tcp:send(Socket, [
+		cow_http2:headers(1, nofin, HeadersBlock),
+		<< 100:24, 0:8, 0:7, 1:1,
+			1:1, %% Reserved bit.
+			1:31, 0:100/unit:8 >>
+	]),
+	%% Receive a response with the same DATA frame.
+	{ok, << SkipLen:24, 1:8, _:8, 1:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+	{ok, _} = gen_tcp:recv(Socket, SkipLen, 1000),
+	{ok, << 100:24, 0:8, 1:8, 1:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+	{ok, << 0:100/unit:8 >>} = gen_tcp:recv(Socket, 100, 1000),
+	ok.
+
+ignore_headers_reserved_bit(Config) ->
+	doc("Reserved 1-bit field of HEADERS frame must be ignored. (RFC7540 4.1, RFC7540 6.2)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a POST request with a HEADERS frame with the reserved bit set.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"POST">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/echo/read_body">>}
+	]),
+	Len = iolist_size(HeadersBlock),
+	ok = gen_tcp:send(Socket, [
+		<< Len:24, 1:8, 0:5, 1:1, 0:2,
+			1:1, %% Reserved bit.
+			1:31 >>,
+		HeadersBlock,
+		cow_http2:data(1, fin, << 0:100/unit:8 >>)
+	]),
+	%% Receive a response with the same DATA frame.
+	{ok, << SkipLen:24, 1:8, _:8, 1:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+	{ok, _} = gen_tcp:recv(Socket, SkipLen, 1000),
+	{ok, << 100:24, 0:8, 1:8, 1:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+	{ok, << 0:100/unit:8 >>} = gen_tcp:recv(Socket, 100, 1000),
+	ok.
+
+ignore_priority_reserved_bit(Config) ->
+	doc("Reserved 1-bit field of PRIORITY frame must be ignored. (RFC7540 4.1, RFC7540 6.3)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a POST request with an interleaved PRIORITY frame with the reserved bit set.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"POST">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/echo/read_body">>}
+	]),
+	ok = gen_tcp:send(Socket, [
+		cow_http2:headers(1, nofin, HeadersBlock),
+		<< 5:24, 2:8, 0:8,
+			1:1, %% Reserved bit.
+			1:31, 0:1, 3:31, 0:8 >>,
+		cow_http2:data(1, fin, << 0:100/unit:8 >>)
+	]),
+	%% Receive a response with the same DATA frame.
+	{ok, << SkipLen:24, 1:8, _:8, 1:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+	{ok, _} = gen_tcp:recv(Socket, SkipLen, 1000),
+	{ok, << 100:24, 0:8, 1:8, 1:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+	{ok, << 0:100/unit:8 >>} = gen_tcp:recv(Socket, 100, 1000),
+	ok.
+
+ignore_rst_stream_reserved_bit(Config) ->
+	doc("Reserved 1-bit field of RST_STREAM frame must be ignored. (RFC7540 4.1, RFC7540 6.4)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a POST request then cancel it with an RST_STREAM frame with the reserved bit set.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"POST">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/echo/read_body">>}
+	]),
+	ok = gen_tcp:send(Socket, [
+		cow_http2:headers(1, nofin, HeadersBlock),
+		<< 4:24, 3:8, 0:8,
+			1:1, %% Reserved bit.
+			1:31, 8:32 >>,
+		cow_http2:headers(3, nofin, HeadersBlock),
+		cow_http2:data(3, fin, << 0:100/unit:8 >>)
+	]),
+	%% Receive a response with the same DATA frame.
+	{ok, << SkipLen:24, 1:8, _:8, 3:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+	{ok, _} = gen_tcp:recv(Socket, SkipLen, 1000),
+	{ok, << 100:24, 0:8, 1:8, 3:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+	{ok, << 0:100/unit:8 >>} = gen_tcp:recv(Socket, 100, 1000),
+	ok.
+
+ignore_settings_reserved_bit(Config) ->
+	doc("Reserved 1-bit field of SETTINGS frame must be ignored. (RFC7540 4.1, RFC7540 6.5)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a SETTINGS frame with the reserved bit set.
+	ok = gen_tcp:send(Socket, << 6:24, 4:8, 0:8,
+		1:1, %% Reserved bit.
+		0:31, 2:16, 0:32 >>),
+	%% Receive a SETTINGS ack.
+	{ok, << 0:24, 4:8, 0:7, 1:1, 0:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+	ok.
+
+ignore_push_promise_reserved_bit(Config) ->
+	doc("Reserved 1-bit field of PUSH_PROMISE frame must be ignored. (RFC7540 4.1, RFC7540 6.6)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a PUSH_PROMISE frame with the reserved bit set.
+	ok = gen_tcp:send(Socket, << 4:24, 5:8, 0:5, 1:1, 0:2,
+		1:1, %% Reserved bit.
+		1:31, 0:1, 3:31 >>
+	),
+	%% Receive a PROTOCOL_ERROR connection error.
+	%%
+	%% Note that it is not possible to distinguish between the expected
+	%% result and the server rejecting PUSH_PROMISE frames.
+	{ok, << _:24, 7:8, _:72, 1:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+ignore_ping_reserved_bit(Config) ->
+	doc("Reserved 1-bit field of PING frame must be ignored. (RFC7540 4.1, RFC7540 6.7)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a PING frame with the reserved bit set.
+	ok = gen_tcp:send(Socket, << 8:24, 6:8, 0:8,
+		1:1, %% Reserved bit.
+		0:31, 0:64 >>),
+	%% Receive a PING ACK in return.
+	{ok, << 8:24, 6:8, _:7, 1:1, _:32, 0:64 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+ignore_goaway_reserved_bit(Config) ->
+	doc("Reserved 1-bit field of GOAWAY frame must be ignored. (RFC7540 4.1, RFC7540 6.8)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a GOAWAY frame with the reserved bit set.
+	ok = gen_tcp:send(Socket, << 8:24, 7:8, 0:8,
+		1:1, %% Reserved bit.
+		0:31, 0:64 >>),
+	%% Receive a GOAWAY frame back.
+	{ok, << _:24, 7:8, _:72, 0:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+ignore_window_update_reserved_bit(Config) ->
+	doc("Reserved 1-bit field of WINDOW_UPDATE frame must be ignored. (RFC7540 4.1, RFC7540 6.9)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a WINDOW_UPDATE frame with the reserved bit set.
+	ok = gen_tcp:send(Socket, << 4:24, 8:8, 0:8,
+		1:1, %% Reserved bit.
+		0:31, 1000:32 >>),
+	%% We expect no errors or replies, therefore we send a PING frame.
+	ok = gen_tcp:send(Socket, cow_http2:ping(0)),
+	%% And receive a PING ACK in return.
+	{ok, << 8:24, 6:8, _:7, 1:1, _:32, 0:64 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+ignore_continuation_reserved_bit(Config) ->
+	doc("Reserved 1-bit field of CONTINUATION frame must be ignored. (RFC7540 4.1, RFC7540 6.10)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a POST request with a CONTINUATION frame with the reserved bit set.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"POST">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/echo/read_body">>}
+	]),
+	Len = iolist_size(HeadersBlock),
+	ok = gen_tcp:send(Socket, [
+		<< 0:24, 1:8, 0:8, 0:1, 1:31 >>,
+		<< Len:24, 9:8, 0:5, 1:1, 0:2,
+			1:1, %% Reserved bit.
+			1:31 >>,
+		HeadersBlock,
+		cow_http2:data(1, fin, << 0:100/unit:8 >>)
+	]),
+	%% Receive a response with the same DATA frame.
+	{ok, << SkipLen:24, 1:8, _:8, 1:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+	{ok, _} = gen_tcp:recv(Socket, SkipLen, 1000),
+	{ok, << 100:24, 0:8, 1:8, 1:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+	{ok, << 0:100/unit:8 >>} = gen_tcp:recv(Socket, 100, 1000),
+	ok.
+
+%% @todo The reserved 1-bit field MUST remain unset (0x0) when sending. (RFC7540 4.1)
+
 %% Frame size.
 
 max_frame_size_allow_exactly_default(Config) ->
@@ -1130,16 +1519,7 @@ push_promise_reject_frame_size_too_small(Config) ->
 		"with a FRAME_SIZE_ERROR connection error. (RFC7540 4.2, RFC7540 6.6)"),
 	{ok, Socket} = do_handshake(Config),
 	%% Send a PUSH_PROMISE frame with an incorrect size.
-	{HeadersBlock, _} = cow_hpack:encode([
-		{<<":method">>, <<"GET">>},
-		{<<":scheme">>, <<"http">>},
-		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
-		{<<":path">>, <<"/">>}
-	]),
-	ok = gen_tcp:send(Socket, [
-		<< 3:24, 5:8, 0:5, 1:1, 0:3, 1:31, 0:1, 3:31 >>,
-		HeadersBlock
-	]),
+	ok = gen_tcp:send(Socket, << 3:24, 5:8, 0:5, 1:1, 0:3, 1:31, 0:1, 3:31 >>),
 	%% Receive a FRAME_SIZE_ERROR connection error.
 	{ok, << _:24, 7:8, _:72, 6:32 >>} = gen_tcp:recv(Socket, 17, 6000),
 	ok.
@@ -1149,16 +1529,7 @@ push_promise_reject_frame_size_4_padded_flag(Config) ->
 		"with a FRAME_SIZE_ERROR connection error. (RFC7540 4.2, RFC7540 6.6)"),
 	{ok, Socket} = do_handshake(Config),
 	%% Send a PUSH_PROMISE frame with an incorrect size.
-	{HeadersBlock, _} = cow_hpack:encode([
-		{<<":method">>, <<"GET">>},
-		{<<":scheme">>, <<"http">>},
-		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
-		{<<":path">>, <<"/">>}
-	]),
-	ok = gen_tcp:send(Socket, [
-		<< 4:24, 5:8, 0:4, 1:1, 1:1, 0:3, 1:31, 0:1, 0:8, 3:31 >>,
-		HeadersBlock
-	]),
+	ok = gen_tcp:send(Socket, << 4:24, 5:8, 0:4, 1:1, 1:1, 0:3, 1:31, 0:1, 0:8, 3:31 >>),
 	%% Receive a FRAME_SIZE_ERROR connection error.
 	{ok, << _:24, 7:8, _:72, 6:32 >>} = gen_tcp:recv(Socket, 17, 6000),
 	ok.
@@ -1174,12 +1545,16 @@ push_promise_reject_frame_size_too_small_padded_flag(Config) ->
 		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
 		{<<":path">>, <<"/">>}
 	]),
+	Len = 14 + iolist_size(HeadersBlock),
 	ok = gen_tcp:send(Socket, [
-		<< 14:24, 5:8, 0:4, 1:1, 1:1, 0:3, 1:31, 10:8, 0:1, 3:31 >>,
+		<< Len:24, 5:8, 0:4, 1:1, 1:1, 0:3, 1:31, 10:8, 0:1, 3:31 >>,
 		HeadersBlock,
 		<< 0:80 >>
 	]),
 	%% Receive a PROTOCOL_ERROR connection error.
+	%%
+	%% Note that it is not possible to distinguish between a Pad Length
+	%% error and the server rejecting PUSH_PROMISE frames.
 	{ok, << _:24, 7:8, _:72, 1:32 >>} = gen_tcp:recv(Socket, 17, 6000),
 	ok.
 
@@ -1244,3 +1619,54 @@ window_update_reject_frame_size_too_large(Config) ->
 
 %% Note: There is no particular limits on the size of CONTINUATION frames,
 %% they can go from 0 to SETTINGS_MAX_FRAME_SIZE.
+
+%% Header compression and decompression.
+
+headers_compression_error(Config) ->
+	doc("A decoding error in a HEADERS frame's header block must be rejected "
+		"with a COMPRESSION_ERROR connection error. (RFC7540 4.3, RFC7540 6.2)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame with an invalid header block.
+	ok = gen_tcp:send(Socket, << 10:24, 1:8, 0:5, 1:1, 0:1, 1:1, 0:1, 1:31, 0:10/unit:8 >>),
+	%% Receive a COMPRESSION_ERROR connection error.
+	{ok, << _:24, 7:8, _:72, 9:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+continuation_compression_error(Config) ->
+	doc("A decoding error in a CONTINUATION frame's header block must be rejected "
+		"with a COMPRESSION_ERROR connection error. (RFC7540 4.3, RFC7540 6.10)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a CONTINUATION frame with an invalid header block.
+	ok = gen_tcp:send(Socket, [
+		<< 0:24, 1:8, 0:7, 1:1, 0:1, 1:31 >>,
+		<< 10:24, 9:8, 0:5, 1:1, 0:3, 1:31, 0:10/unit:8 >>
+	]),
+	%% Receive a COMPRESSION_ERROR connection error.
+	{ok, << _:24, 7:8, _:72, 9:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+continuation_with_frame_interleaved_error(Config) ->
+	doc("Frames interleaved in a header block must be rejected "
+		"with a PROTOCOL_ERROR connection error. (RFC7540 4.3, RFC7540 6.2, RFC7540 6.10)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send an unterminated HEADERS frame followed by a PING frame.
+	ok = gen_tcp:send(Socket, [
+		<< 0:24, 1:8, 0:7, 1:1, 0:1, 1:31 >>,
+		cow_http2:ping(0)
+	]),
+	%% Receive a PROTOCOL_ERROR connection error.
+	{ok, << _:24, 7:8, _:72, 1:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+continuation_wrong_stream_error(Config) ->
+	doc("CONTINUATION frames with an incorrect stream identifier must be rejected "
+		"with a PROTOCOL_ERROR connection error. (RFC7540 4.3, RFC7540 6.2)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send an unterminated HEADERS frame followed by a CONTINUATION frame for another stream.
+	ok = gen_tcp:send(Socket, [
+		<< 0:24, 1:8, 0:7, 1:1, 0:1, 1:31 >>,
+		<< 0:24, 9:8, 0:9, 3:31 >>
+	]),
+	%% Receive a PROTOCOL_ERROR connection error.
+	{ok, << _:24, 7:8, _:72, 1:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.

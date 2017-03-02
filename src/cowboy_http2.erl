@@ -298,7 +298,7 @@ frame(State, {priority, _StreamID, _IsExclusive, _DepStreamID, _Weight}) ->
 	State;
 %% RST_STREAM frame.
 frame(State, {rst_stream, StreamID, Reason}) ->
-	stream_reset(State, StreamID, {stream_error, Reason, 'Stream reset requested by client.'});
+	stream_terminate(State, StreamID, {stream_error, Reason, 'Stream reset requested by client.'});
 %% SETTINGS frame.
 frame(State=#state{socket=Socket, transport=Transport}, {settings, _Settings}) ->
 	%% @todo Apply SETTINGS.
