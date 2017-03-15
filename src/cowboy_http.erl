@@ -123,9 +123,12 @@ media_range_params(Data, Fun, Type, SubType, Acc) ->
 	[{binary(), binary()}]) -> any().
 media_range_param_attr(Data, Fun, Type, SubType, Acc) ->
 	token_ci(Data,
-		fun (_Rest, <<>>) -> {error, badarg};
-			(<< $=, Rest/binary >>, Attr) ->
-				media_range_param_value(Rest, Fun, Type, SubType, Acc, Attr)
+           fun(_Rest, <<>>) ->
+               {error, badarg};
+              (<< $=, Rest/binary >>, Attr) ->
+               media_range_param_value(Rest, Fun, Type, SubType, Acc, Attr);
+              (_Rest, _Type) ->
+               {error, badarg}
 		end).
 
 -spec media_range_param_value(binary(), fun(), binary(), binary(),
