@@ -1,0 +1,182 @@
+== HTTP and other specifications
+
+This chapter intends to list all the specification documents
+for or related to HTTP.
+
+=== HTTP
+
+==== IANA Registries
+
+* https://www.iana.org/assignments/http-methods/http-methods.xhtml[HTTP Method Registry]
+* https://www.iana.org/assignments/http-status-codes/http-status-codes.xhtml[HTTP Status Code Registry]
+* https://www.iana.org/assignments/message-headers/message-headers.xhtml[Message Headers]
+* https://www.iana.org/assignments/http-parameters/http-parameters.xhtml[HTTP Parameters]
+* https://www.iana.org/assignments/http-alt-svc-parameters/http-alt-svc-parameters.xhtml[HTTP Alt-Svc Parameter Registry]
+* https://www.iana.org/assignments/http-authschemes/http-authschemes.xhtml[HTTP Authentication Scheme Registry]
+* https://www.iana.org/assignments/http-cache-directives/http-cache-directives.xhtml[HTTP Cache Directive Registry]
+* https://www.iana.org/assignments/http-dig-alg/http-dig-alg.xhtml[HTTP Digest Algorithm Values]
+* https://www.iana.org/assignments/hoba-device-identifiers/hoba-device-identifiers.xhtml[HTTP Origin-Bound Authentication Device Identifier Types]
+* https://www.iana.org/assignments/http-upgrade-tokens/http-upgrade-tokens.xhtml[HTTP Upgrade Token Registry]
+* https://www.iana.org/assignments/http-warn-codes/http-warn-codes.xhtml[HTTP Warn Codes]
+* https://www.iana.org/assignments/http2-parameters/http2-parameters.xhtml[HTTP/2 Parameters]
+* https://www.ietf.org/assignments/websocket/websocket.xml[WebSocket Protocol Registries]
+
+==== Current
+
+* http://www.w3.org/TR/cors/[CORS]: Cross-Origin Resource Sharing
+* http://www.w3.org/TR/CSP2/[CSP2]: Content Security Policy Level 2
+* http://www.w3.org/TR/tracking-dnt/[DNT]: Tracking Preference Expression (DNT)
+* http://www.w3.org/TR/eventsource/[eventsource]: Server-Sent Events
+* https://www.w3.org/TR/html4/interact/forms.html#h-17.13.4[Form content types]: Form content types
+* https://www.w3.org/TR/preload/[Preload]: Preload
+* http://www.ics.uci.edu/~fielding/pubs/dissertation/rest_arch_style.htm[REST]: Fielding's Dissertation
+* https://tools.ietf.org/html/rfc1945[RFC 1945]: HTTP/1.0
+* https://tools.ietf.org/html/rfc1951[RFC 1951]: DEFLATE Compressed Data Format Specification version 1.3
+* https://tools.ietf.org/html/rfc1952[RFC 1952]: GZIP file format specification version 4.3
+* https://tools.ietf.org/html/rfc2046#section-5.1[RFC 2046]: Multipart media type (in MIME Part Two: Media Types)
+* https://tools.ietf.org/html/rfc2295[RFC 2295]: Transparent Content Negotiation in HTTP
+* https://tools.ietf.org/html/rfc2296[RFC 2296]: HTTP Remote Variant Selection Algorithm: RVSA/1.0
+* https://tools.ietf.org/html/rfc2817[RFC 2817]: Upgrading to TLS Within HTTP/1.1
+* https://tools.ietf.org/html/rfc2818[RFC 2818]: HTTP Over TLS
+* https://tools.ietf.org/html/rfc3230[RFC 3230]: Instance Digests in HTTP
+* https://tools.ietf.org/html/rfc4559[RFC 4559]: SPNEGO-based Kerberos and NTLM HTTP Authentication in Microsoft Windows
+* https://tools.ietf.org/html/rfc5789[RFC 5789]: PATCH Method for HTTP
+* https://tools.ietf.org/html/rfc5843[RFC 5843]: Additional Hash Algorithms for HTTP Instance Digests
+* https://tools.ietf.org/html/rfc5861[RFC 5861]: HTTP Cache-Control Extensions for Stale Content
+* https://tools.ietf.org/html/rfc5987[RFC 5987]: Character Set and Language Encoding for HTTP Header Field Parameters
+* https://tools.ietf.org/html/rfc5988[RFC 5988]: Web Linking
+* https://tools.ietf.org/html/rfc6265[RFC 6265]: HTTP State Management Mechanism
+* https://tools.ietf.org/html/rfc6266[RFC 6266]: Use of the Content-Disposition Header Field
+* https://tools.ietf.org/html/rfc6454[RFC 6454]: The Web Origin Concept
+* https://tools.ietf.org/html/rfc6455[RFC 6455]: The WebSocket Protocol
+* https://tools.ietf.org/html/rfc6585[RFC 6585]: Additional HTTP Status Codes
+* https://tools.ietf.org/html/rfc6750[RFC 6750]: The OAuth 2.0 Authorization Framework: Bearer Token Usage
+* https://tools.ietf.org/html/rfc6797[RFC 6797]: HTTP Strict Transport Security (HSTS)
+* https://tools.ietf.org/html/rfc6903[RFC 6903]: Additional Link Relation Types
+* https://tools.ietf.org/html/rfc7034[RFC 7034]: HTTP Header Field X-Frame-Options
+* https://tools.ietf.org/html/rfc7089[RFC 7089]: Time-Based Access to Resource States: Memento
+* https://tools.ietf.org/html/rfc7230[RFC 7230]: HTTP/1.1 Message Syntax and Routing
+* https://tools.ietf.org/html/rfc7231[RFC 7231]: HTTP/1.1 Semantics and Content
+* https://tools.ietf.org/html/rfc7232[RFC 7232]: HTTP/1.1 Conditional Requests
+* https://tools.ietf.org/html/rfc7233[RFC 7233]: HTTP/1.1 Range Requests
+* https://tools.ietf.org/html/rfc7234[RFC 7234]: HTTP/1.1 Caching
+* https://tools.ietf.org/html/rfc7235[RFC 7235]: HTTP/1.1 Authentication
+* https://tools.ietf.org/html/rfc7239[RFC 7239]: Forwarded HTTP Extension
+* https://tools.ietf.org/html/rfc7240[RFC 7240]: Prefer Header for HTTP
+* https://tools.ietf.org/html/rfc7469[RFC 7469]: Public Key Pinning Extension for HTTP
+* https://tools.ietf.org/html/rfc7486[RFC 7486]: HTTP Origin-Bound Authentication (HOBA)
+* https://tools.ietf.org/html/rfc7538[RFC 7538]: HTTP Status Code 308 (Permanent Redirect)
+* https://tools.ietf.org/html/rfc7540[RFC 7540]: Hypertext Transfer Protocol Version 2 (HTTP/2)
+* https://tools.ietf.org/html/rfc7541[RFC 7541]: HPACK: Header Compression for HTTP/2
+* https://tools.ietf.org/html/rfc7578[RFC 7578]: Returning Values from Forms: multipart/form-data
+* https://tools.ietf.org/html/rfc7615[RFC 7615]: HTTP Authentication-Info and Proxy-Authentication-Info Response Header Fields
+* https://tools.ietf.org/html/rfc7616[RFC 7616]: HTTP Digest Access Authentication
+* https://tools.ietf.org/html/rfc7617[RFC 7617]: The 'Basic' HTTP Authentication Scheme
+* https://tools.ietf.org/html/rfc7639[RFC 7639]: The ALPN HTTP Header Field
+* https://tools.ietf.org/html/rfc7692[RFC 7692]: Compression Extensions for WebSocket
+* https://tools.ietf.org/html/rfc7694[RFC 7694]: HTTP Client-Initiated Content-Encoding
+* https://tools.ietf.org/html/rfc7725[RFC 7725]: An HTTP Status Code to Report Legal Obstacles
+* https://tools.ietf.org/html/rfc7804[RFC 7804]: Salted Challenge Response HTTP Authentication Mechanism
+* https://tools.ietf.org/html/rfc7838[RFC 7838]: HTTP Alternative Services
+* https://tools.ietf.org/html/rfc7932[RFC 7932]: Brotli Compressed Data Format
+* https://tools.ietf.org/html/rfc8053[RFC 8053]: HTTP Authentication Extensions for Interactive Clients
+* https://www.w3.org/TR/webmention/[Webmention]: Webmention
+
+==== Upcoming
+
+* https://www.w3.org/TR/csp-cookies/[Content Security Policy: Cookie Controls]
+* https://www.w3.org/TR/csp-embedded-enforcement/[Content Security Policy: Embedded Enforcement]
+* https://www.w3.org/TR/CSP3/[Content Security Policy Level 3]
+* https://www.w3.org/TR/csp-pinning/[Content Security Policy Pinning]
+* http://www.w3.org/TR/referrer-policy/[Referrer Policy]
+* http://www.w3.org/TR/UISecurity/[User Interface Security Directives for Content Security Policy]
+
+==== Informative
+
+* http://www.w3.org/TR/webarch/[Architecture of the World Wide Web]
+* https://tools.ietf.org/html/rfc2936[RFC 2936]: HTTP MIME Type Handler Detection
+* https://tools.ietf.org/html/rfc2964[RFC 2964]: Use of HTTP State Management
+* https://tools.ietf.org/html/rfc3143[RFC 3143]: Known HTTP Proxy/Caching Problems
+* https://tools.ietf.org/html/rfc6202[RFC 6202]: Known Issues and Best Practices for the Use of Long Polling and Streaming in Bidirectional HTTP
+* https://tools.ietf.org/html/rfc6838[RFC 6838]: Media Type Specifications and Registration Procedures
+* https://tools.ietf.org/html/rfc7478[RFC 7478]: Web Real-Time Communication Use Cases and Requirements
+
+==== Related
+
+* http://www.w3.org/TR/app-uri/[app: URL Scheme]
+* http://www.w3.org/TR/beacon/[Beacon]
+* http://www.w3.org/TR/FileAPI/[File API]
+* https://tools.ietf.org/html/rfc8030[Generic Event Delivery Using HTTP Push]
+* http://www.w3.org/TR/capability-urls/[Good Practices for Capability URLs]
+* https://html.spec.whatwg.org/multipage/[HTML Living Standard]
+* https://developers.whatwg.org/[HTML Living Standard for Web developers]
+* http://www.w3.org/TR/html401/[HTML4.01]
+* http://www.w3.org/TR/html5/[HTML5]
+* http://www.w3.org/TR/html51/[HTML5.1]
+* https://www.w3.org/TR/html52/[HTML5.2]
+* http://www.w3.org/TR/media-frags/[Media Fragments URI 1.0]
+* https://tools.ietf.org/html/rfc6690[RFC 6690]: Constrained RESTful Environments (CoRE) Link Format
+* https://tools.ietf.org/html/rfc7807[RFC 7807]: Problem Details for HTTP APIs
+* https://tools.ietf.org/html/rfc6906[RFC 6906]: The 'profile' Link Relation Type
+* http://www.w3.org/TR/SRI/[Subresource Integrity]
+* http://www.w3.org/TR/tracking-compliance/[Tracking Compliance and Scope]
+* http://www.w3.org/TR/media-frags-reqs/[Use cases and requirements for Media Fragments]
+* http://www.w3.org/TR/webrtc/[WebRTC 1.0: Real-time Communication Between Browsers]
+* http://www.w3.org/TR/websockets/[Websocket API]
+* http://www.w3.org/TR/XMLHttpRequest/[XMLHttpRequest Level 1]
+* https://xhr.spec.whatwg.org/[XMLHttpRequest Living Standard]
+
+==== Seemingly obsolete
+
+* https://tools.ietf.org/html/rfc2227[RFC 2227]: Simple Hit-Metering and Usage-Limiting for HTTP
+* https://tools.ietf.org/html/rfc2310[RFC 2310]: The Safe Response Header Field
+* https://tools.ietf.org/html/rfc2324[RFC 2324]: Hyper Text Coffee Pot Control Protocol (HTCPCP/1.0)
+* https://tools.ietf.org/html/rfc2660[RFC 2660]: The Secure HyperText Transfer Protocol
+* https://tools.ietf.org/html/rfc2774[RFC 2774]: An HTTP Extension Framework
+* https://tools.ietf.org/html/rfc2965[RFC 2965]: HTTP State Management Mechanism (Cookie2)
+* https://tools.ietf.org/html/rfc3229[RFC 3229]: Delta encoding in HTTP
+* https://tools.ietf.org/html/rfc7168[RFC 7168]: The Hyper Text Coffee Pot Control Protocol for Tea Efflux Appliances (HTCPCP-TEA)
+* http://dev.chromium.org/spdy/spdy-protocol[SPDY]: SPDY Protocol
+* https://tools.ietf.org/html/draft-tyoshino-hybi-websocket-perframe-deflate-06[x-webkit-deflate-frame]: Deprecated Websocket compression
+
+=== URL
+
+* https://tools.ietf.org/html/rfc3986[RFC 3986]: URI Generic Syntax
+* https://tools.ietf.org/html/rfc6570[RFC 6570]: URI Template
+* https://tools.ietf.org/html/rfc6874[RFC 6874]: Representing IPv6 Zone Identifiers in Address Literals and URIs
+* https://tools.ietf.org/html/rfc7320[RFC 7320]: URI Design and Ownership
+* http://www.w3.org/TR/url-1/[URL]
+* https://url.spec.whatwg.org/[URL Living Standard]
+
+=== WebDAV
+
+* https://tools.ietf.org/html/rfc3253[RFC 3253]: Versioning Extensions to WebDAV
+* https://tools.ietf.org/html/rfc3648[RFC 3648]: WebDAV Ordered Collections Protocol
+* https://tools.ietf.org/html/rfc3744[RFC 3744]: WebDAV Access Control Protocol
+* https://tools.ietf.org/html/rfc4316[RFC 4316]: Datatypes for WebDAV Properties
+* https://tools.ietf.org/html/rfc4331[RFC 4331]: Quota and Size Properties for DAV Collections
+* https://tools.ietf.org/html/rfc4437[RFC 4437]: WebDAV Redirect Reference Resources
+* https://tools.ietf.org/html/rfc4709[RFC 4709]: Mounting WebDAV Servers
+* https://tools.ietf.org/html/rfc4791[RFC 4791]: Calendaring Extensions to WebDAV (CalDAV)
+* https://tools.ietf.org/html/rfc4918[RFC 4918]: HTTP Extensions for WebDAV
+* https://tools.ietf.org/html/rfc5323[RFC 5323]: WebDAV SEARCH
+* https://tools.ietf.org/html/rfc5397[RFC 5397]: WebDAV Current Principal Extension
+* https://tools.ietf.org/html/rfc5689[RFC 5689]: Extended MKCOL for WebDAV
+* https://tools.ietf.org/html/rfc5842[RFC 5842]: Binding Extensions to WebDAV
+* https://tools.ietf.org/html/rfc5995[RFC 5995]: Using POST to Add Members to WebDAV Collections
+* https://tools.ietf.org/html/rfc6352[RFC 6352]: CardDAV: vCard Extensions to WebDAV
+* https://tools.ietf.org/html/rfc6578[RFC 6578]: Collection Synchronization for WebDAV
+* https://tools.ietf.org/html/rfc6638[RFC 6638]: Scheduling Extensions to CalDAV
+* https://tools.ietf.org/html/rfc6764[RFC 6764]: Locating Services for Calendaring Extensions to WebDAV (CalDAV) and vCard Extensions to WebDAV (CardDAV)
+* https://tools.ietf.org/html/rfc7809[RFC 7809]: Calendaring Extensions to WebDAV (CalDAV): Time Zones by Reference
+* https://tools.ietf.org/html/rfc7953[RFC 7953]: Calendar Availability
+
+=== CoAP
+
+* https://tools.ietf.org/html/rfc7252[RFC 7252]: The Constrained Application Protocol (CoAP)
+* https://tools.ietf.org/html/rfc7390[RFC 7390]: Group Communication for CoAP
+* https://tools.ietf.org/html/rfc7641[RFC 7641]: Observing Resources in CoAP
+* https://tools.ietf.org/html/rfc7650[RFC 7650]: A CoAP Usage for REsource LOcation And Discovery (RELOAD)
+* https://tools.ietf.org/html/rfc7959[RFC 7959]: Block-Wise Transfers in CoAP
+* https://tools.ietf.org/html/rfc7967[RFC 7967]: CoAP Option for No Server Response
+* https://tools.ietf.org/html/rfc8075[RFC 8075]: Guidelines for Mapping Implementations: HTTP to CoAP
