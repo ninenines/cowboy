@@ -25,7 +25,11 @@
 
 %% @todo Perhaps it makes more sense to have resp_body in this module?
 
--type commands() :: [{response, cowboy:http_status(), cowboy:http_headers(), cowboy_req:resp_body()}
+-type resp_command()
+	:: {response, cowboy:http_status(), cowboy:http_headers(), cowboy_req:resp_body()}.
+-export_type([resp_command/0]).
+
+-type commands() :: [resp_command()
 	| {headers, cowboy:http_status(), cowboy:http_headers()}
 	| {data, fin(), iodata()}
 	| {push, binary(), binary(), binary(), inet:port_number(),
@@ -51,10 +55,15 @@
 	| {stop, cow_http2:frame(), human_reason()}.
 -export_type([reason/0]).
 
+-type partial_req() :: map(). %% @todo Take what's in cowboy_req with everything? optional.
+-export_type([partial_req/0]).
+
 -callback init(streamid(), cowboy_req:req(), cowboy:opts()) -> {commands(), state()}.
 -callback data(streamid(), fin(), binary(), State) -> {commands(), State} when State::state().
 -callback info(streamid(), any(), State) -> {commands(), State} when State::state().
 -callback terminate(streamid(), reason(), state()) -> any().
+-callback early_error(streamid(), reason(), partial_req(), Resp, cowboy:opts())
+	-> Resp when Resp::resp_command().
 
 %% @todo To optimize the number of active timers we could have a command
 %% that enables a timeout that is called in the absence of any other call,
@@ -71,6 +80,7 @@
 -export([data/4]).
 -export([info/3]).
 -export([terminate/3]).
+-export([early_error/5]).
 
 %% Note that this and other functions in this module do NOT catch
 %% exceptions. We want the exception to go all the way down to the
@@ -127,3 +137,15 @@ terminate(_, _, undefined) ->
 terminate(StreamID, Reason, {Handler, State}) ->
 	_ = Handler:terminate(StreamID, Reason, State),
 	ok.
+
+-spec early_error(streamid(), reason(), partial_req(), Resp, cowboy:opts())
+	-> Resp when Resp::resp_command().
+early_error(StreamID, Reason, PartialReq, Resp, Opts) ->
+	case maps:get(stream_handlers, Opts, [cowboy_stream_h]) of
+		[] ->
+			Resp;
+		[Handler|Tail] ->
+			%% This is the same behavior as in init/3.
+			Handler:early_error(StreamID, Reason,
+				PartialReq, Resp, Opts#{stream_handlers => Tail})
+	end.

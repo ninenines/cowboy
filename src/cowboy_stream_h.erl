@@ -19,6 +19,7 @@
 -export([data/4]).
 -export([info/3]).
 -export([terminate/3]).
+-export([early_error/5]).
 
 -export([proc_lib_hack/3]).
 -export([execute/3]).
@@ -121,6 +122,12 @@ info(_StreamID, _Info, State) ->
 -spec terminate(cowboy_stream:streamid(), cowboy_stream:reason(), #state{}) -> ok.
 terminate(_StreamID, _Reason, _State) ->
 	ok.
+
+-spec early_error(cowboy_stream:streamid(), cowboy_stream:reason(),
+	cowboy_stream:partial_req(), Resp, cowboy:opts()) -> Resp
+	when Resp::cowboy_stream:resp_command().
+early_error(StreamID, Reason, PartialReq, Resp, Opts) ->
+	cowboy_stream:early_error(StreamID, Reason, PartialReq, Resp, Opts).
 
 %% We use ~999999p here instead of ~w because the latter doesn't
 %% support printable strings.
