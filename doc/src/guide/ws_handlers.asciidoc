@@ -220,7 +220,7 @@ init(Req, State) ->
 ----
 
 This value cannot be changed once it is set. It defaults to
-`infinity`.
+`60000`.
 
 // @todo Perhaps the default should be changed.
 
