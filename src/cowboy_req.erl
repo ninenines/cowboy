@@ -811,7 +811,7 @@ reply(Status, Headers, Req=#http_req{resp_body=Body}) ->
 	reply(Status, Headers, Body, Req).
 
 -spec reply(cowboy:http_status(), cowboy:http_headers(),
-	iodata() | {non_neg_integer() | resp_body_fun()}, Req)
+	iodata() | {non_neg_integer(), resp_body_fun()}, Req)
 	-> {ok, Req} when Req::req().
 reply(Status, Headers, Body, Req=#http_req{
 		socket=Socket, transport=Transport,
