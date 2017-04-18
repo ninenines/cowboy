@@ -913,19 +913,19 @@ stream_reset(State, StreamID, StreamError={internal_error, _, _}) ->
 %	stream_terminate(State#state{out_state=done}, StreamID, StreamError).
 	stream_terminate(State, StreamID, StreamError).
 
-stream_terminate(State=#state{socket=Socket, transport=Transport,
+stream_terminate(State0=#state{socket=Socket, transport=Transport,
 		out_streamid=OutStreamID, out_state=OutState,
 		streams=Streams0, children=Children0}, StreamID, Reason) ->
 	{value, #stream{state=StreamState, version=Version}, Streams}
 		= lists:keytake(StreamID, #stream.id, Streams0),
-	_ = case OutState of
+	State = case OutState of
 		wait ->
-			%% @todo This should probably go through the stream handler info callback.
-			Transport:send(Socket, cow_http:response(204, 'HTTP/1.1', []));
+			info(State0, StreamID, {response, 204, #{}, <<>>});
 		chunked when Version =:= 'HTTP/1.1' ->
-			Transport:send(Socket, <<"0\r\n\r\n">>);
+			_ = Transport:send(Socket, <<"0\r\n\r\n">>),
+			State0;
 		_ -> %% done or Version =:= 'HTTP/1.0'
-			ok
+			State0
 	end,
 
 	stream_call_terminate(StreamID, Reason, StreamState),

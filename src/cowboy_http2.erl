@@ -655,20 +655,22 @@ stream_reset(State=#state{socket=Socket, transport=Transport}, StreamID,
 	stream_terminate(State, StreamID, StreamError).
 
 stream_terminate(State=#state{socket=Socket, transport=Transport,
-		streams=Streams0, children=Children0, encode_state=EncodeState0}, StreamID, Reason) ->
+		streams=Streams0, children=Children0}, StreamID, Reason) ->
 	case lists:keytake(StreamID, #stream.id, Streams0) of
+		%% When the stream terminates normally (without sending RST_STREAM)
+		%% and no response was sent, we need to send a proper response back to the client.
 		{value, #stream{state=StreamState, local=idle}, Streams} when Reason =:= normal ->
-			Headers = #{<<":status">> => <<"204">>},
-			{HeaderBlock, EncodeState} = headers_encode(Headers, EncodeState0),
-			Transport:send(Socket, cow_http2:headers(StreamID, fin, HeaderBlock)),
+			State1 = info(State, StreamID, {response, 204, #{}, <<>>}),
 			stream_call_terminate(StreamID, Reason, StreamState),
 			Children = stream_terminate_children(Children0, StreamID, []),
-			State#state{streams=Streams, children=Children, encode_state=EncodeState};
+			State1#state{streams=Streams, children=Children};
+		%% When a response was sent but not terminated, we need to close the stream.
 		{value, #stream{state=StreamState, local=nofin}, Streams} when Reason =:= normal ->
 			Transport:send(Socket, cow_http2:data(StreamID, fin, <<>>)),
 			stream_call_terminate(StreamID, Reason, StreamState),
 			Children = stream_terminate_children(Children0, StreamID, []),
 			State#state{streams=Streams, children=Children};
+		%% Otherwise we sent an RST_STREAM and the stream is already closed.
 		{value, #stream{state=StreamState}, Streams} ->
 			stream_call_terminate(StreamID, Reason, StreamState),
 			Children = stream_terminate_children(Children0, StreamID, []),
