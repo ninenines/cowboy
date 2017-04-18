@@ -27,7 +27,7 @@
 	%% Stream handlers and their state.
 	state = undefined :: {module(), any()},
 	%% Whether we finished sending data.
-	local = idle :: idle | cowboy_stream:fin(),
+	local = idle :: idle | upgrade | cowboy_stream:fin(),
 	%% Whether we finished receiving data.
 	remote = nofin :: cowboy_stream:fin(),
 	%% Request body length.
@@ -122,11 +122,17 @@ init(Parent, Ref, Socket, Transport, Opts, Peer, Buffer, _Settings, Req) ->
 	State0 = #state{parent=Parent, ref=Ref, socket=Socket,
 		transport=Transport, opts=Opts, peer=Peer,
 		parse_state={preface, sequence, preface_timeout(Opts)}},
-	preface(State0),
 	%% @todo Apply settings.
 	%% StreamID from HTTP/1.1 Upgrade requests is always 1.
 	%% The stream is always in the half-closed (remote) state.
-	State = stream_handler_init(State0, 1, fin, Req),
+	State1 = stream_handler_init(State0, 1, fin, upgrade, Req),
+	%% We assume that the upgrade will be applied. A stream handler
+	%% must not prevent the normal operations of the server.
+	State = info(State1, 1, {switch_protocol, #{
+		<<"connection">> => <<"Upgrade">>,
+		<<"upgrade">> => <<"h2c">>
+	}, ?MODULE, undefined}), %% @todo undefined or #{}?
+	preface(State),
 	case Buffer of
 		<<>> -> before_loop(State, Buffer);
 		_ -> parse(State, Buffer)
@@ -496,7 +502,12 @@ commands(State, Stream=#stream{id=StreamID}, [Error = {internal_error, _, _}|_Ta
 	%% @todo Do we even allow commands after?
 	%% @todo Only reset when the stream still exists.
 	stream_reset(after_commands(State, Stream), StreamID, Error);
-%% @todo HTTP/2 has no support for the Upgrade mechanism.
+%% Upgrade to HTTP/2. This is triggered by cowboy_http2 itself.
+commands(State=#state{socket=Socket, transport=Transport},
+		Stream=#stream{local=upgrade}, [{switch_protocol, Headers, ?MODULE, _}|Tail]) ->
+	Transport:send(Socket, cow_http:response(101, 'HTTP/1.1', maps:to_list(Headers))),
+	commands(State, Stream#stream{local=idle}, Tail);
+%% HTTP/2 has no support for the Upgrade mechanism.
 commands(State, Stream, [{switch_protocol, _Headers, _Mod, _ModState}|Tail]) ->
 	%% @todo This is an error. Not sure what to do here yet.
 	commands(State, Stream, Tail);
@@ -610,7 +621,7 @@ stream_init(State0=#state{ref=Ref, socket=Socket, transport=Transport, peer=Peer
 				has_body => IsFin =:= nofin,
 				body_length => BodyLength
 			},
-			stream_handler_init(State, StreamID, IsFin, Req);
+			stream_handler_init(State, StreamID, IsFin, idle, Req);
 		{_, DecodeState} ->
 			Transport:send(Socket, cow_http2:rst_stream(StreamID, protocol_error)),
 			State0#state{decode_state=DecodeState}
@@ -619,15 +630,16 @@ stream_init(State0=#state{ref=Ref, socket=Socket, transport=Transport, peer=Peer
 			'Error while trying to decode HPACK-encoded header block. (RFC7540 4.3)'})
 	end.
 
-stream_handler_init(State=#state{opts=Opts}, StreamID, IsFin, Req) ->
+stream_handler_init(State=#state{opts=Opts}, StreamID, RemoteIsFin, LocalIsFin, Req) ->
 	try cowboy_stream:init(StreamID, Req, Opts) of
 		{Commands, StreamState} ->
 			commands(State#state{client_streamid=StreamID},
-				#stream{id=StreamID, state=StreamState, remote=IsFin}, Commands)
+				#stream{id=StreamID, state=StreamState,
+					remote=RemoteIsFin, local=LocalIsFin}, Commands)
 	catch Class:Reason ->
 		error_logger:error_msg("Exception occurred in "
 			"cowboy_stream:init(~p, ~p, ~p) with reason ~p:~p.",
-			[StreamID, IsFin, Req, Class, Reason]),
+			[StreamID, Req, Opts, Class, Reason]),
 		stream_reset(State, StreamID, {internal_error, {Class, Reason},
 			'Exception occurred in cowboy_stream:init/3.'})
 	end.

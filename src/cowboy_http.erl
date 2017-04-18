@@ -635,6 +635,7 @@ request(Buffer, State0=#state{ref=Ref, transport=Transport, peer=Peer, in_stream
 
 %% HTTP/2 upgrade.
 
+%% @todo We must not upgrade to h2c over a TLS connection.
 is_http2_upgrade(#{<<"connection">> := Conn, <<"upgrade">> := Upgrade,
 		<<"http2-settings">> := HTTP2Settings}, 'HTTP/1.1') ->
 	Conns = cow_http_hd:parse_connection(Conn),
@@ -675,13 +676,6 @@ http2_upgrade(State=#state{parent=Parent, ref=Ref, socket=Socket, transport=Tran
 	%% Always half-closed stream coming from this side.
 	try cow_http_hd:parse_http2_settings(HTTP2Settings) of
 		Settings ->
-			%% @todo We should invoke cowboy_stream:info for this stream,
-			%% with a switch_protocol tuple.
-			Transport:send(Socket, cow_http:response(101, 'HTTP/1.1', maps:to_list(#{
-				<<"connection">> => <<"Upgrade">>,
-				<<"upgrade">> => <<"h2c">>
-			}))),
-			%% @todo Possibly redirect the request if it was https.
 			_ = cancel_request_timeout(State),
 			cowboy_http2:init(Parent, Ref, Socket, Transport, Opts, Peer, Buffer, Settings, Req)
 	catch _:_ ->

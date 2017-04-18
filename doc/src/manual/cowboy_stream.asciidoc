@@ -18,6 +18,11 @@ Cowboy calls the stream handler for nearly all events
 related to a stream. Exceptions vary depending on the
 protocol.
 
+Extra care must be taken when implementing stream handlers
+to ensure compatibility. While some modification of the
+events and commands is allowed, it is generally not a good
+idea to completely omit them.
+
 == Callbacks
 
 Stream handlers must implement the following interface:
