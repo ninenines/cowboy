@@ -693,6 +693,9 @@ stream_call_terminate(StreamID, Reason, StreamState) ->
 stream_terminate_children([], _, Acc) ->
 	Acc;
 stream_terminate_children([{Pid, StreamID}|Tail], StreamID, Acc) ->
+	%% We unlink and flush the mailbox to avoid receiving a stray message.
+	unlink(Pid),
+	receive {'EXIT', Pid, _} -> ok after 0 -> ok end,
 	exit(Pid, kill),
 	stream_terminate_children(Tail, StreamID, Acc);
 stream_terminate_children([Child|Tail], StreamID, Acc) ->
