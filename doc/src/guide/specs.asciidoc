@@ -170,6 +170,7 @@ for or related to HTTP.
 * https://tools.ietf.org/html/rfc6764[RFC 6764]: Locating Services for Calendaring Extensions to WebDAV (CalDAV) and vCard Extensions to WebDAV (CardDAV)
 * https://tools.ietf.org/html/rfc7809[RFC 7809]: Calendaring Extensions to WebDAV (CalDAV): Time Zones by Reference
 * https://tools.ietf.org/html/rfc7953[RFC 7953]: Calendar Availability
+* https://tools.ietf.org/html/rfc8144[RFC 8144]: Use of the Prefer Header Field in WebDAV
 
 === CoAP
 
@@ -180,3 +181,4 @@ for or related to HTTP.
 * https://tools.ietf.org/html/rfc7959[RFC 7959]: Block-Wise Transfers in CoAP
 * https://tools.ietf.org/html/rfc7967[RFC 7967]: CoAP Option for No Server Response
 * https://tools.ietf.org/html/rfc8075[RFC 8075]: Guidelines for Mapping Implementations: HTTP to CoAP
+* https://tools.ietf.org/html/rfc8132[RFC 8132]: PATCH and FETCH Methods for CoAP
