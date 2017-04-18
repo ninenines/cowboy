@@ -37,13 +37,8 @@
 	| {flow, auto | integer()}
 	| {spawn, pid(), timeout()}
 	| {error_response, cowboy:http_status(), cowboy:http_headers(), iodata()}
-	| {internal_error, any(), human_reason()}
 	| {switch_protocol, cowboy:http_headers(), module(), state()}
-	%% @todo I'm not convinced we need this 'stop' command.
-	%% It's used on crashes, but error_response should
-	%% terminate the request instead. It's also used on
-	%% normal exits of children. I'm not sure what to do
-	%% there yet. Investigate.
+	| {internal_error, any(), human_reason()}
 	| stop].
 -export_type([commands/0]).
 
