@@ -15,6 +15,7 @@ as a Ranch protocol.
 ----
 opts() :: #{
     env                     := cowboy_middleware:env(),
+    idle_timeout            := timeout(),
     max_empty_lines         := non_neg_integer(),
     max_header_name_length  := non_neg_integer(),
     max_header_value_length := non_neg_integer(),
@@ -42,6 +43,9 @@ The default value is given next to the option name:
 
 env (#{})::
     Middleware environment.
+
+idle_timeout (60000)::
+    Time in ms with no data received before Cowboy closes the connection.
 
 max_empty_lines (5)::
     Maximum number of empty lines before a request.
