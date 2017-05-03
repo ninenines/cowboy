@@ -109,7 +109,7 @@
 	%% Currently active HTTP/1.1 streams.
 	streams = [] :: [stream()],
 
-	%% Children which are in the process of shutting down.
+	%% Children processes created by streams.
 	children = [] :: [{pid(), cowboy_stream:streamid(), timeout()}]
 }).
 
@@ -1060,7 +1060,9 @@ error_terminate(StatusCode0, State=#state{ref=Ref, socket=Socket, transport=Tran
 	terminate(State, Reason).
 
 -spec terminate(_, _) -> no_return().
-terminate(_State, _Reason) ->
+terminate(#state{children=Children}, _Reason) ->
+	%% @todo Leave them time to terminate.
+	_ = [exit(Pid, kill) || {Pid, _, _} <- Children],
 	exit(normal). %% @todo We probably don't want to exit normal on errors.
 
 %% System callbacks.
