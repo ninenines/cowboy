@@ -791,6 +791,21 @@ commands(State=#state{out_state=wait}, StreamID, [{error_response, StatusCode, H
 	commands(State, StreamID, [{response, StatusCode, Headers, Body}|Tail]);
 commands(State, StreamID, [{error_response, _, _, _}|Tail]) ->
 	commands(State, StreamID, Tail);
+%% Send an informational response.
+commands(State=#state{socket=Socket, transport=Transport, out_state=wait, streams=Streams},
+		StreamID, [{inform, StatusCode, Headers}|Tail]) ->
+	%% @todo I'm pretty sure the last stream in the list is the one we want
+	%% considering all others are queued.
+	#stream{version=Version} = lists:keyfind(StreamID, #stream.id, Streams),
+	_ = case Version of
+		'HTTP/1.1' ->
+			Transport:send(Socket, cow_http:response(StatusCode, 'HTTP/1.1',
+				headers_to_list(Headers)));
+		%% Do not send informational responses to HTTP/1.0 clients. (RFC7231 6.2)
+		'HTTP/1.0' ->
+			ok
+	end,
+	commands(State, StreamID, Tail);
 %% Send a full response.
 %%
 %% @todo Kill the stream if it sent a response when one has already been sent.
@@ -874,7 +889,7 @@ commands(State0=#state{ref=Ref, parent=Parent, socket=Socket, transport=Transpor
 	_ = [exit(Pid, kill) || {Pid, _, _} <- Children],
 	flush(),
 	%% Everything good, upgrade!
-	_ = commands(State, StreamID, [{response, 101, Headers, <<>>}]),
+	_ = commands(State, StreamID, [{inform, 101, Headers}]),
 	%% @todo This is no good because commands return a state normally and here it doesn't
 	%% we need to let this module go entirely. Perhaps it should be handled directly in
 	%% cowboy_clear/cowboy_tls? Perhaps not. We do want that Buffer.
