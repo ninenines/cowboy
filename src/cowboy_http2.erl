@@ -22,6 +22,17 @@
 -export([system_terminate/4]).
 -export([system_code_change/4]).
 
+-type opts() :: #{
+	connection_type => worker | supervisor,
+	env => cowboy_middleware:env(),
+	inactivity_timeout => timeout(),
+	middlewares => [module()],
+	preface_timeout => timeout(),
+	shutdown_timeout => timeout(),
+	stream_handlers => [module()]
+}.
+-export_type([opts/0]).
+
 -record(stream, {
 	id = undefined :: cowboy_stream:streamid(),
 	%% Stream handlers and their state.
@@ -41,7 +52,7 @@
 	ref :: ranch:ref(),
 	socket = undefined :: inet:socket(),
 	transport :: module(),
-	opts = #{} :: map(),
+	opts = #{} :: opts(),
 
 	%% Remote address and port for the connection.
 	peer = undefined :: {inet:ip_address(), inet:port_number()},
@@ -151,9 +162,10 @@ before_loop(State, Buffer) ->
 	loop(State, Buffer).
 
 loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
-		children=Children, parse_state=PS}, Buffer) ->
+		opts=Opts, children=Children, parse_state=PS}, Buffer) ->
 	Transport:setopts(Socket, [{active, once}]),
 	{OK, Closed, Error} = Transport:messages(),
+	InactivityTimeout = maps:get(inactivity_timeout, Opts, 300000),
 	receive
 		%% Socket messages.
 		{OK, Socket, Data} ->
@@ -198,8 +210,7 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 		Msg ->
 			error_logger:error_msg("Received stray message ~p.", [Msg]),
 			loop(State, Buffer)
-	%% @todo Configurable timeout.
-	after 60000 ->
+	after InactivityTimeout ->
 		terminate(State, {internal_error, timeout, 'No message or data received before timeout.'})
 	end.
 

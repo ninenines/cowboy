@@ -20,18 +20,23 @@
 -export([system_terminate/4]).
 -export([system_code_change/4]).
 
-%% @todo map
--type opts() :: [{compress, boolean()}
-	| {env, cowboy_middleware:env()}
-	| {max_empty_lines, non_neg_integer()}
-	| {max_header_name_length, non_neg_integer()}
-	| {max_header_value_length, non_neg_integer()}
-	| {max_headers, non_neg_integer()}
-	| {max_keepalive, non_neg_integer()}
-	| {max_request_line_length, non_neg_integer()}
-	| {middlewares, [module()]}
-	| {onresponse, cowboy:onresponse_fun()}
-	| {timeout, timeout()}].
+-type opts() :: #{
+	connection_type => worker | supervisor,
+	env => cowboy_middleware:env(),
+	idle_timeout => timeout(),
+	inactivity_timeout => timeout(),
+	max_empty_lines => non_neg_integer(),
+	max_header_name_length => non_neg_integer(),
+	max_header_value_length => non_neg_integer(),
+	max_headers => non_neg_integer(),
+	max_keepalive => non_neg_integer(),
+	max_method_length => non_neg_integer(),
+	max_request_line_length => non_neg_integer(),
+	middlewares => [module()],
+	request_timeout => timeout(),
+	shutdown_timeout => timeout(),
+	stream_handlers => [module()]
+}.
 -export_type([opts/0]).
 
 -record(ps_request_line, {
@@ -131,17 +136,7 @@ init(Parent, Ref, Socket, Transport, Opts) ->
 	end.
 
 %% @todo Send a response depending on in_state and whether one was already sent.
-
-%% @todo
-%% Timeouts:
-%% - waiting for new request (if no stream is currently running)
-%%   -> request_timeout: for whole request/headers, set at init/when we set ps_request_line{} state
-%% - waiting for new request, or body (when a stream is currently running)
-%%   -> idle_timeout: amount of time we wait without receiving any data
-%% - if we skip the body, skip only for a specific duration
-%%   -> skip_body_timeout: also have a skip_body_length
-%% - global
-%%   -> inactivity_timeout: max time to wait without anything happening before giving up
+%% @todo If we skip the body, skip for a specific duration.
 
 before_loop(State=#state{socket=Socket, transport=Transport}, Buffer) ->
 	%% @todo disable this when we get to the body, until the stream asks for it?
@@ -149,9 +144,10 @@ before_loop(State=#state{socket=Socket, transport=Transport}, Buffer) ->
 	Transport:setopts(Socket, [{active, once}]),
 	loop(State, Buffer).
 
-loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
+loop(State=#state{parent=Parent, socket=Socket, transport=Transport, opts=Opts,
 		timer=TimerRef, children=Children, streams=Streams}, Buffer) ->
 	{OK, Closed, Error} = Transport:messages(),
+	InactivityTimeout = maps:get(inactivity_timeout, Opts, 300000),
 	receive
 		%% Socket messages.
 		{OK, Socket, Data} ->
@@ -199,9 +195,7 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 		Msg ->
 			error_logger:error_msg("Received stray message ~p.~n", [Msg]),
 			loop(State, Buffer)
-	%% @todo Configurable timeout. This should be a global inactivity timeout
-	%% that triggers when really nothing happens (ie something went really wrong).
-	after 300000 ->
+	after InactivityTimeout ->
 		terminate(State, {internal_error, timeout, 'No message or data received before timeout.'})
 	end.
 

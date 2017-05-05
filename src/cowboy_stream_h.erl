@@ -46,7 +46,7 @@
 init(_StreamID, Req=#{ref := Ref}, Opts) ->
 	Env = maps:get(env, Opts, #{}),
 	Middlewares = maps:get(middlewares, Opts, [cowboy_router, cowboy_handler]),
-	Shutdown = maps:get(shutdown, Opts, 5000),
+	Shutdown = maps:get(shutdown_timeout, Opts, 5000),
 	Pid = proc_lib:spawn_link(?MODULE, proc_lib_hack, [Req, Env, Middlewares]),
 	{[{spawn, Pid, Shutdown}], #state{ref=Ref, pid=Pid}}.
 
