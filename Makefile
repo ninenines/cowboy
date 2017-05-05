@@ -2,7 +2,7 @@
 
 PROJECT = cowboy
 PROJECT_DESCRIPTION = Small, fast, modern HTTP server.
-PROJECT_VERSION = 2.0.0-pre.7
+PROJECT_VERSION = 2.0.0-pre.8
 PROJECT_REGISTERED = cowboy_clock
 
 # Options.
@@ -11,7 +11,7 @@ COMPILE_FIRST = cowboy_middleware cowboy_stream cowboy_sub_protocol
 PLT_APPS = public_key ssl
 CT_OPTS += -ct_hooks cowboy_ct_hook [] # -boot start_sasl
 
-CI_OTP ?= OTP-18.0.3 OTP-18.1.5 OTP-18.2.4.1 OTP-18.3.4.5 OTP-19.0.7 OTP-19.1.6 OTP-19.2.3
+CI_OTP ?= OTP-19.0.7 OTP-19.1.6 OTP-19.2.3 OTP-19.3.3 OTP-20.0-rc1
 CI_HIPE ?= $(lastword $(CI_OTP))
 CI_ERLLVM ?= $(CI_HIPE)
 
