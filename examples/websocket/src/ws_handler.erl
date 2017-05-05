@@ -17,6 +17,9 @@ websocket_handle({text, Msg}, State) ->
 websocket_handle(_Data, State) ->
 	{ok, State}.
 
+websocket_info({timeout, _Ref, idle_timeout}, State) ->
+	{stop, State};
+
 websocket_info({timeout, _Ref, Msg}, State) ->
 	erlang:start_timer(1000, self(), <<"How' you doin'?">>),
 	{reply, {text, Msg}, State};
