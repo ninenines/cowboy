@@ -475,6 +475,26 @@ do_multipart(Path, Config) ->
 	} = LargeHeaders,
 	ok.
 
+multipart_error_empty(Config) ->
+	doc("Multipart request body is empty."),
+	%% We use an empty list as a body to make sure Gun knows
+	%% we want to send an empty body.
+	%% @todo This is a terrible hack. Improve Gun!
+	Body = [],
+	%% Ensure an empty body results in a 400 error.
+	{400, _} = do_body_error("POST", "/multipart", [
+		{<<"content-type">>, <<"multipart/mixed; boundary=deadbeef">>}
+	], Body, Config),
+	ok.
+
+multipart_error_preamble_only(Config) ->
+	doc("Multipart request body only contains a preamble."),
+	%% Ensure an empty body results in a 400 error.
+	{400, _} = do_body_error("POST", "/multipart", [
+		{<<"content-type">>, <<"multipart/mixed; boundary=deadbeef">>}
+	], <<"Preamble.">>, Config),
+	ok.
+
 multipart_error_headers(Config) ->
 	doc("Multipart request body with invalid part headers."),
 	ReqBody = [
@@ -489,6 +509,17 @@ multipart_error_headers(Config) ->
 
 %% The function to parse the multipart body currently does not crash,
 %% as far as I can tell. There is therefore no test for it.
+
+multipart_error_no_final_boundary(Config) ->
+	doc("Multipart request body with no final boundary."),
+	ReqBody = [
+		"--deadbeef\r\nContent-Type: text/plain\r\n\r\nCowboy is an HTTP server.\r\n"
+	],
+	%% Ensure parse errors result in a 400 response.
+	{400, _} = do_body_error("POST", "/multipart", [
+		{<<"content-type">>, <<"multipart/mixed; boundary=deadbeef">>}
+	], ReqBody, Config),
+	ok.
 
 multipart_missing_boundary(Config) ->
 	doc("Multipart request body without a boundary in the media type."),
