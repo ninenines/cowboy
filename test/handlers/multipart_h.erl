@@ -7,6 +7,7 @@
 init(Req0, State) ->
 	{Result, Req} = case cowboy_req:binding(key, Req0) of
 		undefined -> acc_multipart(Req0, []);
+		<<"incomplete_body">> -> incomplete_body_multipart(Req0);
 		<<"skip_body">> -> skip_body_multipart(Req0, []);
 		<<"read_part2">> -> read_part2_multipart(Req0, []);
 		<<"read_part_body2">> -> read_part_body2_multipart(Req0, [])
@@ -28,6 +29,21 @@ stream_body(Req0, Acc) ->
 			stream_body(Req, << Acc/binary, Data/binary >>);
 		{ok, Data, Req} ->
 			{ok, << Acc/binary, Data/binary >>, Req}
+	end.
+
+incomplete_body_multipart(Req0) ->
+	try cowboy_req:read_part(Req0) of
+		{ok, _Headers, Req1} ->
+			try stream_body(Req1, <<>>) of
+				{ok, _Body, Req} ->
+					incomplete_body_multipart(Req)
+			catch
+				BodyErrType:BodyErr ->
+					{{BodyErrType, BodyErr, erlang:get_stacktrace()}, Req1}
+			end
+	catch
+		HeaderErrType:HeaderErr ->
+			{{HeaderErrType, HeaderErr, erlang:get_stacktrace()}, Req0}
 	end.
 
 skip_body_multipart(Req0, Acc) ->

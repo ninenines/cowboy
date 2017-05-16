@@ -538,8 +538,13 @@ init_multipart(Req) ->
 stream_multipart(Req=#{multipart := done}, _) ->
 	{<<>>, Req};
 stream_multipart(Req=#{multipart := {_, <<>>}}, Opts) ->
-	{_, Data, Req2} = read_body(Req, Opts),
-	{Data, Req2};
+	%% crash if no more data
+	case read_body(Req, Opts) of
+		{more, Data, Req2} ->
+			{Data, Req2};
+		{ok, Data, Req2} when byte_size(Data) > 0 ->
+			{Data, Req2}
+	end;
 stream_multipart(Req=#{multipart := {Boundary, Buffer}}, _) ->
 	{Buffer, Req#{multipart => {Boundary, <<>>}}}.
 
