@@ -734,7 +734,7 @@ if_none_match_exists(Req, State) ->
 		undefined ->
 			if_modified_since_exists(Req, State);
 		'*' ->
-			precondition_is_head_get(Req, State);
+			precondition_is_head_get_put(Req, State);
 		EtagsList ->
 			if_none_match(Req, State, EtagsList)
 	end.
@@ -767,6 +767,12 @@ precondition_is_head_get(Req, State=#state{method=Method})
 		when Method =:= <<"HEAD">>; Method =:= <<"GET">> ->
 	not_modified(Req, State);
 precondition_is_head_get(Req, State) ->
+	precondition_failed(Req, State).
+
+precondition_is_head_get_put(Req, State=#state{method=Method})
+		when Method =:= <<"HEAD">>; Method =:= <<"GET">>; Method =:= <<"PUT">> ->
+	not_modified(Req, State);
+precondition_is_head_get_put(Req, State) ->
 	precondition_failed(Req, State).
 
 if_modified_since_exists(Req, State) ->
