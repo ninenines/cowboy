@@ -88,7 +88,7 @@
 -export_type([cookie_opts/0]).
 
 -type read_body_opts() :: #{
-	length => non_neg_integer() | infinity,
+	length => non_neg_integer(),
 	period => non_neg_integer(),
 	timeout => timeout()
 }.
