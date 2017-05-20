@@ -80,6 +80,7 @@ for or related to HTTP.
 * https://tools.ietf.org/html/rfc7838[RFC 7838]: HTTP Alternative Services
 * https://tools.ietf.org/html/rfc7932[RFC 7932]: Brotli Compressed Data Format
 * https://tools.ietf.org/html/rfc8053[RFC 8053]: HTTP Authentication Extensions for Interactive Clients
+* https://tools.ietf.org/html/rfc8164[RFC 8164]: Opportunistic Security for HTTP/2
 * https://www.w3.org/TR/webmention/[Webmention]: Webmention
 
 ==== Upcoming
