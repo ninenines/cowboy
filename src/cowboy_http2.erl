@@ -284,12 +284,17 @@ parse_settings_preface(State, _, _, _) ->
 %% and terminate the stream if this is the end of it.
 
 %% DATA frame.
-frame(State=#state{remote_window=ConnWindow, streams=Streams},
+frame(State=#state{client_streamid=LastStreamID}, {data, StreamID, _, _})
+		when StreamID > LastStreamID ->
+	terminate(State, {connection_error, protocol_error,
+		'DATA frame received on a stream in idle state. (RFC7540 5.1)'});
+frame(State0=#state{remote_window=ConnWindow, streams=Streams},
 		{data, StreamID, IsFin0, Data}) ->
+	DataLen = byte_size(Data),
+	State = State0#state{remote_window=ConnWindow - DataLen},
 	case lists:keyfind(StreamID, #stream.id, Streams) of
 		Stream = #stream{state=StreamState0, remote=nofin,
 				remote_window=StreamWindow, body_length=Len0} ->
-			DataLen = byte_size(Data),
 			Len = Len0 + DataLen,
 			IsFin = case IsFin0 of
 				fin -> {fin, Len};
@@ -297,7 +302,7 @@ frame(State=#state{remote_window=ConnWindow, streams=Streams},
 			end,
 			try cowboy_stream:data(StreamID, IsFin, Data, StreamState0) of
 				{Commands, StreamState} ->
-					commands(State#state{remote_window=ConnWindow - DataLen},
+					commands(State,
 						Stream#stream{state=StreamState, remote_window=StreamWindow - DataLen,
 						body_length=Len}, Commands)
 			catch Class:Reason ->
@@ -307,10 +312,23 @@ frame(State=#state{remote_window=ConnWindow, streams=Streams},
 				stream_reset(State, StreamID, {internal_error, {Class, Reason},
 					'Exception occurred in cowboy_stream:data/4.'})
 			end;
-		_ ->
+		#stream{remote=fin} ->
 			stream_reset(State, StreamID, {stream_error, stream_closed,
-				'DATA frame received for a closed or non-existent stream. (RFC7540 6.1)'})
+				'DATA frame received for a half-closed (remote) stream. (RFC7540 5.1)'});
+		false ->
+			%% @todo What about RST_STREAM? Sigh.
+			terminate(State, {connection_error, stream_closed,
+				'DATA frame received for a closed stream. (RFC7540 5.1)'})
 	end;
+%% HEADERS frame with invalid even-numbered streamid.
+frame(State, {headers, StreamID, _, _, _}) when StreamID rem 2 =:= 0 ->
+	terminate(State, {connection_error, protocol_error,
+		'HEADERS frame received with even-numbered streamid. (RFC7540 5.1.1)'});
+%% HEADERS frame received on (half-)closed stream.
+frame(State=#state{client_streamid=LastStreamID}, {headers, StreamID, _, _, _})
+		when StreamID =< LastStreamID ->
+	stream_reset(State, StreamID, {stream_error, stream_closed,
+		'HEADERS frame received on a stream in closed or half-closed state. (RFC7540 5.1)'});
 %% Single HEADERS frame headers block.
 frame(State, {headers, StreamID, IsFin, head_fin, HeaderBlock}) ->
 	%% @todo We probably need to validate StreamID here and in 4 next clauses.
@@ -334,6 +352,10 @@ frame(State, {priority, _StreamID, _IsExclusive, _DepStreamID, _Weight}) ->
 	%% @todo Handle priority.
 	State;
 %% RST_STREAM frame.
+frame(State=#state{client_streamid=LastStreamID}, {rst_stream, StreamID, _})
+		when StreamID > LastStreamID ->
+	terminate(State, {connection_error, protocol_error,
+		'RST_STREAM frame received on a stream in idle state. (RFC7540 5.1)'});
 frame(State, {rst_stream, StreamID, Reason}) ->
 	stream_terminate(State, StreamID, {stream_error, Reason, 'Stream reset requested by client.'});
 %% SETTINGS frame.
@@ -365,6 +387,10 @@ frame(State, Frame={goaway, _, _, _}) ->
 frame(State=#state{local_window=ConnWindow}, {window_update, Increment}) ->
 	send_data(State#state{local_window=ConnWindow + Increment});
 %% Stream-specific WINDOW_UPDATE frame.
+frame(State=#state{client_streamid=LastStreamID}, {window_update, StreamID, _})
+		when StreamID > LastStreamID ->
+	terminate(State, {connection_error, protocol_error,
+		'WINDOW_UPDATE frame received on a stream in idle state. (RFC7540 5.1)'});
 frame(State0=#state{streams=Streams0}, {window_update, StreamID, Increment}) ->
 	case lists:keyfind(StreamID, #stream.id, Streams0) of
 		Stream0 = #stream{local_window=StreamWindow} ->
@@ -372,8 +398,8 @@ frame(State0=#state{streams=Streams0}, {window_update, StreamID, Increment}) ->
 				Stream0#stream{local_window=StreamWindow + Increment}),
 			Streams = lists:keystore(StreamID, #stream.id, Streams0, Stream),
 			State#state{streams=Streams};
+		%% @todo We must reject WINDOW_UPDATE frames on RST_STREAM closed streams.
 		false ->
-			%% @todo Receiving this frame on a stream in the idle state is an error.
 			%% WINDOW_UPDATE frames may be received for a short period of time
 			%% after a stream is closed. They must be ignored.
 			State0

@@ -1670,3 +1670,569 @@ continuation_wrong_stream_error(Config) ->
 	%% Receive a PROTOCOL_ERROR connection error.
 	{ok, << _:24, 7:8, _:72, 1:32 >>} = gen_tcp:recv(Socket, 17, 6000),
 	ok.
+
+%% Stream states.
+
+idle_stream_reject_data(Config) ->
+	doc("DATA frames received on an idle stream must be rejected "
+		"with a PROTOCOL_ERROR connection error. (RFC7540 5.1)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a DATA frame on an idle stream.
+	ok = gen_tcp:send(Socket, cow_http2:data(1, fin, <<"Unexpected DATA frame.">>)),
+	%% Receive a PROTOCOL_ERROR connection error.
+	{ok, << _:24, 7:8, _:72, 1:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+idle_stream_accept_headers(Config) ->
+	doc("HEADERS frames received on an idle stream must be accepted. (RFC7540 5.1)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame on an idle stream.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+	%% Receive a HEADERS frame as a response.
+	{ok, << _:24, 1:8, _:40 >>} = gen_tcp:recv(Socket, 9, 6000),
+	ok.
+
+idle_stream_accept_priority(Config) ->
+	doc("PRIORITY frames received on an idle stream must be accepted. (RFC7540 5.1)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a PRIORITY frame on an idle stream.
+	ok = gen_tcp:send(Socket, cow_http2:priority(1, shared, 3, 123)),
+	%% Receive no error.
+	{error, timeout} = gen_tcp:recv(Socket, 7, 1000),
+	%% Send a HEADERS frame on the same stream.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+	%% Receive a HEADERS frame as a response.
+	{ok, << _:24, 1:8, _:40 >>} = gen_tcp:recv(Socket, 9, 6000),
+	ok.
+
+idle_stream_reject_rst_stream(Config) ->
+	doc("RST_STREAM frames received on an idle stream must be rejected "
+		"with a PROTOCOL_ERROR connection error. (RFC7540 5.1)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send an RST_STREAM frame on an idle stream.
+	ok = gen_tcp:send(Socket, cow_http2:rst_stream(1, no_error)),
+	%% Receive a PROTOCOL_ERROR connection error.
+	{ok, << _:24, 7:8, _:72, 1:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+idle_stream_reject_push_promise(Config) ->
+	doc("PUSH_PROMISE frames received on an idle stream must be rejected "
+		"with a PROTOCOL_ERROR connection error. (RFC7540 5.1)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a PUSH_PROMISE frame on an idle stream.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:push_promise(1, 3, HeadersBlock)),
+	%% Receive a PROTOCOL_ERROR connection error.
+	{ok, << _:24, 7:8, _:72, 1:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+idle_stream_reject_window_update(Config) ->
+	doc("WINDOW_UPDATE frames received on an idle stream must be rejected "
+		"with a PROTOCOL_ERROR connection error. (RFC7540 5.1)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a WINDOW_UPDATE frame on an idle stream.
+	ok = gen_tcp:send(Socket, cow_http2:window_update(1, 12345)),
+	%% Receive a PROTOCOL_ERROR connection error.
+	{ok, << _:24, 7:8, _:72, 1:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+%reserved (local) - after sending PUSH_PROMISE:
+%      An endpoint MUST NOT send any type of frame other than HEADERS,
+%      RST_STREAM, or PRIORITY in this state.
+%%% how to test this?
+%
+%      A PRIORITY or WINDOW_UPDATE frame MAY be received in this state.
+%      Receiving any type of frame other than RST_STREAM, PRIORITY, or
+%      WINDOW_UPDATE on a stream in this state MUST be treated as a
+%      connection error (Section 5.4.1) of type PROTOCOL_ERROR.
+%%% we need to use a large enough file for this
+%
+%reserved_local_reject_data
+%reserved_local_reject_headers
+%reserved_local_accept_priority
+%reserved_local_accept_rst_stream
+%reserved_local_reject_push_promise %% do we even care? we reject it always
+%reserved_local_accept_window_update
+%
+%half-closed (remote):
+%      If an endpoint receives additional frames, other than
+%      WINDOW_UPDATE, PRIORITY, or RST_STREAM, for a stream that is in
+%      this state, it MUST respond with a stream error (Section 5.4.2) of
+%      type STREAM_CLOSED.
+
+half_closed_remote_reject_data(Config) ->
+	doc("DATA frames received on a half-closed (remote) stream must be rejected "
+		"with a STREAM_CLOSED stream error. (RFC7540 5.1)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame with the FIN flag set.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+	%% Send a DATA frame on that now half-closed (remote) stream.
+	ok = gen_tcp:send(Socket, cow_http2:data(1, fin, <<"Unexpected DATA frame.">>)),
+	%% Receive a STREAM_CLOSED stream error.
+	{ok, << _:24, 3:8, _:8, 1:32, 5:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+	ok.
+
+half_closed_remote_reject_headers(Config) ->
+	doc("HEADERS frames received on a half-closed (remote) stream must be rejected "
+		"with a STREAM_CLOSED stream error. (RFC7540 5.1)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame with the FIN flag set.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+	%% Send a HEADERS frame on that now half-closed (remote) stream.
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+	%% Receive a STREAM_CLOSED stream error.
+	{ok, << _:24, 3:8, _:8, 1:32, 5:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+	ok.
+
+half_closed_remote_accept_priority(Config) ->
+	doc("PRIORITY frames received on a half-closed stream must be accepted. (RFC7540 5.1)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame with the FIN flag set.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+	%% Send a PRIORITY frame on that now half-closed (remote) stream.
+	ok = gen_tcp:send(Socket, cow_http2:priority(1, shared, 3, 123)),
+	%% Receive a HEADERS frame as a response.
+	{ok, << _:24, 1:8, _:40 >>} = gen_tcp:recv(Socket, 9, 6000),
+	ok.
+
+half_closed_remote_accept_rst_stream(Config) ->
+	doc("RST_STREAM frames received on a half-closed stream must be accepted. (RFC7540 5.1)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame with the FIN flag set.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+	%% Send an RST_STREAM frame on that now half-closed (remote) stream.
+	ok = gen_tcp:send(Socket, cow_http2:rst_stream(1, no_error)),
+	%% Receive nothing back.
+	{error, timeout} = gen_tcp:recv(Socket, 9, 6000),
+	ok.
+
+%% half_closed_remote_reject_push_promise
+%%
+%% We respond to all PUSH_PROMISE frames with a PROTOCOL_ERROR connection error
+%% because PUSH is disabled in that direction. We therefore cannot test other
+%% error conditions.
+
+half_closed_remote_accept_window_update(Config) ->
+	doc("WINDOW_UPDATE frames received on a half-closed stream must be accepted. (RFC7540 5.1)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame with the FIN flag set.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+	%% Send a WINDOW_UPDATE frame on that now half-closed (remote) stream.
+	ok = gen_tcp:send(Socket, cow_http2:window_update(1, 12345)),
+	%% Receive a HEADERS frame as a response.
+	{ok, << _:24, 1:8, _:40 >>} = gen_tcp:recv(Socket, 9, 6000),
+	ok.
+
+rst_stream_closed_reject_data(Config) ->
+	doc("DATA frames received on a stream closed via RST_STREAM must be rejected "
+		"with a STREAM_CLOSED stream error. (RFC7540 5.1)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, nofin, HeadersBlock)),
+	%% Send an RST_STREAM frame to close the stream.
+	ok = gen_tcp:send(Socket, cow_http2:rst_stream(1, cancel)),
+	%% Send a DATA frame on the now RST_STREAM closed stream.
+	ok = gen_tcp:send(Socket, cow_http2:data(1, fin, <<"Unexpected DATA frame.">>)),
+	%% Receive a STREAM_CLOSED stream error.
+	{ok, << _:24, 3:8, _:8, 1:32, 5:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+	ok.
+
+rst_stream_closed_reject_headers(Config) ->
+	doc("HEADERS frames received on a stream closed via RST_STREAM must be rejected "
+		"with a STREAM_CLOSED stream error. (RFC7540 5.1)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, nofin, HeadersBlock)),
+	%% Send an RST_STREAM frame to close the stream.
+	ok = gen_tcp:send(Socket, cow_http2:rst_stream(1, cancel)),
+	%% Send a HEADERS frame on the now RST_STREAM closed stream.
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, nofin, HeadersBlock)),
+	%% Receive a STREAM_CLOSED stream error.
+	{ok, << _:24, 3:8, _:8, 1:32, 5:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+	ok.
+
+rst_stream_closed_accept_priority(Config) ->
+	doc("PRIORITY frames received on a stream closed via RST_STREAM "
+		"must be accepted. (RFC7540 5.1)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, nofin, HeadersBlock)),
+	%% Send an RST_STREAM frame to close the stream.
+	ok = gen_tcp:send(Socket, cow_http2:rst_stream(1, cancel)),
+	%% Send a PRIORITY frame on that now RST_STREAM closed stream.
+	ok = gen_tcp:send(Socket, cow_http2:priority(1, shared, 3, 123)),
+	%% Receive nothing back.
+	{error, timeout} = gen_tcp:recv(Socket, 9, 6000),
+	ok.
+
+rst_stream_closed_ignore_rst_stream(Config) ->
+	doc("RST_STREAM frames received on a stream closed via RST_STREAM "
+		"must be ignored to avoid looping. (RFC7540 5.1, RFC7540 5.4.2)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, nofin, HeadersBlock)),
+	%% Send an RST_STREAM frame to close the stream.
+	ok = gen_tcp:send(Socket, cow_http2:rst_stream(1, cancel)),
+	%% Send an extra RST_STREAM.
+	ok = gen_tcp:send(Socket, cow_http2:rst_stream(1, cancel)),
+	%% Receive nothing back.
+	{error, timeout} = gen_tcp:recv(Socket, 9, 6000),
+	ok.
+
+%% rst_stream_closed_reject_push_promise
+%%
+%% We respond to all PUSH_PROMISE frames with a PROTOCOL_ERROR connection error
+%% because PUSH is disabled in that direction. We therefore cannot test other
+%% error conditions.
+
+rst_stream_closed_reject_window_update(Config) ->
+	doc("WINDOW_UPDATE frames received on a stream closed via RST_STREAM "
+		"must be rejected with a STREAM_CLOSED stream error. (RFC7540 5.1)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, nofin, HeadersBlock)),
+	%% Send an RST_STREAM frame to close the stream.
+	ok = gen_tcp:send(Socket, cow_http2:rst_stream(1, cancel)),
+	%% Send a WINDOW_UPDATE frame on the now RST_STREAM closed stream.
+	ok = gen_tcp:send(Socket, cow_http2:window_update(1, 12345)),
+	%% Receive a STREAM_CLOSED stream error.
+	{ok, << _:24, 3:8, _:8, 1:32, 5:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+	ok.
+
+stream_closed_reject_data(Config) ->
+	doc("DATA frames received on a stream closed normally must be rejected "
+		"with a STREAM_CLOSED connection error. (RFC7540 5.1)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+	%% Receive the response.
+	{ok, << Length1:24, 1:8, _:40 >>} = gen_tcp:recv(Socket, 9, 6000),
+	{ok, _} = gen_tcp:recv(Socket, Length1, 6000),
+	{ok, << Length2:24, 0:8, _:40 >>} = gen_tcp:recv(Socket, 9, 6000),
+	{ok, _} = gen_tcp:recv(Socket, Length2, 6000),
+	%% Send a DATA frame on the now closed stream.
+	ok = gen_tcp:send(Socket, cow_http2:data(1, fin, <<"Unexpected DATA frame.">>)),
+	%% Receive a STREAM_CLOSED connection error.
+	{ok, << _:24, 7:8, _:72, 5:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+stream_closed_reject_headers(Config) ->
+	doc("HEADERS frames received on a stream closed normally must be rejected "
+		"with a STREAM_CLOSED connection error. (RFC7540 5.1)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+	%% Receive the response.
+	{ok, << Length1:24, 1:8, _:40 >>} = gen_tcp:recv(Socket, 9, 6000),
+	{ok, _} = gen_tcp:recv(Socket, Length1, 6000),
+	{ok, << Length2:24, 0:8, _:40 >>} = gen_tcp:recv(Socket, 9, 6000),
+	{ok, _} = gen_tcp:recv(Socket, Length2, 6000),
+	%% Send a HEADERS frame on the now closed stream.
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+	%% Receive a STREAM_CLOSED connection error.
+	{ok, << _:24, 7:8, _:72, 5:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+stream_closed_accept_priority(Config) ->
+	doc("PRIORITY frames received on a stream closed normally must be accepted. (RFC7540 5.1)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, nofin, HeadersBlock)),
+	%% Receive the response.
+	{ok, << Length1:24, 1:8, _:40 >>} = gen_tcp:recv(Socket, 9, 6000),
+	{ok, _} = gen_tcp:recv(Socket, Length1, 6000),
+	{ok, << Length2:24, 0:8, _:40 >>} = gen_tcp:recv(Socket, 9, 6000),
+	{ok, _} = gen_tcp:recv(Socket, Length2, 6000),
+	%% Send a PRIORITY frame on the now closed stream.
+	ok = gen_tcp:send(Socket, cow_http2:priority(1, shared, 3, 123)),
+	%% Receive nothing back.
+	{error, timeout} = gen_tcp:recv(Socket, 9, 6000),
+	ok.
+
+stream_closed_accept_rst_stream(Config) ->
+	doc("RST_STREAM frames received on a stream closed normally "
+		"must be accepted for a short period. (RFC7540 5.1)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, nofin, HeadersBlock)),
+	%% Receive the response.
+	{ok, << Length1:24, 1:8, _:40 >>} = gen_tcp:recv(Socket, 9, 6000),
+	{ok, _} = gen_tcp:recv(Socket, Length1, 6000),
+	{ok, << Length2:24, 0:8, _:40 >>} = gen_tcp:recv(Socket, 9, 6000),
+	{ok, _} = gen_tcp:recv(Socket, Length2, 6000),
+	%% Send an RST_STREAM frame on the now closed stream.
+	ok = gen_tcp:send(Socket, cow_http2:rst_stream(1, cancel)),
+	%% Receive nothing back.
+	{error, timeout} = gen_tcp:recv(Socket, 9, 6000),
+	ok.
+
+%% stream_closed_reject_push_promise
+%%
+%% We respond to all PUSH_PROMISE frames with a PROTOCOL_ERROR connection error
+%% because PUSH is disabled in that direction. We therefore cannot test other
+%% error conditions.
+
+stream_closed_accept_window_update(Config) ->
+	doc("WINDOW_UPDATE frames received on a stream closed normally "
+		"must be accepted for a short period. (RFC7540 5.1)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, nofin, HeadersBlock)),
+	%% Receive the response.
+	{ok, << Length1:24, 1:8, _:40 >>} = gen_tcp:recv(Socket, 9, 6000),
+	{ok, _} = gen_tcp:recv(Socket, Length1, 6000),
+	{ok, << Length2:24, 0:8, _:40 >>} = gen_tcp:recv(Socket, 9, 6000),
+	{ok, _} = gen_tcp:recv(Socket, Length2, 6000),
+	%% Send a WINDOW_UPDATE frame on the now closed stream.
+	ok = gen_tcp:send(Socket, cow_http2:window_update(1, 12345)),
+	%% Receive nothing back.
+	{error, timeout} = gen_tcp:recv(Socket, 9, 6000),
+	ok.
+
+%% @todo While we accept RST_STREAM and WINDOW_UPDATE for a short period
+%% after the stream closed normally, we may want to reject the ones coming
+%% a significant amount of time after that.
+
+%% @todo Frames may arrive on a stream after we send an RST_STREAM for it.
+%% They must be ignored for a short period of time:
+%
+%      If this state is reached as a result of sending a RST_STREAM
+%      frame, the peer that receives the RST_STREAM might have already
+%      sent -- or enqueued for sending -- frames on the stream that
+%      cannot be withdrawn.  An endpoint MUST ignore frames that it
+%      receives on closed streams after it has sent a RST_STREAM frame.
+%      An endpoint MAY choose to limit the period over which it ignores
+%      frames and treat frames that arrive after this time as being in
+%      error.
+
+%% @todo Ensure that rejected DATA frames result in the connection
+%% flow-control window being updated. How to test this?
+%
+%      Flow-controlled frames (i.e., DATA) received after sending
+%      RST_STREAM are counted toward the connection flow-control window.
+%      Even though these frames might be ignored, because they are sent
+%      before the sender receives the RST_STREAM, the sender will
+%      consider the frames to count against the flow-control window.
+
+%% Stream identifiers.
+
+reject_streamid_even(Config) ->
+	doc("HEADERS frames received with an even-numbered streamid "
+		"must be rejected with a PROTOCOL_ERROR connection error. (RFC7540 5.1.1)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame with an even-numbered streamid.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(2, fin, HeadersBlock)),
+	%% Receive a PROTOCOL_ERROR connection error.
+	{ok, << _:24, 7:8, _:72, 1:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+reject_streamid_0(Config) ->
+	doc("HEADERS frames received with streamid 0 (zero) "
+		"must be rejected with a PROTOCOL_ERROR connection error. (RFC7540 5.1.1)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame with an streamid 0.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(0, fin, HeadersBlock)),
+	%% Receive a PROTOCOL_ERROR connection error.
+	{ok, << _:24, 7:8, _:72, 1:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+http_upgrade_reject_reuse_streamid_1(Config) ->
+	doc("Attempts to reuse streamid 1 after upgrading to HTTP/2 "
+		"must be rejected with a PROTOCOL_ERROR connection error. (RFC7540 5.1.1)"),
+	{ok, Socket} = gen_tcp:connect("localhost", config(port, Config), [binary, {active, false}]),
+	ok = gen_tcp:send(Socket, [
+		"GET / HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Connection: Upgrade, HTTP2-Settings\r\n"
+		"Upgrade: h2c\r\n"
+		"HTTP2-Settings: ", base64:encode(cow_http2:settings_payload(#{})), "\r\n",
+		"\r\n"]),
+	ok = do_recv_101(Socket),
+	%% Send a valid preface.
+	ok = gen_tcp:send(Socket, ["PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n", cow_http2:settings(#{})]),
+	%% Receive the server preface.
+	{ok, << Len:24 >>} = gen_tcp:recv(Socket, 3, 1000),
+	{ok, << 4:8, 0:40, _:Len/binary >>} = gen_tcp:recv(Socket, 6 + Len, 1000),
+	%% Send the SETTINGS ack.
+	ok = gen_tcp:send(Socket, cow_http2:settings_ack()),
+	%% Receive the SETTINGS ack, and the response HEADERS and DATA (Stream ID 1).
+	Received = lists:reverse(lists:foldl(fun(_, Acc) ->
+		case gen_tcp:recv(Socket, 9, 1000) of
+			{ok, << 0:24, 4:8, 1:8, 0:32 >>} ->
+				[settings_ack|Acc];
+			{ok, << SkipLen:24, 1:8, _:8, 1:32 >>} ->
+				{ok, _} = gen_tcp:recv(Socket, SkipLen, 1000),
+				[headers|Acc];
+			{ok, << SkipLen:24, 0:8, _:8, 1:32 >>} ->
+				{ok, _} = gen_tcp:recv(Socket, SkipLen, 1000),
+				[data|Acc]
+		end
+	end, [], [1, 2, 3])),
+	case Received of
+		[settings_ack, headers, data] -> ok;
+		[headers, settings_ack, data] -> ok;
+		[headers, data, settings_ack] -> ok
+	end,
+	%% Send a HEADERS frame with streamid 1.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+	%% Receive a PROTOCOL_ERROR connection error.
+	{ok, << _:24, 7:8, _:72, 1:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+reject_streamid_lower(Config) ->
+	doc("HEADERS frames received with streamid lower than the previous stream "
+		"must be rejected with a PROTOCOL_ERROR connection error. (RFC7540 5.1.1)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame with streamid 5.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(5, fin, HeadersBlock)),
+	%% Receive the response.
+	{ok, << Length1:24, 1:8, _:40 >>} = gen_tcp:recv(Socket, 9, 6000),
+	{ok, _} = gen_tcp:recv(Socket, Length1, 6000),
+	{ok, << Length2:24, 0:8, _:40 >>} = gen_tcp:recv(Socket, 9, 6000),
+	{ok, _} = gen_tcp:recv(Socket, Length2, 6000),
+	%% Send a HEADERS frame with streamid 3.
+	ok = gen_tcp:send(Socket, cow_http2:headers(3, fin, HeadersBlock)),
+	%% Receive a PROTOCOL_ERROR connection error.
+	{ok, << _:24, 7:8, _:72, 1:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+%% @todo We need an option to limit the number of streams one can open
+%% on a connection. And we need to enforce it.
+%
+%   Stream identifiers cannot be reused.  Long-lived connections can
+%   result in an endpoint exhausting the available range of stream
+%   identifiers.  A server
+%   that is unable to establish a new stream identifier can send a GOAWAY
+%   frame so that the client is forced to open a new connection for new
+%   streams.
