@@ -47,14 +47,13 @@
 -callback websocket_info(any(), State)
 	-> call_result(State) when State::any().
 
-%% @todo OK this I am not sure what to do about it. We don't have a Req anymore.
-%% We probably should have a websocket_terminate instead.
 -callback terminate(any(), cowboy_req:req(), any()) -> ok.
 -optional_callbacks([terminate/3]).
 
 -type opts() :: #{
+	compress => boolean(),
 	idle_timeout => timeout(),
-	compress => boolean()
+	req_filter => fun((cowboy_req:req()) -> map())
 }.
 -export_type([opts/0]).
 
@@ -71,7 +70,8 @@
 	frag_state = undefined :: cow_ws:frag_state(),
 	frag_buffer = <<>> :: binary(),
 	utf8_state = 0 :: cow_ws:utf8_state(),
-	extensions = #{} :: map()
+	extensions = #{} :: map(),
+	req = #{} :: map()
 }).
 
 %% Stream process.
@@ -90,7 +90,11 @@ upgrade(Req, Env, Handler, HandlerState) ->
 upgrade(Req0, Env, Handler, HandlerState, Opts) ->
 	Timeout = maps:get(idle_timeout, Opts, 60000),
 	Compress = maps:get(compress, Opts, false),
-	State0 = #state{handler=Handler, timeout=Timeout, compress=Compress},
+	FilteredReq = case maps:get(req_filter, Opts, undefined) of
+		undefined -> maps:with([method, version, scheme, host, port, path, qs, peer], Req0);
+		FilterFun -> FilterFun(Req0)
+	end,
+	State0 = #state{handler=Handler, timeout=Timeout, compress=Compress, req=FilteredReq},
 	try websocket_upgrade(State0, Req0) of
 		{ok, State, Req} ->
 			websocket_handshake(State, Req, HandlerState, Env)
@@ -417,5 +421,5 @@ terminate(State, HandlerState, Reason) ->
 	handler_terminate(State, HandlerState, Reason),
 	exit(normal).
 
-handler_terminate(#state{handler=Handler}, HandlerState, Reason) ->
-	cowboy_handler:terminate(Reason, undefined, HandlerState, Handler).
+handler_terminate(#state{handler=Handler, req=Req}, HandlerState, Reason) ->
+	cowboy_handler:terminate(Reason, Req, HandlerState, Handler).

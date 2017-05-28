@@ -134,7 +134,8 @@ timeout::
 ----
 opts() :: #{
     compress => boolean(),
-    idle_timeout => timeout()
+    idle_timeout => timeout(),
+    req_filter => fun((cowboy_req:req()) -> map())
 }
 ----
 
@@ -161,6 +162,13 @@ idle_timeout (60000)::
     Time in milliseconds that Cowboy will keep the
     connection open without receiving anything from
     the client.
+
+req_filter::
+    A function applied to the Req to compact it and
+    only keep required information. The Req is only
+    given back in the `terminate/3` callback. By default
+    it keeps the method, version, URI components and peer
+    information.
 
 == Changelog
 
