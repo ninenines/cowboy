@@ -633,31 +633,31 @@ send_data(State=#state{local_window=ConnWindow},
 send_data(State=#state{socket=Socket, transport=Transport, local_window=ConnWindow},
 		Stream=#stream{id=StreamID, local_window=StreamWindow}, IsFin, Data) ->
 	MaxFrameSize = 16384, %% @todo Use the real SETTINGS_MAX_FRAME_SIZE set by the client.
-	SendSize = min(min(ConnWindow, StreamWindow), MaxFrameSize),
+	MaxSendSize = min(min(ConnWindow, StreamWindow), MaxFrameSize),
 	case Data of
-		{sendfile, Offset, Bytes, Path} when Bytes =< SendSize ->
+		{sendfile, Offset, Bytes, Path} when Bytes =< MaxSendSize ->
 			Transport:send(Socket, cow_http2:data_header(StreamID, IsFin, Bytes)),
 			Transport:sendfile(Socket, Path, Offset, Bytes),
-			{State#state{local_window=ConnWindow - SendSize},
-				Stream#stream{local=IsFin, local_window=StreamWindow - SendSize}};
+			{State#state{local_window=ConnWindow - Bytes},
+				Stream#stream{local=IsFin, local_window=StreamWindow - Bytes}};
 		{sendfile, Offset, Bytes, Path} ->
-			Transport:send(Socket, cow_http2:data_header(StreamID, nofin, SendSize)),
-			Transport:sendfile(Socket, Path, Offset, SendSize),
-			send_data(State#state{local_window=ConnWindow - SendSize},
-				Stream#stream{local_window=StreamWindow - SendSize},
-				IsFin, {sendfile, Offset + SendSize, Bytes - SendSize, Path});
+			Transport:send(Socket, cow_http2:data_header(StreamID, nofin, MaxSendSize)),
+			Transport:sendfile(Socket, Path, Offset, MaxSendSize),
+			send_data(State#state{local_window=ConnWindow - MaxSendSize},
+				Stream#stream{local_window=StreamWindow - MaxSendSize},
+				IsFin, {sendfile, Offset + MaxSendSize, Bytes - MaxSendSize, Path});
 		Iolist0 ->
 			IolistSize = iolist_size(Iolist0),
 			if
-				IolistSize =< SendSize ->
+				IolistSize =< MaxSendSize ->
 					Transport:send(Socket, cow_http2:data(StreamID, IsFin, Iolist0)),
-					{State#state{local_window=ConnWindow - SendSize},
-						Stream#stream{local=IsFin, local_window=StreamWindow - SendSize}};
+					{State#state{local_window=ConnWindow - IolistSize},
+						Stream#stream{local=IsFin, local_window=StreamWindow - IolistSize}};
 				true ->
-					{Iolist, More} = cowboy_iolists:split(SendSize, Iolist0),
+					{Iolist, More} = cowboy_iolists:split(MaxSendSize, Iolist0),
 					Transport:send(Socket, cow_http2:data(StreamID, nofin, Iolist)),
-					send_data(State#state{local_window=ConnWindow - SendSize},
-						Stream#stream{local_window=StreamWindow - SendSize},
+					send_data(State#state{local_window=ConnWindow - MaxSendSize},
+						Stream#stream{local_window=StreamWindow - MaxSendSize},
 						IsFin, More)
 			end
 	end.
