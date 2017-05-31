@@ -689,6 +689,9 @@ terminate_reason({internal_error, _, _}) -> internal_error.
 
 terminate_all_streams([], _, []) ->
 	ok;
+%% This stream was already terminated and is now just flushing the data out. Skip it.
+terminate_all_streams([#stream{state=flush}|Tail], Reason, Children) ->
+	terminate_all_streams(Tail, Reason, Children);
 terminate_all_streams([#stream{id=StreamID, state=StreamState}|Tail], Reason, Children0) ->
 	stream_call_terminate(StreamID, Reason, StreamState),
 	Children = stream_terminate_children(Children0, StreamID, []),
