@@ -359,10 +359,10 @@ frame(State=#state{client_streamid=LastStreamID}, {rst_stream, StreamID, _})
 frame(State, {rst_stream, StreamID, Reason}) ->
 	stream_terminate(State, StreamID, {stream_error, Reason, 'Stream reset requested by client.'});
 %% SETTINGS frame.
-frame(State=#state{socket=Socket, transport=Transport}, {settings, _Settings}) ->
-	%% @todo Apply SETTINGS.
+frame(State=#state{socket=Socket, transport=Transport, remote_settings=Settings0},
+		{settings, Settings}) ->
 	Transport:send(Socket, cow_http2:settings_ack()),
-	State;
+	State#state{remote_settings=maps:merge(Settings0, Settings)};
 %% Ack for a previously sent SETTINGS frame.
 frame(State=#state{next_settings=_NextSettings}, settings_ack) ->
 	%% @todo Apply SETTINGS that require synchronization.
