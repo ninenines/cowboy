@@ -1069,10 +1069,19 @@ error_terminate(StatusCode0, State=#state{ref=Ref, socket=Socket, transport=Tran
 	terminate(State, Reason).
 
 -spec terminate(_, _) -> no_return().
-terminate(#state{children=Children}, _Reason) ->
+terminate(undefined, Reason) ->
+	exit({shutdown, Reason});
+terminate(#state{streams=Streams, children=Children}, Reason) ->
+	terminate_all_streams(Streams, Reason),
 	%% @todo Leave them time to terminate.
 	_ = [exit(Pid, kill) || {Pid, _, _} <- Children],
 	exit(normal). %% @todo We probably don't want to exit normal on errors.
+
+terminate_all_streams([], _) ->
+	ok;
+terminate_all_streams([#stream{id=StreamID, state=StreamState}|Tail], Reason) ->
+	stream_call_terminate(StreamID, Reason, StreamState),
+	terminate_all_streams(Tail, Reason).
 
 %% System callbacks.
 
