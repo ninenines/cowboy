@@ -1,0 +1,7 @@
+language: erlang
+notifications:
+  disabled: true
+otp_release:
+  - R14B03
+  - R14B02
+  - R14B01
