@@ -88,14 +88,14 @@ init_per_group(Name = https_compress, Config) ->
 	}, Config);
 %% Most, if not all of these, should be in separate test suites.
 init_per_group(onresponse, Config) ->
-	{ok, _} = cowboy:start_clear(onresponse, 100, [{port, 0}], [
+	{ok, _} = cowboy:start_clear(onresponse, [{port, 0}], [
 		{env, [{dispatch, init_dispatch(Config)}]},
 		{onresponse, fun do_onresponse_hook/4}
 	]),
 	Port = ranch:get_port(onresponse),
 	[{type, tcp}, {port, Port}, {opts, []}|Config];
 init_per_group(onresponse_capitalize, Config) ->
-	{ok, _} = cowboy:start_clear(onresponse_capitalize, 100, [{port, 0}], [
+	{ok, _} = cowboy:start_clear(onresponse_capitalize, [{port, 0}], [
 		{env, [{dispatch, init_dispatch(Config)}]},
 		{onresponse, fun do_onresponse_capitalize_hook/4}
 	]),
@@ -107,13 +107,13 @@ init_per_group(parse_host, Config) ->
 			{"/req_attr", http_req_attr, []}
 		]}
 	]),
-	{ok, _} = cowboy:start_clear(parse_host, 100, [{port, 0}], [
+	{ok, _} = cowboy:start_clear(parse_host, [{port, 0}], [
 		{env, [{dispatch, Dispatch}]}
 	]),
 	Port = ranch:get_port(parse_host),
 	[{type, tcp}, {port, Port}, {opts, []}|Config];
 init_per_group(set_env, Config) ->
-	{ok, _} = cowboy:start_clear(set_env, 100, [{port, 0}], [
+	{ok, _} = cowboy:start_clear(set_env, [{port, 0}], [
 		{env, [{dispatch, []}]}
 	]),
 	Port = ranch:get_port(set_env),

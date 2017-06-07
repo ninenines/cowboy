@@ -38,7 +38,7 @@ init_per_group(Name = autobahn, Config) ->
 				"http://autobahn.ws/testsuite/installation.html"),
 			{skip, "Autobahn Test Suite not installed."};
 		_ ->
-			{ok, _} = cowboy:start_clear(Name, 100, [{port, 33080}], #{
+			{ok, _} = cowboy:start_clear(Name, [{port, 33080}], #{
 				env => #{dispatch => init_dispatch()}
 			}),
 			Config

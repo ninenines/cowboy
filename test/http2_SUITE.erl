@@ -49,7 +49,7 @@ inactivity_timeout(Config) ->
 		env => #{dispatch => cowboy_router:compile(init_routes(Config))},
 		inactivity_timeout => 1000
 	},
-	{ok, _} = cowboy:start_clear(Ref, 100, [{port, 0}], ProtoOpts),
+	{ok, _} = cowboy:start_clear(Ref, [{port, 0}], ProtoOpts),
 	Port = ranch:get_port(Ref),
 	SocketConfig = [{type, tcp}, {protocol, http}, {port, Port}, {opts, []}|Config],
 	{ok, Socket} = do_handshake(SocketConfig),

@@ -38,7 +38,7 @@ opts() :: #{
 Configuration for the HTTP/1.1 protocol.
 
 This configuration is passed to Cowboy when starting listeners
-using `cowboy:start_clear/4` or `cowboy:start_tls/4` functions.
+using `cowboy:start_clear/3` or `cowboy:start_tls/3` functions.
 
 It can be updated without restarting listeners using the
 Ranch functions `ranch:get_protocol_options/1` and

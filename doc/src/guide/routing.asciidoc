@@ -203,7 +203,7 @@ Dispatch = cowboy_router:compile([
     {'_', [{'_', my_handler, #{}}]}
 ]),
 %% Name, NbAcceptors, TransOpts, ProtoOpts
-cowboy:start_clear(my_http_listener, 100,
+cowboy:start_clear(my_http_listener,
     [{port, 8080}],
     #{env => #{dispatch => Dispatch}}
 ).
