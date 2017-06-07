@@ -1,0 +1,14 @@
+%% Feel free to use, reuse and abuse the code in this file.
+
+{application, lager_hook,
+ [
+  {description, ""},
+  {vsn, "1"},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib
+                 ]},
+  {mod, { lager_hook_app, []}},
+  {env, []}
+ ]}.
