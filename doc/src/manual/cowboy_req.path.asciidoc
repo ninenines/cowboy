@@ -1,0 +1,51 @@
+= cowboy_req:path(3)
+
+== Name
+
+cowboy_req:path - URI path
+
+== Description
+
+[source,erlang]
+----
+path(Req :: cowboy_req:req()) -> Path :: binary()
+----
+
+Return the path of the effective request URI.
+
+The path can also be obtained using pattern matching:
+
+[source,erlang]
+----
+#{path := Path} = Req.
+----
+
+== Arguments
+
+Req::
+
+The Req object.
+
+== Return value
+
+The path is returned as a binary string. It is case sensitive.
+
+== Changelog
+
+* *2.0*: Only the path is returned, it is no longer wrapped in a tuple.
+* *1.0*: Function introduced.
+
+== Examples
+
+.Get the effective request URI's path
+[source,erlang]
+----
+Path = cowboy_req:path(Req).
+----
+
+== See also
+
+link:man:cowboy_req(3)[cowboy_req(3)],
+link:man:cowboy_req:binding(3)[cowboy_req:binding(3)],
+link:man:cowboy_req:bindings(3)[cowboy_req:bindings(3)],
+link:man:cowboy_req:path_info(3)[cowboy_req:path_info(3)]

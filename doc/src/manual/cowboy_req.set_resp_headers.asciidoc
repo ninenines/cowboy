@@ -1,0 +1,74 @@
+= cowboy_req:set_resp_headers(3)
+
+== Name
+
+cowboy_req:set_resp_headers - Set several response headers
+
+== Description
+
+[source,erlang]
+----
+set_resp_headers(Headers, Req :: cowboy_req:req())
+    -> Req
+
+Headers :: cowboy:http_headers()
+----
+
+Set several headers to be sent with the response.
+
+The header name must be given as a lowercase binary string.
+While header names are case insensitive, Cowboy requires them
+to be given as lowercase to function properly.
+
+Cowboy does not allow duplicate header names. Headers set
+by this function may be overwritten by those set from the
+reply functions. Likewise, headers set by this function may
+overwrite headers that were set previously.
+
+Use link:man:cowboy_req:set_resp_cookie(3)[cowboy_req:set_resp_cookie(3)]
+instead of this function to set cookies.
+
+== Arguments
+
+Headers::
+
+Headers as a map with keys being lowercase binary strings,
+and values as binary strings.
+
+Req::
+
+The Req object.
+
+== Return value
+
+A new Req object is returned.
+
+The returned Req object must be used from that point onward,
+otherwise the headers will not be sent in the response.
+
+== Changelog
+
+* *2.0*: Function introduced.
+
+== Examples
+
+.Set several response headers
+[source,erlang]
+----
+Req = cowboy_req:set_resp_headers(#{
+    <<"content-type">>     => <<"text/html">>,
+    <<"content-encoding">> => <<"gzip">>
+}, Req0).
+----
+
+== See also
+
+link:man:cowboy_req(3)[cowboy_req(3)],
+link:man:cowboy_req:set_resp_cookie(3)[cowboy_req:set_resp_cookie(3)],
+link:man:cowboy_req:set_resp_header(3)[cowboy_req:set_resp_header(3)],
+link:man:cowboy_req:has_resp_header(3)[cowboy_req:has_resp_header(3)],
+link:man:cowboy_req:resp_header(3)[cowboy_req:resp_header(3)],
+link:man:cowboy_req:resp_headers(3)[cowboy_req:resp_headers(3)],
+link:man:cowboy_req:delete_resp_header(3)[cowboy_req:delete_resp_header(3)],
+link:man:cowboy_req:reply(3)[cowboy_req:reply(3)],
+link:man:cowboy_req:stream_reply(3)[cowboy_req:stream_reply(3)]

@@ -1,0 +1,79 @@
+= cowboy(7)
+
+== Name
+
+cowboy - Small, fast, modern HTTP server for Erlang/OTP
+
+== Description
+
+Cowboy is an HTTP server for Erlang/OTP with support for the
+HTTP/1.1, HTTP/2 and Websocket protocols.
+
+Cowboy aims to provide a complete HTTP stack. This includes
+the implementation of the HTTP RFCs but also any directly
+related standards, like Websocket or Server-Sent Events.
+
+== Modules
+
+Functions:
+
+* link:man:cowboy(3)[cowboy(3)] - Listener management
+* link:man:cowboy_req(3)[cowboy_req(3)] - Request and response
+* link:man:cowboy_router(3)[cowboy_router(3)] - Router
+
+// @todo What about cowboy_constraints?
+
+Protocols:
+
+* link:man:cowboy_http(3)[cowboy_http(3)] - HTTP/1.1
+* link:man:cowboy_http2(3)[cowboy_http2(3)] - HTTP/2
+* link:man:cowboy_websocket(3)[cowboy_websocket(3)] - Websocket
+
+Handlers:
+
+* link:man:cowboy_static(3)[cowboy_static(3)] - Static file handler
+
+// @todo What about cowboy_stream_h?
+// @todo cowboy_compress_h
+
+Behaviors:
+
+* link:man:cowboy_handler(3)[cowboy_handler(3)] - Plain HTTP handlers
+* link:man:cowboy_loop(3)[cowboy_loop(3)] - Loop handlers
+* link:man:cowboy_middleware(3)[cowboy_middleware(3)] - Middlewares
+* link:man:cowboy_rest(3)[cowboy_rest(3)] - REST handlers
+* link:man:cowboy_stream(3)[cowboy_stream(3)] - Stream handlers
+// @todo * link:man:cowboy_sub_protocol(3)[cowboy_sub_protocol(3)] - Sub protocols
+* link:man:cowboy_websocket(3)[cowboy_websocket(3)] - Websocket handlers
+
+Middlewares:
+
+* link:man:cowboy_router(3)[cowboy_router(3)] - Router middleware
+* link:man:cowboy_handler(3)[cowboy_handler(3)] - Handler middleware
+
+// @todo http_status_codes is not linked to; what to do with it?
+
+== Dependencies
+
+* link:man:ranch(7)[ranch(7)] - Socket acceptor pool for TCP protocols
+* link:man:cowlib(7)[cowlib(7)] - Support library for manipulating Web protocols
+* ssl - Secure communication over sockets
+* crypto - Crypto functions
+
+All these applications must be started before the `cowboy`
+application. To start Cowboy and all dependencies at once:
+
+[source,erlang]
+----
+{ok, _} = application:ensure_all_started(cowboy).
+----
+
+== Environment
+
+The `cowboy` application does not define any application
+environment configuration parameters.
+
+== See also
+
+link:man:ranch(7)[ranch(7)],
+link:man:cowlib(7)[cowlib(7)]

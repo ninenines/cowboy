@@ -5,7 +5,7 @@
 
 -export([init/2]).
 
-init(Req, Opts) ->
+init(Req0, Opts) ->
 	BigBody =
 <<"A cowboy is an animal herder who tends cattle on ranches in North America,
 traditionally on horseback, and often performs a multitude of other ranch-
@@ -19,5 +19,5 @@ have established the ability to work at virtually identical tasks and obtained
 considerable respect for their achievements. There are also cattle handlers
 in many other parts of the world, particularly South America and Australia,
 who perform work similar to the cowboy in their respective nations.\n">>,
-	Req2 = cowboy_req:reply(200, [], BigBody, Req),
-	{ok, Req2, Opts}.
+	Req = cowboy_req:reply(200, #{}, BigBody, Req0),
+	{ok, Req, Opts}.

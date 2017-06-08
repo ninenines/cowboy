@@ -5,4 +5,4 @@
 -export([init/2]).
 
 init(Req, Opts) ->
-	{ok, cowboy_req:reply(200, [], <<"Hello world!">>, Req), Opts}.
+	{ok, cowboy_req:reply(200, #{}, <<"Hello world!">>, Req), Opts}.

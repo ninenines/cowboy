@@ -1,4 +1,4 @@
-%% Copyright (c) 2011-2014, Loïc Hoguin <essen@ninenines.eu>
+%% Copyright (c) 2011-2017, Loïc Hoguin <essen@ninenines.eu>
 %%
 %% Permission to use, copy, modify, and/or distribute this software for any
 %% purpose with or without fee is hereby granted, provided that the above
@@ -47,41 +47,45 @@ init_dispatch(_) ->
 long_polling(Config) ->
 	doc("Simple long-polling."),
 	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, "/long_polling"),
+	Ref = gun:get(ConnPid, "/long_polling", [{<<"accept-encoding">>, <<"gzip">>}]),
 	{response, fin, 102, _} = gun:await(ConnPid, Ref),
 	ok.
 
 long_polling_body(Config) ->
 	doc("Long-polling with a body that falls within the configurable limits."),
 	ConnPid = gun_open(Config),
-	Ref = gun:post(ConnPid, "/long_polling", [], << 0:5000/unit:8 >>),
+	Ref = gun:post(ConnPid, "/long_polling", [{<<"accept-encoding">>, <<"gzip">>}],
+		<< 0:5000/unit:8 >>),
 	{response, fin, 102, _} = gun:await(ConnPid, Ref),
 	ok.
 
 long_polling_body_too_large(Config) ->
 	doc("Long-polling with a body that exceeds the configurable limits."),
 	ConnPid = gun_open(Config),
-	Ref = gun:post(ConnPid, "/long_polling", [], << 0:100000/unit:8 >>),
+	Ref = gun:post(ConnPid, "/long_polling", [{<<"accept-encoding">>, <<"gzip">>}],
+		<< 0:100000/unit:8 >>),
 	{response, fin, 500, _} = gun:await(ConnPid, Ref),
 	ok.
 
 long_polling_pipeline(Config) ->
 	doc("Pipeline of long-polling calls."),
 	ConnPid = gun_open(Config),
-	Refs = [gun:get(ConnPid, "/long_polling") || _ <- lists:seq(1, 2)],
+	Refs = [gun:get(ConnPid, "/long_polling", [{<<"accept-encoding">>, <<"gzip">>}])
+		|| _ <- lists:seq(1, 2)],
 	_ = [{response, fin, 102, _} = gun:await(ConnPid, Ref) || Ref <- Refs],
 	ok.
 
 loop_body(Config) ->
 	doc("Check that a loop handler can read the request body in info/3."),
 	ConnPid = gun_open(Config),
-	Ref = gun:post(ConnPid, "/loop_body", [], << 0:100000/unit:8 >>),
+	Ref = gun:post(ConnPid, "/loop_body", [{<<"accept-encoding">>, <<"gzip">>}],
+		<< 0:100000/unit:8 >>),
 	{response, fin, 200, _} = gun:await(ConnPid, Ref),
 	ok.
 
-loop_timeout(Config) ->
-	doc("Ensure that the loop handler timeout results in a 204 response."),
+loop_request_timeout(Config) ->
+	doc("Ensure that the request_timeout isn't applied when a request is ongoing."),
 	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, "/loop_timeout"),
-	{response, fin, 204, _} = gun:await(ConnPid, Ref),
+	Ref = gun:get(ConnPid, "/loop_timeout", [{<<"accept-encoding">>, <<"gzip">>}]),
+	{response, nofin, 200, _} = gun:await(ConnPid, Ref, 10000),
 	ok.

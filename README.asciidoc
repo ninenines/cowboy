@@ -1,0 +1,37 @@
+= Cowboy
+
+Cowboy is a small, fast and modern HTTP server for Erlang/OTP.
+
+== Goals
+
+Cowboy aims to provide a *complete* HTTP stack in a *small* code base.
+It is optimized for *low latency* and *low memory usage*, in part
+because it uses *binary strings*.
+
+Cowboy provides *routing* capabilities, selectively dispatching requests
+to handlers written in Erlang.
+
+Because it uses Ranch for managing connections, Cowboy can easily be
+*embedded* in any other application.
+
+Cowboy is *clean* and *well tested* Erlang code.
+
+== Online documentation
+
+* http://ninenines.eu/docs/en/cowboy/2.0/guide[User guide]
+* http://ninenines.eu/docs/en/cowboy/2.0/manual[Function reference]
+
+== Offline documentation
+
+* While still online, run `make docs`
+* User guide available in `doc/` in PDF and HTML formats
+* Function reference man pages available in `doc/man3/` and `doc/man7/`
+* Run `make install-docs` to install man pages on your system
+* Full documentation in Asciidoc available in `doc/src/`
+* Examples available in `examples/`
+
+== Getting help
+
+* Official IRC Channel: #ninenines on irc.freenode.net
+* https://github.com/ninenines/cowboy/issues[Issues tracker]
+* http://ninenines.eu/services[Commercial Support]

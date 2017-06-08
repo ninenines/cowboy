@@ -16,10 +16,10 @@ start(_Type, _Args) ->
 			{"/", toppage_handler, []}
 		]}
 	]),
-	{ok, _} = cowboy:start_http(http, 100, [{port, 8080}], [
-		{compress, true},
-		{env, [{dispatch, Dispatch}]}
-	]),
+	{ok, _} = cowboy:start_clear(http, [{port, 8080}], #{
+		env => #{dispatch => Dispatch},
+		stream_handlers => [cowboy_compress_h, cowboy_stream_h]
+	}),
 	compress_response_sup:start_link().
 
 stop(_State) ->

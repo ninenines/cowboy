@@ -1,0 +1,15 @@
+[[streams]]
+== Streams
+
+Placeholder chapter.
+
+Streams are a new feature in Cowboy 2.0 that requires
+a little more tweaking before they can be generally
+useful. This chapter will be made available in a future
+pre-release.
+
+Streams are meant to replace hooks. The relevant chapters
+for Cowboy 1.0 were:
+
+* xref:hooks[Hooks]
+* xref:broken_clients[Dealing with broken clients]

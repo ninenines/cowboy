@@ -1,0 +1,47 @@
+= cowboy_req:bindings(3)
+
+== Name
+
+cowboy_req:bindings - Access all values bound from the route
+
+== Description
+
+[source,erlang]
+----
+bindings(Req :: cowboy_req:req()) -> cowboy_router:bindings()
+----
+
+Return a map containing all bindings.
+
+== Arguments
+
+Req::
+
+The Req object.
+
+== Return value
+
+By default values are case sensitive binary strings, however
+constraints may change the type of this value (for example
+automatically converting numbers to integer).
+
+== Changelog
+
+* *2.0*: Only the values are returned, they are no longer wrapped in a tuple.
+* *1.0*: Function introduced.
+
+== Examples
+
+.Get all bindings
+[source,erlang]
+----
+Bindings = cowboy_req:bindings(Req).
+----
+
+== See also
+
+link:man:cowboy_req(3)[cowboy_req(3)],
+link:man:cowboy_req:binding(3)[cowboy_req:binding(3)],
+link:man:cowboy_req:host_info(3)[cowboy_req:host_info(3)],
+link:man:cowboy_req:path_info(3)[cowboy_req:path_info(3)],
+link:man:cowboy_router(3)[cowboy_router(3)]

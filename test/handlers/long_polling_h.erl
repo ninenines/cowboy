@@ -11,9 +11,10 @@
 
 init(Req, _) ->
 	erlang:send_after(200, self(), timeout),
-	{cowboy_loop, Req, 2, 5000, hibernate}.
+	{cowboy_loop, Req, 2, hibernate}.
 
 info(timeout, Req, 0) ->
+	%% @todo Why 102?
 	{stop, cowboy_req:reply(102, Req), 0};
 info(timeout, Req, Count) ->
 	erlang:send_after(200, self(), timeout),

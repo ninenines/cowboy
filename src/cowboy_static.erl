@@ -1,5 +1,5 @@
+%% Copyright (c) 2013-2017, Loïc Hoguin <essen@ninenines.eu>
 %% Copyright (c) 2011, Magnus Klaar <magnus.klaar@gmail.com>
-%% Copyright (c) 2013-2014, Loïc Hoguin <essen@ninenines.eu>
 %%
 %% Permission to use, copy, modify, and/or distribute this software for any
 %% purpose with or without fee is hereby granted, provided that the above
@@ -36,7 +36,8 @@
 
 -include_lib("kernel/include/file.hrl").
 
--type state() :: {binary(), {ok, #file_info{}} | {error, atom()}, extra()}.
+-type state() :: {binary(), {direct | archive, #file_info{}}
+	| {error, atom()}, extra()}.
 
 %% Resolve the file that will be sent and get its file information.
 %% If the handler is configured to manage a directory, check that the
@@ -52,13 +53,15 @@ init(Req, Opts) ->
 	init_opts(Req, Opts).
 
 init_opts(Req, {priv_file, App, Path, Extra}) ->
-	init_info(Req, absname(priv_path(App, Path)), Extra);
+	{PrivPath, HowToAccess} = priv_path(App, Path),
+	init_info(Req, absname(PrivPath), HowToAccess, Extra);
 init_opts(Req, {file, Path, Extra}) ->
-	init_info(Req, absname(Path), Extra);
+	init_info(Req, absname(Path), direct, Extra);
 init_opts(Req, {priv_dir, App, Path, Extra}) ->
-	init_dir(Req, priv_path(App, Path), Extra);
+	{PrivPath, HowToAccess} = priv_path(App, Path),
+	init_dir(Req, PrivPath, HowToAccess, Extra);
 init_opts(Req, {dir, Path, Extra}) ->
-	init_dir(Req, Path, Extra).
+	init_dir(Req, Path, direct, Extra).
 
 priv_path(App, Path) ->
 	case code:priv_dir(App) of
@@ -66,9 +69,42 @@ priv_path(App, Path) ->
 			error({badarg, "Can't resolve the priv_dir of application "
 				++ atom_to_list(App)});
 		PrivDir when is_list(Path) ->
-			PrivDir ++ "/" ++ Path;
+			{
+				PrivDir ++ "/" ++ Path,
+				how_to_access_app_priv(PrivDir)
+			};
 		PrivDir when is_binary(Path) ->
-			<< (list_to_binary(PrivDir))/binary, $/, Path/binary >>
+			{
+				<< (list_to_binary(PrivDir))/binary, $/, Path/binary >>,
+				how_to_access_app_priv(PrivDir)
+			}
+	end.
+
+how_to_access_app_priv(PrivDir) ->
+	%% If the priv directory is not a directory, it must be
+	%% inside an Erlang application .ez archive. We call
+	%% how_to_access_app_priv1() to find the corresponding archive.
+	case filelib:is_dir(PrivDir) of
+		true  -> direct;
+		false -> how_to_access_app_priv1(PrivDir)
+	end.
+
+how_to_access_app_priv1(Dir) ->
+	%% We go "up" by one path component at a time and look for a
+	%% regular file.
+	Archive = filename:dirname(Dir),
+	case Archive of
+		Dir ->
+			%% filename:dirname() returned its argument:
+			%% we reach the root directory. We found no
+			%% archive so we return 'direct': the given priv
+			%% directory doesn't exist.
+			direct;
+		_ ->
+			case filelib:is_regular(Archive) of
+				true  -> {archive, Archive};
+				false -> how_to_access_app_priv1(Archive)
+			end
 	end.
 
 absname(Path) when is_list(Path) ->
@@ -76,19 +112,36 @@ absname(Path) when is_list(Path) ->
 absname(Path) when is_binary(Path) ->
 	filename:absname(Path).
 
-init_dir(Req, Path, Extra) when is_list(Path) ->
-	init_dir(Req, list_to_binary(Path), Extra);
-init_dir(Req, Path, Extra) ->
+init_dir(Req, Path, HowToAccess, Extra) when is_list(Path) ->
+	init_dir(Req, list_to_binary(Path), HowToAccess, Extra);
+init_dir(Req, Path, HowToAccess, Extra) ->
 	Dir = fullpath(filename:absname(Path)),
 	PathInfo = cowboy_req:path_info(Req),
-	Filepath = filename:join([Dir|PathInfo]),
+	Filepath = filename:join([Dir|[escape_reserved(P, <<>>) || P <- PathInfo]]),
 	Len = byte_size(Dir),
 	case fullpath(Filepath) of
 		<< Dir:Len/binary, $/, _/binary >> ->
-			init_info(Req, Filepath, Extra);
+			init_info(Req, Filepath, HowToAccess, Extra);
+		<< Dir:Len/binary >> ->
+			init_info(Req, Filepath, HowToAccess, Extra);
 		_ ->
 			{cowboy_rest, Req, error}
 	end.
+
+%% We escape the slash found in path segments because
+%% a segment corresponds to a directory entry, and
+%% therefore those slashes are expected to be part of
+%% the directory name.
+%%
+%% Note that on most systems the slash is prohibited
+%% and cannot appear in filenames, which means the
+%% requested file will end up being not found.
+escape_reserved(<<>>, Acc) ->
+	Acc;
+escape_reserved(<< $/, Rest/bits >>, Acc) ->
+	escape_reserved(Rest, << Acc/binary, $\\, $/ >>);
+escape_reserved(<< C, Rest/bits >>, Acc) ->
+	escape_reserved(Rest, << Acc/binary, C >>).
 
 fullpath(Path) ->
 	fullpath(filename:split(Path), []).
@@ -103,9 +156,48 @@ fullpath([<<"..">>|Tail], [_|Acc]) ->
 fullpath([Segment|Tail], Acc) ->
 	fullpath(Tail, [Segment|Acc]).
 
-init_info(Req, Path, Extra) ->
-	Info = file:read_file_info(Path, [{time, universal}]),
+init_info(Req, Path, HowToAccess, Extra) ->
+	Info = read_file_info(Path, HowToAccess),
 	{cowboy_rest, Req, {Path, Info, Extra}}.
+
+read_file_info(Path, direct) ->
+	case file:read_file_info(Path, [{time, universal}]) of
+		{ok, Info} -> {direct, Info};
+		Error      -> Error
+	end;
+read_file_info(Path, {archive, Archive}) ->
+	case file:read_file_info(Archive, [{time, universal}]) of
+		{ok, ArchiveInfo} ->
+			%% The Erlang application archive is fine.
+			%% Now check if the requested file is in that
+			%% archive. We also need the file_info to merge
+			%% them with the archive's one.
+			PathS = binary_to_list(Path),
+			case erl_prim_loader:read_file_info(PathS) of
+				{ok, ContainedFileInfo} ->
+					Info = fix_archived_file_info(
+						ArchiveInfo,
+						ContainedFileInfo),
+					{archive, Info};
+				error ->
+					{error, enoent}
+			end;
+		Error ->
+			Error
+	end.
+
+fix_archived_file_info(ArchiveInfo, ContainedFileInfo) ->
+	%% We merge the archive and content #file_info because we are
+	%% interested by the timestamps of the archive, but the type and
+	%% size of the contained file/directory.
+	%%
+	%% We reset the access to 'read', because we won't rewrite the
+	%% archive.
+	ArchiveInfo#file_info{
+		size = ContainedFileInfo#file_info.size,
+		type = ContainedFileInfo#file_info.type,
+		access = read
+	}.
 
 -ifdef(TEST).
 fullpath_test_() ->
@@ -205,11 +297,11 @@ malformed_request(Req, State) ->
 -spec forbidden(Req, State)
 	-> {boolean(), Req, State}
 	when State::state().
-forbidden(Req, State={_, {ok, #file_info{type=directory}}, _}) ->
+forbidden(Req, State={_, {_, #file_info{type=directory}}, _}) ->
 	{true, Req, State};
 forbidden(Req, State={_, {error, eacces}, _}) ->
 	{true, Req, State};
-forbidden(Req, State={_, {ok, #file_info{access=Access}}, _})
+forbidden(Req, State={_, {_, #file_info{access=Access}}, _})
 		when Access =:= write; Access =:= none ->
 	{true, Req, State};
 forbidden(Req, State) ->
@@ -235,7 +327,7 @@ content_types_provided(Req, State={Path, _, Extra}) ->
 -spec resource_exists(Req, State)
 	-> {boolean(), Req, State}
 	when State::state().
-resource_exists(Req, State={_, {ok, #file_info{type=regular}}, _}) ->
+resource_exists(Req, State={_, {_, #file_info{type=regular}}, _}) ->
 	{true, Req, State};
 resource_exists(Req, State) ->
 	{false, Req, State}.
@@ -245,7 +337,7 @@ resource_exists(Req, State) ->
 -spec generate_etag(Req, State)
 	-> {{strong | weak, binary()}, Req, State}
 	when State::state().
-generate_etag(Req, State={Path, {ok, #file_info{size=Size, mtime=Mtime}},
+generate_etag(Req, State={Path, {_, #file_info{size=Size, mtime=Mtime}},
 		Extra}) ->
 	case lists:keyfind(etag, 1, Extra) of
 		false ->
@@ -264,21 +356,17 @@ generate_default_etag(Size, Mtime) ->
 -spec last_modified(Req, State)
 	-> {calendar:datetime(), Req, State}
 	when State::state().
-last_modified(Req, State={_, {ok, #file_info{mtime=Modified}}, _}) ->
+last_modified(Req, State={_, {_, #file_info{mtime=Modified}}, _}) ->
 	{Modified, Req, State}.
 
 %% Stream the file.
-%% @todo Export cowboy_req:resp_body_fun()?
 
 -spec get_file(Req, State)
-	-> {{stream, non_neg_integer(), fun()}, Req, State}
+	-> {{sendfile, 0, non_neg_integer(), binary()}, Req, State}
 	when State::state().
-get_file(Req, State={Path, {ok, #file_info{size=Size}}, _}) ->
-	Sendfile = fun (Socket, Transport) ->
-		case Transport:sendfile(Socket, Path) of
-			{ok, _} -> ok;
-			{error, closed} -> ok;
-			{error, etimedout} -> ok
-		end
-	end,
-	{{stream, Size, Sendfile}, Req, State}.
+get_file(Req, State={Path, {direct, #file_info{size=Size}}, _}) ->
+	{{sendfile, 0, Size, Path}, Req, State};
+get_file(Req, State={Path, {archive, _}, _}) ->
+	PathS = binary_to_list(Path),
+	{ok, Bin, _} = erl_prim_loader:get_file(PathS),
+	{Bin, Req, State}.

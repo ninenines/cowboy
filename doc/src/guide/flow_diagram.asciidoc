@@ -1,0 +1,12 @@
+[[flow_diagram]]
+== Flow diagram
+
+Placeholder chapter.
+
+Cowboy 2.0 has changed the request flow and general architecture.
+You can read about the Cowboy 1.0 architecture and flow here:
+
+* xref:architecture[Architecture]
+* xref:overview[Overview]
+
+This chapter will be updated in a future pre-release.

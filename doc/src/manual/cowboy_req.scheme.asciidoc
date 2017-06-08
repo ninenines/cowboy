@@ -1,0 +1,55 @@
+= cowboy_req:scheme(3)
+
+== Name
+
+cowboy_req:scheme - URI scheme
+
+== Description
+
+[source,erlang]
+----
+scheme(Req :: cowboy_req:req()) -> Scheme :: binary()
+----
+
+Return the scheme of the effective request URI.
+
+The scheme can also be obtained using pattern matching:
+
+[source,erlang]
+----
+#{scheme := Scheme} = Req.
+----
+
+== Arguments
+
+Req::
+
+The Req object.
+
+== Return value
+
+The scheme is returned as a binary. It is case insensitive.
+
+Cowboy will only set the scheme to `<<"http">>` or `<<"https">>`.
+
+== Changelog
+
+* *2.0*: Function introduced.
+
+== Examples
+
+.Redirect HTTP to HTTPS
+[source,erlang]
+----
+init(Req0=#{scheme := <<"http">>}, State) ->
+    Req = cowboy_req:reply(302, #{
+        <<"location">> => cowboy_req:uri(Req, #{scheme => <<"https">>})
+    }, Req0),
+    {ok, Req, State};
+init(Req, State) ->
+    {cowboy_rest, Req, State}.
+----
+
+== See also
+
+link:man:cowboy_req(3)[cowboy_req(3)]

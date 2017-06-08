@@ -1,0 +1,51 @@
+= cowboy_req:body_length(3)
+
+== Name
+
+cowboy_req:body_length - Body length
+
+== Description
+
+[source,erlang]
+----
+body_length(Req :: cowboy_req:req()) -> undefined | non_neg_integer()
+----
+
+Return the length of the request body.
+
+The length is not always known before reading the body.
+In those cases Cowboy will return `undefined`. The body
+length is available after the body has been fully read.
+
+== Arguments
+
+Req::
+
+The Req object.
+
+== Return value
+
+The length of the request body, or `undefined` if it is
+not known.
+
+== Changelog
+
+* *2.0*: Only the length is returned, it is no longer wrapped in a tuple.
+* *1.0*: Function introduced.
+
+== Examples
+
+.Get the body length
+[source,erlang]
+----
+Length = cowboy_req:body_length(Req).
+----
+
+== See also
+
+link:man:cowboy_req(3)[cowboy_req(3)],
+link:man:cowboy_req:has_body(3)[cowboy_req:has_body(3)],
+link:man:cowboy_req:read_body(3)[cowboy_req:read_body(3)],
+link:man:cowboy_req:read_urlencoded_body(3)[cowboy_req:read_urlencoded_body(3)],
+link:man:cowboy_req:read_part(3)[cowboy_req:read_part(3)],
+link:man:cowboy_req:read_part_body(3)[cowboy_req:read_part_body(3)]

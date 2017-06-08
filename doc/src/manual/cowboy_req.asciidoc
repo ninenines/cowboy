@@ -1,0 +1,196 @@
+= cowboy_req(3)
+
+== Name
+
+cowboy_req - HTTP request and response
+
+== Description
+
+The module `cowboy_req` provides functions to access, manipulate
+and respond to requests.
+
+There are four types of functions in this module. They can be
+differentiated by their name and their return type:
+
+[options="header"]
+|===
+| Type         | Name pattern              | Return type
+| access       | no verb, parse_*, match_* | `Value`
+| question     | has_*                     | `boolean()`
+| modification | set_*                     | `Req`
+| action       | any other verb            | `ok \| {Result, Value, Req}`
+|===
+
+Any `Req` returned must be used in place of the one passed as
+argument. Functions that perform an action in particular write
+state in the Req object to make sure you are using the function
+correctly. For example, it's only possible to send one response,
+and to read the body once.
+
+== Exports
+
+Raw request:
+
+* link:man:cowboy_req:method(3)[cowboy_req:method(3)] - HTTP method
+* link:man:cowboy_req:version(3)[cowboy_req:version(3)] - HTTP version
+* link:man:cowboy_req:scheme(3)[cowboy_req:scheme(3)] - URI scheme
+* link:man:cowboy_req:host(3)[cowboy_req:host(3)] - URI host name
+* link:man:cowboy_req:port(3)[cowboy_req:port(3)] - URI port number
+* link:man:cowboy_req:path(3)[cowboy_req:path(3)] - URI path
+* link:man:cowboy_req:qs(3)[cowboy_req:qs(3)] - URI query string
+* link:man:cowboy_req:uri(3)[cowboy_req:uri(3)] - Reconstructed URI
+* link:man:cowboy_req:header(3)[cowboy_req:header(3)] - HTTP header
+* link:man:cowboy_req:headers(3)[cowboy_req:headers(3)] - HTTP headers
+* link:man:cowboy_req:peer(3)[cowboy_req:peer(3)] - Peer address and port
+
+Processed request:
+
+* link:man:cowboy_req:parse_qs(3)[cowboy_req:parse_qs(3)] - Parse the query string
+* link:man:cowboy_req:match_qs(3)[cowboy_req:match_qs(3)] - Match the query string against constraints
+* link:man:cowboy_req:parse_header(3)[cowboy_req:parse_header(3)] - Parse the given HTTP header
+* link:man:cowboy_req:parse_cookies(3)[cowboy_req:parse_cookies(3)] - Parse cookie headers
+* link:man:cowboy_req:match_cookies(3)[cowboy_req:match_cookies(3)] - Match cookies against constraints
+* link:man:cowboy_req:binding(3)[cowboy_req:binding(3)] - Access a value bound from the route
+* link:man:cowboy_req:bindings(3)[cowboy_req:bindings(3)] - Access all values bound from the route
+* link:man:cowboy_req:host_info(3)[cowboy_req:host_info(3)] - Access the route's heading host segments
+* link:man:cowboy_req:path_info(3)[cowboy_req:path_info(3)] - Access the route's trailing path segments
+
+Request body:
+
+* link:man:cowboy_req:has_body(3)[cowboy_req:has_body(3)] - Is there a request body?
+* link:man:cowboy_req:body_length(3)[cowboy_req:body_length(3)] - Body length
+* link:man:cowboy_req:read_body(3)[cowboy_req:read_body(3)] - Read the request body
+* link:man:cowboy_req:read_urlencoded_body(3)[cowboy_req:read_urlencoded_body(3)] - Read and parse a urlencoded request body
+* link:man:cowboy_req:read_part(3)[cowboy_req:read_part(3)] - Read the next multipart headers
+* link:man:cowboy_req:read_part_body(3)[cowboy_req:read_part_body(3)] - Read the current part's body
+
+Response:
+
+* link:man:cowboy_req:set_resp_cookie(3)[cowboy_req:set_resp_cookie(3)] - Set a cookie
+* link:man:cowboy_req:set_resp_header(3)[cowboy_req:set_resp_header(3)] - Set a response header
+* link:man:cowboy_req:set_resp_headers(3)[cowboy_req:set_resp_headers(3)] - Set several response headers
+* link:man:cowboy_req:has_resp_header(3)[cowboy_req:has_resp_header(3)] - Is the given response header set?
+* link:man:cowboy_req:resp_header(3)[cowboy_req:resp_header(3)] - Response header
+* link:man:cowboy_req:resp_headers(3)[cowboy_req:resp_headers(3)] - Response headers
+* link:man:cowboy_req:delete_resp_header(3)[cowboy_req:delete_resp_header(3)] - Delete a response header
+* link:man:cowboy_req:set_resp_body(3)[cowboy_req:set_resp_body(3)] - Set the response body
+* link:man:cowboy_req:has_resp_body(3)[cowboy_req:has_resp_body(3)] - Is there a response body?
+* link:man:cowboy_req:reply(3)[cowboy_req:reply(3)] - Send the response
+* link:man:cowboy_req:stream_reply(3)[cowboy_req:stream_reply(3)] - Send the response headers
+* link:man:cowboy_req:stream_body(3)[cowboy_req:stream_body(3)] - Stream the response body
+* link:man:cowboy_req:push(3)[cowboy_req:push(3)] - Push a resource to the client
+
+== Types
+
+=== push_opts()
+
+[source,erlang]
+----
+push_opts() :: #{
+    method => binary(),            %% case sensitive
+    scheme => binary(),            %% lowercase; case insensitive
+    host   => binary(),            %% lowercase; case insensitive
+    port   => inet:port_number(),
+    qs     => binary()             %% case sensitive
+}
+----
+
+Push options.
+
+By default, Cowboy will use the GET method, an empty query string,
+and take the scheme, host and port directly from the current
+request's URI.
+
+=== read_body_opts()
+
+[source,erlang]
+----
+read_body_opts() :: #{
+    length  => non_neg_integer(),
+    period  => non_neg_integer(),
+    timeout => timeout()
+}
+----
+
+Body reading options.
+
+The defaults are function-specific.
+
+=== req()
+
+[source,erlang]
+----
+req() :: #{
+    method  := binary(),               %% case sensitive
+    version := cowboy:http_version() | atom(),
+    scheme  := binary(),               %% lowercase; case insensitive
+    host    := binary(),               %% lowercase; case insensitive
+    port    := inet:port_number(),
+    path    := binary(),               %% case sensitive
+    qs      := binary(),               %% case sensitive
+    headers := cowboy:http_headers(),
+    peer    := {inet:ip_address(), inet:port_number()}
+}
+----
+
+The Req object.
+
+Contains information about the request and response. While
+some fields are publicly documented, others aren't and shouldn't
+be used.
+
+You may add custom fields if required. Make sure to namespace
+them by prepending an underscore and the name of your application:
+
+.Setting a custom field
+[source,erlang]
+----
+Req#{_myapp_auth_method => pubkey}.
+----
+
+=== resp_body()
+
+[source,erlang]
+----
+resp_body() :: iodata()
+    | {sendfile, Offset, Length, Filename}
+
+Offset   :: non_neg_integer()
+Length   :: pos_integer()
+Filename :: file:name_all()
+----
+
+Response body.
+
+It can take two forms: the actual data to be sent or a
+tuple indicating which file to send.
+
+When sending data directly, the type is either a binary or
+an iolist. Iolists are an efficient way to build output.
+Instead of concatenating strings or binaries, you can simply
+build a list containing the fragments you want to send in the
+order they should be sent:
+
+.Example iolists usage
+[source,erlang]
+----
+1> RespBody = ["Hello ", [<<"world">>, $!]].
+["Hello ",[<<"world">>,33]]
+2> io:format("~s~n", [RespBody]).
+Hello world!
+----
+
+When using the sendfile tuple, the `Length` value is mandatory
+and must be higher than 0. It is sent with the response in the
+content-length header.
+
+// @todo Make sure we have a test with an empty file...
+// @todo cowboy_static should probably NOT return a sendfile tuple if size is 0.
+
+//%% While sendfile allows a Len of 0 that means "everything past Offset",
+//%% Cowboy expects the real length as it is used as metadata.
+//%% @todo We should probably explicitly reject it.
+
+== See also
+
+link:man:cowboy(7)[cowboy(7)]

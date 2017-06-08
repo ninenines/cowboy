@@ -1,0 +1,121 @@
+[[modern_web]]
+== The modern Web
+
+// @todo Link to related xrefs.
+
+Cowboy is a server for the modern Web. This chapter explains
+what it means and details all the standards involved.
+
+Cowboy supports all the standards listed in this document.
+
+=== HTTP/2
+
+HTTP/2 is the most efficient protocol for consuming Web
+services. It enables clients to keep a connection open
+for long periods of time; to send requests concurrently;
+to reduce the size of requests through HTTP headers
+compression; and more. The protocol is binary, greatly
+reducing the resources needed to parse it.
+
+HTTP/2 also enables the server to push messages to the
+client. This can be used for various purposes, including
+the sending of related resources before the client requests
+them, in an effort to reduce latency. This can also be used
+to enable bidirectional communication.
+
+Cowboy provides transparent support for HTTP/2. Clients
+that know it can use it; others fall back to HTTP/1.1
+automatically.
+
+HTTP/2 is compatible with the HTTP/1.1 semantics.
+
+HTTP/2 is defined by RFC 7540 and RFC 7541.
+
+=== HTTP/1.1
+
+HTTP/1.1 is the previous version of the HTTP protocol.
+The protocol itself is text-based and suffers from numerous
+issues and limitations. In particular it is not possible
+to execute requests concurrently (though pipelining is
+sometimes possible), and it's also sometimes difficult
+to detect that a client disconnected.
+
+HTTP/1.1 does provide very good semantics for interacting
+with Web services. It defines the standard methods, headers
+and status codes used by HTTP/1.1 and HTTP/2 clients and
+servers.
+
+HTTP/1.1 also defines compatibility with an older version
+of the protocol, HTTP/1.0, which was never really standardized
+across implementations.
+
+The core of HTTP/1.1 is defined by RFC 7230, RFC 7231,
+RFC 7232, RFC 7233, RFC 7234 and RFC 7235. Numerous RFCs
+and other specifications exist defining additional HTTP
+methods, status codes, headers or semantics.
+
+=== Websocket
+
+Websocket is a protocol built on top of HTTP/1.1 that provides
+a two-ways communication channel between the client and the
+server. Communication is asynchronous and can occur concurrently.
+
+It consists of a Javascript object allowing setting up a
+Websocket connection to the server, and a binary based
+protocol for sending data to the server or the client.
+
+Websocket connections can transfer either UTF-8 encoded text
+data or binary data. The protocol also includes support for
+implementing a ping/pong mechanism, allowing the server and
+the client to have more confidence that the connection is still
+alive.
+
+A Websocket connection can be used to transfer any kind of data,
+small or big, text or binary. Because of this Websocket is
+sometimes used for communication between systems.
+
+Websocket messages have no semantics on their own. Websocket
+is closer to TCP in that aspect, and requires you to design
+and implement your own protocol on top of it; or adapt an
+existing protocol to Websocket.
+
+The Websocket protocol is defined by RFC 6455.
+
+=== Long-lived requests
+
+Cowboy provides an interface that can be used to support
+long-polling or to stream large amounts of data reliably,
+including using Server-Sent Events.
+
+Long-polling is a mechanism in which the client performs
+a request which may not be immediately answered by the
+server. It allows clients to request resources that may
+not currently exist, but are expected to be created soon,
+and which will be returned as soon as they are.
+
+Long-polling is essentially a hack, but it is widely used
+to overcome limitations on older clients and servers.
+
+Server-Sent Events is a small protocol defined as a media
+type, `text/event-stream`, along with a new HTTP header,
+`Last-Event-ID`. It is defined in the EventSource W3C
+specification.
+
+Cowboy provides an interface known as loop handlers that
+facilitates the implementation of long-polling or stream
+mechanisms. It works regardless of the underlying protocol.
+
+=== REST
+
+REST, or REpresentational State Transfer, is a style of
+architecture for loosely connected distributed systems.
+It can easily be implemented on top of HTTP.
+
+REST is essentially a set of constraints to be followed.
+Many of these constraints are purely architectural and
+solved by simply using HTTP. Some constraints must be
+explicitly followed by the developer.
+
+Cowboy provides an interface known as REST handlers that
+simplifies the implementation of a REST API on top of
+the HTTP protocol.

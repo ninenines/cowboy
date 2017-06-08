@@ -1,0 +1,91 @@
+[[constraints]]
+== Constraints
+
+Constraints are validation and conversion functions applied
+to user input.
+
+They are used in various places in Cowboy, including the
+router and the request match functions.
+
+=== Syntax
+
+Constraints are provided as a list of fields. For each field
+in the list, specific constraints can be applied, as well as
+a default value if the field is missing.
+
+A field can take the form of an atom `field`, a tuple with
+constraints `{field, Constraints}` or a tuple with constraints
+and a default value `{field, Constraints, Default}`.
+The `field` form indicates the field is mandatory.
+
+Note that when used with the router, only the second form
+makes sense, as it does not use the default and the field
+is always defined.
+
+Constraints for each field are provided as an ordered list
+of atoms or funs to apply. Built-in constraints are provided
+as atoms, while custom constraints are provided as funs.
+
+When multiple constraints are provided, they are applied in
+the order given. If the value has been modified by a constraint
+then the next one receives the new value.
+
+For example, the following constraints will first validate
+and convert the field `my_value` to an integer, and then
+check that the integer is positive:
+
+[source,erlang]
+----
+PositiveFun = fun(V) when V > 0 -> true; (_) -> false end,
+{my_value, [int, PositiveFun]}.
+----
+
+When there's only one constraint, it can be provided directly
+without wrapping it into a list:
+
+[source,erlang]
+----
+{my_value, int}
+----
+
+=== Built-in constraints
+
+Built-in constraints are specified as an atom:
+
+[cols="<,<",options="header"]
+|===
+| Constraint | Description
+| int        | Converts binary value to integer.
+| nonempty   | Ensures the binary value is non-empty.
+|===
+
+=== Custom constraints
+
+Custom constraints are specified as a fun. This fun takes
+a single argument and must return one of `true`, `{true, NewValue}`
+or `false`.
+
+`true` indicates the input is valid, `false` otherwise.
+The `{true, NewValue}` tuple is returned when the input
+is valid and the value has been converted. For example,
+the following constraint will convert the binary input
+to an integer:
+
+[source,erlang]
+----
+fun (Value0) when is_binary(Value0) ->
+    try binary_to_integer(Value0) of
+        Value -> {true, Value}
+    catch _:_ ->
+        false
+    end.
+----
+
+Constraint functions should only crash because the programmer
+made an error when chaining constraints incorrectly (for example
+if the constraints were `[int, int]`, and not because of input.
+If the input is invalid then `false` must be returned.
+
+In our snippet, the `is_binary/1` guard will crash only
+because of a programmer error, and the try block is there
+to ensure that we do not crash when the input is invalid.

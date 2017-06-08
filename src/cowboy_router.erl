@@ -1,4 +1,4 @@
-%% Copyright (c) 2011-2014, Loïc Hoguin <essen@ninenines.eu>
+%% Copyright (c) 2011-2017, Loïc Hoguin <essen@ninenines.eu>
 %%
 %% Permission to use, copy, modify, and/or distribute this software for any
 %% purpose with or without fee is hereby granted, provided that the above
@@ -28,7 +28,7 @@
 -export([compile/1]).
 -export([execute/2]).
 
--type bindings() :: [{atom(), binary()}].
+-type bindings() :: #{atom() => any()}.
 -type tokens() :: [binary()].
 -export_type([bindings/0]).
 -export_type([tokens/0]).
@@ -159,14 +159,17 @@ compile_brackets_split(<< C, Rest/bits >>, Acc, N) ->
 -spec execute(Req, Env)
 	-> {ok, Req, Env} | {stop, Req}
 	when Req::cowboy_req:req(), Env::cowboy_middleware:env().
-execute(Req, Env) ->
-	{_, Dispatch} = lists:keyfind(dispatch, 1, Env),
-	Host = cowboy_req:host(Req),
-	Path = cowboy_req:path(Req),
+execute(Req=#{host := Host, path := Path}, Env=#{dispatch := Dispatch}) ->
 	case match(Dispatch, Host, Path) of
 		{ok, Handler, HandlerOpts, Bindings, HostInfo, PathInfo} ->
-			Req2 = cowboy_req:set_bindings(HostInfo, PathInfo, Bindings, Req),
-			{ok, Req2, [{handler, Handler}, {handler_opts, HandlerOpts}|Env]};
+			{ok, Req#{
+				host_info => HostInfo,
+				path_info => PathInfo,
+				bindings => Bindings
+			}, Env#{
+				handler => Handler,
+				handler_opts => HandlerOpts
+			}};
 		{error, notfound, host} ->
 			{stop, cowboy_req:reply(400, Req)};
 		{error, badrequest, path} ->
@@ -215,10 +218,10 @@ match([], _, _) ->
 	{error, notfound, host};
 %% If the host is '_' then there can be no constraints.
 match([{'_', [], PathMatchs}|_Tail], _, Path) ->
-	match_path(PathMatchs, undefined, Path, []);
+	match_path(PathMatchs, undefined, Path, #{});
 match([{HostMatch, Fields, PathMatchs}|Tail], Tokens, Path)
 		when is_list(Tokens) ->
-	case list_match(Tokens, HostMatch, []) of
+	case list_match(Tokens, HostMatch, #{}) of
 		false ->
 			match(Tail, Tokens, Path);
 		{true, Bindings, HostInfo} ->
@@ -273,21 +276,19 @@ check_constraints([Field|Tail], Bindings) when is_atom(Field) ->
 	check_constraints(Tail, Bindings);
 check_constraints([Field|Tail], Bindings) ->
 	Name = element(1, Field),
-	case lists:keyfind(Name, 1, Bindings) of
-		false ->
-			check_constraints(Tail, Bindings);
-		{_, Value} ->
+	case Bindings of
+		#{Name := Value} ->
 			Constraints = element(2, Field),
 			case cowboy_constraints:validate(Value, Constraints) of
 				true ->
 					check_constraints(Tail, Bindings);
 				{true, Value2} ->
-					Bindings2 = lists:keyreplace(Name, 1, Bindings,
-						{Name, Value2}),
-					check_constraints(Tail, Bindings2);
+					check_constraints(Tail, Bindings#{Name => Value2});
 				false ->
 					nomatch
-			end
+			end;
+		_ ->
+			check_constraints(Tail, Bindings)
 	end.
 
 -spec split_host(binary()) -> tokens().
@@ -319,9 +320,9 @@ split_path(Path, Acc) ->
 	try
 		case binary:match(Path, <<"/">>) of
 			nomatch when Path =:= <<>> ->
-				lists:reverse([cow_qs:urldecode(S) || S <- Acc]);
+				remove_dot_segments(lists:reverse([cow_uri:urldecode(S) || S <- Acc]), []);
 			nomatch ->
-				lists:reverse([cow_qs:urldecode(S) || S <- [Path|Acc]]);
+				remove_dot_segments(lists:reverse([cow_uri:urldecode(S) || S <- [Path|Acc]]), []);
 			{Pos, _} ->
 				<< Segment:Pos/binary, _:8, Rest/bits >> = Path,
 				split_path(Rest, [Segment|Acc])
@@ -330,6 +331,27 @@ split_path(Path, Acc) ->
 		error:badarg ->
 			badrequest
 	end.
+
+remove_dot_segments([], Acc) ->
+	lists:reverse(Acc);
+remove_dot_segments([<<".">>|Segments], Acc) ->
+	remove_dot_segments(Segments, Acc);
+remove_dot_segments([<<"..">>|Segments], Acc=[]) ->
+	remove_dot_segments(Segments, Acc);
+remove_dot_segments([<<"..">>|Segments], [_|Acc]) ->
+	remove_dot_segments(Segments, Acc);
+remove_dot_segments([S|Segments], Acc) ->
+	remove_dot_segments(Segments, [S|Acc]).
+
+-ifdef(TEST).
+remove_dot_segments_test_() ->
+	Tests = [
+		{[<<"a">>, <<"b">>, <<"c">>, <<".">>, <<"..">>, <<"..">>, <<"g">>], [<<"a">>, <<"g">>]},
+		{[<<"mid">>, <<"content=5">>, <<"..">>, <<"6">>], [<<"mid">>, <<"6">>]},
+		{[<<"..">>, <<"a">>], [<<"a">>]}
+	],
+	[fun() -> R = remove_dot_segments(S, []) end || {S, R} <- Tests].
+-endif.
 
 -spec list_match(tokens(), dispatch_match(), bindings())
 	-> {true, bindings(), undefined | tokens()} | false.
@@ -345,13 +367,13 @@ list_match([E|Tail], [E|TailMatch], Binds) ->
 %% Bind E to the variable name V and continue,
 %% unless V was already defined and E isn't identical to the previous value.
 list_match([E|Tail], [V|TailMatch], Binds) when is_atom(V) ->
-	case lists:keyfind(V, 1, Binds) of
-		{_, E} ->
+	case Binds of
+		#{V := E} ->
 			list_match(Tail, TailMatch, Binds);
-		{_, _} ->
+		#{V := _} ->
 			false;
-		false ->
-			list_match(Tail, TailMatch, [{V, E}|Binds])
+		_ ->
+			list_match(Tail, TailMatch, Binds#{V => E})
 	end;
 %% Match complete.
 list_match([], [], Binds) ->

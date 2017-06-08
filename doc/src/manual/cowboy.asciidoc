@@ -1,0 +1,99 @@
+= cowboy(3)
+
+== Name
+
+cowboy - HTTP server
+
+== Description
+
+The module `cowboy` provides convenience functions for
+manipulating Ranch listeners.
+
+== Exports
+
+* link:man:cowboy:start_clear(3)[cowboy:start_clear(3)] - Listen for connections using plain TCP
+* link:man:cowboy:start_tls(3)[cowboy:start_tls(3)] - Listen for connections using TLS
+* link:man:cowboy:stop_listener(3)[cowboy:stop_listener(3)] - Stop the given listener
+* link:man:cowboy:set_env(3)[cowboy:set_env(3)] - Update a listener's environment value
+
+== Types
+
+=== fields()
+
+[source,erlang]
+----
+fields() :: [Name
+           | {Name, Constraints}
+           | {Name, Constraints, Default}]
+
+Name        :: atom()
+Constraints :: Constraint | [Constraint]
+Constraint  :: cowboy_constraints:constraint()
+Default     :: any()
+----
+
+Fields description for match operations.
+
+This type is used in link:man:cowboy_router(3)[cowboy_router(3)]
+for matching bindings and in the match functions found in
+link:man:cowboy_req(3)[cowboy_req(3)].
+
+=== http_headers()
+
+[source,erlang]
+----
+http_headers() :: #{binary() => iodata()}
+----
+
+HTTP headers.
+
+=== http_status()
+
+[source,erlang]
+----
+http_status() :: non_neg_integer() | binary()
+----
+
+HTTP response status.
+
+A binary status can be used to set a reason phrase. Note
+however that HTTP/2 only sends the status code and drops
+the reason phrase entirely.
+
+=== http_version()
+
+[source,erlang]
+----
+http_version() :: 'HTTP/2' | 'HTTP/1.1' | 'HTTP/1.0'
+----
+
+HTTP version.
+
+Note that semantically, HTTP/1.1 and HTTP/2 are equivalent.
+
+=== opts()
+
+[source,erlang]
+----
+opts() :: map()
+----
+
+Options for the HTTP/1.1, HTTP/2 and Websocket protocols.
+
+The protocol options are in a map containing all the options for
+the different protocols that may be involved when connecting
+to the listener, including HTTP/1.1 and HTTP/2 but also
+subprotocols like Websocket.
+// @todo For Websocket this might change in the future.
+
+The HTTP/1.1 options are documented in the
+link:man:cowboy_http(3)[cowboy_http(3)] manual;
+the HTTP/2 options in
+link:man:cowboy_http2(3)[cowboy_http2(3)];
+and the Websocket options in
+link:man:cowboy_websocket(3)[cowboy_websocket(3)].
+
+== See also
+
+link:man:cowboy(7)[cowboy(7)],
+link:man:ranch(3)[ranch(3)]

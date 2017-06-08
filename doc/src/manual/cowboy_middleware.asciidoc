@@ -1,0 +1,75 @@
+= cowboy_middleware(3)
+
+== Name
+
+cowboy_middleware - Middlewares
+
+== Description
+
+The module `cowboy_middleware` defines a callback interface for
+Cowboy middlewares.
+
+Middlewares process the request sequentially in the order they
+are configured.
+
+== Callbacks
+
+Middlewares implement the following interface:
+
+[source,erlang]
+----
+execute(Req, Env)
+    -> {ok, Req, Env}
+     | {suspend, module(), atom(), [any()]}
+     | {stop, Req}
+
+Req :: cowboy_req:req()
+Env :: cowboy_middleware:env()
+----
+
+The `execute/2` is the only callback that needs to be
+implemented. It must execute the middleware and return
+with instructions for Cowboy.
+
+ok::
+
+Cowboy should continue processing the request using the
+returned Req object and environment.
+
+suspend::
+
+Cowboy will hibernate the process. When resuming, Cowboy
+will apply the returned module, function and arguments.
+
+stop::
+
+Cowboy will stop middleware execution. No other middleware
+will be executed. This effectively ends the processing of
+the request.
+
+== Types
+
+=== env()
+
+[source,erlang]
+----
+env() :: #{atom() => any()}
+----
+
+Middleware environment.
+
+A new environment is created for every request. The initial
+environment contained the user configured environment values
+(like `dispatch` for example) plus the `listener` value which
+contains the name of the listener for this connection.
+
+Middlewares may modify the environment as necessary.
+
+== Changelog
+
+* *2.0*: The `env` type is now a map instead of a proplist.
+* *1.0*: Behavior introduced.
+
+== See also
+
+link:man:cowboy(7)[cowboy(7)]

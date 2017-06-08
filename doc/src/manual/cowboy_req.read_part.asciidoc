@@ -1,0 +1,134 @@
+= cowboy_req:read_part(3)
+
+== Name
+
+cowboy_req:read_part - Read the next multipart headers
+
+== Description
+
+[source,erlang]
+----
+read_part(Req :: cowboy_req:req())
+    -> read_part(Req, #{})
+
+read_part(Req :: cowboy_req:req(), Opts)
+    -> {ok, Headers, Req} | {done, Req}
+
+Opts    :: cowboy_req:read_body_opts()
+Headers :: cow_multipart:headers()
+----
+
+Read the next part of a multipart body.
+
+This function reads the request body and parses it as
+multipart. Each parts of a multipart representation have
+their own headers and body. This function parses and returns
+headers. Examples of multipart media types are
+`multipart/form-data` and `multipart/byteranges`.
+
+Cowboy will skip any data remaining until the beginning of
+the next part. This includes the preamble to the multipart
+message but also the body of a previous part if it hasn't
+been read. Both are skipped automatically when calling this
+function.
+
+Cowboy will read the body before parsing in chunks of size
+up to 64KB, with a period of 5 seconds. This is tailored for
+reading part headers and might not be the most efficient for
+skipping the previous part's body.
+
+The headers returned are MIME headers, *NOT* HTTP headers.
+They can be parsed using the functions from the `cow_multipart`
+module. In addition, the `cow_multipart:form_data/1` function
+can be used to quickly extract information from `multipart/form-data`
+representations.
+
+// @todo Proper link to cow_multipart:form_data.
+
+Once a part has been read, it can not be read again.
+
+Once the body has been read, Cowboy sets the content-length
+header if it was not previously provided.
+
+// @todo Limit the maximum size of multipart headers.
+
+== Arguments
+
+Req::
+
+The Req object.
+
+Opts::
+
+A map of body reading options. Please refer to
+link:man:cowboy_req:read_body(3)[cowboy_req:read_body(3)]
+for details about each option.
++
+This function defaults the `length` to 64KB and the `period`
+to 5 seconds.
+
+== Return value
+
+An `ok` tuple is returned containing the next part's headers
+as a list of key/values.
+
+A `done` tuple is returned if there are no more parts to read.
+
+The Req object returned in the tuple must be used for that point
+onward. It contains a more up to date representation of the request.
+For example it may have an added content-length header once the
+body has been read.
+
+== Changelog
+
+* *2.0*: Function introduced. Replaces `part/1,2`.
+
+== Examples
+
+.Read all parts
+[source,erlang]
+----
+acc_multipart(Req0, Acc) ->
+    case cowboy_req:read_part(Req0) of
+        {ok, Headers, Req1} ->
+            {ok, Body, Req} = stream_body(Req1, <<>>),
+            acc_multipart(Req, [{Headers, Body}|Acc]);
+        {done, Req} ->
+            {lists:reverse(Acc), Req}
+    end.
+
+stream_body(Req0, Acc) ->
+    case cowboy_req:read_part_body(Req0) of
+        {more, Data, Req} ->
+            stream_body(Req, << Acc/binary, Data/binary >>);
+        {ok, Data, Req} ->
+            {ok, << Acc/binary, Data/binary >>, Req}
+    end.
+----
+
+.Read all part headers, skipping bodies
+[source,erlang]
+----
+skip_body_multipart(Req0, Acc) ->
+    case cowboy_req:read_part(Req0) of
+        {ok, Headers, Req} ->
+            skip_body_multipart(Req, [Headers|Acc]);
+        {done, Req} ->
+            {lists:reverse(Acc), Req}
+    end.
+----
+
+.Read a part header in larger chunks
+[source,erlang]
+----
+{ok, Headers, Req} = cowboy_req:read_part(Req0, #{length => 1000000}).
+----
+
+== See also
+
+link:man:cowboy_req(3)[cowboy_req(3)],
+link:man:cowboy_req:has_body(3)[cowboy_req:has_body(3)],
+link:man:cowboy_req:body_length(3)[cowboy_req:body_length(3)],
+link:man:cowboy_req:read_body(3)[cowboy_req:read_body(3)],
+link:man:cowboy_req:read_urlencoded_body(3)[cowboy_req:read_urlencoded_body(3)],
+link:man:cowboy_req:read_part_body(3)[cowboy_req:read_part_body(3)]

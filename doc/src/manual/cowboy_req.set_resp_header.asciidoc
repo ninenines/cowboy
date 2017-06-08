@@ -1,0 +1,81 @@
+= cowboy_req:set_resp_header(3)
+
+== Name
+
+cowboy_req:set_resp_header - Set a response header
+
+== Description
+
+[source,erlang]
+----
+set_resp_header(Name, Value, Req :: cowboy_req:req())
+	-> Req
+
+Name  :: binary()  %% lowercase; case insensitive
+Value :: iodata()  %% case depends on header
+----
+
+Set a header to be sent with the response.
+
+The header name must be given as a lowercase binary string.
+While header names are case insensitive, Cowboy requires them
+to be given as lowercase to function properly.
+
+Cowboy does not allow duplicate header names. Headers set
+by this function may be overwritten by those set from the
+reply functions.
+
+Use link:man:cowboy_req:set_resp_cookie(3)[cowboy_req:set_resp_cookie(3)]
+instead of this function to set cookies.
+
+== Arguments
+
+Name::
+
+Header name as a lowercase binary string.
+
+Value::
+
+Header value.
+
+Req::
+
+The Req object.
+
+== Return value
+
+A new Req object is returned.
+
+The returned Req object must be used from that point onward,
+otherwise the header will not be sent in the response.
+
+== Changelog
+
+* *1.0*: Function introduced.
+
+== Examples
+
+.Set a header in the response
+[source,erlang]
+----
+Req = cowboy_req:set_resp_header(<<"allow">>, "GET", Req0).
+----
+
+.Construct a header using iolists
+[source,erlang]
+----
+Req = cowboy_req:set_resp_header(<<"allow">>,
+    [allowed_methods(), ", OPTIONS"], Req0).
+----
+
+== See also
+
+link:man:cowboy_req(3)[cowboy_req(3)],
+link:man:cowboy_req:set_resp_cookie(3)[cowboy_req:set_resp_cookie(3)],
+link:man:cowboy_req:set_resp_headers(3)[cowboy_req:set_resp_headers(3)],
+link:man:cowboy_req:has_resp_header(3)[cowboy_req:has_resp_header(3)],
+link:man:cowboy_req:resp_header(3)[cowboy_req:resp_header(3)],
+link:man:cowboy_req:resp_headers(3)[cowboy_req:resp_headers(3)],
+link:man:cowboy_req:delete_resp_header(3)[cowboy_req:delete_resp_header(3)],
+link:man:cowboy_req:reply(3)[cowboy_req:reply(3)],
+link:man:cowboy_req:stream_reply(3)[cowboy_req:stream_reply(3)]

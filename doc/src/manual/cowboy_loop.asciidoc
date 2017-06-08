@@ -1,0 +1,80 @@
+= cowboy_loop(3)
+
+== Name
+
+cowboy_loop - Loop handlers
+
+== Description
+
+The module `cowboy_loop` defines a callback interface for
+long running HTTP connections.
+
+You should switch to this behavior for long polling,
+server-sent events and similar long-running requests.
+
+There are generally two usage patterns:
+
+* Loop until receiving a specific message, then send
+  a response and stop execution (for example long polling);
+
+* Or initiate a response in `init/2` and stream the
+  body in `info/3` as necessary (for example server-sent events).
+
+== Callbacks
+
+Loop handlers implement the following interface:
+
+[source,erlang]
+----
+init(Req, State)
+    -> {cowboy_loop, Req, State}
+     | {cowboy_loop, Req, State, hibernate}
+
+info(Info, Req, State)
+    -> {ok, Req, State}
+     | {ok, Req, State, hibernate}
+     | {stop, Req, State}
+
+terminate(Reason, Req, State) -> ok  %% optional
+
+Req    :: cowboy_req:req()
+State  :: any()
+Info   :: any()
+Reason :: stop
+        | {crash, error | exit | throw, any()}
+----
+
+The `init/2` callback is common to all handlers. To switch
+to the loop behavior, it must return `cowboy_loop` as the
+first element of the tuple.
+
+The `info/3` callback will be called for every Erlang message
+received. It may choose to continue the receive loop or stop
+it.
+
+The optional `terminate/3` callback will ultimately be called
+with the reason for the termination of the handler.
+Cowboy will terminate the process right after this. There
+is no need to perform any cleanup in this callback.
+
+The following terminate reasons are defined for loop handlers:
+
+stop::
+    The handler requested to close the connection by returning
+    a `stop` tuple.
+
+{crash, Class, Reason}::
+    A crash occurred in the handler. `Class` and `Reason` can be
+    used to obtain more information about the crash. The function
+    `erlang:get_stacktrace/0` can also be called to obtain the
+    stacktrace of the process when the crash occurred.
+
+== Changelog
+
+* *2.0*: Loop handlers no longer need to handle overflow/timeouts.
+* *1.0*: Behavior introduced.
+
+== See also
+
+link:man:cowboy(7)[cowboy(7)],
+link:man:cowboy_handler(3)[cowboy_handler(3)]

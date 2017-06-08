@@ -16,7 +16,6 @@
 -export([paste_text/2]).
 
 init(Req, Opts) ->
-	random:seed(now()),
 	{cowboy_rest, Req, Opts}.
 
 allowed_methods(Req, State) ->
@@ -45,7 +44,7 @@ resource_exists(Req, _State) ->
 
 create_paste(Req, State) ->
 	PasteID = new_paste_id(),
-	{ok, [{<<"paste">>, Paste}], Req2} = cowboy_req:body_qs(Req),
+	{ok, [{<<"paste">>, Paste}], Req2} = cowboy_req:read_urlencoded_body(Req),
 	ok = file:write_file(full_path(PasteID), Paste),
 	case cowboy_req:method(Req2) of
 		<<"POST">> ->
@@ -57,13 +56,13 @@ create_paste(Req, State) ->
 paste_html(Req, index) ->
 	{read_file("index.html"), Req, index};
 paste_html(Req, Paste) ->
-	#{lang := Lang} = cowboy_req:match_qs([lang], Req),
+	#{lang := Lang} = cowboy_req:match_qs([{lang, [], plain}], Req),
 	{format_html(Paste, Lang), Req, Paste}.
 
 paste_text(Req, index) ->
 	{read_file("index.txt"), Req, index};
 paste_text(Req, Paste) ->
-	#{lang := Lang} = cowboy_req:match_qs([lang], Req),
+	#{lang := Lang} = cowboy_req:match_qs([{lang, [], plain}], Req),
 	{format_text(Paste, Lang), Req, Paste}.
 
 % Private
@@ -87,13 +86,13 @@ valid_path(<<$/, _T/binary>>) -> false;
 valid_path(<<_Char, T/binary>>) -> valid_path(T).
 
 new_paste_id() ->
-	Initial = random:uniform(62) - 1,
+	Initial = rand:uniform(62) - 1,
 	new_paste_id(<<Initial>>, 7).
 new_paste_id(Bin, 0) ->
 	Chars = <<"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890">>,
 	<< <<(binary_part(Chars, B, 1))/binary>> || <<B>> <= Bin >>;
 new_paste_id(Bin, Rem) ->
-	Next = random:uniform(62) - 1,
+	Next = rand:uniform(62) - 1,
 	new_paste_id(<<Bin/binary, Next>>, Rem - 1).
 
 format_html(Paste, plain) ->

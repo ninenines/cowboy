@@ -1,0 +1,116 @@
+= cowboy_req:read_body(3)
+
+== Name
+
+cowboy_req:read_body - Read the request body
+
+== Description
+
+[source,erlang]
+----
+read_body(Req :: cowboy_req:req())
+    -> read_body(Req, #{})
+
+read_body(Req :: cowboy_req:req(), Opts)
+    -> {ok,   Data :: binary(), Req}
+     | {more, Data :: binary(), Req}
+
+Opts :: cowboy_req:read_body_opts()
+----
+
+Read the request body.
+
+This function reads a chunk of the request body. A `more` tuple
+is returned when more data remains to be read. Call the function
+repeatedly until an `ok` tuple is returned to read the entire body.
+
+An `ok` tuple with empty data is returned when the request has no body,
+or when calling this function again after the body has already
+been read. It is therefore safe to call this function directly.
+Note that the body can only be read once.
+
+This function reads the request body from the connection process.
+The connection process is responsible for reading from the socket.
+The exact behavior varies depending on the protocol.
+
+The options therefore are only related to the communication
+between the request process and the connection process.
+
+Cowboy will automatically handle protocol details including
+the expect header, chunked transfer-encoding and others.
+
+Once the body has been read fully, Cowboy sets the content-length
+header if it was not previously provided.
+
+== Arguments
+
+Req::
+
+The Req object.
+
+Opts::
+
+A map of body reading options.
++
+The `length` option can be used to request smaller or bigger
+chunks of data to be sent. It is a best effort approach, Cowboy
+may send more data than configured on occasions. It defaults
+to 8MB.
++
+The `period` indicates how long the connection process will wait
+before it provides us with the data it received. It defaults
+to 15 seconds.
++
+The connection process sends data to the request process when
+either the `length` of data or the `period` of time is reached.
++
+The `timeout` option is a safeguard in case the connection
+process becomes unresponsive. The function will crash if no
+message was received in that interval. The timeout should be
+larger than the period. It defaults to the period + 1 second.
+
+== Return value
+
+A `more` tuple is returned when there are more data to be read.
+
+An `ok` tuple is returned when there are no more data to be read,
+either because this is the last chunk of data, the body has already
+been read, or there was no body to begin with.
+
+The data is always returned as a binary.
+
+The Req object returned in the tuple must be used for that point
+onward. It contains a more up to date representation of the request.
+For example it may have an added content-length header once the
+body has been read.
+
+== Changelog
+
+* *2.0*: Function introduced. Replaces `body/1,2`.
+
+== Examples
+
+.Read the entire body
+[source,erlang]
+----
+read_body(Req0, Acc) ->
+    case cowboy_req:read_body(Req0) of
+        {ok, Data, Req} -> {ok, << Acc/binary, Data/binary >>, Req};
+        {more, Data, Req} -> read_body(Req, << Acc/binary, Data/binary >>)
+    end.
+----
+
+.Read the body in small chunks
+[source,erlang]
+----
+cowboy_req:read_body(Req, #{length => 64000}).
+----
+
+== See also
+
+link:man:cowboy_req(3)[cowboy_req(3)],
+link:man:cowboy_req:has_body(3)[cowboy_req:has_body(3)],
+link:man:cowboy_req:body_length(3)[cowboy_req:body_length(3)],
+link:man:cowboy_req:read_urlencoded_body(3)[cowboy_req:read_urlencoded_body(3)],
+link:man:cowboy_req:read_part(3)[cowboy_req:read_part(3)],
+link:man:cowboy_req:read_part_body(3)[cowboy_req:read_part_body(3)]

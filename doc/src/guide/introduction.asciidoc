@@ -1,0 +1,75 @@
+[[introduction]]
+== Introduction
+
+Cowboy is a small, fast and modern HTTP server for Erlang/OTP.
+
+Cowboy aims to provide a complete xref:modern_web[modern Web stack].
+This includes HTTP/1.1, HTTP/2, Websocket, Server-Sent Events and
+Webmachine-based REST.
+
+Cowboy comes with functions for introspection and tracing, enabling
+developers to know precisely what is happening at any time. Its modular
+design also easily enable developers to add instrumentation.
+
+Cowboy is a high quality project. It has a small code base, is very
+efficient (both in latency and memory use) and can easily be embedded
+in another application.
+
+Cowboy is clean Erlang code. It includes hundreds of tests and its code
+is fully compliant with the Dialyzer. It is also well documented and
+features a Function Reference, a User Guide and numerous Tutorials.
+
+=== Prerequisites
+
+Beginner Erlang knowledge is recommended for reading this guide.
+
+Knowledge of the HTTP protocol is recommended but not required, as it
+will be detailed throughout the guide.
+
+=== Supported platforms
+
+Cowboy is tested and supported on Linux, FreeBSD, Windows and OSX.
+
+Cowboy has been reported to work on other platforms, but we make no
+guarantee that the experience will be safe and smooth. You are advised
+to perform the necessary testing and security audits prior to deploying
+on other platforms.
+
+Cowboy is developed for Erlang/OTP 19.0 and newer.
+
+=== License
+
+Cowboy uses the ISC License.
+
+----
+Copyright (c) 2011-2017, Loïc Hoguin <essen@ninenines.eu>
+
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+----
+
+=== Versioning
+
+Cowboy uses http://semver.org/[Semantic Versioning 2.0.0].
+
+=== Conventions
+
+In the HTTP protocol, the method name is case sensitive. All standard
+method names are uppercase.
+
+Header names are case insensitive. When using HTTP/1.1, Cowboy converts
+all the request header names to lowercase. HTTP/2 requires clients to
+send them as lowercase. Any other header name is expected to be provided
+lowercased, including when querying information about the request or
+when sending responses.
+
+The same applies to any other case insensitive value.

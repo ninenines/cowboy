@@ -1,0 +1,318 @@
+[[resp]]
+== Sending a response
+
+The response must be sent using the Req object.
+
+Cowboy provides two different ways of sending responses:
+either directly or by streaming the body. Response headers
+and body may be set in advance. The response is sent as
+soon as one of the reply or stream reply function is
+called.
+
+Cowboy also provides a simplified interface for sending
+files. It can also send only specific parts of a file.
+
+While only one response is allowed for every request,
+HTTP/2 introduced a mechanism that allows the server
+to push additional resources related to the response.
+This chapter also describes how this feature works in
+Cowboy.
+
+=== Reply
+
+Cowboy provides three functions for sending the entire reply,
+depending on whether you need to set headers and body. In all
+cases, Cowboy will add any headers required by the protocol
+(for example the date header will always be sent).
+
+When you need to set only the status code,
+use `cowboy_req:reply/2`:
+
+[source,erlang]
+Req = cowboy_req:reply(200, Req0).
+
+When you need to set response headers at the same time,
+use `cowboy_req:reply/3`:
+
+[source,erlang]
+----
+Req = cowboy_req:reply(303, #{
+    <<"location">> => <<"http://ninenines.eu">>
+}, Req0).
+----
+
+Note that the header name must always be a lowercase
+binary.
+
+When you also need to set the response body,
+use `cowboy_req:reply/4`:
+
+[source,erlang]
+----
+Req = cowboy_req:reply(200, #{
+    <<"content-type">> => <<"text/plain">>
+}, "Hello world!", Req0).
+----
+
+You should always set the content-type header when the
+response has a body. There is however no need to set
+the content-length header; Cowboy does it automatically.
+
+The response body and the header values must be either
+a binary or an iolist. An iolist is a list containing
+binaries, characters, strings or other iolists. This
+allows you to build a response from different parts
+without having to do any concatenation:
+
+[source,erlang]
+----
+Title = "Hello world!",
+Body = <<"Hats off!">>,
+Req = cowboy_req:reply(200, #{
+    <<"content-type">> => <<"text/html">>
+}, ["<html><head><title>", Title, "</title></head>",
+    "<body><p>", Body, "</p></body></html>"], Req0).
+----
+
+This method of building responses is more efficient than
+concatenating. Behind the scenes, each element of the list
+is simply a pointer, and those pointers are used directly
+when writing to the socket.
+
+=== Stream reply
+
+Cowboy provides two functions for initiating a response,
+and an additional function for streaming the response body.
+Cowboy will add any required headers to the response.
+
+// @todo For HTTP/1.1 Cowboy should probably not use chunked transfer-encoding if the content-length is set.
+
+When you need to set only the status code,
+use `cowboy_req:stream_reply/2`:
+
+[source,erlang]
+----
+Req = cowboy_req:stream_reply(200, Req0),
+
+cowboy_req:stream_body("Hello...", nofin, Req),
+cowboy_req:stream_body("chunked...", nofin, Req),
+cowboy_req:stream_body("world!!", fin, Req).
+----
+
+The second argument to `cowboy_req:stream_body/3` indicates
+whether this data terminates the body. Use `fin` for the
+final flag, and `nofin` otherwise.
+
+This snippet does not set a content-type header. This is
+not recommended. All responses with a body should have
+a content-type. The header can be set beforehand, or
+using the `cowboy_req:stream_reply/3`:
+
+[source,erlang]
+----
+Req = cowboy_req:stream_reply(200, #{
+    <<"content-type">> => <<"text/html">>
+}, Req0),
+
+cowboy_req:stream_body("<html><head>Hello world!</head>", nofin, Req),
+cowboy_req:stream_body("<body><p>Hats off!</p></body></html>", fin, Req).
+----
+
+HTTP provides a few different ways to stream response bodies.
+Cowboy will select the most appropriate one based on the HTTP
+version and the request and response headers.
+
+While not required by any means, it is recommended that you
+set the content-length header in the response if you know it
+in advance. This will ensure that the best response method
+is selected and help clients understand when the response
+is fully received.
+
+// @todo Document trailers here.
+
+=== Preset response headers
+
+Cowboy provides functions to set response headers without
+immediately sending them. They are stored in the Req object
+and sent as part of the response when a reply function is
+called.
+
+To set response headers:
+
+[source,erlang]
+Req = cowboy_req:set_resp_header(<<"allow">>, "GET", Req0).
+
+Header names must be a lowercase binary.
+
+Do not use this function for setting cookies. Refer to
+the xref:cookies[Cookies] chapter for more information.
+
+To check if a response header has already been set:
+
+[source,erlang]
+cowboy_req:has_resp_header(<<"allow">>, Req).
+
+It returns `true` if the header was set, `false` otherwise.
+
+To delete a response header that was set previously:
+
+[source,erlang]
+Req = cowboy_req:delete_resp_header(<<"allow">>, Req0).
+
+=== Overriding headers
+
+As Cowboy provides different ways of setting response
+headers and body, clashes may occur, so it's important
+to understand what happens when a header is set twice.
+
+Headers come from five different origins:
+
+* Protocol-specific headers (for example HTTP/1.1's connection header)
+* Other required headers (for example the date header)
+* Preset headers
+* Headers given to the reply function
+* Set-cookie headers
+
+Cowboy does not allow overriding protocol-specific headers.
+
+Set-cookie headers will always be appended at the end of
+the list of headers before sending the response.
+
+Headers given to the reply function will always override
+preset headers and required headers. If a header is found
+in two or three of these, then the one in the reply function
+is picked and the others are dropped.
+
+Similarly, preset headers will always override required
+headers.
+
+To illustrate, look at the following snippet. Cowboy by
+default sends the server header with the value "Cowboy".
+We can override it:
+
+[source,erlang]
+----
+Req = cowboy_req:reply(200, #{
+    <<"server">> => <<"yaws">>
+}, Req0).
+----
+
+=== Preset response body
+
+Cowboy provides functions to set the response body without
+immediately sending it. It is stored in the Req object and
+sent when the reply function is called.
+
+To set the response body:
+
+[source,erlang]
+Req = cowboy_req:set_resp_body("Hello world!", Req0).
+
+// @todo Yeah we probably should add that function that
+// also sets the content-type at the same time...
+
+To check if a response body has already been set:
+
+[source,erlang]
+cowboy_req:has_resp_body(Req).
+
+It returns `true` if the body was set and is non-empty,
+`false` otherwise.
+
+// @todo We probably should also have a function that
+// properly removes the response body, including any
+// content-* headers.
+
+The preset response body is only sent if the reply function
+used is `cowboy_req:reply/2` or `cowboy_req:reply/3`.
+
+=== Sending files
+
+Cowboy provides a shortcut for sending files. When
+using `cowboy_req:reply/4`, or when presetting the
+response header, you can give a `sendfile` tuple to
+Cowboy:
+
+[source,erlang]
+{sendfile, Offset, Length, Filename}
+
+Depending on the values for `Offset` or `Length`, the
+entire file may be sent, or just a part of it.
+
+The length is required even for sending the entire file.
+Cowboy sends it in the content-length header.
+
+To send a file while replying:
+
+[source,erlang]
+----
+Req = cowboy_req:reply(200, #{
+    <<"content-type">> => "image/png"
+}, {sendfile, 0, 12345, "path/to/logo.png"}, Req0).
+----
+
+// @todo An example of presetting a file would be useful,
+// but let's wait for the function that can set the
+// content-type at the same time.
+
+// @todo What about streaming many files? For example
+// it should be possible to build a tar file on the fly
+// while still using sendfile. Another example could be
+// proper support for multipart byte ranges. Yet another
+// example would be automatic concatenation of CSS or JS
+// files.
+
+=== Push
+
+The HTTP/2 protocol introduced the ability to push resources
+related to the one sent in the response. Cowboy provides two
+functions for that purpose: `cowboy_req:push/3,4`.
+
+Push is only available for HTTP/2. Cowboy will automatically
+ignore push requests if the protocol doesn't support it.
+
+The push function must be called before any of the reply
+functions. Doing otherwise will result in a crash.
+
+To push a resource, you need to provide the same information
+as a client performing a request would. This includes the
+HTTP method, the URI and any necessary request headers.
+
+Cowboy by default only requires you to give the path to
+the resource and the request headers. The rest of the URI
+is taken from the current request (excluding the query
+string, set to empty) and the method is GET by default.
+
+The following snippet pushes a CSS file that is linked to
+in the response:
+
+[source,erlang]
+----
+cowboy_req:push("/static/style.css", #{
+    <<"accept">> => <<"text/css">>
+}, Req0),
+Req = cowboy_req:reply(200, #{
+    <<"content-type">> => <<"text/html">>
+}, ["<html><head><title>My web page</title>",
+    "<link rel='stylesheet' type='text/css' href='/static/style.css'>",
+    "<body><p>Welcome to Erlang!</p></body></html>"], Req0).
+----
+
+To override the method, scheme, host, port or query string,
+simply pass in a fourth argument. The following snippet
+uses a different host name:
+
+[source,erlang]
+----
+cowboy_req:push("/static/style.css", #{
+    <<"accept">> => <<"text/css">>
+}, #{host => <<"cdn.example.org">>}, Req),
+----
+
+Pushed resources don't have to be files. As long as the push
+request is cacheable, safe and does not include a body, the
+resource can be pushed.
+
+Under the hood, Cowboy handles pushed requests the same as
+normal requests: a different process is created which will
+ultimately send a response to the client.

@@ -1,5 +1,5 @@
+%% Copyright (c) 2013-2017, Loïc Hoguin <essen@ninenines.eu>
 %% Copyright (c) 2013, James Fish <james@fishcakez.com>
-%% Copyright (c) 2013-2014, Loïc Hoguin <essen@ninenines.eu>
 %%
 %% Permission to use, copy, modify, and/or distribute this software for any
 %% purpose with or without fee is hereby granted, provided that the above
@@ -15,6 +15,10 @@
 
 -module(cowboy_sub_protocol).
 
--callback upgrade(Req, Env, module(), any(), timeout(), run | hibernate)
+-callback upgrade(Req, Env, module(), any())
+	-> {ok, Req, Env} | {suspend, module(), atom(), [any()]} | {stop, Req}
+	when Req::cowboy_req:req(), Env::cowboy_middleware:env().
+
+-callback upgrade(Req, Env, module(), any(), any())
 	-> {ok, Req, Env} | {suspend, module(), atom(), [any()]} | {stop, Req}
 	when Req::cowboy_req:req(), Env::cowboy_middleware:env().

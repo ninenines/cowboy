@@ -1,0 +1,101 @@
+// a2x: --dblatex-opts "-P latex.output.revhistory=0 -P doc.publisher.show=0 -P index.numbered=0"
+// a2x: --dblatex-opts "-s cowboy"
+// a2x: -d book --attribute tabsize=4
+
+= Cowboy User Guide
+
+// REST: where should i handle bindings? init, probably. qs? in media type functions
+// REST: explain how a module per media type is good; module may be shared between client/server
+
+// @todo Put the list of RFCs and other documents supported somewhere.
+
+= Rationale
+
+include::modern_web.asciidoc[The modern Web]
+
+include::erlang_web.asciidoc[Erlang and the Web]
+
+= Introduction
+
+include::introduction.asciidoc[Introduction]
+
+include::getting_started.asciidoc[Getting started]
+
+include::flow_diagram.asciidoc[Flow diagram]
+
+= Configuration
+
+include::listeners.asciidoc[Listeners]
+
+include::routing.asciidoc[Routing]
+
+include::constraints.asciidoc[Constraints]
+
+= Handlers
+
+include::handlers.asciidoc[Handlers]
+
+include::loop_handlers.asciidoc[Loop handlers]
+
+include::static_files.asciidoc[Static files]
+
+= Request and response
+
+include::req.asciidoc[Request details]
+
+include::req_body.asciidoc[Reading the request body]
+
+include::resp.asciidoc[Sending a response]
+
+include::cookies.asciidoc[Using cookies]
+
+include::multipart.asciidoc[Multipart]
+
+= REST
+
+include::rest_principles.asciidoc[REST principles]
+
+include::rest_handlers.asciidoc[Handling REST requests]
+
+include::rest_flowcharts.asciidoc[REST flowcharts]
+
+include::resource_design.asciidoc[Designing a resource handler]
+
+= Websocket
+
+include::ws_protocol.asciidoc[The Websocket protocol]
+
+include::ws_handlers.asciidoc[Websocket handlers]
+
+= Advanced
+
+include::streams.asciidoc[Streams]
+
+include::middlewares.asciidoc[Middlewares]
+
+// @todo Rather have two chapters, custom handlers and custom protocol upgrades
+include::sub_protocols.asciidoc[Sub protocols]
+
+= Additional information
+
+//include::migrating_from_1.0.asciidoc[Migrating from Cowboy 1.0 to 2.0]
+
+// @todo Maybe history? Could take info from architecture also.
+
+include::specs.asciidoc[HTTP and other specifications]
+
+= Deprecated chapters
+
+== About the deprecated chapters
+
+The following chapters were relevant in Cowboy 1.0. They have
+not been updated for Cowboy 2.0 yet. The information in these
+chapters may or may not be useful.
+
+include::architecture.asciidoc[Architecture]
+
+include::broken_clients.asciidoc[Dealing with broken clients]
+
+include::hooks.asciidoc[Hooks]
+
+include::overview.asciidoc[Overview]

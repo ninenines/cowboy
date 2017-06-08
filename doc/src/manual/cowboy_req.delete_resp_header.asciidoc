@@ -1,0 +1,58 @@
+= cowboy_req:delete_resp_header(3)
+
+== Name
+
+cowboy_req:delete_resp_header - Delete a response header
+
+== Description
+
+[source,erlang]
+----
+delete_resp_header(Name, Req :: cowboy_req:req()) -> Req
+
+Name :: binary()  %% lowercase; case insensitive
+----
+
+Delete the given response header.
+
+The header name must be given as a lowercase binary string.
+While header names are case insensitive, Cowboy requires them
+to be given as lowercase to function properly.
+
+== Arguments
+
+Name::
+
+Header name as a lowercase binary string.
+
+Req::
+
+The Req object.
+
+== Return value
+
+A new Req object is returned.
+
+The returned Req object must be used from that point onward,
+otherwise the header will still be sent in the response.
+
+== Changelog
+
+* *1.0*: Function introduced.
+
+== Examples
+
+.Remove the content-type header from the response
+[source,erlang]
+----
+Req = cowboy_req:delete_resp_header(<<"content-type">>, Req0),
+----
+
+== See also
+
+link:man:cowboy_req(3)[cowboy_req(3)],
+link:man:cowboy_req:set_resp_header(3)[cowboy_req:set_resp_header(3)],
+link:man:cowboy_req:set_resp_headers(3)[cowboy_req:set_resp_headers(3)],
+link:man:cowboy_req:has_resp_header(3)[cowboy_req:has_resp_header(3)],
+link:man:cowboy_req:resp_header(3)[cowboy_req:resp_header(3)],
+link:man:cowboy_req:resp_headers(3)[cowboy_req:resp_headers(3)]

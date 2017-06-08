@@ -10,23 +10,23 @@ init(Req, Opts) ->
 	{ok, maybe_echo(Method, HasBody, Req), Opts}.
 
 maybe_echo(<<"POST">>, true, Req) ->
-	case cowboy_req:body_qs(Req) of
+	case cowboy_req:read_urlencoded_body(Req) of
 		{badlength, Req2} ->
 			echo(badlength, Req2);
 		{ok, PostVals, Req2} ->
 			echo(proplists:get_value(<<"echo">>, PostVals), Req2)
 	end;
 maybe_echo(<<"POST">>, false, Req) ->
-	cowboy_req:reply(400, [], <<"Missing body.">>, Req);
+	cowboy_req:reply(400, #{}, <<"Missing body.">>, Req);
 maybe_echo(_, _, Req) ->
 	%% Method not allowed.
 	cowboy_req:reply(405, Req).
 
 echo(badlength, Req) ->
-	cowboy_req:reply(413, [], <<"POST body bigger than 16000 bytes">>, Req);
+	cowboy_req:reply(413, #{}, <<"POST body bigger than 16000 bytes">>, Req);
 echo(undefined, Req) ->
-	cowboy_req:reply(400, [], <<"Missing echo parameter.">>, Req);
+	cowboy_req:reply(400, #{}, <<"Missing echo parameter.">>, Req);
 echo(Echo, Req) ->
-	cowboy_req:reply(200, [
-		{<<"content-type">>, <<"text/plain; charset=utf-8">>}
-	], Echo, Req).
+	cowboy_req:reply(200, #{
+		<<"content-type">> => <<"text/plain; charset=utf-8">>
+	}, Echo, Req).

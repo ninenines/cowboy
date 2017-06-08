@@ -28,7 +28,7 @@ content_types_accepted(Req, State) ->
 	end.
 
 patch_text_plain(Req, State) ->
-	case cowboy_req:body(Req) of
+	case cowboy_req:read_body(Req) of
 		{ok, <<"stop">>, Req0} ->
 			{stop, cowboy_req:reply(400, Req0), State};
 		{ok, <<"false">>, Req0} ->

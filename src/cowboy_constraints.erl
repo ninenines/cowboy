@@ -1,4 +1,4 @@
-%% Copyright (c) 2014, Loïc Hoguin <essen@ninenines.eu>
+%% Copyright (c) 2014-2017, Loïc Hoguin <essen@ninenines.eu>
 %%
 %% Permission to use, copy, modify, and/or distribute this software for any
 %% purpose with or without fee is hereby granted, provided that the above
@@ -52,9 +52,10 @@ apply_constraint(Value, F) when is_function(F) ->
 %% Constraint functions.
 
 int(Value) when is_binary(Value) ->
-	try {true, list_to_integer(binary_to_list(Value))}
+	try {true, binary_to_integer(Value)}
 	catch _:_ -> false
 	end.
 
 nonempty(<<>>) -> false;
 nonempty(Value) when is_binary(Value) -> true.
+%% @todo Perhaps return true for any other type except empty list?

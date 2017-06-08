@@ -1,0 +1,89 @@
+= File server example with directory listing
+
+To try this example, you need GNU `make` and `git` in your PATH.
+
+To build and run the example, use the following command:
+
+[source,bash]
+$ make run
+
+Then point your browser to http://localhost:8080
+to browse the contents of the `priv` directory.
+
+Interesting examples include:
+
+* http://localhost:8080/test.txt[Plain text file]
+* http://localhost:8080/video.html[HTML5 video demo]
+
+== HTTP/1.1 example output
+
+[source,bash]
+----
+$ curl -i http://localhost:8080/test.txt
+HTTP/1.1 200 OK
+connection: keep-alive
+server: Cowboy
+date: Mon, 09 Sep 2013 13:49:50 GMT
+content-length: 52
+content-type: text/plain
+last-modified: Fri, 18 Jan 2013 16:33:31 GMT
+
+If you read this then the static file server works!
+----
+
+== HTTP/2 example output
+
+[source,bash]
+----
+$ nghttp -v http://localhost:8080/test.txt
+[  0.000] Connected
+[  0.000] send SETTINGS frame <length=12, flags=0x00, stream_id=0>
+          (niv=2)
+          [SETTINGS_MAX_CONCURRENT_STREAMS(0x03):100]
+          [SETTINGS_INITIAL_WINDOW_SIZE(0x04):65535]
+[  0.000] send PRIORITY frame <length=5, flags=0x00, stream_id=3>
+          (dep_stream_id=0, weight=201, exclusive=0)
+[  0.000] send PRIORITY frame <length=5, flags=0x00, stream_id=5>
+          (dep_stream_id=0, weight=101, exclusive=0)
+[  0.000] send PRIORITY frame <length=5, flags=0x00, stream_id=7>
+          (dep_stream_id=0, weight=1, exclusive=0)
+[  0.000] send PRIORITY frame <length=5, flags=0x00, stream_id=9>
+          (dep_stream_id=7, weight=1, exclusive=0)
+[  0.000] send PRIORITY frame <length=5, flags=0x00, stream_id=11>
+          (dep_stream_id=3, weight=1, exclusive=0)
+[  0.000] send HEADERS frame <length=46, flags=0x25, stream_id=13>
+          ; END_STREAM | END_HEADERS | PRIORITY
+          (padlen=0, dep_stream_id=11, weight=16, exclusive=0)
+          ; Open new stream
+          :method: GET
+          :path: /test.txt
+          :scheme: http
+          :authority: localhost:8080
+          accept: */*
+          accept-encoding: gzip, deflate
+          user-agent: nghttp2/1.7.1
+[  0.001] recv SETTINGS frame <length=0, flags=0x00, stream_id=0>
+          (niv=0)
+[  0.001] recv SETTINGS frame <length=0, flags=0x01, stream_id=0>
+          ; ACK
+          (niv=0)
+[  0.001] send SETTINGS frame <length=0, flags=0x01, stream_id=0>
+          ; ACK
+          (niv=0)
+[  0.007] recv (stream_id=13) :status: 200
+[  0.007] recv (stream_id=13) content-length: 52
+[  0.007] recv (stream_id=13) content-type: text/plain
+[  0.007] recv (stream_id=13) date: Mon, 13 Jun 2016 11:25:20 GMT
+[  0.007] recv (stream_id=13) etag: "1371478245"
+[  0.007] recv (stream_id=13) last-modified: Tue, 12 Aug 2014 17:00:17 GMT
+[  0.007] recv (stream_id=13) server: Cowboy
+[  0.007] recv HEADERS frame <length=81, flags=0x04, stream_id=13>
+          ; END_HEADERS
+          (padlen=0)
+          ; First response header
+If you read this then the static file server works!
+[  0.007] recv DATA frame <length=52, flags=0x01, stream_id=13>
+          ; END_STREAM
+[  0.007] send GOAWAY frame <length=8, flags=0x00, stream_id=0>
+          (last_stream_id=0, error_code=NO_ERROR(0x00), opaque_data(0)=[])
+----

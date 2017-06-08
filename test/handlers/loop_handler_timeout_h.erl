@@ -1,8 +1,9 @@
 %% This module implements a loop handler that sends
 %% itself a timeout that will intentionally arrive
-%% too late, as it configures itself to only wait
-%% 200ms before closing the connection in init/2.
-%% This results in a 204 reply being sent back by Cowboy.
+%% after the HTTP/1.1 request_timeout. The protocol
+%% is not supposed to close the connection when a
+%% request is ongoing, and therefore this handler
+%% will eventually send a 200 reply.
 
 -module(loop_handler_timeout_h).
 
@@ -11,11 +12,11 @@
 -export([terminate/3]).
 
 init(Req, _) ->
-	erlang:send_after(1000, self(), timeout),
-	{cowboy_loop, Req, undefined, 200, hibernate}.
+	erlang:send_after(6000, self(), timeout),
+	{cowboy_loop, Req, #{hibernate => true}}.
 
 info(timeout, Req, State) ->
-	{stop, cowboy_req:reply(500, Req), State}.
+	{stop, cowboy_req:reply(200, #{}, <<"Good!">>, Req), State}.
 
-terminate(timeout, _, _) ->
+terminate(stop, _, _) ->
 	ok.

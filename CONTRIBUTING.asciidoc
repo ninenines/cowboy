@@ -37,7 +37,8 @@ email to contact@ninenines.eu for more information.
 You *SHOULD* open a ticket for every bug you encounter, regardless
 of the version you use. A ticket not only helps the project ensure
 that bugs are squashed, it also helps other users who later run
-into this issue.
+into this issue. You *SHOULD* give as much information as possible
+including what commit/branch, what OS/version and so on.
 
 You *SHOULD NOT* open a ticket if another already exists for the
 same issue. You *SHOULD* instead either add more information by
@@ -47,10 +48,17 @@ new ticket when they are opened. If the maintainer didn't say
 anything after a few days, you *SHOULD* write a new comment asking
 for more information.
 
+You *SHOULD* provide a reproducible test case, either in the
+ticket or by sending a pull request and updating the test suite.
+
 When you have a fix ready, you *SHOULD* open a pull request,
 even if the code does not fit the requirements discussed below.
 Providing a fix, even a dirty one, can help other users and/or
 at least get the maintainer on the right tracks.
+
+You *SHOULD* try to relax and be patient. Some tickets are merged
+or fixed quickly, others aren't. There's no real rules around that.
+You can become a paying customer if you need something fast.
 
 == Security reports
 

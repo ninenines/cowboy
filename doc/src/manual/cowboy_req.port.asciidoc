@@ -1,0 +1,52 @@
+= cowboy_req:port(3)
+
+== Name
+
+cowboy_req:port - URI port number
+
+== Description
+
+[source,erlang]
+----
+port(Req :: cowboy_req:req()) -> Port :: inet:port_number()
+----
+
+Return the port number of the effective request URI.
+
+Note that the port number returned by this function is obtained
+by parsing the host header. It may be different from the port
+the peer used to connect to Cowboy.
+
+The port number can also be obtained using pattern matching:
+
+[source,erlang]
+----
+#{port := Port} = Req.
+----
+
+== Arguments
+
+Req::
+
+The Req object.
+
+== Return value
+
+The port number is returned as an integer.
+
+== Changelog
+
+* *2.0*: Only the port number is returned, it is no longer wrapped in a tuple.
+* *1.0*: Function introduced.
+
+== Examples
+
+.Get the effective request URI's port number
+[source,erlang]
+----
+Port = cowboy_req:port(Req).
+----
+
+== See also
+
+link:man:cowboy_req(3)[cowboy_req(3)]

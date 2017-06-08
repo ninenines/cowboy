@@ -1,4 +1,4 @@
-%% Copyright (c) 2015, Loïc Hoguin <essen@ninenines.eu>
+%% Copyright (c) 2015-2017, Loïc Hoguin <essen@ninenines.eu>
 %%
 %% Permission to use, copy, modify, and/or distribute this software for any
 %% purpose with or without fee is hereby granted, provided that the above
@@ -23,12 +23,12 @@
 
 all() -> [{group, http}].
 
-groups() -> [{http, [parallel], ct_helper:all(?MODULE)}].
+groups() -> [{http, [parallel], ct_helper:all(?MODULE)}]. %% @todo parallel
 
 init_per_group(Name = http, Config) ->
-	cowboy_test:init_http(Name = http, [
-		{env, [{dispatch, cowboy_router:compile(init_routes(Config))}]}
-	], Config).
+	cowboy_test:init_http(Name = http, #{
+		env => #{dispatch => cowboy_router:compile(init_routes(Config))}
+	}, Config).
 
 end_per_group(Name, _) ->
 	ok = cowboy:stop_listener(Name).
@@ -52,9 +52,7 @@ do_raw(Config, Data) ->
 	{Version, Code, Reason, Rest} = cow_http:parse_status_line(raw_recv_head(Client)),
 	{Headers, Rest2} = cow_http:parse_headers(Rest),
 	case lists:keyfind(<<"content-length">>, 1, Headers) of
-		false ->
-			#{client => Client, version => Version, code => Code, reason => Reason, headers => Headers, body => <<>>};
-		{_, LengthBin} ->
+		{_, LengthBin} when LengthBin =/= <<"0">> ->
 			Length = binary_to_integer(LengthBin),
 			Body = if
 				byte_size(Rest2) =:= Length -> Rest2;
@@ -62,7 +60,9 @@ do_raw(Config, Data) ->
 					{ok, Body0} = raw_recv(Client, binary_to_integer(LengthBin) - byte_size(Rest2), 5000),
 					<< Rest2/bits, Body0/bits >>
 			end,
-			#{client => Client, version => Version, code => Code, reason => Reason, headers => Headers, body => Body}
+			#{client => Client, version => Version, code => Code, reason => Reason, headers => Headers, body => Body};
+		_ ->
+			#{client => Client, version => Version, code => Code, reason => Reason, headers => Headers, body => <<>>}
 	end.
 
 %% Listener.
@@ -90,8 +90,8 @@ accept_at_least_1_empty_line(Config) ->
 reject_response(Config) ->
 	doc("When receiving a response instead of a request, identified by the "
 		"status-line which starts with the HTTP version, the server must "
-		"reject the message with a 501 status code and close the connection. (RFC7230 3.1)"),
-	#{code := 501, client := Client} = do_raw(Config,
+		"reject the message with a 400 status code and close the connection. (RFC7230 3.1)"),
+	#{code := 400, client := Client} = do_raw(Config,
 		"HTTP/1.1 200 OK\r\n"
 		"\r\n"),
 	{error, closed} = raw_recv(Client, 0, 1000).
@@ -138,14 +138,14 @@ timeout_before_request_line(Config) ->
 		"by the reception of a complete request-line."),
 	Client = raw_open(Config),
 	ok = raw_send(Client, "GET / HTTP/1.1\r"),
-	{error, closed} = raw_recv(Client, 0, 1000).
+	{error, closed} = raw_recv(Client, 0, 6000).
 
 timeout_after_request_line(Config) ->
 	doc("The time the request (request line and headers) takes to be "
 		"received by the server must be limited and subject to configuration. "
 		"A 408 status code must be sent if the request line was received."),
 	#{code := 408, client := Client} = do_raw(Config, "GET / HTTP/1.1\r\n"),
-	{error, closed} = raw_recv(Client, 0, 1000).
+	{error, closed} = raw_recv(Client, 0, 6000).
 
 %% @todo Add an HTTP/1.0 test suite.
 %An HTTP/1.1 server must understand any valid HTTP/1.0 request,
@@ -726,20 +726,33 @@ reject_invalid_whitespace_after_version(Config) ->
 %Messages that contain whitespace between the header name and
 %colon must be rejected with a 400 status code and the closing
 %of the connection. (RFC7230 3.2.4)
-%
-%limit_header_name(Config) ->
-%The header name must be subject to a configurable limit. A
-%good default is 50 characters, well above the longest registered
-%header. Such a request must be rejected with a 431 status code
-%and the closing of the connection. (RFC7230 3.2.5, RFC6585 5, IANA Message Headers registry)
-%
-%limit_header_value(Config) ->
-%The header value and the optional whitespace around it must be
-%subject to a configurable limit. There is no recommendations
-%for the default. 4096 characters is known to work well. Such
-%a request must be rejected with a 431 status code and the closing
-%of the connection. (RFC7230 3.2.5, RFC6585 5)
-%
+
+limit_header_name(Config) ->
+	doc("The header name must be subject to a configurable limit. A "
+		"good default is 50 characters, well above the longest registered "
+		"header. Such a request must be rejected with a 431 status code "
+		"and the closing of the connection. "
+		"(RFC7230 3.2.5, RFC6585 5, IANA Message Headers registry)"),
+	#{code := 431, client := Client} = do_raw(Config, [
+		"GET / HTTP/1.1\r\n"
+		"Host: localhost\r\n",
+		binary:copy(<<$a>>, 32768), ": bad\r\n"
+		"\r\n"]),
+	{error, closed} = raw_recv(Client, 0, 1000).
+
+limit_header_value(Config) ->
+	doc("The header value and the optional whitespace around it must be "
+		"subject to a configurable limit. There is no recommendations "
+		"for the default. 4096 characters is known to work well. Such "
+		"a request must be rejected with a 431 status code and the closing "
+		"of the connection. (RFC7230 3.2.5, RFC6585 5)"),
+	#{code := 431, client := Client} = do_raw(Config, [
+		"GET / HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"bad: ", binary:copy(<<$a>>, 32768), "\r\n"
+		"\r\n"]),
+	{error, closed} = raw_recv(Client, 0, 1000).
+
 %drop_whitespace_before_header_value(Config) ->
 %drop_whitespace_after_header_value(Config) ->
 %Optional whitespace before and after the header value is not

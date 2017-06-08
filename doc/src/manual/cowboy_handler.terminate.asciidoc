@@ -1,0 +1,64 @@
+= cowboy_handler:terminate(3)
+
+== Name
+
+cowboy_handler:terminate - Terminate the handler
+
+== Description
+
+[source,erlang]
+----
+terminate(Reason, Req | undefined, State, Handler) -> ok
+
+Reason  :: any()
+Req     :: cowboy_req:req()
+State   :: any()
+Handler :: module()
+----
+
+Call the optional terminate callback if it is defined.
+
+Make sure to use this function at the end of the execution
+of modules that implement custom handler behaviors.
+
+== Arguments
+
+Reason::
+
+Reason for termination.
+
+Req::
+
+The Req object.
++
+It is possible to pass `undefined` if the handler has no concept
+of requests/responses and discarded the Req object before calling
+this function.
+
+State::
+
+Handler state.
+
+Handler::
+
+Handler module.
+
+== Return value
+
+The atom `ok` is always returned. It can be safely ignored.
+
+== Changelog
+
+* *2.0*: Function introduced.
+
+== Examples
+
+.Terminate a handler normally
+[source,erlang]
+----
+cowboy_handler:terminate(normal, Req, State, Handler).
+----
+
+== See also
+
+link:man:cowboy_handler(3)[cowboy_handler(3)]

@@ -1,0 +1,48 @@
+= cowboy_req:has_resp_body(3)
+
+== Name
+
+cowboy_req:has_resp_body - Is there a response body?
+
+== Description
+
+[source,erlang]
+----
+has_resp_body(Req :: cowboy_req:req()) -> boolean()
+----
+
+Return whether a response body has been set.
+
+== Arguments
+
+Req::
+
+The Req object.
+
+== Return value
+
+A boolean indicating whether a response body has been set.
+
+This function will return `false` when an empty response
+body has been set.
+
+== Changelog
+
+* *1.0*: Function introduced.
+
+== Examples
+
+.Check whether a body has been set
+[source,erlang]
+----
+false = cowboy_req:has_resp_body(Req0),
+Req1 = cowboy_req:set_resp_body(<<"Hello!">>, Req0),
+true = cowboy_req:has_resp_body(Req1),
+Req = cowboy_req:set_resp_body(<<>>, Req1),
+false = cowboy_req:has_resp_body(Req).
+----
+
+== See also
+
+link:man:cowboy_req(3)[cowboy_req(3)],
+link:man:cowboy_req:set_resp_body(3)[cowboy_req:set_resp_body(3)]

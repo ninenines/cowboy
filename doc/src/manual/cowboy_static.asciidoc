@@ -1,0 +1,140 @@
+= cowboy_static(3)
+
+== Name
+
+cowboy_static - Static file handler
+
+== Description
+
+The module `cowboy_static` implements file serving capabilities
+using the REST semantics provided by `cowboy_rest`.
+
+The static file handler is a pre-written handler coming with
+Cowboy. To serve files, use it in your routes.
+
+== Options
+
+[source,erlang]
+----
+opts() :: {priv_file, App, Path}
+        | {priv_file, App, Path, Extra}
+        | {file, Path}
+        | {file, Path, Extra}
+        | {priv_dir, App, Path}
+        | {priv_dir, App, Path, Extra}
+        | {dir, Path}
+        | {dir, Path, Extra}
+
+App        :: atom()
+Path       :: binary() | string()
+Extra      :: [Etag | Mimetypes]
+
+Etag       :: {etag, module(), function()}
+            | {etag, false}
+
+Mimetypes  :: {mimetypes, module(), function()}
+            | {mimetypes, binary() | ParsedMime}
+
+ParsedMime :: {Type :: binary(), SubType :: binary(), Params}
+Params     :: [{Key :: binary(), Value :: binary()}]
+----
+
+Static handler configuration.
+
+priv_file::
+
+Send a file.
++
+The path is relative to the given application's private
+directory.
+
+file::
+
+Send a file.
++
+The path is either absolute or relative to the Erlang node's
+current directory.
+
+priv_dir::
+
+Recursively serve files from a directory.
++
+The path is relative to the given application's private
+directory.
+
+dir::
+
+Recursively serve files from a directory.
++
+The path is either absolute or relative to the Erlang node's
+current directory.
+
+The extra options allow you to define how the etag should be
+calculated and how the MIME type of files should be detected.
+
+By default the static handler will generate an etag based
+on the size and modification time of the file. You may disable
+the etag entirely with `{etag, false}` or provide a module
+and function that will be called when needed:
+
+[source,erlang]
+----
+generate_etag(Path, Size, Mtime) -> {strong | weak, binary()}
+
+Path  :: binary()
+Size  :: non_neg_integer()
+Mtime :: file:date_time()
+----
+
+By default the static handler will detect Web-related MIME types
+by looking at the file extension. You can provide a specific
+MIME type that will always be used, or a module and function that
+will be called when needed:
+
+[source,erlang]
+----
+detect_mimetype(Path) -> ParsedMime
+
+Path       :: binary()
+ParsedMime :: {Type :: binary(), SubType :: binary(), Params}
+Params     :: [{Key :: binary(), Value :: binary()}]
+----
+
+// @todo Case sensitivity of parsed mime content?
+
+Cowboy comes with two such functions; the default function
+`cow_mimetypes:web/1`, and a second function generated from
+the Apache 'mime.types' file, `cow_mimetypes:all/1`.
+
+The MIME type function should return
+`{<<"application">>, <<"octet-stream">>, []}`
+when it fails to detect a file's MIME type.
+
+== Changelog
+
+* *1.0*: Handler introduced.
+
+== Examples
+
+.Custom etag function
+[source,erlang]
+----
+generate_etag(Path, Size, Mtime) ->
+    {strong, integer_to_binary(
+        erlang:phash2({Path, Size, Mtime}, 16#ffffffff))}.
+----
+
+.Custom MIME type function
+[source,erlang]
+----
+always_octet_stream(_Path) ->
+    case filename:extension(Path) of
+        <<".erl">> -> {<<"text">>, <<"plain">>, []};
+        _ -> {<<"application">>, <<"octet-stream">>, []}
+    end.
+----
+
+== See also
+
+link:man:cowboy(7)[cowboy(7)],
+link:man:cowboy_router(3)[cowboy_router(3)]

@@ -1,0 +1,79 @@
+= cowboy:set_env(3)
+
+== Name
+
+cowboy:set_env - Update a listener's environment value
+
+== Description
+
+[source,erlang]
+----
+set_env(Name  :: ranch:ref(),
+        Key   :: atom(),
+        Value :: any())
+    -> ok
+----
+
+Set or update an environment value for a previously started
+listener.
+
+This is most useful for updating the routes dynamically,
+without having to restart the listener.
+
+The new value will only be available to new connections.
+Pre-existing connections will still use the old value.
+
+== Arguments
+
+Name::
+
+The name of the listener to update.
++
+The name of the listener is the first argument given to the
+link:man:cowboy:start_clear(3)[cowboy:start_clear(3)],
+link:man:cowboy:start_tls(3)[cowboy:start_tls(3)] or
+link:man:ranch:start_listener(3)[ranch:start_listener(3)] function.
+
+Key::
+
+The key in the environment map. Common keys include `dispatch`
+and `middlewares`.
+
+Value::
+
+The new value.
++
+The type of the value differs depending on the key.
+
+== Return value
+
+The atom `ok` is returned on success.
+
+An `exit:badarg` exception is thrown when the listener does
+not exist.
+
+== Changelog
+
+* *1.0*: Function introduced.
+
+== Examples
+
+.Update a listener's routes
+[source,erlang]
+----
+Dispatch = cowboy_router:compile([
+    {'_', [
+        {"/", toppage_h, []},
+        {"/ws", websocket_h, []}
+    ]}
+]),
+
+cowboy:set_env(example, dispatch, Dispatch).
+----
+
+== See also
+
+link:man:cowboy(3)[cowboy(3)],
+link:man:cowboy:start_clear(3)[cowboy:start_clear(3)],
+link:man:cowboy:start_tls(3)[cowboy:start_tls(3)],
+link:man:ranch:set_protocol_options(3)[ranch:set_protocol_options(3)]

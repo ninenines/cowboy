@@ -3,18 +3,20 @@
 -module(ws_echo).
 
 -export([init/2]).
--export([websocket_handle/3]).
--export([websocket_info/3]).
+-export([websocket_handle/2]).
+-export([websocket_info/2]).
 
 init(Req, _) ->
-	{cowboy_websocket, Req, undefined}.
+	{cowboy_websocket, Req, undefined, #{
+		compress => true
+	}}.
 
-websocket_handle({text, Data}, Req, State) ->
-	{reply, {text, Data}, Req, State};
-websocket_handle({binary, Data}, Req, State) ->
-	{reply, {binary, Data}, Req, State};
-websocket_handle(_Frame, Req, State) ->
-	{ok, Req, State}.
+websocket_handle({text, Data}, State) ->
+	{reply, {text, Data}, State};
+websocket_handle({binary, Data}, State) ->
+	{reply, {binary, Data}, State};
+websocket_handle(_Frame, State) ->
+	{ok, State}.
 
-websocket_info(_Info, Req, State) ->
-	{ok, Req, State}.
+websocket_info(_Info, State) ->
+	{ok, State}.

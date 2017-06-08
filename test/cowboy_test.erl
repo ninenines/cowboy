@@ -1,4 +1,4 @@
-%% Copyright (c) 2014, Loïc Hoguin <essen@ninenines.eu>
+%% Copyright (c) 2014-2017, Loïc Hoguin <essen@ninenines.eu>
 %%
 %% Permission to use, copy, modify, and/or distribute this software for any
 %% purpose with or without fee is hereby granted, provided that the above
@@ -20,21 +20,21 @@
 %% Listeners initialization.
 
 init_http(Ref, ProtoOpts, Config) ->
-	{ok, _} = cowboy:start_http(Ref, 100, [{port, 0}], ProtoOpts),
+	{ok, _} = cowboy:start_clear(Ref, [{port, 0}], ProtoOpts),
 	Port = ranch:get_port(Ref),
-	[{type, tcp}, {port, Port}, {opts, []}|Config].
+	[{type, tcp}, {protocol, http}, {port, Port}, {opts, []}|Config].
 
 init_https(Ref, ProtoOpts, Config) ->
 	Opts = ct_helper:get_certs_from_ets(),
-	{ok, _} = cowboy:start_https(Ref, 100, Opts ++ [{port, 0}], ProtoOpts),
+	{ok, _} = cowboy:start_tls(Ref, Opts ++ [{port, 0}], ProtoOpts),
 	Port = ranch:get_port(Ref),
-	[{type, ssl}, {port, Port}, {opts, Opts}|Config].
+	[{type, ssl}, {protocol, http}, {port, Port}, {opts, Opts}|Config].
 
-init_spdy(Ref, ProtoOpts, Config) ->
+init_http2(Ref, ProtoOpts, Config) ->
 	Opts = ct_helper:get_certs_from_ets(),
-	{ok, _} = cowboy:start_spdy(Ref, 100, Opts ++ [{port, 0}], ProtoOpts),
+	{ok, _} = cowboy:start_tls(Ref, Opts ++ [{port, 0}], ProtoOpts),
 	Port = ranch:get_port(Ref),
-	[{type, ssl}, {port, Port}, {opts, Opts}|Config].
+	[{type, ssl}, {protocol, http2}, {port, Port}, {opts, Opts}|Config].
 
 %% Common group of listeners used by most suites.
 
@@ -42,49 +42,64 @@ common_all() ->
 	[
 		{group, http},
 		{group, https},
-		{group, spdy},
+		{group, h2},
+		{group, h2c},
 		{group, http_compress},
 		{group, https_compress},
-		{group, spdy_compress}
+		{group, h2_compress},
+		{group, h2c_compress}
 	].
 
 common_groups(Tests) ->
 	[
 		{http, [parallel], Tests},
 		{https, [parallel], Tests},
-		{spdy, [parallel], Tests},
+		{h2, [parallel], Tests},
+		{h2c, [parallel], Tests},
 		{http_compress, [parallel], Tests},
 		{https_compress, [parallel], Tests},
-		{spdy_compress, [parallel], Tests}
+		{h2_compress, [parallel], Tests},
+		{h2c_compress, [parallel], Tests}
 	].
 
 init_common_groups(Name = http, Config, Mod) ->
-	init_http(Name, [
-		{env, [{dispatch, Mod:init_dispatch(Config)}]}
-	], Config);
+	init_http(Name, #{
+		env => #{dispatch => Mod:init_dispatch(Config)}
+	}, Config);
 init_common_groups(Name = https, Config, Mod) ->
-	init_https(Name, [
-		{env, [{dispatch, Mod:init_dispatch(Config)}]}
-	], Config);
-init_common_groups(Name = spdy, Config, Mod) ->
-	init_spdy(Name, [
-		{env, [{dispatch, Mod:init_dispatch(Config)}]}
-	], Config);
+	init_https(Name, #{
+		env => #{dispatch => Mod:init_dispatch(Config)}
+	}, Config);
+init_common_groups(Name = h2, Config, Mod) ->
+	init_http2(Name, #{
+		env => #{dispatch => Mod:init_dispatch(Config)}
+	}, Config);
+init_common_groups(Name = h2c, Config, Mod) ->
+	Config1 = init_http(Name, #{
+		env => #{dispatch => Mod:init_dispatch(Config)}
+	}, Config),
+	lists:keyreplace(protocol, 1, Config1, {protocol, http2});
 init_common_groups(Name = http_compress, Config, Mod) ->
-	init_http(Name, [
-		{env, [{dispatch, Mod:init_dispatch(Config)}]},
-		{compress, true}
-	], Config);
+	init_http(Name, #{
+		env => #{dispatch => Mod:init_dispatch(Config)},
+		stream_handlers => [cowboy_compress_h, cowboy_stream_h]
+	}, Config);
 init_common_groups(Name = https_compress, Config, Mod) ->
-	init_https(Name, [
-		{env, [{dispatch, Mod:init_dispatch(Config)}]},
-		{compress, true}
-	], Config);
-init_common_groups(Name = spdy_compress, Config, Mod) ->
-	init_spdy(Name, [
-		{env, [{dispatch, Mod:init_dispatch(Config)}]},
-		{compress, true}
-	], Config).
+	init_https(Name, #{
+		env => #{dispatch => Mod:init_dispatch(Config)},
+		stream_handlers => [cowboy_compress_h, cowboy_stream_h]
+	}, Config);
+init_common_groups(Name = h2_compress, Config, Mod) ->
+	init_http2(Name, #{
+		env => #{dispatch => Mod:init_dispatch(Config)},
+		stream_handlers => [cowboy_compress_h, cowboy_stream_h]
+	}, Config);
+init_common_groups(Name = h2c_compress, Config, Mod) ->
+	Config1 = init_http(Name, #{
+		env => #{dispatch => Mod:init_dispatch(Config)},
+		stream_handlers => [cowboy_compress_h, cowboy_stream_h]
+	}, Config),
+	lists:keyreplace(protocol, 1, Config1, {protocol, http2}).
 
 %% Support functions for testing using Gun.
 
@@ -94,7 +109,8 @@ gun_open(Config) ->
 gun_open(Config, Opts) ->
 	{ok, ConnPid} = gun:open("localhost", config(port, Config), Opts#{
 		retry => 0,
-		transport => config(type, Config)
+		transport => config(type, Config),
+		protocols => [config(protocol, Config)]
 	}),
 	ConnPid.
 

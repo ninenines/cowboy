@@ -1,4 +1,4 @@
-%% Copyright (c) 2011-2014, Loïc Hoguin <essen@ninenines.eu>
+%% Copyright (c) 2011-2017, Loïc Hoguin <essen@ninenines.eu>
 %% Copyright (c) 2011, Anthony Ramine <nox@dev-extend.eu>
 %%
 %% Permission to use, copy, modify, and/or distribute this software for any
@@ -45,7 +45,7 @@ groups() ->
 		parse_host, set_env_dispatch
 	],
 	[
-		{http, [parallel], Tests},
+		{http, [], Tests}, %% @todo parallel
 		{https, [parallel], Tests},
 		{http_compress, [parallel], Tests},
 		{https_compress, [parallel], Tests},
@@ -73,33 +73,29 @@ end_per_suite(Config) ->
 	ct_helper:delete_static_dir(config(static_dir, Config)).
 
 init_per_group(Name = http, Config) ->
-	cowboy_test:init_http(Name, [
-		{env, [{dispatch, init_dispatch(Config)}]}
-	], Config);
+	cowboy_test:init_http(Name, #{env => #{dispatch => init_dispatch(Config)}}, Config);
 init_per_group(Name = https, Config) ->
-	cowboy_test:init_https(Name, [
-		{env, [{dispatch, init_dispatch(Config)}]}
-	], Config);
+	cowboy_test:init_https(Name, #{env => #{dispatch => init_dispatch(Config)}}, Config);
 init_per_group(Name = http_compress, Config) ->
-	cowboy_test:init_http(Name, [
-		{env, [{dispatch, init_dispatch(Config)}]},
-		{compress, true}
-	], Config);
+	cowboy_test:init_http(Name, #{
+		env => #{dispatch => init_dispatch(Config)},
+		compress => true
+	}, Config);
 init_per_group(Name = https_compress, Config) ->
-	cowboy_test:init_https(Name, [
-		{env, [{dispatch, init_dispatch(Config)}]},
-		{compress, true}
-	], Config);
+	cowboy_test:init_https(Name, #{
+		env => #{dispatch => init_dispatch(Config)},
+		compress => true
+	}, Config);
 %% Most, if not all of these, should be in separate test suites.
 init_per_group(onresponse, Config) ->
-	{ok, _} = cowboy:start_http(onresponse, 100, [{port, 0}], [
+	{ok, _} = cowboy:start_clear(onresponse, [{port, 0}], [
 		{env, [{dispatch, init_dispatch(Config)}]},
 		{onresponse, fun do_onresponse_hook/4}
 	]),
 	Port = ranch:get_port(onresponse),
 	[{type, tcp}, {port, Port}, {opts, []}|Config];
 init_per_group(onresponse_capitalize, Config) ->
-	{ok, _} = cowboy:start_http(onresponse_capitalize, 100, [{port, 0}], [
+	{ok, _} = cowboy:start_clear(onresponse_capitalize, [{port, 0}], [
 		{env, [{dispatch, init_dispatch(Config)}]},
 		{onresponse, fun do_onresponse_capitalize_hook/4}
 	]),
@@ -111,13 +107,13 @@ init_per_group(parse_host, Config) ->
 			{"/req_attr", http_req_attr, []}
 		]}
 	]),
-	{ok, _} = cowboy:start_http(parse_host, 100, [{port, 0}], [
+	{ok, _} = cowboy:start_clear(parse_host, [{port, 0}], [
 		{env, [{dispatch, Dispatch}]}
 	]),
 	Port = ranch:get_port(parse_host),
 	[{type, tcp}, {port, Port}, {opts, []}|Config];
 init_per_group(set_env, Config) ->
-	{ok, _} = cowboy:start_http(set_env, 100, [{port, 0}], [
+	{ok, _} = cowboy:start_clear(set_env, [{port, 0}], [
 		{env, [{dispatch, []}]}
 	]),
 	Port = ranch:get_port(set_env),
@@ -134,11 +130,11 @@ init_dispatch(Config) ->
 			{"/chunked_response", http_chunked, []},
 			{"/streamed_response", http_streamed, []},
 			{"/headers/dupe", http_handler,
-				[{headers, [{<<"connection">>, <<"close">>}]}]},
+				[{headers, #{<<"connection">> => <<"close">>}}]},
 			{"/set_resp/header", http_set_resp,
-				[{headers, [{<<"vary">>, <<"Accept">>}]}]},
+				[{headers, #{<<"vary">> => <<"Accept">>}}]},
 			{"/set_resp/overwrite", http_set_resp,
-				[{headers, [{<<"server">>, <<"DesireDrive/1.0">>}]}]},
+				[{headers, #{<<"server">> => <<"DesireDrive/1.0">>}}]},
 			{"/set_resp/body", http_set_resp,
 				[{body, <<"A flameless dance does not equal a cycle">>}]},
 			{"/stream_body/set_resp", http_stream_body,
@@ -314,7 +310,7 @@ echo_body(Config) ->
 %% Check if sending request whose size is bigger than 1000000 bytes causes 413
 echo_body_max_length(Config) ->
 	ConnPid = gun_open(Config),
-	Ref = gun:post(ConnPid, "/echo/body", [], << 0:2000000/unit:8 >>),
+	Ref = gun:post(ConnPid, "/echo/body", [], << 0:10000000/unit:8 >>),
 	{response, nofin, 413, _} = gun:await(ConnPid, Ref),
 	ok.
 
@@ -336,7 +332,7 @@ error_init_after_reply(Config) ->
 	ConnPid = gun_open(Config),
 	Ref = gun:get(ConnPid, "/handler_errors?case=init_after_reply"),
 	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
-	gun_down(ConnPid).
+	ok.
 
 headers_dupe(Config) ->
 	ConnPid = gun_open(Config),
@@ -357,18 +353,18 @@ http10_chunkless(Config) ->
 http10_hostless(Config) ->
 	Name = http10_hostless,
 	Port10 = config(port, Config) + 10,
-	Transport = case config(type, Config) of
-		tcp -> ranch_tcp;
-		ssl -> ranch_ssl
+	{Transport, Protocol} = case config(type, Config) of
+		tcp -> {ranch_tcp, cowboy_clear};
+		ssl -> {ranch_ssl, cowboy_tls}
 	end,
 	ranch:start_listener(Name, 5, Transport,
 		config(opts, Config) ++ [{port, Port10}],
-		cowboy_protocol, [
-			{env, [{dispatch, cowboy_router:compile([
-				{'_', [{"/http1.0/hostless", http_handler, []}]}])}]},
-			{max_keepalive, 50},
-			{timeout, 500}]
-	),
+		Protocol, #{
+			env =>#{dispatch => cowboy_router:compile([
+				{'_', [{"/http1.0/hostless", http_handler, []}]}])},
+			max_keepalive => 50,
+			timeout => 500
+	}),
 	200 = do_raw("GET /http1.0/hostless HTTP/1.0\r\n\r\n",
 		[{port, Port10}|Config]),
 	cowboy:stop_listener(http10_hostless).
@@ -379,7 +375,11 @@ http10_keepalive_default(Config) ->
 	ok = raw_send(Client, Normal),
 	case catch raw_recv_head(Client) of
 		{'EXIT', _} -> error(closed);
-		_ -> ok
+		Data ->
+			%% Cowboy always advertises itself as HTTP/1.1.
+			{'HTTP/1.1', 200, _, Rest} = cow_http:parse_status_line(Data),
+			{Headers, _} = cow_http:parse_headers(Rest),
+			{_, <<"close">>} = lists:keyfind(<<"connection">>, 1, Headers)
 	end,
 	ok = raw_send(Client, Normal),
 	case catch raw_recv_head(Client) of
@@ -393,7 +393,11 @@ http10_keepalive_forced(Config) ->
 	ok = raw_send(Client, Keepalive),
 	case catch raw_recv_head(Client) of
 		{'EXIT', _} -> error(closed);
-		_ -> ok
+		Data ->
+			%% Cowboy always advertises itself as HTTP/1.1.
+			{'HTTP/1.1', 200, _, Rest} = cow_http:parse_status_line(Data),
+			{Headers, _} = cow_http:parse_headers(Rest),
+			{_, <<"keep-alive">>} = lists:keyfind(<<"connection">>, 1, Headers)
 	end,
 	ok = raw_send(Client, Keepalive),
 	case catch raw_recv_head(Client) of
@@ -408,7 +412,7 @@ keepalive_max(Config) ->
 	CloseRef = gun:get(ConnPid, "/", [{<<"connection">>, <<"keep-alive">>}]),
 	_ = [begin
 		{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
-		{_, <<"keep-alive">>} = lists:keyfind(<<"connection">>, 1, Headers)
+		false = lists:keymember(<<"connection">>, 1, Headers)
 	end || Ref <- Refs],
 	{response, nofin, 200, Headers} = gun:await(ConnPid, CloseRef),
 	{_, <<"close">>} = lists:keyfind(<<"connection">>, 1, Headers),
@@ -423,7 +427,7 @@ keepalive_nl(Config) ->
 	end || _ <- lists:seq(1, 10)],
 	_ = [begin
 		{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
-		{_, <<"keep-alive">>} = lists:keyfind(<<"connection">>, 1, Headers)
+		false = lists:keymember(<<"connection">>, 1, Headers)
 	end || Ref <- Refs],
 	ok.
 
@@ -643,12 +647,19 @@ rest_expires_binary(Config) ->
 	{_, <<"0">>} = lists:keyfind(<<"expires">>, 1, Headers),
 	ok.
 
+rest_last_modified_undefined(Config) ->
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/simple",
+		[{<<"if-modified-since">>, <<"Fri, 21 Sep 2012 22:36:14 GMT">>}]),
+	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
+	ok.
+
 rest_keepalive(Config) ->
 	ConnPid = gun_open(Config),
 	Refs = [gun:get(ConnPid, "/simple") || _ <- lists:seq(1, 10)],
 	_ = [begin
 		{response, nofin, 200, Headers} =  gun:await(ConnPid, Ref),
-		{_, <<"keep-alive">>} = lists:keyfind(<<"connection">>, 1, Headers)
+		false = lists:keymember(<<"connection">>, 1, Headers)
 	end || Ref <- Refs],
 	ok.
 
@@ -663,9 +674,9 @@ rest_keepalive_post(Config) ->
 	end || _ <- lists:seq(1, 5)],
 	_ = [begin
 		{response, fin, 403, Headers1} = gun:await(ConnPid, Ref1),
-		{_, <<"keep-alive">>} = lists:keyfind(<<"connection">>, 1, Headers1),
+		false = lists:keymember(<<"connection">>, 1, Headers1),
 		{response, fin, 303, Headers2} = gun:await(ConnPid, Ref2),
-		{_, <<"keep-alive">>} = lists:keyfind(<<"connection">>, 1, Headers2)
+		false = lists:keymember(<<"connection">>, 1, Headers2)
 	end || {Ref1, Ref2} <- Refs],
 	ok.
 
@@ -941,7 +952,7 @@ do_body_to_chunks(ChunkSize, Body, Acc) ->
 		false -> ChunkSize
 	end,
 	<< Chunk:ChunkSize2/binary, Rest/binary >> = Body,
-	ChunkSizeBin = list_to_binary(integer_to_list(ChunkSize2, 16)),
+	ChunkSizeBin = integer_to_binary(ChunkSize2, 16),
 	do_body_to_chunks(ChunkSize, Rest,
 		[<< ChunkSizeBin/binary, "\r\n", Chunk/binary, "\r\n" >>|Acc]).
 

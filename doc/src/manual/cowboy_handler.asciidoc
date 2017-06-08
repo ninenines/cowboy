@@ -1,0 +1,69 @@
+= cowboy_handler(3)
+
+== Name
+
+cowboy_handler - Plain HTTP handlers
+
+== Description
+
+The `cowboy_handler` middleware executes the handler selected
+by the router or any other preceding middleware.
+
+This middleware takes the handler module and initial state
+from the `handler` and `handler_opts` environment values,
+respectively. On completion, it adds a `result` value to
+the middleware environment, containing the return value
+of the `terminate/3` callback (if defined) and `ok` otherwise.
+
+This module also defines a callback interface for handling
+HTTP requests.
+
+== Callbacks
+
+Plain HTTP handlers implement the following interface:
+
+[source,erlang]
+----
+init(Req, State) -> {ok, Req, State}
+
+terminate(Reason, Req, State) -> ok  %% optional
+
+Req    :: cowboy_req:req()
+State  :: any()
+Reason :: normal
+        | {crash, error | exit | throw, any()}
+----
+
+These two callbacks are common to all handlers.
+
+Plain HTTP handlers do all their work in the `init/2`
+callback. Returning `ok` terminates the handler. If no
+response is sent, Cowboy will send a `204 No Content`.
+
+The optional `terminate/3` callback will ultimately be called
+with the reason for the termination of the handler.
+Cowboy will terminate the process right after this. There
+is no need to perform any cleanup in this callback.
+
+The following terminate reasons are defined for plain HTTP
+handlers:
+
+normal::
+    The connection was closed normally.
+
+{crash, Class, Reason}::
+    A crash occurred in the handler. `Class` and `Reason` can be
+    used to obtain more information about the crash. The function
+    `erlang:get_stacktrace/0` can also be called to obtain the
+    stacktrace of the process when the crash occurred.
+
+== Exports
+
+The following function should be called by modules implementing
+custom handlers to execute the optional terminate callback:
+
+* link:man:cowboy_handler:terminate(3)[cowboy_handler:terminate(3)] - Terminate the handler
+
+== See also
+
+link:man:cowboy(7)[cowboy(7)]

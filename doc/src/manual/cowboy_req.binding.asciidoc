@@ -1,0 +1,68 @@
+= cowboy_req:binding(3)
+
+== Name
+
+cowboy_req:binding - Access a value bound from the route
+
+== Description
+
+[source,erlang]
+----
+binding(Name, Req)          -> binding(Name, Req, undefined)
+binding(Name, Req, Default) -> any() | Default
+
+Name    :: atom()
+Req     :: cowboy_req:req()
+Default :: any()
+----
+
+Return the value for the given binding.
+
+== Arguments
+
+Name::
+
+Desired binding name as an atom.
+
+Req::
+
+The Req object.
+
+Default::
+
+Default value returned when the binding is missing.
+
+== Return value
+
+By default the value is a case sensitive binary string, however
+constraints may change the type of this value (for example
+automatically converting numbers to integer).
+
+== Changelog
+
+* *2.0*: Only the value is returned, it is no longer wrapped in a tuple.
+* *1.0*: Function introduced.
+
+== Examples
+
+.Get the username from the path
+[source,erlang]
+----
+%% Route is "/users/:user"
+Username = cowboy_req:binding(user, Req).
+----
+
+.Get the branch name, with a default
+[source,erlang]
+----
+%% Route is "/log[/:branch]"
+Branch = cowboy_req:binding(branch, Req, <<"master">>)
+----
+
+== See also
+
+link:man:cowboy_req(3)[cowboy_req(3)],
+link:man:cowboy_req:bindings(3)[cowboy_req:bindings(3)],
+link:man:cowboy_req:host_info(3)[cowboy_req:host_info(3)],
+link:man:cowboy_req:path_info(3)[cowboy_req:path_info(3)],
+link:man:cowboy_router(3)[cowboy_router(3)]

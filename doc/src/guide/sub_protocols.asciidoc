@@ -1,0 +1,73 @@
+[[sub_protocols]]
+== Sub protocols
+
+Sub protocols are used for creating new types of handlers that
+provide extra functionality in a reusable way. Cowboy uses this
+mechanism to provide its loop, REST and Websocket handlers.
+
+This chapter will explain how to create your own sub protocols
+and handler types.
+
+=== Usage
+
+To switch to a sub protocol, the `init/2` callback must return
+the name of the sub protocol module. Everything past this point
+is handled by the sub protocol.
+
+[source,erlang]
+----
+init(Req, State) ->
+    {cowboy_websocket, Req, State}.
+----
+
+The returned tuple may also have a fourth element containing
+options for the sub protocol. No option is universal. While
+it will usually be a map of options, it doesn't have to be.
+For example loop handlers accept the atom `hibernate`.
+
+The following snippet switches to the `my_protocol` sub
+protocol, sets the timeout value to 5 seconds and enables
+hibernation:
+
+[source,erlang]
+----
+init(Req, State) ->
+    {my_protocol, Req, State, #{
+        timeout => 5000,
+        compress => true}}.
+----
+
+Sub protocols should ignore unknown options so as to not waste
+resources doing unnecessary validation.
+
+=== Upgrade
+
+After the `init/2` function returns, Cowboy will call either
+the `upgrade/4` or the `upgrade/5` function. The former is called
+when no options were given; the latter when they were given.
+
+The function is named `upgrade` because it mimics the mechanism
+of HTTP protocol upgrades. For some sub protocols, like Websocket,
+an actual upgrade is performed. For others, like REST, this is
+only an upgrade at Cowboy's level and the client has nothing to
+do about it.
+
+The upgrade callback receives the Req object, the middleware
+environment, the handler and its state, and for `upgrade/5`
+also the aformentioned options.
+
+[source,erlang]
+----
+upgrade(Req, Env, Handler, State) ->
+    %% Sub protocol code here.
+
+upgrade(Req, Env, Handler, State, Opts) ->
+    %% Sub protocol code here.
+----
+
+These callbacks are expected to behave like middlewares and to
+return an updated environment and Req object.
+
+Sub protocols are expected to call the `cowboy_handler:terminate/4`
+function when they terminate. This function will make sure that
+the optional `terminate/3` callback is called, if present.

@@ -1,0 +1,58 @@
+= cowboy_req:parse_qs(3)
+
+== Name
+
+cowboy_req:parse_qs - Parse the query string
+
+== Description
+
+[source,erlang]
+----
+parse_qs(Req :: cowboy_req:req())
+    -> [{Key :: binary(), Value :: binary() | true}]
+----
+
+Parse the query string as a list of key/value pairs.
+
+== Arguments
+
+Req::
+
+The Req object.
+
+== Return value
+
+The parsed query string is returned as a list of key/value pairs.
+The key is a binary string. The value is either a binary string,
+or the atom `true`. Both key and value are case sensitive.
+
+The atom `true` is returned when a key is present in the query
+string without a value. For example, in the following URIs
+the key `<<"edit">>` will always have the value `true`:
+
+* `/posts/42?edit`
+* `/posts/42?edit&exclusive=1`
+* `/posts/42?exclusive=1&edit`
+* `/posts/42?exclusive=1&edit&from=web`
+
+== Changelog
+
+* *2.0*: The parsed value is not longer cached in the Req object.
+* *2.0*: Only the parsed query string is returned, it is no longer wrapped in a tuple.
+* *2.0*: Function introduced. Replaces `qs_val/1` and `qs_vals/1`.
+
+== Examples
+
+.Parse the query string and convert the keys to atoms
+[source,erlang]
+----
+ParsedQs = cowboy_req:parse_qs(Req),
+AtomsQs = [{binary_to_existing_atom(K, latin1), V}
+    || {K, V} <- ParsedQs].
+----
+
+== See also
+
+link:man:cowboy_req(3)[cowboy_req(3)],
+link:man:cowboy_req:qs(3)[cowboy_req:qs(3)],
+link:man:cowboy_req:match_qs(3)[cowboy_req:match_qs(3)]

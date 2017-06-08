@@ -1,0 +1,55 @@
+= cowboy:stop_listener(3)
+
+== Name
+
+cowboy:stop_listener - Stop the given listener
+
+== Description
+
+[source,erlang]
+----
+stop_listener(Name :: ranch:ref())
+    -> ok | {error, not_found}.
+----
+
+Stop a previously started listener.
+
+Alias of link:man:ranch:stop_listener(3)[ranch:stop_listener(3)].
+
+== Arguments
+
+Name::
+
+The name of the listener to be stopped.
++
+The name of the listener is the first argument given to the
+link:man:cowboy:start_clear(3)[cowboy:start_clear(3)],
+link:man:cowboy:start_tls(3)[cowboy:start_tls(3)] or
+link:man:ranch:start_listener(3)[ranch:start_listener(3)] function.
+
+== Return value
+
+The atom `ok` is returned on success.
+
+The `{error, not_found}` tuple is returned when the listener
+does not exist.
+
+== Changelog
+
+* *1.0*: Function introduced.
+
+== Examples
+
+.Stop a listener
+[source,erlang]
+----
+ok = cowboy:stop_listener(example).
+----
+
+== See also
+
+link:man:cowboy(3)[cowboy(3)],
+link:man:cowboy:start_clear(3)[cowboy:start_clear(3)],
+link:man:cowboy:start_tls(3)[cowboy:start_tls(3)],
+link:man:ranch(3)[ranch(3)],
+link:man:ranch:start_listener(3)[ranch:start_listener(3)]
