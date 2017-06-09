@@ -463,7 +463,7 @@ read_part(Req) ->
 	read_part(Req, #{length => 64000, period => 5000}).
 
 -spec read_part(Req, read_body_opts())
-	-> {ok, cow_multipart:headers(), Req} | {done, Req}
+	-> {ok, #{binary() => binary()}, Req} | {done, Req}
 	when Req::req().
 read_part(Req, Opts) ->
 	case maps:is_key(multipart, Req) of
@@ -482,9 +482,10 @@ read_part(Buffer, Opts, Req=#{multipart := {Boundary, _}}) ->
 		{more, Buffer2} ->
 			{Data, Req2} = stream_multipart(Req, Opts),
 			read_part(<< Buffer2/binary, Data/binary >>, Opts, Req2);
-		{ok, Headers, Rest} ->
-			%% @todo We may want headers as a map. Need to check the
-			%% rules for multipart header parsing before taking a decision.
+		{ok, Headers0, Rest} ->
+			Headers = maps:from_list(Headers0),
+			%% Reject multipart content containing duplicate headers.
+			true = map_size(Headers) =:= length(Headers0),
 			{ok, Headers, Req#{multipart => {Boundary, Rest}}};
 		%% Ignore epilogue.
 		{done, _} ->

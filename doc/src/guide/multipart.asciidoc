@@ -102,7 +102,7 @@ multipart(Req0) ->
                 {data, _FieldName} ->
                     {ok, _Body, Req2} = cowboy_req:read_part_body(Req1),
                     Req2;
-                {file, _FieldName, _Filename, _CType, _CTransferEncoding} ->
+                {file, _FieldName, _Filename, _CType} ->
                     stream_file(Req1)
             end,
             multipart(Req);

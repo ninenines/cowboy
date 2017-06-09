@@ -15,7 +15,7 @@ read_part(Req :: cowboy_req:req(), Opts)
     -> {ok, Headers, Req} | {done, Req}
 
 Opts    :: cowboy_req:read_body_opts()
-Headers :: cow_multipart:headers()
+Headers :: #{binary() => binary()}
 ----
 
 Read the next part of a multipart body.
@@ -70,7 +70,7 @@ to 5 seconds.
 == Return value
 
 An `ok` tuple is returned containing the next part's headers
-as a list of key/values.
+as a map.
 
 A `done` tuple is returned if there are no more parts to read.
 

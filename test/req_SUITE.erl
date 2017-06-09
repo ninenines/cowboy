@@ -399,14 +399,13 @@ do_multipart(Path, Config) ->
 		{<<"content-type">>, <<"multipart/mixed; boundary=deadbeef">>}
 	], ReqBody, Config),
 	[
-		{[{<<"content-type">>, <<"text/plain">>}], <<"Cowboy is an HTTP server.">>},
+		{#{<<"content-type">> := <<"text/plain">>}, <<"Cowboy is an HTTP server.">>},
 		{LargeHeaders, LargeBody}
 	] = binary_to_term(RespBody),
-	%% @todo Multipart header order is currently undefined.
-	[
-		{<<"content-type">>, <<"application/octet-stream">>},
-		{<<"x-custom">>, <<"value">>}
-	] = lists:sort(LargeHeaders),
+	#{
+		<<"content-type">> := <<"application/octet-stream">>,
+		<<"x-custom">> := <<"value">>
+	} = LargeHeaders,
 	ok.
 
 read_part_skip_body(Config) ->
@@ -421,14 +420,13 @@ read_part_skip_body(Config) ->
 		{<<"content-type">>, <<"multipart/mixed; boundary=deadbeef">>}
 	], ReqBody, Config),
 	[
-		[{<<"content-type">>, <<"text/plain">>}],
+		#{<<"content-type">> := <<"text/plain">>},
 		LargeHeaders
 	] = binary_to_term(RespBody),
-	%% @todo Multipart header order is currently undefined.
-	[
-		{<<"content-type">>, <<"application/octet-stream">>},
-		{<<"x-custom">>, <<"value">>}
-	] = lists:sort(LargeHeaders),
+	#{
+		<<"content-type">> := <<"application/octet-stream">>,
+		<<"x-custom">> := <<"value">>
+	} = LargeHeaders,
 	ok.
 
 %% @todo When reading a multipart body, length and period
