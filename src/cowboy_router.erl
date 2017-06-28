@@ -277,14 +277,12 @@ check_constraints([Field|Tail], Bindings) when is_atom(Field) ->
 check_constraints([Field|Tail], Bindings) ->
 	Name = element(1, Field),
 	case Bindings of
-		#{Name := Value} ->
+		#{Name := Value0} ->
 			Constraints = element(2, Field),
-			case cowboy_constraints:validate(Value, Constraints) of
-				true ->
-					check_constraints(Tail, Bindings);
-				{true, Value2} ->
-					check_constraints(Tail, Bindings#{Name => Value2});
-				false ->
+			case cowboy_constraints:validate(Value0, Constraints) of
+				{ok, Value} ->
+					check_constraints(Tail, Bindings#{Name => Value});
+				{error, _} ->
 					nomatch
 			end;
 		_ ->

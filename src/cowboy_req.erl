@@ -780,10 +780,10 @@ filter([Key|Tail], Map) ->
 	true = maps:is_key(Key, Map),
 	filter(Tail, Map).
 
-filter_constraints(Tail, Map, Key, Value, Constraints) ->
-	case cowboy_constraints:validate(Value, Constraints) of
-		true ->
-			filter(Tail, Map);
-		{true, Value2} ->
-			filter(Tail, Map#{Key => Value2})
+filter_constraints(Tail, Map, Key, Value0, Constraints) ->
+	case cowboy_constraints:validate(Value0, Constraints) of
+		{ok, Value} ->
+			filter(Tail, Map#{Key => Value});
+		{error, Reason} ->
+			exit(Reason)
 	end.
