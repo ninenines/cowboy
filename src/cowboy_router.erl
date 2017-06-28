@@ -487,23 +487,23 @@ match_test_() ->
 		]}
 	],
 	Tests = [
-		{<<"any">>, <<"/">>, {ok, match_any, [], []}},
+		{<<"any">>, <<"/">>, {ok, match_any, [], #{}}},
 		{<<"www.any.ninenines.eu">>, <<"/users/42/mails">>,
-			{ok, match_any_subdomain_users, [], []}},
+			{ok, match_any_subdomain_users, [], #{}}},
 		{<<"www.ninenines.eu">>, <<"/users/42/mails">>,
-			{ok, match_any, [], []}},
+			{ok, match_any, [], #{}}},
 		{<<"www.ninenines.eu">>, <<"/">>,
-			{ok, match_any, [], []}},
+			{ok, match_any, [], #{}}},
 		{<<"www.any.ninenines.eu">>, <<"/not_users/42/mails">>,
 			{error, notfound, path}},
 		{<<"ninenines.eu">>, <<"/">>,
-			{ok, match_extend, [], []}},
+			{ok, match_extend, [], #{}}},
 		{<<"ninenines.eu">>, <<"/users/42/friends">>,
-			{ok, match_extend_users_friends, [], [{id, <<"42">>}]}},
+			{ok, match_extend_users_friends, [], #{id => <<"42">>}}},
 		{<<"erlang.fr">>, '_',
-			{ok, match_erlang_ext, [], [{ext, <<"fr">>}]}},
+			{ok, match_erlang_ext, [], #{ext => <<"fr">>}}},
 		{<<"any">>, <<"/users/444/friends">>,
-			{ok, match_users_friends, [], [{id, <<"444">>}]}}
+			{ok, match_users_friends, [], #{id => <<"444">>}}}
 	],
 	[{lists:flatten(io_lib:format("~p, ~p", [H, P])), fun() ->
 		{ok, Handler, Opts, Binds, undefined, undefined}
@@ -525,21 +525,21 @@ match_info_test_() ->
 	],
 	Tests = [
 		{<<"ninenines.eu">>, <<"/">>,
-			{ok, match_any, [], [], [], undefined}},
+			{ok, match_any, [], #{}, [], undefined}},
 		{<<"bugs.ninenines.eu">>, <<"/">>,
-			{ok, match_any, [], [], [<<"bugs">>], undefined}},
+			{ok, match_any, [], #{}, [<<"bugs">>], undefined}},
 		{<<"cowboy.bugs.ninenines.eu">>, <<"/">>,
-			{ok, match_any, [], [], [<<"cowboy">>, <<"bugs">>], undefined}},
+			{ok, match_any, [], #{}, [<<"cowboy">>, <<"bugs">>], undefined}},
 		{<<"www.ninenines.eu">>, <<"/pathinfo/is/next">>,
-			{ok, match_path, [], [], undefined, []}},
+			{ok, match_path, [], #{}, undefined, []}},
 		{<<"www.ninenines.eu">>, <<"/pathinfo/is/next/path_info">>,
-			{ok, match_path, [], [], undefined, [<<"path_info">>]}},
+			{ok, match_path, [], #{}, undefined, [<<"path_info">>]}},
 		{<<"www.ninenines.eu">>, <<"/pathinfo/is/next/foo/bar">>,
-			{ok, match_path, [], [], undefined, [<<"foo">>, <<"bar">>]}},
+			{ok, match_path, [], #{}, undefined, [<<"foo">>, <<"bar">>]}},
 		% Cyrillic from a latin1 encoded file.
 		{<<209,129,208,176,208,185,209,130,46,209,128,209,132>>,
 			<<47,208,191,209,131,209,130,209,140,47,208,180,208,190,208,188,208,190,208,185>>,
-			{ok, match_path, [], [], undefined, [<<208,180,208,190,208,188,208,190,208,185>>]}}
+			{ok, match_path, [], #{}, undefined, [<<208,180,208,190,208,188,208,190,208,185>>]}}
 	],
 	[{lists:flatten(io_lib:format("~p, ~p", [H, P])), fun() ->
 		R = match(Dispatch, H, P)
@@ -548,16 +548,20 @@ match_info_test_() ->
 match_constraints_test() ->
 	Dispatch = [{'_', [],
 		[{[<<"path">>, value], [{value, int}], match, []}]}],
-	{ok, _, [], [{value, 123}], _, _} = match(Dispatch,
+	{ok, _, [], #{value := 123}, _, _} = match(Dispatch,
 		<<"ninenines.eu">>, <<"/path/123">>),
-	{ok, _, [], [{value, 123}], _, _} = match(Dispatch,
+	{ok, _, [], #{value := 123}, _, _} = match(Dispatch,
 		<<"ninenines.eu">>, <<"/path/123/">>),
 	{error, notfound, path} = match(Dispatch,
 		<<"ninenines.eu">>, <<"/path/NaN/">>),
 	Dispatch2 = [{'_', [], [{[<<"path">>, username],
-		[{username, fun(Value) -> Value =:= cowboy_bstr:to_lower(Value) end}],
+		[{username, fun(_, Value) ->
+			case cowboy_bstr:to_lower(Value) of
+				Value -> {ok, Value};
+				_ -> {error, not_lowercase}
+			end end}],
 		match, []}]}],
-	{ok, _, [], [{username, <<"essen">>}], _, _} = match(Dispatch2,
+	{ok, _, [], #{username := <<"essen">>}, _, _} = match(Dispatch2,
 		<<"ninenines.eu">>, <<"/path/essen">>),
 	{error, notfound, path} = match(Dispatch2,
 		<<"ninenines.eu">>, <<"/path/ESSEN">>),
@@ -565,20 +569,20 @@ match_constraints_test() ->
 
 match_same_bindings_test() ->
 	Dispatch = [{[same, same], [], [{'_', [], match, []}]}],
-	{ok, _, [], [{same, <<"eu">>}], _, _} = match(Dispatch,
+	{ok, _, [], #{same := <<"eu">>}, _, _} = match(Dispatch,
 		<<"eu.eu">>, <<"/">>),
 	{error, notfound, host} = match(Dispatch,
 		<<"ninenines.eu">>, <<"/">>),
 	Dispatch2 = [{[<<"eu">>, <<"ninenines">>, user], [],
 		[{[<<"path">>, user], [], match, []}]}],
-	{ok, _, [], [{user, <<"essen">>}], _, _} = match(Dispatch2,
+	{ok, _, [], #{user := <<"essen">>}, _, _} = match(Dispatch2,
 		<<"essen.ninenines.eu">>, <<"/path/essen">>),
-	{ok, _, [], [{user, <<"essen">>}], _, _} = match(Dispatch2,
+	{ok, _, [], #{user := <<"essen">>}, _, _} = match(Dispatch2,
 		<<"essen.ninenines.eu">>, <<"/path/essen/">>),
 	{error, notfound, path} = match(Dispatch2,
 		<<"essen.ninenines.eu">>, <<"/path/notessen">>),
 	Dispatch3 = [{'_', [], [{[same, same], [], match, []}]}],
-	{ok, _, [], [{same, <<"path">>}], _, _} = match(Dispatch3,
+	{ok, _, [], #{same := <<"path">>}, _, _} = match(Dispatch3,
 		<<"ninenines.eu">>, <<"/path/path">>),
 	{error, notfound, path} = match(Dispatch3,
 		<<"ninenines.eu">>, <<"/path/to">>),
