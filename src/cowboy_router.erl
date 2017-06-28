@@ -517,10 +517,6 @@ match_info_test_() ->
 		]},
 		{[<<"eu">>, <<"ninenines">>, '...'], [], [
 			{'_', [], match_any, []}
-		]},
-		% Cyrillic from a latin1 encoded file.
-		{[<<209,128,209,132>>, <<209,129,208,176,208,185,209,130>>], [], [
-			{[<<208,191,209,131,209,130,209,140>>, '...'], [], match_path, []}
 		]}
 	],
 	Tests = [
@@ -535,11 +531,7 @@ match_info_test_() ->
 		{<<"www.ninenines.eu">>, <<"/pathinfo/is/next/path_info">>,
 			{ok, match_path, [], #{}, undefined, [<<"path_info">>]}},
 		{<<"www.ninenines.eu">>, <<"/pathinfo/is/next/foo/bar">>,
-			{ok, match_path, [], #{}, undefined, [<<"foo">>, <<"bar">>]}},
-		% Cyrillic from a latin1 encoded file.
-		{<<209,129,208,176,208,185,209,130,46,209,128,209,132>>,
-			<<47,208,191,209,131,209,130,209,140,47,208,180,208,190,208,188,208,190,208,185>>,
-			{ok, match_path, [], #{}, undefined, [<<208,180,208,190,208,188,208,190,208,185>>]}}
+			{ok, match_path, [], #{}, undefined, [<<"foo">>, <<"bar">>]}}
 	],
 	[{lists:flatten(io_lib:format("~p, ~p", [H, P])), fun() ->
 		R = match(Dispatch, H, P)
