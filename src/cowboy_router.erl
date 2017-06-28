@@ -461,7 +461,7 @@ split_path_test_() ->
 		{<<"/extend//cowboy">>, [<<"extend">>, <<>>, <<"cowboy">>]},
 		{<<"/users">>, [<<"users">>]},
 		{<<"/users/42/friends">>, [<<"users">>, <<"42">>, <<"friends">>]},
-		{<<"/users/a+b/c%21d">>, [<<"users">>, <<"a b">>, <<"c!d">>]}
+		{<<"/users/a%20b/c%21d">>, [<<"users">>, <<"a b">>, <<"c!d">>]}
 	],
 	[{P, fun() -> R = split_path(P) end} || {P, R} <- Tests].
 
