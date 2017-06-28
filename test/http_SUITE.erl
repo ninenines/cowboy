@@ -160,8 +160,6 @@ init_dispatch(Config) ->
 					[{etag, ?MODULE, do_etag_gen}]}},
 			{"/static_specify_file/[...]", cowboy_static,
 				{file, config(static_dir, Config) ++ "/style.css"}},
-			{"/multipart", http_multipart, []},
-			{"/multipart/large", http_multipart_stream, []},
 			{"/echo/body", http_echo_body, []},
 			{"/echo/body_qs", http_body_qs, []},
 			{"/crash/content-length", input_crash_h, content_length},
@@ -444,62 +442,6 @@ keepalive_stream_loop(Config) ->
 	_ = [begin
 		{response, fin, 200, _} = gun:await(ConnPid, Ref)
 	end || Ref <- Refs],
-	ok.
-
-multipart(Config) ->
-	ConnPid = gun_open(Config),
-	Body = <<
-		"This is a preamble."
-		"\r\n--OHai\r\nX-Name:answer\r\n\r\n42"
-		"\r\n--OHai\r\nServer:Cowboy\r\n\r\nIt rocks!\r\n"
-		"\r\n--OHai--\r\n"
-		"This is an epilogue."
-	>>,
-	Ref = gun:post(ConnPid, "/multipart",
-		[{<<"content-type">>, <<"multipart/x-makes-no-sense; boundary=OHai">>}],
-		Body),
-	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
-	{ok, RespBody} = gun:await_body(ConnPid, Ref),
-	Parts = binary_to_term(RespBody),
-	Parts = [
-		{[{<<"x-name">>, <<"answer">>}], <<"42">>},
-		{[{<<"server">>, <<"Cowboy">>}], <<"It rocks!\r\n">>}
-	],
-	ok.
-
-multipart_chunked(Config) ->
-	ConnPid = gun_open(Config),
-	Body = <<
-		"This is a preamble."
-		"\r\n--OHai\r\nX-Name:answer\r\n\r\n42"
-		"\r\n--OHai\r\nServer:Cowboy\r\n\r\nIt rocks!\r\n"
-		"\r\n--OHai--\r\n"
-		"This is an epilogue."
-	>>,
-	Ref = gun:post(ConnPid, "/multipart",
-		[{<<"content-type">>, <<"multipart/x-makes-no-sense; boundary=OHai">>}]),
-	gun:data(ConnPid, Ref, fin, Body),
-	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
-	{ok, RespBody} = gun:await_body(ConnPid, Ref),
-	Parts = binary_to_term(RespBody),
-	Parts = [
-		{[{<<"x-name">>, <<"answer">>}], <<"42">>},
-		{[{<<"server">>, <<"Cowboy">>}], <<"It rocks!\r\n">>}
-	],
-	ok.
-
-multipart_large(Config) ->
-	ConnPid = gun_open(Config),
-	Boundary = "----------",
-	Big = << 0:9000000/unit:8 >>,
-	Bigger = << 0:9999999/unit:8 >>,
-	Body = ["--", Boundary, "\r\ncontent-length: 9000000\r\n\r\n", Big, "\r\n",
-		"--", Boundary, "\r\ncontent-length: 9999999\r\n\r\n", Bigger, "\r\n",
-		"--", Boundary, "--\r\n"],
-	Ref = gun:post(ConnPid, "/multipart/large",
-		[{<<"content-type">>, ["multipart/x-large; boundary=", Boundary]}],
-		Body),
-	{response, fin, 200, _} = gun:await(ConnPid, Ref),
 	ok.
 
 do_nc(Config, Input) ->
