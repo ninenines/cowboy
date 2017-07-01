@@ -99,12 +99,11 @@ compile_rules(<< S, Rest/bits >>, S, Segments, Rules, <<>>) ->
 	compile_rules(Rest, S, Segments, Rules, <<>>);
 compile_rules(<< S, Rest/bits >>, S, Segments, Rules, Acc) ->
 	compile_rules(Rest, S, [Acc|Segments], Rules, <<>>);
+%% only colon on segment start is special, otherwise allow in path segment
 compile_rules(<< $:, Rest/bits >>, S, Segments, Rules, <<>>) ->
 	{NameBin, Rest2} = compile_binding(Rest, S, <<>>),
 	Name = binary_to_atom(NameBin, utf8),
 	compile_rules(Rest2, S, Segments, Rules, Name);
-compile_rules(<< $:, _/bits >>, _, _, _, _) ->
-	error(badarg);
 compile_rules(<< $[, $., $., $., $], Rest/bits >>, S, Segments, Rules, Acc)
 		when Acc =:= <<>> ->
 	compile_rules(Rest, S, ['...'|Segments], Rules, Acc);
