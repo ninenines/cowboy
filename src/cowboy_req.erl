@@ -762,28 +762,46 @@ kvlist_to_map(Keys, [{Key, Value}|Tail], Map) ->
 		kvlist_to_map(Keys, Tail, Map)
 	end.
 
-%% Loop through fields, if value is missing and no default, crash;
-%% else if value is missing and has a default, set default;
-%% otherwise apply constraints. If constraint fails, crash.
-filter([], Map) ->
-	Map;
-filter([{Key, Constraints}|Tail], Map) ->
-	filter_constraints(Tail, Map, Key, maps:get(Key, Map), Constraints);
-filter([{Key, Constraints, Default}|Tail], Map) ->
+filter(Fields, Map0) ->
+	case filter(Fields, Map0, #{}) of
+		{ok, Map} ->
+			Map;
+		{error, Errors} ->
+			exit({validation_failed, Errors})
+	end.
+
+%% Loop through fields, if value is missing and no default,
+%% record the error; else if value is missing and has a
+%% default, set default; otherwise apply constraints. If
+%% constraint fails, record the error.
+%%
+%% When there is an error at the end, crash.
+filter([], Map, Errors) ->
+	case maps:size(Errors) of
+		0 -> {ok, Map};
+		_ -> {error, Errors}
+	end;
+filter([{Key, Constraints}|Tail], Map, Errors) ->
+	filter_constraints(Tail, Map, Errors, Key, maps:get(Key, Map), Constraints);
+filter([{Key, Constraints, Default}|Tail], Map, Errors) ->
 	case maps:find(Key, Map) of
 		{ok, Value} ->
-			filter_constraints(Tail, Map, Key, Value, Constraints);
+			filter_constraints(Tail, Map, Errors, Key, Value, Constraints);
 		error ->
-			filter(Tail, Map#{Key => Default})
+			filter(Tail, Map#{Key => Default}, Errors)
 	end;
-filter([Key|Tail], Map) ->
-	true = maps:is_key(Key, Map),
-	filter(Tail, Map).
+filter([Key|Tail], Map, Errors) ->
+	case maps:is_key(Key, Map) of
+		true ->
+			filter(Tail, Map, Errors);
+		false ->
+			filter(Tail, Map, Errors#{Key => required})
+	end.
 
-filter_constraints(Tail, Map, Key, Value0, Constraints) ->
+filter_constraints(Tail, Map, Errors, Key, Value0, Constraints) ->
 	case cowboy_constraints:validate(Value0, Constraints) of
 		{ok, Value} ->
-			filter(Tail, Map#{Key => Value});
+			filter(Tail, Map#{Key => Value}, Errors);
 		{error, Reason} ->
-			exit(Reason)
+			filter(Tail, Map, Errors#{Key => Reason})
 	end.
