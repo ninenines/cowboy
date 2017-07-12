@@ -111,16 +111,6 @@ init_dispatch(Config) ->
 				[{headers, #{<<"server">> => <<"DesireDrive/1.0">>}}]},
 			{"/set_resp/body", http_set_resp,
 				[{body, <<"A flameless dance does not equal a cycle">>}]},
-			{"/stream_body/set_resp", http_stream_body,
-				[{reply, set_resp}, {body, <<"stream_body_set_resp">>}]},
-			{"/stream_body/set_resp_close",
-				http_stream_body, [
-					{reply, set_resp_close},
-					{body, <<"stream_body_set_resp_close">>}]},
-			{"/stream_body/set_resp_chunked",
-				http_stream_body, [
-					{reply, set_resp_chunked},
-					{body, [<<"stream_body">>, <<"_set_resp_chunked">>]}]},
 			{"/static/[...]", cowboy_static,
 				{dir, config(static_dir, Config)}},
 			{"/static_mimetypes_function/[...]", cowboy_static,
@@ -775,36 +765,6 @@ static_test_file_css(Config) ->
 	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
 	{_, <<"text/css">>} = lists:keyfind(<<"content-type">>, 1, Headers),
 	ok.
-
-stream_body_set_resp(Config) ->
-	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, "/stream_body/set_resp"),
-	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
-	{ok, <<"stream_body_set_resp">>} = gun:await_body(ConnPid, Ref),
-	ok.
-
-stream_body_set_resp_close(Config) ->
-	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, "/stream_body/set_resp_close"),
-	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
-	{ok, <<"stream_body_set_resp_close">>} = gun:await_body(ConnPid, Ref),
-	gun_down(ConnPid).
-
-stream_body_set_resp_chunked(Config) ->
-	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, "/stream_body/set_resp_chunked"),
-	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
-	{_, <<"chunked">>} = lists:keyfind(<<"transfer-encoding">>, 1, Headers),
-	{ok, <<"stream_body_set_resp_chunked">>} = gun:await_body(ConnPid, Ref),
-	ok.
-
-stream_body_set_resp_chunked10(Config) ->
-	ConnPid = gun_open(Config, #{http_opts => #{version => 'HTTP/1.0'}}),
-	Ref = gun:get(ConnPid, "/stream_body/set_resp_chunked"),
-	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
-	false = lists:keyfind(<<"transfer-encoding">>, 1, Headers),
-	{ok, <<"stream_body_set_resp_chunked">>} = gun:await_body(ConnPid, Ref),
-	gun_down(ConnPid).
 
 te_chunked(Config) ->
 	Body = list_to_binary(io_lib:format("~p", [lists:seq(1, 100)])),
