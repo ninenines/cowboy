@@ -33,15 +33,12 @@ all() ->
 		{group, https},
 		{group, http_compress},
 		{group, https_compress},
-		{group, onresponse},
-		{group, onresponse_capitalize},
 		{group, parse_host},
 		{group, set_env}
 	].
 
 groups() ->
 	Tests = ct_helper:all(?MODULE) -- [
-		onresponse_crash, onresponse_reply, onresponse_capitalize,
 		parse_host, set_env_dispatch
 	],
 	[
@@ -49,13 +46,6 @@ groups() ->
 		{https, [parallel], Tests},
 		{http_compress, [parallel], Tests},
 		{https_compress, [parallel], Tests},
-		{onresponse, [parallel], [
-			onresponse_crash,
-			onresponse_reply
-		]},
-		{onresponse_capitalize, [parallel], [
-			onresponse_capitalize
-		]},
 		{parse_host, [], [
 			parse_host
 		]},
@@ -86,21 +76,6 @@ init_per_group(Name = https_compress, Config) ->
 		env => #{dispatch => init_dispatch(Config)},
 		compress => true
 	}, Config);
-%% Most, if not all of these, should be in separate test suites.
-init_per_group(onresponse, Config) ->
-	{ok, _} = cowboy:start_clear(onresponse, [{port, 0}], [
-		{env, [{dispatch, init_dispatch(Config)}]},
-		{onresponse, fun do_onresponse_hook/4}
-	]),
-	Port = ranch:get_port(onresponse),
-	[{type, tcp}, {port, Port}, {opts, []}|Config];
-init_per_group(onresponse_capitalize, Config) ->
-	{ok, _} = cowboy:start_clear(onresponse_capitalize, [{port, 0}], [
-		{env, [{dispatch, init_dispatch(Config)}]},
-		{onresponse, fun do_onresponse_capitalize_hook/4}
-	]),
-	Port = ranch:get_port(onresponse_capitalize),
-	[{type, tcp}, {port, Port}, {opts, []}|Config];
 init_per_group(parse_host, Config) ->
 	Dispatch = cowboy_router:compile([
 		{'_', [
@@ -465,36 +440,6 @@ nc_rand(Config) ->
 
 nc_zero(Config) ->
 	do_nc(Config, "/dev/zero").
-
-onresponse_capitalize(Config) ->
-	Client = raw_open(Config),
-	ok = raw_send(Client, "GET / HTTP/1.1\r\nHost: localhost\r\n\r\n"),
-	Data = raw_recv_head(Client),
-	false = nomatch =:= binary:match(Data, <<"Content-Length">>),
-	ok.
-
-%% Hook for the above onresponse_capitalize test.
-do_onresponse_capitalize_hook(Status, Headers, Body, Req) ->
-	Headers2 = [{cowboy_bstr:capitalize_token(N), V}
-		|| {N, V} <- Headers],
-	cowboy_req:reply(Status, Headers2, Body, Req).
-
-onresponse_crash(Config) ->
-	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, "/handler_errors?case=init_before_reply"),
-	{response, fin, 777, Headers} = gun:await(ConnPid, Ref),
-	{<<"x-hook">>, <<"onresponse">>} = lists:keyfind(<<"x-hook">>, 1, Headers).
-
-onresponse_reply(Config) ->
-	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, "/"),
-	{response, nofin, 777, Headers} = gun:await(ConnPid, Ref),
-	{<<"x-hook">>, <<"onresponse">>} = lists:keyfind(<<"x-hook">>, 1, Headers),
-	ok.
-
-%% Hook for the above onresponse tests.
-do_onresponse_hook(_, Headers, _, Req) ->
-	cowboy_req:reply(<<"777 Lucky">>, [{<<"x-hook">>, <<"onresponse">>}|Headers], Req).
 
 parse_host(Config) ->
 	ConnPid = gun_open(Config),
