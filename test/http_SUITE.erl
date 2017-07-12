@@ -103,7 +103,6 @@ init_dispatch(Config) ->
 	cowboy_router:compile([
 		{"localhost", [
 			{"/chunked_response", http_chunked, []},
-			{"/streamed_response", http_streamed, []},
 			{"/headers/dupe", http_handler,
 				[{headers, #{<<"connection">> => <<"close">>}}]},
 			{"/set_resp/header", http_set_resp,
@@ -806,20 +805,6 @@ stream_body_set_resp_chunked10(Config) ->
 	false = lists:keyfind(<<"transfer-encoding">>, 1, Headers),
 	{ok, <<"stream_body_set_resp_chunked">>} = gun:await_body(ConnPid, Ref),
 	gun_down(ConnPid).
-
-%% Undocumented hack: force chunked response to be streamed as HTTP/1.1.
-streamed_response(Config) ->
-	Client = raw_open(Config),
-	ok = raw_send(Client, "GET /streamed_response HTTP/1.1\r\nHost: localhost\r\n\r\n"),
-	Data = raw_recv_head(Client),
-	{'HTTP/1.1', 200, _, Rest} = cow_http:parse_status_line(Data),
-	{Headers, Rest2} = cow_http:parse_headers(Rest),
-	false = lists:keymember(<<"transfer-encoding">>, 1, Headers),
-	Rest2Size = byte_size(Rest2),
-	ok = case <<"streamed_handler\r\nworks fine!">> of
-		Rest2 -> ok;
-		<< Rest2:Rest2Size/binary, Expect/bits >> -> raw_expect_recv(Client, Expect)
-	end.
 
 te_chunked(Config) ->
 	Body = list_to_binary(io_lib:format("~p", [lists:seq(1, 100)])),

@@ -46,16 +46,17 @@ implementations. There is no easy solution for this other than
 forking the project and editing the `cowboy_protocol` file
 directly.
 
-=== Chunked transfer-encoding
-
-Sometimes an HTTP client advertises itself as HTTP/1.1 but
-does not support chunked transfer-encoding. This is invalid
-behavior, as HTTP/1.1 clients are required to support it.
-
-A simple workaround exists in these cases. By changing the
-Req object response state to `waiting_stream`, Cowboy will
-understand that it must use the identity transfer-encoding
-when replying, just like if it was an HTTP/1.0 client.
-
-[source,erlang]
-Req2 = cowboy_req:set(resp_state, waiting_stream).
+// @todo This currently has no equivalent in Cowboy 2.0.
+// === Chunked transfer-encoding
+//
+// Sometimes an HTTP client advertises itself as HTTP/1.1 but
+// does not support chunked transfer-encoding. This is invalid
+// behavior, as HTTP/1.1 clients are required to support it.
+//
+// A simple workaround exists in these cases. By changing the
+// Req object response state to `waiting_stream`, Cowboy will
+// understand that it must use the identity transfer-encoding
+// when replying, just like if it was an HTTP/1.0 client.
+//
+// [source,erlang]
+// Req2 = cowboy_req:set(resp_state, waiting_stream).
