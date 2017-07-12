@@ -71,7 +71,8 @@ data(_StreamID, IsFin, Data, State=#state{pid=Pid, read_body_ref=Ref,
 info(_StreamID, {'EXIT', Pid, normal}, State=#state{pid=Pid}) ->
 	%% @todo Do we even reach this clause?
 	{[stop], State};
-info(_StreamID, {'EXIT', Pid, {_Reason, [_, {cow_http_hd, _, _, _}|_]}}, State=#state{pid=Pid}) ->
+info(_StreamID, {'EXIT', Pid, {_Reason, [T1, T2|_]}}, State=#state{pid=Pid})
+		when element(1, T1) =:= cow_http_hd; element(1, T2) =:= cow_http_hd ->
 	%% @todo Have an option to enable/disable this specific crash report?
 	%%report_crash(Ref, StreamID, Pid, Reason, Stacktrace),
 	%% @todo Headers? Details in body? More stuff in debug only?
