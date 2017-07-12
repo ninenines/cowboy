@@ -13,7 +13,7 @@ CT_OPTS += -ct_hooks cowboy_ct_hook [] # -boot start_sasl
 
 CI_OTP ?= OTP-19.0.7 OTP-19.1.6 OTP-19.2.3 OTP-19.3.6.1 OTP-20.0.1
 CI_HIPE ?= $(lastword $(CI_OTP))
-CI_ERLLVM ?= $(CI_HIPE)
+# CI_ERLLVM ?= $(CI_HIPE)
 
 # Dependencies.
 
