@@ -82,17 +82,17 @@ init_per_group(parse_host, Config) ->
 			{"/req_attr", http_req_attr, []}
 		]}
 	]),
-	{ok, _} = cowboy:start_clear(parse_host, [{port, 0}], [
-		{env, [{dispatch, Dispatch}]}
-	]),
+	{ok, _} = cowboy:start_clear(parse_host, [{port, 0}], #{
+		env => #{dispatch => Dispatch}
+	}),
 	Port = ranch:get_port(parse_host),
-	[{type, tcp}, {port, Port}, {opts, []}|Config];
+	[{type, tcp}, {protocol, http}, {port, Port}, {opts, []}|Config];
 init_per_group(set_env, Config) ->
-	{ok, _} = cowboy:start_clear(set_env, [{port, 0}], [
-		{env, [{dispatch, []}]}
-	]),
+	{ok, _} = cowboy:start_clear(set_env, [{port, 0}], #{
+		env => #{dispatch => []}
+	}),
 	Port = ranch:get_port(set_env),
-	[{type, tcp}, {port, Port}, {opts, []}|Config].
+	[{type, tcp}, {protocol, http}, {port, Port}, {opts, []}|Config].
 
 end_per_group(Name, _) ->
 	ok = cowboy:stop_listener(Name).
@@ -286,7 +286,7 @@ echo_body_qs(Config) ->
 
 echo_body_qs_max_length(Config) ->
 	ConnPid = gun_open(Config),
-	Ref = gun:post(ConnPid, "/echo/body_qs", [], << "echo=", 0:2000000/unit:8 >>),
+	Ref = gun:post(ConnPid, "/echo/body_qs", [], << "echo=", 0:4000000/unit:8 >>),
 	{response, nofin, 413, _} = gun:await(ConnPid, Ref),
 	ok.
 
