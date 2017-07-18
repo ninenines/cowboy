@@ -1,3 +1,4 @@
+[appendix]
 == HTTP and other specifications
 
 This chapter intends to list all the specification documents
