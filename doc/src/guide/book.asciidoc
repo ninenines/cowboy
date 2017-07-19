@@ -92,6 +92,4 @@ The following chapters were relevant in Cowboy 1.0. They have
 not been updated for Cowboy 2.0 yet. The information in these
 chapters may or may not be useful.
 
-include::architecture.asciidoc[Architecture]
-
 include::overview.asciidoc[Overview]

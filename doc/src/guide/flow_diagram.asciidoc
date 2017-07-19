@@ -1,12 +1,64 @@
 [[flow_diagram]]
 == Flow diagram
 
-Placeholder chapter.
+Cowboy is a lightweight HTTP server with support for HTTP/1.1,
+HTTP/2 and Websocket.
 
-Cowboy 2.0 has changed the request flow and general architecture.
-You can read about the Cowboy 1.0 architecture and flow here:
+It is built on top of Ranch. Please see the Ranch guide for more
+information about how the network connections are handled.
 
-* xref:architecture[Architecture]
-* xref:overview[Overview]
+=== Overview
 
-This chapter will be updated in a future pre-release.
+Placeholder section.
+
+// @todo Make the diagram.
+
+=== Number of processes per connection
+
+By default, Cowboy will use one process per connection,
+plus one process per set of request/response (called a
+stream, internally).
+
+The reason it creates a new process for every request is due
+to the requirements of HTTP/2 where requests are executed
+concurrently and independently from the connection. The
+frames from the different requests end up interleaved on
+the single TCP connection.
+
+The request processes are never reused. There is therefore
+no need to perform any cleanup after the response has been
+sent. The process will terminate and Erlang/OTP will reclaim
+all memory at once.
+
+Cowboy ultimately does not require more than one process
+per connection. It is possible to interact with the connection
+directly from a stream handler, a low level interface to Cowboy.
+They are executed from within the connection process, and can
+handle the incoming requests and send responses. This is however
+not recommended in normal circumstances, as a stream handler
+taking too long to execute could have a negative impact on
+concurrent requests or the state of the connection itself.
+
+=== Date header
+
+Because querying for the current date and time can be expensive,
+Cowboy generates one 'Date' header value every second, shares it
+to all other processes, which then simply copy it in the response.
+This allows compliance with HTTP/1.1 with no actual performance loss.
+
+=== Binaries
+
+Cowboy makes extensive use of binaries.
+
+Binaries are more efficient than lists for representing
+strings because they take less memory space. Processing
+performance can vary depending on the operation. Binaries
+are known for generally getting a great boost if the code
+is compiled natively. Please see the HiPE documentation
+for more details.
+
+Binaries may end up being shared between processes. This
+can lead to some large memory usage when one process keeps
+the binary data around forever without freeing it. If you
+see some weird memory usage in your application, this might
+be the cause.
