@@ -54,7 +54,7 @@ Cowboy 2.0 now comes with Erlang.mk templates.
   than for the entire listener.
 
 * Websocket permessage-deflate compression is now supported
-  via the `websocket_compress` option.
+  via the `compress` option.
 
 * Static file handlers will now correctly find files found
   in '.ez' archives.
