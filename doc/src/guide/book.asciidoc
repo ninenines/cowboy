@@ -96,6 +96,4 @@ include::architecture.asciidoc[Architecture]
 
 include::broken_clients.asciidoc[Dealing with broken clients]
 
-include::hooks.asciidoc[Hooks]
-
 include::overview.asciidoc[Overview]

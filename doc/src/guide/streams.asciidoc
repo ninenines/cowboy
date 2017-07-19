@@ -11,5 +11,4 @@ pre-release.
 Streams are meant to replace hooks. The relevant chapters
 for Cowboy 1.0 were:
 
-* xref:hooks[Hooks]
 * xref:broken_clients[Dealing with broken clients]
