@@ -94,6 +94,4 @@ chapters may or may not be useful.
 
 include::architecture.asciidoc[Architecture]
 
-include::broken_clients.asciidoc[Dealing with broken clients]
-
 include::overview.asciidoc[Overview]
