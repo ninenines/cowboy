@@ -198,10 +198,10 @@ Cowboy 2.0 now comes with Erlang.mk templates.
 * Etag comparison in REST handlers has been fixed. Some requests may
   now fail when they succeeded in the past.
 
-* The If-*-Since headers are now ignored in REST handlers if If*-Match
-  headers exist. The former is largely a backward compatible header
-  and this shouldn't create any issue. The new behavior follows the
-  current RFCs more closely.
+* The `If-*-Since` headers are now ignored in REST handlers if
+  the corresponding `If*-Match` header exist. The former is
+  largely a backward compatible header and this shouldn't create
+  any issue. The new behavior follows the current RFCs more closely.
 
 * The static file handler has been improved to handle more special
   characters on systems that accept them.
