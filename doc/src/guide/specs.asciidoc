@@ -80,6 +80,7 @@ for or related to HTTP.
 * https://tools.ietf.org/html/rfc7804[RFC 7804]: Salted Challenge Response HTTP Authentication Mechanism
 * https://tools.ietf.org/html/rfc7838[RFC 7838]: HTTP Alternative Services
 * https://tools.ietf.org/html/rfc7932[RFC 7932]: Brotli Compressed Data Format
+* https://tools.ietf.org/html/rfc7936[RFC 7936]: Clarifying Registry Procedures for the WebSocket Subprotocol Name Registry
 * https://tools.ietf.org/html/rfc8053[RFC 8053]: HTTP Authentication Extensions for Interactive Clients
 * https://tools.ietf.org/html/rfc8164[RFC 8164]: Opportunistic Security for HTTP/2
 * https://tools.ietf.org/html/rfc8188[RFC 8188]: Encrypted Content-Encoding for HTTP
