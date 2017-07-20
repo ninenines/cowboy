@@ -68,17 +68,6 @@ init(Req, State) ->
     {cowboy_websocket, Req, State}.
 ----
 
-You can also switch to your own custom handler type:
-
-[source,erlang]
-----
-init(Req, State) ->
-    {my_handler_type, Req, State}.
-----
-
-How to implement a custom handler type is described in the
-xref:sub_protocols[Sub protocols] chapter.
-
 === Cleaning up
 
 All handler types provide the optional `terminate/3` callback.

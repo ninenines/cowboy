@@ -43,7 +43,6 @@ Behaviors:
 * link:man:cowboy_middleware(3)[cowboy_middleware(3)] - Middlewares
 * link:man:cowboy_rest(3)[cowboy_rest(3)] - REST handlers
 * link:man:cowboy_stream(3)[cowboy_stream(3)] - Stream handlers
-// @todo * link:man:cowboy_sub_protocol(3)[cowboy_sub_protocol(3)] - Sub protocols
 * link:man:cowboy_websocket(3)[cowboy_websocket(3)] - Websocket handlers
 
 Middlewares:

@@ -73,9 +73,6 @@ include::streams.asciidoc[Streams]
 
 include::middlewares.asciidoc[Middlewares]
 
-// @todo Rather have two chapters, custom handlers and custom protocol upgrades
-include::sub_protocols.asciidoc[Sub protocols]
-
 = Additional information
 
 include::migrating_from_1.0.asciidoc[Migrating from Cowboy 1.0 to 2.0]
