@@ -7,8 +7,6 @@
 // REST: where should i handle bindings? init, probably. qs? in media type functions
 // REST: explain how a module per media type is good; module may be shared between client/server
 
-// @todo Put the list of RFCs and other documents supported somewhere.
-
 = Rationale
 
 include::modern_web.asciidoc[The modern Web]
