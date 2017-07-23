@@ -9,9 +9,54 @@ information about how the network connections are handled.
 
 === Overview
 
-Placeholder section.
+image::http_req_resp.png[HTTP request/response flowchart]
 
-// @todo Make the diagram.
+As you can see on the diagram, the client
+begins by connecting to the server. This step is handled
+by a Ranch acceptor, which is a process dedicated to
+accepting new connections.
+
+After Ranch accepts a new connection, whether it is an
+HTTP/1.1 or HTTP/2 connection, Cowboy starts receiving
+requests and handling them.
+
+In HTTP/1.1 all requests come sequentially. In HTTP/2
+the requests may arrive and be processed concurrently.
+
+When a request comes in, Cowboy creates a stream, which
+is a set of request/response and all the events associated
+with them. The protocol code in Cowboy defers the handling
+of these streams to stream handler modules. When you
+configure Cowboy you may define one or more module that
+will receive all events associated with a stream, including
+the request, response, bodies, Erlang messages and more.
+
+By default Cowboy comes configured with a stream handler
+called `cowboy_stream_h`. This stream handler will create
+a new process for every request coming in, and then
+communicate with this process to read the body or send
+a response back. The request process executes middlewares
+which, by default, including the router and then the
+execution of handlers. Like stream handlers, middlewares
+may also be customized.
+
+A response may be sent at almost any point in this
+diagram. If the response must be sent before the stream
+is initialized (because an error occurred early, for
+example) then stream handlers receive a special event
+indicating this error.
+
+=== Protocol-specific headers
+
+Cowboy takes care of protocol-specific headers and prevents
+you from sending them manually. For HTTP/1.1 this includes
+the `transfer-encoding` and `connection` headers. For HTTP/2
+this includes the colon headers like `:status`.
+
+Cowboy will also remove protocol-specific headers from
+requests before passing them to stream handlers. Cowboy
+tries to hide the implementation details of all protocols
+as well as possible.
 
 === Number of processes per connection
 
