@@ -332,7 +332,7 @@ frame(State=#state{client_streamid=LastStreamID}, {headers, StreamID, _, _, _})
 %% Single HEADERS frame headers block.
 frame(State, {headers, StreamID, IsFin, head_fin, HeaderBlock}) ->
 	%% @todo We probably need to validate StreamID here and in 4 next clauses.
-	stream_init(State, StreamID, IsFin, HeaderBlock);
+	stream_decode_init(State, StreamID, IsFin, HeaderBlock);
 %% HEADERS frame starting a headers block. Enter continuation mode.
 frame(State, {headers, StreamID, IsFin, head_nofin, HeaderBlockFragment}) ->
 	State#state{parse_state={continuation, StreamID, IsFin, HeaderBlockFragment}};
@@ -340,7 +340,7 @@ frame(State, {headers, StreamID, IsFin, head_nofin, HeaderBlockFragment}) ->
 frame(State, {headers, StreamID, IsFin, head_fin,
 		_IsExclusive, _DepStreamID, _Weight, HeaderBlock}) ->
 	%% @todo Handle priority.
-	stream_init(State, StreamID, IsFin, HeaderBlock);
+	stream_decode_init(State, StreamID, IsFin, HeaderBlock);
 %% HEADERS frame starting a headers block. Enter continuation mode.
 frame(State, {headers, StreamID, IsFin, head_nofin,
 		_IsExclusive, _DepStreamID, _Weight, HeaderBlockFragment}) ->
@@ -411,7 +411,7 @@ frame(State, {continuation, _, _, _}) ->
 
 continuation_frame(State=#state{parse_state={continuation, StreamID, IsFin, HeaderBlockFragment0}},
 		{continuation, StreamID, head_fin, HeaderBlockFragment1}) ->
-	stream_init(State#state{parse_state=normal}, StreamID, IsFin,
+	stream_decode_init(State#state{parse_state=normal}, StreamID, IsFin,
 		<< HeaderBlockFragment0/binary, HeaderBlockFragment1/binary >>);
 continuation_frame(State=#state{parse_state={continuation, StreamID, IsFin, HeaderBlockFragment0}},
 		{continuation, StreamID, head_nofin, HeaderBlockFragment1}) ->
@@ -529,21 +529,24 @@ commands(State0=#state{socket=Socket, transport=Transport, server_streamid=Promi
 	Authority = case {Scheme, Port} of
 		{<<"http">>, 80} -> Host;
 		{<<"https">>, 443} -> Host;
-		_ -> [Host, $:, integer_to_binary(Port)]
+		_ -> iolist_to_binary([Host, $:, integer_to_binary(Port)])
 	end,
 	PathWithQs = case Qs of
 		<<>> -> Path;
 		_ -> [Path, $?, Qs]
 	end,
-	Headers = Headers0#{<<":method">> => Method,
-			<<":scheme">> => Scheme,
-			<<":authority">> => Authority,
-			<<":path">> => PathWithQs},
+	%% We need to make sure the header value is binary before we can
+	%% pass it to stream_req_init, as it expects them to be flat.
+	Headers1 = maps:map(fun(_, V) -> iolist_to_binary(V) end, Headers0),
+	Headers = Headers1#{
+		<<":method">> => Method,
+		<<":scheme">> => Scheme,
+		<<":authority">> => Authority,
+		<<":path">> => iolist_to_binary(PathWithQs)},
 	{HeaderBlock, EncodeState} = headers_encode(Headers, EncodeState0),
 	Transport:send(Socket, cow_http2:push_promise(StreamID, PromisedStreamID, HeaderBlock)),
-	%% @todo iolist_to_binary(HeaderBlock) isn't optimal. Need a shortcut.
-	State = stream_init(State0#state{server_streamid=PromisedStreamID + 2, encode_state=EncodeState},
-		PromisedStreamID, fin, iolist_to_binary(HeaderBlock)),
+	State = stream_req_init(State0#state{server_streamid=PromisedStreamID + 2,
+		encode_state=EncodeState}, PromisedStreamID, fin, Headers),
 	commands(State, Stream, Tail);
 commands(State=#state{socket=Socket, transport=Transport, remote_window=ConnWindow},
 		Stream=#stream{id=StreamID, remote_window=StreamWindow},
@@ -699,60 +702,59 @@ terminate_all_streams([#stream{id=StreamID, state=StreamState}|Tail], Reason, Ch
 
 %% Stream functions.
 
-stream_init(State0=#state{ref=Ref, socket=Socket, transport=Transport, peer=Peer, decode_state=DecodeState0},
-		StreamID, IsFin, HeaderBlock) ->
+stream_decode_init(State=#state{socket=Socket, transport=Transport,
+		decode_state=DecodeState0}, StreamID, IsFin, HeaderBlock) ->
 	%% @todo Add clause for CONNECT requests (no scheme/path).
 	try headers_decode(HeaderBlock, DecodeState0) of
-		{Headers0=#{
-				<<":method">> := Method,
-				<<":scheme">> := Scheme,
-				<<":authority">> := Authority,
-				<<":path">> := PathWithQs}, DecodeState} ->
-			State = State0#state{decode_state=DecodeState},
-			Headers = maps:without([<<":method">>, <<":scheme">>, <<":authority">>, <<":path">>], Headers0),
-			BodyLength = case Headers of
-				_ when IsFin =:= fin ->
-					0;
-				#{<<"content-length">> := <<"0">>} ->
-					0;
-				#{<<"content-length">> := BinLength} ->
-					Length = try
-						cow_http_hd:parse_content_length(BinLength)
-					catch _:_ ->
-						terminate(State0, {stream_error, StreamID, protocol_error,
-							'The content-length header is invalid. (RFC7230 3.3.2)'})
-						%% @todo Err should terminate here...
-					end,
-					Length;
-				_ ->
-					undefined
-			end,
-			{Host, Port} = cow_http_hd:parse_host(Authority),
-			{Path, Qs} = cow_http:parse_fullpath(PathWithQs),
-			Req = #{
-				ref => Ref,
-				pid => self(),
-				streamid => StreamID,
-				peer => Peer,
-				method => Method,
-				scheme => Scheme,
-				host => Host,
-				port => Port,
-				path => Path,
-				qs => Qs,
-				version => 'HTTP/2',
-				headers => Headers,
-				has_body => IsFin =:= nofin,
-				body_length => BodyLength
-			},
-			stream_handler_init(State, StreamID, IsFin, idle, Req);
+		{Headers=#{<<":method">> := _, <<":scheme">> := _,
+				<<":authority">> := _, <<":path">> := _}, DecodeState} ->
+			stream_req_init(State#state{decode_state=DecodeState}, StreamID, IsFin, Headers);
 		{_, DecodeState} ->
 			Transport:send(Socket, cow_http2:rst_stream(StreamID, protocol_error)),
-			State0#state{decode_state=DecodeState}
+			State#state{decode_state=DecodeState}
 	catch _:_ ->
-		terminate(State0, {connection_error, compression_error,
+		terminate(State, {connection_error, compression_error,
 			'Error while trying to decode HPACK-encoded header block. (RFC7540 4.3)'})
 	end.
+
+stream_req_init(State=#state{ref=Ref, peer=Peer}, StreamID, IsFin, Headers0=#{
+		<<":method">> := Method, <<":scheme">> := Scheme,
+		<<":authority">> := Authority, <<":path">> := PathWithQs}) ->
+	Headers = maps:without([<<":method">>, <<":scheme">>, <<":authority">>, <<":path">>], Headers0),
+	BodyLength = case Headers of
+		_ when IsFin =:= fin ->
+			0;
+		#{<<"content-length">> := <<"0">>} ->
+			0;
+		#{<<"content-length">> := BinLength} ->
+			try
+				cow_http_hd:parse_content_length(BinLength)
+			catch _:_ ->
+				terminate(State, {stream_error, StreamID, protocol_error,
+					'The content-length header is invalid. (RFC7230 3.3.2)'})
+			end;
+		_ ->
+			undefined
+	end,
+	{Host, Port} = cow_http_hd:parse_host(Authority),
+	{Path, Qs} = cow_http:parse_fullpath(PathWithQs),
+	Req = #{
+		ref => Ref,
+		pid => self(),
+		streamid => StreamID,
+		peer => Peer,
+		method => Method,
+		scheme => Scheme,
+		host => Host,
+		port => Port,
+		path => Path,
+		qs => Qs,
+		version => 'HTTP/2',
+		headers => Headers,
+		has_body => IsFin =:= nofin,
+		body_length => BodyLength
+	},
+	stream_handler_init(State, StreamID, IsFin, idle, Req).
 
 stream_handler_init(State=#state{opts=Opts,
 		local_settings=#{initial_window_size := RemoteWindow},
