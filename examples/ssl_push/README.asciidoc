@@ -1,0 +1,122 @@
+= HTTP/2 push example
+
+To try this example, you need GNU `make` and `git` in your PATH.
+
+To build and run the example, use the following command:
+
+[source,bash]
+$ make run
+
+Then point your browser to https://localhost:8443
+
+You will need to temporarily trust the root certificate authority,
+which can also be found in `priv/ssl/cowboy-ca.crt`.
+
+Recent browsers will communicate using HTTP/2. Older browsers
+will use HTTP/1.1.
+
+== HTTP/1.1 example output
+
+[source,bash]
+----
+$ curl --cacert priv/ssl/cowboy-ca.crt -i https://localhost:8443
+HTTP/1.1 200 OK
+content-length: 117
+content-type: text/html
+date: Wed, 26 Jul 2017 08:07:13 GMT
+server: Cowboy
+
+<html>
+<head>
+<link href="/static/style.css" rel="stylesheet" />
+</head>
+<body>
+<h1>Hello world!</h1>
+</body>
+----
+
+== HTTP/2 example output
+
+[source,bash]
+----
+$ nghttp -v https://localhost:8443
+[  0.001] Connected
+The negotiated protocol: h2
+[  0.014] recv SETTINGS frame <length=0, flags=0x00, stream_id=0>
+          (niv=0)
+[  0.014] send SETTINGS frame <length=12, flags=0x00, stream_id=0>
+          (niv=2)
+          [SETTINGS_MAX_CONCURRENT_STREAMS(0x03):100]
+          [SETTINGS_INITIAL_WINDOW_SIZE(0x04):65535]
+[  0.014] send SETTINGS frame <length=0, flags=0x01, stream_id=0>
+          ; ACK
+          (niv=0)
+[  0.014] send PRIORITY frame <length=5, flags=0x00, stream_id=3>
+          (dep_stream_id=0, weight=201, exclusive=0)
+[  0.014] send PRIORITY frame <length=5, flags=0x00, stream_id=5>
+          (dep_stream_id=0, weight=101, exclusive=0)
+[  0.014] send PRIORITY frame <length=5, flags=0x00, stream_id=7>
+          (dep_stream_id=0, weight=1, exclusive=0)
+[  0.014] send PRIORITY frame <length=5, flags=0x00, stream_id=9>
+          (dep_stream_id=7, weight=1, exclusive=0)
+[  0.014] send PRIORITY frame <length=5, flags=0x00, stream_id=11>
+          (dep_stream_id=3, weight=1, exclusive=0)
+[  0.014] send HEADERS frame <length=42, flags=0x25, stream_id=13>
+          ; END_STREAM | END_HEADERS | PRIORITY
+          (padlen=0, dep_stream_id=11, weight=16, exclusive=0)
+          ; Open new stream
+          :method: GET
+          :path: /
+          :scheme: https
+          :authority: localhost:8443
+          accept: */*
+          accept-encoding: gzip, deflate
+          user-agent: nghttp2/1.19.0-DEV
+[  0.014] recv SETTINGS frame <length=0, flags=0x01, stream_id=0>
+          ; ACK
+          (niv=0)
+[  0.014] recv (stream_id=13) :authority: localhost:8443
+[  0.014] recv (stream_id=13) :method: GET
+[  0.014] recv (stream_id=13) :path: /static/style.css
+[  0.014] recv (stream_id=13) :scheme: https
+[  0.014] recv (stream_id=13) accept: text/css
+[  0.014] recv PUSH_PROMISE frame <length=40, flags=0x04, stream_id=13>
+          ; END_HEADERS
+          (padlen=0, promised_stream_id=2)
+[  0.014] recv (stream_id=13) :status: 200
+[  0.014] recv (stream_id=13) content-length: 117
+[  0.014] recv (stream_id=13) content-type: text/html
+[  0.014] recv (stream_id=13) date: Wed, 26 Jul 2017 08:08:03 GMT
+[  0.014] recv (stream_id=13) server: Cowboy
+[  0.014] recv HEADERS frame <length=45, flags=0x04, stream_id=13>
+          ; END_HEADERS
+          (padlen=0)
+          ; First response header
+<html>
+<head>
+<link href="/static/style.css" rel="stylesheet" />
+</head>
+<body>
+<h1>Hello world!</h1>
+</body>
+</html>[  0.014] recv DATA frame <length=117, flags=0x01, stream_id=13>
+          ; END_STREAM
+[  0.015] recv (stream_id=2) :status: 200
+[  0.015] recv (stream_id=2) content-length: 21
+[  0.015] recv (stream_id=2) content-type: text/css
+[  0.015] recv (stream_id=2) date: Wed, 26 Jul 2017 08:08:03 GMT
+[  0.015] recv (stream_id=2) etag: "2003476335"
+[  0.015] recv (stream_id=2) last-modified: Wed, 26 Jul 2017 08:01:45 GMT
+[  0.015] recv (stream_id=2) server: Cowboy
+[  0.015] recv HEADERS frame <length=51, flags=0x04, stream_id=2>
+          ; END_HEADERS
+          (padlen=0)
+          ; First push response header
+h1 {
+  color: red;
+}
+[  0.015] recv DATA frame <length=21, flags=0x01, stream_id=2>
+          ; END_STREAM
+[  0.015] send GOAWAY frame <length=8, flags=0x00, stream_id=0>
+          (last_stream_id=2, error_code=NO_ERROR(0x00), opaque_data(0)=[])
+----
