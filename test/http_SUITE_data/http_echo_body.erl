@@ -6,7 +6,7 @@
 
 init(Req, Opts) ->
 	true = cowboy_req:has_body(Req),
-	Req3 = case cowboy_req:read_body(Req, [{length, 1000000}]) of
+	Req3 = case cowboy_req:read_body(Req, #{length => 1000000}) of
 		{ok, Body, Req2} -> handle_body(Req2, Body);
 		{more, _, Req2} -> handle_badlength(Req2)
 	end,

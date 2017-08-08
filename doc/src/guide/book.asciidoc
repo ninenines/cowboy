@@ -7,8 +7,6 @@
 // REST: where should i handle bindings? init, probably. qs? in media type functions
 // REST: explain how a module per media type is good; module may be shared between client/server
 
-// @todo Put the list of RFCs and other documents supported somewhere.
-
 = Rationale
 
 include::modern_web.asciidoc[The modern Web]
@@ -73,27 +71,10 @@ include::streams.asciidoc[Streams]
 
 include::middlewares.asciidoc[Middlewares]
 
-// @todo Rather have two chapters, custom handlers and custom protocol upgrades
-include::sub_protocols.asciidoc[Sub protocols]
+= Additional information
 
-//= Additional information
-
-//include::migrating_from_1.0.asciidoc[Migrating from Cowboy 1.0 to 2.0]
+include::migrating_from_1.0.asciidoc[Migrating from Cowboy 1.0 to 2.0]
 
 // @todo Maybe history? Could take info from architecture also.
 
-= Deprecated chapters
-
-== About the deprecated chapters
-
-The following chapters were relevant in Cowboy 1.0. They have
-not been updated for Cowboy 2.0 yet. The information in these
-chapters may or may not be useful.
-
-include::architecture.asciidoc[Architecture]
-
-include::broken_clients.asciidoc[Dealing with broken clients]
-
-include::hooks.asciidoc[Hooks]
-
-include::overview.asciidoc[Overview]
+include::specs.asciidoc[HTTP and other specifications]

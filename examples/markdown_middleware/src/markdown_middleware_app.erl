@@ -16,7 +16,7 @@ start(_Type, _Args) ->
 			{"/[...]", cowboy_static, {priv_dir, markdown_middleware, ""}}
 		]}
 	]),
-	{ok, _} = cowboy:start_clear(http, 100, [{port, 8080}], #{
+	{ok, _} = cowboy:start_clear(http, [{port, 8080}], #{
 		env => #{dispatch => Dispatch},
 		middlewares => [cowboy_router, markdown_converter, cowboy_handler]
 	}),

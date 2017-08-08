@@ -1,0 +1,207 @@
+[appendix]
+== Migrating from Cowboy 1.0 to 2.0
+
+A lot has changed between Cowboy 1.0 and 2.0. The `cowboy_req`
+interface in particular has seen a massive revamp. Hooks are
+gone, their functionality can now be achieved via stream
+handlers.
+
+The documentation has seen great work, in particular the
+manual. Each module and each function now has its own dedicated
+manual page with full details and examples.
+
+=== Compatibility
+
+Compatibility with Erlang/OTP R16, 17 and 18 has been dropped.
+Erlang/OTP 19.0 or above is required. It is non-trivial to
+make Cowboy 2.0 work with older Erlang/OTP versions.
+
+Cowboy 2.0 is not compatible with Cowlib versions older than
+2.0. It should be compatible with Ranch 1.0 or above, however
+it has not been tested with Ranch versions older than 1.4.
+
+Cowboy 2.0 is tested on Arch Linux, Ubuntu, FreeBSD, Windows
+and OSX. It is tested with every point release (latest patch
+release) and also with HiPE on the most recent release.
+
+Cowboy 2.0 now comes with Erlang.mk templates.
+
+=== Features added
+
+* The HTTP/2 protocol is now supported.
+
+* Cowboy no longer uses only one process per connection.
+  It now uses one process per connection plus one process
+  per request by default. This is necessary for HTTP/2.
+  There might be a slight drop in performance for HTTP/1.1
+  connections due to this change.
+
+* Cowboy internals have largely been reworked in order to
+  support HTTP/2. This opened the way to stream handlers,
+  which are a chain of modules that are called whenever
+  something happens relating to a request/response.
+
+* The `cowboy_stream_h` stream handler has been added.
+  It provides most of Cowboy's default behavior.
+
+* The `cowboy_compress_h` stream handler has been added.
+  It compresses responses when possible. It's worth noting
+  that it compresses in more cases than Cowboy 1.0 ever did.
+
+* Because of the many changes in the internals of Cowboy,
+  many options have been added or modified. Of note is that
+  the Websocket options are now given per handler rather
+  than for the entire listener.
+
+* Websocket permessage-deflate compression is now supported
+  via the `compress` option.
+
+* Static file handlers will now correctly find files found
+  in '.ez' archives.
+
+* Constraints have been generalized and are now used not only
+  in the router but also in some `cowboy_req` functions. Their
+  interface has also been modified to allow for reverse
+  operations and formatting of errors.
+
+=== Features removed
+
+* SPDY support has been removed. Use HTTP/2 instead.
+
+* Hooks have been removed. Use xref:streams[stream handlers] instead.
+
+* The undocumented `waiting_stream` hack has been removed.
+  It allowed disabling chunked transfer-encoding for HTTP/1.1.
+  It has no equivalent in Cowboy 2.0. Open a ticket if necessary.
+
+* Sub protocols still exist, but their interface has largely changed
+  and they are no longer documented for the time being.
+
+=== Changed behaviors
+
+* The handler behaviors have been renamed and are now `cowboy_handler`,
+  `cowboy_loop`, `cowboy_rest` and `cowboy_websocket`.
+
+* Plain HTTP, loop, REST and Websocket handlers have had their
+  init and terminate callbacks unified. They now all use the
+  `init/2` and `terminate/3` callbacks. The latter is now optional.
+  The terminate reason has now been documented for all handlers.
+
+* The tuple returned to switch to a different handler type has
+  changed. It now takes the form `{Module, Req, State}` or
+  `{Module, Req, State, Opts}`, where `Opts` is a map of options
+  to configure the handler. The timeout and hibernate options
+  must now be specified using this map, where applicable.
+
+* All behaviors that used to accept `halt` or `shutdown` tuples
+  as a return value no longer do so. The return value is now
+  a `stop` tuple, consistent across Cowboy.
+
+* Middlewares can no longer return an `error` tuple. They have
+  to send the response and return a `stop` tuple instead.
+
+* The `known_content_type` REST handler callback has been removed
+  as it was found unnecessary.
+
+* Websocket handlers have both the normal `init/2` and
+  an optional `websocket_init/1` function. The reason for
+  that exception is that the `websocket_*` callbacks execute
+  in a separate process from the `init/2` callback, and it
+  was therefore not obvious how timers or monitors should
+  be setup properly. They are effectively initializing the
+  handler before and after the HTTP/1.1 upgrade.
+
+* Websocket handlers can now send frames directly from
+  `websocket_init/1`. The frames will be sent immediately
+  after the handshake.
+
+* Websocket handler callbacks no longer receive the Req
+  argument. The `init/2` callback still receives it and
+  can be used to extract relevant information. The `terminate/3`
+  callback, if implemented, may still receive the Req
+  (see next bullet point).
+
+* Websocket handlers have a new `req_filter` option that
+  can be used to customize how much information should be
+  discarded from the Req object after the handshake. Note
+  that the Req object is only available in `terminate/3`
+  past that point.
+
+* Websocket handlers have their timeout default changed
+  from infinity to 60 seconds.
+
+=== New functions
+
+* The `cowboy_req:scheme/1` function has been added.
+
+* The `cowboy_req:uri/1,2` function has been added, replacing the
+  less powerful functions `cowboy_req:url/1` and `cowboy_req:host_url/1`.
+
+* The functions `cowboy_req:match_qs/2` and `cowboy_req:match_cookies/2`
+  allow matching query string and cookies against constraints.
+
+* The function `cowboy_req:set_resp_cookie/3` has been added to
+  complement `cowboy_req:set_resp_cookie/4`.
+
+* The functions `cowboy_req:resp_header/2,3` and `cowboy_req:resp_headers/1`
+  have been added. They can be used to retrieve response headers
+  that were previously set.
+
+* The function `cowboy_req:set_resp_headers/2` has been added. It
+  allows setting many response headers at once.
+
+* The functions `cowboy_req:push/3,4` can be used to push resources
+  for protocols that support it (by default only HTTP/2).
+
+=== Changed functions
+
+* The `cowboy:start_http/4` function was renamed to `cowboy:start_clear/3`.
+
+* The `cowboy:start_https/4` function was renamed to `cowboy:start_tls/3`.
+
+* Most, if not all, functions in the `cowboy_req` module have been modified.
+  Please consult the changelog of each individual functions. The changes
+  are mainly about simplifying and clarifying the interface. The Req is no
+  longer returned when not necessary, maps are used wherever possible,
+  and some functions have been renamed.
+
+* The position of the `Opts` argument for `cowboy_req:set_resp_cookie/4`
+  has changed to improve consistency. It is now the last argument.
+
+=== Removed functions
+
+* The functions `cowboy_req:url/1` and `cowboy_req:host_url/1` have been
+  removed in favor of the new function `cowboy_req:uri/1,2`.
+
+* The functions `cowboy_req:meta/2,3` and `cowboy_req:set_meta/3` have
+  been removed. The Req object is now a public map, therefore they became
+  unnecessary.
+
+* The functions `cowboy_req:set_resp_body_fun/2,3` have been removed.
+  For sending files, the function `cowboy_req:set_resp_body/2` can now
+  take a sendfile tuple.
+
+* Remove many undocumented functions from `cowboy_req`, including the
+  functions `cowboy_req:get/2` and `cowboy_req:set/3`.
+
+=== Other changes
+
+* The correct percent-decoding algorithm is now used for path elements
+  during routing. It will no longer decode `+` characters.
+
+* The router will now properly handle path segments `.` and `..`.
+
+* Routing behavior has changed for URIs containing latin1 characters.
+  They are no longer allowed. URIs are expected to be in UTF-8 once
+  they are percent-decoded.
+
+* Etag comparison in REST handlers has been fixed. Some requests may
+  now fail when they succeeded in the past.
+
+* The `If-*-Since` headers are now ignored in REST handlers if
+  the corresponding `If*-Match` header exist. The former is
+  largely a backward compatible header and this shouldn't create
+  any issue. The new behavior follows the current RFCs more closely.
+
+* The static file handler has been improved to handle more special
+  characters on systems that accept them.

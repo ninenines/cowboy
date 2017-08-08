@@ -11,19 +11,26 @@ as a Ranch protocol.
 
 == Options
 
+// @todo Might be worth moving cowboy_clear/tls/stream_h options
+// to their respective manual, when they are added.
+
 [source,erlang]
 ----
 opts() :: #{
-    env             := cowboy_middleware:env(),
-    middlewares     := [module()],
-    preface_timeout := timeout()
+    connection_type    => worker | supervisor,
+    env                => cowboy_middleware:env(),
+    inactivity_timeout => timeout(),
+    middlewares        => [module()],
+    preface_timeout    => timeout(),
+    shutdown_timeout   => timeout(),
+    stream_handlers    => [module()]
 }
 ----
 
 Configuration for the HTTP/2 protocol.
 
 This configuration is passed to Cowboy when starting listeners
-using `cowboy:start_clear/4` or `cowboy:start_tls/4` functions.
+using `cowboy:start_clear/3` or `cowboy:start_tls/3` functions.
 
 It can be updated without restarting listeners using the
 Ranch functions `ranch:get_protocol_options/1` and
@@ -31,14 +38,26 @@ Ranch functions `ranch:get_protocol_options/1` and
 
 The default value is given next to the option name:
 
+connection_type (supervisor)::
+    Whether the connection process also acts as a supervisor.
+
 env (#{})::
     Middleware environment.
+
+inactivity_timeout (300000)::
+    Time in ms with nothing received at all before Cowboy closes the connection.
 
 middlewares ([cowboy_router, cowboy_handler])::
     Middlewares to run for every request.
 
 preface_timeout (5000)::
     Time in ms Cowboy is willing to wait for the connection preface.
+
+shutdown_timeout (5000)::
+    Time in ms Cowboy will wait for child processes to shut down before killing them.
+
+stream_handlers ([cowboy_stream_h])::
+    Ordered list of stream handlers that will handle all stream events.
 
 == Changelog
 

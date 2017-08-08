@@ -49,10 +49,10 @@ init_dispatch(Config) ->
 		{"/resp/:key[/:arg]", resp_h, []},
 		{"/multipart[/:key]", multipart_h, []},
 		{"/args/:key/:arg[/:default]", echo_h, []},
-		{"/crash/:key/period", echo_h, #{length => infinity, period => 1000, crash => true}},
+		{"/crash/:key/period", echo_h, #{length => 999999999, period => 1000, crash => true}},
 		{"/no-opts/:key", echo_h, #{crash => true}},
 		{"/opts/:key/length", echo_h, #{length => 1000}},
-		{"/opts/:key/period", echo_h, #{length => infinity, period => 1000}},
+		{"/opts/:key/period", echo_h, #{length => 999999999, period => 1000}},
 		{"/opts/:key/timeout", echo_h, #{timeout => 1000, crash => true}},
 		{"/full/:key", echo_h, []},
 		{"/no/:key", echo_h, []},
@@ -399,14 +399,13 @@ do_multipart(Path, Config) ->
 		{<<"content-type">>, <<"multipart/mixed; boundary=deadbeef">>}
 	], ReqBody, Config),
 	[
-		{[{<<"content-type">>, <<"text/plain">>}], <<"Cowboy is an HTTP server.">>},
+		{#{<<"content-type">> := <<"text/plain">>}, <<"Cowboy is an HTTP server.">>},
 		{LargeHeaders, LargeBody}
 	] = binary_to_term(RespBody),
-	%% @todo Multipart header order is currently undefined.
-	[
-		{<<"content-type">>, <<"application/octet-stream">>},
-		{<<"x-custom">>, <<"value">>}
-	] = lists:sort(LargeHeaders),
+	#{
+		<<"content-type">> := <<"application/octet-stream">>,
+		<<"x-custom">> := <<"value">>
+	} = LargeHeaders,
 	ok.
 
 read_part_skip_body(Config) ->
@@ -421,14 +420,13 @@ read_part_skip_body(Config) ->
 		{<<"content-type">>, <<"multipart/mixed; boundary=deadbeef">>}
 	], ReqBody, Config),
 	[
-		[{<<"content-type">>, <<"text/plain">>}],
+		#{<<"content-type">> := <<"text/plain">>},
 		LargeHeaders
 	] = binary_to_term(RespBody),
-	%% @todo Multipart header order is currently undefined.
-	[
-		{<<"content-type">>, <<"application/octet-stream">>},
-		{<<"x-custom">>, <<"value">>}
-	] = lists:sort(LargeHeaders),
+	#{
+		<<"content-type">> := <<"application/octet-stream">>,
+		<<"x-custom">> := <<"value">>
+	} = LargeHeaders,
 	ok.
 
 %% @todo When reading a multipart body, length and period

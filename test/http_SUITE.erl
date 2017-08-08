@@ -33,15 +33,12 @@ all() ->
 		{group, https},
 		{group, http_compress},
 		{group, https_compress},
-		{group, onresponse},
-		{group, onresponse_capitalize},
 		{group, parse_host},
 		{group, set_env}
 	].
 
 groups() ->
 	Tests = ct_helper:all(?MODULE) -- [
-		onresponse_crash, onresponse_reply, onresponse_capitalize,
 		parse_host, set_env_dispatch
 	],
 	[
@@ -49,13 +46,6 @@ groups() ->
 		{https, [parallel], Tests},
 		{http_compress, [parallel], Tests},
 		{https_compress, [parallel], Tests},
-		{onresponse, [parallel], [
-			onresponse_crash,
-			onresponse_reply
-		]},
-		{onresponse_capitalize, [parallel], [
-			onresponse_capitalize
-		]},
 		{parse_host, [], [
 			parse_host
 		]},
@@ -86,38 +76,23 @@ init_per_group(Name = https_compress, Config) ->
 		env => #{dispatch => init_dispatch(Config)},
 		compress => true
 	}, Config);
-%% Most, if not all of these, should be in separate test suites.
-init_per_group(onresponse, Config) ->
-	{ok, _} = cowboy:start_clear(onresponse, 100, [{port, 0}], [
-		{env, [{dispatch, init_dispatch(Config)}]},
-		{onresponse, fun do_onresponse_hook/4}
-	]),
-	Port = ranch:get_port(onresponse),
-	[{type, tcp}, {port, Port}, {opts, []}|Config];
-init_per_group(onresponse_capitalize, Config) ->
-	{ok, _} = cowboy:start_clear(onresponse_capitalize, 100, [{port, 0}], [
-		{env, [{dispatch, init_dispatch(Config)}]},
-		{onresponse, fun do_onresponse_capitalize_hook/4}
-	]),
-	Port = ranch:get_port(onresponse_capitalize),
-	[{type, tcp}, {port, Port}, {opts, []}|Config];
 init_per_group(parse_host, Config) ->
 	Dispatch = cowboy_router:compile([
 		{'_', [
 			{"/req_attr", http_req_attr, []}
 		]}
 	]),
-	{ok, _} = cowboy:start_clear(parse_host, 100, [{port, 0}], [
-		{env, [{dispatch, Dispatch}]}
-	]),
+	{ok, _} = cowboy:start_clear(parse_host, [{port, 0}], #{
+		env => #{dispatch => Dispatch}
+	}),
 	Port = ranch:get_port(parse_host),
-	[{type, tcp}, {port, Port}, {opts, []}|Config];
+	[{type, tcp}, {protocol, http}, {port, Port}, {opts, []}|Config];
 init_per_group(set_env, Config) ->
-	{ok, _} = cowboy:start_clear(set_env, 100, [{port, 0}], [
-		{env, [{dispatch, []}]}
-	]),
+	{ok, _} = cowboy:start_clear(set_env, [{port, 0}], #{
+		env => #{dispatch => []}
+	}),
 	Port = ranch:get_port(set_env),
-	[{type, tcp}, {port, Port}, {opts, []}|Config].
+	[{type, tcp}, {protocol, http}, {port, Port}, {opts, []}|Config].
 
 end_per_group(Name, _) ->
 	ok = cowboy:stop_listener(Name).
@@ -128,7 +103,6 @@ init_dispatch(Config) ->
 	cowboy_router:compile([
 		{"localhost", [
 			{"/chunked_response", http_chunked, []},
-			{"/streamed_response", http_streamed, []},
 			{"/headers/dupe", http_handler,
 				[{headers, #{<<"connection">> => <<"close">>}}]},
 			{"/set_resp/header", http_set_resp,
@@ -137,16 +111,6 @@ init_dispatch(Config) ->
 				[{headers, #{<<"server">> => <<"DesireDrive/1.0">>}}]},
 			{"/set_resp/body", http_set_resp,
 				[{body, <<"A flameless dance does not equal a cycle">>}]},
-			{"/stream_body/set_resp", http_stream_body,
-				[{reply, set_resp}, {body, <<"stream_body_set_resp">>}]},
-			{"/stream_body/set_resp_close",
-				http_stream_body, [
-					{reply, set_resp_close},
-					{body, <<"stream_body_set_resp_close">>}]},
-			{"/stream_body/set_resp_chunked",
-				http_stream_body, [
-					{reply, set_resp_chunked},
-					{body, [<<"stream_body">>, <<"_set_resp_chunked">>]}]},
 			{"/static/[...]", cowboy_static,
 				{dir, config(static_dir, Config)}},
 			{"/static_mimetypes_function/[...]", cowboy_static,
@@ -160,8 +124,6 @@ init_dispatch(Config) ->
 					[{etag, ?MODULE, do_etag_gen}]}},
 			{"/static_specify_file/[...]", cowboy_static,
 				{file, config(static_dir, Config) ++ "/style.css"}},
-			{"/multipart", http_multipart, []},
-			{"/multipart/large", http_multipart_stream, []},
 			{"/echo/body", http_echo_body, []},
 			{"/echo/body_qs", http_body_qs, []},
 			{"/crash/content-length", input_crash_h, content_length},
@@ -249,13 +211,13 @@ The document has moved
 		{400, "GET http://proxy/ HTTP/1.1\r\n\r\n"},
 		{400, "GET / HTTP/1.1\r\nHost: localhost:bad_port\r\n\r\n"},
 		{400, ["POST /crash/content-length HTTP/1.1\r\nHost: localhost\r\nContent-Length: 5000,5000\r\n\r\n", Huge]},
-		{505, ResponsePacket},
+		{400, ResponsePacket},
 		{408, "GET / HTTP/1.1\r\n"},
 		{408, "GET / HTTP/1.1\r\nHost: localhost"},
 		{408, "GET / HTTP/1.1\r\nHost: localhost\r\n"},
 		{408, "GET / HTTP/1.1\r\nHost: localhost\r\n\r"},
-		{414, Huge},
-		{400, "GET / HTTP/1.1\r\n" ++ Huge},
+		{closed, Huge},
+		{431, "GET / HTTP/1.1\r\n" ++ Huge},
 		{505, "GET / HTTP/1.2\r\nHost: localhost\r\n\r\n"},
 		{closed, ""},
 		{closed, "\r\n"},
@@ -272,9 +234,9 @@ check_status(Config) ->
 	Tests = [
 		{200, "/"},
 		{200, "/simple"},
-		{400, "/static/%2f"},
-		{400, "/static/%2e"},
-		{400, "/static/%2e%2e"},
+		{404, "/static/%2f"},
+		{403, "/static/%2e"}, %% This routes to /static.
+		{200, "/static/%2e%2e"}, %% This routes to /.
 		{403, "/static/directory"},
 		{403, "/static/directory/"},
 		{403, "/static/unreadable"},
@@ -324,7 +286,7 @@ echo_body_qs(Config) ->
 
 echo_body_qs_max_length(Config) ->
 	ConnPid = gun_open(Config),
-	Ref = gun:post(ConnPid, "/echo/body_qs", [], << "echo=", 0:2000000/unit:8 >>),
+	Ref = gun:post(ConnPid, "/echo/body_qs", [], << "echo=", 0:4000000/unit:8 >>),
 	{response, nofin, 413, _} = gun:await(ConnPid, Ref),
 	ok.
 
@@ -446,62 +408,6 @@ keepalive_stream_loop(Config) ->
 	end || Ref <- Refs],
 	ok.
 
-multipart(Config) ->
-	ConnPid = gun_open(Config),
-	Body = <<
-		"This is a preamble."
-		"\r\n--OHai\r\nX-Name:answer\r\n\r\n42"
-		"\r\n--OHai\r\nServer:Cowboy\r\n\r\nIt rocks!\r\n"
-		"\r\n--OHai--\r\n"
-		"This is an epilogue."
-	>>,
-	Ref = gun:post(ConnPid, "/multipart",
-		[{<<"content-type">>, <<"multipart/x-makes-no-sense; boundary=OHai">>}],
-		Body),
-	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
-	{ok, RespBody} = gun:await_body(ConnPid, Ref),
-	Parts = binary_to_term(RespBody),
-	Parts = [
-		{[{<<"x-name">>, <<"answer">>}], <<"42">>},
-		{[{<<"server">>, <<"Cowboy">>}], <<"It rocks!\r\n">>}
-	],
-	ok.
-
-multipart_chunked(Config) ->
-	ConnPid = gun_open(Config),
-	Body = <<
-		"This is a preamble."
-		"\r\n--OHai\r\nX-Name:answer\r\n\r\n42"
-		"\r\n--OHai\r\nServer:Cowboy\r\n\r\nIt rocks!\r\n"
-		"\r\n--OHai--\r\n"
-		"This is an epilogue."
-	>>,
-	Ref = gun:post(ConnPid, "/multipart",
-		[{<<"content-type">>, <<"multipart/x-makes-no-sense; boundary=OHai">>}]),
-	gun:data(ConnPid, Ref, fin, Body),
-	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
-	{ok, RespBody} = gun:await_body(ConnPid, Ref),
-	Parts = binary_to_term(RespBody),
-	Parts = [
-		{[{<<"x-name">>, <<"answer">>}], <<"42">>},
-		{[{<<"server">>, <<"Cowboy">>}], <<"It rocks!\r\n">>}
-	],
-	ok.
-
-multipart_large(Config) ->
-	ConnPid = gun_open(Config),
-	Boundary = "----------",
-	Big = << 0:9000000/unit:8 >>,
-	Bigger = << 0:9999999/unit:8 >>,
-	Body = ["--", Boundary, "\r\ncontent-length: 9000000\r\n\r\n", Big, "\r\n",
-		"--", Boundary, "\r\ncontent-length: 9999999\r\n\r\n", Bigger, "\r\n",
-		"--", Boundary, "--\r\n"],
-	Ref = gun:post(ConnPid, "/multipart/large",
-		[{<<"content-type">>, ["multipart/x-large; boundary=", Boundary]}],
-		Body),
-	{response, fin, 200, _} = gun:await(ConnPid, Ref),
-	ok.
-
 do_nc(Config, Input) ->
 	Cat = os:find_executable("cat"),
 	Nc = os:find_executable("nc"),
@@ -523,36 +429,6 @@ nc_rand(Config) ->
 
 nc_zero(Config) ->
 	do_nc(Config, "/dev/zero").
-
-onresponse_capitalize(Config) ->
-	Client = raw_open(Config),
-	ok = raw_send(Client, "GET / HTTP/1.1\r\nHost: localhost\r\n\r\n"),
-	Data = raw_recv_head(Client),
-	false = nomatch =:= binary:match(Data, <<"Content-Length">>),
-	ok.
-
-%% Hook for the above onresponse_capitalize test.
-do_onresponse_capitalize_hook(Status, Headers, Body, Req) ->
-	Headers2 = [{cowboy_bstr:capitalize_token(N), V}
-		|| {N, V} <- Headers],
-	cowboy_req:reply(Status, Headers2, Body, Req).
-
-onresponse_crash(Config) ->
-	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, "/handler_errors?case=init_before_reply"),
-	{response, fin, 777, Headers} = gun:await(ConnPid, Ref),
-	{<<"x-hook">>, <<"onresponse">>} = lists:keyfind(<<"x-hook">>, 1, Headers).
-
-onresponse_reply(Config) ->
-	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, "/"),
-	{response, nofin, 777, Headers} = gun:await(ConnPid, Ref),
-	{<<"x-hook">>, <<"onresponse">>} = lists:keyfind(<<"x-hook">>, 1, Headers),
-	ok.
-
-%% Hook for the above onresponse tests.
-do_onresponse_hook(_, Headers, _, Req) ->
-	cowboy_req:reply(<<"777 Lucky">>, [{<<"x-hook">>, <<"onresponse">>}|Headers], Req).
 
 parse_host(Config) ->
 	ConnPid = gun_open(Config),
@@ -889,50 +765,6 @@ static_test_file_css(Config) ->
 	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
 	{_, <<"text/css">>} = lists:keyfind(<<"content-type">>, 1, Headers),
 	ok.
-
-stream_body_set_resp(Config) ->
-	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, "/stream_body/set_resp"),
-	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
-	{ok, <<"stream_body_set_resp">>} = gun:await_body(ConnPid, Ref),
-	ok.
-
-stream_body_set_resp_close(Config) ->
-	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, "/stream_body/set_resp_close"),
-	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
-	{ok, <<"stream_body_set_resp_close">>} = gun:await_body(ConnPid, Ref),
-	gun_down(ConnPid).
-
-stream_body_set_resp_chunked(Config) ->
-	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, "/stream_body/set_resp_chunked"),
-	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
-	{_, <<"chunked">>} = lists:keyfind(<<"transfer-encoding">>, 1, Headers),
-	{ok, <<"stream_body_set_resp_chunked">>} = gun:await_body(ConnPid, Ref),
-	ok.
-
-stream_body_set_resp_chunked10(Config) ->
-	ConnPid = gun_open(Config, #{http_opts => #{version => 'HTTP/1.0'}}),
-	Ref = gun:get(ConnPid, "/stream_body/set_resp_chunked"),
-	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
-	false = lists:keyfind(<<"transfer-encoding">>, 1, Headers),
-	{ok, <<"stream_body_set_resp_chunked">>} = gun:await_body(ConnPid, Ref),
-	gun_down(ConnPid).
-
-%% Undocumented hack: force chunked response to be streamed as HTTP/1.1.
-streamed_response(Config) ->
-	Client = raw_open(Config),
-	ok = raw_send(Client, "GET /streamed_response HTTP/1.1\r\nHost: localhost\r\n\r\n"),
-	Data = raw_recv_head(Client),
-	{'HTTP/1.1', 200, _, Rest} = cow_http:parse_status_line(Data),
-	{Headers, Rest2} = cow_http:parse_headers(Rest),
-	false = lists:keymember(<<"transfer-encoding">>, 1, Headers),
-	Rest2Size = byte_size(Rest2),
-	ok = case <<"streamed_handler\r\nworks fine!">> of
-		Rest2 -> ok;
-		<< Rest2:Rest2Size/binary, Expect/bits >> -> raw_expect_recv(Client, Expect)
-	end.
 
 te_chunked(Config) ->
 	Body = list_to_binary(io_lib:format("~p", [lists:seq(1, 100)])),

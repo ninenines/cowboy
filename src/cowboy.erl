@@ -14,8 +14,8 @@
 
 -module(cowboy).
 
--export([start_clear/4]).
--export([start_tls/4]).
+-export([start_clear/3]).
+-export([start_tls/3]).
 -export([stop_listener/1]).
 -export([set_env/3]).
 
@@ -37,27 +37,23 @@
 -type http_version() :: 'HTTP/2' | 'HTTP/1.1' | 'HTTP/1.0'.
 -export_type([http_version/0]).
 
-%% @todo We should hide NbAcceptors in a socket variable, even if Ranch
-%% doesn't let us do that yet.
--spec start_clear(ranch:ref(), non_neg_integer(), ranch_tcp:opts(), opts())
+-spec start_clear(ranch:ref(), ranch_tcp:opts(), opts())
 	-> {ok, pid()} | {error, any()}.
-start_clear(Ref, NbAcceptors, TransOpts0, ProtoOpts0)
-		when is_integer(NbAcceptors), NbAcceptors > 0 ->
+start_clear(Ref, TransOpts0, ProtoOpts0) ->
 	{TransOpts, ConnectionType} = ensure_connection_type(TransOpts0),
 	ProtoOpts = ProtoOpts0#{connection_type => ConnectionType},
-	ranch:start_listener(Ref, NbAcceptors, ranch_tcp, TransOpts, cowboy_clear, ProtoOpts).
+	ranch:start_listener(Ref, ranch_tcp, TransOpts, cowboy_clear, ProtoOpts).
 
--spec start_tls(ranch:ref(), non_neg_integer(), ranch_ssl:opts(), opts())
+-spec start_tls(ranch:ref(), ranch_ssl:opts(), opts())
 	-> {ok, pid()} | {error, any()}.
-start_tls(Ref, NbAcceptors, TransOpts0, ProtoOpts0)
-		when is_integer(NbAcceptors), NbAcceptors > 0 ->
+start_tls(Ref, TransOpts0, ProtoOpts0) ->
 	{TransOpts1, ConnectionType} = ensure_connection_type(TransOpts0),
 	TransOpts = [
 		{next_protocols_advertised, [<<"h2">>, <<"http/1.1">>]},
 		{alpn_preferred_protocols, [<<"h2">>, <<"http/1.1">>]}
 	|TransOpts1],
 	ProtoOpts = ProtoOpts0#{connection_type => ConnectionType},
-	ranch:start_listener(Ref, NbAcceptors, ranch_ssl, TransOpts, cowboy_tls, ProtoOpts).
+	ranch:start_listener(Ref, ranch_ssl, TransOpts, cowboy_tls, ProtoOpts).
 
 ensure_connection_type(TransOpts) ->
 	case proplists:get_value(connection_type, TransOpts) of
@@ -72,7 +68,6 @@ stop_listener(Ref) ->
 -spec set_env(ranch:ref(), atom(), any()) -> ok.
 set_env(Ref, Name, Value) ->
 	Opts = ranch:get_protocol_options(Ref),
-	{_, Env} = lists:keyfind(env, 1, Opts),
-	Opts2 = lists:keyreplace(env, 1, Opts,
-		{env, lists:keystore(Name, 1, Env, {Name, Value})}),
+	{_, Env} = maps:find(env, Opts),
+	Opts2 = maps:put(env, maps:put(Name, Value, Env), Opts),
 	ok = ranch:set_protocol_options(Ref, Opts2).

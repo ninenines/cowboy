@@ -15,7 +15,7 @@
    height="1052.3622047"
    id="svg2"
    version="1.1"
-   inkscape:version="0.48.4 r9939"
+   inkscape:version="0.92.1 r"
    sodipodi:docname="http_req_resp.svg"
    inkscape:export-filename="/home/essen/Dropbox/Public/drawing.png"
    inkscape:export-xdpi="90"
@@ -65,15 +65,15 @@
      inkscape:pageopacity="1"
      inkscape:pageshadow="2"
      inkscape:zoom="1.4142136"
-     inkscape:cx="82.28271"
-     inkscape:cy="764.83183"
+     inkscape:cx="172.08527"
+     inkscape:cy="762.31079"
      inkscape:document-units="px"
      inkscape:current-layer="layer1"
      showgrid="false"
-     inkscape:window-width="2560"
-     inkscape:window-height="1402"
+     inkscape:window-width="1920"
+     inkscape:window-height="1043"
      inkscape:window-x="0"
-     inkscape:window-y="38"
+     inkscape:window-y="0"
      inkscape:window-maximized="1"
      inkscape:snap-global="true"
      showguides="true">
@@ -101,51 +101,117 @@
      inkscape:label="Layer 1"
      inkscape:groupmode="layer"
      id="layer1">
-    <path
-       inkscape:export-ydpi="89.926643"
-       inkscape:export-xdpi="89.926643"
-       inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
-       inkscape:connector-curvature="0"
-       id="use5779"
-       d="M 194.29441,340.67017 369.64493,238.3853"
-       style="fill:none;stroke:#6d8e41;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:2, 4;stroke-dashoffset:0" />
-    <path
-       inkscape:export-ydpi="89.926643"
-       inkscape:export-xdpi="89.926643"
-       inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
-       inkscape:connector-curvature="0"
-       id="use5777"
-       d="m 178.49877,231.1517 203.00246,0.045"
-       style="fill:none;stroke:#6d8e41;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:1.99999999, 3.99999998;stroke-dashoffset:0" />
-    <use
-       x="0"
-       y="0"
-       xlink:href="#g5650"
-       id="use5753"
-       transform="translate(475.11201,-117.70525)"
-       width="744.09448"
-       height="1052.3622"
-       inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
-       inkscape:export-xdpi="89.926643"
-       inkscape:export-ydpi="89.926643" />
-    <use
-       x="0"
-       y="0"
-       xlink:href="#use5753"
-       id="use5755"
-       transform="translate(3.984568e-6,86.977569)"
-       width="744.09448"
-       height="1052.3622"
-       inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
-       inkscape:export-xdpi="89.926643"
-       inkscape:export-ydpi="89.926643" />
+    <g
+       transform="translate(193.54707,-32.134105)"
+       id="g5650-5-0">
+      <path
+         inkscape:connector-curvature="0"
+         id="path5570-3-9"
+         d="m -57.78256,351.41962 v 52.3259"
+         style="opacity:0.8;fill:none;stroke:#6d8e41;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+      <path
+         transform="matrix(0.58787746,0,0,0.58787746,73.160466,163.35774)"
+         inkscape:transform-center-y="2.1823437"
+         d="m -222.73865,430.10821 -12.85982,-22.27386 25.71964,0 z"
+         inkscape:randomized="0"
+         inkscape:rounded="0"
+         inkscape:flatsided="true"
+         sodipodi:arg2="2.6179939"
+         sodipodi:arg1="1.5707963"
+         sodipodi:r2="7.4246211"
+         sodipodi:r1="14.849242"
+         sodipodi:cy="415.25897"
+         sodipodi:cx="-222.73865"
+         sodipodi:sides="3"
+         id="path5576-5-3"
+         style="opacity:0.8;fill:#6d8e41;fill-opacity:1;fill-rule:nonzero;stroke:#6d8e41;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+         sodipodi:type="star" />
+    </g>
+    <g
+       transform="rotate(180,50.658226,375.46461)"
+       id="g5650-6-6">
+      <path
+         inkscape:connector-curvature="0"
+         id="path5570-2-0"
+         d="m -57.78256,351.41962 v 52.3259"
+         style="opacity:0.8;fill:none;stroke:#6d8e41;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+      <path
+         transform="matrix(0.58787746,0,0,0.58787746,73.160466,163.35774)"
+         inkscape:transform-center-y="2.1823437"
+         d="m -222.73865,430.10821 -12.85982,-22.27386 25.71964,0 z"
+         inkscape:randomized="0"
+         inkscape:rounded="0"
+         inkscape:flatsided="true"
+         sodipodi:arg2="2.6179939"
+         sodipodi:arg1="1.5707963"
+         sodipodi:r2="7.4246211"
+         sodipodi:r1="14.849242"
+         sodipodi:cy="415.25897"
+         sodipodi:cx="-222.73865"
+         sodipodi:sides="3"
+         id="path5576-9-6"
+         style="opacity:0.8;fill:#6d8e41;fill-opacity:1;fill-rule:nonzero;stroke:#6d8e41;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+         sodipodi:type="star" />
+    </g>
+    <g
+       transform="translate(193.54707,-119.75468)"
+       id="g5650-5">
+      <path
+         inkscape:connector-curvature="0"
+         id="path5570-3"
+         d="m -57.78256,351.41962 v 52.3259"
+         style="opacity:0.8;fill:none;stroke:#6d8e41;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+      <path
+         transform="matrix(0.58787746,0,0,0.58787746,73.160466,163.35774)"
+         inkscape:transform-center-y="2.1823437"
+         d="m -222.73865,430.10821 -12.85982,-22.27386 25.71964,0 z"
+         inkscape:randomized="0"
+         inkscape:rounded="0"
+         inkscape:flatsided="true"
+         sodipodi:arg2="2.6179939"
+         sodipodi:arg1="1.5707963"
+         sodipodi:r2="7.4246211"
+         sodipodi:r1="14.849242"
+         sodipodi:cy="415.25897"
+         sodipodi:cx="-222.73865"
+         sodipodi:sides="3"
+         id="path5576-5"
+         style="opacity:0.8;fill:#6d8e41;fill-opacity:1;fill-rule:nonzero;stroke:#6d8e41;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+         sodipodi:type="star" />
+    </g>
+    <g
+       transform="rotate(180,50.658226,331.65432)"
+       id="g5650-6">
+      <path
+         inkscape:connector-curvature="0"
+         id="path5570-2"
+         d="m -57.78256,351.41962 v 52.3259"
+         style="opacity:0.8;fill:none;stroke:#6d8e41;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+      <path
+         transform="matrix(0.58787746,0,0,0.58787746,73.160466,163.35774)"
+         inkscape:transform-center-y="2.1823437"
+         d="m -222.73865,430.10821 -12.85982,-22.27386 25.71964,0 z"
+         inkscape:randomized="0"
+         inkscape:rounded="0"
+         inkscape:flatsided="true"
+         sodipodi:arg2="2.6179939"
+         sodipodi:arg1="1.5707963"
+         sodipodi:r2="7.4246211"
+         sodipodi:r1="14.849242"
+         sodipodi:cy="415.25897"
+         sodipodi:cx="-222.73865"
+         sodipodi:sides="3"
+         id="path5576-9"
+         style="opacity:0.8;fill:#6d8e41;fill-opacity:1;fill-rule:nonzero;stroke:#6d8e41;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+         sodipodi:type="star" />
+    </g>
     <rect
-       style="fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:#a9ca7d;stroke-width:2.44279909;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
+       style="fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:#a9ca7d;stroke-width:2.44279909;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
        id="rect5367"
        width="207.05719"
        height="171.55719"
        x="43.721401"
-       y="276.1973"
+       y="384.1973"
        rx="11.072577"
        inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
        inkscape:export-xdpi="89.926643"
@@ -155,7 +221,7 @@
        y="0"
        xlink:href="#g5650"
        id="use5654"
-       transform="translate(205.03261,-31.336292)"
+       transform="translate(205.03261,76.66371)"
        width="744.09448"
        height="1052.3622"
        inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
@@ -223,17 +289,6 @@
          style="fill:#6d8e41;fill-opacity:1;fill-rule:nonzero;stroke:#6d8e41;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0;opacity:0.8"
          sodipodi:type="star" />
     </g>
-    <use
-       x="0"
-       y="0"
-       xlink:href="#use5654"
-       id="use5656"
-       transform="translate(6.1542801e-7,-87.19819)"
-       width="744.09448"
-       height="1052.3622"
-       inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
-       inkscape:export-xdpi="89.926643"
-       inkscape:export-ydpi="89.926643" />
     <rect
        style="fill:#d1f2a5;fill-opacity:1;fill-rule:nonzero;stroke:#a9ca7d;stroke-width:3;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
        id="rect5273"
@@ -274,247 +329,215 @@
        x="-224.02068"
        y="274.53128"
        rx="15" />
-    <use
-       x="0"
-       y="0"
-       xlink:href="#rect5273-22"
-       id="use5355"
-       transform="translate(318.97592,-176.5)"
-       width="744.09448"
-       height="1052.3622"
-       inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
-       inkscape:export-xdpi="89.926643"
-       inkscape:export-ydpi="89.926643" />
-    <use
-       x="0"
-       y="0"
-       xlink:href="#rect5273-7"
-       id="use5359"
-       transform="translate(318.97597,32.954225)"
-       width="744.09448"
-       height="1052.3622"
-       inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
-       inkscape:export-xdpi="89.926643"
-       inkscape:export-ydpi="89.926643" />
-    <use
-       x="0"
-       y="0"
-       xlink:href="#use5359"
-       id="use5361"
-       transform="translate(1.630859e-6,86.769591)"
-       width="744.09448"
-       height="1052.3622"
-       inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
-       inkscape:export-xdpi="89.926643"
-       inkscape:export-ydpi="89.926643" />
-    <rect
-       rx="15"
-       y="386.37247"
-       x="94.955292"
-       height="36.392323"
-       width="104.5895"
-       id="use5363"
-       style="fill:#d1f2a5;fill-opacity:1;fill-rule:nonzero;stroke:#a9ca7d;stroke-width:3;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0" />
-    <use
-       x="0"
-       y="0"
-       xlink:href="#use5361"
-       id="use5365"
-       transform="translate(0,88.97624)"
-       width="744.09448"
-       height="1052.3622"
-       inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
-       inkscape:export-xdpi="89.926643"
-       inkscape:export-ydpi="89.926643" />
     <text
        xml:space="preserve"
-       style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#77823c;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#77823c;fill-opacity:1;stroke:none"
        x="-58.692513"
        y="114.39204"
-       id="text5371"
-       sodipodi:linespacing="125%"><tspan
+       id="text5371"><tspan
          sodipodi:role="line"
          id="tspan5373"
          x="-58.692513"
-         y="114.39204">some text</tspan></text>
-    <text
-       xml:space="preserve"
-       style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#77823c;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
-       x="146.77734"
-       y="147.73293"
-       id="text5371-7"
-       sodipodi:linespacing="125%"
-       inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
-       inkscape:export-xdpi="89.926643"
-       inkscape:export-ydpi="89.926643"><tspan
-         sodipodi:role="line"
-         id="tspan5373-3"
-         x="146.77734"
-         y="147.73293">acceptor</tspan></text>
-    <text
-       xml:space="preserve"
-       style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#77823c;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
-       x="146.53125"
-       y="233.42836"
-       id="text5371-74"
-       sodipodi:linespacing="125%"
-       inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
-       inkscape:export-xdpi="89.926643"
-       inkscape:export-ydpi="89.926643"><tspan
-         sodipodi:role="line"
-         id="tspan5373-5"
+         y="114.39204"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">some text</tspan></text>
+    <g
+       id="g3850">
+      <use
+         inkscape:export-ydpi="89.926643"
+         inkscape:export-xdpi="89.926643"
+         inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
+         height="1052.3622"
+         width="744.09448"
+         transform="translate(318.97597,32.837526)"
+         id="use5359"
+         xlink:href="#rect5273-7"
+         y="0"
+         x="0" />
+      <a
+         id="a3826">
+        <text
+           xml:space="preserve"
+           style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#77823c;fill-opacity:1;stroke:none"
+           x="146.77739"
+           y="145.67879"
+           id="text5371-7"
+           inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
+           inkscape:export-xdpi="89.926643"
+           inkscape:export-ydpi="89.926643"><tspan
+             sodipodi:role="line"
+             id="tspan5373-3"
+             x="146.77739"
+             y="145.67879"
+             style="font-size:16px;line-height:1.25;font-family:sans-serif">acceptor</tspan></text>
+      </a>
+    </g>
+    <g
+       id="g3860">
+      <use
+         inkscape:export-ydpi="89.926643"
+         inkscape:export-xdpi="89.926643"
+         inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
+         height="1052.3622"
+         width="744.09448"
+         transform="translate(1.630859e-6,86.777953)"
+         id="use5361"
+         xlink:href="#use5359"
+         y="0"
+         x="0" />
+      <text
+         inkscape:export-ydpi="89.926643"
+         inkscape:export-xdpi="89.926643"
+         inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
+         id="text5371-74"
+         y="232.91768"
+         x="147.26958"
+         style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#77823c;fill-opacity:1;stroke:none"
+         xml:space="preserve"><tspan
+           id="tspan3770"
+           style="font-size:16px;line-height:1.25;font-family:sans-serif"
+           y="232.91768"
+           x="147.26958"
+           sodipodi:role="line">protocol</tspan></text>
+    </g>
+    <g
+       id="g3904">
+      <use
+         inkscape:export-ydpi="89.926643"
+         inkscape:export-xdpi="89.926643"
+         inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
+         height="1052.3622"
+         width="744.09448"
+         transform="translate(0,197.08458)"
+         id="use5365"
+         xlink:href="#use5361"
+         y="0"
+         x="0" />
+      <text
+         inkscape:export-ydpi="89.926643"
+         inkscape:export-xdpi="89.926643"
+         inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
+         id="text5371-5"
+         y="431.0921"
          x="146.53125"
-         y="233.42836">parser</tspan></text>
+         style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#77823c;fill-opacity:1;stroke:none"
+         xml:space="preserve"><tspan
+           style="font-size:16px;line-height:1.25;font-family:sans-serif"
+           y="431.0921"
+           x="146.53125"
+           id="tspan5373-0"
+           sodipodi:role="line">router</tspan></text>
+    </g>
     <text
        xml:space="preserve"
-       style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#77823c;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
-       x="146.53125"
-       y="323.0921"
-       id="text5371-5"
-       sodipodi:linespacing="125%"
-       inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
-       inkscape:export-xdpi="89.926643"
-       inkscape:export-ydpi="89.926643"><tspan
-         sodipodi:role="line"
-         id="tspan5373-0"
-         x="146.53125"
-         y="323.0921">router</tspan></text>
-    <text
-       xml:space="preserve"
-       style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none"
        x="-58.692513"
        y="53.112247"
-       id="text5371-2"
-       sodipodi:linespacing="125%"><tspan
+       id="text5371-2"><tspan
          sodipodi:role="line"
          id="tspan5373-6"
          x="-58.692513"
-         y="53.112247">some text</tspan></text>
-    <text
-       xml:space="preserve"
-       style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
-       x="146.53125"
-       y="410.38519"
-       id="text5371-2-3-0"
-       sodipodi:linespacing="125%"
-       inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
-       inkscape:export-xdpi="89.926643"
-       inkscape:export-ydpi="89.926643"><tspan
-         sodipodi:role="line"
-         id="tspan5373-6-7-3"
+         y="53.112247"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">some text</tspan></text>
+    <g
+       id="g3909">
+      <rect
+         style="fill:#d1f2a5;fill-opacity:1;fill-rule:nonzero;stroke:#a9ca7d;stroke-width:3;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+         id="use5363"
+         width="104.5895"
+         height="36.392323"
+         x="94.955292"
+         y="494.37244"
+         rx="15" />
+      <text
+         inkscape:export-ydpi="89.926643"
+         inkscape:export-xdpi="89.926643"
+         inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
+         id="text5371-2-3-0"
+         y="518.38519"
          x="146.53125"
-         y="410.38519">handler</tspan></text>
+         style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none"
+         xml:space="preserve"><tspan
+           style="font-size:16px;line-height:1.25;font-family:sans-serif"
+           y="518.38519"
+           x="146.53125"
+           id="tspan5373-6-7-3"
+           sodipodi:role="line">handler</tspan></text>
+    </g>
     <text
        xml:space="preserve"
-       style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
-       x="-362.30792"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none"
+       x="-470.30792"
        y="63.078125"
        id="text5371-2-3-0-7"
-       sodipodi:linespacing="125%"
-       transform="matrix(0,-1,1,0,0,0)"
+       transform="rotate(-90)"
        inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-6-7-3-9"
-         x="-362.30792"
-         y="63.078125">middlewares</tspan></text>
+         x="-470.30792"
+         y="63.078125"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">middlewares</tspan></text>
     <text
        xml:space="preserve"
-       style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#9b3b1c;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#9b3b1c;fill-opacity:1;stroke:none"
        x="-58.692513"
        y="236.95154"
-       id="text5371-4"
-       sodipodi:linespacing="125%"><tspan
+       id="text5371-4"><tspan
          sodipodi:role="line"
          id="tspan5373-9"
          x="-58.692513"
-         y="236.95154">some text</tspan></text>
-    <text
-       xml:space="preserve"
-       style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#9b3b1c;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
-       x="147.00391"
-       y="60.912468"
-       id="text5371-4-0"
-       sodipodi:linespacing="125%"
-       inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
-       inkscape:export-xdpi="89.926643"
-       inkscape:export-ydpi="89.926643"><tspan
-         sodipodi:role="line"
-         id="tspan5373-9-2"
+         y="236.95154"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">some text</tspan></text>
+    <g
+       id="g3855">
+      <use
+         inkscape:export-ydpi="89.926643"
+         inkscape:export-xdpi="89.926643"
+         inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
+         height="1052.3622"
+         width="744.09448"
+         transform="translate(318.97592,-176.5)"
+         id="use5355"
+         xlink:href="#rect5273-22"
+         y="0"
+         x="0" />
+      <text
+         inkscape:export-ydpi="89.926643"
+         inkscape:export-xdpi="89.926643"
+         inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
+         id="text5371-4-0"
+         y="60.912468"
          x="147.00391"
-         y="60.912468">client</tspan></text>
-    <use
-       x="0"
-       y="0"
-       xlink:href="#rect5273-7"
-       id="use5668"
-       transform="translate(589.05532,122.34788)"
-       width="744.09448"
-       height="1052.3622"
-       inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
-       inkscape:export-xdpi="89.926643"
-       inkscape:export-ydpi="89.926643" />
-    <use
-       x="0"
-       y="0"
-       xlink:href="#rect5273"
-       id="use5670"
-       transform="translate(589.05538,270.59134)"
-       width="744.09448"
-       height="1052.3622"
-       inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
-       inkscape:export-xdpi="89.926643"
-       inkscape:export-ydpi="89.926643" />
-    <use
-       x="0"
-       y="0"
-       xlink:href="#use5355"
-       id="use5672"
-       transform="translate(270.07946,350.22962)"
-       width="744.09448"
-       height="1052.3622"
-       inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
-       inkscape:export-xdpi="89.926643"
-       inkscape:export-ydpi="89.926643" />
-    <use
-       x="0"
-       y="0"
-       xlink:href="#text5371-4-0"
-       id="use5674"
-       transform="translate(270.29655,349.47315)"
-       width="744.09448"
-       height="1052.3622"
-       inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
-       inkscape:export-xdpi="89.926643"
-       inkscape:export-ydpi="89.926643" />
-    <text
-       xml:space="preserve"
-       style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#77823c;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
-       x="417.30829"
-       y="236.73991"
-       id="text5371-9"
-       sodipodi:linespacing="125%"
-       inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
-       inkscape:export-xdpi="89.926643"
-       inkscape:export-ydpi="89.926643"><tspan
-         sodipodi:role="line"
-         id="tspan5373-57"
-         x="417.30829"
-         y="236.73991">reply</tspan></text>
-    <text
-       xml:space="preserve"
-       style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
-       x="417.30829"
-       y="323.09195"
-       id="text5371-2-0"
-       sodipodi:linespacing="125%"
-       inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
-       inkscape:export-xdpi="89.926643"
-       inkscape:export-ydpi="89.926643"><tspan
-         sodipodi:role="line"
-         id="tspan5373-6-8"
-         x="417.30829"
-         y="323.09195">onresponse</tspan></text>
+         style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#9b3b1c;fill-opacity:1;stroke:none"
+         xml:space="preserve"><tspan
+           style="font-size:16px;line-height:1.25;font-family:sans-serif"
+           y="60.912468"
+           x="147.00391"
+           id="tspan5373-9-2"
+           sodipodi:role="line">client</tspan></text>
+    </g>
+    <g
+       id="g3865">
+      <rect
+         rx="15"
+         y="297.08545"
+         x="94.955299"
+         height="36.392323"
+         width="104.5895"
+         id="rect5273-3"
+         style="fill:#d1f2a5;fill-opacity:1;fill-rule:nonzero;stroke:#a9ca7d;stroke-width:3;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1" />
+      <text
+         id="text5371-2-6"
+         y="320.78552"
+         x="147.50005"
+         style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none"
+         xml:space="preserve"><tspan
+           style="font-size:16px;line-height:1.25;font-family:sans-serif"
+           y="320.78552"
+           x="147.50005"
+           id="tspan5373-6-7"
+           sodipodi:role="line">stream</tspan></text>
+    </g>
   </g>
 </svg>

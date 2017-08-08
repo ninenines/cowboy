@@ -43,7 +43,7 @@ Dispatch = cowboy_router:compile([
     ]}
 ]),
 
-{ok, _} = cowboy:start_clear(example, 100, [{port, 8080}], #{
+{ok, _} = cowboy:start_clear(example, [{port, 8080}], #{
     env => #{dispatch => Dispatch}
 }).
 ----

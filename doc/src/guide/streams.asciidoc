@@ -1,15 +1,65 @@
 [[streams]]
 == Streams
 
-Placeholder chapter.
+A stream is the set of messages that form an HTTP
+request/response pair.
 
-Streams are a new feature in Cowboy 2.0 that requires
-a little more tweaking before they can be generally
-useful. This chapter will be made available in a future
-pre-release.
+The term stream comes from HTTP/2. In Cowboy, it is
+also used when talking about HTTP/1.1 or HTTP/1.0.
+It should not be confused with streaming the request
+or response body.
 
-Streams are meant to replace hooks. The relevant chapters
-for Cowboy 1.0 were:
+All versions of HTTP allow clients to initiate
+streams. HTTP/2 is the only one also allowing servers,
+through its server push feature. Both client and
+server-initiated streams go through the same process
+in Cowboy.
 
-* xref:hooks[Hooks]
-* xref:broken_clients[Dealing with broken clients]
+=== Stream handlers
+
+Stream handlers must implement five different callbacks.
+Four of them are directly related; one is special.
+
+All callbacks receives the stream ID as first argument.
+
+Most of them can return a list of commands to be executed
+by Cowboy. When callbacks are chained, it is possible to
+intercept and modify these commands. This can be useful
+for modifying responses for example.
+
+The `init/3` callback is invoked when a new request
+comes in. It receives the Req object and the protocol options
+for this listener.
+
+The `data/4` callback is invoked when data from the request
+body is received. It receives both this data and a flag
+indicating whether more is to be expected.
+
+The `info/3` callback is invoked when an Erlang message is
+received for this stream. They will typically be messages
+sent by the request process.
+
+Finally the `terminate/3` callback is invoked with the
+terminate reason for the stream. The return value is ignored.
+Note that as with all terminate callbacks in Erlang, there
+is no strong guarantee that it will be called.
+
+The special callback `early_error/5` is called when an error
+occurs before the request headers were fully received and
+Cowboy is sending a response. It receives the partial Req
+object, the error reason, the protocol options and the response
+Cowboy will send. This response must be returned, possibly
+modified.
+
+=== Built-in handlers
+
+Cowboy comes with two handlers.
+
+`cowboy_stream_h` is the default stream handler.
+It is the core of much of the functionality of Cowboy.
+All chains of stream handlers should call it last.
+
+`cowboy_compress_h` will automatically compress
+responses when possible. It is not enabled by default.
+It is a good example for writing your own handlers
+that will modify responses.

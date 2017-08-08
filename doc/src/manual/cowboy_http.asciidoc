@@ -11,28 +11,34 @@ as a Ranch protocol.
 
 == Options
 
+// @todo Might be worth moving cowboy_clear/tls/stream_h options
+// to their respective manual, when they are added.
+
 [source,erlang]
 ----
 opts() :: #{
-    env                     := cowboy_middleware:env(),
-    max_empty_lines         := non_neg_integer(),
-    max_header_name_length  := non_neg_integer(),
-    max_header_value_length := non_neg_integer(),
-    max_headers             := non_neg_integer(),
-    max_keepalive           := non_neg_integer(),
-    max_method_length       := non_neg_integer(),
-    max_request_line_length := non_neg_integer(),
-    middlewares             := [module()],
-    request_timeout         := timeout()
+    connection_type         => worker | supervisor,
+    env                     => cowboy_middleware:env(),
+    idle_timeout            => timeout(),
+    inactivity_timeout      => timeout(),
+    max_empty_lines         => non_neg_integer(),
+    max_header_name_length  => non_neg_integer(),
+    max_header_value_length => non_neg_integer(),
+    max_headers             => non_neg_integer(),
+    max_keepalive           => non_neg_integer(),
+    max_method_length       => non_neg_integer(),
+    max_request_line_length => non_neg_integer(),
+    middlewares             => [module()],
+    request_timeout         => timeout(),
+    shutdown_timeout        => timeout(),
+    stream_handlers         => [module()]
 }
 ----
-
-// @todo Document the shutdown option.
 
 Configuration for the HTTP/1.1 protocol.
 
 This configuration is passed to Cowboy when starting listeners
-using `cowboy:start_clear/4` or `cowboy:start_tls/4` functions.
+using `cowboy:start_clear/3` or `cowboy:start_tls/3` functions.
 
 It can be updated without restarting listeners using the
 Ranch functions `ranch:get_protocol_options/1` and
@@ -40,8 +46,17 @@ Ranch functions `ranch:get_protocol_options/1` and
 
 The default value is given next to the option name:
 
+connection_type (supervisor)::
+    Whether the connection process also acts as a supervisor.
+
 env (#{})::
     Middleware environment.
+
+idle_timeout (60000)::
+    Time in ms with no data received before Cowboy closes the connection.
+
+inactivity_timeout (300000)::
+    Time in ms with nothing received at all before Cowboy closes the connection.
 
 max_empty_lines (5)::
     Maximum number of empty lines before a request.
@@ -58,11 +73,11 @@ max_headers (100)::
 max_keepalive (100)::
     Maximum number of requests allowed per connection.
 
-max_request_line_length (8000)::
-    Maximum length of the request line.
-
 max_method_length (32)::
     Maximum length of the method.
+
+max_request_line_length (8000)::
+    Maximum length of the request line.
 
 middlewares ([cowboy_router, cowboy_handler])::
     Middlewares to run for every request.
@@ -70,12 +85,22 @@ middlewares ([cowboy_router, cowboy_handler])::
 request_timeout (5000)::
     Time in ms with no requests before Cowboy closes the connection.
 
+shutdown_timeout (5000)::
+    Time in ms Cowboy will wait for child processes to shut down before killing them.
+
+stream_handlers ([cowboy_stream_h])::
+    Ordered list of stream handlers that will handle all stream events.
+
 == Changelog
 
+* *2.0*: The `timeout` option was renamed `request_timeout`.
+* *2.0*: The `idle_timeout`, `inactivity_timeout` and `shutdown_timeout` options were added.
 * *2.0*: The `max_method_length` option was added.
-* *2.0*: The `env` option is now a map instead of a proplist.
 * *2.0*: The `max_request_line_length` default was increased from 4096 to 8000.
-* *2.0*: The `compress` option was temporarily removed.
+* *2.0*: The `connection_type` option was added.
+* *2.0*: The `env` option is now a map instead of a proplist.
+* *2.0*: The `stream_handlers` option was added.
+* *2.0*: The `compress` option was removed in favor of the `cowboy_compress_h` stream handler.
 * *2.0*: Options are now a map instead of a proplist.
 * *2.0*: Protocol introduced. Replaces `cowboy_protocol`.
 

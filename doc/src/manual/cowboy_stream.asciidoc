@@ -1,0 +1,397 @@
+= cowboy_stream(3)
+
+== Name
+
+cowboy_handler - Stream handlers
+
+== Description
+
+The module `cowboy_stream` defines a callback interface
+and a protocol for handling HTTP streams.
+
+An HTTP request and its associated response is called
+a stream. A connection may have many streams. In HTTP/1.1
+they are executed sequentially, while in HTTP/2 they are
+executed concurrently.
+
+Cowboy calls the stream handler for nearly all events
+related to a stream. Exceptions vary depending on the
+protocol.
+
+Extra care must be taken when implementing stream handlers
+to ensure compatibility. While some modification of the
+events and commands is allowed, it is generally not a good
+idea to completely omit them.
+
+== Callbacks
+
+Stream handlers must implement the following interface:
+
+[source,erlang]
+----
+init(StreamID, Req, Opts) -> {Commands, State}
+data(StreamID, IsFin, Data, State) -> {Commands, State}
+info(StreamID, Info, State) -> {Commands, State}
+terminate(StreamID, Reason, State) -> any()
+early_error(StreamID, Reason, PartialReq, Resp, Opts) -> Resp
+
+StreamID   :: cowboy_stream:streamid()
+Req        :: cowboy_req:req()
+Opts       :: cowboy:opts()
+Commands   :: cowboy_stream:commands()
+State      :: any()
+IsFin      :: cowboy_stream:fin()
+Data       :: binary()
+Info       :: any()
+Reason     :: cowboy_stream:reason()
+PartialReq  - cowboy_req:req(), except all fields are optional
+Resp       :: cowboy_stream:resp_command()
+----
+
+HTTP/1.1 will initialize a stream only when the request-line
+and all headers have been received. When errors occur before
+that point Cowboy will call the callback `early_error/5`
+with a partial request, the error reason and the response
+Cowboy intends to send. All other events go throuh the
+stream handler using the normal callbacks.
+
+HTTP/2 will initialize the stream when the `HEADERS` block has
+been fully received and decoded. Any protocol error occuring
+before that will not result in a response being sent and
+will therefore not go through the stream handler. In addition
+Cowboy may terminate streams without sending an HTTP response
+back.
+
+The stream is initialized by calling `init/3`. All streams
+that are initialized will eventually be terminated by calling
+`terminate/3`.
+
+When Cowboy receives data for the stream it will call `data/4`.
+The data given is the request body after any transfer decoding
+has been applied.
+
+When Cowboy receives a message addressed to a stream, or when
+Cowboy needs to inform the stream handler that an internal
+event has occurred, it will call `info/3`.
+
+[[commands]]
+== Commands
+
+Stream handlers can return a list of commands to be executed
+from the `init/3`, `data/4` and `info/3` callbacks. In addition,
+the `early_error/5` callback must return a response command.
+
+// @todo We need a 'log' command that would call error_logger.
+// It's better than doing in the handlers directly because
+// then we can have other stream handlers manipulate those logs.
+
+// @todo We need a command to send a message so that other
+// stream handlers can manipulate these messages if necessary.
+
+The following commands are defined:
+
+[[response_command]]
+=== response
+
+Send a response to the client.
+
+[source,erlang]
+----
+{response, cowboy:http_status(), cowboy:http_headers(),
+    cowboy_req:resp_body()}
+----
+
+No more data can be sent after this command.
+
+[[headers_command]]
+=== headers
+
+Initiate a response to the client.
+
+[source,erlang]
+----
+{headers, cowboy:http_status(), cowboy:http_headers()}
+----
+
+This initiates a response to the client. The stream
+will end when a data command with the `fin` flag is
+returned.
+
+[[data_command]]
+=== data
+
+Send data to the client.
+
+[source,erlang]
+----
+{data, fin(), iodata()}
+----
+
+[[push_command]]
+=== push
+
+Push a resource to the client.
+
+[source,erlang]
+----
+{push, Method, Scheme, Host, inet:port_number(),
+    Path, Qs, cowboy:http_headers()}
+
+Method = Scheme = Host = Path = Qs = binary()
+----
+
+The command will be ignored if the protocol does not provide
+any server push mechanism.
+
+=== flow
+
+TODO
+
+=== spawn
+
+Inform Cowboy that a process was spawned and should be
+supervised.
+
+[source,erlang]
+----
+{spawn, pid(), timeout()}
+----
+
+=== error_response
+
+Send an error response if no response was sent previously.
+
+[source,erlang]
+----
+{error_response, cowboy:http_status(), cowboy:http_headers(), iodata()}
+----
+
+[[switch_protocol_command]]
+=== switch_protocol
+
+Switch to a different protocol.
+
+[source,erlang]
+----
+{switch_protocol, cowboy:http_headers(), module(), state()}
+----
+
+Contains the headers that will be sent in the 101 response,
+along with the module implementing the protocol we are
+switching to and its initial state.
+
+=== stop
+
+Stop the stream.
+
+[source,erlang]
+----
+stop
+----
+
+While no more data can be sent after the `fin` flag was set,
+the stream is still tracked by Cowboy until it is stopped by
+the handler.
+
+The behavior when stopping a stream for which no response
+has been sent will vary depending on the protocol. The stream
+will end successfully as far as the client is concerned.
+
+To indicate that an error occurred, either use `error_response`
+before stopping, or use `internal_error`.
+
+=== internal_error
+
+Stop the stream with an error.
+
+[source,erlang]
+----
+{internal_error, Reason, HumanReadable}
+
+Reason        = any()
+HumanReadable = atom()
+----
+
+This command should be used when the stream cannot continue
+because of an internal error. An `error_response` command
+may be sent before that to advertise to the client why the
+stream is dropped.
+
+== Predefined events
+
+Cowboy will forward all messages sent to the stream to
+the `info/3` callback. To send a message to a stream,
+send a message to the connection process with the form
+`{{Pid, StreamID}, Msg}`. The connection process will
+then forward `Msg` to the stream handlers.
+
+Cowboy will also forward the exit signals for the
+processes that the stream spawned.
+
+=== EXIT
+
+//info(_StreamID, {'EXIT', Pid, normal}, State=#state{pid=Pid}) ->
+//info(_StreamID, {'EXIT', Pid, {_Reason, [_, {cow_http_hd, _, _, _}|_]}}, State=#state{pid=Pid}) ->
+//info(StreamID, Exit = {'EXIT', Pid, {Reason, Stacktrace}}, State=#state{ref=Ref, pid=Pid}) ->
+
+A process spawned by this stream has exited.
+
+[source,erlang]
+----
+{'EXIT', pid(), any()}
+----
+
+This is the raw exit message without any modification.
+
+// === read_body
+// 
+// //info(_StreamID, {read_body, Ref, Length, _},
+// //info(StreamID, {read_body, Ref, Length, Period}, State) ->
+// 
+// TODO yeah I am not actually sure this one should be public just yet
+// TODO if it is, then we probably shouldn't send a message directly,
+// TODO but rather return a command that will end up sending the message
+// 
+// TODO The problem being that no stream handler has access to that
+// TODO message if we send it directly. So we should have a command
+// TODO send_message or something that can be seen from all handlers.
+// 
+// TODO The thing is that stream handlers can have 0 to N processes
+// TODO so we have to make it easy to say which process should
+// TODO receive the message, and perhaps *identify* which process
+// TODO gets it?
+
+=== response
+
+Same as the xref:response_command[response command].
+
+Usually sent when the request process replies to the client.
+May also be sent by Cowboy internally.
+
+=== headers
+
+Same as the xref:headers_command[headers command].
+
+Sent when the request process starts replying to the client.
+
+=== data
+
+Same as the xref:data_command[data command].
+
+Sent when the request process streams data to the client.
+
+=== push
+
+Same as the xref:push_command[push command].
+
+Sent when the request process pushes a resource to the client.
+
+=== switch_protocol
+
+Same as the xref:switch_protocol_command[switch_protocol command].
+
+// @todo Not done for HTTP/2 yet.
+Sent when switching to the HTTP/2 or Websocket protocol.
+
+== Exports
+
+The following function should be called by modules implementing
+stream handlers to execute the next stream handler in the list:
+
+* link:man:cowboy_stream:init(3)[cowboy_stream:init(3)] - Initialize a stream
+* link:man:cowboy_stream:data(3)[cowboy_stream:data(3)] - Handle data for a stream
+* link:man:cowboy_stream:info(3)[cowboy_stream:info(3)] - Handle a message for a stream
+* link:man:cowboy_stream:terminate(3)[cowboy_stream:terminate(3)] - Terminate a stream
+* link:man:cowboy_stream:early_error(3)[cowboy_stream:early_error(3)] - Handle an early error for a stream
+
+== Types
+
+=== commands()
+
+[source,erlang]
+----
+commands() :: [Command]
+----
+
+See the xref:commands[list of commands] for details.
+
+=== fin()
+
+[source,erlang]
+----
+fin() :: fin | nofin
+----
+
+Used in commands and events to indicate that this is
+the end of the stream.
+
+=== partial_req()
+
+[source,erlang]
+----
+req() :: #{
+    method  => binary(),               %% case sensitive
+    version => cowboy:http_version() | atom(),
+    scheme  => binary(),               %% lowercase; case insensitive
+    host    => binary(),               %% lowercase; case insensitive
+    port    => inet:port_number(),
+    path    => binary(),               %% case sensitive
+    qs      => binary(),               %% case sensitive
+    headers => cowboy:http_headers(),
+    peer    => {inet:ip_address(), inet:port_number()}
+}
+----
+
+Partial request information received when an early error is
+detected.
+
+=== reason()
+
+[source,erlang]
+----
+reason() :: normal
+    | {internal_error, timeout | {error | exit | throw, any()}, HumanReadable}
+    | {socket_error, closed | atom(), HumanReadable}
+    | {stream_error, Error, HumanReadable}
+    | {connection_error, Error, HumanReadable}
+    | {stop, cow_http2:frame(), HumanReadable}
+
+Error         = atom()
+HumanReadable = atom()
+----
+
+Reason for the stream termination.
+
+=== resp_command()
+
+[source,erlang]
+----
+resp_command() :: {response, cowboy:http_status(),
+    cowboy:http_headers(), cowboy_req:resp_body()}
+----
+
+See the xref:response_command[response command] for details.
+
+=== streamid()
+
+[source,erlang]
+----
+streamid() :: any()
+----
+
+The identifier for this stream.
+
+The identifier is unique over the connection process.
+It is possible to form a unique identifier node-wide and
+cluster-wide by wrapping it in a `{self(), StreamID}`
+tuple.
+
+== Changelog
+
+* *2.0*: Module introduced.
+
+== See also
+
+link:man:cowboy(7)[cowboy(7)],
+link:man:cowboy_http(3)[cowboy_http(3)],
+link:man:cowboy_http2(3)[cowboy_http2(3)]

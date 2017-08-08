@@ -112,7 +112,7 @@ info(_Msg, Req, State) ->
     {ok, Req, State}.
 ----
 
-==== Cleaning up
+=== Cleaning up
 
 It is recommended that you set the connection header to
 `close` when replying, as this process may be reused for

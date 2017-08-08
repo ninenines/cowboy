@@ -9,7 +9,6 @@ cowboy:start_tls - Listen for connections using TLS
 [source,erlang]
 ----
 start_tls(Name          :: ranch:ref(),
-          NumAcceptors  :: non_neg_integer(),
           TransportOpts :: ranch_ssl:opts(),
           ProtocolOpts  :: opts())
     -> {ok, ListenerPid :: pid()}
@@ -32,22 +31,6 @@ updating the routes defined.
 +
 It can be any Erlang term. An atom is generally good enough,
 for example `api`, `my_app_clear` or `my_app_tls`.
-
-NumAcceptors::
-
-The number of acceptors is the number of processes that
-will accept connections. Tweak this value to improve the
-accept rate for incoming connections.
-+
-The ideal value is between 10 and 100 on most systems.
-Larger values may have the opposite effect and reduce the
-accept rate. It's generally safe to start with a value of
-100 (or 10 on low memory systems). Then, when accept rates
-become a concern, measure the performance and update the
-value accordingly.
-+
-This value is unrelated to the maximum number of concurrent
-connections.
 
 TransportOpts::
 
@@ -102,7 +85,7 @@ Dispatch = cowboy_router:compile([
     ]}
 ]),
 
-{ok, _} = cowboy:start_tls(example, 100, [
+{ok, _} = cowboy:start_tls(example, [
     {port, 8443},
     {cert, "path/to/cert.pem"}
 ], #{
@@ -115,7 +98,7 @@ Dispatch = cowboy_router:compile([
 ----
 Name = example,
 
-{ok, _} = cowboy:start_tls(Name, 100, [
+{ok, _} = cowboy:start_tls(Name, [
     {cert, "path/to/cert.pem"}
 ], #{
     env => #{dispatch => Dispatch}

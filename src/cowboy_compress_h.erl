@@ -19,6 +19,7 @@
 -export([data/4]).
 -export([info/3]).
 -export([terminate/3]).
+-export([early_error/5]).
 
 -record(state, {
 	next :: any(),
@@ -54,6 +55,12 @@ terminate(StreamID, Reason, #state{next=Next, deflate=Z}) ->
 		_ -> zlib:close(Z)
 	end,
 	cowboy_stream:terminate(StreamID, Reason, Next).
+
+-spec early_error(cowboy_stream:streamid(), cowboy_stream:reason(),
+	cowboy_stream:partial_req(), Resp, cowboy:opts()) -> Resp
+	when Resp::cowboy_stream:resp_command().
+early_error(StreamID, Reason, PartialReq, Resp, Opts) ->
+	cowboy_stream:early_error(StreamID, Reason, PartialReq, Resp, Opts).
 
 %% Internal.
 

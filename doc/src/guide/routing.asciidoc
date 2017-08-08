@@ -203,7 +203,7 @@ Dispatch = cowboy_router:compile([
     {'_', [{'_', my_handler, #{}}]}
 ]),
 %% Name, NbAcceptors, TransOpts, ProtoOpts
-cowboy:start_clear(my_http_listener, 100,
+cowboy:start_clear(my_http_listener,
     [{port, 8080}],
     #{env => #{dispatch => Dispatch}}
 ).
@@ -216,6 +216,7 @@ list used by routing. This will apply to all new connections accepted
 by the listener:
 
 [source,erlang]
-cowboy:set_env(my_http_listener, dispatch, cowboy_router:compile(Dispatch)).
+Dispatch = cowboy_router:compile(Routes),
+cowboy:set_env(my_http_listener, dispatch, Dispatch).
 
 Note that you need to compile the routes again before updating.

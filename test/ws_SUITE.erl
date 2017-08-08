@@ -38,7 +38,7 @@ init_per_group(Name = autobahn, Config) ->
 				"http://autobahn.ws/testsuite/installation.html"),
 			{skip, "Autobahn Test Suite not installed."};
 		_ ->
-			{ok, _} = cowboy:start_clear(Name, 100, [{port, 33080}], #{
+			{ok, _} = cowboy:start_clear(Name, [{port, 33080}], #{
 				env => #{dispatch => init_dispatch()}
 			}),
 			Config
@@ -79,6 +79,7 @@ init_dispatch() ->
 					{text, <<"won't be received">>}]}
 			]},
 			{"/ws_subprotocol", ws_subprotocol, []},
+			{"/terminate", ws_terminate_h, []},
 			{"/ws_timeout_hibernate", ws_timeout_hibernate, []},
 			{"/ws_timeout_cancel", ws_timeout_cancel, []}
 		]}
@@ -354,6 +355,39 @@ ws_subprotocol(Config) ->
 		"Sec-WebSocket-Protocol: foo, bar\r\n", Config),
 	{_, "foo"} = lists:keyfind("sec-websocket-protocol", 1, Headers),
 	ok.
+
+ws_terminate(Config) ->
+	doc("The Req object is kept in a more compact form by default."),
+	{ok, Socket, _} = do_handshake("/terminate",
+		"x-test-pid: " ++ pid_to_list(self()) ++ "\r\n", Config),
+	%% Send a close frame.
+	ok = gen_tcp:send(Socket, << 1:1, 0:3, 8:4, 1:1, 0:7, 0:32 >>),
+	{ok, << 1:1, 0:3, 8:4, 0:8 >>} = gen_tcp:recv(Socket, 0, 6000),
+	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
+	%% Confirm terminate/3 was called with a compacted Req.
+	receive {terminate, _, Req} ->
+		true = maps:is_key(path, Req),
+		false = maps:is_key(headers, Req),
+		ok
+	after 1000 ->
+		error(timeout)
+	end.
+
+ws_terminate_fun(Config) ->
+	doc("A function can be given to filter the Req object."),
+	{ok, Socket, _} = do_handshake("/terminate?req_filter",
+		"x-test-pid: " ++ pid_to_list(self()) ++ "\r\n", Config),
+	%% Send a close frame.
+	ok = gen_tcp:send(Socket, << 1:1, 0:3, 8:4, 1:1, 0:7, 0:32 >>),
+	{ok, << 1:1, 0:3, 8:4, 0:8 >>} = gen_tcp:recv(Socket, 0, 6000),
+	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
+	%% Confirm terminate/3 was called with a compacted Req.
+	receive {terminate, _, Req} ->
+		filtered = Req,
+		ok
+	after 1000 ->
+		error(timeout)
+	end.
 
 ws_text_fragments(Config) ->
 	doc("Client sends fragmented text frames."),

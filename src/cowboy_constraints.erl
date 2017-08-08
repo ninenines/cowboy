@@ -15,47 +15,160 @@
 -module(cowboy_constraints).
 
 -export([validate/2]).
+-export([reverse/2]).
+-export([format_error/1]).
 
 -type constraint() :: int | nonempty | fun().
 -export_type([constraint/0]).
 
--spec validate(binary(), [constraint()]) -> true | {true, any()} | false.
-validate(Value, [Constraint]) ->
-	apply_constraint(Value, Constraint);
-validate(Value, Constraints) when is_list(Constraints) ->
-	validate_list(Value, Constraints, original);
-validate(Value, Constraint) ->
-	apply_constraint(Value, Constraint).
+-type reason() :: {constraint(), any(), any()}.
+-export_type([reason/0]).
 
-validate_list(_, [], original) ->
-	true;
-validate_list(Value, [], modified) ->
-	{true, Value};
-validate_list(Value, [Constraint|Tail], State) ->
-	case apply_constraint(Value, Constraint) of
-		true ->
-			validate_list(Value, Tail, State);
-		{true, Value2} ->
-			validate_list(Value2, Tail, modified);
-		false ->
-			false
+-spec validate(binary(), constraint() | [constraint()])
+	-> {ok, any()} | {error, reason()}.
+validate(Value, Constraints) when is_list(Constraints) ->
+	apply_list(forward, Value, Constraints);
+validate(Value, Constraint) ->
+	apply_list(forward, Value, [Constraint]).
+
+-spec reverse(any(), constraint() | [constraint()])
+	-> {ok, binary()} | {error, reason()}.
+reverse(Value, Constraints) when is_list(Constraints) ->
+	apply_list(reverse, Value, Constraints);
+reverse(Value, Constraint) ->
+	apply_list(reverse, Value, [Constraint]).
+
+-spec format_error(reason()) -> iodata().
+format_error({Constraint, Reason, Value}) ->
+	apply_constraint(format_error, {Reason, Value}, Constraint).
+
+apply_list(_, Value, []) ->
+	{ok, Value};
+apply_list(Type, Value0, [Constraint|Tail]) ->
+	case apply_constraint(Type, Value0, Constraint) of
+		{ok, Value} ->
+			apply_list(Type, Value, Tail);
+		{error, Reason} ->
+			{error, {Constraint, Reason, Value0}}
 	end.
 
 %% @todo {int, From, To}, etc.
-apply_constraint(Value, int) ->
-	int(Value);
-apply_constraint(Value, nonempty) ->
-	nonempty(Value);
-apply_constraint(Value, F) when is_function(F) ->
-	F(Value).
+apply_constraint(Type, Value, int) ->
+	int(Type, Value);
+apply_constraint(Type, Value, nonempty) ->
+	nonempty(Type, Value);
+apply_constraint(Type, Value, F) when is_function(F) ->
+	F(Type, Value).
 
 %% Constraint functions.
 
-int(Value) when is_binary(Value) ->
-	try {true, binary_to_integer(Value)}
-	catch _:_ -> false
-	end.
+int(forward, Value) ->
+	try
+		{ok, binary_to_integer(Value)}
+	catch _:_ ->
+		{error, not_an_integer}
+	end;
+int(reverse, Value) ->
+	try
+		{ok, integer_to_binary(Value)}
+	catch _:_ ->
+		{error, not_an_integer}
+	end;
+int(format_error, {not_an_integer, Value}) ->
+	io_lib:format("The value ~p is not an integer.", [Value]).
 
-nonempty(<<>>) -> false;
-nonempty(Value) when is_binary(Value) -> true.
-%% @todo Perhaps return true for any other type except empty list?
+nonempty(Type, <<>>) when Type =/= format_error ->
+	{error, not_empty};
+nonempty(Type, Value) when Type =/= format_error, is_binary(Value) ->
+	{ok, Value};
+nonempty(format_error, {not_empty, Value}) ->
+	io_lib:format("The value ~p is not empty.", [Value]).
+
+-ifdef(TEST).
+
+validate_test() ->
+	F = fun(_, Value) ->
+		try
+			{ok, binary_to_atom(Value, latin1)}
+		catch _:_ ->
+			{error, not_a_binary}
+		end
+	end,
+	%% Value, Constraints, Result.
+	Tests = [
+		{<<>>, [], <<>>},
+		{<<"123">>, int, 123},
+		{<<"123">>, [int], 123},
+		{<<"123">>, [nonempty, int], 123},
+		{<<"123">>, [int, nonempty], 123},
+		{<<>>, nonempty, error},
+		{<<>>, [nonempty], error},
+		{<<"hello">>, F, hello},
+		{<<"hello">>, [F], hello},
+		{<<"123">>, [F, int], error},
+		{<<"123">>, [int, F], error},
+		{<<"hello">>, [nonempty, F], hello},
+		{<<"hello">>, [F, nonempty], hello}
+	],
+	[{lists:flatten(io_lib:format("~p, ~p", [V, C])), fun() ->
+		case R of
+			error -> {error, _} = validate(V, C);
+			_ -> {ok, R} = validate(V, C)
+		end
+	end} || {V, C, R} <- Tests].
+
+reverse_test() ->
+	F = fun(_, Value) ->
+		try
+			{ok, atom_to_binary(Value, latin1)}
+		catch _:_ ->
+			{error, not_an_atom}
+		end
+	end,
+	%% Value, Constraints, Result.
+	Tests = [
+		{<<>>, [], <<>>},
+		{123, int, <<"123">>},
+		{123, [int], <<"123">>},
+		{123, [nonempty, int], <<"123">>},
+		{123, [int, nonempty], <<"123">>},
+		{<<>>, nonempty, error},
+		{<<>>, [nonempty], error},
+		{hello, F, <<"hello">>},
+		{hello, [F], <<"hello">>},
+		{123, [F, int], error},
+		{123, [int, F], error},
+		{hello, [nonempty, F], <<"hello">>},
+		{hello, [F, nonempty], <<"hello">>}
+	],
+	[{lists:flatten(io_lib:format("~p, ~p", [V, C])), fun() ->
+		case R of
+			error -> {error, _} = reverse(V, C);
+			_ -> {ok, R} = reverse(V, C)
+		end
+	end} || {V, C, R} <- Tests].
+
+int_format_error_test() ->
+	{error, Reason} = validate(<<"string">>, int),
+	Bin = iolist_to_binary(format_error(Reason)),
+	true = is_binary(Bin),
+	ok.
+
+nonempty_format_error_test() ->
+	{error, Reason} = validate(<<>>, nonempty),
+	Bin = iolist_to_binary(format_error(Reason)),
+	true = is_binary(Bin),
+	ok.
+
+fun_format_error_test() ->
+	F = fun
+		(format_error, {test, <<"value">>}) ->
+			formatted;
+		(_, _) ->
+			{error, test}
+	end,
+	{error, Reason} = validate(<<"value">>, F),
+	formatted = format_error(Reason),
+	ok.
+
+-endif.

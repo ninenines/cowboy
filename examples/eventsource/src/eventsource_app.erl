@@ -17,7 +17,7 @@ start(_Type, _Args) ->
 			{"/", cowboy_static, {priv_file, eventsource, "index.html"}}
 		]}
 	]),
-	{ok, _} = cowboy:start_clear(http, 100, [{port, 8080}], #{
+	{ok, _} = cowboy:start_clear(http, [{port, 8080}], #{
 		env => #{dispatch => Dispatch}
 	}),
 	eventsource_sup:start_link().

@@ -10,11 +10,11 @@ init(Req, Opts) ->
 	{ok, maybe_echo(Method, HasBody, Req), Opts}.
 
 maybe_echo(<<"POST">>, true, Req) ->
-	case cowboy_req:read_urlencoded_body(Req) of
-		{badlength, Req2} ->
-			echo(badlength, Req2);
+	try cowboy_req:read_urlencoded_body(Req) of
 		{ok, PostVals, Req2} ->
 			echo(proplists:get_value(<<"echo">>, PostVals), Req2)
+	catch _:_ ->
+		echo(badlength, Req)
 	end;
 maybe_echo(<<"POST">>, false, Req) ->
 	cowboy_req:reply(400, #{}, <<"Missing body.">>, Req);

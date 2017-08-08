@@ -82,16 +82,12 @@ Options for the HTTP/1.1, HTTP/2 and Websocket protocols.
 
 The protocol options are in a map containing all the options for
 the different protocols that may be involved when connecting
-to the listener, including HTTP/1.1 and HTTP/2 but also
-subprotocols like Websocket.
-// @todo For Websocket this might change in the future.
+to the listener, including HTTP/1.1 and HTTP/2.
 
 The HTTP/1.1 options are documented in the
-link:man:cowboy_http(3)[cowboy_http(3)] manual;
-the HTTP/2 options in
-link:man:cowboy_http2(3)[cowboy_http2(3)];
-and the Websocket options in
-link:man:cowboy_websocket(3)[cowboy_websocket(3)].
+link:man:cowboy_http(3)[cowboy_http(3)] manual
+and the HTTP/2 options in
+link:man:cowboy_http2(3)[cowboy_http2(3)].
 
 == See also
 

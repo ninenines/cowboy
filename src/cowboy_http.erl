@@ -20,18 +20,23 @@
 -export([system_terminate/4]).
 -export([system_code_change/4]).
 
-%% @todo map
--type opts() :: [{compress, boolean()}
-	| {env, cowboy_middleware:env()}
-	| {max_empty_lines, non_neg_integer()}
-	| {max_header_name_length, non_neg_integer()}
-	| {max_header_value_length, non_neg_integer()}
-	| {max_headers, non_neg_integer()}
-	| {max_keepalive, non_neg_integer()}
-	| {max_request_line_length, non_neg_integer()}
-	| {middlewares, [module()]}
-	| {onresponse, cowboy:onresponse_fun()}
-	| {timeout, timeout()}].
+-type opts() :: #{
+	connection_type => worker | supervisor,
+	env => cowboy_middleware:env(),
+	idle_timeout => timeout(),
+	inactivity_timeout => timeout(),
+	max_empty_lines => non_neg_integer(),
+	max_header_name_length => non_neg_integer(),
+	max_header_value_length => non_neg_integer(),
+	max_headers => non_neg_integer(),
+	max_keepalive => non_neg_integer(),
+	max_method_length => non_neg_integer(),
+	max_request_line_length => non_neg_integer(),
+	middlewares => [module()],
+	request_timeout => timeout(),
+	shutdown_timeout => timeout(),
+	stream_handlers => [module()]
+}.
 -export_type([opts/0]).
 
 -record(ps_request_line, {
@@ -109,8 +114,8 @@
 	%% Currently active HTTP/1.1 streams.
 	streams = [] :: [stream()],
 
-	%% Children which are in the process of shutting down.
-	children = [] :: [{pid(), cowboy_stream:streamid(), timeout()}]
+	%% Children processes created by streams.
+	children = cowboy_children:init() :: cowboy_children:children()
 }).
 
 -include_lib("cowlib/include/cow_inline.hrl").
@@ -121,7 +126,7 @@ init(Parent, Ref, Socket, Transport, Opts) ->
 	case Transport:peername(Socket) of
 		{ok, Peer} ->
 			LastStreamID = maps:get(max_keepalive, Opts, 100),
-			before_loop(set_request_timeout(#state{
+			before_loop(set_timeout(#state{
 				parent=Parent, ref=Ref, socket=Socket,
 				transport=Transport, opts=Opts,
 				peer=Peer, last_streamid=LastStreamID}), <<>>);
@@ -131,17 +136,7 @@ init(Parent, Ref, Socket, Transport, Opts) ->
 	end.
 
 %% @todo Send a response depending on in_state and whether one was already sent.
-
-%% @todo
-%% Timeouts:
-%% - waiting for new request (if no stream is currently running)
-%%   -> request_timeout: for whole request/headers, set at init/when we set ps_request_line{} state
-%% - waiting for new request, or body (when a stream is currently running)
-%%   -> idle_timeout: amount of time we wait without receiving any data
-%% - if we skip the body, skip only for a specific duration
-%%   -> skip_body_timeout: also have a skip_body_length
-%% - global
-%%   -> inactivity_timeout: max time to wait without anything happening before giving up
+%% @todo If we skip the body, skip for a specific duration.
 
 before_loop(State=#state{socket=Socket, transport=Transport}, Buffer) ->
 	%% @todo disable this when we get to the body, until the stream asks for it?
@@ -149,18 +144,27 @@ before_loop(State=#state{socket=Socket, transport=Transport}, Buffer) ->
 	Transport:setopts(Socket, [{active, once}]),
 	loop(State, Buffer).
 
-loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
-		timer=TimerRef, children=Children}, Buffer) ->
+loop(State=#state{parent=Parent, socket=Socket, transport=Transport, opts=Opts,
+		timer=TimerRef, children=Children, streams=Streams}, Buffer) ->
 	{OK, Closed, Error} = Transport:messages(),
+	InactivityTimeout = maps:get(inactivity_timeout, Opts, 300000),
 	receive
 		%% Socket messages.
 		{OK, Socket, Data} ->
-			parse(<< Buffer/binary, Data/binary >>, State);
+			%% Only reset the timeout if it is idle_timeout (active streams).
+			State1 = case Streams of
+				[] -> State;
+				_ -> set_timeout(State)
+			end,
+			parse(<< Buffer/binary, Data/binary >>, State1);
 		{Closed, Socket} ->
 			terminate(State, {socket_error, closed, 'The socket has been closed.'});
 		{Error, Socket, Reason} ->
 			terminate(State, {socket_error, Reason, 'An error has occurred on the socket.'});
 		%% Timeouts.
+		{timeout, Ref, {shutdown, Pid}} ->
+			cowboy_children:shutdown_timeout(Children, Ref, Pid),
+			loop(State, Buffer);
 		{timeout, TimerRef, Reason} ->
 			timeout(State, Reason);
 		{timeout, _, _} ->
@@ -178,14 +182,10 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 			loop(down(State, Pid, Msg), Buffer);
 		%% Calls from supervisor module.
 		{'$gen_call', {From, Tag}, which_children} ->
-			Workers = [{?MODULE, Pid, worker, [?MODULE]} || {Pid, _, _} <- Children],
-			From ! {Tag, Workers},
+			From ! {Tag, cowboy_children:which_children(Children, ?MODULE)},
 			loop(State, Buffer);
 		{'$gen_call', {From, Tag}, count_children} ->
-			NbChildren = length(Children),
-			Counts = [{specs, 1}, {active, NbChildren},
-				{supervisors, 0}, {workers, NbChildren}],
-			From ! {Tag, Counts},
+			From ! {Tag, cowboy_children:count_children(Children)},
 			loop(State, Buffer);
 		{'$gen_call', {From, Tag}, _} ->
 			From ! {Tag, {error, ?MODULE}},
@@ -194,19 +194,23 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 		Msg ->
 			error_logger:error_msg("Received stray message ~p.~n", [Msg]),
 			loop(State, Buffer)
-	%% @todo Configurable timeout. This should be a global inactivity timeout
-	%% that triggers when really nothing happens (ie something went really wrong).
-	after 300000 ->
+	after InactivityTimeout ->
 		terminate(State, {internal_error, timeout, 'No message or data received before timeout.'})
 	end.
 
-set_request_timeout(State0=#state{opts=Opts}) ->
-	State = cancel_request_timeout(State0),
-	Timeout = maps:get(request_timeout, Opts, 5000),
-	TimerRef = erlang:start_timer(Timeout, self(), request_timeout),
+%% We set request_timeout when there are no active streams,
+%% and idle_timeout otherwise.
+set_timeout(State0=#state{opts=Opts, streams=Streams}) ->
+	State = cancel_timeout(State0),
+	{Name, Default} = case Streams of
+		[] -> {request_timeout, 5000};
+		_ -> {idle_timeout, 60000}
+	end,
+	Timeout = maps:get(Name, Opts, Default),
+	TimerRef = erlang:start_timer(Timeout, self(), Name),
 	State#state{timer=TimerRef}.
 
-cancel_request_timeout(State=#state{timer=TimerRef}) ->
+cancel_timeout(State=#state{timer=TimerRef}) ->
 	ok = case TimerRef of
 		undefined -> ok;
 		_ -> erlang:cancel_timer(TimerRef, [{async, true}, {info, false}])
@@ -214,16 +218,15 @@ cancel_request_timeout(State=#state{timer=TimerRef}) ->
 	State#state{timer=undefined}.
 
 -spec timeout(_, _) -> no_return().
-%% @todo Honestly it would be much better if we didn't enable pipelining yet.
 timeout(State=#state{in_state=#ps_request_line{}}, request_timeout) ->
-	%% @todo If other streams are running, just set the connection to be closed
-	%% and stop trying to read from the socket?
-	terminate(State, {connection_error, timeout, 'No request-line received before timeout.'});
-timeout(State=#state{socket=Socket, transport=Transport, in_state=#ps_header{}}, request_timeout) ->
-	%% @todo If other streams are running, maybe wait for their reply before sending 408?
-	%% -> Definitely. Either way, stop reading from the socket and make that stream the last.
-	Transport:send(Socket, cow_http:response(408, 'HTTP/1.1', [])),
-	terminate(State, {connection_error, timeout, 'Request headers not received before timeout.'}).
+	terminate(State, {connection_error, timeout,
+		'No request-line received before timeout.'});
+timeout(State=#state{in_state=#ps_header{}}, request_timeout) ->
+	error_terminate(408, State, {connection_error, timeout,
+		'Request headers not received before timeout.'});
+timeout(State, idle_timeout) ->
+	terminate(State, {connection_error, timeout,
+		'Connection idle longer than configuration allows.'}).
 
 %% Request-line.
 parse(<<>>, State) ->
@@ -250,10 +253,11 @@ after_parse({request, Req=#{streamid := StreamID, headers := Headers, version :=
 	try cowboy_stream:init(StreamID, Req, Opts) of
 		{Commands, StreamState} ->
 			Streams = [#stream{id=StreamID, state=StreamState, version=Version}|Streams0],
-			State = case maybe_req_close(State0, Headers, Version) of
+			State1 = case maybe_req_close(State0, Headers, Version) of
 				close -> State0#state{streams=Streams, last_streamid=StreamID};
 				keepalive -> State0#state{streams=Streams}
 			end,
+			State = set_timeout(State1),
 			parse(Buffer, commands(State, StreamID, Commands))
 	catch Class:Reason ->
 		error_logger:error_msg("Exception occurred in "
@@ -440,11 +444,13 @@ parse_header(Buffer, State=#state{opts=Opts, in_state=PS}, Headers) ->
 	NumHeaders = maps:size(Headers),
 	case match_colon(Buffer, 0) of
 		nomatch when byte_size(Buffer) > MaxLength ->
-			error_terminate(431, State, {connection_error, limit_reached,
-				'A header name is larger than configuration allows. (RFC7230 3.2.5, RFC6585 5)'});
+			error_terminate(431, State#state{in_state=PS#ps_header{headers=Headers}},
+				{connection_error, limit_reached,
+					'A header name is larger than configuration allows. (RFC7230 3.2.5, RFC6585 5)'});
 		nomatch when NumHeaders >= MaxHeaders ->
-			error_terminate(431, State, {connection_error, limit_reached,
-				'The number of headers is larger than configuration allows. (RFC7230 3.2.5, RFC6585 5)'});
+			error_terminate(431, State#state{in_state=PS#ps_header{headers=Headers}},
+				{connection_error, limit_reached,
+					'The number of headers is larger than configuration allows. (RFC7230 3.2.5, RFC6585 5)'});
 		nomatch ->
 			{more, State#state{in_state=PS#ps_header{headers=Headers}}, Buffer};
 		_ ->
@@ -460,9 +466,10 @@ match_colon(_, _) ->
 
 parse_hd_name(<< $:, Rest/bits >>, State, H, SoFar) ->
 	parse_hd_before_value(Rest, State, H, SoFar);
-parse_hd_name(<< C, _/bits >>, State, _, <<>>) when ?IS_WS(C) ->
-	error_terminate(400, State, {connection_error, protocol_error,
-		'Whitespace is not allowed between the header name and the colon. (RFC7230 3.2)'});
+parse_hd_name(<< C, _/bits >>, State=#state{in_state=PS}, H, <<>>) when ?IS_WS(C) ->
+	error_terminate(400, State#state{in_state=PS#ps_header{headers=H}},
+		{connection_error, protocol_error,
+			'Whitespace is not allowed between the header name and the colon. (RFC7230 3.2)'});
 parse_hd_name(<< C, Rest/bits >>, State, H, SoFar) when ?IS_WS(C) ->
 	parse_hd_name_ws(Rest, State, H, SoFar);
 parse_hd_name(<< C, Rest/bits >>, State, H, SoFar) ->
@@ -483,8 +490,9 @@ parse_hd_before_value(Buffer, State=#state{opts=Opts, in_state=PS}, H, N) ->
 	MaxLength = maps:get(max_header_value_length, Opts, 4096),
 	case match_eol(Buffer, 0) of
 		nomatch when byte_size(Buffer) > MaxLength ->
-			error_terminate(431, State, {connection_error, limit_reached,
-				'A header value is larger than configuration allows. (RFC7230 3.2.5, RFC6585 5)'});
+			error_terminate(431, State#state{in_state=PS#ps_header{headers=H}},
+				{connection_error, limit_reached,
+					'A header value is larger than configuration allows. (RFC7230 3.2.5, RFC6585 5)'});
 		nomatch ->
 			{more, State#state{in_state=PS#ps_header{headers=H, name=N}}, Buffer};
 		_ ->
@@ -538,12 +546,13 @@ horse_clean_value_ws_end() ->
 -endif.
 
 request(Buffer, State=#state{transport=Transport, in_streamid=StreamID,
-		in_state=#ps_header{version=Version}}, Headers) ->
+		in_state=PS=#ps_header{version=Version}}, Headers) ->
 	case maps:get(<<"host">>, Headers, undefined) of
 		undefined when Version =:= 'HTTP/1.1' ->
 			%% @todo Might want to not close the connection on this and next one.
-			error_terminate(400, State, {stream_error, StreamID, protocol_error,
-				'HTTP/1.1 requests must include a host header. (RFC7230 5.4)'});
+			error_terminate(400, State#state{in_state=PS#ps_header{headers=Headers}},
+				{stream_error, StreamID, protocol_error,
+					'HTTP/1.1 requests must include a host header. (RFC7230 5.4)'});
 		undefined ->
 			request(Buffer, State, Headers, <<>>, default_port(Transport:secure()));
 		RawHost ->
@@ -553,8 +562,9 @@ request(Buffer, State=#state{transport=Transport, in_streamid=StreamID,
 				{Host, Port} ->
 					request(Buffer, State, Headers, Host, Port)
 			catch _:_ ->
-				error_terminate(400, State, {stream_error, StreamID, protocol_error,
-					'The host header is invalid. (RFC7230 5.4)'})
+				error_terminate(400, State#state{in_state=PS#ps_header{headers=Headers}},
+					{stream_error, StreamID, protocol_error,
+						'The host header is invalid. (RFC7230 5.4)'})
 			end
 	end.
 
@@ -565,7 +575,7 @@ default_port(_) -> 80.
 %% End of request parsing.
 
 request(Buffer, State0=#state{ref=Ref, transport=Transport, peer=Peer, in_streamid=StreamID,
-		in_state=#ps_header{method=Method, path=Path, qs=Qs, version=Version}},
+		in_state=PS=#ps_header{method=Method, path=Path, qs=Qs, version=Version}},
 		Headers, Host, Port) ->
 	Scheme = case Transport:secure() of
 		true -> <<"https">>;
@@ -578,9 +588,9 @@ request(Buffer, State0=#state{ref=Ref, transport=Transport, peer=Peer, in_stream
 			Length = try
 				cow_http_hd:parse_content_length(BinLength)
 			catch _:_ ->
-				error_terminate(400, State0, {stream_error, StreamID, protocol_error,
-					'The content-length header is invalid. (RFC7230 3.3.2)'})
-				%% @todo Err should terminate here...
+				error_terminate(400, State0#state{in_state=PS#ps_header{headers=Headers}},
+					{stream_error, StreamID, protocol_error,
+						'The content-length header is invalid. (RFC7230 3.3.2)'})
 			end,
 			{true, Length, fun cow_http_te:stream_identity/2, {0, Length}};
 		%% @todo Better handling of transfer decoding.
@@ -612,21 +622,25 @@ request(Buffer, State0=#state{ref=Ref, transport=Transport, peer=Peer, in_stream
 		false ->
 			State = case HasBody of
 				true ->
-					cancel_request_timeout(State0#state{in_state=#ps_body{
+					State0#state{in_state=#ps_body{
 						%% @todo Don't need length anymore?
 						transfer_decode_fun = TDecodeFun,
 						transfer_decode_state = TDecodeState
-					}});
+					}};
 				false ->
-					set_request_timeout(State0#state{in_streamid=StreamID + 1, in_state=#ps_request_line{}})
+					State0#state{in_streamid=StreamID + 1, in_state=#ps_request_line{}}
 			end,
 			{request, Req, State, Buffer};
 		{true, HTTP2Settings} ->
-			http2_upgrade(State0, Buffer, HTTP2Settings, Req)
+			%% We save the headers in case the upgrade will fail
+			%% and we need to pass them to cowboy_stream:early_error.
+			http2_upgrade(State0#state{in_state=PS#ps_header{headers=Headers}},
+				Buffer, HTTP2Settings, Req)
 	end.
 
 %% HTTP/2 upgrade.
 
+%% @todo We must not upgrade to h2c over a TLS connection.
 is_http2_upgrade(#{<<"connection">> := Conn, <<"upgrade">> := Upgrade,
 		<<"http2-settings">> := HTTP2Settings}, 'HTTP/1.1') ->
 	Conns = cow_http_hd:parse_connection(Conn),
@@ -652,7 +666,7 @@ http2_upgrade(State=#state{parent=Parent, ref=Ref, socket=Socket, transport=Tran
 		opts=Opts, peer=Peer}, Buffer) ->
 	case Transport:secure() of
 		false ->
-			_ = cancel_request_timeout(State),
+			_ = cancel_timeout(State),
 			cowboy_http2:init(Parent, Ref, Socket, Transport, Opts, Peer, Buffer);
 		true ->
 			error_terminate(400, State, {connection_error, protocol_error,
@@ -667,16 +681,11 @@ http2_upgrade(State=#state{parent=Parent, ref=Ref, socket=Socket, transport=Tran
 	%% Always half-closed stream coming from this side.
 	try cow_http_hd:parse_http2_settings(HTTP2Settings) of
 		Settings ->
-			Transport:send(Socket, cow_http:response(101, 'HTTP/1.1', maps:to_list(#{
-				<<"connection">> => <<"Upgrade">>,
-				<<"upgrade">> => <<"h2c">>
-			}))),
-			%% @todo Possibly redirect the request if it was https.
-			_ = cancel_request_timeout(State),
+			_ = cancel_timeout(State),
 			cowboy_http2:init(Parent, Ref, Socket, Transport, Opts, Peer, Buffer, Settings, Req)
 	catch _:_ ->
 		error_terminate(400, State, {connection_error, protocol_error,
-			'The HTTP2-Settings header contains a base64 SETTINGS payload. (RFC7540 3.2, RFC7540 3.2.1)'})
+			'The HTTP2-Settings header must contain a base64 SETTINGS payload. (RFC7540 3.2, RFC7540 3.2.1)'})
 	end.
 
 %% Request body parsing.
@@ -701,27 +710,25 @@ parse_body(Buffer, State=#state{in_streamid=StreamID, in_state=
 			{data, StreamID, nofin, Data, State#state{in_state=
 				PS#ps_body{transfer_decode_state=TState}}, Rest};
 		{done, TotalLength, Rest} ->
-			{data, StreamID, {fin, TotalLength}, <<>>, set_request_timeout(
+			{data, StreamID, {fin, TotalLength}, <<>>, set_timeout(
 				State#state{in_streamid=StreamID + 1, in_state=#ps_request_line{}}), Rest};
 		{done, Data, TotalLength, Rest} ->
-			{data, StreamID, {fin, TotalLength}, Data, set_request_timeout(
+			{data, StreamID, {fin, TotalLength}, Data, set_timeout(
 				State#state{in_streamid=StreamID + 1, in_state=#ps_request_line{}}), Rest}
 	end.
 
 %% Message handling.
 
-%% @todo There is a difference in behavior between HTTP/1.1 and HTTP/2
-%% when an error or crash occurs after sending a 500 response. In HTTP/2
-%% the error will be printed, in HTTP/1.1 the error will be ignored.
-%% This is due to HTTP/1.1 disabling streams differently after both
-%% requests and responses have been sent.
 down(State=#state{children=Children0}, Pid, Msg) ->
-	case lists:keytake(Pid, 1, Children0) of
-		{value, {_, undefined, _}, Children} ->
+	case cowboy_children:down(Children0, Pid) of
+		%% The stream was terminated already.
+		{ok, undefined, Children} ->
 			State#state{children=Children};
-		{value, {_, StreamID, _}, Children} ->
+		%% The stream is still running.
+		{ok, StreamID, Children} ->
 			info(State#state{children=Children}, StreamID, Msg);
-		false ->
+		%% The process was unknown.
+		error ->
 			error_logger:error_msg("Received EXIT signal ~p for unknown process ~p.~n", [Msg, Pid]),
 			State
 	end.
@@ -754,7 +761,8 @@ commands(State, _, []) ->
 	State;
 %% Supervise a child process.
 commands(State=#state{children=Children}, StreamID, [{spawn, Pid, Shutdown}|Tail]) ->
-	commands(State#state{children=[{Pid, StreamID, Shutdown}|Children]}, StreamID, Tail);
+	commands(State#state{children=cowboy_children:up(Children, Pid, StreamID, Shutdown)},
+		StreamID, Tail);
 %% Error handling.
 commands(State, StreamID, [Error = {internal_error, _, _}|Tail]) ->
 	commands(stream_reset(State, StreamID, Error), StreamID, Tail);
@@ -780,6 +788,21 @@ commands(State, StreamID, [{flow, _Length}|Tail]) ->
 commands(State=#state{out_state=wait}, StreamID, [{error_response, StatusCode, Headers, Body}|Tail]) ->
 	commands(State, StreamID, [{response, StatusCode, Headers, Body}|Tail]);
 commands(State, StreamID, [{error_response, _, _, _}|Tail]) ->
+	commands(State, StreamID, Tail);
+%% Send an informational response.
+commands(State=#state{socket=Socket, transport=Transport, out_state=wait, streams=Streams},
+		StreamID, [{inform, StatusCode, Headers}|Tail]) ->
+	%% @todo I'm pretty sure the last stream in the list is the one we want
+	%% considering all others are queued.
+	#stream{version=Version} = lists:keyfind(StreamID, #stream.id, Streams),
+	_ = case Version of
+		'HTTP/1.1' ->
+			Transport:send(Socket, cow_http:response(StatusCode, 'HTTP/1.1',
+				headers_to_list(Headers)));
+		%% Do not send informational responses to HTTP/1.0 clients. (RFC7231 6.2)
+		'HTTP/1.0' ->
+			ok
+	end,
 	commands(State, StreamID, Tail);
 %% Send a full response.
 %%
@@ -853,7 +876,7 @@ commands(State0=#state{ref=Ref, parent=Parent, socket=Socket, transport=Transpor
 		[{switch_protocol, Headers, Protocol, InitialState}|_Tail]) ->
 	%% @todo This should be the last stream running otherwise we need to wait before switching.
 	%% @todo If there's streams opened after this one, fail instead of 101.
-	State = cancel_request_timeout(State0),
+	State = cancel_timeout(State0),
 	%% @todo When we actually do the upgrade, we only have the one stream left, plus
 	%% possibly some processes terminating. We need a smart strategy for handling the
 	%% children shutdown. We can start with brutal_kill and discarding the EXIT messages
@@ -861,10 +884,12 @@ commands(State0=#state{ref=Ref, parent=Parent, socket=Socket, transport=Transpor
 	%% stream processes finish but that implies the Websocket module to know about
 	%% them and filter the messages. For now, kill them all and discard all messages
 	%% in the mailbox.
-	_ = [exit(Pid, kill) || {Pid, _, _} <- Children],
+
+	cowboy_children:terminate(Children),
+
 	flush(),
 	%% Everything good, upgrade!
-	_ = commands(State, StreamID, [{response, 101, Headers, <<>>}]),
+	_ = commands(State, StreamID, [{inform, 101, Headers}]),
 	%% @todo This is no good because commands return a state normally and here it doesn't
 	%% we need to let this module go entirely. Perhaps it should be handled directly in
 	%% cowboy_clear/cowboy_tls? Perhaps not. We do want that Buffer.
@@ -909,27 +934,29 @@ stream_reset(State, StreamID, StreamError={internal_error, _, _}) ->
 %	stream_terminate(State#state{out_state=done}, StreamID, StreamError).
 	stream_terminate(State, StreamID, StreamError).
 
-stream_terminate(State=#state{socket=Socket, transport=Transport,
+stream_terminate(State0=#state{socket=Socket, transport=Transport,
 		out_streamid=OutStreamID, out_state=OutState,
 		streams=Streams0, children=Children0}, StreamID, Reason) ->
 	{value, #stream{state=StreamState, version=Version}, Streams}
 		= lists:keytake(StreamID, #stream.id, Streams0),
-	_ = case OutState of
+	State1 = case OutState of
 		wait ->
-			Transport:send(Socket, cow_http:response(204, 'HTTP/1.1', []));
+			info(State0, StreamID, {response, 204, #{}, <<>>});
 		chunked when Version =:= 'HTTP/1.1' ->
-			Transport:send(Socket, <<"0\r\n\r\n">>);
+			_ = Transport:send(Socket, <<"0\r\n\r\n">>),
+			State0;
 		_ -> %% done or Version =:= 'HTTP/1.0'
-			ok
+			State0
+	end,
+	%% We reset the timeout if there are no active streams anymore.
+	State = case Streams of
+		[] -> set_timeout(State1);
+		_ -> State1
 	end,
 
 	stream_call_terminate(StreamID, Reason, StreamState),
-%% @todo initiate children shutdown
-%			Children = stream_terminate_children(Children0, StreamID, []),
-	Children = [case C of
-		{Pid, StreamID, Shutdown} -> {Pid, undefined, Shutdown};
-		_ -> C
-	end || C <- Children0],
+
+	Children = cowboy_children:shutdown(Children0, StreamID),
 
 	%% @todo Skip the body, if any, or drop the connection if too large.
 
@@ -955,15 +982,6 @@ stream_call_terminate(StreamID, Reason, StreamState) ->
 			"cowboy_stream:terminate(~p, ~p, ~p) with reason ~p:~p.",
 			[StreamID, Reason, StreamState, Class, Reason])
 	end.
-
-%stream_terminate_children([], _, Acc) ->
-%	Acc;
-%stream_terminate_children([{Pid, StreamID}|Tail], StreamID, Acc) ->
-%	exit(Pid, kill),
-%	stream_terminate_children(Tail, StreamID, Acc);
-%stream_terminate_children([Child|Tail], StreamID, Acc) ->
-%	stream_terminate_children(Tail, StreamID, [Child|Acc]).
-
 
 %% @todo max_reqs also
 maybe_req_close(_, #{<<"connection">> := Conn}, 'HTTP/1.0') ->
@@ -1005,16 +1023,51 @@ connection_hd_is_close(Conn) ->
 	Conns = cow_http_hd:parse_connection(iolist_to_binary(Conn)),
 	lists:member(<<"close">>, Conns).
 
+%% This function is only called when an error occurs on a new stream.
 -spec error_terminate(cowboy:http_status(), #state{}, _) -> no_return().
-error_terminate(StatusCode, State=#state{socket=Socket, transport=Transport}, Reason) ->
-	Transport:send(Socket, cow_http:response(StatusCode, 'HTTP/1.1', [
-		{<<"content-length">>, <<"0">>}
-	])),
+error_terminate(StatusCode0, State=#state{ref=Ref, socket=Socket, transport=Transport,
+		opts=Opts, peer=Peer, in_streamid=StreamID, in_state=StreamState}, Reason) ->
+	PartialReq = case StreamState of
+		#ps_request_line{} ->
+			#{};
+		#ps_header{method=Method, path=Path, qs=Qs,
+				version=Version, headers=ReqHeaders} -> #{
+			ref => Ref,
+			peer => Peer,
+			method => Method,
+			path => Path,
+			qs => Qs,
+			version => Version,
+			headers => case ReqHeaders of
+				undefined -> #{};
+				_ -> ReqHeaders
+			end
+		}
+	end,
+	{response, StatusCode, RespHeaders, RespBody}
+		= cowboy_stream:early_error(StreamID, Reason, PartialReq,
+			{response, StatusCode0, #{
+				<<"content-length">> => <<"0">>
+			}, <<>>}, Opts),
+	Transport:send(Socket, [
+		cow_http:response(StatusCode, 'HTTP/1.1', maps:to_list(RespHeaders)),
+		RespBody
+	]),
 	terminate(State, Reason).
 
 -spec terminate(_, _) -> no_return().
-terminate(_State, _Reason) ->
-	exit(normal). %% @todo We probably don't want to exit normal on errors.
+terminate(undefined, Reason) ->
+	exit({shutdown, Reason});
+terminate(#state{streams=Streams, children=Children}, Reason) ->
+	terminate_all_streams(Streams, Reason),
+	cowboy_children:terminate(Children),
+	exit({shutdown, Reason}).
+
+terminate_all_streams([], _) ->
+	ok;
+terminate_all_streams([#stream{id=StreamID, state=StreamState}|Tail], Reason) ->
+	stream_call_terminate(StreamID, Reason, StreamState),
+	terminate_all_streams(Tail, Reason).
 
 %% System callbacks.
 
@@ -1022,9 +1075,9 @@ terminate(_State, _Reason) ->
 system_continue(_, _, {State, Buffer}) ->
 	loop(State, Buffer).
 
--spec system_terminate(any(), _, _, _) -> no_return().
-system_terminate(Reason, _, _, _) ->
-	exit(Reason).
+-spec system_terminate(any(), _, _, {#state{}, binary()}) -> no_return().
+system_terminate(Reason, _, _, {State, _}) ->
+	terminate(State, Reason).
 
 -spec system_code_change(Misc, _, _, _) -> {ok, Misc} when Misc::{#state{}, binary()}.
 system_code_change(Misc, _, _, _) ->

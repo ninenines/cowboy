@@ -83,9 +83,9 @@ loop_body(Config) ->
 	{response, fin, 200, _} = gun:await(ConnPid, Ref),
 	ok.
 
-loop_timeout(Config) ->
-	doc("Ensure that the loop handler timeout results in a 204 response."),
+loop_request_timeout(Config) ->
+	doc("Ensure that the request_timeout isn't applied when a request is ongoing."),
 	ConnPid = gun_open(Config),
 	Ref = gun:get(ConnPid, "/loop_timeout", [{<<"accept-encoding">>, <<"gzip">>}]),
-	{response, fin, 204, _} = gun:await(ConnPid, Ref),
+	{response, nofin, 200, _} = gun:await(ConnPid, Ref, 10000),
 	ok.

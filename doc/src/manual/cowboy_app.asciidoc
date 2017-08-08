@@ -34,6 +34,7 @@ Handlers:
 * link:man:cowboy_static(3)[cowboy_static(3)] - Static file handler
 
 // @todo What about cowboy_stream_h?
+// @todo cowboy_compress_h
 
 Behaviors:
 
@@ -41,8 +42,7 @@ Behaviors:
 * link:man:cowboy_loop(3)[cowboy_loop(3)] - Loop handlers
 * link:man:cowboy_middleware(3)[cowboy_middleware(3)] - Middlewares
 * link:man:cowboy_rest(3)[cowboy_rest(3)] - REST handlers
-// @todo * link:man:cowboy_stream(3)[cowboy_stream(3)] - Stream handlers
-// @todo * link:man:cowboy_sub_protocol(3)[cowboy_sub_protocol(3)] - Sub protocols
+* link:man:cowboy_stream(3)[cowboy_stream(3)] - Stream handlers
 * link:man:cowboy_websocket(3)[cowboy_websocket(3)] - Websocket handlers
 
 Middlewares:

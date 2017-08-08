@@ -16,7 +16,7 @@ start(_Type, _Args) ->
 			{"/upload", upload_handler, []}
 		]}
 	]),
-	{ok, _} = cowboy:start_clear(http, 100, [{port, 8080}], #{
+	{ok, _} = cowboy:start_clear(http, [{port, 8080}], #{
 		env => #{dispatch => Dispatch}
 	}),
 	upload_sup:start_link().

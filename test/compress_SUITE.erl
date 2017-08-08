@@ -40,7 +40,7 @@ end_per_group(Name, _) ->
 
 %% Routes.
 
-init_dispatch(Config) ->
+init_dispatch(_Config) ->
 	cowboy_router:compile([{"[...]", [
 		{"/reply/:what", compress_h, reply},
 		{"/stream_reply/:what", compress_h, stream_reply}

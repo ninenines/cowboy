@@ -19,6 +19,7 @@
 -export([data/4]).
 -export([info/3]).
 -export([terminate/3]).
+-export([early_error/5]).
 
 -export([proc_lib_hack/3]).
 -export([execute/3]).
@@ -45,7 +46,7 @@
 init(_StreamID, Req=#{ref := Ref}, Opts) ->
 	Env = maps:get(env, Opts, #{}),
 	Middlewares = maps:get(middlewares, Opts, [cowboy_router, cowboy_handler]),
-	Shutdown = maps:get(shutdown, Opts, 5000),
+	Shutdown = maps:get(shutdown_timeout, Opts, 5000),
 	Pid = proc_lib:spawn_link(?MODULE, proc_lib_hack, [Req, Env, Middlewares]),
 	{[{spawn, Pid, Shutdown}], #state{ref=Ref, pid=Pid}}.
 
@@ -70,7 +71,8 @@ data(_StreamID, IsFin, Data, State=#state{pid=Pid, read_body_ref=Ref,
 info(_StreamID, {'EXIT', Pid, normal}, State=#state{pid=Pid}) ->
 	%% @todo Do we even reach this clause?
 	{[stop], State};
-info(_StreamID, {'EXIT', Pid, {_Reason, [_, {cow_http_hd, _, _, _}|_]}}, State=#state{pid=Pid}) ->
+info(_StreamID, {'EXIT', Pid, {_Reason, [T1, T2|_]}}, State=#state{pid=Pid})
+		when element(1, T1) =:= cow_http_hd; element(1, T2) =:= cow_http_hd ->
 	%% @todo Have an option to enable/disable this specific crash report?
 	%%report_crash(Ref, StreamID, Pid, Reason, Stacktrace),
 	%% @todo Headers? Details in body? More stuff in debug only?
@@ -121,6 +123,12 @@ info(_StreamID, _Info, State) ->
 -spec terminate(cowboy_stream:streamid(), cowboy_stream:reason(), #state{}) -> ok.
 terminate(_StreamID, _Reason, _State) ->
 	ok.
+
+-spec early_error(cowboy_stream:streamid(), cowboy_stream:reason(),
+	cowboy_stream:partial_req(), Resp, cowboy:opts()) -> Resp
+	when Resp::cowboy_stream:resp_command().
+early_error(StreamID, Reason, PartialReq, Resp, Opts) ->
+	cowboy_stream:early_error(StreamID, Reason, PartialReq, Resp, Opts).
 
 %% We use ~999999p here instead of ~w because the latter doesn't
 %% support printable strings.
