@@ -15,9 +15,6 @@
 * link:echo_post[]:
   parse and echo a POST parameter
 
-* link:error_hook[]:
-  provide custom error pages
-
 * link:eventsource[]:
   eventsource emitter and consumer
 
@@ -38,9 +35,6 @@
 
 * link:rest_pastebin[]:
   create text objects and return the data type that matches the request type (html, text)
-
-* link:rest_stream_response[]:
-  stream results from a data store
 
 * link:ssl_hello_world[]:
   simplest SSL application
