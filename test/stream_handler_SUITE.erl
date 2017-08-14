@@ -59,13 +59,114 @@ end_per_group(Name, _) ->
 
 %% Tests.
 
+shutdown_on_stream_stop(Config) ->
+	doc("Confirm supervised processes are shutdown when stopping the stream."),
+	Self = self(),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/long_polling", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"x-test-case">>, <<"shutdown_on_stream_stop">>},
+		{<<"x-test-pid">>, pid_to_list(Self)}
+	]),
+	%% Confirm init/3 is called.
+	Pid = receive {Self, P, init, _, _, _} -> P after 1000 -> error(timeout) end,
+	%% Receive the pid of the newly started process and monitor it.
+	Spawn = receive {Self, Pid, spawned, S} -> S after 1000 -> error(timeout) end,
+	MRef = monitor(process, Spawn),
+	Spawn ! {Self, ready},
+	%% Confirm terminate/3 is called, indicating the stream ended.
+	receive {Self, Pid, terminate, _, _, _} -> ok after 1000 -> error(timeout) end,
+	%% We should receive a DOWN message soon after (or before) because the stream
+	%% handler is stopping the stream immediately after the process started.
+	receive {'DOWN', MRef, process, Spawn, shutdown} -> ok after 1000 -> error(timeout) end,
+	%% The response is still sent.
+	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
+	{ok, <<>>} = gun:await_body(ConnPid, Ref),
+	ok.
+
+shutdown_on_socket_close(Config) ->
+	doc("Confirm supervised processes are shutdown when the socket closes."),
+	Self = self(),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/long_polling", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"x-test-case">>, <<"shutdown_on_socket_close">>},
+		{<<"x-test-pid">>, pid_to_list(Self)}
+	]),
+	%% Confirm init/3 is called.
+	Pid = receive {Self, P, init, _, _, _} -> P after 1000 -> error(timeout) end,
+	%% Receive the pid of the newly started process and monitor it.
+	Spawn = receive {Self, Pid, spawned, S} -> S after 1000 -> error(timeout) end,
+	MRef = monitor(process, Spawn),
+	Spawn ! {Self, ready},
+	%% Close the socket.
+	ok = gun:close(ConnPid),
+	%% Confirm terminate/3 is called, indicating the stream ended.
+	receive {Self, Pid, terminate, _, _, _} -> ok after 1000 -> error(timeout) end,
+	%% Confirm we receive a DOWN message for the child process.
+	receive {'DOWN', MRef, process, Spawn, shutdown} -> ok after 1000 -> error(timeout) end,
+	ok.
+
+shutdown_timeout_on_stream_stop(Config) ->
+	doc("Confirm supervised processes are killed "
+		"when the shutdown timeout triggers after stopping the stream."),
+	Self = self(),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/long_polling", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"x-test-case">>, <<"shutdown_timeout_on_stream_stop">>},
+		{<<"x-test-pid">>, pid_to_list(Self)}
+	]),
+	%% Confirm init/3 is called.
+	Pid = receive {Self, P, init, _, _, _} -> P after 1000 -> error(timeout) end,
+	%% Receive the pid of the newly started process and monitor it.
+	Spawn = receive {Self, Pid, spawned, S} -> S after 1000 -> error(timeout) end,
+	MRef = monitor(process, Spawn),
+	Spawn ! {Self, ready},
+	%% Confirm terminate/3 is called, indicating the stream ended.
+	receive {Self, Pid, terminate, _, _, _} -> ok after 1000 -> error(timeout) end,
+	%% We should NOT receive a DOWN message immediately.
+	receive {'DOWN', MRef, process, Spawn, killed} -> error(killed) after 1500 -> ok end,
+	%% We should received it now.
+	receive {'DOWN', MRef, process, Spawn, killed} -> ok after 1000 -> error(timeout) end,
+	%% The response is still sent.
+	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
+	{ok, <<>>} = gun:await_body(ConnPid, Ref),
+	ok.
+
+shutdown_timeout_on_socket_close(Config) ->
+	doc("Confirm supervised processes are killed "
+		"when the shutdown timeout triggers after the socket has closed."),
+	Self = self(),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/long_polling", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"x-test-case">>, <<"shutdown_timeout_on_socket_close">>},
+		{<<"x-test-pid">>, pid_to_list(Self)}
+	]),
+	%% Confirm init/3 is called.
+	Pid = receive {Self, P, init, _, _, _} -> P after 1000 -> error(timeout) end,
+	%% Receive the pid of the newly started process and monitor it.
+	Spawn = receive {Self, Pid, spawned, S} -> S after 1000 -> error(timeout) end,
+	MRef = monitor(process, Spawn),
+	Spawn ! {Self, ready},
+	%% Close the socket.
+	ok = gun:close(ConnPid),
+	%% Confirm terminate/3 is called, indicating the stream ended.
+	receive {Self, Pid, terminate, _, _, _} -> ok after 1000 -> error(timeout) end,
+	%% We should NOT receive a DOWN message immediately.
+	receive {'DOWN', MRef, process, Spawn, killed} -> error(killed) after 1500 -> ok end,
+	%% We should received it now.
+	receive {'DOWN', MRef, process, Spawn, killed} -> ok after 1000 -> error(timeout) end,
+	ok.
+
 terminate_on_socket_close(Config) ->
 	doc("Confirm terminate/3 is called when the socket gets closed brutally."),
 	Self = self(),
 	ConnPid = gun_open(Config),
 	Ref = gun:get(ConnPid, "/long_polling", [
 		{<<"accept-encoding">>, <<"gzip">>},
-		{<<"x-test-case">>, <<"stream">>},
+		{<<"x-test-case">>, <<"terminate_on_socket_close">>},
 		{<<"x-test-pid">>, pid_to_list(Self)}
 	]),
 	%% Confirm init/3 is called and receive the beginning of the response.
