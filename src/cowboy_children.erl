@@ -99,9 +99,16 @@ shutdown_timeout(Children, Ref, Pid) ->
 
 -spec terminate(children()) -> ok.
 terminate(Children) ->
-	%% Ask all children to shutdown first.
-	_ = [exit(Pid, shutdown) || #child{pid=Pid} <- Children],
-	%% Loop until that time or until all children are dead.
+	%% For each child, either ask for it to shut down,
+	%% or cancel its shutdown timer if it already is.
+	%%
+	%% We do not need to flush stray timeout messages out because
+	%% we are either terminating or switching protocols,
+	%% and in the latter case we flush all messages.
+	_ = [case TRef of
+		undefined -> exit(Pid, shutdown);
+		_ -> erlang:cancel_timer(TRef, [{async, true}, {info, false}])
+	end || #child{pid=Pid, timer=TRef} <- Children],
 	before_terminate_loop(Children).
 
 before_terminate_loop([]) ->
@@ -115,10 +122,18 @@ before_terminate_loop(Children) ->
 		infinity -> undefined;
 		_ -> erlang:start_timer(Time, self(), terminate)
 	end,
+	%% Loop until that time or until all children are dead.
 	terminate_loop(Children, TRef).
 
-terminate_loop([], _) ->
-	ok;
+terminate_loop([], TRef) ->
+	%% Don't forget to cancel the timer, if any!
+	case TRef of
+		undefined ->
+			ok;
+		_ ->
+			_ = erlang:cancel_timer(TRef, [{async, true}, {info, false}]),
+			ok
+	end;
 terminate_loop(Children, TRef) ->
 	receive
 		{'EXIT', Pid, _} when TRef =:= undefined ->
