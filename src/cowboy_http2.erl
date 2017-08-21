@@ -630,17 +630,20 @@ send_data(State0, Stream0=#stream{local_buffer=Q0, local_buffer_size=BufferSize}
 	{{value, {IsFin, DataSize, Data}}, Q} = queue:out(Q0),
 	{State, Stream} = send_data(State0,
 		Stream0#stream{local_buffer=Q, local_buffer_size=BufferSize - DataSize},
-		IsFin, Data),
+		IsFin, Data, in_r),
 	send_data(State, Stream).
+
+send_data(State, Stream, IsFin, Data) ->
+	send_data(State, Stream, IsFin, Data, in).
 
 %% Send data immediately if we can, buffer otherwise.
 %% @todo We might want to print an error if local=fin.
 send_data(State=#state{local_window=ConnWindow},
-		Stream=#stream{local_window=StreamWindow}, IsFin, Data)
+		Stream=#stream{local_window=StreamWindow}, IsFin, Data, In)
 		when ConnWindow =< 0; StreamWindow =< 0 ->
-	{State, queue_data(Stream, IsFin, Data)};
+	{State, queue_data(Stream, IsFin, Data, In)};
 send_data(State=#state{socket=Socket, transport=Transport, local_window=ConnWindow},
-		Stream=#stream{id=StreamID, local_window=StreamWindow}, IsFin, Data) ->
+		Stream=#stream{id=StreamID, local_window=StreamWindow}, IsFin, Data, In) ->
 	MaxFrameSize = 16384, %% @todo Use the real SETTINGS_MAX_FRAME_SIZE set by the client.
 	MaxSendSize = min(min(ConnWindow, StreamWindow), MaxFrameSize),
 	case Data of
@@ -654,7 +657,7 @@ send_data(State=#state{socket=Socket, transport=Transport, local_window=ConnWind
 			Transport:sendfile(Socket, Path, Offset, MaxSendSize),
 			send_data(State#state{local_window=ConnWindow - MaxSendSize},
 				Stream#stream{local_window=StreamWindow - MaxSendSize},
-				IsFin, {sendfile, Offset + MaxSendSize, Bytes - MaxSendSize, Path});
+				IsFin, {sendfile, Offset + MaxSendSize, Bytes - MaxSendSize, Path}, In);
 		Iolist0 ->
 			IolistSize = iolist_size(Iolist0),
 			if
@@ -667,16 +670,16 @@ send_data(State=#state{socket=Socket, transport=Transport, local_window=ConnWind
 					Transport:send(Socket, cow_http2:data(StreamID, nofin, Iolist)),
 					send_data(State#state{local_window=ConnWindow - MaxSendSize},
 						Stream#stream{local_window=StreamWindow - MaxSendSize},
-						IsFin, More)
+						IsFin, More, In)
 			end
 	end.
 
-queue_data(Stream=#stream{local_buffer=Q0, local_buffer_size=Size0}, IsFin, Data) ->
+queue_data(Stream=#stream{local_buffer=Q0, local_buffer_size=Size0}, IsFin, Data, In) ->
 	DataSize = case Data of
 		{sendfile, _, Bytes, _} -> Bytes;
 		Iolist -> iolist_size(Iolist)
 	end,
-	Q = queue:in({IsFin, DataSize, Data}, Q0),
+	Q = queue:In({IsFin, DataSize, Data}, Q0),
 	Stream#stream{local_buffer=Q, local_buffer_size=Size0 + DataSize}.
 
 -spec terminate(#state{}, _) -> no_return().
