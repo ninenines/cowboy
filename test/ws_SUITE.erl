@@ -81,7 +81,8 @@ init_dispatch() ->
 			{"/ws_subprotocol", ws_subprotocol, []},
 			{"/terminate", ws_terminate_h, []},
 			{"/ws_timeout_hibernate", ws_timeout_hibernate, []},
-			{"/ws_timeout_cancel", ws_timeout_cancel, []}
+			{"/ws_timeout_cancel", ws_timeout_cancel, []},
+			{"/ws_max_frame_size", ws_max_frame_size, []}
 		]}
 	]).
 
@@ -435,6 +436,31 @@ ws_timeout_reset(Config) ->
 	{ok, << 1:1, 0:3, 8:4, 0:1, 2:7, 1000:16 >>} = gen_tcp:recv(Socket, 0, 6000),
 	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
 	ok.
+
+ws_max_frame_size_close(Config) ->
+ 	doc("Server closes connection when frame size exceeds max_frame_size option"),
+ 	%% max_frame_size is set to 8 bytes in ws_max_frame_size
+ 	{ok, Socket, _} = do_handshake("/ws_max_frame_size", Config),
+ 	Mask = 16#11223344,
+ 	MaskedHello = do_mask(<<"HelloHello">>, Mask, <<>>),
+   %% When sending more than 8 bytes connection closed
+ 	ok = gen_tcp:send(Socket, << 1:1, 0:3, 2:4, 1:1, 10:7, Mask:32, MaskedHello/binary >>),
+	{ok, << 1:1, 0:3, 8:4, 0:1, 2:7, 1002:16 >>} = gen_tcp:recv(Socket, 0, 6000),
+ 	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
+    ok.
+
+ws_max_frame_size_fragments_close(Config) ->
+ 	doc("Server closes connection when fragmented frame size exceeds max_frame_size option"),
+ 	%% max_frame_size is set to 8 bytes in ws_max_frame_size
+ 	{ok, Socket, _} = do_handshake("/ws_max_frame_size", Config),
+ 	Mask = 16#11223344,
+ 	MaskedHello = do_mask(<<"HelloHello">>, Mask, <<>>),
+   %% Fragments with exceeding size are not allowed too
+ 	ok = gen_tcp:send(Socket, << 0:1, 0:3, 2:4, 1:1, 10:7, Mask:32, MaskedHello/binary >>),
+ 	ok = gen_tcp:send(Socket, << 1:1, 0:3, 0:4, 1:1, 10:7, Mask:32, MaskedHello/binary >>),
+	{ok, << 1:1, 0:3, 8:4, 0:1, 2:7, 1002:16 >>} = gen_tcp:recv(Socket, 0, 6000),
+ 	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
+ 	ok.
 
 ws_webkit_deflate(Config) ->
 	doc("x-webkit-deflate-frame compression."),

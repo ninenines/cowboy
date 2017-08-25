@@ -71,7 +71,8 @@
 	frag_buffer = <<>> :: binary(),
 	utf8_state = 0 :: cow_ws:utf8_state(),
 	extensions = #{} :: map(),
-	req = #{} :: map()
+	req = #{} :: map(),
+    max_frame_size = 16#800000 :: non_neg_integer()
 }).
 
 %% Stream process.
@@ -89,12 +90,14 @@ upgrade(Req, Env, Handler, HandlerState) ->
 %% @todo Error out if HTTP/2.
 upgrade(Req0, Env, Handler, HandlerState, Opts) ->
 	Timeout = maps:get(idle_timeout, Opts, 60000),
+	MaxFrameSize = maps:get(max_frame_size, Opts, 16#800000),
 	Compress = maps:get(compress, Opts, false),
 	FilteredReq = case maps:get(req_filter, Opts, undefined) of
 		undefined -> maps:with([method, version, scheme, host, port, path, qs, peer], Req0);
 		FilterFun -> FilterFun(Req0)
 	end,
-	State0 = #state{handler=Handler, timeout=Timeout, compress=Compress, req=FilteredReq},
+	State0 = #state{handler=Handler, timeout=Timeout, compress=Compress,
+                    req=FilteredReq, max_frame_size=MaxFrameSize},
 	try websocket_upgrade(State0, Req0) of
 		{ok, State, Req} ->
 			websocket_handshake(State, Req, HandlerState, Env)
@@ -243,11 +246,15 @@ handler_loop(State=#state{socket=Socket, messages={OK, Closed, Error},
 
 -spec websocket_data(#state{}, any(), binary())
 	-> {ok, cowboy_middleware:env()}.
-websocket_data(State=#state{frag_state=FragState, extensions=Extensions}, HandlerState, Data) ->
+websocket_data(State=#state{frag_state=FragState, extensions=Extensions,
+                            max_frame_size=MaxFrameSize},
+               HandlerState, Data) ->
 	case cow_ws:parse_header(Data, Extensions, FragState) of
 		%% All frames sent from the client to the server are masked.
 		{_, _, _, _, undefined, _} ->
 			websocket_close(State, HandlerState, {error, badframe});
+        {_, _, _, Len, _, _} when Len > MaxFrameSize ->
+            websocket_close(State, HandlerState, {error, badframe});
 		{Type, FragState2, Rsv, Len, MaskKey, Rest} ->
 			websocket_payload(State#state{frag_state=FragState2}, HandlerState, Type, Len, MaskKey, Rsv, undefined, <<>>, 0, Rest);
 		more ->
