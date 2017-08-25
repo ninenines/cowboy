@@ -454,10 +454,10 @@ ws_max_frame_size_fragments_close(Config) ->
  	%% max_frame_size is set to 8 bytes in ws_max_frame_size
  	{ok, Socket, _} = do_handshake("/ws_max_frame_size", Config),
  	Mask = 16#11223344,
- 	MaskedHello = do_mask(<<"HelloHello">>, Mask, <<>>),
+ 	MaskedHello = do_mask(<<"Hello">>, Mask, <<>>),
    %% Fragments with exceeding size are not allowed too
- 	ok = gen_tcp:send(Socket, << 0:1, 0:3, 2:4, 1:1, 10:7, Mask:32, MaskedHello/binary >>),
- 	ok = gen_tcp:send(Socket, << 1:1, 0:3, 0:4, 1:1, 10:7, Mask:32, MaskedHello/binary >>),
+ 	ok = gen_tcp:send(Socket, << 0:1, 0:3, 2:4, 1:1, 5:7, Mask:32, MaskedHello/binary >>),
+ 	ok = gen_tcp:send(Socket, << 1:1, 0:3, 0:4, 1:1, 5:7, Mask:32, MaskedHello/binary >>),
 	{ok, << 1:1, 0:3, 8:4, 0:1, 2:7, 1002:16 >>} = gen_tcp:recv(Socket, 0, 6000),
  	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
  	ok.

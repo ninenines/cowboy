@@ -311,12 +311,15 @@ websocket_payload_loop(State=#state{socket=Socket, transport=Transport,
 				end)
 	end.
 
-websocket_dispatch(State=#state{socket=Socket, transport=Transport, frag_state=FragState, frag_buffer=SoFar, extensions=Extensions},
+websocket_dispatch(State=#state{socket=Socket, transport=Transport, frag_state=FragState, frag_buffer=SoFar,
+                                extensions=Extensions, max_frame_size=MaxFrameSize},
 		HandlerState, Type0, Payload0, CloseCode0, RemainingData) ->
 	case cow_ws:make_frame(Type0, Payload0, CloseCode0, FragState) of
 		%% @todo Allow receiving fragments.
 		{fragment, nofin, _, Payload} ->
 			websocket_data(State#state{frag_buffer= << SoFar/binary, Payload/binary >>}, HandlerState, RemainingData);
+        {fragment, fin, _, Payload} when byte_size(Payload) + byte_size(SoFar) > MaxFrameSize ->
+            websocket_close(State, HandlerState, {error, badframe});
 		{fragment, fin, Type, Payload} ->
 			handler_call(State#state{frag_state=undefined, frag_buffer= <<>>}, HandlerState, RemainingData,
 				websocket_handle, {Type, << SoFar/binary, Payload/binary >>}, fun websocket_data/3);
