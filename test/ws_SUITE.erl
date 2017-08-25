@@ -82,7 +82,8 @@ init_dispatch() ->
 			{"/ws_subprotocol", ws_subprotocol, []},
 			{"/terminate", ws_terminate_h, []},
 			{"/ws_timeout_hibernate", ws_timeout_hibernate, []},
-			{"/ws_timeout_cancel", ws_timeout_cancel, []}
+			{"/ws_timeout_cancel", ws_timeout_cancel, []},
+			{"/ws_max_frame_size", ws_max_frame_size, []}
 		]}
 	]).
 
@@ -302,6 +303,44 @@ ws_init_shutdown_before_handshake(Config) ->
 	{ok, {http_response, {1, 1}, 403, _}, _Rest} = erlang:decode_packet(http, Handshake, []),
 	ok.
 
+ws_max_frame_size_close(Config) ->
+	doc("Server closes connection when frame size exceeds max_frame_size option"),
+	%% max_frame_size is set to 8 bytes in ws_max_frame_size.
+	{ok, Socket, _} = do_handshake("/ws_max_frame_size", Config),
+	Mask = 16#11223344,
+	MaskedHello = do_mask(<<"HelloHello">>, Mask, <<>>),
+	ok = gen_tcp:send(Socket, << 1:1, 0:3, 2:4, 1:1, 10:7, Mask:32, MaskedHello/binary >>),
+	{ok, << 1:1, 0:3, 8:4, 0:1, 2:7, 1009:16 >>} = gen_tcp:recv(Socket, 0, 6000),
+	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
+	ok.
+
+ws_max_frame_size_final_fragment_close(Config) ->
+	doc("Server closes connection when final fragmented frame "
+		"exceeds max_frame_size option"),
+	%% max_frame_size is set to 8 bytes in ws_max_frame_size.
+	{ok, Socket, _} = do_handshake("/ws_max_frame_size", Config),
+	Mask = 16#11223344,
+	MaskedHello = do_mask(<<"Hello">>, Mask, <<>>),
+	ok = gen_tcp:send(Socket, << 0:1, 0:3, 2:4, 1:1, 5:7, Mask:32, MaskedHello/binary >>),
+	ok = gen_tcp:send(Socket, << 1:1, 0:3, 0:4, 1:1, 5:7, Mask:32, MaskedHello/binary >>),
+	{ok, << 1:1, 0:3, 8:4, 0:1, 2:7, 1009:16 >>} = gen_tcp:recv(Socket, 0, 6000),
+	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
+	ok.
+
+ws_max_frame_size_intermediate_fragment_close(Config) ->
+	doc("Server closes connection when intermediate fragmented frame "
+		"exceeds max_frame_size option"),
+	%% max_frame_size is set to 8 bytes in ws_max_frame_size.
+	{ok, Socket, _} = do_handshake("/ws_max_frame_size", Config),
+	Mask = 16#11223344,
+	MaskedHello = do_mask(<<"Hello">>, Mask, <<>>),
+	ok = gen_tcp:send(Socket, << 0:1, 0:3, 2:4, 1:1, 5:7, Mask:32, MaskedHello/binary >>),
+	ok = gen_tcp:send(Socket, << 0:1, 0:3, 0:4, 1:1, 5:7, Mask:32, MaskedHello/binary >>),
+	ok = gen_tcp:send(Socket, << 1:1, 0:3, 0:4, 1:1, 5:7, Mask:32, MaskedHello/binary >>),
+	{ok, << 1:1, 0:3, 8:4, 0:1, 2:7, 1009:16 >>} = gen_tcp:recv(Socket, 0, 6000),
+	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
+	ok.
+
 ws_send_close(Config) ->
 	doc("Server-initiated close frame ends the connection."),
 	{ok, Socket, _} = do_handshake("/ws_send_close", Config),
@@ -402,8 +441,8 @@ ws_text_fragments(Config) ->
 	%% Send three "Hello" over three fragments and one send.
 	ok = gen_tcp:send(Socket, [
 		<< 0:1, 0:3, 1:4, 1:1, 5:7, Mask:32, MaskedHello/binary >>,
-		<< 0:1, 0:3, 0:4, 1:1, 5:7, Mask:32, MaskedHello/binary  >>,
-		<< 1:1, 0:3, 0:4, 1:1, 5:7, Mask:32, MaskedHello/binary  >>]),
+		<< 0:1, 0:3, 0:4, 1:1, 5:7, Mask:32, MaskedHello/binary >>,
+		<< 1:1, 0:3, 0:4, 1:1, 5:7, Mask:32, MaskedHello/binary >>]),
 	{ok, << 1:1, 0:3, 1:4, 0:1, 15:7, "HelloHelloHello" >>} = gen_tcp:recv(Socket, 0, 6000),
 	ok.
 

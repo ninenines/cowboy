@@ -225,6 +225,22 @@ init(Req, State) ->
 This value cannot be changed once it is set. It defaults to
 `60000`.
 
+=== Limiting frame sizes
+
+Cowboy accepts frames of any size by default. You should
+limit the size depending on what your handler may handle.
+You can do this via the `init/2` callback:
+
+[source,erlang]
+----
+init(Req, State) ->
+    {cowboy_websocket, Req, State, #{
+        max_frame_size => 8000000}}.
+----
+
+The lack of limit is historical. A future version of
+Cowboy will have a more reasonable default.
+
 === Saving memory
 
 The Websocket connection process can be set to hibernate
