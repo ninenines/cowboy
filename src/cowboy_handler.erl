@@ -28,7 +28,7 @@
 	| {module(), Req, any(), any()}
 	when Req::cowboy_req:req().
 
--callback terminate(any(), cowboy_req:req(), any()) -> ok.
+-callback terminate(any(), map(), any()) -> ok.
 -optional_callbacks([terminate/3]).
 
 -spec execute(Req, Env) -> {ok, Req, Env}

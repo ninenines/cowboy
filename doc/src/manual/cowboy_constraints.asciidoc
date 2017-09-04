@@ -1,0 +1,60 @@
+= cowboy_constraints(3)
+
+== Name
+
+cowboy_constraints - Constraints
+
+== Description
+
+The module `cowboy_constraints` defines the built-in
+constraints in Cowboy and provides an interface for
+manipulating these constraints.
+
+Constraints are functions that define what type of
+input is allowed. They are used throughout Cowboy,
+from the router to query strings to cookies.
+
+== Exports
+
+Built-in constraints:
+
+* link:man:cowboy_constraints:int(3)[cowboy_constraints:int(3)] - Integer constraint
+* link:man:cowboy_constraints:nonempty(3)[cowboy_constraints:nonempty(3)] - Non-empty constraint
+
+== Types
+
+=== constraint()
+
+[source,erlang]
+----
+constraint() :: int | nonempty | fun()
+----
+
+A constraint function.
+
+The atom constraints are built-in, see the corresponding
+function in the exports list above.
+
+=== reason()
+
+[source,erlang]
+----
+reason() :: {constraint(), Reason, Value}
+
+Reason :: any()
+Value  :: any()
+----
+
+Reason for the constraint failure.
+
+It includes the constraint function in question,
+a machine-readable error reason and the value that
+made the constraint fail.
+
+== See also
+
+link:man:cowboy(7)[cowboy(7)],
+link:man:cowboy(3)[cowboy(3)],
+link:man:cowboy_router(3)[cowboy_router(3)],
+link:man:cowboy_req:match_cookies(3)[cowboy_req:match_cookies(3)],
+link:man:cowboy_req:match_qs(3)[cowboy_req:match_qs(3)]

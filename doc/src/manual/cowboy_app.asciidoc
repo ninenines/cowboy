@@ -20,8 +20,7 @@ Functions:
 * link:man:cowboy(3)[cowboy(3)] - Listener management
 * link:man:cowboy_req(3)[cowboy_req(3)] - Request and response
 * link:man:cowboy_router(3)[cowboy_router(3)] - Router
-
-// @todo What about cowboy_constraints?
+* link:man:cowboy_constraints(3)[cowboy_constraints(3)] - Constraints
 
 Protocols:
 
@@ -32,9 +31,6 @@ Protocols:
 Handlers:
 
 * link:man:cowboy_static(3)[cowboy_static(3)] - Static file handler
-
-// @todo What about cowboy_stream_h?
-// @todo cowboy_compress_h
 
 Behaviors:
 

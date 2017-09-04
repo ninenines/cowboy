@@ -1,8 +1,6 @@
 [[modern_web]]
 == The modern Web
 
-// @todo Link to related xrefs.
-
 Cowboy is a server for the modern Web. This chapter explains
 what it means and details all the standards involved.
 
@@ -56,9 +54,9 @@ methods, status codes, headers or semantics.
 
 === Websocket
 
-Websocket is a protocol built on top of HTTP/1.1 that provides
-a two-ways communication channel between the client and the
-server. Communication is asynchronous and can occur concurrently.
+xref:ws_protocol[Websocket] is a protocol built on top of HTTP/1.1
+that provides a two-ways communication channel between the client and
+the server. Communication is asynchronous and can occur concurrently.
 
 It consists of a Javascript object allowing setting up a
 Websocket connection to the server, and a binary based
@@ -78,6 +76,9 @@ Websocket messages have no semantics on their own. Websocket
 is closer to TCP in that aspect, and requires you to design
 and implement your own protocol on top of it; or adapt an
 existing protocol to Websocket.
+
+Cowboy provides an interface known as xref:ws_handlers[Websocket handlers]
+that gives complete control over a Websocket connection.
 
 The Websocket protocol is defined by RFC 6455.
 
@@ -101,21 +102,21 @@ type, `text/event-stream`, along with a new HTTP header,
 `Last-Event-ID`. It is defined in the EventSource W3C
 specification.
 
-Cowboy provides an interface known as loop handlers that
-facilitates the implementation of long-polling or stream
+Cowboy provides an interface known as xref:loop_handlers[loop handlers]
+that facilitates the implementation of long-polling or stream
 mechanisms. It works regardless of the underlying protocol.
 
 === REST
 
-REST, or REpresentational State Transfer, is a style of
-architecture for loosely connected distributed systems.
-It can easily be implemented on top of HTTP.
+xref:rest_principles[REST, or REpresentational State Transfer],
+is a style of architecture for loosely connected distributed
+systems. It can easily be implemented on top of HTTP.
 
 REST is essentially a set of constraints to be followed.
 Many of these constraints are purely architectural and
 solved by simply using HTTP. Some constraints must be
 explicitly followed by the developer.
 
-Cowboy provides an interface known as REST handlers that
-simplifies the implementation of a REST API on top of
+Cowboy provides an interface known as xref:rest_handlers[REST handlers]
+that simplifies the implementation of a REST API on top of
 the HTTP protocol.

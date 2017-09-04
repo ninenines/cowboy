@@ -1,0 +1,62 @@
+= cowboy_constraints:nonempty(3)
+
+== Name
+
+cowboy_constraints:nonempty - Non-empty constraint
+
+== Description
+
+Constraint functions implement a number of different operations.
+
+[source,erlang]
+----
+nonempty(forward | reverse, <<>>) -> {error, empty}
+----
+
+Reject empty values.
+
+[source,erlang]
+----
+nonempty(forward | reverse, Bin) -> {ok, Bin}
+
+Bin :: binary()
+----
+
+Accept any other binary values.
+
+[source,erlang]
+----
+nonempty(format_error, Error) -> HumanReadable
+
+Error         :: {empty, Bin}
+HumanReadable :: iolist()
+----
+
+Generate a human-readable error message.
+
+== Arguments
+
+Arguments vary depending on the operation. Constraint
+functions always take the operation type as first argument,
+and the value as second argument.
+
+== Return value
+
+The return value varies depending on the operation.
+
+== Changelog
+
+* *2.0*: Interface modified to allow for a variety of operations.
+* *1.0*: Constraint introduced.
+
+== Examples
+
+This function is not meant to be called directly.
+
+== See also
+
+link:man:cowboy_constraints(3)[cowboy_constraints(3)],
+link:man:cowboy_constraints:int(3)[cowboy_constraints:int(3)],
+link:man:cowboy_router(3)[cowboy_router(3)],
+link:man:cowboy_req:match_cookies(3)[cowboy_req:match_cookies(3)],
+link:man:cowboy_req:match_qs(3)[cowboy_req:match_qs(3)]

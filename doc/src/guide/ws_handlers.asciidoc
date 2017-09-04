@@ -151,7 +151,9 @@ websocket_info(_Info, State) ->
 
 === Sending frames
 
-// @todo So yeah, reply makes no sense. Maybe change it to send. Sigh.
+// @todo This will be deprecated and eventually replaced with a
+// {Commands, State} interface that allows providing more
+// functionality easily.
 
 All `websocket_` callbacks share return values. They may
 send zero, one or many frames to the client.
@@ -221,8 +223,6 @@ init(Req, State) ->
 
 This value cannot be changed once it is set. It defaults to
 `60000`.
-
-// @todo Perhaps the default should be changed.
 
 === Saving memory
 

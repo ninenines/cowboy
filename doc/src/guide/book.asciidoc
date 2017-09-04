@@ -75,6 +75,4 @@ include::middlewares.asciidoc[Middlewares]
 
 include::migrating_from_1.0.asciidoc[Migrating from Cowboy 1.0 to 2.0]
 
-// @todo Maybe history? Could take info from architecture also.
-
 include::specs.asciidoc[HTTP and other specifications]

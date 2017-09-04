@@ -8,12 +8,12 @@ cowboy_handler:terminate - Terminate the handler
 
 [source,erlang]
 ----
-terminate(Reason, Req | undefined, State, Handler) -> ok
+terminate(Reason, PartialReq, State, Handler) -> ok
 
-Reason  :: any()
-Req     :: cowboy_req:req()
-State   :: any()
-Handler :: module()
+Reason     :: any()
+PartialReq :: map()
+State      :: any()
+Handler    :: module()
 ----
 
 Call the optional terminate callback if it is defined.
@@ -27,13 +27,13 @@ Reason::
 
 Reason for termination.
 
-Req::
+PartialReq::
 
 The Req object.
 +
-It is possible to pass `undefined` if the handler has no concept
-of requests/responses and discarded the Req object before calling
-this function.
+It is possible to remove fields from the Req object to save memory
+when the handler has no concept of requests/responses. The only
+requirement is that a map is provided.
 
 State::
 

@@ -78,11 +78,11 @@ int(format_error, {not_an_integer, Value}) ->
 	io_lib:format("The value ~p is not an integer.", [Value]).
 
 nonempty(Type, <<>>) when Type =/= format_error ->
-	{error, not_empty};
+	{error, empty};
 nonempty(Type, Value) when Type =/= format_error, is_binary(Value) ->
 	{ok, Value};
-nonempty(format_error, {not_empty, Value}) ->
-	io_lib:format("The value ~p is not empty.", [Value]).
+nonempty(format_error, {empty, Value}) ->
+	io_lib:format("The value ~p is empty.", [Value]).
 
 -ifdef(TEST).
 

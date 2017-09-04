@@ -25,9 +25,10 @@ websocket_init(State)            -> CallResult  %% optional
 websocket_handle(InFrame, State) -> CallResult
 websocket_info(Info, State)      -> CallResult
 
-terminate(Reason, undefined, State) -> ok       %% optional
+terminate(Reason, PartialReq, State) -> ok      %% optional
 
 Req        :: cowboy_req:req()
+PartialReq :: map()
 State      :: any()
 Opts       :: cowboy_websocket:opts()
 InFrame    :: {text | binary | ping | pong, binary()}
@@ -74,9 +75,8 @@ tuple).
 
 The optional `terminate/3` callback will ultimately be called
 with the reason for the termination of the connection. This
-callback is common to all handlers. Note that Websocket has
-no concept of requests so it sets the second argument to
-undefined.
+callback is common to all handlers. Note that Websocket will
+not provide the full Req object by default, to save memory.
 
 Cowboy will terminate the process right after closing the
 Websocket connection. This means that there is no need to
