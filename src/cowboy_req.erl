@@ -98,7 +98,7 @@
 %% Cowboy expects the real length as it is used as metadata.
 %% @todo We should probably explicitly reject it.
 -type resp_body() :: iodata()
-	| {sendfile, non_neg_integer(), pos_integer(), file:name_all()}.
+	| {sendfile, non_neg_integer(), non_neg_integer(), file:name_all()}.
 -export_type([resp_body/0]).
 
 -type push_opts() :: #{
@@ -635,6 +635,11 @@ reply(Status, Headers, Req) ->
 	-> Req when Req::req().
 reply(_, _, _, #{has_sent_resp := _}) ->
 	error(function_clause);
+reply(Status, Headers, Sendfile = {sendfile, _, 0, _}, Req)
+		when is_integer(Status); is_binary(Status) ->
+	do_reply(Status, Headers#{
+		<<"content-length">> => <<"0">>
+	}, <<>>, Req);
 reply(Status, Headers, SendFile = {sendfile, _, Len, _}, Req)
 		when is_integer(Status); is_binary(Status) ->
 	do_reply(Status, Headers#{

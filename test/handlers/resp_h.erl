@@ -58,6 +58,9 @@ do(<<"resp_headers_empty">>, Req, Opts) ->
 do(<<"set_resp_body">>, Req0, Opts) ->
 	Arg = cowboy_req:binding(arg, Req0),
 	Req1 = case Arg of
+		<<"sendfile0">> ->
+			AppFile = code:where_is_file("cowboy.app"),
+			cowboy_req:set_resp_body({sendfile, 0, 0, AppFile}, Req0);
 		<<"sendfile">> ->
 			AppFile = code:where_is_file("cowboy.app"),
 			cowboy_req:set_resp_body({sendfile, 0, filelib:file_size(AppFile), AppFile}, Req0);

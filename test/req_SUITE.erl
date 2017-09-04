@@ -509,6 +509,27 @@ set_resp_body(Config) ->
 	{200, _, AppFile} = do_get("/resp/set_resp_body/sendfile", Config),
 	ok.
 
+set_resp_body_sendfile0(Config) ->
+	doc("Response using set_resp_body with a sendfile of length 0."),
+	Path = "/resp/set_resp_body/sendfile0",
+	ConnPid = gun_open(Config),
+	%% First request.
+	Ref1 = gun:get(ConnPid, Path, [{<<"accept-encoding">>, <<"gzip">>}]),
+	{response, IsFin, 200, _} = gun:await(ConnPid, Ref1),
+	{ok, <<>>} = case IsFin of
+		nofin -> gun:await_body(ConnPid, Ref1);
+		fin -> {ok, <<>>}
+	end,
+	%% Second request will confirm everything works as intended.
+	Ref2 = gun:get(ConnPid, Path, [{<<"accept-encoding">>, <<"gzip">>}]),
+	{response, IsFin, 200, _} = gun:await(ConnPid, Ref2),
+	{ok, <<>>} = case IsFin of
+		nofin -> gun:await_body(ConnPid, Ref2);
+		fin -> {ok, <<>>}
+	end,
+	gun:close(ConnPid),
+	ok.
+
 has_resp_header(Config) ->
 	doc("Has response header?"),
 	{200, Headers, <<"OK">>} = do_get("/resp/has_resp_header", Config),

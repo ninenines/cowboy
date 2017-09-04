@@ -156,7 +156,7 @@ resp_body() :: iodata()
     | {sendfile, Offset, Length, Filename}
 
 Offset   :: non_neg_integer()
-Length   :: pos_integer()
+Length   :: non_neg_integer()
 Filename :: file:name_all()
 ----
 
@@ -180,16 +180,9 @@ order they should be sent:
 Hello world!
 ----
 
-When using the sendfile tuple, the `Length` value is mandatory
-and must be higher than 0. It is sent with the response in the
-content-length header.
-
-// @todo Make sure we have a test with an empty file...
-// @todo cowboy_static should probably NOT return a sendfile tuple if size is 0.
-
-//%% While sendfile allows a Len of 0 that means "everything past Offset",
-//%% Cowboy expects the real length as it is used as metadata.
-//%% @todo We should probably explicitly reject it.
+Note that the length must be greater than zero for any data
+to be sent. Cowboy will send an empty body when the length
+is zero.
 
 == See also
 
