@@ -337,6 +337,11 @@ dir_dotdot_file(Config) ->
 	{404, _, _} = do_get(config(prefix, Config) ++ "/directory/../../static/style.css", Config),
 	ok.
 
+dir_empty_file(Config) ->
+	doc("Get an empty .txt file."),
+	{200, Headers, <<>>} = do_get(config(prefix, Config) ++ "/empty.txt", Config),
+	ok.
+
 dir_error_directory(Config) ->
 	doc("Try to get a directory."),
 	{403, _, _} = do_get(config(prefix, Config) ++ "/directory", Config),
