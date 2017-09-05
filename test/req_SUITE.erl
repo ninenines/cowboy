@@ -56,6 +56,7 @@ init_dispatch(Config) ->
 		{"/opts/:key/timeout", echo_h, #{timeout => 1000, crash => true}},
 		{"/full/:key", echo_h, []},
 		{"/no/:key", echo_h, []},
+		{"/direct/:key/[...]", echo_h, []},
 		{"/:key/[...]", echo_h, []}
 	]}]).
 
@@ -128,14 +129,19 @@ header(Config) ->
 
 headers(Config) ->
 	doc("Request headers."),
+	do_headers("/headers", Config),
+	do_headers("/direct/headers", Config).
+
+do_headers(Path, Config) ->
 	%% We always send accept-encoding with this test suite's requests.
 	<<"#{<<\"accept-encoding\">> => <<\"gzip\">>,<<\"header\">> => <<\"value\">>", _/bits>>
-		= do_get_body("/headers", [{<<"header">>, "value"}], Config),
+		= do_get_body(Path, [{<<"header">>, "value"}], Config),
 	ok.
 
 host(Config) ->
 	doc("Request URI host."),
 	<<"localhost">> = do_get_body("/host", Config),
+	<<"localhost">> = do_get_body("/direct/host", Config),
 	ok.
 
 host_info(Config) ->
@@ -168,6 +174,10 @@ match_qs(Config) ->
 
 method(Config) ->
 	doc("Request method."),
+	do_method("/method", Config),
+	do_method("/direct/method", Config).
+
+do_method(Path, Config) ->
 	<<"GET">> = do_body("GET", "/method", Config),
 	<<>> = do_body("HEAD", "/method", Config),
 	<<"OPTIONS">> = do_body("OPTIONS", "/method", Config),
@@ -212,10 +222,15 @@ parse_qs(Config) ->
 
 path(Config) ->
 	doc("Request URI path."),
-	<<"/path/to/the/resource">> = do_get_body("/path/to/the/resource", Config),
-	<<"/path/to/the/resource">> = do_get_body("/path/to/the/resource?query", Config),
-	<<"/path/to/the/resource">> = do_get_body("/path/to/the/resource?query#fragment", Config),
-	<<"/path/to/the/resource">> = do_get_body("/path/to/the/resource#fragment", Config),
+	do_path("/path", Config),
+	do_path("/direct/path", Config).
+
+do_path(Path0, Config) ->
+	Path = list_to_binary(Path0 ++ "/to/the/resource"),
+	Path = do_get_body(Path, Config),
+	Path = do_get_body([Path, "?query"], Config),
+	Path = do_get_body([Path, "?query#fragment"], Config),
+	Path = do_get_body([Path, "#fragment"], Config),
 	ok.
 
 path_info(Config) ->
@@ -232,25 +247,35 @@ path_info(Config) ->
 peer(Config) ->
 	doc("Request peer."),
 	<<"{{127,0,0,1},", _/bits >> = do_get_body("/peer", Config),
+	<<"{{127,0,0,1},", _/bits >> = do_get_body("/direct/peer", Config),
 	ok.
 
 port(Config) ->
 	doc("Request URI port."),
 	Port = integer_to_binary(config(port, Config)),
 	Port = do_get_body("/port", Config),
+	Port = do_get_body("/direct/port", Config),
 	ok.
 
 qs(Config) ->
 	doc("Request URI query string."),
-	<<>> = do_get_body("/qs", Config),
-	<<"abc">> = do_get_body("/qs?abc", Config),
-	<<"a=b&c=d+e">> = do_get_body("/qs?a=b&c=d+e", Config),
+	do_qs("/qs", Config),
+	do_qs("/direct/qs", Config).
+
+do_qs(Path, Config) ->
+	<<>> = do_get_body(Path, Config),
+	<<"abc">> = do_get_body(Path ++ "?abc", Config),
+	<<"a=b&c=d+e">> = do_get_body(Path ++ "?a=b&c=d+e", Config),
 	ok.
 
 scheme(Config) ->
 	doc("Request URI scheme."),
+	do_scheme("/scheme", Config),
+	do_scheme("/direct/scheme", Config).
+
+do_scheme(Path, Config) ->
 	Transport = config(type, Config),
-	case do_get_body("/scheme", Config) of
+	case do_get_body(Path, Config) of
 		<<"http">> when Transport =:= tcp -> ok;
 		<<"https">> when Transport =:= ssl -> ok
 	end.
@@ -286,8 +311,12 @@ uri(Config) ->
 
 version(Config) ->
 	doc("Request HTTP version."),
+	do_version("/version", Config),
+	do_version("/direct/version", Config).
+
+do_version(Path, Config) ->
 	Protocol = config(protocol, Config),
-	case do_get_body("/version", Config) of
+	case do_get_body(Path, Config) of
 		<<"HTTP/1.1">> when Protocol =:= http -> ok;
 		<<"HTTP/2">> when Protocol =:= http2 -> ok
 	end.

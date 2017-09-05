@@ -22,8 +22,6 @@ The peer can also be obtained using pattern matching:
 #{peer := {IP, Port}} = Req.
 ----
 
-// @todo So we need tests for accessing the Req directly.
-
 == Arguments
 
 Req::

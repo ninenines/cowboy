@@ -55,8 +55,11 @@ echo(<<"match">>, Req, Opts) ->
 	end,
 	{ok, cowboy_req:reply(200, #{}, value_to_iodata(Value), Req), Opts};
 echo(What, Req, Opts) ->
-	F = binary_to_atom(What, latin1),
-	Value = cowboy_req:F(Req),
+	Key = binary_to_atom(What, latin1),
+	Value = case cowboy_req:path(Req) of
+		<<"/direct/",_/bits>> -> maps:get(Key, Req);
+		_ -> cowboy_req:Key(Req)
+	end,
 	{ok, cowboy_req:reply(200, #{}, value_to_iodata(Value), Req), Opts}.
 
 echo_arg(Arg0, Req, Opts) ->
