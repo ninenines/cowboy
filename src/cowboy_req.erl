@@ -635,7 +635,7 @@ reply(Status, Headers, Req) ->
 	-> Req when Req::req().
 reply(_, _, _, #{has_sent_resp := _}) ->
 	error(function_clause);
-reply(Status, Headers, Sendfile = {sendfile, _, 0, _}, Req)
+reply(Status, Headers, {sendfile, _, 0, _}, Req)
 		when is_integer(Status); is_binary(Status) ->
 	do_reply(Status, Headers#{
 		<<"content-length">> => <<"0">>
