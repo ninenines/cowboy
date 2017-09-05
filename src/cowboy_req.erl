@@ -356,9 +356,6 @@ parse_header(Name = <<"content-length">>, Req) ->
 	parse_header(Name, Req, 0, fun cow_http_hd:parse_content_length/1);
 parse_header(Name = <<"cookie">>, Req) ->
 	parse_header(Name, Req, [], fun cow_cookie:parse_cookie/1);
-%% @todo That header is abstracted out and should never reach cowboy_req.
-parse_header(Name = <<"transfer-encoding">>, Req) ->
-	parse_header(Name, Req, [<<"identity">>], fun cow_http_hd:parse_transfer_encoding/1);
 parse_header(Name, Req) ->
 	parse_header(Name, Req, undefined).
 
@@ -383,7 +380,6 @@ parse_header_fun(<<"if-unmodified-since">>) -> fun cow_http_hd:parse_if_unmodifi
 parse_header_fun(<<"range">>) -> fun cow_http_hd:parse_range/1;
 parse_header_fun(<<"sec-websocket-extensions">>) -> fun cow_http_hd:parse_sec_websocket_extensions/1;
 parse_header_fun(<<"sec-websocket-protocol">>) -> fun cow_http_hd:parse_sec_websocket_protocol_req/1;
-parse_header_fun(<<"transfer-encoding">>) -> fun cow_http_hd:parse_transfer_encoding/1;
 parse_header_fun(<<"upgrade">>) -> fun cow_http_hd:parse_upgrade/1;
 parse_header_fun(<<"x-forwarded-for">>) -> fun cow_http_hd:parse_x_forwarded_for/1.
 
