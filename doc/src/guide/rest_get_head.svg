@@ -15,7 +15,7 @@
    height="1052.3622047"
    id="svg2"
    version="1.1"
-   inkscape:version="0.48.4 r9939"
+   inkscape:version="0.92.1 r"
    sodipodi:docname="rest_get_head.svg"
    inkscape:export-filename="/home/essen/Dropbox/Public/drawing.png"
    inkscape:export-xdpi="90"
@@ -65,15 +65,15 @@
      inkscape:pageopacity="1"
      inkscape:pageshadow="2"
      inkscape:zoom="1.4142136"
-     inkscape:cx="122.28875"
-     inkscape:cy="777.29526"
+     inkscape:cx="353.51266"
+     inkscape:cy="522.73683"
      inkscape:document-units="px"
      inkscape:current-layer="layer1"
      showgrid="false"
-     inkscape:window-width="2560"
-     inkscape:window-height="1402"
+     inkscape:window-width="1920"
+     inkscape:window-height="1043"
      inkscape:window-x="0"
-     inkscape:window-y="38"
+     inkscape:window-y="0"
      inkscape:window-maximized="1"
      inkscape:snap-global="true"
      showguides="true">
@@ -93,7 +93,7 @@
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title></dc:title>
+        <dc:title />
       </cc:Work>
     </rdf:RDF>
   </metadata>
@@ -514,135 +514,135 @@
        inkscape:export-ydpi="89.926643" />
     <text
        xml:space="preserve"
-       style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#77823c;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#77823c;fill-opacity:1;stroke:none"
        x="-58.692513"
        y="114.39204"
-       id="text5371"
-       sodipodi:linespacing="125%"><tspan
+       id="text5371"><tspan
          sodipodi:role="line"
          id="tspan5373"
          x="-58.692513"
-         y="114.39204">some text</tspan></text>
+         y="114.39204"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">some text</tspan></text>
     <text
        xml:space="preserve"
-       style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none"
        x="-58.692513"
        y="53.112247"
-       id="text5371-2"
-       sodipodi:linespacing="125%"><tspan
+       id="text5371-2"><tspan
          sodipodi:role="line"
          id="tspan5373-6"
          x="-58.692513"
-         y="53.112247">some text</tspan></text>
+         y="53.112247"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">some text</tspan></text>
     <text
        xml:space="preserve"
-       style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none"
        x="213.07524"
        y="379.78381"
        id="text5371-2-3"
-       sodipodi:linespacing="125%"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-6-7"
          x="213.07524"
-         y="379.78381">last_modified</tspan></text>
+         y="379.78381"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">last_modified</tspan></text>
     <text
        xml:space="preserve"
-       style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none"
        x="212.74321"
        y="546.59912"
        id="text5371-2-3-0"
-       sodipodi:linespacing="125%"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-6-7-3"
          x="212.74321"
-         y="546.59912">ProvideResource</tspan></text>
+         y="546.59912"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">ProvideCallback</tspan></text>
     <text
        xml:space="preserve"
-       style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#9b3b1c;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#9b3b1c;fill-opacity:1;stroke:none"
        x="-58.692513"
        y="236.95154"
-       id="text5371-4"
-       sodipodi:linespacing="125%"><tspan
+       id="text5371-4"><tspan
          sodipodi:role="line"
          id="tspan5373-9"
          x="-58.692513"
-         y="236.95154">some text</tspan></text>
+         y="236.95154"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">some text</tspan></text>
     <text
        xml:space="preserve"
-       style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#9b3b1c;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#9b3b1c;fill-opacity:1;stroke:none"
        x="359.14185"
        y="50.482433"
        id="text5371-4-0"
-       sodipodi:linespacing="125%"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          x="359.14185"
          y="50.482433"
-         id="tspan17171">conneg</tspan></text>
+         id="tspan17171"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">conneg</tspan></text>
     <text
        xml:space="preserve"
-       style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none"
        x="212.77055"
        y="627.34662"
        id="text5371-2-9"
-       sodipodi:linespacing="125%"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-6-8"
          x="212.77055"
-         y="627.34662">multiple_choices</tspan></text>
+         y="627.34662"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">multiple_choices</tspan></text>
     <text
        xml:space="preserve"
-       style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none"
        x="358.52466"
        y="134.49161"
        id="text5371-2-95"
-       sodipodi:linespacing="125%"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-6-80"
          x="358.52466"
-         y="134.49161">resource_exists</tspan></text>
+         y="134.49161"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">resource_exists</tspan></text>
     <text
        xml:space="preserve"
-       style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none"
        x="213.38774"
        y="296.80188"
        id="text5371-2-32"
-       sodipodi:linespacing="125%"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-6-27"
          x="213.38774"
-         y="296.80188">generate_etag</tspan></text>
+         y="296.80188"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">generate_etag</tspan></text>
     <text
        xml:space="preserve"
-       style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none"
        x="213.05571"
        y="462.5274"
        id="text5371-2-74"
-       sodipodi:linespacing="125%"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-6-18"
          x="213.05571"
-         y="462.5274">expires</tspan></text>
+         y="462.5274"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">expires</tspan></text>
     <rect
        style="fill:#d1f2a5;fill-opacity:1;fill-rule:nonzero;stroke:#a9ca7d;stroke-width:3;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
        id="rect5273-1-2"
@@ -653,32 +653,32 @@
        rx="15" />
     <text
        xml:space="preserve"
-       style="font-size:16px;font-style:normal;font-weight:normal;text-align:start;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#6d8e41;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#6d8e41;fill-opacity:1;stroke:none"
        x="251.83722"
        y="175.92931"
        id="text5371-2-391"
-       sodipodi:linespacing="125%"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-6-63"
          x="251.83722"
-         y="175.92931">true</tspan></text>
+         y="175.92931"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">true</tspan></text>
     <text
        xml:space="preserve"
-       style="font-size:16px;font-style:normal;font-weight:normal;text-align:start;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#6d8e41;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#6d8e41;fill-opacity:1;stroke:none"
        x="161.54012"
        y="670.38055"
        id="text5371-2-8"
-       sodipodi:linespacing="125%"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-6-3"
          x="161.54012"
-         y="670.38055">false</tspan></text>
+         y="670.38055"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">false</tspan></text>
     <g
        transform="matrix(0,-1,1,0,-513.31414,353.05561)"
        id="g5650-2">
@@ -707,18 +707,18 @@
     </g>
     <text
        xml:space="preserve"
-       style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#9b3b1c;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#9b3b1c;fill-opacity:1;stroke:none"
        x="447.26678"
        y="176.39024"
        id="text5371-4-6"
-       sodipodi:linespacing="125%"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-9-0"
          x="447.26678"
-         y="176.39024">false</tspan></text>
+         y="176.39024"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">false</tspan></text>
     <g
        transform="translate(563.72619,-141.76777)"
        id="g5650-2-2">
@@ -758,19 +758,19 @@
        inkscape:export-ydpi="89.926643" />
     <text
        xml:space="preserve"
-       style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none"
        x="-544.69421"
        y="-354.17184"
        id="text5371-2-3-0-7"
-       sodipodi:linespacing="125%"
-       transform="matrix(0,-1,1,0,0,0)"
+       transform="rotate(-90)"
        inkscape:export-filename="/home/essen/extend/cowboy/guide/http_req_resp.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-6-7-3-9"
          x="-544.69421"
-         y="-354.17184">middlewares</tspan></text>
+         y="-354.17184"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">middlewares</tspan></text>
     <g
        transform="matrix(0,-1,1,0,-508.93096,565.23553)"
        id="g5650-2-0-4"
@@ -804,32 +804,32 @@
     </g>
     <text
        xml:space="preserve"
-       style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#9b3b1c;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#9b3b1c;fill-opacity:1;stroke:none"
        x="46.409981"
        y="711.18011"
        id="text5371-4-3-9"
-       sodipodi:linespacing="125%"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-9-62-9"
          x="46.409981"
-         y="711.18011">true</tspan></text>
+         y="711.18011"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">true</tspan></text>
     <text
        xml:space="preserve"
-       style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#9b3b1c;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#9b3b1c;fill-opacity:1;stroke:none"
        x="545.12921"
        y="257.43518"
        id="text5371-4-4-9"
-       sodipodi:linespacing="125%"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-9-2-6"
          x="545.12921"
-         y="257.43518">true</tspan></text>
+         y="257.43518"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">true</tspan></text>
     <g
        transform="matrix(0.70710678,0.70710678,-0.70710678,0.70710678,547.47379,-62.310424)"
        id="g5650-9-9"
@@ -872,18 +872,18 @@
        inkscape:export-ydpi="89.926643" />
     <text
        xml:space="preserve"
-       style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#9b3b1c;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#9b3b1c;fill-opacity:1;stroke:none"
        x="213.38774"
        y="216.5154"
        id="text5371-4-0-8"
-       sodipodi:linespacing="125%"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          x="213.38774"
          y="216.5154"
-         id="tspan17171-6">cond</tspan></text>
+         id="tspan17171-6"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">cond</tspan></text>
     <rect
        style="fill:#effab4;fill-opacity:1;fill-rule:nonzero;stroke:#c7d28c;stroke-width:2.73499846;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
        id="rect5273-7-3-1-1"
@@ -897,18 +897,18 @@
        inkscape:export-ydpi="89.926643" />
     <text
        xml:space="preserve"
-       style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#77823c;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#77823c;fill-opacity:1;stroke:none"
        x="212.88774"
        y="792.61121"
        id="text5371-43-5"
-       sodipodi:linespacing="125%"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-3-62"
          x="212.88774"
-         y="792.61121">300 multiple choices</tspan></text>
+         y="792.61121"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">300 multiple choices</tspan></text>
     <rect
        style="fill:#effab4;fill-opacity:1;fill-rule:nonzero;stroke:#c7d28c;stroke-width:2.73499846;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
        id="rect5273-7-3-1-8"
@@ -922,18 +922,18 @@
        inkscape:export-ydpi="89.926643" />
     <text
        xml:space="preserve"
-       style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#77823c;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#77823c;fill-opacity:1;stroke:none"
        x="212.35258"
        y="711.50043"
        id="text5371-43-3"
-       sodipodi:linespacing="125%"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-3-1"
          x="212.35258"
-         y="711.50043">200 OK</tspan></text>
+         y="711.50043"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">200 OK</tspan></text>
     <g
        transform="matrix(0,-1,-1,0,1028.2004,317.70407)"
        id="g5650-2-0-4-3-8"
@@ -978,32 +978,32 @@
        inkscape:export-ydpi="89.926643" />
     <text
        xml:space="preserve"
-       style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none"
        x="505.77957"
        y="216.51541"
        id="text5371-2-32-6"
-       sodipodi:linespacing="125%"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-6-27-8"
          x="505.77957"
-         y="216.51541">has if-match?</tspan></text>
+         y="216.51541"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">has if-match?</tspan></text>
     <text
        xml:space="preserve"
-       style="font-size:16px;font-style:normal;font-weight:normal;text-align:start;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#6d8e41;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#6d8e41;fill-opacity:1;stroke:none"
        x="651.74426"
        y="299.27689"
        id="text5371-2-391-5"
-       sodipodi:linespacing="125%"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-6-63-7"
          x="651.74426"
-         y="299.27689">false</tspan></text>
+         y="299.27689"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">false</tspan></text>
     <g
        transform="translate(563.72619,22.800669)"
        id="g5650-0-6"
@@ -1077,18 +1077,18 @@
        inkscape:export-ydpi="89.926643" />
     <text
        xml:space="preserve"
-       style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none"
        x="505.94363"
        y="379.78381"
        id="text5371-2-32-8"
-       sodipodi:linespacing="125%"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-6-27-1"
          x="505.94363"
-         y="379.78381">previously_existed</tspan></text>
+         y="379.78381"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">previously_existed</tspan></text>
     <rect
        style="fill:#effab4;fill-opacity:1;fill-rule:nonzero;stroke:#c7d28c;stroke-width:2.73499846;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
        id="rect5273-7-3-1-5"
@@ -1102,32 +1102,32 @@
        inkscape:export-ydpi="89.926643" />
     <text
        xml:space="preserve"
-       style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#77823c;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#77823c;fill-opacity:1;stroke:none"
        x="506.2796"
        y="463.83755"
        id="text5371-43-2"
-       sodipodi:linespacing="125%"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-3-9"
          x="506.2796"
-         y="463.83755">404 not found</tspan></text>
+         y="463.83755"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">404 not found</tspan></text>
     <text
        xml:space="preserve"
-       style="font-size:16px;font-style:normal;font-weight:normal;text-align:start;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#6d8e41;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#6d8e41;fill-opacity:1;stroke:none"
        x="528.75421"
        y="422.69736"
        id="text5371-2-8-9"
-       sodipodi:linespacing="125%"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-6-3-4"
          x="528.75421"
-         y="422.69736">false</tspan></text>
+         y="422.69736"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">false</tspan></text>
     <g
        transform="translate(563.72619,187.85116)"
        id="g5650-2-2-17">
@@ -1198,18 +1198,18 @@
        inkscape:export-ydpi="89.926643" />
     <text
        xml:space="preserve"
-       style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none"
        x="505.45535"
        y="544.82568"
        id="text5371-2-74-0"
-       sodipodi:linespacing="125%"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-6-18-2"
          x="505.45535"
-         y="544.82568">moved_permanently</tspan></text>
+         y="544.82568"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">moved_permanently</tspan></text>
     <g
        transform="matrix(0,-1,-1,0,347.00351,567.35686)"
        id="g5650-2-0-4-3-8-9"
@@ -1254,60 +1254,60 @@
        inkscape:export-ydpi="89.926643" />
     <text
        xml:space="preserve"
-       style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#77823c;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#77823c;fill-opacity:1;stroke:none"
        x="506.2796"
        y="297.7261"
        id="text5371-43"
-       sodipodi:linespacing="125%"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-3"
          x="506.2796"
-         y="297.7261">412 precondition failed</tspan></text>
+         y="297.7261"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">412 precondition failed</tspan></text>
     <text
        xml:space="preserve"
-       style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#9b3b1c;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#9b3b1c;fill-opacity:1;stroke:none"
        x="668.11926"
        y="463.37662"
        id="text5371-4-3-9-8"
-       sodipodi:linespacing="125%"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-9-62-9-9"
          x="668.11926"
-         y="463.37662">true</tspan></text>
+         y="463.37662"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">true</tspan></text>
     <text
        xml:space="preserve"
-       style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#9b3b1c;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#9b3b1c;fill-opacity:1;stroke:none"
        x="549.12921"
        y="587.59863"
        id="text5371-4-4-9-3"
-       sodipodi:linespacing="125%"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-9-2-6-2"
          x="549.12921"
-         y="587.59863">true*</tspan></text>
+         y="587.59863"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">true*</tspan></text>
     <text
        xml:space="preserve"
-       style="font-size:16px;font-style:normal;font-weight:normal;text-align:start;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#6d8e41;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#6d8e41;fill-opacity:1;stroke:none"
        x="651.74426"
        y="628.87946"
        id="text5371-2-391-5-5-1"
-       sodipodi:linespacing="125%"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-6-63-7-9-9"
          x="651.74426"
-         y="628.87946">false</tspan></text>
+         y="628.87946"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">false</tspan></text>
     <rect
        style="fill:#effab4;fill-opacity:1;fill-rule:nonzero;stroke:#c7d28c;stroke-width:2.73499846;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
        id="rect5273-7-3-1-5-9"
@@ -1321,18 +1321,18 @@
        inkscape:export-ydpi="89.926643" />
     <text
        xml:space="preserve"
-       style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#77823c;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#77823c;fill-opacity:1;stroke:none"
        x="505.57257"
        y="627.32867"
        id="text5371-43-2-9"
-       sodipodi:linespacing="125%"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-3-9-7"
          x="505.57257"
-         y="627.32867">301 moved permanently</tspan></text>
+         y="627.32867"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">301 moved permanently</tspan></text>
     <g
        transform="translate(563.72619,353.12604)"
        id="g5650-2-2-65">
@@ -1403,46 +1403,46 @@
        inkscape:export-ydpi="89.926643" />
     <text
        xml:space="preserve"
-       style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none"
        x="505.45535"
        y="709.62695"
        id="text5371-2-74-0-7"
-       sodipodi:linespacing="125%"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-6-18-2-8"
          x="505.45535"
-         y="709.62695">moved_temporarily</tspan></text>
+         y="709.62695"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">moved_temporarily</tspan></text>
     <text
        xml:space="preserve"
-       style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#9b3b1c;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#9b3b1c;fill-opacity:1;stroke:none"
        x="549.12921"
        y="752.64056"
        id="text5371-4-4-9-3-2"
-       sodipodi:linespacing="125%"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-9-2-6-2-6"
          x="549.12921"
-         y="752.64056">true*</tspan></text>
+         y="752.64056"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">true*</tspan></text>
     <text
        xml:space="preserve"
-       style="font-size:16px;font-style:normal;font-weight:normal;text-align:start;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#6d8e41;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#6d8e41;fill-opacity:1;stroke:none"
        x="651.74426"
        y="794.16199"
        id="text5371-2-391-5-5-1-0"
-       sodipodi:linespacing="125%"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-6-63-7-9-9-2"
          x="651.74426"
-         y="794.16199">false</tspan></text>
+         y="794.16199"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">false</tspan></text>
     <rect
        style="fill:#effab4;fill-opacity:1;fill-rule:nonzero;stroke:#c7d28c;stroke-width:2.73499846;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
        id="rect5273-7-3-1-5-9-2"
@@ -1456,18 +1456,18 @@
        inkscape:export-ydpi="89.926643" />
     <text
        xml:space="preserve"
-       style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#77823c;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#77823c;fill-opacity:1;stroke:none"
        x="505.57257"
        y="792.61121"
        id="text5371-43-2-9-7"
-       sodipodi:linespacing="125%"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-3-9-7-8"
          x="505.57257"
-         y="792.61121">307 moved temporarily</tspan></text>
+         y="792.61121"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">307 moved temporarily</tspan></text>
     <rect
        style="fill:#effab4;fill-opacity:1;fill-rule:nonzero;stroke:#c7d28c;stroke-width:2.73499846;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
        id="rect5273-7-3-1-5-9-2-4"
@@ -1481,18 +1481,18 @@
        inkscape:export-ydpi="89.926643" />
     <text
        xml:space="preserve"
-       style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#77823c;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#77823c;fill-opacity:1;stroke:none"
        x="505.97882"
        y="874.99164"
        id="text5371-43-2-9-7-3"
-       sodipodi:linespacing="125%"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-3-9-7-8-7"
          x="505.97882"
-         y="874.99164">410 gone</tspan></text>
+         y="874.99164"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">410 gone</tspan></text>
     <g
        transform="translate(31.619614,4.2328831)"
        id="g5650-2-2-6">

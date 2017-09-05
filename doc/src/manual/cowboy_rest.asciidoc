@@ -73,8 +73,6 @@ normal::
 
 === AcceptCallback
 
-// @todo The flowcharts should rename AcceptResource into AcceptCallback.
-
 [source,erlang]
 ----
 AcceptCallback(Req, State) -> {Result, Req, State}
