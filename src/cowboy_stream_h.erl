@@ -161,10 +161,16 @@ report_crash(Ref, StreamID, Pid, Reason, Stacktrace) ->
 %% @todo Better spec.
 -spec request_process(_, _, _) -> _.
 request_process(Req, Env, Middlewares) ->
+	OTP = erlang:system_info(otp_release),
 	try
 		execute(Req, Env, Middlewares)
 	catch
 		exit:Reason ->
+			Stacktrace = erlang:get_stacktrace(),
+			erlang:raise(exit, {Reason, Stacktrace}, Stacktrace);
+		%% OTP 19 does not propagate any exception stacktraces,
+		%% we therefore add it for every class of exception.
+		_:Reason when OTP =:= "19" ->
 			Stacktrace = erlang:get_stacktrace(),
 			erlang:raise(exit, {Reason, Stacktrace}, Stacktrace);
 		Class:Reason ->
