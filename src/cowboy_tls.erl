@@ -16,26 +16,16 @@
 -behavior(ranch_protocol).
 
 -export([start_link/4]).
--export([proc_lib_hack/5]).
+-export([connection_process/5]).
 
 -spec start_link(ranch:ref(), ssl:sslsocket(), module(), cowboy:opts()) -> {ok, pid()}.
 start_link(Ref, Socket, Transport, Opts) ->
-	Pid = proc_lib:spawn_link(?MODULE, proc_lib_hack, [self(), Ref, Socket, Transport, Opts]),
+	Pid = proc_lib:spawn_link(?MODULE, connection_process,
+		[self(), Ref, Socket, Transport, Opts]),
 	{ok, Pid}.
 
--spec proc_lib_hack(pid(), ranch:ref(), ssl:sslsocket(), module(), cowboy:opts()) -> ok.
-proc_lib_hack(Parent, Ref, Socket, Transport, Opts) ->
-	try
-		init(Parent, Ref, Socket, Transport, Opts)
-	catch
-		_:normal -> exit(normal);
-		_:shutdown -> exit(shutdown);
-		_:Reason = {shutdown, _} -> exit(Reason);
-		_:Reason -> exit({Reason, erlang:get_stacktrace()})
-	end.
-
--spec init(pid(), ranch:ref(), ssl:sslsocket(), module(), cowboy:opts()) -> ok.
-init(Parent, Ref, Socket, Transport, Opts) ->
+-spec connection_process(pid(), ranch:ref(), ssl:sslsocket(), module(), cowboy:opts()) -> ok.
+connection_process(Parent, Ref, Socket, Transport, Opts) ->
 	ok = ranch:accept_ack(Ref),
 	case ssl:negotiated_protocol(Socket) of
 		{ok, <<"h2">>} ->
