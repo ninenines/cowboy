@@ -69,14 +69,17 @@ data(_StreamID, IsFin, Data, State=#state{pid=Pid, read_body_ref=Ref,
 -spec info(cowboy_stream:streamid(), any(), State)
 	-> {cowboy_stream:commands(), State} when State::#state{}.
 info(_StreamID, {'EXIT', Pid, normal}, State=#state{pid=Pid}) ->
-	%% @todo Do we even reach this clause?
 	{[stop], State};
-info(_StreamID, {'EXIT', Pid, {_Reason, [T1, T2|_]}}, State=#state{pid=Pid})
-		when element(1, T1) =:= cow_http_hd; element(1, T2) =:= cow_http_hd ->
-	%% @todo Have an option to enable/disable this specific crash report?
+info(_StreamID, {'EXIT', Pid, {{request_error, Reason, _HumanReadable}, _}}, State=#state{pid=Pid}) ->
+	%% @todo Optionally report the crash to help debugging.
 	%%report_crash(Ref, StreamID, Pid, Reason, Stacktrace),
+	Status = case Reason of
+		timeout -> 408;
+		payload_too_large -> 413;
+		_ -> 400
+	end,
 	%% @todo Headers? Details in body? More stuff in debug only?
-	{[{error_response, 400, #{<<"content-length">> => <<"0">>}, <<>>}, stop], State};
+	{[{error_response, Status, #{<<"content-length">> => <<"0">>}, <<>>}, stop], State};
 info(StreamID, Exit = {'EXIT', Pid, {Reason, Stacktrace}}, State=#state{ref=Ref, pid=Pid}) ->
 	report_crash(Ref, StreamID, Pid, Reason, Stacktrace),
 	{[
@@ -162,11 +165,9 @@ report_crash(Ref, StreamID, Pid, Reason, Stacktrace) ->
 proc_lib_hack(Req, Env, Middlewares) ->
 	try
 		execute(Req, Env, Middlewares)
-	catch
-		_:Reason when element(1, Reason) =:= cowboy_handler ->
-			exit(Reason);
-		_:Reason ->
-			exit({Reason, erlang:get_stacktrace()})
+	catch _:Reason ->
+		%% @todo Have a way to identify OTP 20 to not do this twice?
+		exit({Reason, erlang:get_stacktrace()})
 	end.
 
 %% @todo

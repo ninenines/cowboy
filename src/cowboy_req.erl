@@ -184,7 +184,13 @@ qs(#{qs := Qs}) ->
 %% @todo Might be useful to limit the number of keys.
 -spec parse_qs(req()) -> [{binary(), binary() | true}].
 parse_qs(#{qs := Qs}) ->
-	cow_qs:parse_qs(Qs).
+	try
+		cow_qs:parse_qs(Qs)
+	catch _:_ ->
+		erlang:raise(exit, {request_error, qs,
+			'Malformed query string; application/x-www-form-urlencoded expected.'
+		}, erlang:get_stacktrace())
+	end.
 
 -spec match_qs(cowboy:fields(), req()) -> map().
 match_qs(Fields, Req) ->
@@ -353,15 +359,21 @@ headers(#{headers := Headers}) ->
 
 -spec parse_header(binary(), Req) -> any() when Req::req().
 parse_header(Name = <<"content-length">>, Req) ->
-	parse_header(Name, Req, 0, fun cow_http_hd:parse_content_length/1);
+	parse_header(Name, Req, 0);
 parse_header(Name = <<"cookie">>, Req) ->
-	parse_header(Name, Req, [], fun cow_cookie:parse_cookie/1);
+	parse_header(Name, Req, []);
 parse_header(Name, Req) ->
 	parse_header(Name, Req, undefined).
 
 -spec parse_header(binary(), Req, any()) -> any() when Req::req().
 parse_header(Name, Req, Default) ->
-	parse_header(Name, Req, Default, parse_header_fun(Name)).
+	try
+		parse_header(Name, Req, Default, parse_header_fun(Name))
+	catch _:_ ->
+		erlang:raise(exit, {request_error, {header, Name},
+			'Malformed header. Please consult the relevant specification.'
+		}, erlang:get_stacktrace())
+	end.
 
 parse_header_fun(<<"accept">>) -> fun cow_http_hd:parse_accept/1;
 parse_header_fun(<<"accept-charset">>) -> fun cow_http_hd:parse_accept_charset/1;
@@ -447,8 +459,26 @@ read_urlencoded_body(Req) ->
 
 -spec read_urlencoded_body(Req, read_body_opts()) -> {ok, [{binary(), binary() | true}], Req} when Req::req().
 read_urlencoded_body(Req0, Opts) ->
-	{ok, Body, Req} = read_body(Req0, Opts),
-	{ok, cow_qs:parse_qs(Body), Req}.
+	case read_body(Req0, Opts) of
+		{ok, Body, Req} ->
+			try
+				{ok, cow_qs:parse_qs(Body), Req}
+			catch _:_ ->
+				erlang:raise(exit, {request_error, urlencoded_body,
+					'Malformed body; application/x-www-form-urlencoded expected.'
+				}, erlang:get_stacktrace())
+			end;
+		{more, Body, _} ->
+			Length = maps:get(length, Opts, 64000),
+			if
+				byte_size(Body) < Length ->
+					exit({request_error, timeout,
+						'The request body was not received within the configured time.'});
+				true ->
+					exit({request_error, payload_too_large,
+						'The request body is larger than allowed by configuration.'})
+			end
+	end.
 
 %% Multipart.
 
@@ -471,7 +501,7 @@ read_part(Req, Opts) ->
 	end.
 
 read_part(Buffer, Opts, Req=#{multipart := {Boundary, _}}) ->
-	case cow_multipart:parse_headers(Buffer, Boundary) of
+	try cow_multipart:parse_headers(Buffer, Boundary) of
 		more ->
 			{Data, Req2} = stream_multipart(Req, Opts),
 			read_part(<< Buffer/binary, Data/binary >>, Opts, Req2);
@@ -486,6 +516,10 @@ read_part(Buffer, Opts, Req=#{multipart := {Boundary, _}}) ->
 		%% Ignore epilogue.
 		{done, _} ->
 			{done, Req#{multipart => done}}
+	catch _:_ ->
+		erlang:raise(exit, {request_error, {multipart, headers},
+			'Malformed body; multipart expected.'
+		}, erlang:get_stacktrace())
 	end.
 
 -spec read_part_body(Req)
@@ -529,8 +563,13 @@ read_part_body(Buffer, Opts, Req=#{multipart := {Boundary, _}}, Acc) ->
 
 init_multipart(Req) ->
 	{<<"multipart">>, _, Params} = parse_header(<<"content-type">>, Req),
-	{_, Boundary} = lists:keyfind(<<"boundary">>, 1, Params),
-	Req#{multipart => {Boundary, <<>>}}.
+	case lists:keyfind(<<"boundary">>, 1, Params) of
+		{_, Boundary} ->
+			Req#{multipart => {Boundary, <<>>}};
+		false ->
+			exit({request_error, {multipart, boundary},
+				'Missing boundary parameter for multipart media type.'})
+	end.
 
 stream_multipart(Req=#{multipart := done}, _) ->
 	{<<>>, Req};
