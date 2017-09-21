@@ -259,10 +259,10 @@ after_parse({request, Req=#{streamid := StreamID, headers := Headers, version :=
 			end,
 			State = set_timeout(State1),
 			parse(Buffer, commands(State, StreamID, Commands))
-	catch Class:Reason ->
-		error_logger:error_msg("Exception occurred in "
-			"cowboy_stream:init(~p, ~p, ~p) with reason ~p:~p.",
-			[StreamID, Req, Opts, Class, Reason]),
+	catch Class:Exception ->
+		cowboy_stream:report_error(init,
+			[StreamID, Req, Opts],
+			Class, Exception, erlang:get_stacktrace()),
 		ok %% @todo send a proper response, etc. note that terminate must NOT be called
 		%% @todo Status code.
 %		stream_reset(State, StreamID, {internal_error, {Class, Reason},
@@ -277,10 +277,10 @@ after_parse({data, StreamID, IsFin, Data, State=#state{
 			Streams = lists:keyreplace(StreamID, #stream.id, Streams0,
 				Stream#stream{state=StreamState}),
 			parse(Buffer, commands(State#state{streams=Streams}, StreamID, Commands))
-	catch Class:Reason ->
-		error_logger:error_msg("Exception occurred in "
-			"cowboy_stream:data(~p, ~p, ~p, ~p) with reason ~p:~p.",
-			[StreamID, IsFin, Data, StreamState0, Class, Reason]),
+	catch Class:Exception ->
+		cowboy_stream:report_error(data,
+			[StreamID, IsFin, Data, StreamState0],
+			Class, Exception, erlang:get_stacktrace()),
 		%% @todo Bad value returned here. Crashes.
 		ok
 		%% @todo
@@ -741,10 +741,10 @@ info(State=#state{streams=Streams0}, StreamID, Msg) ->
 					Streams = lists:keyreplace(StreamID, #stream.id, Streams0,
 						Stream#stream{state=StreamState}),
 					commands(State#state{streams=Streams}, StreamID, Commands)
-			catch Class:Reason ->
-				error_logger:error_msg("Exception occurred in "
-					"cowboy_stream:info(~p, ~p, ~p) with reason ~p:~p.",
-					[StreamID, Msg, StreamState0, Class, Reason]),
+			catch Class:Exception ->
+				cowboy_stream:report_error(info,
+					[StreamID, Msg, StreamState0],
+					Class, Exception, erlang:get_stacktrace()),
 				ok
 %% @todo
 %				stream_reset(State, StreamID, {internal_error, {Class, Reason},
@@ -984,10 +984,10 @@ stream_terminate(State0=#state{socket=Socket, transport=Transport,
 stream_call_terminate(StreamID, Reason, StreamState) ->
 	try
 		cowboy_stream:terminate(StreamID, Reason, StreamState)
-	catch Class:Reason ->
-		error_logger:error_msg("Exception occurred in "
-			"cowboy_stream:terminate(~p, ~p, ~p) with reason ~p:~p.",
-			[StreamID, Reason, StreamState, Class, Reason])
+	catch Class:Exception ->
+		cowboy_stream:report_error(terminate,
+			[StreamID, Reason, StreamState],
+			Class, Exception, erlang:get_stacktrace())
 	end.
 
 %% @todo max_reqs also
@@ -1051,15 +1051,18 @@ error_terminate(StatusCode0, State=#state{ref=Ref, socket=Socket, transport=Tran
 			end
 		}
 	end,
-	{response, StatusCode, RespHeaders, RespBody}
-		= cowboy_stream:early_error(StreamID, Reason, PartialReq,
-			{response, StatusCode0, #{
-				<<"content-length">> => <<"0">>
-			}, <<>>}, Opts),
-	Transport:send(Socket, [
-		cow_http:response(StatusCode, 'HTTP/1.1', maps:to_list(RespHeaders)),
-		RespBody
-	]),
+	Resp = {response, StatusCode0, #{<<"content-length">> => <<"0">>}, <<>>},
+	try cowboy_stream:early_error(StreamID, Reason, PartialReq, Resp, Opts) of
+		{response, StatusCode, RespHeaders, RespBody} ->
+			Transport:send(Socket, [
+				cow_http:response(StatusCode, 'HTTP/1.1', maps:to_list(RespHeaders)),
+				RespBody
+			])
+	catch Class:Exception ->
+		cowboy_stream:report_error(early_error,
+			[StreamID, Reason, PartialReq, Resp, Opts],
+			Class, Exception, erlang:get_stacktrace())
+	end,
 	terminate(State, Reason).
 
 -spec terminate(_, _) -> no_return().

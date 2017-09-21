@@ -305,11 +305,11 @@ frame(State0=#state{remote_window=ConnWindow, streams=Streams},
 					commands(State,
 						Stream#stream{state=StreamState, remote_window=StreamWindow - DataLen,
 						body_length=Len}, Commands)
-			catch Class:Reason ->
-				error_logger:error_msg("Exception occurred in "
-					"cowboy_stream:data(~p, ~p, ~p, ~p) with reason ~p:~p.",
-					[StreamID, IsFin0, Data, StreamState0, Class, Reason]),
-				stream_reset(State, StreamID, {internal_error, {Class, Reason},
+			catch Class:Exception ->
+				cowboy_stream:report_error(data,
+					[StreamID, IsFin, Data, StreamState0],
+					Class, Exception, erlang:get_stacktrace()),
+				stream_reset(State, StreamID, {internal_error, {Class, Exception},
 					'Exception occurred in cowboy_stream:data/4.'})
 			end;
 		#stream{remote=fin} ->
@@ -441,11 +441,11 @@ info(State=#state{streams=Streams}, StreamID, Msg) ->
 			try cowboy_stream:info(StreamID, Msg, StreamState0) of
 				{Commands, StreamState} ->
 					commands(State, Stream#stream{state=StreamState}, Commands)
-			catch Class:Reason ->
-				error_logger:error_msg("Exception occurred in "
-					"cowboy_stream:info(~p, ~p, ~p) with reason ~p:~p.",
-					[StreamID, Msg, StreamState0, Class, Reason]),
-				stream_reset(State, StreamID, {internal_error, {Class, Reason},
+			catch Class:Exception ->
+				cowboy_stream:report_error(info,
+					[StreamID, Msg, StreamState0],
+					Class, Exception, erlang:get_stacktrace()),
+				stream_reset(State, StreamID, {internal_error, {Class, Exception},
 					'Exception occurred in cowboy_stream:info/3.'})
 			end;
 		false ->
@@ -776,11 +776,11 @@ stream_handler_init(State=#state{opts=Opts,
 					remote=RemoteIsFin, local=LocalIsFin,
 					local_window=LocalWindow, remote_window=RemoteWindow},
 				Commands)
-	catch Class:Reason ->
-		error_logger:error_msg("Exception occurred in "
-			"cowboy_stream:init(~p, ~p, ~p) with reason ~p:~p.",
-			[StreamID, Req, Opts, Class, Reason]),
-		stream_reset(State, StreamID, {internal_error, {Class, Reason},
+	catch Class:Exception ->
+		cowboy_stream:report_error(init,
+			[StreamID, Req, Opts],
+			Class, Exception, erlang:get_stacktrace()),
+		stream_reset(State, StreamID, {internal_error, {Class, Exception},
 			'Exception occurred in cowboy_stream:init/3.'})
 	end.
 
@@ -832,10 +832,10 @@ stream_terminate(State=#state{socket=Socket, transport=Transport,
 stream_call_terminate(StreamID, Reason, StreamState) ->
 	try
 		cowboy_stream:terminate(StreamID, Reason, StreamState)
-	catch Class:Reason ->
-		error_logger:error_msg("Exception occurred in "
-			"cowboy_stream:terminate(~p, ~p, ~p) with reason ~p:~p.",
-			[StreamID, Reason, StreamState, Class, Reason])
+	catch Class:Exception ->
+		cowboy_stream:report_error(terminate,
+			[StreamID, Reason, StreamState],
+			Class, Exception, erlang:get_stacktrace())
 	end.
 
 %% Headers encode/decode.

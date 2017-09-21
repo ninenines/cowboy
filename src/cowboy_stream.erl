@@ -76,6 +76,7 @@
 -export([info/3]).
 -export([terminate/3]).
 -export([early_error/5]).
+-export([report_error/5]).
 
 %% Note that this and other functions in this module do NOT catch
 %% exceptions. We want the exception to go all the way down to the
@@ -144,3 +145,48 @@ early_error(StreamID, Reason, PartialReq, Resp, Opts) ->
 			Handler:early_error(StreamID, Reason,
 				PartialReq, Resp, Opts#{stream_handlers => Tail})
 	end.
+
+-spec report_error(atom(), list(), error | exit | throw, any(), list()) -> ok.
+report_error(init, [StreamID, Req, Opts], Class, Exception, Stacktrace) ->
+	error_logger:error_msg(
+		"Unhandled exception ~p:~p in cowboy_stream:init(~p, Req, Opts)~n"
+		"Stacktrace: ~p~n"
+		"Req: ~p~n"
+		"Opts: ~p~n",
+		[Class, Exception, StreamID, Stacktrace, Req, Opts]);
+report_error(data, [StreamID, IsFin, Data, State], Class, Exception, Stacktrace) ->
+	error_logger:error_msg(
+		"Unhandled exception ~p:~p in cowboy_stream:data(~p, ~p, Data, State)~n"
+		"Stacktrace: ~p~n"
+		"Data: ~p~n"
+		"State: ~p~n",
+		[Class, Exception, StreamID, IsFin, Stacktrace, Data, State]);
+report_error(info, [StreamID, Msg, State], Class, Exception, Stacktrace) ->
+	error_logger:error_msg(
+		"Unhandled exception ~p:~p in cowboy_stream:info(~p, Msg, State)~n"
+		"Stacktrace: ~p~n"
+		"Msg: ~p~n"
+		"State: ~p~n",
+		[Class, Exception, StreamID, Stacktrace, Msg, State]);
+report_error(terminate, [StreamID, Reason, State], Class, Exception, Stacktrace) ->
+	error_logger:error_msg(
+		"Unhandled exception ~p:~p in cowboy_stream:terminate(~p, Reason, State)~n"
+		"Stacktrace: ~p~n"
+		"Reason: ~p~n"
+		"State: ~p~n",
+		[Class, Exception, StreamID, Stacktrace, Reason, State]);
+report_error(early_error, [StreamID, Reason, PartialReq, Resp, Opts], Class, Exception, Stacktrace) ->
+	error_logger:error_msg(
+		"Unhandled exception ~p:~p in cowboy_stream:early_error(~p, Reason, PartialReq, Resp, Opts)~n"
+		"Stacktrace: ~p~n"
+		"Reason: ~p~n"
+		"PartialReq: ~p~n"
+		"Resp: ~p~n"
+		"Opts: ~p~n",
+		[Class, Exception, StreamID, Stacktrace, Reason, PartialReq, Resp, Opts]);
+report_error(Callback, _, Class, Reason, Stacktrace) ->
+	error_logger:error_msg(
+		"Exception occurred in unknown callback ~p~n"
+		"Reason: ~p:~p~n"
+		"Stacktrace: ~p~n",
+		[Callback, Class, Reason, Stacktrace]).
