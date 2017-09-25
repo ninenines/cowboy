@@ -291,6 +291,10 @@ frame(State0=#state{remote_window=ConnWindow, streams=Streams},
 	DataLen = byte_size(Data),
 	State = State0#state{remote_window=ConnWindow - DataLen},
 	case lists:keyfind(StreamID, #stream.id, Streams) of
+		Stream = #stream{state=flush, remote=nofin, remote_window=StreamWindow} ->
+			%% @todo We need to cancel streams that we don't want to receive
+			%% the full body from after we finish flushing the response.
+			after_commands(State, Stream#stream{remote=IsFin, remote_window=StreamWindow - DataLen});
 		Stream = #stream{state=StreamState0, remote=nofin, remote_window=StreamWindow} ->
 			try cowboy_stream:data(StreamID, IsFin, Data, StreamState0) of
 				{Commands, StreamState} ->
@@ -428,6 +432,9 @@ down(State=#state{children=Children0}, Pid, Msg) ->
 
 info(State=#state{streams=Streams}, StreamID, Msg) ->
 	case lists:keyfind(StreamID, #stream.id, Streams) of
+		#stream{state=flush} ->
+			error_logger:error_msg("Received message ~p for terminated stream ~p.", [Msg, StreamID]),
+			State;
 		Stream = #stream{state=StreamState0} ->
 			try cowboy_stream:info(StreamID, Msg, StreamState0) of
 				{Commands, StreamState} ->
