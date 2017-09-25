@@ -709,11 +709,13 @@ parse_body(Buffer, State=#state{in_streamid=StreamID, in_state=
 			%% @todo Asks for 0 or more bytes.
 			{data, StreamID, nofin, Data, State#state{in_state=
 				PS#ps_body{transfer_decode_state=TState}}, Rest};
-		{done, TotalLength, Rest} ->
-			{data, StreamID, {fin, TotalLength}, <<>>, set_timeout(
+		%% @todo We probably want to confirm that the total length
+		%% is the same as the content-length, if one was provided.
+		{done, _TotalLength, Rest} ->
+			{data, StreamID, fin, <<>>, set_timeout(
 				State#state{in_streamid=StreamID + 1, in_state=#ps_request_line{}}), Rest};
-		{done, Data, TotalLength, Rest} ->
-			{data, StreamID, {fin, TotalLength}, Data, set_timeout(
+		{done, Data, _TotalLength, Rest} ->
+			{data, StreamID, fin, Data, set_timeout(
 				State#state{in_streamid=StreamID + 1, in_state=#ps_request_line{}}), Rest}
 	end.
 

@@ -440,7 +440,7 @@ read_body(Req=#{pid := Pid, streamid := StreamID}, Opts) ->
 	receive
 		{request_body, Ref, nofin, Body} ->
 			{more, Body, Req};
-		{request_body, Ref, {fin, BodyLength}, Body} ->
+		{request_body, Ref, fin, BodyLength, Body} ->
 			{ok, Body, set_body_length(Req, BodyLength)}
 	after Timeout ->
 		exit(timeout)

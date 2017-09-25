@@ -49,9 +49,7 @@
 	%% Whether we finished receiving data.
 	remote = nofin :: cowboy_stream:fin(),
 	%% Remote flow control window (how much we accept to receive).
-	remote_window :: integer(),
-	%% Request body length.
-	body_length = 0 :: non_neg_integer()
+	remote_window :: integer()
 }).
 
 -type stream() :: #stream{}.
@@ -289,22 +287,15 @@ frame(State=#state{client_streamid=LastStreamID}, {data, StreamID, _, _})
 	terminate(State, {connection_error, protocol_error,
 		'DATA frame received on a stream in idle state. (RFC7540 5.1)'});
 frame(State0=#state{remote_window=ConnWindow, streams=Streams},
-		{data, StreamID, IsFin0, Data}) ->
+		{data, StreamID, IsFin, Data}) ->
 	DataLen = byte_size(Data),
 	State = State0#state{remote_window=ConnWindow - DataLen},
 	case lists:keyfind(StreamID, #stream.id, Streams) of
-		Stream = #stream{state=StreamState0, remote=nofin,
-				remote_window=StreamWindow, body_length=Len0} ->
-			Len = Len0 + DataLen,
-			IsFin = case IsFin0 of
-				fin -> {fin, Len};
-				nofin -> nofin
-			end,
+		Stream = #stream{state=StreamState0, remote=nofin, remote_window=StreamWindow} ->
 			try cowboy_stream:data(StreamID, IsFin, Data, StreamState0) of
 				{Commands, StreamState} ->
-					commands(State,
-						Stream#stream{state=StreamState, remote_window=StreamWindow - DataLen,
-						body_length=Len}, Commands)
+					commands(State, Stream#stream{state=StreamState, remote=IsFin,
+						remote_window=StreamWindow - DataLen}, Commands)
 			catch Class:Exception ->
 				cowboy_stream:report_error(data,
 					[StreamID, IsFin, Data, StreamState0],
