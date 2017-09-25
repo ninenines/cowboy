@@ -481,7 +481,7 @@ commands(State=#state{socket=Socket, transport=Transport, encode_state=EncodeSta
 			commands(State1#state{encode_state=EncodeState}, Stream1, Tail)
 	end;
 %% @todo response when local!=idle
-%% Send response headers and initiate chunked encoding.
+%% Send response headers.
 commands(State=#state{socket=Socket, transport=Transport, encode_state=EncodeState0},
 		Stream=#stream{id=StreamID, local=idle}, [{headers, StatusCode, Headers0}|Tail]) ->
 	Headers = Headers0#{<<":status">> => status(StatusCode)},
@@ -490,16 +490,6 @@ commands(State=#state{socket=Socket, transport=Transport, encode_state=EncodeSta
 	commands(State#state{encode_state=EncodeState}, Stream#stream{local=nofin}, Tail);
 %% @todo headers when local!=idle
 %% Send a response body chunk.
-%%
-%% @todo WINDOW_UPDATE stuff require us to buffer some data.
-%%
-%% When the body is sent using sendfile, the current solution is not
-%% very good. The body could be too large, blocking the connection.
-%% Also sendfile technically only works over TCP, so it's not that
-%% useful for HTTP/2. At the very least the sendfile call should be
-%% split into multiple calls and flow control should be used to make
-%% sure we only send as fast as the client can receive and don't block
-%% anything.
 commands(State0, Stream0=#stream{local=nofin}, [{data, IsFin, Data}|Tail]) ->
 	{State, Stream} = send_data(State0, Stream0, IsFin, Data),
 	commands(State, Stream, Tail);
@@ -507,16 +497,6 @@ commands(State0, Stream0=#stream{local=nofin}, [{data, IsFin, Data}|Tail]) ->
 %% @todo data when local!=nofin
 
 %% Send a file.
-%%
-%% @todo This implementation is terrible. A good implementation would
-%% need to check that Bytes is exact (or we need to document that we
-%% trust it to be exact), and would need to send the file asynchronously
-%% in many data frames. Perhaps a sendfile call should result in a
-%% process being created specifically for this purpose. Or perhaps
-%% the protocol should be "dumb" and the stream handler be the one
-%% to ensure the file is sent in chunks (which would require a better
-%% flow control at the stream handler level). One thing for sure, the
-%% implementation necessarily varies between HTTP/1.1 and HTTP/2.
 commands(State0, Stream0=#stream{local=nofin},
 		[{sendfile, IsFin, Offset, Bytes, Path}|Tail]) ->
 	{State, Stream} = send_data(State0, Stream0, IsFin, {sendfile, Offset, Bytes, Path}),

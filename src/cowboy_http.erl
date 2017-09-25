@@ -52,18 +52,10 @@
 	name = undefined :: binary() | undefined
 }).
 
-%% @todo We need a state where we wait for the stream process to ask for the body.
-%% OR DO WE
-
-%% In HTTP/2 we start receiving data before the body asks for it, even if optionally
-%% (and by default), so we need to be able to do the same for HTTP/1.1 too. This means
-%% that when we receive data (up to a certain limit, we read from the socket and decode.
-%% When we reach a limit, we stop reading from the socket momentarily until the stream
-%% process asks for more or the stream ends.
-
-%% This means that we need to keep a buffer in the stream handler (until the stream
-%% process asks for it). And that we need the body state to indicate how much we have
-%% left to read (and stop/start reading from the socket depending on value).
+%% @todo We need a state where we wait for the stream process to ask for the body
+%% and do not attempt to read from the socket while in that state (we should read
+%% up to a certain length, and then wait, basically implementing flow control but
+%% by not reading from the socket when the window is empty).
 
 -record(ps_body, {
 	%% @todo flow
@@ -134,9 +126,6 @@ init(Parent, Ref, Socket, Transport, Opts) ->
 			%% Couldn't read the peer address; connection is gone.
 			terminate(undefined, {socket_error, Reason, 'An error has occurred on the socket.'})
 	end.
-
-%% @todo Send a response depending on in_state and whether one was already sent.
-%% @todo If we skip the body, skip for a specific duration.
 
 before_loop(State=#state{socket=Socket, transport=Transport}, Buffer) ->
 	%% @todo disable this when we get to the body, until the stream asks for it?
@@ -608,7 +597,6 @@ request(Buffer, State0=#state{ref=Ref, transport=Transport, peer=Peer, in_stream
 		scheme => Scheme,
 		host => Host,
 		port => Port,
-		%% @todo The path component needs to be normalized.
 		path => Path,
 		qs => Qs,
 		version => Version,
@@ -623,7 +611,6 @@ request(Buffer, State0=#state{ref=Ref, transport=Transport, peer=Peer, in_stream
 			State = case HasBody of
 				true ->
 					State0#state{in_state=#ps_body{
-						%% @todo Don't need length anymore?
 						transfer_decode_fun = TDecodeFun,
 						transfer_decode_state = TDecodeState
 					}};
@@ -659,8 +646,6 @@ is_http2_upgrade(#{<<"connection">> := Conn, <<"upgrade">> := Upgrade,
 is_http2_upgrade(_, _) ->
 	false.
 
-%% Upgrade through an HTTP/1.1 request.
-
 %% Prior knowledge upgrade, without an HTTP/1.1 request.
 http2_upgrade(State=#state{parent=Parent, ref=Ref, socket=Socket, transport=Transport,
 		opts=Opts, peer=Peer}, Buffer) ->
@@ -673,6 +658,7 @@ http2_upgrade(State=#state{parent=Parent, ref=Ref, socket=Socket, transport=Tran
 				'Clients that support HTTP/2 over TLS MUST use ALPN. (RFC7540 3.4)'})
 	end.
 
+%% Upgrade via an HTTP/1.1 request.
 http2_upgrade(State=#state{parent=Parent, ref=Ref, socket=Socket, transport=Transport,
 		opts=Opts, peer=Peer}, Buffer, HTTP2Settings, Req) ->
 	%% @todo
