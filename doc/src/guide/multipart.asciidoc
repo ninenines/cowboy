@@ -112,9 +112,9 @@ multipart(Req0) ->
 
 stream_file(Req0) ->
     case cowboy_req:read_part_body(Req0) of
-        {ok, _Body, Req} ->
+        {ok, _LastBodyChunk, Req} ->
             Req;
-        {more, _Body, Req} ->
+        {more, _BodyChunk, Req} ->
             stream_file(Req)
     end.
 ----
