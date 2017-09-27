@@ -502,6 +502,36 @@ multipart_missing_boundary(Config) ->
 	], ReqBody, Config),
 	ok.
 
+multipart_empty(Config) ->
+	doc("Multipart incomplete request body: empty content."),
+	ReqBody = [
+	],
+	do_multipart_incomplete_body(ReqBody, Config).
+
+multipart_missing_parts(Config) ->
+	doc("Multipart incomplete request body: only a prologue and no parts."),
+	ReqBody = [
+		"Prologue"
+	],
+	do_multipart_incomplete_body(ReqBody, Config).
+
+multipart_missing_trailer(Config) ->
+	doc("Multipart incomplete request body: missing trailer."),
+	ReqBody = [
+		"--deadbeef\r\nContent-Type: text/plain\r\n\r\nCowboy is an HTTP server.\r\n"
+	],
+	do_multipart_incomplete_body(ReqBody, Config).
+
+do_multipart_incomplete_body(ReqBody, Config) ->
+	RespBody = do_body("POST", "/multipart/incomplete_body", [
+		{<<"content-type">>, <<"multipart/mixed; boundary=deadbeef">>}
+	], ReqBody, Config),
+	{error,
+	 {case_clause, {ok, <<>>, _Req}},
+	 [{cowboy_req, stream_multipart, 2, _SourceLine} | _RestStacktrace]
+	} = binary_to_term(RespBody),
+	ok.
+
 read_part_skip_body(Config) ->
 	doc("Multipart request body skipping part bodies."),
 	LargeBody = iolist_to_binary(string:chars($a, 10000000)),
