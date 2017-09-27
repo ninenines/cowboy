@@ -252,10 +252,9 @@ after_parse({request, Req=#{streamid := StreamID, headers := Headers, version :=
 		cowboy_stream:report_error(init,
 			[StreamID, Req, Opts],
 			Class, Exception, erlang:get_stacktrace()),
-		ok %% @todo send a proper response, etc. note that terminate must NOT be called
-		%% @todo Status code.
-%		stream_reset(State, StreamID, {internal_error, {Class, Reason},
-%			'Exception occurred in StreamHandler:init/10 call.'}) %% @todo Check final arity.
+		early_error(500, State0, {internal_error, {Class, Exception},
+			'Unhandled exception in cowboy_stream:init/3.'}, Req),
+		parse(Buffer, State0)
 	end;
 %% Streams are sequential so the body is always about the last stream created
 %% unless that stream has terminated.
@@ -270,11 +269,8 @@ after_parse({data, StreamID, IsFin, Data, State=#state{
 		cowboy_stream:report_error(data,
 			[StreamID, IsFin, Data, StreamState0],
 			Class, Exception, erlang:get_stacktrace()),
-		%% @todo Bad value returned here. Crashes.
-		ok
-		%% @todo
-%		stream_reset(State, StreamID, {internal_error, {Class, Reason},
-%			'Exception occurred in StreamHandler:data/4 call.'})
+		stream_reset(State, StreamID, {internal_error, {Class, Exception},
+			'Unhandled exception in cowboy_stream:data/4.'})
 	end;
 %% No corresponding stream, skip.
 after_parse({data, _, _, _, State, Buffer}) ->
@@ -733,10 +729,8 @@ info(State=#state{streams=Streams0}, StreamID, Msg) ->
 				cowboy_stream:report_error(info,
 					[StreamID, Msg, StreamState0],
 					Class, Exception, erlang:get_stacktrace()),
-				ok
-%% @todo
-%				stream_reset(State, StreamID, {internal_error, {Class, Reason},
-%					'Exception occurred in StreamHandler:info/3 call.'})
+				stream_reset(State, StreamID, {internal_error, {Class, Exception},
+					'Unhandled exception in cowboy_stream:info/3.'})
 			end;
 		false ->
 			error_logger:error_msg("Received message ~p for unknown stream ~p.~n", [Msg, StreamID]),
@@ -935,6 +929,8 @@ stream_terminate(State0=#state{socket=Socket, transport=Transport,
 	{value, #stream{state=StreamState, version=Version}, Streams}
 		= lists:keytake(StreamID, #stream.id, Streams0),
 	State1 = case OutState of
+		wait when element(1, Reason) =:= internal_error ->
+			info(State0, StreamID, {response, 500, #{<<"content-length">> => <<"0">>}, <<>>});
 		wait ->
 			info(State0, StreamID, {response, 204, #{}, <<>>});
 		chunked when Version =:= 'HTTP/1.1' ->
@@ -1020,8 +1016,7 @@ connection_hd_is_close(Conn) ->
 
 %% This function is only called when an error occurs on a new stream.
 -spec error_terminate(cowboy:http_status(), #state{}, _) -> no_return().
-error_terminate(StatusCode0, State=#state{ref=Ref, socket=Socket, transport=Transport,
-		opts=Opts, peer=Peer, in_streamid=StreamID, in_state=StreamState}, Reason) ->
+error_terminate(StatusCode, State=#state{ref=Ref, peer=Peer, in_state=StreamState}, Reason) ->
 	PartialReq = case StreamState of
 		#ps_request_line{} ->
 			#{};
@@ -1039,7 +1034,12 @@ error_terminate(StatusCode0, State=#state{ref=Ref, socket=Socket, transport=Tran
 			end
 		}
 	end,
-	Resp = {response, StatusCode0, #{<<"content-length">> => <<"0">>}, <<>>},
+	early_error(StatusCode, State, Reason, PartialReq),
+	terminate(State, Reason).
+
+early_error(StatusCode0, #state{socket=Socket, transport=Transport,
+		opts=Opts, in_streamid=StreamID}, Reason, PartialReq) ->
+	Resp = {response, StatusCode0, RespHeaders0=#{<<"content-length">> => <<"0">>}, <<>>},
 	try cowboy_stream:early_error(StreamID, Reason, PartialReq, Resp, Opts) of
 		{response, StatusCode, RespHeaders, RespBody} ->
 			Transport:send(Socket, [
@@ -1049,9 +1049,13 @@ error_terminate(StatusCode0, State=#state{ref=Ref, socket=Socket, transport=Tran
 	catch Class:Exception ->
 		cowboy_stream:report_error(early_error,
 			[StreamID, Reason, PartialReq, Resp, Opts],
-			Class, Exception, erlang:get_stacktrace())
+			Class, Exception, erlang:get_stacktrace()),
+		%% We still need to send an error response, so send what we initially
+		%% wanted to send. It's better than nothing.
+		Transport:send(Socket, cow_http:response(StatusCode0,
+			'HTTP/1.1', maps:to_list(RespHeaders0)))
 	end,
-	terminate(State, Reason).
+	ok.
 
 -spec terminate(_, _) -> no_return().
 terminate(undefined, Reason) ->

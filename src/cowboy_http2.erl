@@ -305,7 +305,7 @@ frame(State0=#state{remote_window=ConnWindow, streams=Streams},
 					[StreamID, IsFin, Data, StreamState0],
 					Class, Exception, erlang:get_stacktrace()),
 				stream_reset(State, StreamID, {internal_error, {Class, Exception},
-					'Exception occurred in cowboy_stream:data/4.'})
+					'Unhandled exception in cowboy_stream:data/4.'})
 			end;
 		#stream{remote=fin} ->
 			stream_reset(State, StreamID, {stream_error, stream_closed,
@@ -444,7 +444,7 @@ info(State=#state{streams=Streams}, StreamID, Msg) ->
 					[StreamID, Msg, StreamState0],
 					Class, Exception, erlang:get_stacktrace()),
 				stream_reset(State, StreamID, {internal_error, {Class, Exception},
-					'Exception occurred in cowboy_stream:info/3.'})
+					'Unhandled exception in cowboy_stream:info/3.'})
 			end;
 		false ->
 			error_logger:error_msg("Received message ~p for unknown stream ~p.", [Msg, StreamID]),
@@ -759,7 +759,7 @@ stream_handler_init(State=#state{opts=Opts,
 			[StreamID, Req, Opts],
 			Class, Exception, erlang:get_stacktrace()),
 		stream_reset(State, StreamID, {internal_error, {Class, Exception},
-			'Exception occurred in cowboy_stream:init/3.'})
+			'Unhandled exception in cowboy_stream:init/3.'})
 	end.
 
 %% @todo We might need to keep track of which stream has been reset so we don't send lots of them.
@@ -801,9 +801,11 @@ stream_terminate(State=#state{socket=Socket, transport=Transport,
 			stream_call_terminate(StreamID, Reason, StreamState),
 			Children = cowboy_children:shutdown(Children0, StreamID),
 			State#state{streams=Streams, children=Children};
+		%% The stream doesn't exist. This can occur for various reasons.
+		%% It can happen before the stream has been created, or because
+		%% the cowboy_stream:init call failed, in which case doing nothing
+		%% is correct.
 		false ->
-			%% @todo Unknown stream. Not sure what to do here. Check again once all
-			%% terminate calls have been written.
 			State
 	end.
 

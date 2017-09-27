@@ -18,6 +18,7 @@
 -import(ct_helper, [config/2]).
 -import(ct_helper, [doc/1]).
 -import(cowboy_test, [gun_open/1]).
+-import(cowboy_test, [gun_down/1]).
 
 %% ct.
 
@@ -59,6 +60,169 @@ end_per_group(Name, _) ->
 
 %% Tests.
 
+crash_in_init(Config) ->
+	doc("Confirm an error is sent when a stream handler crashes in init/3."),
+	Self = self(),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/long_polling", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"x-test-case">>, <<"crash_in_init">>},
+		{<<"x-test-pid">>, pid_to_list(Self)}
+	]),
+	%% Confirm init/3 is called.
+	Pid = receive {Self, P, init, _, _, _} -> P after 1000 -> error(timeout) end,
+	%% Confirm terminate/3 is NOT called. We have no state to give to it.
+	receive {Self, Pid, terminate, _, _, _} -> error(terminate) after 1000 -> ok end,
+	%% Receive a 500 error response.
+	case gun:await(ConnPid, Ref) of
+		{response, fin, 500, _} -> ok;
+		{error, {stream_error, internal_error, _}} -> ok
+	end.
+
+crash_in_data(Config) ->
+	doc("Confirm an error is sent when a stream handler crashes in data/4."),
+	Self = self(),
+	ConnPid = gun_open(Config),
+	Ref = gun:post(ConnPid, "/long_polling", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"content-length">>, <<"6">>},
+		{<<"x-test-case">>, <<"crash_in_data">>},
+		{<<"x-test-pid">>, pid_to_list(Self)}
+	]),
+	%% Confirm init/3 is called.
+	Pid = receive {Self, P, init, _, _, _} -> P after 1000 -> error(timeout) end,
+	%% Send data to make the stream handler crash.
+	gun:data(ConnPid, Ref, fin, <<"Hello!">>),
+	%% Confirm terminate/3 is called, indicating the stream ended.
+	receive {Self, Pid, terminate, _, _, _} -> ok after 1000 -> error(timeout) end,
+	%% Receive a 500 error response.
+	case gun:await(ConnPid, Ref) of
+		{response, fin, 500, _} -> ok;
+		{error, {stream_error, internal_error, _}} -> ok
+	end.
+
+crash_in_info(Config) ->
+	doc("Confirm an error is sent when a stream handler crashes in info/3."),
+	Self = self(),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/long_polling", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"x-test-case">>, <<"crash_in_info">>},
+		{<<"x-test-pid">>, pid_to_list(Self)}
+	]),
+	%% Confirm init/3 is called.
+	Pid = receive {Self, P, init, _, _, _} -> P after 1000 -> error(timeout) end,
+	%% Send a message to make the stream handler crash.
+	Pid ! {{Pid, 1}, crash},
+	%% Confirm terminate/3 is called, indicating the stream ended.
+	receive {Self, Pid, terminate, _, _, _} -> ok after 1000 -> error(timeout) end,
+	%% Receive a 500 error response.
+	case gun:await(ConnPid, Ref) of
+		{response, fin, 500, _} -> ok;
+		{error, {stream_error, internal_error, _}} -> ok
+	end.
+
+crash_in_terminate(Config) ->
+	doc("Confirm the state is correct when a stream handler crashes in terminate/3."),
+	Self = self(),
+	ConnPid = gun_open(Config),
+	%% Do a first request.
+	Ref1 = gun:get(ConnPid, "/hello_world", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"x-test-case">>, <<"crash_in_terminate">>},
+		{<<"x-test-pid">>, pid_to_list(Self)}
+	]),
+	%% Confirm init/3 is called.
+	Pid = receive {Self, P, init, _, _, _} -> P after 1000 -> error(timeout) end,
+	%% Confirm terminate/3 is called.
+	receive {Self, Pid, terminate, _, _, _} -> ok after 1000 -> error(timeout) end,
+	%% Receive the response.
+	{response, nofin, 200, _} = gun:await(ConnPid, Ref1),
+	{ok, <<"Hello world!">>} = gun:await_body(ConnPid, Ref1),
+	%% Do a second request to make sure the connection state is still good.
+	Ref2 = gun:get(ConnPid, "/hello_world", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"x-test-case">>, <<"crash_in_terminate">>},
+		{<<"x-test-pid">>, pid_to_list(Self)}
+	]),
+	%% Confirm init/3 is called. The pid shouldn't change.
+	receive {Self, Pid, init, _, _, _} -> ok after 1000 -> error(timeout) end,
+	%% Confirm terminate/3 is called.
+	receive {Self, Pid, terminate, _, _, _} -> ok after 1000 -> error(timeout) end,
+	%% Receive the second response.
+	{response, nofin, 200, _} = gun:await(ConnPid, Ref2),
+	{ok, <<"Hello world!">>} = gun:await_body(ConnPid, Ref2),
+	ok.
+
+crash_in_early_error(Config) ->
+	case config(protocol, Config) of
+		http -> do_crash_in_early_error(Config);
+		http2 -> doc("The callback early_error/5 is not currently used for HTTP/2.")
+	end.
+
+do_crash_in_early_error(Config) ->
+	doc("Confirm an error is sent when a stream handler crashes in early_error/5."
+		"The connection is kept open by Cowboy."),
+	Self = self(),
+	ConnPid = gun_open(Config),
+	Ref1 = gun:get(ConnPid, "/long_polling", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"x-test-case">>, <<"crash_in_early_error">>},
+		{<<"x-test-pid">>, pid_to_list(Self)}
+	]),
+	%% Confirm init/3 is called.
+	Pid = receive {Self, P, init, _, _, _} -> P after 1000 -> error(timeout) end,
+	%% Confirm terminate/3 is NOT called. We have no state to give to it.
+	receive {Self, Pid, terminate, _, _, _} -> error(terminate) after 1000 -> ok end,
+	%% Confirm early_error/5 is called.
+	receive {Self, Pid, early_error, _, _, _, _, _} -> ok after 1000 -> error(timeout) end,
+	%% Receive a 500 error response.
+	{response, fin, 500, _} = gun:await(ConnPid, Ref1),
+	%% This error is not fatal. We should be able to repeat it on the same connection.
+	Ref2 = gun:get(ConnPid, "/long_polling", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"x-test-case">>, <<"crash_in_early_error">>},
+		{<<"x-test-pid">>, pid_to_list(Self)}
+	]),
+	%% Confirm init/3 is called.
+	receive {Self, Pid, init, _, _, _} -> ok after 1000 -> error(timeout) end,
+	%% Confirm terminate/3 is NOT called. We have no state to give to it.
+	receive {Self, Pid, terminate, _, _, _} -> error(terminate) after 1000 -> ok end,
+	%% Confirm early_error/5 is called.
+	receive {Self, Pid, early_error, _, _, _, _, _} -> ok after 1000 -> error(timeout) end,
+	%% Receive a 500 error response.
+	{response, fin, 500, _} = gun:await(ConnPid, Ref2),
+	ok.
+
+crash_in_early_error_fatal(Config) ->
+	case config(protocol, Config) of
+		http -> do_crash_in_early_error_fatal(Config);
+		http2 -> doc("The callback early_error/5 is not currently used for HTTP/2.")
+	end.
+
+do_crash_in_early_error_fatal(Config) ->
+	doc("Confirm an error is sent when a stream handler crashes in early_error/5."
+		"The error was fatal and the connection is closed by Cowboy."),
+	Self = self(),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/long_polling", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"host">>, <<"host:port">>},
+		{<<"x-test-case">>, <<"crash_in_early_error_fatal">>},
+		{<<"x-test-pid">>, pid_to_list(Self)}
+	]),
+	%% Confirm init/3 is NOT called. The error occurs before we reach this step.
+	receive {Self, _, init, _, _, _} -> error(init) after 1000 -> ok end,
+	%% Confirm terminate/3 is NOT called. We have no state to give to it.
+	receive {Self, _, terminate, _, _, _} -> error(terminate) after 1000 -> ok end,
+	%% Confirm early_error/5 is called.
+	receive {Self, _, early_error, _, _, _, _, _} -> ok after 1000 -> error(timeout) end,
+	%% Receive a 400 error response. We do not send a 500 when
+	%% early_error/5 crashes, we send the original error.
+	{response, fin, 400, _} = gun:await(ConnPid, Ref),
+	%% Confirm the connection gets closed.
+	gun_down(ConnPid).
+
 shutdown_on_stream_stop(Config) ->
 	doc("Confirm supervised processes are shutdown when stopping the stream."),
 	Self = self(),
@@ -88,7 +252,7 @@ shutdown_on_socket_close(Config) ->
 	doc("Confirm supervised processes are shutdown when the socket closes."),
 	Self = self(),
 	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, "/long_polling", [
+	_ = gun:get(ConnPid, "/long_polling", [
 		{<<"accept-encoding">>, <<"gzip">>},
 		{<<"x-test-case">>, <<"shutdown_on_socket_close">>},
 		{<<"x-test-pid">>, pid_to_list(Self)}
@@ -139,7 +303,7 @@ shutdown_timeout_on_socket_close(Config) ->
 		"when the shutdown timeout triggers after the socket has closed."),
 	Self = self(),
 	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, "/long_polling", [
+	_ = gun:get(ConnPid, "/long_polling", [
 		{<<"accept-encoding">>, <<"gzip">>},
 		{<<"x-test-case">>, <<"shutdown_timeout_on_socket_close">>},
 		{<<"x-test-pid">>, pid_to_list(Self)}
