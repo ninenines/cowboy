@@ -171,6 +171,9 @@ match_cookies(Config) ->
 	<<"#{c => <<\"d\">>}">> = do_get_body("/match/cookies/c", [{<<"cookie">>, "a=b; c=d"}], Config),
 	<<"#{a => <<\"b\">>,c => <<\"d\">>}">> = do_get_body("/match/cookies/a/c",
 		[{<<"cookie">>, "a=b; c=d"}], Config),
+	%% Ensure match errors result in a 400 response.
+	{400, _, _} = do_get("/match/cookies/a/c",
+		[{<<"cookie">>, "a=b"}], Config),
 	%% This function is tested more extensively through unit tests.
 	ok.
 
@@ -183,6 +186,8 @@ match_qs(Config) ->
 	<<"#{a => <<\"b\">>,c => <<\"d\">>}">> = do_get_body("/match/qs/a/c?a=b&c=d", Config),
 	<<"#{a => <<\"b\">>,c => true}">> = do_get_body("/match/qs/a/c?a=b&c", Config),
 	<<"#{a => true,c => <<\"d\">>}">> = do_get_body("/match/qs/a/c?a&c=d", Config),
+	%% Ensure match errors result in a 400 response.
+	{400, _, _} = do_get("/match/qs/a/c?a=b", [], Config),
 	%% This function is tested more extensively through unit tests.
 	ok.
 

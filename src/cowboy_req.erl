@@ -194,7 +194,13 @@ parse_qs(#{qs := Qs}) ->
 
 -spec match_qs(cowboy:fields(), req()) -> map().
 match_qs(Fields, Req) ->
-	filter(Fields, kvlist_to_map(Fields, parse_qs(Req))).
+	case filter(Fields, kvlist_to_map(Fields, parse_qs(Req))) of
+		{ok, Map} ->
+			Map;
+		{error, Errors} ->
+			exit({request_error, {match_qs, Errors},
+				'Query string validation constraints failed for the reasons provided.'})
+	end.
 
 -spec uri(req()) -> iodata().
 uri(Req) ->
@@ -407,7 +413,13 @@ parse_cookies(Req) ->
 
 -spec match_cookies(cowboy:fields(), req()) -> map().
 match_cookies(Fields, Req) ->
-	filter(Fields, kvlist_to_map(Fields, parse_cookies(Req))).
+	case filter(Fields, kvlist_to_map(Fields, parse_cookies(Req))) of
+		{ok, Map} ->
+			Map;
+		{error, Errors} ->
+			exit({request_error, {match_cookies, Errors},
+				'Cookie validation constraints failed for the reasons provided.'})
+	end.
 
 %% Request body.
 
@@ -803,12 +815,7 @@ kvlist_to_map(Keys, [{Key, Value}|Tail], Map) ->
 	end.
 
 filter(Fields, Map0) ->
-	case filter(Fields, Map0, #{}) of
-		{ok, Map} ->
-			Map;
-		{error, Errors} ->
-			exit({validation_failed, Errors})
-	end.
+	filter(Fields, Map0, #{}).
 
 %% Loop through fields, if value is missing and no default,
 %% record the error; else if value is missing and has a
