@@ -325,9 +325,8 @@ split_path(Path, Acc) ->
 				<< Segment:Pos/binary, _:8, Rest/bits >> = Path,
 				split_path(Rest, [Segment|Acc])
 		end
-	catch
-		error:badarg ->
-			badrequest
+	catch error:_ ->
+		badrequest
 	end.
 
 remove_dot_segments([], Acc) ->

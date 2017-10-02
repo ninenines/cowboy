@@ -39,6 +39,13 @@ init_dispatch(_) ->
 		{"/", hello_h, []}
 	]}]).
 
+router_invalid_path(Config) ->
+	doc("Ensure a path with invalid percent-encoded characters results in a 400."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/version/path/%\\u0016\\u0016/path"),
+	{response, _, 400, _} = gun:await(ConnPid, Ref),
+	ok.
+
 set_env(Config) ->
 	doc("Live replace a middleware environment value."),
 	ConnPid1 = gun_open(Config),
