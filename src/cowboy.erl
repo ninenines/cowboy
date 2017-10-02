@@ -68,6 +68,6 @@ stop_listener(Ref) ->
 -spec set_env(ranch:ref(), atom(), any()) -> ok.
 set_env(Ref, Name, Value) ->
 	Opts = ranch:get_protocol_options(Ref),
-	{_, Env} = maps:find(env, Opts),
+	Env = maps:get(env, Opts, #{}),
 	Opts2 = maps:put(env, maps:put(Name, Value, Env), Opts),
 	ok = ranch:set_protocol_options(Ref, Opts2).
