@@ -34,7 +34,7 @@
 	| {data, fin(), iodata()}
 	| {push, binary(), binary(), binary(), inet:port_number(),
 		binary(), binary(), cowboy:http_headers()}
-	| {flow, auto | integer()}
+	| {flow, pos_integer()}
 	| {spawn, pid(), timeout()}
 	| {error_response, cowboy:http_status(), cowboy:http_headers(), iodata()}
 	| {switch_protocol, cowboy:http_headers(), module(), state()}

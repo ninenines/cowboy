@@ -145,7 +145,13 @@ any server push mechanism.
 
 === flow
 
-TODO
+[source,erlang]
+----
+{flow, pos_integer()}
+----
+
+Request more data to be read from the request body. The
+exact behavior depends on the protocol.
 
 === spawn
 
