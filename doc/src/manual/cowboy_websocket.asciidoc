@@ -32,7 +32,7 @@ PartialReq :: map()
 State      :: any()
 Opts       :: cowboy_websocket:opts()
 InFrame    :: {text | binary | ping | pong, binary()}
-OutFrame   :: cow_ws:frame()
+OutFrame   :: cow_ws:frame()                    %% see types below
 Info       :: any()
 
 CallResult :: {ok, State}
@@ -127,6 +127,24 @@ timeout::
     A socket error ocurred.
 
 == Types
+
+==== cow_ws:frame()
+
+[source,erlang]
+----
+frame() :: {text, iodata()}
+    | {binary, iodata()}
+    | ping | {ping, iodata()}
+    | pong | {pong, iodata()}
+    | close | {close, iodata()} | {close, close_code(), iodata()}
+
+close_code() :: 1000..1003 | 1006..1011 | 3000..4999
+----
+
+Websocket frames that can be sent as a response.
+
+Note that there is no need to send pong frames back as
+Cowboy does it automatically for you.
 
 === opts()
 
