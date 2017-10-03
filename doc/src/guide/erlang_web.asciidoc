@@ -188,7 +188,7 @@ blocks and patterns, rather than details like the syntax.
 
 You can most likely read it as a complete beginner, but
 you will need a companion book to make the most of it.
-Buy it from the http://ninenines.eu[Nine Nines website].
+Buy it from the https://ninenines.eu[Nine Nines website].
 
 ==== Programming Erlang
 

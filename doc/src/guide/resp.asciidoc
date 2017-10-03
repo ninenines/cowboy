@@ -37,7 +37,7 @@ use `cowboy_req:reply/3`:
 [source,erlang]
 ----
 Req = cowboy_req:reply(303, #{
-    <<"location">> => <<"http://ninenines.eu">>
+    <<"location">> => <<"https://ninenines.eu">>
 }, Req0).
 ----
 

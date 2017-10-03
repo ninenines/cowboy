@@ -18,8 +18,8 @@ Cowboy is *clean* and *well tested* Erlang code.
 
 == Online documentation
 
-* http://ninenines.eu/docs/en/cowboy/2.0/guide[User guide]
-* http://ninenines.eu/docs/en/cowboy/2.0/manual[Function reference]
+* https://ninenines.eu/docs/en/cowboy/2.0/guide[User guide]
+* https://ninenines.eu/docs/en/cowboy/2.0/manual[Function reference]
 
 == Offline documentation
 
@@ -34,4 +34,4 @@ Cowboy is *clean* and *well tested* Erlang code.
 
 * Official IRC Channel: #ninenines on irc.freenode.net
 * https://github.com/ninenines/cowboy/issues[Issues tracker]
-* http://ninenines.eu/services[Commercial Support]
+* https://ninenines.eu/services[Commercial Support]
