@@ -193,8 +193,8 @@ callback.
 
 If you implement the methods PUT, POST and/or PATCH,
 you must implement the `content_types_accepted` callback,
-and one `AcceptResource` callback for each content-type
-it returns. Prefix the `AcceptResource` callback names
+and one `AcceptCallback` callback for each content-type
+it returns. Prefix the `AcceptCallback` callback names
 with `from_` for clarity. For example, `from_html` or
 `from_json`.
 
