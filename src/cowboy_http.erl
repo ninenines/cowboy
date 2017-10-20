@@ -98,7 +98,7 @@
 	out_streamid = 1 :: pos_integer(),
 
 	%% Whether we finished writing data for the current stream.
-	out_state = wait :: wait | headers | chunked | done,
+	out_state = wait :: wait | chunked | done,
 
 	%% The connection will be closed after this stream.
 	last_streamid = undefined :: pos_integer(),
@@ -809,12 +809,10 @@ commands(State0=#state{socket=Socket, transport=Transport, out_state=wait, strea
 	case Body of
 		{sendfile, O, B, P} ->
 			Transport:send(Socket, Response),
-			commands(State#state{out_state=done}, StreamID, [{sendfile, fin, O, B, P}|Tail]);
+			commands(State, StreamID, [{sendfile, fin, O, B, P}|Tail]);
 		_ ->
 			Transport:send(Socket, [Response, Body]),
-			%% @todo If max number of requests, close connection.
-			%% @todo If IsFin, maybe skip body of current request.
-			maybe_terminate(State#state{out_state=done}, StreamID, Tail, fin)
+			commands(State#state{out_state=done}, StreamID, Tail)
 	end;
 %% Send response headers and initiate chunked encoding.
 commands(State0=#state{socket=Socket, transport=Transport, streams=Streams}, StreamID,
@@ -836,7 +834,7 @@ commands(State0=#state{socket=Socket, transport=Transport, streams=Streams}, Str
 %%
 %% @todo WINDOW_UPDATE stuff require us to buffer some data.
 %% @todo We probably want to allow Data to be the {sendfile, ...} tuple also.
-commands(State=#state{socket=Socket, transport=Transport, streams=Streams}, StreamID,
+commands(State0=#state{socket=Socket, transport=Transport, streams=Streams}, StreamID,
 		[{data, IsFin, Data}|Tail]) ->
 	%% Do not send anything when the user asks to send an empty
 	%% data frame, as that would break the protocol.
@@ -853,12 +851,20 @@ commands(State=#state{socket=Socket, transport=Transport, streams=Streams}, Stre
 					Transport:send(Socket, Data)
 			end
 	end,
-	maybe_terminate(State, StreamID, Tail, IsFin);
+	State = case IsFin of
+		fin -> State0#state{out_state=done};
+		nofin -> State0
+	end,
+	commands(State, StreamID, Tail);
 %% Send a file.
-commands(State=#state{socket=Socket, transport=Transport}, StreamID,
+commands(State0=#state{socket=Socket, transport=Transport}, StreamID,
 		[{sendfile, IsFin, Offset, Bytes, Path}|Tail]) ->
 	Transport:sendfile(Socket, Path, Offset, Bytes),
-	maybe_terminate(State, StreamID, Tail, IsFin);
+	State = case IsFin of
+		fin -> State0#state{out_state=done};
+		nofin -> State0
+	end,
+	commands(State, StreamID, Tail);
 %% Protocol takeover.
 commands(State0=#state{ref=Ref, parent=Parent, socket=Socket, transport=Transport,
 		opts=Opts, children=Children}, StreamID,
@@ -886,11 +892,13 @@ commands(State0=#state{ref=Ref, parent=Parent, socket=Socket, transport=Transpor
 %% Stream shutdown.
 commands(State, StreamID, [stop|Tail]) ->
 	%% @todo Do we want to run the commands after a stop?
-%	commands(stream_terminate(State, StreamID, stop), StreamID, Tail).
-
-	%% @todo I think that's where we need to terminate streams.
-
-	maybe_terminate(State, StreamID, Tail, fin);
+	%% @todo We currently wait for the stop command before we
+	%% continue with the next request/response. In theory, if
+	%% the request body was read fully and the response body
+	%% was sent fully we should be able to start working on
+	%% the next request concurrently. This can be done as a
+	%% future optimization.
+	maybe_terminate(State, StreamID, Tail);
 %% HTTP/1.1 does not support push; ignore.
 commands(State, StreamID, [{push, _, _, _, _, _, _, _}|Tail]) ->
 	commands(State, StreamID, Tail).
@@ -905,12 +913,10 @@ headers_to_list(Headers) ->
 flush() ->
 	receive _ -> flush() after 0 -> ok end.
 
-maybe_terminate(State, StreamID, Tail, nofin) ->
-	commands(State, StreamID, Tail);
 %% @todo In these cases I'm not sure if we should continue processing commands.
-maybe_terminate(State=#state{last_streamid=StreamID}, StreamID, _Tail, fin) ->
+maybe_terminate(State=#state{last_streamid=StreamID}, StreamID, _Tail) ->
 	terminate(stream_terminate(State, StreamID, normal), normal); %% @todo Reason ok?
-maybe_terminate(State, StreamID, _Tail, fin) ->
+maybe_terminate(State, StreamID, _Tail) ->
 	stream_terminate(State, StreamID, normal).
 
 stream_reset(State, StreamID, StreamError={internal_error, _, _}) ->

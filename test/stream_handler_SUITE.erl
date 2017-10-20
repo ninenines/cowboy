@@ -341,3 +341,23 @@ terminate_on_socket_close(Config) ->
 	%% Confirm terminate/3 is called.
 	receive {Self, Pid, terminate, _, _, _} -> ok after 1000 -> error(timeout) end,
 	ok.
+
+terminate_on_stop(Config) ->
+	doc("Confirm terminate/3 is called after stop is returned."),
+	Self = self(),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/long_polling", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"x-test-case">>, <<"terminate_on_stop">>},
+		{<<"x-test-pid">>, pid_to_list(Self)}
+	]),
+	%% Confirm init/3 is called and receive the response.
+	Pid = receive {Self, P, init, _, _, _} -> P after 1000 -> error(timeout) end,
+	{response, fin, 204, _} = gun:await(ConnPid, Ref),
+	%% Confirm the stream is still alive even though we
+	%% received the response fully, and tell it to stop.
+	Pid ! {{Pid, 1}, please_stop},
+	receive {Self, Pid, info, _, please_stop, _} -> ok after 1000 -> error(timeout) end,
+	%% Confirm terminate/3 is called.
+	receive {Self, Pid, terminate, _, _, _} -> ok after 1000 -> error(timeout) end,
+	ok.

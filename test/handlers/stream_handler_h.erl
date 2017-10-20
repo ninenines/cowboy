@@ -43,6 +43,8 @@ init_commands(_, _, State=#state{test=shutdown_timeout_on_stream_stop}) ->
 init_commands(_, _, State=#state{test=shutdown_timeout_on_socket_close}) ->
 	Spawn = init_process(true, State),
 	[{headers, 200, #{}}, {spawn, Spawn, 2000}];
+init_commands(_, _, State=#state{test=terminate_on_stop}) ->
+	[{response, 204, #{}, <<>>}];
 init_commands(_, _, _) ->
 	[{headers, 200, #{}}].
 
@@ -72,7 +74,10 @@ info(_, crash, #state{test=crash_in_info}) ->
 	error(crash);
 info(StreamID, Info, State=#state{pid=Pid}) ->
 	Pid ! {Pid, self(), info, StreamID, Info, State},
-	{[], State}.
+	case Info of
+		please_stop -> {[stop], State};
+		_ -> {[], State}
+	end.
 
 terminate(StreamID, Reason, State=#state{pid=Pid, test=crash_in_terminate}) ->
 	Pid ! {Pid, self(), terminate, StreamID, Reason, State},
