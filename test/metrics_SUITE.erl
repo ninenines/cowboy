@@ -66,7 +66,8 @@ init_compress_opts(Config) ->
 
 init_routes(_) -> [
 	{"localhost", [
-		{"/", hello_h, []}
+		{"/", hello_h, []},
+		{"/full/:key", echo_h, []}
 	]}
 ].
 
@@ -80,13 +81,17 @@ do_metrics_callback() ->
 %% Tests.
 
 hello_world(Config) ->
-	%% Perform a request.
+	doc("Confirm metrics are correct for a normal GET request."),
+	%% Perform a GET request.
 	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, "/", [{<<"x-test-pid">>, pid_to_list(self())}]),
+	Ref = gun:get(ConnPid, "/", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"x-test-pid">>, pid_to_list(self())}
+	]),
 	{response, nofin, 200, RespHeaders} = gun:await(ConnPid, Ref),
 	{ok, RespBody} = gun:await_body(ConnPid, Ref),
 	gun:close(ConnPid),
-	%% Receive the metrics and print them.
+	%% Receive the metrics and validate them.
 	receive
 		{metrics, From, Metrics} ->
 			%% Ensure the timestamps are in the expected order.
@@ -110,6 +115,69 @@ hello_world(Config) ->
 				resp_body_length := RespBodyLen
 			} = Metrics,
 			ExpectedRespHeaders = maps:from_list(RespHeaders),
+			true = byte_size(RespBody) > 0,
+			true = RespBodyLen > 0,
+			%% The request process executed normally.
+			#{procs := Procs} = Metrics,
+			[{_, #{
+				spawn := ProcSpawn,
+				exit := ProcExit,
+				reason := normal
+			}}] = maps:to_list(Procs),
+			true = ProcSpawn =< ProcExit,
+			%% Confirm other metadata are as expected.
+			#{
+				ref := _,
+				pid := From,
+				streamid := 1,
+				reason := normal,
+				req := #{}
+			} = Metrics,
+			%% All good!
+			ok
+	after 1000 ->
+		error(timeout)
+	end.
+
+post_body(Config) ->
+	doc("Confirm metrics are correct for a normal POST request."),
+	%% Perform a POST request.
+	ConnPid = gun_open(Config),
+	Body = <<0:8000000>>,
+	Ref = gun:post(ConnPid, "/full/read_body", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"x-test-pid">>, pid_to_list(self())}
+	], Body),
+	{response, nofin, 200, RespHeaders} = gun:await(ConnPid, Ref),
+	{ok, RespBody} = gun:await_body(ConnPid, Ref),
+	gun:close(ConnPid),
+	%% Receive the metrics and validate them.
+	receive
+		{metrics, From, Metrics} ->
+			%% Ensure the timestamps are in the expected order.
+			#{
+				req_start := ReqStart, req_end := ReqEnd,
+				resp_start := RespStart, resp_end := RespEnd
+			} = Metrics,
+			true = (ReqStart =< RespStart)
+				and (RespStart =< RespEnd)
+				and (RespEnd =< ReqEnd),
+			%% We didn't send a body.
+			#{
+				req_body_start := ReqBodyStart,
+				req_body_end := ReqBodyEnd,
+				req_body_length := ReqBodyLen
+			} = Metrics,
+			true = ReqBodyStart =< ReqBodyEnd,
+			ReqBodyLen = byte_size(Body),
+			%% We got a 200 response with a body.
+			#{
+				resp_status := 200,
+				resp_headers := ExpectedRespHeaders,
+				resp_body_length := RespBodyLen
+			} = Metrics,
+			ExpectedRespHeaders = maps:from_list(RespHeaders),
+			true = byte_size(RespBody) > 0,
 			true = RespBodyLen > 0,
 			%% The request process executed normally.
 			#{procs := Procs} = Metrics,

@@ -152,8 +152,10 @@ data(StreamID, IsFin, Data, State=#state{req_body_start=undefined}) ->
 		req_body_start=ReqBodyStart,
 		req_body_length=byte_size(Data)
 	});
-data(StreamID, IsFin, Data, State) ->
-	do_data(StreamID, IsFin, Data, State).
+data(StreamID, IsFin, Data, State=#state{req_body_length=ReqBodyLen}) ->
+	do_data(StreamID, IsFin, Data, State#state{
+		req_body_length=ReqBodyLen + byte_size(Data)
+	}).
 
 do_data(StreamID, IsFin, Data, State0=#state{next=Next0}) ->
 	{Commands, Next} = cowboy_stream:data(StreamID, IsFin, Data, Next0),
