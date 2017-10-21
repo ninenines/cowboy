@@ -932,9 +932,8 @@ stream_reset(State, StreamID, StreamError={internal_error, _, _}) ->
 stream_terminate(State0=#state{socket=Socket, transport=Transport,
 		out_streamid=OutStreamID, out_state=OutState,
 		streams=Streams0, children=Children0}, StreamID, Reason) ->
-	{value, #stream{state=StreamState, version=Version}, Streams}
-		= lists:keytake(StreamID, #stream.id, Streams0),
-	State1 = case OutState of
+	#stream{version=Version} = lists:keyfind(StreamID, #stream.id, Streams0),
+	State1 = #state{streams=Streams1} = case OutState of
 		wait when element(1, Reason) =:= internal_error ->
 			info(State0, StreamID, {response, 500, #{<<"content-length">> => <<"0">>}, <<>>});
 		wait ->
@@ -945,18 +944,20 @@ stream_terminate(State0=#state{socket=Socket, transport=Transport,
 		_ -> %% done or Version =:= 'HTTP/1.0'
 			State0
 	end,
+	%% Remove the stream from the state.
+	{value, #stream{state=StreamState}, Streams}
+		= lists:keytake(StreamID, #stream.id, Streams1),
+	State2 = State1#state{streams=Streams},
+	%% Stop the stream.
+	stream_call_terminate(StreamID, Reason, StreamState),
+	Children = cowboy_children:shutdown(Children0, StreamID),
 	%% We reset the timeout if there are no active streams anymore.
 	State = case Streams of
-		[] -> set_timeout(State1);
-		_ -> State1
+		[] -> set_timeout(State2);
+		_ -> State2
 	end,
-
-	stream_call_terminate(StreamID, Reason, StreamState),
-
-	Children = cowboy_children:shutdown(Children0, StreamID),
-
+	%% Move on to the next stream.
 	%% @todo Skip the body, if any, or drop the connection if too large.
-
 	%% @todo Only do this if Current =:= StreamID.
 	NextOutStreamID = OutStreamID + 1,
 	case lists:keyfind(NextOutStreamID, #stream.id, Streams) of

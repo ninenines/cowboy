@@ -777,8 +777,9 @@ stream_terminate(State=#state{socket=Socket, transport=Transport,
 	case lists:keytake(StreamID, #stream.id, Streams0) of
 		%% When the stream terminates normally (without sending RST_STREAM)
 		%% and no response was sent, we need to send a proper response back to the client.
-		{value, #stream{state=StreamState, local=idle}, Streams} when Reason =:= normal ->
-			State1 = info(State, StreamID, {response, 204, #{}, <<>>}),
+		{value, #stream{local=idle}, Streams} when Reason =:= normal ->
+			State1 = #state{streams=Streams1} = info(State, StreamID, {response, 204, #{}, <<>>}),
+			#stream{state=StreamState} = lists:keyfind(StreamID, #stream.id, Streams1),
 			stream_call_terminate(StreamID, Reason, StreamState),
 			Children = cowboy_children:shutdown(Children0, StreamID),
 			State1#state{streams=Streams, children=Children};
