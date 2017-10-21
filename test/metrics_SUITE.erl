@@ -73,7 +73,11 @@ init_routes(_) -> [
 ].
 
 do_metrics_callback() ->
-	fun(Metrics=#{req := #{headers := #{<<"x-test-pid">> := PidBin}}}) ->
+	fun(Metrics) ->
+		PidBin = case Metrics of
+			#{req := #{headers := #{<<"x-test-pid">> := P}}} -> P;
+			#{partial_req := #{headers := #{<<"x-test-pid">> := P}}} -> P
+		end,
 		Pid = list_to_pid(binary_to_list(PidBin)),
 		Pid ! {metrics, self(), Metrics},
 		ok
@@ -203,7 +207,7 @@ post_body(Config) ->
 	end.
 
 no_resp_body(Config) ->
-	doc("Confirm metrics are correct for a 204 response to a GET request."),
+	doc("Confirm metrics are correct for a default 204 response to a GET request."),
 	%% Perform a GET request.
 	ConnPid = gun_open(Config),
 	Ref = gun:get(ConnPid, "/default", [
@@ -252,6 +256,45 @@ no_resp_body(Config) ->
 				reason := normal,
 				req := #{}
 			} = Metrics,
+			%% All good!
+			ok
+	after 1000 ->
+		error(timeout)
+	end.
+
+early_error(Config) ->
+	case config(protocol, Config) of
+		http -> do_early_error(Config);
+		http2 -> doc("The callback early_error/5 is not currently used for HTTP/2.")
+	end.
+
+do_early_error(Config) ->
+	doc("Confirm metrics are correct for an early_error response."),
+	%% Perform a malformed GET request.
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"host">>, <<"host:port">>},
+		{<<"x-test-pid">>, pid_to_list(self())}
+	]),
+	{response, fin, 400, RespHeaders} = gun:await(ConnPid, Ref),
+	gun:close(ConnPid),
+	%% Receive the metrics and validate them.
+	receive
+		{metrics, From, Metrics} ->
+			%% Confirm the metadata is there as expected.
+			#{
+				ref := _,
+				pid := From,
+				streamid := 1,
+				reason := {stream_error, 1, protocol_error, _},
+				partial_req := #{},
+				resp_status := 400,
+				resp_headers := ExpectedRespHeaders,
+				early_error_time := _,
+				resp_body_length := 0
+			} = Metrics,
+			ExpectedRespHeaders = maps:from_list(RespHeaders),
 			%% All good!
 			ok
 	after 1000 ->
