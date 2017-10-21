@@ -846,7 +846,13 @@ commands(State0=#state{socket=Socket, transport=Transport, streams=Streams}, Str
 			%% @todo Same as above.
 			case lists:keyfind(StreamID, #stream.id, Streams) of
 				#stream{version='HTTP/1.1'} ->
-					Transport:send(Socket, [integer_to_binary(Size, 16), <<"\r\n">>, Data, <<"\r\n">>]);
+					Transport:send(Socket, [
+						integer_to_binary(Size, 16), <<"\r\n">>, Data,
+						case IsFin of
+							fin -> <<"\r\n0\r\n\r\n">>;
+							nofin -> <<"\r\n">>
+						end
+					]);
 				#stream{version='HTTP/1.0'} ->
 					Transport:send(Socket, Data)
 			end
