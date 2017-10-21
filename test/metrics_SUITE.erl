@@ -33,7 +33,7 @@ init_per_group(Name = http, Config) ->
 init_per_group(Name = https, Config) ->
 	cowboy_test:init_http(Name, init_plain_opts(Config), Config);
 init_per_group(Name = h2, Config) ->
-	cowboy_test:init_http(Name, init_plain_opts(Config), Config);
+	cowboy_test:init_http2(Name, init_plain_opts(Config), Config);
 init_per_group(Name = h2c, Config) ->
 	Config1 = cowboy_test:init_http(Name, init_plain_opts(Config), Config),
 	lists:keyreplace(protocol, 1, Config1, {protocol, http2});
@@ -42,7 +42,7 @@ init_per_group(Name = http_compress, Config) ->
 init_per_group(Name = https_compress, Config) ->
 	cowboy_test:init_http(Name, init_compress_opts(Config), Config);
 init_per_group(Name = h2_compress, Config) ->
-	cowboy_test:init_http(Name, init_compress_opts(Config), Config);
+	cowboy_test:init_http2(Name, init_compress_opts(Config), Config);
 init_per_group(Name = h2c_compress, Config) ->
 	Config1 = cowboy_test:init_http(Name, init_compress_opts(Config), Config),
 	lists:keyreplace(protocol, 1, Config1, {protocol, http2}).
@@ -67,6 +67,7 @@ init_compress_opts(Config) ->
 init_routes(_) -> [
 	{"localhost", [
 		{"/", hello_h, []},
+		{"/default", default_h, []},
 		{"/full/:key", echo_h, []}
 	]}
 ].
@@ -179,6 +180,62 @@ post_body(Config) ->
 			ExpectedRespHeaders = maps:from_list(RespHeaders),
 			true = byte_size(RespBody) > 0,
 			true = RespBodyLen > 0,
+			%% The request process executed normally.
+			#{procs := Procs} = Metrics,
+			[{_, #{
+				spawn := ProcSpawn,
+				exit := ProcExit,
+				reason := normal
+			}}] = maps:to_list(Procs),
+			true = ProcSpawn =< ProcExit,
+			%% Confirm other metadata are as expected.
+			#{
+				ref := _,
+				pid := From,
+				streamid := 1,
+				reason := normal,
+				req := #{}
+			} = Metrics,
+			%% All good!
+			ok
+	after 1000 ->
+		error(timeout)
+	end.
+
+no_resp_body(Config) ->
+	doc("Confirm metrics are correct for a 204 response to a GET request."),
+	%% Perform a GET request.
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/default", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"x-test-pid">>, pid_to_list(self())}
+	]),
+	{response, fin, 204, RespHeaders} = gun:await(ConnPid, Ref),
+	gun:close(ConnPid),
+	%% Receive the metrics and validate them.
+	receive
+		{metrics, From, Metrics} ->
+			%% Ensure the timestamps are in the expected order.
+			#{
+				req_start := ReqStart, req_end := ReqEnd,
+				resp_start := RespStart, resp_end := RespEnd
+			} = Metrics,
+			true = (ReqStart =< RespStart)
+				and (RespStart =< RespEnd)
+				and (RespEnd =< ReqEnd),
+			%% We didn't send a body.
+			#{
+				req_body_start := undefined,
+				req_body_end := undefined,
+				req_body_length := 0
+			} = Metrics,
+			%% We got a 200 response with a body.
+			#{
+				resp_status := 204,
+				resp_headers := ExpectedRespHeaders,
+				resp_body_length := 0
+			} = Metrics,
+			ExpectedRespHeaders = maps:from_list(RespHeaders),
 			%% The request process executed normally.
 			#{procs := Procs} = Metrics,
 			[{_, #{
