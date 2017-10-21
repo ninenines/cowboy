@@ -68,7 +68,8 @@ init_routes(_) -> [
 	{"localhost", [
 		{"/", hello_h, []},
 		{"/default", default_h, []},
-		{"/full/:key", echo_h, []}
+		{"/full/:key", echo_h, []},
+		{"/resp/:key[/:arg]", resp_h, []}
 	]}
 ].
 
@@ -87,9 +88,12 @@ do_metrics_callback() ->
 
 hello_world(Config) ->
 	doc("Confirm metrics are correct for a normal GET request."),
+	do_get("/", Config).
+
+do_get(Path, Config) ->
 	%% Perform a GET request.
 	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, "/", [
+	Ref = gun:get(ConnPid, Path, [
 		{<<"accept-encoding">>, <<"gzip">>},
 		{<<"x-test-pid">>, pid_to_list(self())}
 	]),
@@ -119,7 +123,9 @@ hello_world(Config) ->
 				resp_headers := ExpectedRespHeaders,
 				resp_body_length := RespBodyLen
 			} = Metrics,
-			ExpectedRespHeaders = maps:from_list(RespHeaders),
+			%% The transfer-encoding header is hidden from stream handlers.
+			ExpectedRespHeaders = maps:remove(<<"transfer-encoding">>,
+				maps:from_list(RespHeaders)),
 			true = byte_size(RespBody) > 0,
 			true = RespBodyLen > 0,
 			%% The request process executed normally.
@@ -300,3 +306,8 @@ do_early_error(Config) ->
 	after 1000 ->
 		error(timeout)
 	end.
+
+%% This test is identical to normal GET except for the handler.
+stream_reply(Config) ->
+	doc("Confirm metrics are correct for long polling."),
+	do_get("/resp/stream_reply2/200", Config).
