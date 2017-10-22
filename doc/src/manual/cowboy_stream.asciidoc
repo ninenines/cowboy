@@ -355,7 +355,7 @@ detected.
 
 [source,erlang]
 ----
-reason() :: normal
+reason() :: normal | switch_protocol
     | {internal_error, timeout | {error | exit | throw, any()}, HumanReadable}
     | {socket_error, closed | atom(), HumanReadable}
     | {stream_error, Error, HumanReadable}

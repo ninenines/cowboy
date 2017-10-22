@@ -878,22 +878,17 @@ commands(State0=#state{ref=Ref, parent=Parent, socket=Socket, transport=Transpor
 	%% @todo This should be the last stream running otherwise we need to wait before switching.
 	%% @todo If there's streams opened after this one, fail instead of 101.
 	State = cancel_timeout(State0),
-	%% @todo When we actually do the upgrade, we only have the one stream left, plus
-	%% possibly some processes terminating. We need a smart strategy for handling the
-	%% children shutdown. We can start with brutal_kill and discarding the EXIT messages
-	%% received before switching to Websocket. Something better would be to let the
-	%% stream processes finish but that implies the Websocket module to know about
-	%% them and filter the messages. For now, kill them all and discard all messages
-	%% in the mailbox.
-
+	%% Send a 101 response, then terminate the stream.
+	State = #state{streams=Streams} = commands(State, StreamID, [{inform, 101, Headers}]),
+	#stream{state=StreamState} = lists:keyfind(StreamID, #stream.id, Streams),
+	%% @todo We need to shutdown processes here first.
+	stream_call_terminate(StreamID, switch_protocol, StreamState),
+	%% Terminate children processes and flush any remaining messages from the mailbox.
 	cowboy_children:terminate(Children),
-
 	flush(),
-	%% Everything good, upgrade!
-	_ = commands(State, StreamID, [{inform, 101, Headers}]),
 	%% @todo This is no good because commands return a state normally and here it doesn't
 	%% we need to let this module go entirely. Perhaps it should be handled directly in
-	%% cowboy_clear/cowboy_tls? Perhaps not. We do want that Buffer.
+	%% cowboy_clear/cowboy_tls?
 	Protocol:takeover(Parent, Ref, Socket, Transport, Opts, <<>>, InitialState);
 %% Stream shutdown.
 commands(State, StreamID, [stop|Tail]) ->

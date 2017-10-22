@@ -42,7 +42,7 @@
 	| stop].
 -export_type([commands/0]).
 
--type reason() :: normal
+-type reason() :: normal | switch_protocol
 	| {internal_error, timeout | {error | exit | throw, any()}, human_reason()}
 	| {socket_error, closed | atom(), human_reason()}
 	| {stream_error, cow_http2:error(), human_reason()}

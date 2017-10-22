@@ -361,3 +361,26 @@ terminate_on_stop(Config) ->
 	%% Confirm terminate/3 is called.
 	receive {Self, Pid, terminate, _, _, _} -> ok after 1000 -> error(timeout) end,
 	ok.
+
+terminate_on_switch_protocol(Config) ->
+	case config(protocol, Config) of
+		http -> do_terminate_on_switch_protocol(Config);
+		http2 -> doc("The switch_protocol command is not currently supported for HTTP/2.")
+	end.
+
+do_terminate_on_switch_protocol(Config) ->
+	doc("Confirm terminate/3 is called after switch_protocol is returned."),
+	Self = self(),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/long_polling", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"x-test-case">>, <<"terminate_on_switch_protocol">>},
+		{<<"x-test-pid">>, pid_to_list(Self)}
+	]),
+	%% Confirm init/3 is called and receive the response.
+	Pid = receive {Self, P, init, _, _, _} -> P after 1000 -> error(timeout) end,
+	%% Confirm terminate/3 is called.
+	receive {Self, Pid, terminate, _, _, _} -> ok after 1000 -> error(timeout) end,
+	%% Confirm takeover/7 is called.
+	receive {Self, Pid, takeover, _, _, _, _, _, _, _} -> ok after 1000 -> error(timeout) end,
+	ok.

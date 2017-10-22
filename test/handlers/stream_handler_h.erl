@@ -9,6 +9,9 @@
 -export([terminate/3]).
 -export([early_error/5]).
 
+%% For switch_protocol.
+-export([takeover/7]).
+
 -record(state, {
 	pid,
 	test
@@ -43,6 +46,8 @@ init_commands(_, _, State=#state{test=shutdown_timeout_on_stream_stop}) ->
 init_commands(_, _, State=#state{test=shutdown_timeout_on_socket_close}) ->
 	Spawn = init_process(true, State),
 	[{headers, 200, #{}}, {spawn, Spawn, 2000}];
+init_commands(_, _, State=#state{test=terminate_on_switch_protocol}) ->
+	[{switch_protocol, #{}, ?MODULE, State}];
 init_commands(_, _, State=#state{test=terminate_on_stop}) ->
 	[{response, 204, #{}, <<>>}];
 init_commands(_, _, _) ->
@@ -94,3 +99,8 @@ early_error(StreamID, Reason, PartialReq, Resp, Opts) ->
 		<<"crash_in_early_error",_/bits>> -> error(crash);
 		_ -> Resp
 	end.
+
+%% @todo It would be good if we could allow this function to return normally.
+takeover(Parent, Ref, Socket, Transport, Opts, Buffer, State=#state{pid=Pid}) ->
+	Pid ! {Pid, self(), takeover, Parent, Ref, Socket, Transport, Opts, Buffer, State},
+	exit(normal).
