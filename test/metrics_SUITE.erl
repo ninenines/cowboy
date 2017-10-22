@@ -69,7 +69,8 @@ init_routes(_) -> [
 		{"/", hello_h, []},
 		{"/default", default_h, []},
 		{"/full/:key", echo_h, []},
-		{"/resp/:key[/:arg]", resp_h, []}
+		{"/resp/:key[/:arg]", resp_h, []},
+		{"/ws_echo", ws_echo, []}
 	]}
 ].
 
@@ -311,3 +312,67 @@ do_early_error(Config) ->
 stream_reply(Config) ->
 	doc("Confirm metrics are correct for long polling."),
 	do_get("/resp/stream_reply2/200", Config).
+
+ws(Config) ->
+	case config(protocol, Config) of
+		http -> do_ws(Config);
+		http2 -> doc("It is not currently possible to switch to Websocket over HTTP/2.")
+	end.
+
+do_ws(Config) ->
+	doc("Confirm metrics are correct when switching to Websocket."),
+	ConnPid = gun_open(Config),
+	{ok, http} = gun:await_up(ConnPid),
+	gun:ws_upgrade(ConnPid, "/ws_echo", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"x-test-pid">>, pid_to_list(self())}
+	]),
+	receive
+		{metrics, From, Metrics} ->
+			%% Ensure the timestamps are in the expected order.
+			#{
+				req_start := ReqStart,
+				req_end := ReqEnd
+			} = Metrics,
+			true = ReqStart =< ReqEnd,
+			%% We didn't send a body.
+			#{
+				req_body_start := undefined,
+				req_body_end := undefined,
+				req_body_length := 0
+			} = Metrics,
+			%% We didn't send a response.
+			#{
+				resp_start := undefined,
+				resp_end := undefined,
+				resp_status := undefined,
+				resp_headers := undefined,
+				resp_body_length := 0
+			} = Metrics,
+			%% The request process may not have terminated before terminate
+			%% is called. We therefore only check when it spawned.
+			#{procs := Procs} = Metrics,
+			[{_, #{
+				spawn := ProcSpawn
+			}}] = maps:to_list(Procs),
+			%% Confirm other metadata are as expected.
+			#{
+				ref := _,
+				pid := From,
+				streamid := 1,
+				reason := switch_protocol,
+				req := #{}
+			} = Metrics,
+			%% All good!
+			ok
+	after 1000 ->
+		error(timeout)
+	end,
+	%% And of course the upgrade completed successfully after that.
+	receive
+		{gun_ws_upgrade, ConnPid, ok, _} ->
+			ok
+	after 1000 ->
+		error(timeout)
+	end,
+	gun:close(ConnPid).
