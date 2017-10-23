@@ -130,6 +130,13 @@ Cowboy 2.0 now comes with Erlang.mk templates.
 * Websocket handlers have their timeout default changed
   from infinity to 60 seconds.
 
+* HTTP clients that send multiple headers of the same name
+  will have the values of those headers concatenated into a
+  comma-separated list. This is of special importance in the
+  case of the `Content-Type` header, as previously only the
+  first value was passed to the `content_types_accepted/2`
+  callback function.
+
 === New functions
 
 * The `cowboy_req:scheme/1` function has been added.
