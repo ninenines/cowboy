@@ -195,6 +195,13 @@ Cowboy 2.0 now comes with Erlang.mk templates.
   They are no longer allowed. URIs are expected to be in UTF-8 once
   they are percent-decoded.
 
+* Clients that send multiple headers of the same name
+  will have the values of those headers concatenated into a
+  comma-separated list. This is of special importance in the
+  case of the content-type header, as previously only the
+  first value was used in the `content_types_accepted/2` step
+  in REST handlers.
+
 * Etag comparison in REST handlers has been fixed. Some requests may
   now fail when they succeeded in the past.
 
