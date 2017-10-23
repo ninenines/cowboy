@@ -2032,7 +2032,7 @@ stream_closed_accept_priority(Config) ->
 		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
 		{<<":path">>, <<"/">>}
 	]),
-	ok = gen_tcp:send(Socket, cow_http2:headers(1, nofin, HeadersBlock)),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
 	%% Receive the response.
 	{ok, << Length1:24, 1:8, _:40 >>} = gen_tcp:recv(Socket, 9, 6000),
 	{ok, _} = gen_tcp:recv(Socket, Length1, 6000),
@@ -2055,7 +2055,7 @@ stream_closed_accept_rst_stream(Config) ->
 		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
 		{<<":path">>, <<"/">>}
 	]),
-	ok = gen_tcp:send(Socket, cow_http2:headers(1, nofin, HeadersBlock)),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
 	%% Receive the response.
 	{ok, << Length1:24, 1:8, _:40 >>} = gen_tcp:recv(Socket, 9, 6000),
 	{ok, _} = gen_tcp:recv(Socket, Length1, 6000),
@@ -2084,7 +2084,7 @@ stream_closed_accept_window_update(Config) ->
 		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
 		{<<":path">>, <<"/">>}
 	]),
-	ok = gen_tcp:send(Socket, cow_http2:headers(1, nofin, HeadersBlock)),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
 	%% Receive the response.
 	{ok, << Length1:24, 1:8, _:40 >>} = gen_tcp:recv(Socket, 9, 6000),
 	{ok, _} = gen_tcp:recv(Socket, Length1, 6000),
