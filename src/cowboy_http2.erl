@@ -15,8 +15,8 @@
 -module(cowboy_http2).
 
 -export([init/5]).
--export([init/7]).
 -export([init/9]).
+-export([init/11]).
 
 -export([system_continue/3]).
 -export([system_terminate/4]).
@@ -63,6 +63,12 @@
 
 	%% Remote address and port for the connection.
 	peer = undefined :: {inet:ip_address(), inet:port_number()},
+
+	%% Local address and port for the connection.
+	sock = undefined :: {inet:ip_address(), inet:port_number()},
+
+	%% Client certificate (TLS only).
+	cert :: undefined | binary(),
 
 	%% Settings are separate for each endpoint. In addition, settings
 	%% must be acknowledged before they can be expected to be applied.
@@ -123,19 +129,39 @@
 
 -spec init(pid(), ranch:ref(), inet:socket(), module(), cowboy:opts()) -> ok.
 init(Parent, Ref, Socket, Transport, Opts) ->
-	case Transport:peername(Socket) of
-		{ok, Peer} ->
-			init(Parent, Ref, Socket, Transport, Opts, Peer, <<>>);
-		{error, Reason} ->
-			%% Couldn't read the peer address; connection is gone.
-			terminate(undefined, {socket_error, Reason, 'An error has occurred on the socket.'})
+	Peer0 = Transport:peername(Socket),
+	Sock0 = Transport:sockname(Socket),
+	Cert1 = case Transport:name() of
+		ssl ->
+			case ssl:peercert(Socket) of
+				{error, no_peercert} ->
+					{ok, undefined};
+				Cert0 ->
+					Cert0
+			end;
+		_ ->
+			{ok, undefined}
+	end,
+	case {Peer0, Sock0, Cert1} of
+		{{ok, Peer}, {ok, Sock}, {ok, Cert}} ->
+			init(Parent, Ref, Socket, Transport, Opts, Peer, Sock, Cert, <<>>);
+		{{error, Reason}, _, _} ->
+			terminate(undefined, {socket_error, Reason,
+				'A socket error occurred when retrieving the peer name.'});
+		{_, {error, Reason}, _} ->
+			terminate(undefined, {socket_error, Reason,
+				'A socket error occurred when retrieving the sock name.'});
+		{_, _, {error, Reason}} ->
+			terminate(undefined, {socket_error, Reason,
+				'A socket error occurred when retrieving the client TLS certificate.'})
 	end.
 
 -spec init(pid(), ranch:ref(), inet:socket(), module(), cowboy:opts(),
-	{inet:ip_address(), inet:port_number()}, binary()) -> ok.
-init(Parent, Ref, Socket, Transport, Opts, Peer, Buffer) ->
+	{inet:ip_address(), inet:port_number()}, {inet:ip_address(), inet:port_number()},
+	binary() | undefined, binary()) -> ok.
+init(Parent, Ref, Socket, Transport, Opts, Peer, Sock, Cert, Buffer) ->
 	State = #state{parent=Parent, ref=Ref, socket=Socket,
-		transport=Transport, opts=Opts, peer=Peer,
+		transport=Transport, opts=Opts, peer=Peer, sock=Sock, cert=Cert,
 		parse_state={preface, sequence, preface_timeout(Opts)}},
 	preface(State),
 	case Buffer of
@@ -145,10 +171,11 @@ init(Parent, Ref, Socket, Transport, Opts, Peer, Buffer) ->
 
 %% @todo Add an argument for the request body.
 -spec init(pid(), ranch:ref(), inet:socket(), module(), cowboy:opts(),
-	{inet:ip_address(), inet:port_number()}, binary(), map() | undefined, cowboy_req:req()) -> ok.
-init(Parent, Ref, Socket, Transport, Opts, Peer, Buffer, _Settings, Req) ->
+	{inet:ip_address(), inet:port_number()}, {inet:ip_address(), inet:port_number()},
+	binary() | undefined, binary(), map() | undefined, cowboy_req:req()) -> ok.
+init(Parent, Ref, Socket, Transport, Opts, Peer, Sock, Cert, Buffer, _Settings, Req) ->
 	State0 = #state{parent=Parent, ref=Ref, socket=Socket,
-		transport=Transport, opts=Opts, peer=Peer,
+		transport=Transport, opts=Opts, peer=Peer, sock=Sock, cert=Cert,
 		parse_state={preface, sequence, preface_timeout(Opts)}},
 	%% @todo Apply settings.
 	%% StreamID from HTTP/1.1 Upgrade requests is always 1.
@@ -720,9 +747,10 @@ stream_decode_init(State=#state{socket=Socket, transport=Transport,
 			'Error while trying to decode HPACK-encoded header block. (RFC7540 4.3)'})
 	end.
 
-stream_req_init(State=#state{ref=Ref, peer=Peer}, StreamID, IsFin, Headers0=#{
-		<<":method">> := Method, <<":scheme">> := Scheme,
-		<<":authority">> := Authority, <<":path">> := PathWithQs}) ->
+stream_req_init(State=#state{ref=Ref, peer=Peer, sock=Sock, cert=Cert},
+		StreamID, IsFin, Headers0=#{
+			<<":method">> := Method, <<":scheme">> := Scheme,
+			<<":authority">> := Authority, <<":path">> := PathWithQs}) ->
 	Headers = maps:without([<<":method">>, <<":scheme">>, <<":authority">>, <<":path">>], Headers0),
 	BodyLength = case Headers of
 		_ when IsFin =:= fin ->
@@ -746,6 +774,8 @@ stream_req_init(State=#state{ref=Ref, peer=Peer}, StreamID, IsFin, Headers0=#{
 		pid => self(),
 		streamid => StreamID,
 		peer => Peer,
+		sock => Sock,
+		cert => Cert,
 		method => Method,
 		scheme => Scheme,
 		host => Host,

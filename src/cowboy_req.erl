@@ -19,6 +19,8 @@
 -export([method/1]).
 -export([version/1]).
 -export([peer/1]).
+-export([sock/1]).
+-export([cert/1]).
 -export([scheme/1]).
 -export([host/1]).
 -export([host_info/1]).
@@ -150,6 +152,14 @@ version(#{version := Version}) ->
 -spec peer(req()) -> {inet:ip_address(), inet:port_number()}.
 peer(#{peer := Peer}) ->
 	Peer.
+
+-spec sock(req()) -> {inet:ip_address(), inet:port_number()}.
+sock(#{sock := Sock}) ->
+	Sock.
+
+-spec cert(req()) -> binary() | undefined.
+cert(#{cert := Cert}) ->
+	Cert.
 
 -spec scheme(req()) -> binary().
 scheme(#{scheme := Scheme}) ->

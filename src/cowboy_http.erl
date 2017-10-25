@@ -85,6 +85,12 @@
 	%% Remote address and port for the connection.
 	peer = undefined :: {inet:ip_address(), inet:port_number()},
 
+	%% Local address and port for the connection.
+	sock = undefined :: {inet:ip_address(), inet:port_number()},
+
+	%% Client certificate (TLS only).
+	cert :: undefined | binary(),
+
 	timer = undefined :: undefined | reference(),
 
 	%% Identifier for the stream currently being read (or waiting to be received).
@@ -115,16 +121,36 @@
 
 -spec init(pid(), ranch:ref(), inet:socket(), module(), cowboy:opts()) -> ok.
 init(Parent, Ref, Socket, Transport, Opts) ->
-	case Transport:peername(Socket) of
-		{ok, Peer} ->
+	Peer0 = Transport:peername(Socket),
+	Sock0 = Transport:sockname(Socket),
+	Cert1 = case Transport:name() of
+		ssl ->
+			case ssl:peercert(Socket) of
+				{error, no_peercert} ->
+					{ok, undefined};
+				Cert0 ->
+					Cert0
+			end;
+		_ ->
+			{ok, undefined}
+	end,
+	case {Peer0, Sock0, Cert1} of
+		{{ok, Peer}, {ok, Sock}, {ok, Cert}} ->
 			LastStreamID = maps:get(max_keepalive, Opts, 100),
 			before_loop(set_timeout(#state{
 				parent=Parent, ref=Ref, socket=Socket,
 				transport=Transport, opts=Opts,
-				peer=Peer, last_streamid=LastStreamID}), <<>>);
-		{error, Reason} ->
-			%% Couldn't read the peer address; connection is gone.
-			terminate(undefined, {socket_error, Reason, 'An error has occurred on the socket.'})
+				peer=Peer, sock=Sock, cert=Cert,
+				last_streamid=LastStreamID}), <<>>);
+		{{error, Reason}, _, _} ->
+			terminate(undefined, {socket_error, Reason,
+				'A socket error occurred when retrieving the peer name.'});
+		{_, {error, Reason}, _} ->
+			terminate(undefined, {socket_error, Reason,
+				'A socket error occurred when retrieving the sock name.'});
+		{_, _, {error, Reason}} ->
+			terminate(undefined, {socket_error, Reason,
+				'A socket error occurred when retrieving the client TLS certificate.'})
 	end.
 
 before_loop(State=#state{socket=Socket, transport=Transport}, Buffer) ->
@@ -559,8 +585,9 @@ default_port(_) -> 80.
 
 %% End of request parsing.
 
-request(Buffer, State0=#state{ref=Ref, transport=Transport, peer=Peer, in_streamid=StreamID,
-		in_state=PS=#ps_header{method=Method, path=Path, qs=Qs, version=Version}},
+request(Buffer, State0=#state{ref=Ref, transport=Transport, peer=Peer, sock=Sock, cert=Cert,
+		in_streamid=StreamID, in_state=
+			PS=#ps_header{method=Method, path=Path, qs=Qs, version=Version}},
 		Headers, Host, Port) ->
 	Scheme = case Transport:secure() of
 		true -> <<"https">>;
@@ -589,6 +616,8 @@ request(Buffer, State0=#state{ref=Ref, transport=Transport, peer=Peer, in_stream
 		pid => self(),
 		streamid => StreamID,
 		peer => Peer,
+		sock => Sock,
+		cert => Cert,
 		method => Method,
 		scheme => Scheme,
 		host => Host,
@@ -644,11 +673,12 @@ is_http2_upgrade(_, _) ->
 
 %% Prior knowledge upgrade, without an HTTP/1.1 request.
 http2_upgrade(State=#state{parent=Parent, ref=Ref, socket=Socket, transport=Transport,
-		opts=Opts, peer=Peer}, Buffer) ->
+		opts=Opts, peer=Peer, sock=Sock, cert=Cert}, Buffer) ->
 	case Transport:secure() of
 		false ->
 			_ = cancel_timeout(State),
-			cowboy_http2:init(Parent, Ref, Socket, Transport, Opts, Peer, Buffer);
+			cowboy_http2:init(Parent, Ref, Socket, Transport, Opts,
+				Peer, Sock, Cert, Buffer);
 		true ->
 			error_terminate(400, State, {connection_error, protocol_error,
 				'Clients that support HTTP/2 over TLS MUST use ALPN. (RFC7540 3.4)'})
@@ -656,7 +686,7 @@ http2_upgrade(State=#state{parent=Parent, ref=Ref, socket=Socket, transport=Tran
 
 %% Upgrade via an HTTP/1.1 request.
 http2_upgrade(State=#state{parent=Parent, ref=Ref, socket=Socket, transport=Transport,
-		opts=Opts, peer=Peer}, Buffer, HTTP2Settings, Req) ->
+		opts=Opts, peer=Peer, sock=Sock, cert=Cert}, Buffer, HTTP2Settings, Req) ->
 	%% @todo
 	%% However if the client sent a body, we need to read the body in full
 	%% and if we can't do that, return a 413 response. Some options are in order.
@@ -664,7 +694,8 @@ http2_upgrade(State=#state{parent=Parent, ref=Ref, socket=Socket, transport=Tran
 	try cow_http_hd:parse_http2_settings(HTTP2Settings) of
 		Settings ->
 			_ = cancel_timeout(State),
-			cowboy_http2:init(Parent, Ref, Socket, Transport, Opts, Peer, Buffer, Settings, Req)
+			cowboy_http2:init(Parent, Ref, Socket, Transport, Opts,
+				Peer, Sock, Cert, Buffer, Settings, Req)
 	catch _:_ ->
 		error_terminate(400, State, {connection_error, protocol_error,
 			'The HTTP2-Settings header must contain a base64 SETTINGS payload. (RFC7540 3.2, RFC7540 3.2.1)'})

@@ -1,0 +1,71 @@
+= cowboy_req:cert(3)
+
+== Name
+
+cowboy_req:cert - Client TLS certificate
+
+== Description
+
+[source,erlang]
+----
+cert(Req :: cowboy_req:req()) -> binary() | undefined
+----
+
+Return the peer's TLS certificate.
+
+Using the default configuration this function will always return
+`undefined`. You need to explicitly configure Cowboy to request
+the client certificate. To do this you need to set the `verify`
+transport option to `verify_peer`:
+
+[source,erlang]
+----
+{ok, _} = cowboy:start_tls(example, [
+    {port, 8443},
+    {cert, "path/to/cert.pem"},
+    {verify, verify_peer}
+], #{
+    env => #{dispatch => Dispatch}
+}).
+----
+
+You may also want to customize the `verify_fun` function. Please
+consult the `ssl` application's manual for more details.
+
+TCP connections do not allow a certificate and this function
+will therefore always return `undefined`.
+
+The certificate can also be obtained using pattern matching:
+
+[source,erlang]
+----
+#{cert := Cert} = Req.
+----
+
+== Arguments
+
+Req::
+
+The Req object.
+
+== Return value
+
+The client TLS certificate.
+
+== Changelog
+
+* *2.0*: Function introduced.
+
+== Examples
+
+.Get the client TLS certificate.
+[source,erlang]
+----
+Cert = cowboy_req:cert(Req).
+----
+
+== See also
+
+link:man:cowboy_req(3)[cowboy_req(3)],
+link:man:cowboy_req:peer(3)[cowboy_req:peer(3)],
+link:man:cowboy_req:sock(3)[cowboy_req:sock(3)]

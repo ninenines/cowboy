@@ -8,14 +8,14 @@ cowboy_req:peer - Peer address and port
 
 [source,erlang]
 ----
-peer(Req :: cowboy_req:req()) -> Peer
+peer(Req :: cowboy_req:req()) -> Info
 
-Peer :: {inet:ip_address(), inet:port_number()}
+Info :: {inet:ip_address(), inet:port_number()}
 ----
 
 Return the peer's IP address and port number.
 
-The peer can also be obtained using pattern matching:
+The peer information can also be obtained using pattern matching:
 
 [source,erlang]
 ----
@@ -56,4 +56,6 @@ way of determining the source of an HTTP request.
 
 == See also
 
-link:man:cowboy_req(3)[cowboy_req(3)]
+link:man:cowboy_req(3)[cowboy_req(3)],
+link:man:cowboy_req:sock(3)[cowboy_req:sock(3)],
+link:man:cowboy_req:cert(3)[cowboy_req:cert(3)]

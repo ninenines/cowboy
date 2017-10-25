@@ -134,6 +134,30 @@ bindings(Config) ->
 	<<"#{key => <<\"bindings\">>}">> = do_get_body("/bindings", Config),
 	ok.
 
+cert(Config) ->
+	case config(type, Config) of
+		tcp -> doc("TLS certificates can only be provided over TLS.");
+		ssl -> do_cert(Config)
+	end.
+
+do_cert(Config0) ->
+	doc("A client TLS certificate was provided."),
+	{CaCert, Cert, Key} = ct_helper:make_certs(),
+	Config = [{transport_opts, [
+		{cert, Cert},
+		{key, Key},
+		{cacerts, [CaCert]}
+	]}|Config0],
+	Cert = do_get_body("/cert", Config),
+	Cert = do_get_body("/direct/cert", Config),
+	ok.
+
+cert_undefined(Config) ->
+	doc("No client TLS certificate was provided."),
+	<<"undefined">> = do_get_body("/cert", Config),
+	<<"undefined">> = do_get_body("/direct/cert", Config),
+	ok.
+
 header(Config) ->
 	doc("Request header with/without default."),
 	<<"value">> = do_get_body("/args/header/defined", [{<<"defined">>, "value"}], Config),
@@ -274,7 +298,7 @@ path_info(Config) ->
 	ok.
 
 peer(Config) ->
-	doc("Request peer."),
+	doc("Remote socket address."),
 	<<"{{127,0,0,1},", _/bits >> = do_get_body("/peer", Config),
 	<<"{{127,0,0,1},", _/bits >> = do_get_body("/direct/peer", Config),
 	ok.
@@ -308,6 +332,12 @@ do_scheme(Path, Config) ->
 		<<"http">> when Transport =:= tcp -> ok;
 		<<"https">> when Transport =:= ssl -> ok
 	end.
+
+sock(Config) ->
+	doc("Local socket address."),
+	<<"{{127,0,0,1},", _/bits >> = do_get_body("/sock", Config),
+	<<"{{127,0,0,1},", _/bits >> = do_get_body("/direct/sock", Config),
+	ok.
 
 uri(Config) ->
 	doc("Request URI building/modification."),

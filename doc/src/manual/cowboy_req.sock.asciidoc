@@ -1,0 +1,51 @@
+= cowboy_req:sock(3)
+
+== Name
+
+cowboy_req:sock - Socket address and port
+
+== Description
+
+[source,erlang]
+----
+sock(Req :: cowboy_req:req()) -> Info
+
+Info :: {inet:ip_address(), inet:port_number()}
+----
+
+Return the socket's IP address and port number.
+
+The socket information can also be obtained using pattern matching:
+
+[source,erlang]
+----
+#{sock := {IP, Port}} = Req.
+----
+
+== Arguments
+
+Req::
+
+The Req object.
+
+== Return value
+
+The socket's local IP address and port number.
+
+== Changelog
+
+* *2.0*: Function introduced.
+
+== Examples
+
+.Get the socket's IP address and port number.
+[source,erlang]
+----
+{IP, Port} = cowboy_req:sock(Req).
+----
+
+== See also
+
+link:man:cowboy_req(3)[cowboy_req(3)],
+link:man:cowboy_req:peer(3)[cowboy_req:peer(3)],
+link:man:cowboy_req:cert(3)[cowboy_req:cert(3)]
