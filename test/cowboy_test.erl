@@ -22,19 +22,19 @@
 init_http(Ref, ProtoOpts, Config) ->
 	{ok, _} = cowboy:start_clear(Ref, [{port, 0}], ProtoOpts),
 	Port = ranch:get_port(Ref),
-	[{type, tcp}, {protocol, http}, {port, Port}, {opts, []}|Config].
+	[{ref, Ref}, {type, tcp}, {protocol, http}, {port, Port}, {opts, []}|Config].
 
 init_https(Ref, ProtoOpts, Config) ->
 	Opts = ct_helper:get_certs_from_ets(),
 	{ok, _} = cowboy:start_tls(Ref, Opts ++ [{port, 0}], ProtoOpts),
 	Port = ranch:get_port(Ref),
-	[{type, ssl}, {protocol, http}, {port, Port}, {opts, Opts}|Config].
+	[{ref, Ref}, {type, ssl}, {protocol, http}, {port, Port}, {opts, Opts}|Config].
 
 init_http2(Ref, ProtoOpts, Config) ->
 	Opts = ct_helper:get_certs_from_ets(),
 	{ok, _} = cowboy:start_tls(Ref, Opts ++ [{port, 0}], ProtoOpts),
 	Port = ranch:get_port(Ref),
-	[{type, ssl}, {protocol, http2}, {port, Port}, {opts, Opts}|Config].
+	[{ref, Ref}, {type, ssl}, {protocol, http2}, {port, Port}, {opts, Opts}|Config].
 
 %% Common group of listeners used by most suites.
 
