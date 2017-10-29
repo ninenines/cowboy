@@ -1,0 +1,83 @@
+= cowboy_req:inform(3)
+
+== Name
+
+cowboy_req:inform - Send an informational response
+
+== Description
+
+[source,erlang]
+----
+inform(Status, Req :: cowboy_req:req())
+    -> inform(StatusCode, #{}, Req)
+
+inform(Status, Headers, Req :: cowboy_req:req())
+    -> ok
+
+Status  :: cowboy:http_status()
+Headers :: cowboy:http_headers()
+----
+
+Send an informational response.
+
+Informational responses use a status code between 100 and 199.
+They cannot include a body. This function will not use any
+of the previously set headers. All headers to be sent must
+be given directly.
+
+Any number of informational responses can be sent as long as
+they are sent before the proper response. Attempting to use
+this function after sending a normal response will result
+in an error.
+
+The header names must be given as lowercase binary strings.
+While header names are case insensitive, Cowboy requires them
+to be given as lowercase to function properly.
+
+== Arguments
+
+Status::
+
+The status code for the response.
+
+Headers::
+
+The response headers.
+
+Header names must be given as lowercase binary strings.
+
+Req::
+
+The Req object.
+
+== Return value
+
+The atom `ok` is always returned. It can be safely ignored.
+
+== Changelog
+
+* *2.0*: Function introduced.
+
+== Examples
+
+.Send an informational response
+[source,erlang]
+----
+Req = cowboy_req:inform(102, Req0).
+----
+
+.Send an informational response with headers
+[source,erlang]
+----
+Req = cowboy_req:inform(103, #{
+    <<"link">> => <<"</style.css>; rel=preload; as=style">>,
+    <<"link">> => <<"</script.js>; rel=preload; as=script">>
+}, Req0).
+----
+
+== See also
+
+link:man:cowboy_req(3)[cowboy_req(3)],
+link:man:cowboy_req:reply(3)[cowboy_req:reply(3)],
+link:man:cowboy_req:stream_reply(3)[cowboy_req:stream_reply(3)],
+link:man:cowboy_req:push(3)[cowboy_req:push(3)]

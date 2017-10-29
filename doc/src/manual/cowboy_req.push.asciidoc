@@ -94,5 +94,6 @@ cowboy_req:push("/static/style.css", #{
 == See also
 
 link:man:cowboy_req(3)[cowboy_req(3)],
+link:man:cowboy_req:inform(3)[cowboy_req:inform(3)],
 link:man:cowboy_req:reply(3)[cowboy_req:reply(3)],
 link:man:cowboy_req:stream_reply(3)[cowboy_req:stream_reply(3)]

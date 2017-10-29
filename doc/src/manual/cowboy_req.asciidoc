@@ -80,6 +80,7 @@ Response:
 * link:man:cowboy_req:delete_resp_header(3)[cowboy_req:delete_resp_header(3)] - Delete a response header
 * link:man:cowboy_req:set_resp_body(3)[cowboy_req:set_resp_body(3)] - Set the response body
 * link:man:cowboy_req:has_resp_body(3)[cowboy_req:has_resp_body(3)] - Is there a response body?
+* link:man:cowboy_req:inform(3)[cowboy_req:inform(3)] - Send an informational response
 * link:man:cowboy_req:reply(3)[cowboy_req:reply(3)] - Send the response
 * link:man:cowboy_req:stream_reply(3)[cowboy_req:stream_reply(3)] - Send the response headers
 * link:man:cowboy_req:stream_body(3)[cowboy_req:stream_body(3)] - Stream the response body

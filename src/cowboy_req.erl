@@ -71,6 +71,8 @@
 -export([set_resp_body/2]).
 %% @todo set_resp_body/3 with a ContentType or even Headers argument, to set content headers.
 -export([has_resp_body/1]).
+-export([inform/2]).
+-export([inform/3]).
 -export([reply/2]).
 -export([reply/3]).
 -export([reply/4]).
@@ -685,6 +687,18 @@ has_resp_body(_) ->
 delete_resp_header(Name, Req=#{resp_headers := RespHeaders}) ->
 	Req#{resp_headers => maps:remove(Name, RespHeaders)}.
 
+-spec inform(cowboy:http_status(), req()) -> ok.
+inform(Status, Req) ->
+	inform(Status, #{}, Req).
+
+-spec inform(cowboy:http_status(), cowboy:http_headers(), req()) -> ok.
+inform(_, _, #{has_sent_resp := _}) ->
+	error(function_clause); %% @todo Better error message.
+inform(Status, Headers, #{pid := Pid, streamid := StreamID})
+		when is_integer(Status); is_binary(Status) ->
+	Pid ! {{Pid, StreamID}, {inform, Status, Headers}},
+	ok.
+
 -spec reply(cowboy:http_status(), Req) -> Req when Req::req().
 reply(Status, Req) ->
 	reply(Status, #{}, Req).
@@ -699,7 +713,7 @@ reply(Status, Headers, Req) ->
 -spec reply(cowboy:http_status(), cowboy:http_headers(), resp_body(), Req)
 	-> Req when Req::req().
 reply(_, _, _, #{has_sent_resp := _}) ->
-	error(function_clause);
+	error(function_clause); %% @todo Better error message.
 reply(Status, Headers, {sendfile, _, 0, _}, Req)
 		when is_integer(Status); is_binary(Status) ->
 	do_reply(Status, Headers#{

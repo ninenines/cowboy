@@ -100,6 +100,37 @@ do(<<"delete_resp_header">>, Req0, Opts) ->
 	Req = cowboy_req:delete_resp_header(<<"content-type">>, Req1),
 	false = cowboy_req:has_resp_header(<<"content-type">>, Req),
 	{ok, cowboy_req:reply(200, #{}, "OK", Req), Opts};
+do(<<"inform2">>, Req0, Opts) ->
+	case cowboy_req:binding(arg, Req0) of
+		<<"binary">> ->
+			cowboy_req:inform(<<"102 On my way">>, Req0);
+		<<"error">> ->
+			ct_helper:ignore(cowboy_req, inform, 3),
+			cowboy_req:inform(ok, Req0);
+		<<"twice">> ->
+			cowboy_req:inform(102, Req0),
+			cowboy_req:inform(102, Req0);
+		Status ->
+			cowboy_req:inform(binary_to_integer(Status), Req0)
+	end,
+	Req = cowboy_req:reply(200, Req0),
+	{ok, Req, Opts};
+do(<<"inform3">>, Req0, Opts) ->
+	Headers = #{<<"ext-header">> => <<"ext-value">>},
+	case cowboy_req:binding(arg, Req0) of
+		<<"binary">> ->
+			cowboy_req:inform(<<"102 On my way">>, Headers, Req0);
+		<<"error">> ->
+			ct_helper:ignore(cowboy_req, inform, 3),
+			cowboy_req:inform(ok, Headers, Req0);
+		<<"twice">> ->
+			cowboy_req:inform(102, Headers, Req0),
+			cowboy_req:inform(102, Headers, Req0);
+		Status ->
+			cowboy_req:inform(binary_to_integer(Status), Headers, Req0)
+	end,
+	Req = cowboy_req:reply(200, Req0),
+	{ok, Req, Opts};
 do(<<"reply2">>, Req0, Opts) ->
 	Req = case cowboy_req:binding(arg, Req0) of
 		<<"binary">> ->

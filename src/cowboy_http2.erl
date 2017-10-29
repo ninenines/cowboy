@@ -495,6 +495,13 @@ commands(State, Stream=#stream{local=idle}, [{error_response, StatusCode, Header
 	commands(State, Stream, [{response, StatusCode, Headers, Body}|Tail]);
 commands(State, Stream, [{error_response, _, _, _}|Tail]) ->
 	commands(State, Stream, Tail);
+%% Send an informational response.
+commands(State=#state{socket=Socket, transport=Transport, encode_state=EncodeState0},
+		Stream=#stream{id=StreamID, local=idle}, [{inform, StatusCode, Headers0}|Tail]) ->
+	Headers = Headers0#{<<":status">> => status(StatusCode)},
+	{HeaderBlock, EncodeState} = headers_encode(Headers, EncodeState0),
+	Transport:send(Socket, cow_http2:headers(StreamID, fin, HeaderBlock)),
+	commands(State#state{encode_state=EncodeState}, Stream, Tail);
 %% Send response headers.
 %%
 %% @todo Kill the stream if it sent a response when one has already been sent.

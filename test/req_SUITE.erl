@@ -114,6 +114,30 @@ do_get_body(Path, Config) ->
 do_get_body(Path, Headers, Config) ->
 	do_body("GET", Path, Headers, Config).
 
+do_get_inform(Path, Config) ->
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, Path, [{<<"accept-encoding">>, <<"gzip">>}]),
+	case gun:await(ConnPid, Ref) of
+		{response, _, RespStatus, RespHeaders} ->
+			%% We don't care about the body.
+			gun:close(ConnPid),
+			{RespStatus, RespHeaders};
+		{inform, InfoStatus, InfoHeaders} ->
+			{response, IsFin, RespStatus, RespHeaders}
+				= case gun:await(ConnPid, Ref) of
+					{inform, InfoStatus, InfoHeaders} ->
+						gun:await(ConnPid, Ref);
+					Response ->
+						Response
+			end,
+			{ok, RespBody} = case IsFin of
+				nofin -> gun:await_body(ConnPid, Ref);
+				fin -> {ok, <<>>}
+			end,
+			gun:close(ConnPid),
+			{InfoStatus, InfoHeaders, RespStatus, RespHeaders, do_decode(RespHeaders, RespBody)}
+	end.
+
 do_decode(Headers, Body) ->
 	case lists:keyfind(<<"content-encoding">>, 1, Headers) of
 		{_, <<"gzip">>} -> zlib:gunzip(Body);
@@ -701,6 +725,23 @@ delete_resp_header(Config) ->
 	doc("Delete response header."),
 	{200, Headers, <<"OK">>} = do_get("/resp/delete_resp_header", Config),
 	false = lists:keymember(<<"content-type">>, 1, Headers),
+	ok.
+
+inform2(Config) ->
+	doc("Informational response(s) without headers, followed by the real response."),
+	{102, [], 200, _, _} = do_get_inform("/resp/inform2/102", Config),
+	{102, [], 200, _, _} = do_get_inform("/resp/inform2/binary", Config),
+	{500, _} = do_get_inform("/resp/inform2/error", Config),
+	{102, [], 200, _, _} = do_get_inform("/resp/inform2/twice", Config),
+	ok.
+
+inform3(Config) ->
+	doc("Informational response(s) with headers, followed by the real response."),
+	Headers = [{<<"ext-header">>, <<"ext-value">>}],
+	{102, Headers, 200, _, _} = do_get_inform("/resp/inform3/102", Config),
+	{102, Headers, 200, _, _} = do_get_inform("/resp/inform3/binary", Config),
+	{500, _} = do_get_inform("/resp/inform3/error", Config),
+	{102, Headers, 200, _, _} = do_get_inform("/resp/inform3/twice", Config),
 	ok.
 
 reply2(Config) ->

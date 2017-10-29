@@ -119,6 +119,8 @@ info(_StreamID, {read_body_timeout, Ref}, State=#state{pid=Pid, read_body_ref=Re
 info(_StreamID, {read_body_timeout, _}, State) ->
 	{[], State};
 %% Response.
+info(_StreamID, Inform = {inform, _, _}, State) ->
+	{[Inform], State};
 info(_StreamID, Response = {response, _, _, _}, State) ->
 	{[Response], State};
 info(_StreamID, Headers = {headers, _, _}, State) ->

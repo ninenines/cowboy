@@ -113,5 +113,6 @@ link:man:cowboy_req:set_resp_cookie(3)[cowboy_req:set_resp_cookie(3)],
 link:man:cowboy_req:set_resp_header(3)[cowboy_req:set_resp_header(3)],
 link:man:cowboy_req:set_resp_headers(3)[cowboy_req:set_resp_headers(3)],
 link:man:cowboy_req:set_resp_body(3)[cowboy_req:set_resp_body(3)],
+link:man:cowboy_req:inform(3)[cowboy_req:inform(3)],
 link:man:cowboy_req:stream_reply(3)[cowboy_req:stream_reply(3)],
 link:man:cowboy_req:push(3)[cowboy_req:push(3)]
