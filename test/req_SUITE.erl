@@ -54,6 +54,7 @@ init_dispatch(Config) ->
 		{"/opts/:key/length", echo_h, #{length => 1000}},
 		{"/opts/:key/period", echo_h, #{length => 999999999, period => 1000}},
 		{"/opts/:key/timeout", echo_h, #{timeout => 1000, crash => true}},
+		{"/100-continue/:key", echo_h, []},
 		{"/full/:key", echo_h, []},
 		{"/no/:key", echo_h, []},
 		{"/direct/:key/[...]", echo_h, []},
@@ -455,6 +456,33 @@ do_read_body_timeout(Path, Body, Config) ->
 	]),
 	{response, _, 500, _} = gun:await(ConnPid, Ref),
 	gun:close(ConnPid).
+
+read_body_expect_100_continue(Config) ->
+	doc("Request body with a 100-continue expect header."),
+	do_read_body_expect_100_continue("/read_body", Config).
+
+read_body_expect_100_continue_user_sent(Config) ->
+	doc("Request body with a 100-continue expect header, 100 response sent by handler."),
+	do_read_body_expect_100_continue("/100-continue/read_body", Config).
+
+do_read_body_expect_100_continue(Path, Config) ->
+	ConnPid = gun_open(Config),
+	Body = <<0:8000000>>,
+	Headers = [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"expect">>, <<"100-continue">>},
+		{<<"content-length">>, integer_to_binary(byte_size(Body))}
+	],
+	Ref = gun:post(ConnPid, Path, Headers),
+	{inform, 100, []} = gun:await(ConnPid, Ref),
+	gun:data(ConnPid, Ref, fin, Body),
+	{response, IsFin, 200, RespHeaders} = gun:await(ConnPid, Ref),
+	{ok, RespBody} = case IsFin of
+		nofin -> gun:await_body(ConnPid, Ref);
+		fin -> {ok, <<>>}
+	end,
+	gun:close(ConnPid),
+	do_decode(RespHeaders, RespBody).
 
 read_urlencoded_body(Config) ->
 	doc("application/x-www-form-urlencoded request body."),

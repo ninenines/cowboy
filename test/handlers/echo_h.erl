@@ -18,6 +18,9 @@ echo(<<"read_body">>, Req0, Opts) ->
 		_ -> ok
 	end,
 	{_, Body, Req} = case cowboy_req:path(Req0) of
+		<<"/100-continue", _/bits>> ->
+			cowboy_req:inform(100, Req0),
+			cowboy_req:read_body(Req0);
 		<<"/full", _/bits>> -> read_body(Req0, <<>>);
 		<<"/opts", _/bits>> -> cowboy_req:read_body(Req0, Opts);
 		_ -> cowboy_req:read_body(Req0)
