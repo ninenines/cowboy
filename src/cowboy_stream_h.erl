@@ -232,6 +232,7 @@ request_process(Req, Env, Middlewares) ->
 		_:Reason when OTP =:= "19" ->
 			Stacktrace = erlang:get_stacktrace(),
 			erlang:raise(exit, {Reason, Stacktrace}, Stacktrace);
+		%% @todo I don't think this clause is necessary.
 		Class:Reason ->
 			erlang:raise(Class, Reason, erlang:get_stacktrace())
 	end.

@@ -774,6 +774,7 @@ stream_req_init(State=#state{ref=Ref, peer=Peer, sock=Sock, cert=Cert},
 		_ ->
 			undefined
 	end,
+	%% @todo If this fails to parse we want to gracefully handle the crash.
 	{Host, Port} = cow_http_hd:parse_host(Authority),
 	{Path, Qs} = cow_http:parse_fullpath(PathWithQs),
 	Req = #{
