@@ -797,7 +797,7 @@ unicode_basic_error(Config) ->
 		http2 -> "#?"
 	end,
 	_ = [case do_get("/char/" ++ [C], Config) of
-		{500, _, _} -> ok;
+		{400, _, _} -> ok;
 		Error -> exit({error, C, Error})
 	end || C <- (config(chars, Config) -- Exclude) --
 		"abcdefghijklmnopqrstuvwxyz"
