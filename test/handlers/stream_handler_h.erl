@@ -48,7 +48,7 @@ init_commands(_, _, State=#state{test=shutdown_timeout_on_socket_close}) ->
 	[{headers, 200, #{}}, {spawn, Spawn, 2000}];
 init_commands(_, _, State=#state{test=terminate_on_switch_protocol}) ->
 	[{switch_protocol, #{}, ?MODULE, State}];
-init_commands(_, _, State=#state{test=terminate_on_stop}) ->
+init_commands(_, _, #state{test=terminate_on_stop}) ->
 	[{response, 204, #{}, <<>>}];
 init_commands(_, _, _) ->
 	[{headers, 200, #{}}].
