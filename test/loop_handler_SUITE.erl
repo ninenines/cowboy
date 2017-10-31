@@ -48,7 +48,7 @@ long_polling(Config) ->
 	doc("Simple long-polling."),
 	ConnPid = gun_open(Config),
 	Ref = gun:get(ConnPid, "/long_polling", [{<<"accept-encoding">>, <<"gzip">>}]),
-	{response, fin, 102, _} = gun:await(ConnPid, Ref),
+	{response, fin, 299, _} = gun:await(ConnPid, Ref),
 	ok.
 
 long_polling_body(Config) ->
@@ -56,7 +56,7 @@ long_polling_body(Config) ->
 	ConnPid = gun_open(Config),
 	Ref = gun:post(ConnPid, "/long_polling", [{<<"accept-encoding">>, <<"gzip">>}],
 		<< 0:5000/unit:8 >>),
-	{response, fin, 102, _} = gun:await(ConnPid, Ref),
+	{response, fin, 299, _} = gun:await(ConnPid, Ref),
 	ok.
 
 long_polling_body_too_large(Config) ->
@@ -72,7 +72,7 @@ long_polling_pipeline(Config) ->
 	ConnPid = gun_open(Config),
 	Refs = [gun:get(ConnPid, "/long_polling", [{<<"accept-encoding">>, <<"gzip">>}])
 		|| _ <- lists:seq(1, 2)],
-	_ = [{response, fin, 102, _} = gun:await(ConnPid, Ref) || Ref <- Refs],
+	_ = [{response, fin, 299, _} = gun:await(ConnPid, Ref) || Ref <- Refs],
 	ok.
 
 loop_body(Config) ->
