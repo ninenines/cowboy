@@ -32,6 +32,17 @@
 	reason => any()
 }}.
 
+-type informational_metrics() :: #{
+	%% Informational response status.
+	status := cowboy:http_status(),
+
+	%% Headers sent with the informational response.
+	headers := cowboy:http_headers(),
+
+	%% Time when the informational response was sent.
+	time := integer()
+}.
+
 -type metrics() :: #{
 	%% The identifier for this listener.
 	ref := ranch:ref(),
@@ -86,6 +97,9 @@
 	%% process: the request process.
 	procs => proc_metrics(),
 
+	%% Informational responses sent before the final response.
+	informational => [informational_metrics()],
+
 	%% Length of the request and response bodies. This does
 	%% not include the framing.
 	req_body_length => non_neg_integer(),
@@ -108,6 +122,7 @@
 	resp_start :: undefined | integer(),
 	resp_end :: undefined | integer(),
 	procs = #{} :: proc_metrics(),
+	informational = [] :: [informational_metrics()],
 	req_body_length = 0 :: non_neg_integer(),
 	resp_body_length = 0 :: non_neg_integer()
 }).
@@ -184,6 +199,14 @@ fold([{spawn, Pid, _}|Tail], State0=#state{procs=Procs}) ->
 	ProcStart = erlang:monotonic_time(),
 	State = State0#state{procs=Procs#{Pid => #{spawn => ProcStart}}},
 	fold(Tail, State);
+fold([{inform, Status, Headers}|Tail],
+		State=#state{informational=Infos}) ->
+	Time = erlang:monotonic_time(),
+	fold(Tail, State#state{informational=[#{
+		status => Status,
+		headers => Headers,
+		time => Time
+	}|Infos]});
 fold([{response, Status, Headers, Body}|Tail],
 		State=#state{resp_headers_filter=RespHeadersFilter}) ->
 	Resp = erlang:monotonic_time(),
@@ -226,7 +249,8 @@ terminate(StreamID, Reason, #state{next=Next, callback=Fun,
 		req=Req, resp_status=RespStatus, resp_headers=RespHeaders, ref=Ref,
 		req_start=ReqStart, req_body_start=ReqBodyStart,
 		req_body_end=ReqBodyEnd, resp_start=RespStart, resp_end=RespEnd,
-		procs=Procs, req_body_length=ReqBodyLen, resp_body_length=RespBodyLen}) ->
+		procs=Procs, informational=Infos,
+		req_body_length=ReqBodyLen, resp_body_length=RespBodyLen}) ->
 	Res = cowboy_stream:terminate(StreamID, Reason, Next),
 	ReqEnd = erlang:monotonic_time(),
 	Metrics = #{
@@ -244,6 +268,7 @@ terminate(StreamID, Reason, #state{next=Next, callback=Fun,
 		resp_start => RespStart,
 		resp_end => RespEnd,
 		procs => Procs,
+		informational => lists:reverse(Infos),
 		req_body_length => ReqBodyLen,
 		resp_body_length => RespBodyLen
 	},

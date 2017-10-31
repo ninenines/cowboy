@@ -143,7 +143,8 @@ do_get(Path, Config) ->
 				pid := From,
 				streamid := 1,
 				reason := normal,
-				req := #{}
+				req := #{},
+				informational := []
 			} = Metrics,
 			%% All good!
 			ok
@@ -205,7 +206,8 @@ post_body(Config) ->
 				pid := From,
 				streamid := 1,
 				reason := normal,
-				req := #{}
+				req := #{},
+				informational := []
 			} = Metrics,
 			%% All good!
 			ok
@@ -261,7 +263,8 @@ no_resp_body(Config) ->
 				pid := From,
 				streamid := 1,
 				reason := normal,
-				req := #{}
+				req := #{},
+				informational := []
 			} = Metrics,
 			%% All good!
 			ok
@@ -353,7 +356,7 @@ do_ws(Config) ->
 			%% is called. We therefore only check when it spawned.
 			#{procs := Procs} = Metrics,
 			[{_, #{
-				spawn := ProcSpawn
+				spawn := _
 			}}] = maps:to_list(Procs),
 			%% Confirm other metadata are as expected.
 			#{
@@ -361,7 +364,17 @@ do_ws(Config) ->
 				pid := From,
 				streamid := 1,
 				reason := switch_protocol,
-				req := #{}
+				req := #{},
+				%% A 101 upgrade response was sent.
+				informational := [#{
+					status := 101,
+					headers := #{
+						<<"connection">> := <<"Upgrade">>,
+						<<"upgrade">> := <<"websocket">>,
+						<<"sec-websocket-accept">> := _
+					},
+					time := _
+				}]
 			} = Metrics,
 			%% All good!
 			ok

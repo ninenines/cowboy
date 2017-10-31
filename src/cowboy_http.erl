@@ -908,9 +908,9 @@ commands(State0=#state{ref=Ref, parent=Parent, socket=Socket, transport=Transpor
 		[{switch_protocol, Headers, Protocol, InitialState}|_Tail]) ->
 	%% @todo This should be the last stream running otherwise we need to wait before switching.
 	%% @todo If there's streams opened after this one, fail instead of 101.
-	State = cancel_timeout(State0),
+	State1 = cancel_timeout(State0),
 	%% Send a 101 response, then terminate the stream.
-	State = #state{streams=Streams} = commands(State, StreamID, [{inform, 101, Headers}]),
+	State = #state{streams=Streams} = info(State1, StreamID, {inform, 101, Headers}),
 	#stream{state=StreamState} = lists:keyfind(StreamID, #stream.id, Streams),
 	%% @todo We need to shutdown processes here first.
 	stream_call_terminate(StreamID, switch_protocol, StreamState),
