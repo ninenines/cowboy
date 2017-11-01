@@ -49,9 +49,17 @@ start_link() ->
 stop() ->
 	gen_server:call(?MODULE, stop).
 
+%% When the ets table doesn't exist, either because of a bug
+%% or because Cowboy is being restarted, we perform in a
+%% slightly degraded state and build a new timestamp for
+%% every request.
 -spec rfc1123() -> binary().
 rfc1123() ->
-	ets:lookup_element(?MODULE, rfc1123, 2).
+	try
+		ets:lookup_element(?MODULE, rfc1123, 2)
+	catch error:badarg ->
+		rfc1123(erlang:universaltime())
+	end.
 
 -spec rfc1123(calendar:datetime()) -> binary().
 rfc1123(DateTime) ->

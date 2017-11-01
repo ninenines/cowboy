@@ -23,9 +23,14 @@ all() ->
 	[{group, no_env}|cowboy_test:common_all()].
 
 groups() ->
-	Common = ct_helper:all(?MODULE) -- [set_env_missing],
-	[{no_env, [], [set_env_missing]}|cowboy_test:common_groups(Common)].
+	Common = ct_helper:all(?MODULE) -- [restart_gracefully, set_env_missing],
+	[
+		{app, [], [restart_gracefully]},
+		{no_env, [], [set_env_missing]}
+	|cowboy_test:common_groups(Common)].
 
+init_per_group(app, Config) ->
+	cowboy_test:init_common_groups(http, Config, ?MODULE);
 init_per_group(Name=no_env, Config) ->
 	cowboy_test:init_http(Name, #{}, Config);
 init_per_group(Name, Config) ->
@@ -38,6 +43,26 @@ init_dispatch(_) ->
 	cowboy_router:compile([{"localhost", [
 		{"/", hello_h, []}
 	]}]).
+
+%% Tests.
+
+restart_gracefully(Config) ->
+	doc("Ensure we can process request when the cowboy application is being restarted."),
+	ConnPid = gun_open(Config),
+	%% We can do a request before stopping cowboy.
+	Ref1 = gun:get(ConnPid, "/"),
+	{response, _, 200, _} = gun:await(ConnPid, Ref1),
+	%% Stop the cowboy application.
+	ok = application:stop(cowboy),
+	%% We can still do a request even though cowboy is stopped.
+	Ref2 = gun:get(ConnPid, "/"),
+	{response, _, 200, _} = gun:await(ConnPid, Ref2),
+	%% Start the cowboy application again.
+	ok = application:start(cowboy),
+	%% Even after restarting there are no issues.
+	Ref3 = gun:get(ConnPid, "/"),
+	{response, _, 200, _} = gun:await(ConnPid, Ref3),
+	ok.
 
 router_invalid_path(Config) ->
 	doc("Ensure a path with invalid percent-encoded characters results in a 400."),
