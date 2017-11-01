@@ -245,7 +245,7 @@ shutdown_on_stream_stop(Config) ->
 	receive {'DOWN', MRef, process, Spawn, shutdown} -> ok after 1000 -> error(timeout) end,
 	%% The response is still sent.
 	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
-	{ok, <<>>} = gun:await_body(ConnPid, Ref),
+	{ok, _} = gun:await_body(ConnPid, Ref),
 	ok.
 
 shutdown_on_socket_close(Config) ->
@@ -295,7 +295,7 @@ shutdown_timeout_on_stream_stop(Config) ->
 	receive {'DOWN', MRef, process, Spawn, killed} -> ok after 1000 -> error(timeout) end,
 	%% The response is still sent.
 	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
-	{ok, <<>>} = gun:await_body(ConnPid, Ref),
+	{ok, _} = gun:await_body(ConnPid, Ref),
 	ok.
 
 shutdown_timeout_on_socket_close(Config) ->

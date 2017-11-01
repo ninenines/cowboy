@@ -81,7 +81,7 @@ info(StreamID, Info, State=#state{pid=Pid}) ->
 	Pid ! {Pid, self(), info, StreamID, Info, State},
 	case Info of
 		please_stop -> {[stop], State};
-		_ -> {[], State}
+		_ -> {[Info], State}
 	end.
 
 terminate(StreamID, Reason, State=#state{pid=Pid, test=crash_in_terminate}) ->
