@@ -827,6 +827,16 @@ stream_reply3(Config) ->
 	{500, _, _} = do_get("/resp/stream_reply3/error", Config),
 	ok.
 
+stream_body_fin0(Config) ->
+	doc("Streamed body with last chunk of size 0."),
+	{200, _, <<"Hello world!">>} = do_get("/resp/stream_body/fin0", Config),
+	ok.
+
+stream_body_nofin(Config) ->
+	doc("Unfinished streamed body."),
+	{200, _, <<"Hello world!">>} = do_get("/resp/stream_body/nofin", Config),
+	ok.
+
 %% @todo Crash when calling stream_body after the fin flag has been set.
 %% @todo Crash when calling stream_body after calling reply.
 %% @todo Crash when calling stream_body before calling stream_reply.

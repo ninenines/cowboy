@@ -830,8 +830,7 @@ stream_linger(State=#state{lingering_streams=Lingering0}, StreamID) ->
 	Lingering = [StreamID|lists:sublist(Lingering0, 100 - 1)],
 	State#state{lingering_streams=Lingering}.
 
-stream_terminate(State0=#state{socket=Socket, transport=Transport,
-		streams=Streams0, children=Children0}, StreamID, Reason) ->
+stream_terminate(State0=#state{streams=Streams0, children=Children0}, StreamID, Reason) ->
 	case lists:keytake(StreamID, #stream.id, Streams0) of
 		%% When the stream terminates normally (without sending RST_STREAM)
 		%% and no response was sent, we need to send a proper response back to the client.
@@ -843,10 +842,11 @@ stream_terminate(State0=#state{socket=Socket, transport=Transport,
 			Children = cowboy_children:shutdown(Children0, StreamID),
 			State#state{streams=Streams, children=Children};
 		%% When a response was sent but not terminated, we need to close the stream.
-		{value, Stream=#stream{state=StreamState, local=nofin, local_buffer_size=0}, Streams}
+		{value, Stream=#stream{local=nofin, local_buffer_size=0}, Streams}
 				when Reason =:= normal ->
-			Transport:send(Socket, cow_http2:data(StreamID, fin, <<>>)),
-			State = maybe_skip_body(State0, Stream, Reason),
+			State1 = #state{streams=Streams1} = info(State0, StreamID, {data, fin, <<>>}),
+			State = maybe_skip_body(State1, Stream, Reason),
+			#stream{state=StreamState} = lists:keyfind(StreamID, #stream.id, Streams1),
 			stream_call_terminate(StreamID, Reason, StreamState),
 			Children = cowboy_children:shutdown(Children0, StreamID),
 			State#state{streams=Streams, children=Children};

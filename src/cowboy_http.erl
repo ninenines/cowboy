@@ -871,7 +871,14 @@ commands(State0=#state{socket=Socket, transport=Transport, streams=Streams}, Str
 	%% data frame, as that would break the protocol.
 	Size = iolist_size(Data),
 	case Size of
-		0 -> ok;
+		0 ->
+			%% We send the last chunk only if version is HTTP/1.1 and IsFin=fin.
+			case lists:keyfind(StreamID, #stream.id, Streams) of
+				#stream{version='HTTP/1.1'} when IsFin =:= fin ->
+					Transport:send(Socket, <<"0\r\n\r\n">>);
+				_ ->
+					ok
+			end;
 		_ ->
 			%% @todo We need to kill the stream if it tries to send data before headers.
 			%% @todo Same as above.
@@ -961,8 +968,7 @@ stream_reset(State, StreamID, StreamError={internal_error, _, _}) ->
 %	stream_terminate(State#state{out_state=done}, StreamID, StreamError).
 	stream_terminate(State, StreamID, StreamError).
 
-stream_terminate(State0=#state{socket=Socket, transport=Transport,
-		out_streamid=OutStreamID, out_state=OutState,
+stream_terminate(State0=#state{out_streamid=OutStreamID, out_state=OutState,
 		streams=Streams0, children=Children0}, StreamID, Reason) ->
 	#stream{version=Version} = lists:keyfind(StreamID, #stream.id, Streams0),
 	State1 = #state{streams=Streams1} = case OutState of
@@ -971,8 +977,7 @@ stream_terminate(State0=#state{socket=Socket, transport=Transport,
 		wait ->
 			info(State0, StreamID, {response, 204, #{}, <<>>});
 		chunked when Version =:= 'HTTP/1.1' ->
-			_ = Transport:send(Socket, <<"0\r\n\r\n">>),
-			State0;
+			info(State0, StreamID, {data, fin, <<>>});
 		_ -> %% done or Version =:= 'HTTP/1.0'
 			State0
 	end,
