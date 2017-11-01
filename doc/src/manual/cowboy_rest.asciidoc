@@ -25,11 +25,15 @@ init(Req, State)
 Callback(Req, State)
     -> {Result, Req, State}
      | {stop, Req, State}
+     | {{switch_handler, Module}, Req, State}
+     | {{switch_handler, Module, Opts}, Req, State}
 
 terminate(Reason, Req, State) -> ok  %% optional
 
 Req    :: cowboy_req:req()
 State  :: any()
+Module :: module()
+Opts   :: any()
 Reason :: normal
         | {crash, error | exit | throw, any()}
 
@@ -51,7 +55,14 @@ implemented. They otherwise all follow the same interface.
 
 The `stop` tuple can be returned to stop REST processing.
 If no response was sent before then, Cowboy will send a
-'204 No Content'.
+'204 No Content'. The `stop` tuple can be returned from
+any callback, excluding `expires`, `generate_etag`,
+`last_modified` and `variances`.
+
+A `switch_handler` tuple can be returned from these same
+callbacks to stop REST processing and switch to a different
+handler type. This is very useful to, for example, to stream
+the response body.
 
 The optional `terminate/3` callback will ultimately be called
 with the reason for the termination of the handler.

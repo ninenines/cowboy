@@ -43,8 +43,12 @@ you need.
 All callbacks take two arguments, the Req object and the State,
 and return a three-element tuple of the form `{Value, Req, State}`.
 
-All callbacks can also return `{stop, Req, State}` to stop execution
-of the request.
+Nearly all callbacks can also return `{stop, Req, State}` to
+stop execution of the request, and
+`{{switch_handler, Module}, Req, State}` or
+`{{switch_handler, Module, Opts}, Req, State}` to switch to
+a different handler type. The exceptions are `expires`
+`generate_etag`, `last_modified` and `variances`.
 
 The following table summarizes the callbacks and their default values.
 If the callback isn't defined, then the default value will be used.

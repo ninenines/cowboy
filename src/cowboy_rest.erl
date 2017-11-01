@@ -20,6 +20,9 @@
 -export([upgrade/4]).
 -export([upgrade/5]).
 
+-type switch_handler() :: {switch_handler, module()}
+	| {switch_handler, module(), any()}.
+
 %% Common handler callbacks.
 
 -callback init(Req, any())
@@ -35,162 +38,181 @@
 -callback allowed_methods(Req, State)
 	-> {[binary()], Req, State}
 	| {stop, Req, State}
+	| {switch_handler(), Req, State}
 	when Req::cowboy_req:req(), State::any().
 -optional_callbacks([allowed_methods/2]).
 
 -callback allow_missing_post(Req, State)
 	-> {boolean(), Req, State}
 	| {stop, Req, State}
+	| {switch_handler(), Req, State}
 	when Req::cowboy_req:req(), State::any().
 -optional_callbacks([allow_missing_post/2]).
 
 -callback charsets_provided(Req, State)
 	-> {[binary()], Req, State}
 	| {stop, Req, State}
+	| {switch_handler(), Req, State}
 	when Req::cowboy_req:req(), State::any().
 -optional_callbacks([charsets_provided/2]).
 
 -callback content_types_accepted(Req, State)
 	-> {[{binary() | {binary(), binary(), '*' | [{binary(), binary()}]}, atom()}], Req, State}
 	| {stop, Req, State}
+	| {switch_handler(), Req, State}
 	when Req::cowboy_req:req(), State::any().
 -optional_callbacks([content_types_accepted/2]).
 
 -callback content_types_provided(Req, State)
 	-> {[{binary() | {binary(), binary(), '*' | [{binary(), binary()}]}, atom()}], Req, State}
 	| {stop, Req, State}
+	| {switch_handler(), Req, State}
 	when Req::cowboy_req:req(), State::any().
 -optional_callbacks([content_types_provided/2]).
 
 -callback delete_completed(Req, State)
 	-> {boolean(), Req, State}
 	| {stop, Req, State}
+	| {switch_handler(), Req, State}
 	when Req::cowboy_req:req(), State::any().
 -optional_callbacks([delete_completed/2]).
 
 -callback delete_resource(Req, State)
 	-> {boolean(), Req, State}
 	| {stop, Req, State}
+	| {switch_handler(), Req, State}
 	when Req::cowboy_req:req(), State::any().
 -optional_callbacks([delete_resource/2]).
 
 -callback expires(Req, State)
 	-> {calendar:datetime() | binary() | undefined, Req, State}
-	| {stop, Req, State}
 	when Req::cowboy_req:req(), State::any().
 -optional_callbacks([expires/2]).
 
 -callback forbidden(Req, State)
 	-> {boolean(), Req, State}
 	| {stop, Req, State}
+	| {switch_handler(), Req, State}
 	when Req::cowboy_req:req(), State::any().
 -optional_callbacks([forbidden/2]).
 
 -callback generate_etag(Req, State)
 	-> {binary() | {weak | strong, binary()}, Req, State}
-	| {stop, Req, State}
 	when Req::cowboy_req:req(), State::any().
 -optional_callbacks([generate_etag/2]).
 
 -callback is_authorized(Req, State)
 	-> {true | {false, iodata()}, Req, State}
 	| {stop, Req, State}
+	| {switch_handler(), Req, State}
 	when Req::cowboy_req:req(), State::any().
 -optional_callbacks([is_authorized/2]).
 
 -callback is_conflict(Req, State)
 	-> {boolean(), Req, State}
 	| {stop, Req, State}
+	| {switch_handler(), Req, State}
 	when Req::cowboy_req:req(), State::any().
 -optional_callbacks([is_conflict/2]).
 
 -callback known_methods(Req, State)
 	-> {[binary()], Req, State}
 	| {stop, Req, State}
+	| {switch_handler(), Req, State}
 	when Req::cowboy_req:req(), State::any().
 -optional_callbacks([known_methods/2]).
 
 -callback languages_provided(Req, State)
 	-> {[binary()], Req, State}
 	| {stop, Req, State}
+	| {switch_handler(), Req, State}
 	when Req::cowboy_req:req(), State::any().
 -optional_callbacks([languages_provided/2]).
 
 -callback last_modified(Req, State)
 	-> {calendar:datetime(), Req, State}
-	| {stop, Req, State}
 	when Req::cowboy_req:req(), State::any().
 -optional_callbacks([last_modified/2]).
 
 -callback malformed_request(Req, State)
 	-> {boolean(), Req, State}
 	| {stop, Req, State}
+	| {switch_handler(), Req, State}
 	when Req::cowboy_req:req(), State::any().
 -optional_callbacks([malformed_request/2]).
 
 -callback moved_permanently(Req, State)
 	-> {{true, iodata()} | false, Req, State}
 	| {stop, Req, State}
+	| {switch_handler(), Req, State}
 	when Req::cowboy_req:req(), State::any().
 -optional_callbacks([moved_permanently/2]).
 
 -callback moved_temporarily(Req, State)
 	-> {{true, iodata()} | false, Req, State}
 	| {stop, Req, State}
+	| {switch_handler(), Req, State}
 	when Req::cowboy_req:req(), State::any().
 -optional_callbacks([moved_temporarily/2]).
 
 -callback multiple_choices(Req, State)
 	-> {boolean(), Req, State}
 	| {stop, Req, State}
+	| {switch_handler(), Req, State}
 	when Req::cowboy_req:req(), State::any().
 -optional_callbacks([multiple_choices/2]).
 
 -callback options(Req, State)
 	-> {ok, Req, State}
 	| {stop, Req, State}
+	| {switch_handler(), Req, State}
 	when Req::cowboy_req:req(), State::any().
 -optional_callbacks([options/2]).
 
 -callback previously_existed(Req, State)
 	-> {boolean(), Req, State}
 	| {stop, Req, State}
+	| {switch_handler(), Req, State}
 	when Req::cowboy_req:req(), State::any().
 -optional_callbacks([previously_existed/2]).
 
 -callback resource_exists(Req, State)
 	-> {boolean(), Req, State}
 	| {stop, Req, State}
+	| {switch_handler(), Req, State}
 	when Req::cowboy_req:req(), State::any().
 -optional_callbacks([resource_exists/2]).
 
 -callback service_available(Req, State)
 	-> {boolean(), Req, State}
 	| {stop, Req, State}
+	| {switch_handler(), Req, State}
 	when Req::cowboy_req:req(), State::any().
 -optional_callbacks([service_available/2]).
 
 -callback uri_too_long(Req, State)
 	-> {boolean(), Req, State}
 	| {stop, Req, State}
+	| {switch_handler(), Req, State}
 	when Req::cowboy_req:req(), State::any().
 -optional_callbacks([uri_too_long/2]).
 
 -callback valid_content_headers(Req, State)
 	-> {boolean(), Req, State}
 	| {stop, Req, State}
+	| {switch_handler(), Req, State}
 	when Req::cowboy_req:req(), State::any().
 -optional_callbacks([valid_content_headers/2]).
 
 -callback valid_entity_length(Req, State)
 	-> {boolean(), Req, State}
 	| {stop, Req, State}
+	| {switch_handler(), Req, State}
 	when Req::cowboy_req:req(), State::any().
 -optional_callbacks([valid_entity_length/2]).
 
 -callback variances(Req, State)
 	-> {[binary()], Req, State}
-	| {stop, Req, State}
 	when Req::cowboy_req:req(), State::any().
 -optional_callbacks([variances/2]).
 
@@ -233,11 +255,17 @@
 
 -spec upgrade(Req, Env, module(), any())
 	-> {ok, Req, Env} when Req::cowboy_req:req(), Env::cowboy_middleware:env().
-upgrade(Req0, Env, Handler, HandlerState) ->
+upgrade(Req0, Env, Handler, HandlerState0) ->
 	Method = cowboy_req:method(Req0),
-	{ok, Req, Result} = service_available(Req0, #state{method=Method,
-		handler=Handler, handler_state=HandlerState}),
-	{ok, Req, Env#{result => Result}}.
+	case service_available(Req0, #state{method=Method,
+			handler=Handler, handler_state=HandlerState0}) of
+		{ok, Req, Result} ->
+			{ok, Req, Env#{result => Result}};
+		{Mod, Req, HandlerState} ->
+			Mod:upgrade(Req, Env, Handler, HandlerState);
+		{Mod, Req, HandlerState, Opts} ->
+			Mod:upgrade(Req, Env, Handler, HandlerState, Opts)
+	end.
 
 -spec upgrade(Req, Env, module(), any(), any())
 	-> {ok, Req, Env} when Req::cowboy_req:req(), Env::cowboy_middleware:env().
@@ -260,6 +288,8 @@ known_methods(Req, State=#state{method=Method}) ->
 			next(Req, State, 501);
 		{stop, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
+		{Switch, Req2, HandlerState} when element(1, Switch) =:= switch_handler ->
+			switch_handler(Switch, Req2, HandlerState);
 		{List, Req2, HandlerState} ->
 			State2 = State#state{handler_state=HandlerState},
 			case lists:member(Method, List) of
@@ -285,6 +315,8 @@ allowed_methods(Req, State=#state{method=Method}) ->
 				[<<"HEAD">>, <<"GET">>, <<"OPTIONS">>]);
 		{stop, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
+		{Switch, Req2, HandlerState} when element(1, Switch) =:= switch_handler ->
+			switch_handler(Switch, Req2, HandlerState);
 		{List, Req2, HandlerState} ->
 			State2 = State#state{handler_state=HandlerState},
 			case lists:member(Method, List) of
@@ -316,6 +348,8 @@ is_authorized(Req, State) ->
 			forbidden(Req, State);
 		{stop, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
+		{Switch, Req2, HandlerState} when element(1, Switch) =:= switch_handler ->
+			switch_handler(Switch, Req2, HandlerState);
 		{true, Req2, HandlerState} ->
 			forbidden(Req2, State#state{handler_state=HandlerState});
 		{{false, AuthHead}, Req2, HandlerState} ->
@@ -346,6 +380,8 @@ options(Req, State=#state{allowed_methods=Methods, method= <<"OPTIONS">>}) ->
 				= << << ", ", M/binary >> || M <- Methods >>,
 			Req2 = cowboy_req:set_resp_header(<<"allow">>, Allow, Req),
 			respond(Req2, State, 200);
+		{Switch, Req2, HandlerState} when element(1, Switch) =:= switch_handler ->
+			switch_handler(Switch, Req2, HandlerState);
 		{stop, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
 		{ok, Req2, HandlerState} ->
@@ -387,6 +423,8 @@ content_types_provided(Req, State) ->
 			end;
 		{stop, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
+		{Switch, Req2, HandlerState} when element(1, Switch) =:= switch_handler ->
+			switch_handler(Switch, Req2, HandlerState);
 		{[], Req2, HandlerState} ->
 			not_acceptable(Req2, State#state{handler_state=HandlerState});
 		{CTP, Req2, HandlerState} ->
@@ -489,6 +527,8 @@ languages_provided(Req, State) ->
 			charsets_provided(Req, State);
 		{stop, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
+		{Switch, Req2, HandlerState} when element(1, Switch) =:= switch_handler ->
+			switch_handler(Switch, Req2, HandlerState);
 		{[], Req2, HandlerState} ->
 			not_acceptable(Req2, State#state{handler_state=HandlerState});
 		{LP, Req2, HandlerState} ->
@@ -549,6 +589,8 @@ charsets_provided(Req, State) ->
 			set_content_type(Req, State);
 		{stop, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
+		{Switch, Req2, HandlerState} when element(1, Switch) =:= switch_handler ->
+			switch_handler(Switch, Req2, HandlerState);
 		{[], Req2, HandlerState} ->
 			not_acceptable(Req2, State#state{handler_state=HandlerState});
 		{CP, Req2, HandlerState} ->
@@ -832,6 +874,8 @@ moved_permanently(Req, State, OnFalse) ->
 			OnFalse(Req2, State#state{handler_state=HandlerState});
 		{stop, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
+		{Switch, Req2, HandlerState} when element(1, Switch) =:= switch_handler ->
+			switch_handler(Switch, Req2, HandlerState);
 		no_call ->
 			OnFalse(Req, State)
 	end.
@@ -853,6 +897,8 @@ moved_temporarily(Req, State) ->
 			is_post_to_missing_resource(Req2, State#state{handler_state=HandlerState}, 410);
 		{stop, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
+		{Switch, Req2, HandlerState} when element(1, Switch) =:= switch_handler ->
+			switch_handler(Switch, Req2, HandlerState);
 		no_call ->
 			is_post_to_missing_resource(Req, State, 410)
 	end.
@@ -903,6 +949,8 @@ accept_resource(Req, State) ->
 			respond(Req, State, 415);
 		{stop, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
+		{Switch, Req2, HandlerState} when element(1, Switch) =:= switch_handler ->
+			switch_handler(Switch, Req2, HandlerState);
 		{CTA, Req2, HandlerState} ->
 			CTA2 = [normalize_content_types(P) || P <- CTA],
 			State2 = State#state{handler_state=HandlerState},
@@ -938,6 +986,8 @@ process_content_type(Req, State=#state{method=Method, exists=Exists}, Fun) ->
 	try case call(Req, State, Fun) of
 		{stop, Req2, HandlerState2} ->
 			terminate(Req2, State#state{handler_state=HandlerState2});
+		{Switch, Req2, HandlerState} when element(1, Switch) =:= switch_handler ->
+			switch_handler(Switch, Req2, HandlerState);
 		{true, Req2, HandlerState2} when Exists ->
 			State2 = State#state{handler_state=HandlerState2},
 			next(Req2, State2, fun has_resp_body/2);
@@ -1019,6 +1069,8 @@ set_resp_body(Req, State=#state{content_type_a={_, Callback}}) ->
 	try case call(Req, State, Callback) of
 		{stop, Req2, HandlerState2} ->
 			terminate(Req2, State#state{handler_state=HandlerState2});
+		{Switch, Req2, HandlerState} when element(1, Switch) =:= switch_handler ->
+			switch_handler(Switch, Req2, HandlerState);
 		{Body, Req2, HandlerState2} ->
 			State2 = State#state{handler_state=HandlerState2},
 			Req3 = cowboy_req:set_resp_body(Body, Req2),
@@ -1114,6 +1166,8 @@ expect(Req, State, Callback, Expected, OnTrue, OnFalse) ->
 			next(Req, State, OnTrue);
 		{stop, Req2, HandlerState} ->
 			terminate(Req2, State#state{handler_state=HandlerState});
+		{Switch, Req2, HandlerState} when element(1, Switch) =:= switch_handler ->
+			switch_handler(Switch, Req2, HandlerState);
 		{Expected, Req2, HandlerState} ->
 			next(Req2, State#state{handler_state=HandlerState}, OnTrue);
 		{_Unexpected, Req2, HandlerState} ->
@@ -1147,6 +1201,11 @@ next(Req, State, StatusCode) when is_integer(StatusCode) ->
 
 respond(Req, State, StatusCode) ->
 	terminate(cowboy_req:reply(StatusCode, Req), State).
+
+switch_handler({switch_handler, Mod}, Req, HandlerState) ->
+	{Mod, Req, HandlerState};
+switch_handler({switch_handler, Mod, Opts}, Req, HandlerState) ->
+	{Mod, Req, HandlerState, Opts}.
 
 -spec error_terminate(cowboy_req:req(), #state{}, atom(), any()) -> no_return().
 error_terminate(Req, #state{handler=Handler, handler_state=HandlerState}, Class, Reason) ->
