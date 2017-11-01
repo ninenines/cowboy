@@ -11,7 +11,7 @@ COMPILE_FIRST = cowboy_middleware cowboy_stream cowboy_sub_protocol
 PLT_APPS = public_key ssl
 CT_OPTS += -ct_hooks cowboy_ct_hook [] # -boot start_sasl
 
-CI_OTP ?= OTP-19.0.7 OTP-19.1.6 OTP-19.2.3 OTP-19.3.6.3 OTP-20.0.5 OTP-20.1.2
+CI_OTP ?= OTP-19.0.7 OTP-19.1.6 OTP-19.2.3 OTP-19.3.6.3 OTP-20.0.5 OTP-20.1.3
 CI_HIPE ?= $(lastword $(CI_OTP))
 # CI_ERLLVM ?= $(CI_HIPE)
 
@@ -20,7 +20,7 @@ CI_HIPE ?= $(lastword $(CI_OTP))
 LOCAL_DEPS = crypto
 
 DEPS = cowlib ranch
-dep_cowlib = git https://github.com/ninenines/cowlib 2.0.0
+dep_cowlib = git https://github.com/ninenines/cowlib 2.0.1
 dep_ranch = git https://github.com/ninenines/ranch 1.4.0
 
 DOC_DEPS = asciideck
