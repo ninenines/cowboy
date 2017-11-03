@@ -80,7 +80,7 @@ init_tracer(StreamID, Req, Opts=#{tracer_match_specs := List, tracer_callback :=
 			start_tracer(StreamID, Req, Opts)
 	end;
 %% When the options tracer_match_specs or tracer_callback
-%% arenot provided we do not enable tracing.
+%% are not provided we do not enable tracing.
 init_tracer(_, _, _) ->
 	no_tracing.
 
@@ -138,6 +138,8 @@ start_tracer(StreamID, Req, Opts) ->
 
 -spec tracer_process(_, _, _) -> no_return().
 tracer_process(StreamID, Req=#{pid := Parent}, Opts=#{tracer_callback := Fun}) ->
+	%% This is necessary because otherwise the tracer could stop
+	%% before it has finished processing the events in its queue.
 	process_flag(trap_exit, true),
 	State = Fun(init, {StreamID, Req, Opts}),
 	tracer_loop(Parent, Fun, State).
@@ -148,7 +150,7 @@ tracer_loop(Parent, Fun, State) ->
 			Fun(Msg, State),
 			tracer_loop(Parent, Fun, State);
 		{'EXIT', Parent, Reason} ->
-			exit(Reason);
+			tracer_terminate(Reason, Fun, State);
 		{system, From, Request} ->
 			sys:handle_system_msg(Request, From, Parent, ?MODULE, [], {Fun, State});
 		Msg ->
@@ -157,6 +159,10 @@ tracer_loop(Parent, Fun, State) ->
 			tracer_loop(Parent, Fun, State)
 	end.
 
+tracer_terminate(Reason, Fun, State) ->
+	_ = Fun(terminate, State),
+	exit(Reason).
+
 %% System callbacks.
 
 -spec system_continue(pid(), _, {fun(), any()}) -> no_return().
@@ -164,8 +170,8 @@ system_continue(Parent, _, {Fun, State}) ->
 	tracer_loop(Parent, Fun, State).
 
 -spec system_terminate(any(), _, _, _) -> no_return().
-system_terminate(Reason, _, _, _) ->
-	exit(Reason).
+system_terminate(Reason, _, _, {Fun, State}) ->
+	tracer_terminate(Reason, Fun, State).
 
 -spec system_code_change(Misc, _, _, _) -> {ok, Misc} when Misc::any().
 system_code_change(Misc, _, _, _) ->

@@ -93,15 +93,68 @@ do_get(Path, Config) ->
 	{ok, _Body} = gun:await_body(ConnPid, Ref),
 	gun:close(ConnPid).
 
-%% We only care about cowboy_req:reply/4 calls.
+%% We only care about cowboy_req:reply/4 calls and init/terminate events.
 do_tracer_callback(Pid) ->
 	fun
-		(init, _) -> undefined;
-		(Event={trace_ts, _, call, {cowboy_req, reply, _}, _}, State) -> Pid ! Event, State;
-		(_, State) -> State
+		(Event, _) when Event =:= init; Event =:= terminate ->
+			Pid ! Event,
+			undefined;
+		(Event={trace_ts, _, call, {cowboy_req, reply, _}, _}, State) ->
+			Pid ! Event,
+			State;
+		(_, State) ->
+			State
 	end.
 
 %% Tests.
+
+init(Config) ->
+	doc("Ensure the init event is triggered."),
+	Ref = config(ref, Config),
+	Opts = ranch:get_protocol_options(Ref),
+	ranch:set_protocol_options(Ref, Opts#{
+		tracer_callback => do_tracer_callback(self()),
+		tracer_match_specs => [fun(_,_,_) -> true end]
+	}),
+	do_get("/", Config),
+	receive
+		init ->
+			ok
+	after 100 ->
+		error(timeout)
+	end.
+
+terminate(Config) ->
+	doc("Ensure the terminate event is triggered."),
+	Ref = config(ref, Config),
+	Opts = ranch:get_protocol_options(Ref),
+	ranch:set_protocol_options(Ref, Opts#{
+		tracer_callback => do_tracer_callback(self()),
+		tracer_match_specs => [fun(_,_,_) -> true end]
+	}),
+	do_get("/", Config),
+	receive
+		terminate ->
+			ok
+	after 100 ->
+		error(timeout)
+	end.
+
+empty(Config) ->
+	doc("Empty match specs unconditionally enable tracing."),
+	Ref = config(ref, Config),
+	Opts = ranch:get_protocol_options(Ref),
+	ranch:set_protocol_options(Ref, Opts#{
+		tracer_callback => do_tracer_callback(self()),
+		tracer_match_specs => []
+	}),
+	do_get("/", Config),
+	receive
+		{trace_ts, _, call, {cowboy_req, reply, [200, _, _, _]}, _} ->
+			ok
+	after 100 ->
+		error(timeout)
+	end.
 
 predicate_true(Config) ->
 	doc("Predicate function returns true, unconditionally enable tracing."),
