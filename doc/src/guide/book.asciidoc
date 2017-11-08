@@ -73,6 +73,8 @@ include::middlewares.asciidoc[Middlewares]
 
 = Additional information
 
+include::migrating_from_2.0.asciidoc[Migrating from Cowboy 2.0 to 2.1]
+
 include::migrating_from_1.0.asciidoc[Migrating from Cowboy 1.0 to 2.0]
 
 include::specs.asciidoc[HTTP and other specifications]

@@ -1,0 +1,107 @@
+[appendix]
+== Migrating from Cowboy 2.0 to 2.1
+
+Cowboy 2.1 focused on adding features that were temporarily
+removed in Cowboy 2.0. A number of bugs found in the 2.0
+release were also fixed.
+
+=== Features added
+
+* It is now possible to obtain the client TLS certificate
+  and the local IP/port for the connection from the Req object.
+
+* Informational responses (1XX responses) can now be sent.
+  They must be sent before initiating the final response.
+
+* The `expect: 100-continue` header is now handled
+  automatically. The 100 response will be sent on the
+  first `cowboy_req:read_body/2,3,4` call. This only applies
+  when using the default `cowboy_stream_h` stream handler.
+
+=== Experimental features added
+
+Experimental features are previews of features that will be
+added in a future release. They are not documented and their
+interface may change at any time. You are welcome to try them
+and provide feedback.
+
+* The `cowboy_metrics_h` stream handler can be used to
+  extract metrics out of Cowboy. It must be used first in
+  the list of stream handlers, and will record all events
+  related to requests, responses and spawned processes.
+  When the stream terminates it will pass this information
+  to a user-defined callback.
+
+* The `cowboy_tracer_h` stream handler can be used to setup
+  automatic tracing of specific requests. You can conditionally
+  enable tracing based on a function, header, path or any other
+  element from the request and the trace will apply to the
+  entire connection and any processes created by it. This is
+  meant to be used for debugging both in tests and production.
+
+=== Changed behaviors
+
+* The `cowboy_rest` handler now implements a mechanism for
+  switching to a different type of handler from any callback
+  where `stop` is also allowed. Switch by returning
+  `{switch_handler, Module}` or `{switch_handler, Module, Opts}`.
+  This is especially useful for switching to `cowboy_loop`
+  for streaming the request or response body.
+
+* REST callbacks that do not allow `stop` as a return value
+  are now explicitly listed in the documentation.
+
+=== New functions
+
+* The function `cowboy_req:sock/1` returns the IP/port
+  of the local socket.
+
+* The function `cowboy_req:cert/1` returns the client
+  TLS certificate or `undefined` if it isn't available.
+
+* The function `cowboy_req:inform/2,3` sends an
+  informational response.
+
+=== Bugs fixed
+
+* Ensure HTTP/2 connections are not closed prematurely
+  when the user code does not read the request body.
+
+* Ensure HTTP/1.1 streams are not terminated too early.
+  Their behavior is now consistent with the HTTP/2 code
+  where the stream handler is only terminated when the
+  `stop` command is returned.
+
+* Sending zero-sized data from stream handlers or from
+  `cowboy_req:stream_body/3` could lead to issues with
+  HTTP/1.1. This has been fixed.
+
+* The final chunk sent by Cowboy when it terminates a
+  chunked body after the handler process exits was not
+  passed through stream handlers, which could lead to
+  issues when `cowboy_compress_h` was being used. This
+  is now corrected.
+
+* The stream handler state was discarded in some cases
+  where Cowboy had to send a response or response data
+  automatically when ending a stream. This has now
+  been corrected.
+
+* The stream handler callback `terminate/3` will now be
+  called when switching to another protocol using the
+  command `switch_protocol`. This doesn't apply when
+  doing upgrades to HTTP/2 as those occur before the
+  stream is initialized.
+
+* Cowlib has been updated to 2.0.1 to fix an issue with
+  Websocket compression when using Erlang/OTP 20.1. Note
+  that at the time of writing all 20.1 versions (from
+  20.1 to 20.1.4) have issues when compression is enabled.
+  It is expected to work properly from 20.1.5 onward. In
+  the meantime it is recommended to run the plain 20.1
+  release and disable Websocket compression, or use a
+  release before 20.1.
+
+* Cowboy will no longer crash when the `cowboy_clock`
+  process is not running. This can happen when Cowboy
+  is being restarted during upgrades, for example.
