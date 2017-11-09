@@ -56,7 +56,7 @@ The atom `ok` is always returned. It can be safely ignored.
 
 == Changelog
 
-* *2.0*: Function introduced.
+* *2.1*: Function introduced.
 
 == Examples
 

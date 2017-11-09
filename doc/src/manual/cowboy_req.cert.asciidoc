@@ -54,7 +54,7 @@ The client TLS certificate.
 
 == Changelog
 
-* *2.0*: Function introduced.
+* *2.1*: Function introduced.
 
 == Examples
 

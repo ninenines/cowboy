@@ -34,7 +34,7 @@ The socket's local IP address and port number.
 
 == Changelog
 
-* *2.0*: Function introduced.
+* *2.1*: Function introduced.
 
 == Examples
 
