@@ -669,6 +669,11 @@ representation of the resource.
 Cowboy automatically adds the accept, accept-charset and
 accept-language headers when necessary.
 
+== Changelog
+
+* *2.1*: The `switch_handler` return value was added.
+* *1.0*: Behavior introduced.
+
 == See also
 
 link:man:cowboy(7)[cowboy(7)],
