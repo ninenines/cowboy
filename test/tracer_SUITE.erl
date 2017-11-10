@@ -98,12 +98,13 @@ do_tracer_callback(Pid) ->
 	fun
 		(Event, _) when Event =:= init; Event =:= terminate ->
 			Pid ! Event,
-			undefined;
+			0;
 		(Event={trace_ts, _, call, {cowboy_req, reply, _}, _}, State) ->
 			Pid ! Event,
-			State;
+			Pid ! {state, State},
+			State + 1;
 		(_, State) ->
-			State
+			State + 1
 	end.
 
 %% Tests.
@@ -135,6 +136,23 @@ terminate(Config) ->
 	do_get("/", Config),
 	receive
 		terminate ->
+			ok
+	after 100 ->
+		error(timeout)
+	end.
+
+state(Config) ->
+	doc("Ensure the returned state is used."),
+	Ref = config(ref, Config),
+	Opts = ranch:get_protocol_options(Ref),
+	ranch:set_protocol_options(Ref, Opts#{
+		tracer_callback => do_tracer_callback(self()),
+		tracer_match_specs => [fun(_,_,_) -> true end]
+	}),
+	do_get("/", Config),
+	receive
+		{state, St} ->
+			true = St > 0,
 			ok
 	after 100 ->
 		error(timeout)

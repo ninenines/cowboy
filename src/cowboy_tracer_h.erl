@@ -144,19 +144,19 @@ tracer_process(StreamID, Req=#{pid := Parent}, Opts=#{tracer_callback := Fun}) -
 	State = Fun(init, {StreamID, Req, Opts}),
 	tracer_loop(Parent, Fun, State).
 
-tracer_loop(Parent, Fun, State) ->
+tracer_loop(Parent, Fun, State0) ->
 	receive
 		Msg when element(1, Msg) =:= trace_ts ->
-			Fun(Msg, State),
+			State = Fun(Msg, State0),
 			tracer_loop(Parent, Fun, State);
 		{'EXIT', Parent, Reason} ->
-			tracer_terminate(Reason, Fun, State);
+			tracer_terminate(Reason, Fun, State0);
 		{system, From, Request} ->
-			sys:handle_system_msg(Request, From, Parent, ?MODULE, [], {Fun, State});
+			sys:handle_system_msg(Request, From, Parent, ?MODULE, [], {Fun, State0});
 		Msg ->
 			error_logger:error_msg("~p: Tracer process received stray message ~9999p~n",
 				[?MODULE, Msg]),
-			tracer_loop(Parent, Fun, State)
+			tracer_loop(Parent, Fun, State0)
 	end.
 
 tracer_terminate(Reason, Fun, State) ->
