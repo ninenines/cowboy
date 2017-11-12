@@ -11,10 +11,6 @@ COMPILE_FIRST = cowboy_middleware cowboy_stream cowboy_sub_protocol
 PLT_APPS = public_key ssl
 CT_OPTS += -ct_hooks cowboy_ct_hook [] # -boot start_sasl
 
-CI_OTP ?= OTP-19.0.7 OTP-19.1.6 OTP-19.2.3 OTP-19.3.6.3 OTP-20.0.5 OTP-20.1.4
-CI_HIPE ?= $(lastword $(CI_OTP))
-# CI_ERLLVM ?= $(CI_HIPE)
-
 # Dependencies.
 
 LOCAL_DEPS = crypto
@@ -28,6 +24,16 @@ DOC_DEPS = asciideck
 TEST_DEPS = ct_helper gun
 dep_ct_helper = git https://github.com/extend/ct_helper master
 dep_gun = git https://github.com/ninenines/gun master
+
+# CI configuration.
+
+BUILD_DEPS = ci.erlang.mk
+dep_ci.erlang.mk = git https://github.com/ninenines/ci.erlang.mk master
+DEP_EARLY_PLUGINS = ci.erlang.mk
+
+AUTO_CI_OTP ?= OTP-19+
+AUTO_CI_HIPE ?= OTP-LATEST
+# AUTO_CI_ERLLVM ?= OTP-LATEST
 
 # Standard targets.
 
