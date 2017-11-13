@@ -916,6 +916,13 @@ commands(State0=#state{ref=Ref, parent=Parent, socket=Socket, transport=Transpor
 	%% @todo This should be the last stream running otherwise we need to wait before switching.
 	%% @todo If there's streams opened after this one, fail instead of 101.
 	State = cancel_timeout(State0),
+	%% Before we send the 101 response we need to stop receiving data
+	%% from the socket, otherwise the data might be receive before the
+	%% call to flush/0 and we end up inadvertently dropping a packet.
+	%%
+	%% @todo Handle cases where the request came with a body. We need
+	%% to process or skip the body before the upgrade can be completed.
+	Transport:setopts(Socket, [{active, false}]),
 	%% Send a 101 response, then terminate the stream.
 	#state{streams=Streams} = info(State, StreamID, {inform, 101, Headers}),
 	#stream{state=StreamState} = lists:keyfind(StreamID, #stream.id, Streams),
