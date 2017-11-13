@@ -43,12 +43,8 @@
 -spec init(cowboy_stream:streamid(), cowboy_req:req(), cowboy:opts())
 	-> {cowboy_stream:commands(), any()}.
 init(StreamID, Req, Opts) ->
-	Result = init_tracer(StreamID, Req, Opts),
-	{Commands, Next} = cowboy_stream:init(StreamID, Req, Opts),
-	case Result of
-		no_tracing -> {Commands, Next};
-		{tracing, TracerPid} -> {[{spawn, TracerPid, 5000}|Commands], Next}
-	end.
+	init_tracer(StreamID, Req, Opts),
+	cowboy_stream:init(StreamID, Req, Opts).
 
 -spec data(cowboy_stream:streamid(), cowboy_stream:fin(), cowboy_req:resp_body(), State)
 	-> {cowboy_stream:commands(), State} when State::any().
@@ -75,14 +71,14 @@ early_error(StreamID, Reason, PartialReq, Resp, Opts) ->
 init_tracer(StreamID, Req, Opts=#{tracer_match_specs := List, tracer_callback := _}) ->
 	case match(List, StreamID, Req, Opts) of
 		false ->
-			no_tracing;
+			ok;
 		true ->
 			start_tracer(StreamID, Req, Opts)
 	end;
 %% When the options tracer_match_specs or tracer_callback
 %% are not provided we do not enable tracing.
 init_tracer(_, _, _) ->
-	no_tracing.
+	ok.
 
 match([], _, _, _) ->
 	true;
@@ -129,9 +125,9 @@ start_tracer(StreamID, Req, Opts) ->
 				send, 'receive', call, return_to, procs, ports,
 				monotonic_timestamp, set_on_spawn, {tracer, TracerPid}
 			]),
-			{tracing, TracerPid};
+			ok;
 		_ ->
-			no_tracing
+			ok
 	end.
 
 %% Tracer process.
