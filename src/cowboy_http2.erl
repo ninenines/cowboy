@@ -49,7 +49,9 @@
 	%% Whether we finished receiving data.
 	remote = nofin :: cowboy_stream:fin(),
 	%% Remote flow control window (how much we accept to receive).
-	remote_window :: integer()
+	remote_window :: integer(),
+	%% Unparsed te header. Used to know if we can send trailers.
+	te :: undefined | binary()
 }).
 
 -type stream() :: #stream{}.
@@ -537,9 +539,24 @@ commands(State=#state{socket=Socket, transport=Transport, encode_state=EncodeSta
 commands(State0, Stream0=#stream{local=nofin}, [{data, IsFin, Data}|Tail]) ->
 	{State, Stream} = send_data(State0, Stream0, IsFin, Data),
 	commands(State, Stream, Tail);
-
 %% @todo data when local!=nofin
-
+%% Send trailers.
+commands(State0, Stream0=#stream{local=nofin, te=TE0}, [{trailers, Trailers}|Tail]) ->
+	%% We only accept TE headers containing exactly "trailers" (RFC7540 8.1.2.1).
+	TE = try cow_http_hd:parse_te(TE0) of
+		{trailers, []} -> trailers;
+		_ -> no_trailers
+	catch _:_ ->
+		%% If we can't parse the TE header, assume we can't send trailers.
+		no_trailers
+	end,
+	{State, Stream} = case TE of
+		trailers ->
+			send_data(State0, Stream0, fin, {trailers, Trailers});
+		no_trailers ->
+			send_data(State0, Stream0, fin, <<>>)
+	end,
+	commands(State, Stream, Tail);
 %% Send a file.
 commands(State0, Stream0=#stream{local=nofin},
 		[{sendfile, IsFin, Offset, Bytes, Path}|Tail]) ->
@@ -664,6 +681,12 @@ send_data(State0, Stream0=#stream{local_buffer=Q0, local_buffer_size=BufferSize}
 send_data(State, Stream, IsFin, Data) ->
 	send_data(State, Stream, IsFin, Data, in).
 
+%% Always send trailer frames even if the window is empty.
+send_data(State=#state{socket=Socket, transport=Transport, encode_state=EncodeState0},
+		Stream=#stream{id=StreamID}, fin, {trailers, Trailers}, _) ->
+	{HeaderBlock, EncodeState} = headers_encode(Trailers, EncodeState0),
+	Transport:send(Socket, cow_http2:headers(StreamID, fin, HeaderBlock)),
+	{State#state{encode_state=EncodeState}, Stream#stream{local=fin}};
 %% Send data immediately if we can, buffer otherwise.
 %% @todo We might want to print an error if local=fin.
 send_data(State=#state{local_window=ConnWindow},
@@ -800,13 +823,14 @@ stream_req_init(State=#state{ref=Ref, peer=Peer, sock=Sock, cert=Cert},
 stream_handler_init(State=#state{opts=Opts,
 		local_settings=#{initial_window_size := RemoteWindow},
 		remote_settings=#{initial_window_size := LocalWindow}},
-		StreamID, RemoteIsFin, LocalIsFin, Req) ->
+		StreamID, RemoteIsFin, LocalIsFin, Req=#{headers := Headers}) ->
 	try cowboy_stream:init(StreamID, Req, Opts) of
 		{Commands, StreamState} ->
 			commands(State#state{client_streamid=StreamID},
 				#stream{id=StreamID, state=StreamState,
 					remote=RemoteIsFin, local=LocalIsFin,
-					local_window=LocalWindow, remote_window=RemoteWindow},
+					local_window=LocalWindow, remote_window=RemoteWindow,
+					te=maps:get(<<"te">>, Headers, undefined)},
 				Commands)
 	catch Class:Exception ->
 		cowboy_stream:report_error(init,

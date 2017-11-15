@@ -166,6 +166,8 @@ info(_StreamID, Headers = {headers, _, _}, State) ->
 	{[Headers], State#state{expect=undefined}};
 info(_StreamID, Data = {data, _, _}, State) ->
 	{[Data], State};
+info(_StreamID, Trailers = {trailers, _}, State) ->
+	{[Trailers], State};
 info(_StreamID, Push = {push, _, _, _, _, _, _, _}, State) ->
 	{[Push], State};
 info(_StreamID, SwitchProtocol = {switch_protocol, _, _, _}, State) ->

@@ -81,6 +81,7 @@
 %% @todo stream_body/2 (nofin)
 -export([stream_body/3]).
 %% @todo stream_event/2,3
+-export([stream_trailers/2]).
 -export([push/3]).
 -export([push/4]).
 
@@ -772,6 +773,11 @@ stream_body(Data, IsFin=nofin, #{pid := Pid, streamid := StreamID, has_sent_resp
 	end;
 stream_body(Data, IsFin, #{pid := Pid, streamid := StreamID, has_sent_resp := headers}) ->
 	Pid ! {{Pid, StreamID}, {data, IsFin, Data}},
+	ok.
+
+-spec stream_trailers(cowboy:http_headers(), req()) -> ok.
+stream_trailers(Trailers, #{pid := Pid, streamid := StreamID, has_sent_resp := headers}) ->
+	Pid ! {{Pid, StreamID}, {trailers, Trailers}},
 	ok.
 
 -spec push(binary(), cowboy:http_headers(), req()) -> ok.

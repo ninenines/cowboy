@@ -204,6 +204,18 @@ do(<<"stream_body">>, Req0, Opts) ->
 			cowboy_req:stream_body(<<0:800000>>, fin, Req0),
 			{ok, Req0, Opts}
 	end;
+do(<<"stream_trailers">>, Req0, Opts) ->
+	case cowboy_req:binding(arg, Req0) of
+		_ ->
+			Req = cowboy_req:stream_reply(200, #{
+				<<"trailer">> => <<"grpc-status">>
+			}, Req0),
+			cowboy_req:stream_body(<<"Hello world!">>, nofin, Req),
+			cowboy_req:stream_trailers(#{
+				<<"grpc-status">> => <<"0">>
+			}, Req),
+			{ok, Req, Opts}
+	end;
 do(<<"push">>, Req, Opts) ->
 	case cowboy_req:binding(arg, Req) of
 		<<"method">> ->

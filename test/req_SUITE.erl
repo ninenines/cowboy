@@ -841,6 +841,40 @@ stream_body_nofin(Config) ->
 %% @todo Crash when calling stream_body after calling reply.
 %% @todo Crash when calling stream_body before calling stream_reply.
 
+stream_trailers(Config) ->
+	doc("Stream body followed by trailer headers."),
+	{200, RespHeaders, <<"Hello world!">>, [
+		{<<"grpc-status">>, <<"0">>}
+	]} = do_trailers("/resp/stream_trailers", Config),
+	{_, <<"grpc-status">>} = lists:keyfind(<<"trailer">>, 1, RespHeaders),
+	ok.
+
+stream_trailers_no_te(Config) ->
+	doc("Stream body followed by trailer headers."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/resp/stream_trailers", [
+		{<<"accept-encoding">>, <<"gzip">>}
+	]),
+	{response, nofin, 200, RespHeaders} = gun:await(ConnPid, Ref),
+	{ok, RespBody} = gun:await_body(ConnPid, Ref),
+	gun:close(ConnPid).
+
+do_trailers(Path, Config) ->
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, Path, [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"te">>, <<"trailers">>}
+	]),
+	{response, nofin, Status, RespHeaders} = gun:await(ConnPid, Ref),
+	{ok, RespBody, Trailers} = gun:await_body(ConnPid, Ref),
+	gun:close(ConnPid),
+	{Status, RespHeaders, do_decode(RespHeaders, RespBody), Trailers}.
+
+%% @todo Crash when calling stream_trailers twice.
+%% @todo Crash when calling stream_trailers after the fin flag has been set.
+%% @todo Crash when calling stream_trailers after calling reply.
+%% @todo Crash when calling stream_trailers before calling stream_reply.
+
 %% Tests: Push.
 
 %% @todo We want to crash when push is called after reply has been initiated.

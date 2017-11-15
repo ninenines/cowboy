@@ -69,6 +69,8 @@
 	state = undefined :: {module(), any()},
 	%% Client HTTP version for this stream.
 	version = undefined :: cowboy:http_version(),
+	%% Unparsed te header. Used to know if we can send trailers.
+	te :: undefined | binary(),
 	%% Commands queued.
 	queue = [] :: cowboy_stream:commands()
 }).
@@ -267,7 +269,9 @@ after_parse({request, Req=#{streamid := StreamID, headers := Headers, version :=
 		State0=#state{opts=Opts, streams=Streams0}, Buffer}) ->
 	try cowboy_stream:init(StreamID, Req, Opts) of
 		{Commands, StreamState} ->
-			Streams = [#stream{id=StreamID, state=StreamState, version=Version}|Streams0],
+			TE = maps:get(<<"te">>, Headers, undefined),
+			Streams = [#stream{id=StreamID, state=StreamState,
+				version=Version, te=TE}|Streams0],
 			State1 = case maybe_req_close(State0, Headers, Version) of
 				close -> State0#state{streams=Streams, last_streamid=StreamID};
 				keepalive -> State0#state{streams=Streams}
@@ -900,6 +904,37 @@ commands(State0=#state{socket=Socket, transport=Transport, streams=Streams}, Str
 		nofin -> State0
 	end,
 	commands(State, StreamID, Tail);
+%% Send trailers.
+commands(State=#state{socket=Socket, transport=Transport, streams=Streams}, StreamID,
+		[{trailers, Trailers}|Tail]) ->
+	TE = case lists:keyfind(StreamID, #stream.id, Streams) of
+		%% HTTP/1.0 doesn't support chunked transfer-encoding.
+		#stream{version='HTTP/1.0'} ->
+			not_chunked;
+		%% No TE header was sent.
+		#stream{te=undefined} ->
+			no_trailers;
+		#stream{te=TE0} ->
+			try cow_http_hd:parse_te(TE0) of
+				{TE1, _} -> TE1
+			catch _:_ ->
+				%% If we can't parse the TE header, assume we can't send trailers.
+				no_trailers
+			end
+	end,
+	case TE of
+		trailers ->
+			Transport:send(Socket, [
+				<<"0\r\n">>,
+				cow_http:headers(maps:to_list(Trailers)),
+				<<"\r\n">>
+			]);
+		no_trailers ->
+			Transport:send(Socket, <<"0\r\n\r\n">>);
+		not_chunked ->
+			ok
+	end,
+	commands(State#state{out_state=done}, StreamID, Tail);
 %% Send a file.
 commands(State0=#state{socket=Socket, transport=Transport}, StreamID,
 		[{sendfile, IsFin, Offset, Bytes, Path}|Tail]) ->
