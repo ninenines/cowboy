@@ -54,14 +54,6 @@ groups() ->
 		]}
 	].
 
-init_per_suite(Config) ->
-	Dir = config(priv_dir, Config) ++ "/static",
-	ct_helper:create_static_dir(Dir),
-	[{static_dir, Dir}|Config].
-
-end_per_suite(Config) ->
-	ct_helper:delete_static_dir(config(static_dir, Config)).
-
 init_per_group(Name = http, Config) ->
 	cowboy_test:init_http(Name, #{env => #{dispatch => init_dispatch(Config)}}, Config);
 init_per_group(Name = https, Config) ->
@@ -111,19 +103,7 @@ init_dispatch(Config) ->
 				[{headers, #{<<"server">> => <<"DesireDrive/1.0">>}}]},
 			{"/set_resp/body", http_set_resp,
 				[{body, <<"A flameless dance does not equal a cycle">>}]},
-			{"/static/[...]", cowboy_static,
-				{dir, config(static_dir, Config)}},
-			{"/static_mimetypes_function/[...]", cowboy_static,
-				{dir, config(static_dir, Config),
-					[{mimetypes, ?MODULE, do_mimetypes_text_html}]}},
 			{"/handler_errors", http_errors, []},
-			{"/static_attribute_etag/[...]", cowboy_static,
-				{dir, config(static_dir, Config)}},
-			{"/static_function_etag/[...]", cowboy_static,
-				{dir, config(static_dir, Config),
-					[{etag, ?MODULE, do_etag_gen}]}},
-			{"/static_specify_file/[...]", cowboy_static,
-				{file, config(static_dir, Config) ++ "/style.css"}},
 			{"/echo/body", http_echo_body, []},
 			{"/echo/body_qs", http_body_qs, []},
 			{"/crash/content-length", input_crash_h, content_length},
@@ -147,14 +127,6 @@ init_dispatch(Config) ->
 			{"/", http_handler, []}
 		]}
 	]).
-
-%% Callbacks.
-
-do_etag_gen(_, _, _) ->
-	{strong, <<"etag">>}.
-
-do_mimetypes_text_html(_) ->
-	<<"text/html">>.
 
 %% Convenience functions.
 
@@ -234,14 +206,7 @@ check_status(Config) ->
 	Tests = [
 		{200, "/"},
 		{200, "/simple"},
-		{404, "/static/%2f"},
-		{403, "/static/%2e"}, %% This routes to /static.
-		{200, "/static/%2e%2e"}, %% This routes to /.
-		{403, "/static/directory"},
-		{403, "/static/directory/"},
-		{403, "/static/unreadable"},
 		{404, "/not/found"},
-		{404, "/static/not_found"},
 		{500, "/handler_errors?case=init_before_reply"}
 	],
 	_ = [{Status, URL} = begin
@@ -705,65 +670,6 @@ slowloris2(Config) ->
 	receive after 300 -> ok end,
 	Data = raw_recv_head(Client),
 	{_, 408, _, _} = cow_http:parse_status_line(Data),
-	ok.
-
-static_attribute_etag(Config) ->
-	ConnPid = gun_open(Config),
-	Ref1 = gun:get(ConnPid, "/static_attribute_etag/index.html"),
-	Ref2 = gun:get(ConnPid, "/static_attribute_etag/index.html"),
-	{response, nofin, 200, Headers1} = gun:await(ConnPid, Ref1),
-	{response, nofin, 200, Headers2} = gun:await(ConnPid, Ref2),
-	{_, ETag} = lists:keyfind(<<"etag">>, 1, Headers1),
-	{_, ETag} = lists:keyfind(<<"etag">>, 1, Headers2),
-	true = ETag =/= undefined,
-	ok.
-
-static_function_etag(Config) ->
-	ConnPid = gun_open(Config),
-	Ref1 = gun:get(ConnPid, "/static_function_etag/index.html"),
-	Ref2 = gun:get(ConnPid, "/static_function_etag/index.html"),
-	{response, nofin, 200, Headers1} = gun:await(ConnPid, Ref1),
-	{response, nofin, 200, Headers2} = gun:await(ConnPid, Ref2),
-	{_, ETag} = lists:keyfind(<<"etag">>, 1, Headers1),
-	{_, ETag} = lists:keyfind(<<"etag">>, 1, Headers2),
-	true = ETag =/= undefined,
-	ok.
-
-static_mimetypes_function(Config) ->
-	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, "/static_mimetypes_function/index.html"),
-	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
-	{_, <<"text/html">>} = lists:keyfind(<<"content-type">>, 1, Headers),
-	ok.
-
-static_specify_file(Config) ->
-	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, "/static_specify_file"),
-	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
-	{_, <<"text/css">>} = lists:keyfind(<<"content-type">>, 1, Headers),
-	{ok, <<"body{color:red}\n">>} = gun:await_body(ConnPid, Ref),
-	ok.
-
-static_specify_file_catchall(Config) ->
-	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, "/static_specify_file/none"),
-	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
-	{_, <<"text/css">>} = lists:keyfind(<<"content-type">>, 1, Headers),
-	{ok, <<"body{color:red}\n">>} = gun:await_body(ConnPid, Ref),
-	ok.
-
-static_test_file(Config) ->
-	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, "/static/unknown"),
-	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
-	{_, <<"application/octet-stream">>} = lists:keyfind(<<"content-type">>, 1, Headers),
-	ok.
-
-static_test_file_css(Config) ->
-	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, "/static/style.css"),
-	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
-	{_, <<"text/css">>} = lists:keyfind(<<"content-type">>, 1, Headers),
 	ok.
 
 te_chunked(Config) ->
