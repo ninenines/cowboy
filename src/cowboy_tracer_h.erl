@@ -21,6 +21,8 @@
 -export([terminate/3]).
 -export([early_error/5]).
 
+-export([set_trace_patterns/0]).
+
 -export([tracer_process/3]).
 -export([system_continue/3]).
 -export([system_terminate/4]).
@@ -65,6 +67,15 @@ terminate(StreamID, Reason, Next) ->
 	when Resp::cowboy_stream:resp_command().
 early_error(StreamID, Reason, PartialReq, Resp, Opts) ->
 	cowboy_stream:early_error(StreamID, Reason, PartialReq, Resp, Opts).
+
+%% API.
+
+%% These trace patterns are most likely not suitable for production.
+-spec set_trace_patterns() -> ok.
+set_trace_patterns() ->
+	erlang:trace_pattern({'_', '_', '_'}, [{'_', [], [{return_trace}]}], [local]),
+	erlang:trace_pattern(on_load, [{'_', [], [{return_trace}]}], [local]),
+	ok.
 
 %% Internal.
 
@@ -119,12 +130,15 @@ start_tracer(StreamID, Req, Opts) ->
 	case erlang:trace_info(self(), tracer) of
 		{tracer, []} ->
 			TracerPid = proc_lib:spawn_link(?MODULE, tracer_process, [StreamID, Req, Opts]),
-			erlang:trace_pattern({'_', '_', '_'}, [{'_', [], [{return_trace}]}], [local]),
-			erlang:trace_pattern(on_load, [{'_', [], [{return_trace}]}], [local]),
-			erlang:trace(self(), true, [
-				send, 'receive', call, return_to, procs, ports,
-				monotonic_timestamp, set_on_spawn, {tracer, TracerPid}
+			%% The default flags are probably not suitable for production.
+			Flags = maps:get(tracer_flags, Opts, [
+				send, 'receive', call, return_to,
+				procs, ports, monotonic_timestamp,
+				%% The set_on_spawn flag is necessary to catch events
+				%% from request processes.
+				set_on_spawn
 			]),
+			erlang:trace(self(), true, [{tracer, TracerPid}|Flags]),
 			ok;
 		_ ->
 			ok
