@@ -7,7 +7,6 @@ PROJECT_REGISTERED = cowboy_clock
 
 # Options.
 
-COMPILE_FIRST = cowboy_middleware cowboy_stream cowboy_sub_protocol
 PLT_APPS = public_key ssl
 CT_OPTS += -ct_hooks cowboy_ct_hook [] # -boot start_sasl
 
@@ -41,18 +40,18 @@ include erlang.mk
 
 # Compile options.
 
-ERLC_OPTS += +warn_export_all +warn_missing_spec +warn_untyped_record
+ERLC_OPTS += +warn_missing_spec +warn_untyped_record
 TEST_ERLC_OPTS += +'{parse_transform, eunit_autoexport}'
 
 # Generate rebar.config on build.
 
 app:: rebar.config
 
-# Also dialyze the tests.
+# Dialyze the tests.
 
 # DIALYZER_OPTS += --src -r test
 
-# Use erl_make_certs from the tested release.
+# Use erl_make_certs from the tested release during CI.
 
 ci-setup:: clean deps test-deps
 	$(gen_verbose) cp ~/.kerl/builds/$(CI_OTP_RELEASE)/otp_src_git/lib/ssl/test/erl_make_certs.erl deps/ct_helper/src/
