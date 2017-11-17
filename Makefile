@@ -20,13 +20,12 @@ dep_ranch = git https://github.com/ninenines/ranch 1.4.0
 
 DOC_DEPS = asciideck
 
-TEST_DEPS = ct_helper gun
+TEST_DEPS = ci.erlang.mk ct_helper gun
 dep_ct_helper = git https://github.com/extend/ct_helper master
 dep_gun = git https://github.com/ninenines/gun master
 
 # CI configuration.
 
-BUILD_DEPS = ci.erlang.mk
 dep_ci.erlang.mk = git https://github.com/ninenines/ci.erlang.mk master
 DEP_EARLY_PLUGINS = ci.erlang.mk
 
