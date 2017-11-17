@@ -105,7 +105,6 @@ init_dispatch(Config) ->
 				[{body, <<"A flameless dance does not equal a cycle">>}]},
 			{"/handler_errors", http_errors, []},
 			{"/echo/body", http_echo_body, []},
-			{"/echo/body_qs", http_body_qs, []},
 			{"/crash/content-length", input_crash_h, content_length},
 			{"/param_all", rest_param_all, []},
 			{"/bad_accept", rest_simple_resource, []},
@@ -238,20 +237,6 @@ echo_body(Config) ->
 echo_body_max_length(Config) ->
 	ConnPid = gun_open(Config),
 	Ref = gun:post(ConnPid, "/echo/body", [], << 0:10000000/unit:8 >>),
-	{response, nofin, 413, _} = gun:await(ConnPid, Ref),
-	ok.
-
-% check if body_qs echo's back results
-echo_body_qs(Config) ->
-	ConnPid = gun_open(Config),
-	Ref = gun:post(ConnPid, "/echo/body_qs", [], <<"echo=67890">>),
-	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
-	{ok, <<"67890">>} = gun:await_body(ConnPid, Ref),
-	ok.
-
-echo_body_qs_max_length(Config) ->
-	ConnPid = gun_open(Config),
-	Ref = gun:post(ConnPid, "/echo/body_qs", [], << "echo=", 0:4000000/unit:8 >>),
 	{response, nofin, 413, _} = gun:await(ConnPid, Ref),
 	ok.
 
