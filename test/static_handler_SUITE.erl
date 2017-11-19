@@ -83,8 +83,9 @@ end_per_suite(Config) ->
 	%% Static directories.
 	StaticDir = config(static_dir, Config),
 	PrivDir = code:priv_dir(ct_helper) ++ "/static",
-	ok = file:delete(StaticDir ++ "/large.bin"),
-	ok = file:delete(PrivDir ++ "/large.bin"),
+	%% This file is not created on Windows.
+	_ = file:delete(StaticDir ++ "/large.bin"),
+	_ = file:delete(PrivDir ++ "/large.bin"),
 	ct_helper:delete_static_dir(StaticDir),
 	ct_helper:delete_static_dir(PrivDir).
 
