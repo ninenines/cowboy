@@ -764,8 +764,19 @@ limit_header_value(Config) ->
 %@todo
 %The normal procedure for parsing headers is to read each header
 %field into a hash table by field name until the empty line. (RFC7230 3)
-%
-%reject_duplicate_content_length_header(Config) ->
+
+reject_duplicate_content_length_header(Config) ->
+	doc("Requests with duplicate content-length headers must be rejected "
+		"with a 400 status code and the closing of the connection. (RFC7230 3.3.2)"),
+	#{code := 400, client := Client} = do_raw(Config, [
+		"POST / HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Content-length: 12\r\n"
+		"Content-length: 12\r\n"
+		"\r\n"
+		"Hello world!"]),
+	{error, closed} = raw_recv(Client, 0, 1000).
+
 %reject_duplicate_host_header(Config) ->
 %Requests with duplicate content-length or host headers must be rejected
 %with a 400 status code and the closing of the connection. (RFC7230 3.3.2)
@@ -854,11 +865,25 @@ limit_header_value(Config) ->
 %```
 %Content-Length = 1*DIGIT
 %```
-%
-%reject_invalid_content_length(Config) ->
-%A request with an invalid content-length header must be rejected
-%with a 400 status code and the closing of the connection. (RFC7230 3.3.3)
-%
+
+reject_invalid_content_length(Config) ->
+	doc("A request with an invalid content-length header must be rejected "
+		"with a 400 status code and the closing of the connection. (RFC7230 3.3.3)"),
+	#{code := 400, client := Client1} = do_raw(Config, [
+		"POST / HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Content-length: 12,12\r\n"
+		"\r\n"
+		"Hello world!"]),
+	{error, closed} = raw_recv(Client1, 0, 1000),
+	#{code := 400, client := Client2} = do_raw(Config, [
+		"POST / HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Content-length: NaN\r\n"
+		"\r\n"
+		"Hello world!"]),
+	{error, closed} = raw_recv(Client2, 0, 1000).
+
 %@todo
 %The content-length header ranges from 0 to infinity. Requests
 %with a message body too large must be rejected with a 413 status
