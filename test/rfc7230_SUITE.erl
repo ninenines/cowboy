@@ -711,21 +711,47 @@ reject_invalid_whitespace_after_version(Config) ->
 %
 %OWS = *( SP / HTAB )
 %```
-%
-%lower_case_header(Config) ->
-%upper_case_header(Config) ->
-%mixed_case_header(Config) ->
-%The header field name is case insensitive. (RFC7230 3.2)
-%
-%reject_whitespace_before_header_name(Config) ->
-%Messages that contain whitespace before the header name must
-%be rejected with a 400 status code and the closing of the
-%connection. (RFC7230 3.2.4)
-%
-%reject_whitespace_between_header_name_and_colon(Config) ->
-%Messages that contain whitespace between the header name and
-%colon must be rejected with a 400 status code and the closing
-%of the connection. (RFC7230 3.2.4)
+
+lower_case_header(Config) ->
+	doc("The header field name is case insensitive. (RFC7230 3.2)"),
+	#{code := 200} = do_raw(Config, [
+		"GET / HTTP/1.1\r\n"
+		"host: localhost\r\n"
+		"\r\n"]).
+
+upper_case_header(Config) ->
+	doc("The header field name is case insensitive. (RFC7230 3.2)"),
+	#{code := 200} = do_raw(Config, [
+		"GET / HTTP/1.1\r\n"
+		"HOST: localhost\r\n"
+		"\r\n"]).
+
+mixed_case_header(Config) ->
+	doc("The header field name is case insensitive. (RFC7230 3.2)"),
+	#{code := 200} = do_raw(Config, [
+		"GET / HTTP/1.1\r\n"
+		"hOsT: localhost\r\n"
+		"\r\n"]).
+
+reject_whitespace_before_header_name(Config) ->
+	doc("Messages that contain whitespace before the header name must "
+		"be rejected with a 400 status code and the closing of the "
+		"connection. (RFC7230 3.2.4)"),
+	#{code := 400, client := Client} = do_raw(Config, [
+		"GET / HTTP/1.1\r\n"
+		" Host: localhost\r\n"
+		"\r\n"]),
+	{error, closed} = raw_recv(Client, 0, 1000).
+
+reject_whitespace_between_header_name_and_colon(Config) ->
+	doc("Messages that contain whitespace between the header name and "
+		"colon must be rejected with a 400 status code and the closing "
+		"of the connection. (RFC7230 3.2.4)"),
+	#{code := 400, client := Client} = do_raw(Config, [
+		"GET / HTTP/1.1\r\n"
+		"Host : localhost\r\n"
+		"\r\n"]),
+	{error, closed} = raw_recv(Client, 0, 1000).
 
 limit_header_name(Config) ->
 	doc("The header name must be subject to a configurable limit. A "
@@ -753,11 +779,26 @@ limit_header_value(Config) ->
 		"\r\n"]),
 	{error, closed} = raw_recv(Client, 0, 1000).
 
-%drop_whitespace_before_header_value(Config) ->
-%drop_whitespace_after_header_value(Config) ->
-%Optional whitespace before and after the header value is not
-%part of the value and must be dropped.
-%
+drop_whitespace_before_header_value(Config) ->
+	doc("Optional whitespace before and after the header value is not "
+		"part of the value and must be dropped."),
+	#{code := 200} = do_raw(Config, [
+		"POST / HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Content-length:      \t     12\r\n"
+		"\r\n"
+		"Hello world!"]).
+
+drop_whitespace_after_header_value(Config) ->
+	doc("Optional whitespace before and after the header value is not "
+		"part of the value and must be dropped."),
+	#{code := 200} = do_raw(Config, [
+		"POST / HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Content-length: 12     \t     \r\n"
+		"\r\n"
+		"Hello world!"]).
+
 %@todo
 %The order of header fields with differing names is not significant. (RFC7230 3.2.2)
 %
@@ -777,10 +818,17 @@ reject_duplicate_content_length_header(Config) ->
 		"Hello world!"]),
 	{error, closed} = raw_recv(Client, 0, 1000).
 
-%reject_duplicate_host_header(Config) ->
-%Requests with duplicate content-length or host headers must be rejected
-%with a 400 status code and the closing of the connection. (RFC7230 3.3.2)
-%
+reject_duplicate_host_header(Config) ->
+	doc("Requests with duplicate host headers must be rejected "
+		"with a 400 status code and the closing of the connection. (RFC7230 3.3.2)"),
+	#{code := 400, client := Client} = do_raw(Config, [
+		"POST / HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Host: localhost\r\n"
+		"\r\n"
+		"Hello world!"]),
+	{error, closed} = raw_recv(Client, 0, 1000).
+
 %combine_duplicate_headers(Config) ->
 %Other duplicate header fields must be combined by inserting a comma
 %between the values in the order they were received. (RFC7230 3.2.2)
@@ -792,13 +840,26 @@ reject_duplicate_content_length_header(Config) ->
 %
 %wait_for_eoh_before_processing_request(Config) ->
 %The request must not be processed until all headers have arrived. (RFC7230 3.2.2)
-%
-%limit_headers(Config) ->
-%The number of headers allowed in a request must be subject to
-%a configurable limit. There is no recommendations for the default.
-%100 headers is known to work well. Such a request must be rejected
-%with a 431 status code and the closing of the connection. (RFC7230 3.2.5, RFC6585 5)
-%
+
+limit_headers(Config) ->
+	doc("The number of headers allowed in a request must be subject to "
+		"a configurable limit. There is no recommendations for the default. "
+		"100 headers is known to work well. Such a request must be rejected "
+		"with a 431 status code and the closing of the connection. (RFC7230 3.2.5, RFC6585 5)"),
+	%% 100 headers.
+	#{code := 200} = do_raw(Config, [
+		"GET / HTTP/1.1\r\n"
+		"Host: localhost\r\n",
+		[["H-", integer_to_list(N), ": value\r\n"] || N <- lists:seq(1, 99)],
+		"\r\n"]),
+	%% 101 headers.
+	#{code := 431, client := Client} = do_raw(Config, [
+		"GET / HTTP/1.1\r\n"
+		"Host: localhost\r\n",
+		[["H-", integer_to_list(N), ": value\r\n"] || N <- lists:seq(1, 100)],
+		"\r\n"]),
+	{error, closed} = raw_recv(Client, 0, 1000).
+
 %@todo
 %When parsing header field values, the server must ignore empty
 %list elements, and not count those as the count of elements present. (RFC7230 7)

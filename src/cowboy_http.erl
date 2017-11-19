@@ -454,18 +454,24 @@ parse_header(Rest, State=#state{in_state=PS}, Headers) when byte_size(Rest) < 2 
 parse_header(<< $\r, $\n, Rest/bits >>, S, Headers) ->
 	request(Rest, S, Headers);
 parse_header(Buffer, State=#state{opts=Opts, in_state=PS}, Headers) ->
-	MaxLength = maps:get(max_header_name_length, Opts, 64),
 	MaxHeaders = maps:get(max_headers, Opts, 100),
 	NumHeaders = maps:size(Headers),
+	if
+		NumHeaders >= MaxHeaders ->
+			error_terminate(431, State#state{in_state=PS#ps_header{headers=Headers}},
+				{connection_error, limit_reached,
+					'The number of headers is larger than configuration allows. (RFC7230 3.2.5, RFC6585 5)'});
+		true ->
+			parse_header_colon(Buffer, State, Headers)
+	end.
+
+parse_header_colon(Buffer, State=#state{opts=Opts, in_state=PS}, Headers) ->
+	MaxLength = maps:get(max_header_name_length, Opts, 64),
 	case match_colon(Buffer, 0) of
 		nomatch when byte_size(Buffer) > MaxLength ->
 			error_terminate(431, State#state{in_state=PS#ps_header{headers=Headers}},
 				{connection_error, limit_reached,
 					'A header name is larger than configuration allows. (RFC7230 3.2.5, RFC6585 5)'});
-		nomatch when NumHeaders >= MaxHeaders ->
-			error_terminate(431, State#state{in_state=PS#ps_header{headers=Headers}},
-				{connection_error, limit_reached,
-					'The number of headers is larger than configuration allows. (RFC7230 3.2.5, RFC6585 5)'});
 		nomatch ->
 			{more, State#state{in_state=PS#ps_header{headers=Headers}}, Buffer};
 		_ ->
