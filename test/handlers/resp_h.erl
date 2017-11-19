@@ -195,6 +195,12 @@ do(<<"stream_body">>, Req0, Opts) ->
 			cowboy_req:stream_body(<<"Hello world!">>, nofin, Req),
 			cowboy_req:stream_body(<<>>, fin, Req),
 			{ok, Req, Opts};
+		<<"multiple">> ->
+			Req = cowboy_req:stream_reply(200, Req0),
+			cowboy_req:stream_body(<<"Hello ">>, nofin, Req),
+			cowboy_req:stream_body(<<"world">>, nofin, Req),
+			cowboy_req:stream_body(<<"!">>, fin, Req),
+			{ok, Req, Opts};
 		<<"nofin">> ->
 			Req = cowboy_req:stream_reply(200, Req0),
 			cowboy_req:stream_body(<<"Hello world!">>, nofin, Req),

@@ -211,14 +211,6 @@ check_status(Config) ->
 		{Ret, URL}
 	end || {Status, URL} <- Tests].
 
-chunked_response(Config) ->
-	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, "/chunked_response"),
-	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
-	true = lists:keymember(<<"transfer-encoding">>, 1, Headers),
-	{ok, <<"chunked_handler\r\nworks fine!">>} = gun:await_body(ConnPid, Ref),
-	ok.
-
 %% Check if sending requests whose size is around the MTU breaks something.
 echo_body(Config) ->
 	MTU = ct_helper:get_loopback_mtu(),
