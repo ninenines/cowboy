@@ -854,6 +854,14 @@ stream_trailers(Config) ->
 	{_, <<"grpc-status">>} = lists:keyfind(<<"trailer">>, 1, RespHeaders),
 	ok.
 
+stream_trailers_large(Config) ->
+	doc("Stream large body followed by trailer headers."),
+	{200, RespHeaders, <<0:800000>>, [
+		{<<"grpc-status">>, <<"0">>}
+	]} = do_trailers("/resp/stream_trailers/large", Config),
+	{_, <<"grpc-status">>} = lists:keyfind(<<"trailer">>, 1, RespHeaders),
+	ok.
+
 stream_trailers_no_te(Config) ->
 	doc("Stream body followed by trailer headers without a te header in the request."),
 	ConnPid = gun_open(Config),

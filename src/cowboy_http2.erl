@@ -46,6 +46,7 @@
 		{cowboy_stream:fin(), non_neg_integer(), iolist()
 			| {sendfile, non_neg_integer(), pos_integer(), file:name_all()}}),
 	local_buffer_size = 0 :: non_neg_integer(),
+	local_trailers = undefined :: undefined | cowboy:http_headers(),
 	%% Whether we finished receiving data.
 	remote = nofin :: cowboy_stream:fin(),
 	%% Remote flow control window (how much we accept to receive).
@@ -663,6 +664,9 @@ resume_streams(State0, [Stream0|Tail], Acc) ->
 			resume_streams(State1, Tail, [Stream|Acc])
 	end.
 
+send_data(State, Stream=#stream{local=Local, local_buffer_size=0, local_trailers=Trailers})
+		when (Trailers =/= undefined) andalso ((Local =:= idle) orelse (Local =:= nofin)) ->
+	send_trailers(State, Stream#stream{local_trailers=undefined}, Trailers);
 %% @todo We might want to print an error if local=fin.
 %%
 %% @todo It's possible that the stream terminates. We must remove it.
@@ -681,12 +685,12 @@ send_data(State0, Stream0=#stream{local_buffer=Q0, local_buffer_size=BufferSize}
 send_data(State, Stream, IsFin, Data) ->
 	send_data(State, Stream, IsFin, Data, in).
 
-%% Always send trailer frames even if the window is empty.
-send_data(State=#state{socket=Socket, transport=Transport, encode_state=EncodeState0},
-		Stream=#stream{id=StreamID}, fin, {trailers, Trailers}, _) ->
-	{HeaderBlock, EncodeState} = headers_encode(Trailers, EncodeState0),
-	Transport:send(Socket, cow_http2:headers(StreamID, fin, HeaderBlock)),
-	{State#state{encode_state=EncodeState}, Stream#stream{local=fin}};
+%% We can send trailers immediately if the queue is empty, otherwise we queue.
+%% We always send trailer frames even if the window is empty.
+send_data(State, Stream=#stream{local_buffer_size=0}, fin, {trailers, Trailers}, _) ->
+	send_trailers(State, Stream, Trailers);
+send_data(State, Stream, fin, {trailers, Trailers}, _) ->
+	{State, Stream#stream{local_trailers=Trailers}};
 %% Send data immediately if we can, buffer otherwise.
 %% @todo We might want to print an error if local=fin.
 send_data(State=#state{local_window=ConnWindow},
@@ -724,6 +728,12 @@ send_data(State=#state{socket=Socket, transport=Transport, local_window=ConnWind
 						IsFin, More, In)
 			end
 	end.
+
+send_trailers(State=#state{socket=Socket, transport=Transport, encode_state=EncodeState0},
+		Stream=#stream{id=StreamID}, Trailers) ->
+	{HeaderBlock, EncodeState} = headers_encode(Trailers, EncodeState0),
+	Transport:send(Socket, cow_http2:headers(StreamID, fin, HeaderBlock)),
+	{State#state{encode_state=EncodeState}, Stream#stream{local=fin}}.
 
 queue_data(Stream=#stream{local_buffer=Q0, local_buffer_size=Size0}, IsFin, Data, In) ->
 	DataSize = case Data of
