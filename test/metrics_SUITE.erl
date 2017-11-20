@@ -19,6 +19,9 @@
 -import(ct_helper, [doc/1]).
 -import(cowboy_test, [gun_open/1]).
 -import(cowboy_test, [gun_down/1]).
+-import(cowboy_test, [raw_open/1]).
+-import(cowboy_test, [raw_send/2]).
+-import(cowboy_test, [raw_recv_head/1]).
 
 %% ct.
 
@@ -76,11 +79,14 @@ init_routes(_) -> [
 
 do_metrics_callback() ->
 	fun(Metrics) ->
-		PidBin = case Metrics of
-			#{req := #{headers := #{<<"x-test-pid">> := P}}} -> P;
-			#{partial_req := #{headers := #{<<"x-test-pid">> := P}}} -> P
+		Pid = case Metrics of
+			#{req := #{headers := #{<<"x-test-pid">> := P}}} ->
+				list_to_pid(binary_to_list(P));
+			#{partial_req := #{headers := #{<<"x-test-pid">> := P}}} ->
+				list_to_pid(binary_to_list(P));
+			_ ->
+				whereis(early_error_metrics)
 		end,
-		Pid = list_to_pid(binary_to_list(PidBin)),
 		Pid ! {metrics, self(), Metrics},
 		ok
 	end.
@@ -298,6 +304,44 @@ do_early_error(Config) ->
 				pid := From,
 				streamid := 1,
 				reason := {stream_error, 1, protocol_error, _},
+				partial_req := #{},
+				resp_status := 400,
+				resp_headers := ExpectedRespHeaders,
+				early_error_time := _,
+				resp_body_length := 0
+			} = Metrics,
+			ExpectedRespHeaders = maps:from_list(RespHeaders),
+			%% All good!
+			ok
+	after 1000 ->
+		error(timeout)
+	end.
+
+early_error_request_line(Config) ->
+	case config(protocol, Config) of
+		http -> do_early_error_request_line(Config);
+		http2 -> doc("The callback early_error/5 is not currently used for HTTP/2.")
+	end.
+
+do_early_error_request_line(Config) ->
+	doc("Confirm metrics are correct for an early_error response "
+		"that occurred on the request-line."),
+	%% Register the process in order to receive the metrics event.
+	register(early_error_metrics, self()),
+	%% Send a malformed request-line.
+	Client = raw_open(Config),
+	ok = raw_send(Client, <<"FOO bar\r\n">>),
+	{'HTTP/1.1', 400, _, Rest} = cow_http:parse_status_line(raw_recv_head(Client)),
+	{RespHeaders, _} = cow_http:parse_headers(Rest),
+	%% Receive the metrics and validate them.
+	receive
+		{metrics, From, Metrics} ->
+			%% Confirm the metadata is there as expected.
+			#{
+				ref := _,
+				pid := From,
+				streamid := 1,
+				reason := {connection_error, protocol_error, _},
 				partial_req := #{},
 				resp_status := 400,
 				resp_headers := ExpectedRespHeaders,

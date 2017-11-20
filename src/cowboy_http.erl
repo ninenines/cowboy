@@ -1108,8 +1108,10 @@ connection_hd_is_close(Conn) ->
 -spec error_terminate(cowboy:http_status(), #state{}, _) -> no_return().
 error_terminate(StatusCode, State=#state{ref=Ref, peer=Peer, in_state=StreamState}, Reason) ->
 	PartialReq = case StreamState of
-		#ps_request_line{} ->
-			#{};
+		#ps_request_line{} -> #{
+			ref => Ref,
+			peer => Peer
+		};
 		#ps_header{method=Method, path=Path, qs=Qs,
 				version=Version, headers=ReqHeaders} -> #{
 			ref => Ref,
