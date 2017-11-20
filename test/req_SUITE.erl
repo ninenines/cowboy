@@ -855,13 +855,16 @@ stream_trailers(Config) ->
 	ok.
 
 stream_trailers_no_te(Config) ->
-	doc("Stream body followed by trailer headers."),
+	doc("Stream body followed by trailer headers without a te header in the request."),
 	ConnPid = gun_open(Config),
 	Ref = gun:get(ConnPid, "/resp/stream_trailers", [
 		{<<"accept-encoding">>, <<"gzip">>}
 	]),
 	{response, nofin, 200, RespHeaders} = gun:await(ConnPid, Ref),
+	%% @todo Do we want to remove the trailer header automatically?
+%	false = lists:keyfind(<<"trailer">>, 1, RespHeaders),
 	{ok, RespBody} = gun:await_body(ConnPid, Ref),
+	<<"Hello world!">> = do_decode(RespHeaders, RespBody),
 	gun:close(ConnPid).
 
 do_trailers(Path, Config) ->
