@@ -701,16 +701,20 @@ reject_invalid_whitespace_after_version(Config) ->
 
 %% Request headers.
 
-%invalid_header(Config) ->
-%```
-%headers = *( header-field CRLF ) CRLF
-%header-field = field-name ":" OWS field-value OWS
-%
-%field-name = token
-%field-value = *( SP / HTAB / %21-7E / %80-FF )
-%
-%OWS = *( SP / HTAB )
-%```
+invalid_header_name(Config) ->
+	doc("Header field names are tokens. (RFC7230 3.2)"),
+	#{code := 400} = do_raw(Config, [
+		"GET / HTTP/1.1\r\n"
+		"Host\0: localhost\r\n"
+		"\r\n"]).
+
+invalid_header_value(Config) ->
+	doc("Header field values are made of printable characters, "
+		"horizontal tab or space. (RFC7230 3.2)"),
+	#{code := 400} = do_raw(Config, [
+		"GET / HTTP/1.1\r\n"
+		"Host: localhost\0rm rf the world\r\n"
+		"\r\n"]).
 
 lower_case_header(Config) ->
 	doc("The header field name is case insensitive. (RFC7230 3.2)"),
@@ -829,10 +833,18 @@ reject_duplicate_host_header(Config) ->
 		"Hello world!"]),
 	{error, closed} = raw_recv(Client, 0, 1000).
 
-%combine_duplicate_headers(Config) ->
-%Other duplicate header fields must be combined by inserting a comma
-%between the values in the order they were received. (RFC7230 3.2.2)
-%
+combine_duplicate_headers(Config) ->
+	doc("Other duplicate header fields must be combined by inserting a comma "
+		"between the values in the order they were received. (RFC7230 3.2.2)"),
+	#{code := 200, body := Body} = do_raw(Config, [
+		"GET /echo/headers HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Accept-encoding: gzip\r\n"
+		"Accept-encoding: brotli\r\n"
+		"\r\n"]),
+	<<"#{<<\"accept-encoding\">> => <<\"gzip, brotli\">>,", _/bits>> = Body,
+	ok.
+
 %Duplicate header field names are only allowed when their value is
 %a comma-separated list. In practice there is no need to perform
 %a check while reading the headers as the value will become invalid
@@ -860,7 +872,7 @@ limit_headers(Config) ->
 		"\r\n"]),
 	{error, closed} = raw_recv(Client, 0, 1000).
 
-%@todo
+%ignore_header_empty_list_elements(Config) ->
 %When parsing header field values, the server must ignore empty
 %list elements, and not count those as the count of elements present. (RFC7230 7)
 %
@@ -872,14 +884,48 @@ limit_headers(Config) ->
 %@todo
 %The message body is the octets after decoding any transfer
 %codings. (RFC7230 3.3)
-%
-%no_request_body(Config) ->
-%no_request_body_content_length_zero(Config) ->
-%request_body_content_length(Config) ->
-%request_body_transfer_encoding(Config) ->
-%A request has a message body only if it includes a transfer-encoding
-%header or a non-zero content-length header. (RFC7230 3.3)
-%
+
+no_request_body(Config) ->
+	doc("A request has a message body only if it includes a transfer-encoding "
+		"header or a non-zero content-length header. (RFC7230 3.3)"),
+	#{code := 200, body := <<>>} = do_raw(Config, [
+		"POST /echo/read_body HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"\r\n"]),
+	ok.
+
+no_request_body_content_length_zero(Config) ->
+	doc("A request has a message body only if it includes a transfer-encoding "
+		"header or a non-zero content-length header. (RFC7230 3.3)"),
+	#{code := 200, body := <<>>} = do_raw(Config, [
+		"POST /echo/read_body HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Content-length: 0\r\n"
+		"\r\n"]),
+	ok.
+
+request_body_content_length(Config) ->
+	doc("A request has a message body only if it includes a transfer-encoding "
+		"header or a non-zero content-length header. (RFC7230 3.3)"),
+	#{code := 200, body := <<"Hello world!">>} = do_raw(Config, [
+		"POST /echo/read_body HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Content-length: 12\r\n"
+		"\r\n"
+		"Hello world!"]),
+	ok.
+
+request_body_transfer_encoding(Config) ->
+	doc("A request has a message body only if it includes a transfer-encoding "
+		"header or a non-zero content-length header. (RFC7230 3.3)"),
+	#{code := 200, body := <<"Hello world!">>} = do_raw(Config, [
+		"POST /echo/read_body HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Transfer-encoding: chunked\r\n"
+		"\r\n"
+		"6\r\nHello \r\n5\r\nworld\r\n1\r\n!\r\n0\r\n\r\n"]),
+	ok.
+
 %```
 %Transfer-Encoding = 1#transfer-coding
 %
@@ -887,42 +933,78 @@ limit_headers(Config) ->
 %transfer-extension = token *( OWS ";" OWS transfer-parameter )
 %transfer-parameter = token BWS "=" BWS ( token / quoted-string )
 %```
-%
-%case_insensitive_transfer_encoding(Config) ->
-%The transfer-coding is case insensitive. (RFC7230 4)
-%
+
+case_insensitive_transfer_encoding(Config) ->
+	doc("The transfer-coding is case insensitive. (RFC7230 4)"),
+	#{code := 200, body := <<"Hello world!">>} = do_raw(Config, [
+		"POST /echo/read_body HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Transfer-encoding: ChUnKeD\r\n"
+		"\r\n"
+		"6\r\nHello \r\n5\r\nworld\r\n1\r\n!\r\n0\r\n\r\n"]),
+	ok.
+
 %@todo
 %There are no known other transfer-extension with the exception of
 %deprecated aliases "x-compress" and "x-gzip". (IANA HTTP Transfer Coding Registry,
 %RFC7230 4.2.1, RFC7230 4.2.3, RFC7230 8.4.2)
-%
-%must_understand_chunked(Config) ->
-%A server must be able to handle at least chunked transfer-encoding.
-%This is also the only coding that sees widespread use. (RFC7230 3.3.1, RFC7230 4.1)
-%
-%reject_double_chunked_encoding(Config) ->
-%Messages encoded more than once with chunked transfer-encoding
-%must be rejected with a 400 status code and the closing of the
-%connection. (RFC7230 3.3.1)
-%
-%reject_non_terminal_chunked(Config) ->
-%Messages where chunked, when present, is not the last
-%transfer-encoding must be rejected with a 400 status code
-%and the closing of the connection. (RFC7230 3.3.3)
-%
+
+%% This is the exact same test as request_body_transfer_encoding.
+must_understand_chunked(Config) ->
+	doc("A server must be able to handle at least chunked transfer-encoding. "
+		"This is also the only coding that sees widespread use. (RFC7230 3.3.1, RFC7230 4.1)"),
+	#{code := 200, body := <<"Hello world!">>} = do_raw(Config, [
+		"POST /echo/read_body HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Transfer-encoding: chunked\r\n"
+		"\r\n"
+		"6\r\nHello \r\n5\r\nworld\r\n1\r\n!\r\n0\r\n\r\n"]),
+	ok.
+
+reject_double_chunked_encoding(Config) ->
+	doc("Messages encoded more than once with chunked transfer-encoding "
+		"must be rejected with a 400 status code and the closing of the "
+		"connection. (RFC7230 3.3.1)"),
+	#{code := 400, client := Client} = do_raw(Config, [
+		"POST / HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Transfer-encoding: chunked, chunked\r\n"
+		"\r\n"
+		"20\r\n6\r\nHello \r\n5\r\nworld\r\n1\r\n!\r\n0\r\n\r\n\r\n0\r\n\r\n"]),
+	{error, closed} = raw_recv(Client, 0, 1000).
+
+reject_non_terminal_chunked(Config) ->
+	doc("Messages where chunked, when present, is not the last "
+		"transfer-encoding must be rejected with a 400 status code "
+		"and the closing of the connection. (RFC7230 3.3.3)"),
+	#{code := 400, client := Client} = do_raw(Config, [
+		"POST / HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Transfer-encoding: chunked, gzip\r\n"
+		"\r\n",
+		zlib:gzip(<<"6\r\nHello \r\n5\r\nworld\r\n1\r\n!\r\n0\r\n\r\n">>)]),
+	{error, closed} = raw_recv(Client, 0, 1000).
+
 %@todo
 %Some non-conformant implementations send the "deflate" compressed
 %data without the zlib wrapper. (RFC7230 4.2.2)
-%
-%reject_unknown_transfer_encoding(Config) ->
-%Messages encoded with a transfer-encoding the server does not
-%understand must be rejected with a 501 status code and the
-%closing of the connection. (RFC7230 3.3.1)
-%
+
+reject_unknown_transfer_encoding(Config) ->
+	doc("Messages encoded with a transfer-encoding the server does not "
+		"understand must be rejected with a 501 status code and the "
+		"closing of the connection. (RFC7230 3.3.1)"),
+	#{code := 400, client := Client} = do_raw(Config, [
+		"POST / HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Transfer-encoding: unknown, chunked\r\n"
+		"\r\n",
+		"6\r\nHello \r\n5\r\nworld\r\n1\r\n!\r\n0\r\n\r\n"]),
+	{error, closed} = raw_recv(Client, 0, 1000).
+
 %@todo
-%A server can reject requests with a body and no content-length
+%A server may reject requests with a body and no content-length
 %header with a 411 status code. (RFC7230 3.3.3)
-%
+
 %```
 %Content-Length = 1*DIGIT
 %```
@@ -949,12 +1031,20 @@ reject_invalid_content_length(Config) ->
 %The content-length header ranges from 0 to infinity. Requests
 %with a message body too large must be rejected with a 413 status
 %code and the closing of the connection. (RFC7230 3.3.2)
-%
-%ignore_content_length_when_transfer_encoding(Config) ->
-%When a message includes both transfer-encoding and content-length
-%headers, the content-length header must be removed before processing
-%the request. (RFC7230 3.3.3)
-%
+
+ignore_content_length_when_transfer_encoding(Config) ->
+	doc("When a message includes both transfer-encoding and content-length "
+		"headers, the content-length header must be removed before processing "
+		"the request. (RFC7230 3.3.3)"),
+	#{code := 200, body := <<"Hello world!">>} = do_raw(Config, [
+		"POST /echo/read_body HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Transfer-encoding: chunked\r\n"
+		"Content-length: 12\r\n"
+		"\r\n"
+		"6\r\nHello \r\n5\r\nworld\r\n1\r\n!\r\n0\r\n\r\n"]),
+	ok.
+
 %socket_error_while_reading_body(Config) ->
 %If a socket error occurs while reading the body the server
 %must send a 400 status code response and close the connection. (RFC7230 3.3.3, RFC7230 3.4)
