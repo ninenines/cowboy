@@ -307,19 +307,6 @@ http10_keepalive_forced(Config) ->
 		_ -> ok
 	end.
 
-keepalive_max(Config) ->
-	ConnPid = gun_open(Config),
-	Refs = [gun:get(ConnPid, "/", [{<<"connection">>, <<"keep-alive">>}])
-		|| _ <- lists:seq(1, 99)],
-	CloseRef = gun:get(ConnPid, "/", [{<<"connection">>, <<"keep-alive">>}]),
-	_ = [begin
-		{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
-		false = lists:keymember(<<"connection">>, 1, Headers)
-	end || Ref <- Refs],
-	{response, nofin, 200, Headers} = gun:await(ConnPid, CloseRef),
-	{_, <<"close">>} = lists:keyfind(<<"connection">>, 1, Headers),
-	gun_down(ConnPid).
-
 keepalive_nl(Config) ->
 	ConnPid = gun_open(Config),
 	Refs = [begin

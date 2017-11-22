@@ -16,6 +16,7 @@
 -compile(export_all).
 
 -import(ct_helper, [doc/1]).
+-import(cowboy_test, [gun_open/1]).
 -import(cowboy_test, [raw_open/1]).
 -import(cowboy_test, [raw_send/2]).
 -import(cowboy_test, [raw_recv_head/1]).
@@ -36,7 +37,8 @@ end_per_group(Name, _) ->
 init_routes(_) -> [
 	{"localhost", [
 		{"/", hello_h, []},
-		{"/echo/:key", echo_h, []}
+		{"/echo/:key[/:arg]", echo_h, []},
+		{"/length/echo/:key", echo_h, []}
 %% @todo Something is clearly wrong about routing * right now.
 %%		{"*", asterisk_h, []}
 	]},
@@ -878,9 +880,9 @@ limit_headers(Config) ->
 %
 %@todo
 %The information in the via header is largely unreliable. (RFC7230 5.7.1)
-%
-%%% Request body.
-%
+
+%% Request body.
+
 %@todo
 %The message body is the octets after decoding any transfer
 %codings. (RFC7230 3.3)
@@ -888,6 +890,10 @@ limit_headers(Config) ->
 no_request_body(Config) ->
 	doc("A request has a message body only if it includes a transfer-encoding "
 		"header or a non-zero content-length header. (RFC7230 3.3)"),
+	#{code := 200, body := <<"false">>} = do_raw(Config, [
+		"POST /echo/has_body HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"\r\n"]),
 	#{code := 200, body := <<>>} = do_raw(Config, [
 		"POST /echo/read_body HTTP/1.1\r\n"
 		"Host: localhost\r\n"
@@ -897,6 +903,11 @@ no_request_body(Config) ->
 no_request_body_content_length_zero(Config) ->
 	doc("A request has a message body only if it includes a transfer-encoding "
 		"header or a non-zero content-length header. (RFC7230 3.3)"),
+	#{code := 200, body := <<"false">>} = do_raw(Config, [
+		"POST /echo/has_body HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Content-length: 0\r\n"
+		"\r\n"]),
 	#{code := 200, body := <<>>} = do_raw(Config, [
 		"POST /echo/read_body HTTP/1.1\r\n"
 		"Host: localhost\r\n"
@@ -907,6 +918,12 @@ no_request_body_content_length_zero(Config) ->
 request_body_content_length(Config) ->
 	doc("A request has a message body only if it includes a transfer-encoding "
 		"header or a non-zero content-length header. (RFC7230 3.3)"),
+	#{code := 200, body := <<"true">>} = do_raw(Config, [
+		"POST /echo/has_body HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Content-length: 12\r\n"
+		"\r\n"
+		"Hello world!"]),
 	#{code := 200, body := <<"Hello world!">>} = do_raw(Config, [
 		"POST /echo/read_body HTTP/1.1\r\n"
 		"Host: localhost\r\n"
@@ -918,6 +935,12 @@ request_body_content_length(Config) ->
 request_body_transfer_encoding(Config) ->
 	doc("A request has a message body only if it includes a transfer-encoding "
 		"header or a non-zero content-length header. (RFC7230 3.3)"),
+	#{code := 200, body := <<"true">>} = do_raw(Config, [
+		"POST /echo/has_body HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Transfer-encoding: chunked\r\n"
+		"\r\n"
+		"6\r\nHello \r\n5\r\nworld\r\n1\r\n!\r\n0\r\n\r\n"]),
 	#{code := 200, body := <<"Hello world!">>} = do_raw(Config, [
 		"POST /echo/read_body HTTP/1.1\r\n"
 		"Host: localhost\r\n"
@@ -1052,29 +1075,64 @@ ignore_content_length_when_transfer_encoding(Config) ->
 %timeout_while_reading_body(Config) ->
 %If a timeout occurs while reading the body the server must
 %send a 408 status code response and close the connection. (RFC7230 3.3.3, RFC7230 3.4)
-%
-%%% Body length.
-%
-%body_length_chunked_before(Config) ->
-%The length of a message with a transfer-encoding header can
-%only be determined on decoding completion. (RFC7230 3.3.3)
-%
-%body_length_chunked_after(Config) ->
-%Upon completion of chunk decoding the server must add a content-length
-%header with the value set to the total length of data read. (RFC7230 4.1.3)
-%
-%body_length_content_length(Config) ->
-%The length of a message with a content-length header is
-%the numeric value in octets found in the header. (RFC7230 3.3.3)
-%
-%body_length_zero(Config) ->
-%A message with no transfer-encoding or content-length header
-%has a body length of 0. (RFC7230 3.3.3)
-%
-%%% Chunked transfer-encoding.
-%
-%reject_invalid_chunk_size(Config) ->
-%
+
+%% Body length.
+
+body_length_chunked_before(Config) ->
+	doc("The length of a message with a transfer-encoding header can "
+		"only be determined on decoding completion. (RFC7230 3.3.3)"),
+	#{code := 200, body := <<"undefined">>} = do_raw(Config, [
+		"POST /echo/body_length HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Transfer-encoding: chunked\r\n"
+		"\r\n"
+		"6\r\nHello \r\n5\r\nworld\r\n1\r\n!\r\n0\r\n\r\n"]),
+	ok.
+
+body_length_chunked_after(Config) ->
+	doc("Upon completion of chunk decoding the server must add a content-length "
+		"header with the value set to the total length of data read. (RFC7230 4.1.3)"),
+	#{code := 200, body := <<"12">>} = do_raw(Config, [
+		"POST /length/echo/read_body HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Transfer-encoding: chunked\r\n"
+		"\r\n"
+		"6\r\nHello \r\n5\r\nworld\r\n1\r\n!\r\n0\r\n\r\n"]),
+	ok.
+
+body_length_content_length(Config) ->
+	doc("The length of a message with a content-length header is "
+		"the numeric value in octets found in the header. (RFC7230 3.3.3)"),
+	#{code := 200, body := <<"12">>} = do_raw(Config, [
+		"POST /echo/body_length HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Content-length: 12\r\n"
+		"\r\n"
+		"Hello world!"]),
+	ok.
+
+body_length_zero(Config) ->
+	doc("A message with no transfer-encoding or content-length header "
+		"has a body length of 0. (RFC7230 3.3.3)"),
+	#{code := 200, body := <<"0">>} = do_raw(Config, [
+		"POST /echo/body_length HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"\r\n"]),
+	ok.
+
+%% Chunked transfer-encoding.
+
+reject_invalid_chunk_size(Config) ->
+	doc("A request with an invalid chunk size must be rejected "
+		"with a 400 status code and the closing of the connection. (RFC7230 4.1)"),
+	#{code := 400, client := Client} = do_raw(Config, [
+		"POST /echo/read_body HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Transfer-encoding: chunked\r\n"
+		"\r\n"
+		"6\r\nHello \r\nFIVE\r\nworld\r\n1\r\n!\r\n0\r\n\r\n"]),
+	{error, closed} = raw_recv(Client, 0, 1000).
+
 %```
 %chunked-body = *chunk last-chunk trailer-part CRLF
 %
@@ -1093,52 +1151,148 @@ ignore_content_length_when_transfer_encoding(Config) ->
 %chunk-ext-name = token
 %chunk-ext-val = token / quoted-string
 %```
-%
-%ignore_unknown_chunk_extensions(Config) ->
-%Unknown chunk extensions must be ignored. (RFC7230 4.1.1)
-%
-%reject_invalid_chunk_extensions(Config) ->
-%
-%limit_chunk_size_line(Config) ->
-%The chunk-size line length must be subject to configuration.
-%There are no recommended defaults, although 100 octets should work.
-%Requests with a too long line must be rejected with a 400 status
-%code and the closing of the connection.
-%
-%reject_invalid_chunk_line_crlf(Config) ->
-%reject_invalid_chunk_data_crlf(Config) ->
-%
+
+ignore_unknown_chunk_extensions(Config) ->
+	doc("Unknown chunk extensions must be ignored. (RFC7230 4.1.1)"),
+	#{code := 200, body := <<"Hello world!">>} = do_raw(Config, [
+		"POST /echo/read_body HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Transfer-encoding: chunked\r\n"
+		"\r\n"
+		"6; hello=\"cool world\"\r\nHello \r\n"
+		"5 ; one ; two ; three;four;five\r\nworld"
+		"\r\n1;ok\r\n!\r\n0\r\n\r\n"]),
+	ok.
+
+%% Since we skip everything right now, the only reason
+%% we might reject chunk extensions is if they are too large.
+limit_chunk_size_line(Config) ->
+	doc("A request with chunk extensions larger than the server allows must be rejected "
+		"with a 400 status code and the closing of the connection. (RFC7230 4.1.1)"),
+	#{code := 200, body := <<"Hello world!">>} = do_raw(Config, [
+		"POST /echo/read_body HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Transfer-encoding: chunked\r\n"
+		"\r\n"
+		"6; hello=\"cool world\"\r\nHello \r\n"
+		"5;", lists:duplicate(128, $a), "\r\nworld"
+		"\r\n1;ok\r\n!\r\n0\r\n\r\n"]),
+	#{code := 400, client := Client} = do_raw(Config, [
+		"POST /echo/read_body HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Transfer-encoding: chunked\r\n"
+		"\r\n"
+		"6; hello=\"cool world\"\r\nHello \r\n"
+		"5;", lists:duplicate(129, $a), "\r\nworld"
+		"\r\n1;ok\r\n!\r\n0\r\n\r\n"]),
+	{error, closed} = raw_recv(Client, 0, 1000).
+
+reject_invalid_chunk_size_crlf(Config) ->
+	doc("A request with an invalid line break after the chunk size must be rejected "
+		"with a 400 status code and the closing of the connection. (RFC7230 4.1)"),
+	#{code := 400, client := Client1} = do_raw(Config, [
+		"POST /echo/read_body HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Transfer-encoding: chunked\r\n"
+		"\r\n"
+		"6\rHello \r\n5\r\nworld\r\n1\r\n!\r\n0\r\n\r\n"]),
+	{error, closed} = raw_recv(Client1, 0, 1000),
+	#{code := 400, client := Client2} = do_raw(Config, [
+		"POST /echo/read_body HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Transfer-encoding: chunked\r\n"
+		"\r\n"
+		"6\nHello \r\n5\r\nworld\r\n1\r\n!\r\n0\r\n\r\n"]),
+	{error, closed} = raw_recv(Client2, 0, 1000),
+	#{code := 400, client := Client3} = do_raw(Config, [
+		"POST /echo/read_body HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Transfer-encoding: chunked\r\n"
+		"\r\n"
+		"6Hello \r\n5\r\nworld\r\n1\r\n!\r\n0\r\n\r\n"]),
+	{error, closed} = raw_recv(Client3, 0, 1000).
+
+reject_invalid_chunk_ext_crlf(Config) ->
+	doc("A request with an invalid line break after chunk extensions must be rejected "
+		"with a 400 status code and the closing of the connection. (RFC7230 4.1)"),
+	#{code := 400, client := Client1} = do_raw(Config, [
+		"POST /echo/read_body HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Transfer-encoding: chunked\r\n"
+		"\r\n"
+		"6; extensions\rHello \r\n5\r\nworld\r\n1\r\n!\r\n0\r\n\r\n"]),
+	{error, closed} = raw_recv(Client1, 0, 1000),
+	#{code := 400, client := Client2} = do_raw(Config, [
+		"POST /echo/read_body HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Transfer-encoding: chunked\r\n"
+		"\r\n"
+		"6; extensions\nHello \r\n5\r\nworld\r\n1\r\n!\r\n0\r\n\r\n"]),
+	{error, closed} = raw_recv(Client2, 0, 1000),
+	#{code := 400, client := Client3} = do_raw(Config, [
+		"POST /echo/read_body HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Transfer-encoding: chunked\r\n"
+		"\r\n"
+		"6; extensionsHello \r\n5\r\nworld\r\n1\r\n!\r\n0\r\n\r\n"]),
+	{error, closed} = raw_recv(Client3, 0, 1000).
+
+reject_invalid_chunk_data_crlf(Config) ->
+	doc("A request with an invalid line break after the chunk data must be rejected "
+		"with a 400 status code and the closing of the connection. (RFC7230 4.1)"),
+	#{code := 400, client := Client1} = do_raw(Config, [
+		"POST /echo/read_body HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Transfer-encoding: chunked\r\n"
+		"\r\n"
+		"6\r\nHello \r5\r\nworld\r\n1\r\n!\r\n0\r\n\r\n"]),
+	{error, closed} = raw_recv(Client1, 0, 1000),
+	#{code := 400, client := Client2} = do_raw(Config, [
+		"POST /echo/read_body HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Transfer-encoding: chunked\r\n"
+		"\r\n"
+		"6\r\nHello \n5\r\nworld\r\n1\r\n!\r\n0\r\n\r\n"]),
+	{error, closed} = raw_recv(Client2, 0, 1000),
+	#{code := 400, client := Client3} = do_raw(Config, [
+		"POST /echo/read_body HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Transfer-encoding: chunked\r\n"
+		"\r\n"
+		"6\r\nHello 5\r\nworld\r\n1\r\n!\r\n0\r\n\r\n"]),
+	{error, closed} = raw_recv(Client3, 0, 1000).
+
 %```
 %trailer-part = *( header-field CRLF )
 %```
 %
 %%% @todo see headers above and reject the same way, space etc.
-%reject_invalid_trailer_part(Config) ->
+%reject_invalid_request_trailer(Config) ->
 %
-%ignore_trailer_transfer_encoding(Config) ->
-%ignore_trailer_content_length(Config) ->
-%ignore_trailer_host(Config) ->
-%ignore_trailer_cache_control(Config) ->
-%ignore_trailer_expect(Config) ->
-%ignore_trailer_max_forwards(Config) ->
-%ignore_trailer_pragma(Config) ->
-%ignore_trailer_range(Config) ->
-%ignore_trailer_te(Config) ->
-%ignore_trailer_if_match(Config) ->
-%ignore_trailer_if_none_match(Config) ->
-%ignore_trailer_if_modified_since(Config) ->
-%ignore_trailer_if_unmodified_since(Config) ->
-%ignore_trailer_if_range(Config) ->
-%ignore_trailer_www_authenticate(Config) ->
-%ignore_trailer_authorization(Config) ->
-%ignore_trailer_proxy_authenticate(Config) ->
-%ignore_trailer_proxy_authorization(Config) ->
-%ignore_trailer_content_encoding(Config) ->
-%ignore_trailer_content_type(Config) ->
-%ignore_trailer_content_range(Config) ->
-%ignore_trailer_trailer(Config) ->
+%ignore_request_trailer_transfer_encoding(Config) ->
+%ignore_request_trailer_content_length(Config) ->
+%ignore_request_trailer_host(Config) ->
+%ignore_request_trailer_cache_control(Config) ->
+%ignore_request_trailer_expect(Config) ->
+%ignore_request_trailer_max_forwards(Config) ->
+%ignore_request_trailer_pragma(Config) ->
+%ignore_request_trailer_range(Config) ->
+%ignore_request_trailer_te(Config) ->
+%ignore_request_trailer_if_match(Config) ->
+%ignore_request_trailer_if_none_match(Config) ->
+%ignore_request_trailer_if_modified_since(Config) ->
+%ignore_request_trailer_if_unmodified_since(Config) ->
+%ignore_request_trailer_if_range(Config) ->
+%ignore_request_trailer_www_authenticate(Config) ->
+%ignore_request_trailer_authorization(Config) ->
+%ignore_request_trailer_proxy_authenticate(Config) ->
+%ignore_request_trailer_proxy_authorization(Config) ->
+%ignore_request_trailer_content_encoding(Config) ->
+%ignore_request_trailer_content_type(Config) ->
+%ignore_request_trailer_content_range(Config) ->
+%ignore_request_trailer_trailer(Config) ->
 %
-%ignore_trailer_header(Config, Header) ->
+%ignore_response_trailer_header(Config, Header) ->
 %Trailing headers must not include transfer-encoding, content-length,
 %host, cache-control, expect, max-forwards, pragma, range, te,
 %if-match, if-none-match, if-modified-since, if-unmodified-since,
@@ -1147,23 +1301,33 @@ ignore_content_length_when_transfer_encoding(Config) ->
 %retry-after, vary, warning, content-encoding, content-type,
 %content-range, or trailer. (RFC7230 4.1.2)
 %
-%Trailer headers can be ignored safely. (RFC7230 4.1.2)
-%
 %When trailer headers are processed, invalid headers must be ignored.
 %Valid headers must be added to the list of headers of the request. (RFC7230 4.1.2)
 %
-%limit_trailer_headers(Config) ->
+%ignore_request_trailers(Config) ->
+%Trailer headers can be ignored safely. (RFC7230 4.1.2)
+%
+%limit_request_trailer_headers(Config) ->
 %The number of trailer headers must be subject to configuration.
 %There is no known recommendations for the default. A value of 10
 %should cover most cases. Requests with too many trailer headers
 %must be rejected with a 431 status code and the closing of the
 %connection. (RFC6585 5)
-%
-%remove_transfer_encoding_chunked_after_body_read(Config) ->
-%Upon completion of chunk decoding the server must remove "chunked"
-%from the transfer-encoding header. This header must be removed if
-%it becomes empty following this removal. (RFC7230 4.1.3)
-%
+
+%% We remove the header immediately so there's no need
+%% to try to read the body before checking.
+remove_transfer_encoding_chunked_after_body_read(Config) ->
+	doc("Upon completion of chunk decoding the server must remove \"chunked\" "
+		"from the transfer-encoding header. This header must be removed if "
+		"it becomes empty following this removal. (RFC7230 4.1.3)"),
+	#{code := 200, body := <<"undefined">>} = do_raw(Config, [
+		"POST /echo/header/transfer-encoding HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Transfer-encoding: chunked\r\n"
+		"\r\n"
+		"6\r\nHello \r\n5\r\nworld\r\n1\r\n!\r\n0\r\n\r\n"]),
+	ok.
+
 %remove_trailer_after_body_read(Config) ->
 %Upon completion of chunk decoding the server must remove the trailer
 %header from the list of headers. (RFC7230 4.1.3)
@@ -1184,9 +1348,9 @@ ignore_content_length_when_transfer_encoding(Config) ->
 %%% @todo Though we need a compatibility mode as some clients don't send it...
 %reject_chunked_missing_end_crlf(Config) ->
 %@todo ending CRLF
-%
-%%% Connection management.
-%
+
+%% Connection management.
+
 %@todo can probably test using auth
 %Never assume any two requests on a single connection come
 %from the same user agent. (RFC7230 2.3)
@@ -1206,23 +1370,49 @@ ignore_content_length_when_transfer_encoding(Config) ->
 %The server must determine if the connection is persistent for
 %every message received by looking at the connection header and
 %HTTP version. (RFC7230 6.3)
-%
-%no_connection_header_keepalive(Config) ->
-%%% @todo http/1.0 suite? connection_keepalive(Config) ->
-%HTTP/1.1 requests with no "close" option and HTTP/1.0 with the
-%"keep-alive" option indicate the connection will persist. (RFC7230 6.1, RFC7230 6.3)
-%
-%connection_close(Config) ->
-%%% @todo http/1.0 suite? no_connection_close(Config) ->
-%HTTP/1.1 requests with the "close" option and HTTP/1.0 with no
-%"keep-alive" option indicate the connection will be closed
-%upon reception of the response by the client. (RFC7230 6.1, RFC7230 6.3)
-%
-%limit_requests_keepalive(Config) ->
-%The maximum number of requests sent using a persistent connection
-%must be subject to configuration. The connection must be closed
-%when the limit is reached. (RFC7230 6.3)
-%
+
+no_connection_header_keepalive(Config) ->
+	doc("HTTP/1.1 requests with no \"close\" option and HTTP/1.0 with the "
+		"\"keep-alive\" option indicate the connection will persist. (RFC7230 6.1, RFC7230 6.3)"),
+	#{code := 200, client := Client} = do_raw(Config, [
+		"GET / HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"\r\n"]),
+	{error, timeout} = raw_recv(Client, 0, 1000).
+
+%% @todo http/1.0 suite? connection_keepalive(Config) ->
+
+connection_close(Config) ->
+	doc("HTTP/1.1 requests with the \"close\" option and HTTP/1.0 with no "
+		"\"keep-alive\" option indicate the connection will be closed "
+		"upon reception of the response by the client. (RFC7230 6.1, RFC7230 6.3)"),
+	#{code := 200, client := Client} = do_raw(Config, [
+		"GET / HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Connection: close\r\n"
+		"\r\n"]),
+	{error, closed} = raw_recv(Client, 0, 1000).
+
+%% @todo http/1.0 suite? no_connection_close(Config) ->
+
+limit_requests_keepalive(Config) ->
+	doc("The maximum number of requests sent using a persistent connection "
+		"must be subject to configuration. The connection must be closed "
+		"when the limit is reached. (RFC7230 6.3)"),
+	ConnPid = gun_open(Config),
+	_ = [begin
+		Ref = gun:get(ConnPid, "/"),
+		{response, nofin, 200, RespHeaders} = gun:await(ConnPid, Ref),
+		{ok, <<"Hello world!">>} = gun:await_body(ConnPid, Ref),
+		false = lists:keyfind(<<"connection">>, 1, RespHeaders)
+	end || _ <- lists:seq(1,99)],
+	%% Final request closes the connection.
+	Ref = gun:get(ConnPid, "/"),
+	{response, nofin, 200, RespHeaders} = gun:await(ConnPid, Ref),
+	{ok, <<"Hello world!">>} = gun:await_body(ConnPid, Ref),
+	{_, <<"close">>} = lists:keyfind(<<"connection">>, 1, RespHeaders),
+	ok.
+
 %skip_request_body_by_closing_connection(Config) ->
 %%A server that doesn't want to read the entire body of a message
 %%must close the connection, if possible after sending the "close"

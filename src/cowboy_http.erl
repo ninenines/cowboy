@@ -727,7 +727,7 @@ http2_upgrade(State=#state{parent=Parent, ref=Ref, socket=Socket, transport=Tran
 parse_body(Buffer, State=#state{in_streamid=StreamID, in_state=
 		PS=#ps_body{transfer_decode_fun=TDecode, transfer_decode_state=TState0}}) ->
 	%% @todo Proper trailers.
-	case TDecode(Buffer, TState0) of
+	try TDecode(Buffer, TState0) of
 		more ->
 			%% @todo Asks for 0 or more bytes.
 			{more, State, Buffer};
@@ -749,6 +749,10 @@ parse_body(Buffer, State=#state{in_streamid=StreamID, in_state=
 		{done, Data, _HasTrailers, Rest} ->
 			{data, StreamID, fin, Data, set_timeout(
 				State#state{in_streamid=StreamID + 1, in_state=#ps_request_line{}}), Rest}
+	catch _:_ ->
+		Reason = {connection_error, protocol_error,
+			'Failure to decode the content. (RFC7230 4)'},
+		terminate(stream_terminate(State, StreamID, Reason), Reason)
 	end.
 
 %% Message handling.
@@ -1031,6 +1035,8 @@ stream_terminate(State0=#state{out_streamid=OutStreamID, out_state=OutState,
 	State1 = #state{streams=Streams1} = case OutState of
 		wait when element(1, Reason) =:= internal_error ->
 			info(State0, StreamID, {response, 500, #{<<"content-length">> => <<"0">>}, <<>>});
+		wait when element(1, Reason) =:= connection_error ->
+			info(State0, StreamID, {response, 400, #{<<"content-length">> => <<"0">>}, <<>>});
 		wait ->
 			info(State0, StreamID, {response, 204, #{}, <<>>});
 		chunked when Version =:= 'HTTP/1.1' ->

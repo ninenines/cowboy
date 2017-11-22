@@ -22,6 +22,10 @@ echo(<<"read_body">>, Req0, Opts) ->
 			cowboy_req:inform(100, Req0),
 			cowboy_req:read_body(Req0);
 		<<"/full", _/bits>> -> read_body(Req0, <<>>);
+		<<"/length", _/bits>> ->
+			{_, _, Req1} = read_body(Req0, <<>>),
+			Length = cowboy_req:body_length(Req1),
+			{ok, integer_to_binary(Length), Req1};
 		<<"/opts", _/bits>> -> cowboy_req:read_body(Req0, Opts);
 		_ -> cowboy_req:read_body(Req0)
 	end,
