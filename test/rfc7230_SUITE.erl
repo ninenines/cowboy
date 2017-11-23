@@ -24,7 +24,7 @@
 
 all() -> [{group, http}].
 
-groups() -> [{http, [parallel], ct_helper:all(?MODULE)}]. %% @todo parallel
+groups() -> [{http, [parallel], ct_helper:all(?MODULE)}].
 
 init_per_group(Name = http, Config) ->
 	cowboy_test:init_http(Name = http, #{
@@ -38,7 +38,8 @@ init_routes(_) -> [
 	{"localhost", [
 		{"/", hello_h, []},
 		{"/echo/:key[/:arg]", echo_h, []},
-		{"/length/echo/:key", echo_h, []}
+		{"/length/echo/:key", echo_h, []},
+		{"/send_message", send_message_h, []}
 %% @todo Something is clearly wrong about routing * right now.
 %%		{"*", asterisk_h, []}
 	]},
@@ -1443,22 +1444,66 @@ pipeline(Config) ->
 %Abusive traffic can come from the form of too many requests in a
 %given amount of time, or too many concurrent connections. Limits
 %must be subject to configuration. (RFC7230 6.4)
-%
-%close_inactive_connections(Config) ->
-%The server must close inactive connections. The timeout
-%must be subject to configuration. (RFC7230 6.5)
-%
+
+close_inactive_connections(Config) ->
+	doc("The server must close inactive connections. The timeout "
+		"must be subject to configuration. (RFC7230 6.5)"),
+	Client = raw_open(Config),
+	{error, closed} = raw_recv(Client, 0, 6000).
+
 %@todo
 %The server must monitor connections for the close signal
 %and close the socket on its end accordingly. (RFC7230 6.5)
 %
 %@todo
 %A connection close may occur at any time. (RFC7230 6.5)
-%
-%ignore_requests_after_connection_close(Config) ->
-%The server must not process any request after sending or
-%receiving the "close" connection option. (RFC7230 6.6)
-%
+
+ignore_requests_after_request_connection_close(Config) ->
+	doc("The server must not process any request after "
+		"receiving the \"close\" connection option. (RFC7230 6.6)"),
+	Self = self(),
+	#{code := 200, client := Client} = do_raw(Config, [
+		"GET / HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Connection: close\r\n"
+		"\r\n"
+		"GET /send_message HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"x-test-pid: ", pid_to_list(Self), "\r\n"
+		"\r\n"]),
+	{error, closed} = raw_recv(Client, 0, 1000),
+	%% We receive a message if the second request is wrongly processed.
+	receive
+		{Self, _, init, Req, Opts} ->
+			error({init, Req, Opts})
+	after 1000 ->
+		ok
+	end.
+
+ignore_requests_after_response_connection_close(Config) ->
+	doc("The server must not process any request after "
+		"sending the \"close\" connection option. (RFC7230 6.6)"),
+	Self = self(),
+	#{code := 200} = do_raw(Config, [
+		[
+			"GET / HTTP/1.1\r\n"
+			"Host: localhost\r\n"
+			"\r\n"
+		|| _ <- lists:seq(1, 100)],
+		"GET /send_message HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"x-test-pid: ", pid_to_list(Self), "\r\n"
+		"\r\n"]),
+	%% We have a separate test for the connection close so we don't
+	%% double check the connection gets closed here. We only need to
+	%% know whether the 101st request was wrongly processed.
+	receive
+		{Self, _, init, Req, Opts} ->
+			error({init, Req, Opts})
+	after 1000 ->
+		ok
+	end.
+
 %@todo
 %The server must close the connection in stages to avoid the
 %TCP reset problem. The server starts by closing the write
@@ -1467,53 +1512,73 @@ pipeline(Config) ->
 %last response has been received by the client, or until
 %a close or timeout occurs. The server then fully close the
 %connection. (6.6)
-%
-%%% Routing.
-%
+
+%% Routing.
+
 %```
 %Host = authority ; same as authority-form
 %```
-%
-%reject_missing_host(Config) ->
-%An HTTP/1.1 request that lacks a host header must be rejected with
-%a 400 status code and the closing of the connection. (RFC7230 5.4)
-%
-%%% @todo http/1.0 missing_host(Config) ->
+
+reject_missing_host(Config) ->
+	doc("An HTTP/1.1 request that lacks a host header must be rejected with "
+		"a 400 status code and the closing of the connection. (RFC7230 5.4)"),
+	#{code := 400, client := Client} = do_raw(Config, [
+		"GET / HTTP/1.1\r\n"
+		"\r\n"]),
+	{error, closed} = raw_recv(Client, 0, 1000).
+
+%% @todo http/1.0 missing_host(Config) ->
 %An HTTP/1.0 request that lack a host header is valid. Behavior
 %for these requests is configuration dependent. (RFC7230 5.5)
-%
-%reject_invalid_host(Config) ->
-%A request with an invalid host header must be rejected with a
-%400 status code and the closing of the connection. (RFC7230 5.4)
-%
-%reject_userinfo(Config) ->
-%An authority component with a userinfo component (and its
-%"@" delimiter) is invalid. The request must be rejected with
-%a 400 status code and the closing of the connection. (RFC7230 2.7.1)
-%
-%reject_absolute_form_different_host(Config) ->
-%When using absolute-form the URI authority component must be
-%identical to the host header. Invalid requests must be rejected
-%with a 400 status code and the closing of the connection. (RFC7230 5.4)
-%
+
+reject_invalid_host(Config) ->
+	doc("A request with an invalid host header must be rejected with a "
+		"400 status code and the closing of the connection. (RFC7230 5.4)"),
+	#{code := 400, client := Client} = do_raw(Config, [
+		"GET / HTTP/1.1\r\n"
+		"Host: localhost:port\r\n"
+		"\r\n"]),
+	{error, closed} = raw_recv(Client, 0, 1000).
+
+reject_userinfo(Config) ->
+	doc("An authority component with a userinfo component (and its "
+		"\"@\" delimiter) is invalid. The request must be rejected with "
+		"a 400 status code and the closing of the connection. (RFC7230 2.7.1)"),
+	#{code := 400, client := Client} = do_raw(Config, [
+		"GET / HTTP/1.1\r\n"
+		"Host: user@localhost\r\n"
+		"\r\n"]),
+	{error, closed} = raw_recv(Client, 0, 1000).
+
+reject_absolute_form_different_host(Config) ->
+	doc("When using absolute-form the URI authority component must be "
+		"identical to the host header. Invalid requests must be rejected "
+		"with a 400 status code and the closing of the connection. (RFC7230 5.4)"),
+	#{code := 400, client := Client} = do_raw(Config, [
+		"GET http://example.org/ HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"\r\n"]),
+	{error, closed} = raw_recv(Client, 0, 1000).
+
 %reject_authority_form_different_host(Config) ->
 %When using authority-form the URI authority component must be
 %identical to the host header. Invalid requests must be rejected
 %with a 400 status code and the closing of the connection.
-%
+
 %empty_host(Config) ->
 %The host header is empty when the authority component is undefined. (RFC7230 5.4)
-%
-%@todo
-%The effective request URI can be rebuilt by concatenating scheme,
-%"://", authority, path and query components. (RFC7230 5.5)
-%
+
+%% The effective request URI can be rebuilt by concatenating scheme,
+%% "://", authority, path and query components. (RFC7230 5.5)
+%%
+%% This is covered in req_SUITE in the tests for cowboy_req:uri/1,2.
+
 %@todo
 %Resources with identical URI except for the scheme component
 %must be treated as different. (RFC7230 2.7.2)
-%
-%%% Response.
-%
+
+%% Response.
+
 %@todo
 %A server can send more than one response per request only when a
 %1xx response is sent preceding the final response. (RFC7230 5.6)

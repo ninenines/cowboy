@@ -91,7 +91,7 @@ end_per_group(Name, _) ->
 
 %% Dispatch configuration.
 
-init_dispatch(Config) ->
+init_dispatch(_) ->
 	cowboy_router:compile([
 		{"localhost", [
 			{"/chunked_response", http_chunked, []},
