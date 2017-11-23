@@ -1417,14 +1417,27 @@ limit_requests_keepalive(Config) ->
 %%A server that doesn't want to read the entire body of a message
 %%must close the connection, if possible after sending the "close"
 %%connection option in the response. (RFC7230 6.3)
-%
-%pipeline(Config) ->
-%%% @todo pipeline_parallel (safe methods can, others can't)
-%A server can receive more than one request before any response
-%is sent. This is called pipelining. The requests can be processed
-%in parallel if they all have safe methods. Responses must be sent
-%in the same order as the requests. (RFC7230 6.3.2)
-%
+
+pipeline(Config) ->
+	doc("A server can receive more than one request before any response "
+		"is sent. This is called pipelining. Responses must be sent "
+		"in the same order as the requests. (RFC7230 6.3.2)"),
+	ConnPid = gun_open(Config),
+	Refs = [{
+		gun:get(ConnPid, "/"),
+		gun:delete(ConnPid, "/echo/method")
+	} || _ <- lists:seq(1, 25)],
+	_ = [begin
+		{response, nofin, 200, _} = gun:await(ConnPid, Ref1),
+		{ok, <<"Hello world!">>} = gun:await_body(ConnPid, Ref1),
+		{response, nofin, 200, _} = gun:await(ConnPid, Ref2),
+		{ok, <<"DELETE">>} = gun:await_body(ConnPid, Ref2)
+	end || {Ref1, Ref2} <- Refs],
+	ok.
+
+%% @todo pipeline_parallel (safe methods can, others can't)
+%The requests can be processed in parallel if they all have safe methods.
+
 %@todo
 %The server must reject abusive traffic by closing the connection.
 %Abusive traffic can come from the form of too many requests in a

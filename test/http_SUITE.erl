@@ -377,12 +377,6 @@ parse_host(Config) ->
 	end || {Host, Body} <- Tests],
 	ok.
 
-pipeline(Config) ->
-	ConnPid = gun_open(Config),
-	Refs = [gun:get(ConnPid, "/") || _ <- lists:seq(1, 5)],
-	_ = [{response, nofin, 200, _} = gun:await(ConnPid, Ref) || Ref <- Refs],
-	ok.
-
 rest_param_all(Config) ->
 	ConnPid = gun_open(Config),
 	%% Accept without param.
