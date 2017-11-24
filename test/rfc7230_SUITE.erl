@@ -39,6 +39,7 @@ init_routes(_) -> [
 		{"/", hello_h, []},
 		{"/echo/:key[/:arg]", echo_h, []},
 		{"/length/echo/:key", echo_h, []},
+		{"/resp/:key[/:arg]", resp_h, []},
 		{"/send_message", send_message_h, []}
 %% @todo Something is clearly wrong about routing * right now.
 %%		{"*", asterisk_h, []}
@@ -60,7 +61,7 @@ do_raw(Config, Data) ->
 			Body = if
 				byte_size(Rest2) =:= Length -> Rest2;
 				true ->
-					{ok, Body0} = raw_recv(Client, binary_to_integer(LengthBin) - byte_size(Rest2), 5000),
+					{ok, Body0} = raw_recv(Client, Length - byte_size(Rest2), 5000),
 					<< Rest2/bits, Body0/bits >>
 			end,
 			#{client => Client, version => Version, code => Code, reason => Reason, headers => Headers, body => Body};
@@ -1440,6 +1441,10 @@ pipeline(Config) ->
 %The requests can be processed in parallel if they all have safe methods.
 
 %@todo
+%A server that does parallel pipelining must send responses in the
+%same order as the requests came in. (RFC7230 5.6)
+
+%@todo
 %The server must reject abusive traffic by closing the connection.
 %Abusive traffic can come from the form of too many requests in a
 %given amount of time, or too many concurrent connections. Limits
@@ -1583,10 +1588,6 @@ reject_absolute_form_different_host(Config) ->
 %A server can send more than one response per request only when a
 %1xx response is sent preceding the final response. (RFC7230 5.6)
 %
-%@todo
-%A server that does parallel pipelining must send responses in the
-%same order as the requests came in. (RFC7230 5.6)
-%
 %```
 %HTTP-response = status-line *( header-field CRLF ) CRLF [ message-body ]
 %```
@@ -1599,19 +1600,24 @@ reject_absolute_form_different_host(Config) ->
 %status-code   = 3DIGIT
 %reason-phrase = *( HTAB / SP / VCHAR / obs-text )
 %```
-%
-%http10_request_http11_response(Config) ->
-%A server must send its own version. (RFC7230 2.6)
-%
+
+http10_request_http11_response(Config) ->
+	doc("A server must send its own HTTP version in responses. (RFC7230 2.6)"),
+	#{code := 200, version := 'HTTP/1.1'} = do_raw(Config, [
+		"GET / HTTP/1.0\r\n"
+		"Host: localhost\r\n"
+		"\r\n"]),
+	ok.
+
 %@todo
 %An HTTP/1.1 server may send an HTTP/1.0 version for compatibility purposes. (RFC7230 2.6)
 %
 %@todo
 %RFC6585 defines additional status code a server can use to reject
 %messages. (RFC7230 9.3, RFC6585)
-%
-%%% Response headers.
-%
+
+%% Response headers.
+
 %@todo
 %In responses, OWS must be generated as SP or not generated
 %at all. RWS must be generated as SP. BWS must not be
@@ -1638,11 +1644,17 @@ reject_absolute_form_different_host(Config) ->
 %@todo
 %When encoding an URI as part of a response, only characters that
 %are reserved need to be percent-encoded. (RFC7230 2.7.3)
-%
-%special_set_cookie_handling(Config) ->
-%The set-cookie header must be handled as a special case. There
-%must be exactly one set-cookie header field per cookie. (RFC7230 3.2.2)
-%
+
+special_set_cookie_handling(Config) ->
+	doc("The set-cookie header must be handled as a special case. There "
+		"must be exactly one set-cookie header field per cookie. (RFC7230 3.2.2)"),
+	#{code := 200, headers := RespHeaders} = do_raw(Config, [
+		"GET /resp/set_resp_cookie3/multiple HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"\r\n"]),
+	[_, _] = [H || H={<<"set-cookie">>, _} <- RespHeaders],
+	ok.
+
 %@todo
 %The server must list headers for or about the immediate connection
 %in the connection header field. (RFC7230 6.1)
@@ -1665,16 +1677,36 @@ reject_absolute_form_different_host(Config) ->
 %@todo
 %A server must close the connection after sending or
 %receiving a "close" once the response has been sent. (RFC7230 6.6)
-%
-%close_request_close_response(Config) ->
-%A server must send a "close" in a response to a request
-%containing a "close". (RFC7230 6.6)
-%
-%%% Response body.
-%
-%no_body_in_head_response(Config) -> %% @todo test different ways to send a body in response
-%Responses to HEAD requests never include a message body. (RFC7230 3.3)
-%
+
+close_request_close_response(Config) ->
+	doc("A server must send a \"close\" in a response to a request "
+		"containing a \"close\". (RFC7230 6.6)"),
+	#{code := 200, headers := RespHeaders} = do_raw(Config, [
+		"GET / HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Connection: close\r\n"
+		"\r\n"]),
+	{_, <<"close">>} = lists:keyfind(<<"connection">>, 1, RespHeaders),
+	ok.
+
+%% Response body.
+
+no_body_in_head_response(Config) ->
+	doc("Responses to HEAD requests never include a message body. (RFC7230 3.3)"),
+	Client = raw_open(Config),
+	ok = raw_send(Client, [
+		"HEAD / HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"\r\n"]),
+	{_, 200, _, Rest} = cow_http:parse_status_line(raw_recv_head(Client)),
+	{Headers, <<>>} = cow_http:parse_headers(Rest),
+	{_, LengthBin} = lists:keyfind(<<"content-length">>, 1, Headers),
+	Length = binary_to_integer(LengthBin),
+	{error, timeout} = raw_recv(Client, Length, 1000),
+	ok.
+
+%% @todo test different ways to send a body in response
+
 %%% @todo Implement CONNECT
 %2xx responses to CONNECT requests never include a message
 %body. (RFC7230 3.3)
@@ -1685,25 +1717,83 @@ reject_absolute_form_different_host(Config) ->
 %no_body_in_204_response(Config) ->
 %no_body_in_304_response(Config) ->
 %1xx, 204 and 304 responses never include a message body. (RFC7230 3.3)
-%
-%same_content_length_as_get_in_head_response(Config) ->
-%same_transfer_encoding_as_get_in_head_response(Config) ->
+
+same_content_length_as_get_in_head_response(Config) ->
+	doc("Responses to HEAD requests can include a content-length header. "
+		"Its value must be the same as if the request was an unconditional "
+		"GET. (RFC7230 3.3, RFC7230 3.3.1, RFC7230 3.3.2)"),
+	Client = raw_open(Config),
+	ok = raw_send(Client, [
+		"HEAD / HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"\r\n"]),
+	{_, 200, _, Rest} = cow_http:parse_status_line(raw_recv_head(Client)),
+	{Headers, <<>>} = cow_http:parse_headers(Rest),
+	{_, <<"12">>} = lists:keyfind(<<"content-length">>, 1, Headers),
+	ok.
+
+same_transfer_encoding_as_get_in_head_response(Config) ->
+	doc("Responses to HEAD requests can include a transfer-encoding header. "
+		"Its value must be the same as if the request was an unconditional "
+		"GET. (RFC7230 3.3, RFC7230 3.3.1, RFC7230 3.3.2)"),
+	Client = raw_open(Config),
+	ok = raw_send(Client, [
+		"HEAD /resp/stream_reply2/200 HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"\r\n"]),
+	{_, 200, _, Rest} = cow_http:parse_status_line(raw_recv_head(Client)),
+	{Headers, <<>>} = cow_http:parse_headers(Rest),
+	{_, <<"chunked">>} = lists:keyfind(<<"transfer-encoding">>, 1, Headers),
+	ok.
+
 %same_content_length_as_200_in_304_response(Config) ->
 %same_transfer_encoding_as_200_in_304_response(Config) ->
-%Responses to HEAD requests and 304 responses can include a
+%304 responses can include a
 %content-length or transfer-encoding header. Their value must
 %be the same as if the request was an unconditional GET. (RFC7230 3.3, RFC7230 3.3.1, RFC7230 3.3.2)
 %
-%no_transfer_encoding_in_100_response(Config) ->
-%no_transfer_encoding_in_101_response(Config) ->
-%no_transfer_encoding_in_102_response(Config) ->
-%no_transfer_encoding_in_204_response(Config) ->
-%%% @todo CONNECT no_transfer_encoding_in_2xx_response_to_connect_request(Config) ->
 %no_content_length_in_100_response(Config) ->
 %no_content_length_in_101_response(Config) ->
 %no_content_length_in_102_response(Config) ->
-%no_content_length_in_204_response(Config) ->
+%1xx, 204 responses and "2xx responses to CONNECT requests" must
+%not include a content-length or transfer-encoding header. (RFC7230 3.3.1, RFC7230 3.3.2)
+
+no_content_length_in_204_response(Config) ->
+	doc("204 responses must not include a transfer-encoding header. "
+		"(RFC7230 3.3.1, RFC7230 3.3.2)"),
+	Client = raw_open(Config),
+	ok = raw_send(Client, [
+		"GET /resp/reply4/204 HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"\r\n"]),
+	{_, 204, _, Rest} = cow_http:parse_status_line(raw_recv_head(Client)),
+	{Headers, <<>>} = cow_http:parse_headers(Rest),
+	false = lists:keyfind(<<"content-length">>, 1, Headers),
+	ok.
+
 %%% @todo CONNECT no_content_length_in_2xx_response_to_connect_request(Config) ->
+%no_transfer_encoding_in_100_response(Config) ->
+%no_transfer_encoding_in_101_response(Config) ->
+%no_transfer_encoding_in_102_response(Config) ->
+%1xx, 204 responses and "2xx responses to CONNECT requests" must
+%not include a content-length or transfer-encoding header. (RFC7230 3.3.1, RFC7230 3.3.2)
+
+%% We only send transfer-encoding when streaming a response body.
+%% We therefore need a streamed response in order to see a potential bug.
+no_transfer_encoding_in_204_response(Config) ->
+	doc("204 responses must not include a transfer-encoding header. "
+		"(RFC7230 3.3.1, RFC7230 3.3.2)"),
+	Client = raw_open(Config),
+	ok = raw_send(Client, [
+		"GET /resp/stream_reply2/204 HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"\r\n"]),
+	{_, 204, _, Rest} = cow_http:parse_status_line(raw_recv_head(Client)),
+	{Headers, <<>>} = cow_http:parse_headers(Rest),
+	false = lists:keyfind(<<"transfer-encoding">>, 1, Headers),
+	ok.
+
+%%% @todo CONNECT no_transfer_encoding_in_2xx_response_to_connect_request(Config) ->
 %1xx, 204 responses and "2xx responses to CONNECT requests" must
 %not include a content-length or transfer-encoding header. (RFC7230 3.3.1, RFC7230 3.3.2)
 %
@@ -1713,37 +1803,79 @@ reject_absolute_form_different_host(Config) ->
 %
 %The message body is the octets after decoding any transfer
 %codings. (RFC7230 3.3)
-%
-%content_length_0_when_no_body(Config) ->
-%content_length_response(Config) ->
-%When the length is known in advance, the server must send a
-%content-length header, including if the length is 0. (RFC7230 3.3.2, RFC7230 3.3.3)
-%
-%chunked_response(Config) ->
-%When the length is not known in advance, the chunked transfer-encoding
-%must be used. (RFC7230 3.3.2, RFC7230 3.3.3)
-%
+
+content_length_0_when_no_body(Config) ->
+	doc("When the length is known in advance, the server must send a "
+		"content-length header, including if the length is 0. (RFC7230 3.3.2, RFC7230 3.3.3)"),
+	#{code := 200, headers := RespHeaders} = do_raw(Config, [
+		"GET /resp/reply2/200 HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"\r\n"]),
+	{_, <<"0">>} = lists:keyfind(<<"content-length">>, 1, RespHeaders),
+	ok.
+
+content_length_response(Config) ->
+	doc("When the length is known in advance, the server must send a "
+		"content-length header. (RFC7230 3.3.2, RFC7230 3.3.3)"),
+	#{code := 200, headers := RespHeaders} = do_raw(Config, [
+		"GET / HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"\r\n"]),
+	{_, <<"12">>} = lists:keyfind(<<"content-length">>, 1, RespHeaders),
+	ok.
+
+chunked_response(Config) ->
+	doc("When the length is not known in advance, the chunked transfer-encoding "
+		"must be used. (RFC7230 3.3.2, RFC7230 3.3.3)"),
+	#{code := 200, headers := RespHeaders} = do_raw(Config, [
+		"GET /resp/stream_reply2/200 HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"\r\n"]),
+	{_, <<"chunked">>} = lists:keyfind(<<"transfer-encoding">>, 1, RespHeaders),
+	%% @todo We probably want to check the body received too.
+	ok.
+
 %compat_no_content_length_or_transfer_encoding_close_on_body_end(Config) ->
 %For compatibility purposes a server can send no content-length or
 %transfer-encoding header. In this case the connection must be
 %closed after the response has been sent fully. (RFC7230 3.3.2, RFC7230 3.3.3)
-%
-%no_content_length_if_transfer_encoding(Config) ->
-%The content-length header must not be sent when a transfer-encoding
-%header already exists. (RFC7230 3.3.2)
-%
+
+no_content_length_if_transfer_encoding(Config) ->
+	doc("The content-length header must not be sent when a transfer-encoding "
+		"header already exists. (RFC7230 3.3.2)"),
+	#{code := 200, headers := RespHeaders} = do_raw(Config, [
+		"GET /resp/stream_reply2/200 HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"\r\n"]),
+	false = lists:keyfind(<<"content-length">>, 1, RespHeaders),
+	ok.
+
 %@todo
 %The server must not apply the chunked transfer-encoding more than
 %once. (RFC7230 3.3.1)
 %
 %@todo
 %The server must apply the chunked transfer-encoding last. (RFC7230 3.3.1)
-%
-%http10_request_no_transfer_encoding_in_response(Config) ->
-%The transfer-encoding header must not be sent in responses to
-%HTTP/1.0 requests, or in responses that use the HTTP/1.0 version.
-%No transfer codings must be applied in these cases. (RFC7230 3.3.1)
-%
+
+http10_request_no_transfer_encoding_in_response(Config) ->
+	doc("The transfer-encoding header must not be sent in responses to "
+		"HTTP/1.0 requests, or in responses that use the HTTP/1.0 version. "
+		"No transfer codings must be applied in these cases. (RFC7230 3.3.1)"),
+	Client = raw_open(Config),
+	ok = raw_send(Client, [
+		"GET /resp/stream_reply2/200 HTTP/1.0\r\n"
+		"Host: localhost\r\n"
+		"\r\n"]),
+	{_, 200, _, Rest} = cow_http:parse_status_line(raw_recv_head(Client)),
+	{RespHeaders, Rest2} = cow_http:parse_headers(Rest),
+	false = lists:keyfind(<<"content-length">>, 1, RespHeaders),
+	false = lists:keyfind(<<"transfer-encoding">>, 1, RespHeaders),
+	Body = <<0:8000000>>,
+	{ok, Body} = raw_recv(Client, byte_size(Body), 5000),
+	%% The end of body is indicated by a connection close.
+	{error, timeout} = raw_recv(Client, 0, 1000),
+	ok.
+
 %```
 %TE = #t-codings
 %
