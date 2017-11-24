@@ -1876,24 +1876,55 @@ http10_request_no_transfer_encoding_in_response(Config) ->
 	{error, timeout} = raw_recv(Client, 0, 1000),
 	ok.
 
-%```
-%TE = #t-codings
-%
-%t-codings = "trailers" / ( transfer-coding [ t-ranking ] )
-%t-ranking = OWS ";" OWS "q=" rank
-%rank = ( "0" [ "." 0*3DIGIT ] ) / ( "1" [ "." 0*3("0") ] )
-%```
-%
-%no_te_no_trailers(Config) ->
-%te_trailers(Config) ->
-%Trailers can only be sent if the request includes a TE header
-%containing "trailers". (RFC7230 4.1.2)
-%
-%te_ignore_chunked(Config) ->
-%te_ignore_chunked_0(Config) ->
-%The presence of "chunked" in a TE header must be ignored as it
-%is always acceptable with HTTP/1.1. (RFC7230 4.3)
-%
+no_te_no_trailers(Config) ->
+	doc("Trailers can only be sent if the request includes a TE header "
+		"containing \"trailers\". (RFC7230 4.1.2)"),
+	#{code := 200, headers := RespHeaders} = do_raw(Config, [
+		"GET /resp/stream_trailers HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"\r\n"]),
+	{_, <<"chunked">>} = lists:keyfind(<<"transfer-encoding">>, 1, RespHeaders),
+	false = lists:keyfind(<<"trailer">>, 1, RespHeaders),
+	%% @todo We probably want to check the body received too.
+	ok.
+
+te_trailers(Config) ->
+	doc("Trailers can only be sent if the request includes a TE header "
+		"containing \"trailers\". (RFC7230 4.1.2)"),
+	#{code := 200, headers := RespHeaders} = do_raw(Config, [
+		"GET /resp/stream_trailers HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"TE: trailer\r\n"
+		"\r\n"]),
+	{_, <<"chunked">>} = lists:keyfind(<<"transfer-encoding">>, 1, RespHeaders),
+	{_, <<"grpc-status">>} = lists:keyfind(<<"trailer">>, 1, RespHeaders),
+	%% @todo We probably want to check the body received too.
+	ok.
+
+te_ignore_chunked(Config) ->
+	doc("The presence of \"chunked\" in a TE header must be ignored as it "
+		"is always acceptable with HTTP/1.1. (RFC7230 4.3)"),
+	#{code := 200, headers := RespHeaders} = do_raw(Config, [
+		"GET /resp/stream_reply2/200 HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"TE: chunked\r\n"
+		"\r\n"]),
+	{_, <<"chunked">>} = lists:keyfind(<<"transfer-encoding">>, 1, RespHeaders),
+	%% @todo We probably want to check the body received too.
+	ok.
+
+te_ignore_chunked_0(Config) ->
+	doc("The presence of \"chunked\" in a TE header must be ignored as it "
+		"is always acceptable with HTTP/1.1. (RFC7230 4.3)"),
+	#{code := 200, headers := RespHeaders} = do_raw(Config, [
+		"GET /resp/stream_reply2/200 HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"TE: chunked;q=0\r\n"
+		"\r\n"]),
+	{_, <<"chunked">>} = lists:keyfind(<<"transfer-encoding">>, 1, RespHeaders),
+	%% @todo We probably want to check the body received too.
+	ok.
+
 %%% @todo te_not_acceptable_coding(Config) ->
 %A qvalue of 0 in the TE header means "not acceptable". (RFC7230 4.3)
 %
@@ -1901,18 +1932,11 @@ http10_request_no_transfer_encoding_in_response(Config) ->
 %The lack of a TE header or an empty TE header means only "chunked"
 %(with no trailers) or no transfer-encoding is acceptable. (RFC7230 4.3)
 %
-%ignore_te_if_not_in_connection_header(Config) ->
-%The TE header must be listed in the connection header field,
-%or must be ignored otherwise.
-%
 %@todo
 %Trailer headers must be listed in the trailer header field value. (RFC7230 4.4)
-%
-%@todo
-%When defined, the trailer header must also be listed in the connection header. (RFC7230 4.4)
-%
-%:: Upgrade
-%
+
+%% Upgrade.
+
 %```
 %Upgrade = 1#protocol
 %
@@ -1923,10 +1947,16 @@ http10_request_no_transfer_encoding_in_response(Config) ->
 %
 %The upgrade header contains the list of protocols the
 %client wishes to upgrade to, in order of preference. (RFC7230 6.7)
-%
-%upgrade_safely_ignored(Config) ->
-%The upgrade header can be safely ignored. (RFC7230 6.7)
-%
+
+upgrade_safely_ignored(Config) ->
+	doc("The upgrade header can be safely ignored. (RFC7230 6.7)"),
+	#{code := 200} = do_raw(Config,
+		"GET / HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Connection: upgrade\r\n"
+		"Upgrade: websocket\r\n"
+		"\r\n").
+
 %upgrade_must_be_in_connection_header(Config) ->
 %The upgrade header must be listed under the connection header,
 %or must be ignored otherwise. (RFC7230 6.7)
@@ -1968,9 +1998,9 @@ http10_request_no_transfer_encoding_in_response(Config) ->
 %
 %The upgrade header field cannot be used for switching the
 %connection protocol (e.g. TCP) or switching connections. (RFC7230 6.7)
-%
-%%% Compatibility.
-%
+
+%% Compatibility.
+
 %@todo
 %A server can choose to be non-conformant to the specifications
 %for the sake of compatibility. Such behavior can be enabled
