@@ -1867,13 +1867,14 @@ http10_request_no_transfer_encoding_in_response(Config) ->
 		"Host: localhost\r\n"
 		"\r\n"]),
 	{_, 200, _, Rest} = cow_http:parse_status_line(raw_recv_head(Client)),
-	{RespHeaders, Rest2} = cow_http:parse_headers(Rest),
+	{RespHeaders, Body0} = cow_http:parse_headers(Rest),
 	false = lists:keyfind(<<"content-length">>, 1, RespHeaders),
 	false = lists:keyfind(<<"transfer-encoding">>, 1, RespHeaders),
 	Body = <<0:8000000>>,
-	{ok, Body} = raw_recv(Client, byte_size(Body), 5000),
+	{ok, Body1} = raw_recv(Client, byte_size(Body) - byte_size(Body0), 5000),
+	Body = << Body0/binary, Body1/binary >>,
 	%% The end of body is indicated by a connection close.
-	{error, timeout} = raw_recv(Client, 0, 1000),
+	{error, closed} = raw_recv(Client, 0, 1000),
 	ok.
 
 no_te_no_trailers(Config) ->
