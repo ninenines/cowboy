@@ -2622,9 +2622,9 @@ window_update_reject_overflow(Config) ->
 		"window to exceed 2^31-1 must be rejected with a "
 		"FLOW_CONTROL_ERROR connection error. (RFC7540 6.9.1)"),
 	{ok, Socket} = do_handshake(Config),
-	%% Send connection-wide WINDOW_UPDATE frame that causes the window to overflow.
+	%% Send a connection-wide WINDOW_UPDATE frame that causes the window to overflow.
 	ok = gen_tcp:send(Socket, [
-		cow_http2:window_update(2147483647)
+		cow_http2:window_update(16#7fffffff)
 	]),
 	%% Receive a FLOW_CONTROL_ERROR connection error.
 	{ok, << _:24, 7:8, _:72, 3:32 >>} = gen_tcp:recv(Socket, 17, 6000),
@@ -2645,8 +2645,89 @@ window_update_reject_overflow_stream(Config) ->
 	]),
 	ok = gen_tcp:send(Socket, [
 		cow_http2:headers(1, fin, HeadersBlock),
-		cow_http2:window_update(1, 2147483647)
+		cow_http2:window_update(1, 16#7fffffff)
 	]),
 	%% Receive a FLOW_CONTROL_ERROR stream error.
 	{ok, << _:24, 3:8, _:8, 1:32, 3:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+	ok.
+
+settings_initial_window_size_changes(Config) ->
+	doc("When the value of SETTINGS_INITIAL_WINDOW_SIZE changes, the server "
+		"must adjust the size of the flow control windows of the active "
+		"streams. (RFC7540 6.9.2)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Set SETTINGS_INITIAL_WINDOW_SIZE to 0 to prevent sending of DATA.
+	ok = gen_tcp:send(Socket, cow_http2:settings(#{initial_window_size => 0})),
+	%% Receive the SETTINGS ack.
+	{ok, << 0:24, 4:8, 1:8, 0:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+	%% Send a HEADERS frame.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+	%% Receive a response but no DATA frames are coming.
+	{ok, << SkipLen:24, 1:8, _:8, 1:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+	{ok, _} = gen_tcp:recv(Socket, SkipLen, 1000),
+	{error, timeout} = gen_tcp:recv(Socket, 9, 1000),
+	%% Set SETTINGS_INITIAL_WINDOW_SIZE to a larger value.
+	ok = gen_tcp:send(Socket, cow_http2:settings(#{initial_window_size => 5})),
+	%% Receive the SETTINGS ack.
+	{ok, << 0:24, 4:8, 1:8, 0:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+	%% Receive a DATA frame of that size and no other.
+	{ok, << 5:24, 0:8, 0:8, 1:32, "Hello" >>} = gen_tcp:recv(Socket, 14, 1000),
+	{error, timeout} = gen_tcp:recv(Socket, 9, 1000),
+	%% Set SETTINGS_INITIAL_WINDOW_SIZE to exactly the size in the body.
+	ok = gen_tcp:send(Socket, cow_http2:settings(#{initial_window_size => 12})),
+	%% Receive the SETTINGS ack.
+	{ok, << 0:24, 4:8, 1:8, 0:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+	%% Receive the rest of the response.
+	{ok, << 7:24, 0:8, 1:8, 1:32, " world!" >>} = gen_tcp:recv(Socket, 16, 1000),
+	ok.
+
+settings_initial_window_size_changes_negative(Config) ->
+	doc("When the value of SETTINGS_INITIAL_WINDOW_SIZE changes, the server "
+		"must adjust the size of the flow control windows of the active "
+		"streams even if their window end up negative. (RFC7540 6.9.2)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Set SETTINGS_INITIAL_WINDOW_SIZE to 5.
+	ok = gen_tcp:send(Socket, cow_http2:settings(#{initial_window_size => 5})),
+	%% Receive the SETTINGS ack.
+	{ok, << 0:24, 4:8, 1:8, 0:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+	%% Send a HEADERS frame.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+	%% Receive a response with a single DATA frame of the initial size we set.
+	{ok, << SkipLen:24, 1:8, _:8, 1:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+	{ok, _} = gen_tcp:recv(Socket, SkipLen, 1000),
+	{ok, << 5:24, 0:8, 0:8, 1:32, "Hello" >>} = gen_tcp:recv(Socket, 14, 1000),
+	{error, timeout} = gen_tcp:recv(Socket, 9, 1000),
+	%% Set SETTINGS_INITIAL_WINDOW_SIZE to 0 to make the stream's window negative.
+	ok = gen_tcp:send(Socket, cow_http2:settings(#{initial_window_size => 0})),
+	%% Receive the SETTINGS ack.
+	{ok, << 0:24, 4:8, 1:8, 0:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+	%% Set SETTINGS_INITIAL_WINDOW_SIZE to exactly the size in the body.
+	ok = gen_tcp:send(Socket, cow_http2:settings(#{initial_window_size => 12})),
+	%% Receive the SETTINGS ack.
+	{ok, << 0:24, 4:8, 1:8, 0:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+	%% Receive the rest of the response.
+	{ok, << 7:24, 0:8, 1:8, 1:32, " world!" >>} = gen_tcp:recv(Socket, 16, 1000),
+	ok.
+
+settings_initial_window_size_reject_overflow(Config) ->
+	doc("A SETTINGS_INITIAL_WINDOW_SIZE that causes a flow control window "
+		"to exceed 2^31-1 must be rejected with a FLOW_CONTROL_ERROR "
+		"connection error. (RFC7540 6.9.2)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Set SETTINGS_INITIAL_WINDOW_SIZE to 2^31.
+	ok = gen_tcp:send(Socket, cow_http2:settings(#{initial_window_size => 16#80000000})),
+	%% Receive a FLOW_CONTROL_ERROR connection error.
+	{ok, << _:24, 7:8, _:72, 3:32 >>} = gen_tcp:recv(Socket, 17, 6000),
 	ok.

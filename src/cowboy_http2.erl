@@ -400,10 +400,17 @@ frame(State=#state{client_streamid=LastStreamID}, {rst_stream, StreamID, _})
 frame(State, {rst_stream, StreamID, Reason}) ->
 	stream_terminate(State, StreamID, {stream_error, Reason, 'Stream reset requested by client.'});
 %% SETTINGS frame.
-frame(State=#state{socket=Socket, transport=Transport, remote_settings=Settings0},
+frame(State0=#state{socket=Socket, transport=Transport, remote_settings=Settings0},
 		{settings, Settings}) ->
 	Transport:send(Socket, cow_http2:settings_ack()),
-	State#state{remote_settings=maps:merge(Settings0, Settings)};
+	State = State0#state{remote_settings=maps:merge(Settings0, Settings)},
+	case Settings of
+		#{initial_window_size := NewWindowSize} ->
+			OldWindowSize = maps:get(initial_window_size, Settings0, 65535),
+			update_stream_windows(State, NewWindowSize - OldWindowSize);
+		_ ->
+			State
+	end;
 %% Ack for a previously sent SETTINGS frame.
 frame(State=#state{next_settings=_NextSettings}, settings_ack) ->
 	%% @todo Apply SETTINGS that require synchronization.
@@ -426,7 +433,7 @@ frame(State, Frame={goaway, _, _, _}) ->
 	terminate(State, {stop, Frame, 'Client is going away.'});
 %% Connection-wide WINDOW_UPDATE frame.
 frame(State=#state{local_window=ConnWindow}, {window_update, Increment})
-		when ConnWindow + Increment > 2147483647 ->
+		when ConnWindow + Increment > 16#7fffffff ->
 	terminate(State, {connection_error, flow_control_error,
 		'The flow control window must not be greater than 2^31-1. (RFC7540 6.9.1)'});
 frame(State=#state{local_window=ConnWindow}, {window_update, Increment}) ->
@@ -438,7 +445,7 @@ frame(State=#state{client_streamid=LastStreamID}, {window_update, StreamID, _})
 		'WINDOW_UPDATE frame received on a stream in idle state. (RFC7540 5.1)'});
 frame(State0=#state{streams=Streams0}, {window_update, StreamID, Increment}) ->
 	case lists:keyfind(StreamID, #stream.id, Streams0) of
-		#stream{local_window=StreamWindow} when StreamWindow + Increment > 2147483647 ->
+		#stream{local_window=StreamWindow} when StreamWindow + Increment > 16#7fffffff ->
 			stream_reset(State0, StreamID, {stream_error, flow_control_error,
 				'The flow control window must not be greater than 2^31-1. (RFC7540 6.9.1)'});
 		Stream0 = #stream{local_window=StreamWindow} ->
@@ -654,6 +661,15 @@ status(<< H, T, U, _/bits >>) when H >= $1, H =< $9, T >= $0, T =< $9, U >= $0, 
 %% all streams and send what we can until either everything is
 %% sent or we run out of space in the window.
 send_data(State=#state{streams=Streams}) ->
+	resume_streams(State, Streams, []).
+
+%% When SETTINGS_INITIAL_WINDOW_SIZE changes we need to update
+%% the stream windows for all active streams and perhaps resume
+%% sending data.
+update_stream_windows(State=#state{streams=Streams0}, Increment) ->
+	Streams = [
+		S#stream{local_window=StreamWindow + Increment}
+	|| S=#stream{local_window=StreamWindow} <- Streams0],
 	resume_streams(State, Streams, []).
 
 resume_streams(State, [], Acc) ->
