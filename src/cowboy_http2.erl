@@ -360,9 +360,12 @@ frame(State, {headers, StreamID, _, _, _}) when StreamID rem 2 =:= 0 ->
 	terminate(State, {connection_error, protocol_error,
 		'HEADERS frame received with even-numbered streamid. (RFC7540 5.1.1)'});
 %% HEADERS frame received on (half-)closed stream.
+%%
+%% We always close the connection here to avoid having to decode
+%% the headers to not waste resources on non-compliant clients.
 frame(State=#state{client_streamid=LastStreamID}, {headers, StreamID, _, _, _})
 		when StreamID =< LastStreamID ->
-	stream_reset(State, StreamID, {stream_error, stream_closed,
+	terminate(State, {connection_error, stream_closed,
 		'HEADERS frame received on a stream in closed or half-closed state. (RFC7540 5.1)'});
 %% Single HEADERS frame headers block.
 frame(State, {headers, StreamID, IsFin, head_fin, HeaderBlock}) ->
@@ -895,7 +898,7 @@ stream_terminate(State0=#state{streams=Streams0, children=Children0}, StreamID, 
 			Children = cowboy_children:shutdown(Children0, StreamID),
 			State0#state{streams=[Stream#stream{state=flush, local=flush}|Streams],
 				children=Children};
-		%% Otherwise we sent an RST_STREAM and/or the stream is already closed.
+		%% Otherwise we sent or received an RST_STREAM and/or the stream is already closed.
 		{value, Stream=#stream{state=StreamState}, Streams} ->
 			State = maybe_skip_body(State0, Stream, Reason),
 			stream_call_terminate(StreamID, Reason, StreamState),

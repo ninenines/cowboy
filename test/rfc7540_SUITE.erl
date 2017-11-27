@@ -1675,7 +1675,7 @@ continuation_wrong_stream_error(Config) ->
 
 idle_stream_reject_data(Config) ->
 	doc("DATA frames received on an idle stream must be rejected "
-		"with a PROTOCOL_ERROR connection error. (RFC7540 5.1)"),
+		"with a PROTOCOL_ERROR connection error. (RFC7540 5.1, RFC7540 6.1)"),
 	{ok, Socket} = do_handshake(Config),
 	%% Send a DATA frame on an idle stream.
 	ok = gen_tcp:send(Socket, cow_http2:data(1, fin, <<"Unexpected DATA frame.">>)),
@@ -1779,7 +1779,7 @@ idle_stream_reject_window_update(Config) ->
 
 half_closed_remote_reject_data(Config) ->
 	doc("DATA frames received on a half-closed (remote) stream must be rejected "
-		"with a STREAM_CLOSED stream error. (RFC7540 5.1)"),
+		"with a STREAM_CLOSED stream error. (RFC7540 5.1, RFC7540 6.1)"),
 	{ok, Socket} = do_handshake(Config),
 	%% Send a HEADERS frame with the FIN flag set.
 	{HeadersBlock, _} = cow_hpack:encode([
@@ -1795,9 +1795,11 @@ half_closed_remote_reject_data(Config) ->
 	{ok, << _:24, 3:8, _:8, 1:32, 5:32 >>} = gen_tcp:recv(Socket, 13, 6000),
 	ok.
 
+%% We reject all invalid HEADERS with a connection error because
+%% we do not want to waste resources decoding them.
 half_closed_remote_reject_headers(Config) ->
 	doc("HEADERS frames received on a half-closed (remote) stream must be rejected "
-		"with a STREAM_CLOSED stream error. (RFC7540 5.1)"),
+		"with a STREAM_CLOSED connection error. (RFC7540 4.3, RFC7540 5.1)"),
 	{ok, Socket} = do_handshake(Config),
 	%% Send a HEADERS frame with the FIN flag set.
 	{HeadersBlock, _} = cow_hpack:encode([
@@ -1809,8 +1811,8 @@ half_closed_remote_reject_headers(Config) ->
 	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
 	%% Send a HEADERS frame on that now half-closed (remote) stream.
 	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
-	%% Receive a STREAM_CLOSED stream error.
-	{ok, << _:24, 3:8, _:8, 1:32, 5:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+	%% Receive a STREAM_CLOSED connection error.
+	{ok, << _:24, 7:8, _:72, 5:32 >>} = gen_tcp:recv(Socket, 17, 6000),
 	ok.
 
 half_closed_remote_accept_priority(Config) ->
@@ -1870,9 +1872,13 @@ half_closed_remote_accept_window_update(Config) ->
 	{ok, << _:24, 1:8, _:40 >>} = gen_tcp:recv(Socket, 9, 6000),
 	ok.
 
+%% We reject DATA frames sent on closed streams with a STREAM_CLOSED
+%% connection error regardless of how the stream was closed to simplify
+%% the implementation. This excludes the few frames we ignore from
+%% lingering streams that we canceled.
 rst_stream_closed_reject_data(Config) ->
 	doc("DATA frames received on a stream closed via RST_STREAM must be rejected "
-		"with a STREAM_CLOSED stream error. (RFC7540 5.1)"),
+		"with a STREAM_CLOSED connection error. (RFC7540 5.1, RFC7540 6.1)"),
 	{ok, Socket} = do_handshake(Config),
 	%% Send a HEADERS frame.
 	{HeadersBlock, _} = cow_hpack:encode([
@@ -1886,13 +1892,15 @@ rst_stream_closed_reject_data(Config) ->
 	ok = gen_tcp:send(Socket, cow_http2:rst_stream(1, cancel)),
 	%% Send a DATA frame on the now RST_STREAM closed stream.
 	ok = gen_tcp:send(Socket, cow_http2:data(1, fin, <<"Unexpected DATA frame.">>)),
-	%% Receive a STREAM_CLOSED stream error.
-	{ok, << _:24, 3:8, _:8, 1:32, 5:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+	%% Receive a STREAM_CLOSED connection error.
+	{ok, << _:24, 7:8, _:72, 5:32 >>} = gen_tcp:recv(Socket, 17, 6000),
 	ok.
 
+%% We reject all invalid HEADERS with a connection error because
+%% we do not want to waste resources decoding them.
 rst_stream_closed_reject_headers(Config) ->
 	doc("HEADERS frames received on a stream closed via RST_STREAM must be rejected "
-		"with a STREAM_CLOSED stream error. (RFC7540 5.1)"),
+		"with a STREAM_CLOSED connection error. (RFC7540 4.3, RFC7540 5.1)"),
 	{ok, Socket} = do_handshake(Config),
 	%% Send a HEADERS frame.
 	{HeadersBlock, _} = cow_hpack:encode([
@@ -1906,8 +1914,8 @@ rst_stream_closed_reject_headers(Config) ->
 	ok = gen_tcp:send(Socket, cow_http2:rst_stream(1, cancel)),
 	%% Send a HEADERS frame on the now RST_STREAM closed stream.
 	ok = gen_tcp:send(Socket, cow_http2:headers(1, nofin, HeadersBlock)),
-	%% Receive a STREAM_CLOSED stream error.
-	{ok, << _:24, 3:8, _:8, 1:32, 5:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+	%% Receive a STREAM_CLOSED connection error.
+	{ok, << _:24, 7:8, _:72, 5:32 >>} = gen_tcp:recv(Socket, 17, 6000),
 	ok.
 
 rst_stream_closed_accept_priority(Config) ->
@@ -1978,7 +1986,7 @@ rst_stream_closed_reject_window_update(Config) ->
 
 stream_closed_reject_data(Config) ->
 	doc("DATA frames received on a stream closed normally must be rejected "
-		"with a STREAM_CLOSED connection error. (RFC7540 5.1)"),
+		"with a STREAM_CLOSED connection error. (RFC7540 5.1, RFC7540 6.1)"),
 	{ok, Socket} = do_handshake(Config),
 	%% Send a HEADERS frame.
 	{HeadersBlock, _} = cow_hpack:encode([
@@ -2204,9 +2212,16 @@ http_upgrade_reject_reuse_streamid_1(Config) ->
 	{ok, << _:24, 7:8, _:72, 1:32 >>} = gen_tcp:recv(Socket, 17, 6000),
 	ok.
 
+%% The RFC gives us various error codes to return for this case,
+%% depending on whether the stream existed previously and how it
+%% ended up being (half-)closed. Cowboy rejects all these HEADERS
+%% frames the same way: with a STREAM_CLOSED connection error.
+%% Making it a connection error is particularly important in the
+%% cases where a stream error would be allowed because we avoid
+%% having to decode the headers and save up resources.
 reject_streamid_lower(Config) ->
 	doc("HEADERS frames received with streamid lower than the previous stream "
-		"must be rejected with a PROTOCOL_ERROR connection error. (RFC7540 5.1.1)"),
+		"must be rejected with a STREAM_CLOSED connection error. (RFC7540 5.1.1)"),
 	{ok, Socket} = do_handshake(Config),
 	%% Send a HEADERS frame with streamid 5.
 	{HeadersBlock, _} = cow_hpack:encode([
@@ -2223,12 +2238,12 @@ reject_streamid_lower(Config) ->
 	{ok, _} = gen_tcp:recv(Socket, Length2, 6000),
 	%% Send a HEADERS frame with streamid 3.
 	ok = gen_tcp:send(Socket, cow_http2:headers(3, fin, HeadersBlock)),
-	%% Receive a PROTOCOL_ERROR connection error.
-	{ok, << _:24, 7:8, _:72, 1:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	%% Receive a STREAM_CLOSED connection error.
+	{ok, << _:24, 7:8, _:72, 5:32 >>} = gen_tcp:recv(Socket, 17, 6000),
 	ok.
 
 %% @todo We need an option to limit the number of streams one can open
-%% on a connection. And we need to enforce it.
+%% on a connection. And we need to enforce it. (RFC7540 5.1.1)
 %
 %   Stream identifiers cannot be reused.  Long-lived connections can
 %   result in an endpoint exhausting the available range of stream
