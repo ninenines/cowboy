@@ -40,8 +40,8 @@ end_per_suite(_Config) ->
 
 init_dispatch() ->
 	cowboy_router:compile([
-		{"localhost", [
-			{"/", hello_h, []}
+		{'_', [
+			{"/", delay_hello_h, 500}
 		]}
 	]).
 
