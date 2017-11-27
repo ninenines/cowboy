@@ -295,6 +295,9 @@ parse(State=#state{local_settings=#{max_frame_size := MaxFrameSize},
 				{continuation, _, _, _} ->
 					parse(continuation_frame(State, Frame), Rest)
 			end;
+		{ignore, _} when element(1, ParseState) =:= continuation ->
+			terminate(State, {connection_error, protocol_error,
+				'An invalid frame was received in the middle of a header block. (RFC7540 6.2)'});
 		{ignore, Rest} ->
 			parse(State, Rest);
 		{stream_error, StreamID, Reason, Human, Rest} ->
@@ -422,6 +425,10 @@ frame(State, {ping_ack, _Opaque}) ->
 frame(State, Frame={goaway, _, _, _}) ->
 	terminate(State, {stop, Frame, 'Client is going away.'});
 %% Connection-wide WINDOW_UPDATE frame.
+frame(State=#state{local_window=ConnWindow}, {window_update, Increment})
+		when ConnWindow + Increment > 2147483647 ->
+	terminate(State, {connection_error, flow_control_error,
+		'The flow control window must not be greater than 2^31-1. (RFC7540 6.9.1)'});
 frame(State=#state{local_window=ConnWindow}, {window_update, Increment}) ->
 	send_data(State#state{local_window=ConnWindow + Increment});
 %% Stream-specific WINDOW_UPDATE frame.
@@ -431,6 +438,9 @@ frame(State=#state{client_streamid=LastStreamID}, {window_update, StreamID, _})
 		'WINDOW_UPDATE frame received on a stream in idle state. (RFC7540 5.1)'});
 frame(State0=#state{streams=Streams0}, {window_update, StreamID, Increment}) ->
 	case lists:keyfind(StreamID, #stream.id, Streams0) of
+		#stream{local_window=StreamWindow} when StreamWindow + Increment > 2147483647 ->
+			stream_reset(State0, StreamID, {stream_error, flow_control_error,
+				'The flow control window must not be greater than 2^31-1. (RFC7540 6.9.1)'});
 		Stream0 = #stream{local_window=StreamWindow} ->
 			{State, Stream} = send_data(State0,
 				Stream0#stream{local_window=StreamWindow + Increment}),
@@ -457,7 +467,7 @@ continuation_frame(State=#state{parse_state={continuation, StreamID, IsFin, Head
 		<< HeaderBlockFragment0/binary, HeaderBlockFragment1/binary >>}};
 continuation_frame(State, _) ->
 	terminate(State, {connection_error, protocol_error,
-		'An invalid frame was received while expecting a CONTINUATION frame. (RFC7540 6.2)'}).
+		'An invalid frame was received in the middle of a header block. (RFC7540 6.2)'}).
 
 down(State=#state{children=Children0}, Pid, Msg) ->
 	case cowboy_children:down(Children0, Pid) of

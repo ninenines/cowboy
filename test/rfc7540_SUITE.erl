@@ -2251,3 +2251,402 @@ reject_streamid_lower(Config) ->
 %   that is unable to establish a new stream identifier can send a GOAWAY
 %   frame so that the client is forced to open a new connection for new
 %   streams.
+
+%% @todo We need this option too. (RFC7540 5.1.2)
+%   A peer can limit the number of concurrently active streams using the
+%   SETTINGS_MAX_CONCURRENT_STREAMS parameter (see Section 6.5.2) within
+%   a SETTINGS frame.  The maximum concurrent streams setting is specific
+%   to each endpoint and applies only to the peer that receives the
+%   setting.  That is, clients specify the maximum number of concurrent
+%   streams the server can initiate, and servers specify the maximum
+%   number of concurrent streams the client can initiate.
+%
+%   Streams that are in the "open" state or in either of the "half-
+%   closed" states count toward the maximum number of streams that an
+%   endpoint is permitted to open.  Streams in any of these three states
+%   count toward the limit advertised in the
+%   SETTINGS_MAX_CONCURRENT_STREAMS setting.  Streams in either of the
+%   "reserved" states do not count toward the stream limit.
+%
+%   Endpoints MUST NOT exceed the limit set by their peer.  An endpoint
+%   that receives a HEADERS frame that causes its advertised concurrent
+%   stream limit to be exceeded MUST treat this as a stream error
+%   (Section 5.4.2) of type PROTOCOL_ERROR or REFUSED_STREAM.  The choice
+%   of error code determines whether the endpoint wishes to enable
+%   automatic retry (see Section 8.1.4) for details).
+%
+%   An endpoint that wishes to reduce the value of
+%   SETTINGS_MAX_CONCURRENT_STREAMS to a value that is below the current
+%   number of open streams can either close streams that exceed the new
+%   value or allow streams to complete.
+
+%% (RFC7540 5.2.1)
+%   3.  Flow control is directional with overall control provided by the
+%       receiver.  A receiver MAY choose to set any window size that it
+%       desires for each stream and for the entire connection.  A sender
+%       MUST respect flow-control limits imposed by a receiver.  Clients,
+%       servers, and intermediaries all independently advertise their
+%       flow-control window as a receiver and abide by the flow-control
+%       limits set by their peer when sending.
+%
+%   4.  The initial value for the flow-control window is 65,535 octets
+%       for both new streams and the overall connection.
+%
+%   5.  The frame type determines whether flow control applies to a
+%       frame.  Of the frames specified in this document, only DATA
+%       frames are subject to flow control; all other frame types do not
+%       consume space in the advertised flow-control window.  This
+%       ensures that important control frames are not blocked by flow
+%       control.
+%
+%   6.  Flow control cannot be disabled.
+
+%% (RFC7540 5.2.2)
+%   Even with full awareness of the current bandwidth-delay product,
+%   implementation of flow control can be difficult.  When using flow
+%   control, the receiver MUST read from the TCP receive buffer in a
+%   timely fashion.  Failure to do so could lead to a deadlock when
+%   critical frames, such as WINDOW_UPDATE, are not read and acted upon.
+
+%% @todo Stream priorities. (RFC7540 5.3 5.3.x)
+
+%% (RFC7540 5.4.1)
+%   An endpoint that encounters a connection error SHOULD first send a
+%   GOAWAY frame (Section 6.8) with the stream identifier of the last
+%   stream that it successfully received from its peer.  The GOAWAY frame
+%   includes an error code that indicates why the connection is
+%   terminating.  After sending the GOAWAY frame for an error condition,
+%   the endpoint MUST close the TCP connection.
+%
+%   An endpoint can end a connection at any time.  In particular, an
+%   endpoint MAY choose to treat a stream error as a connection error.
+%   Endpoints SHOULD send a GOAWAY frame when ending a connection,
+%   providing that circumstances permit it.
+
+%% (RFC7540 5.4.2)
+%   A RST_STREAM is the last frame that an endpoint can send on a stream.
+%   The peer that sends the RST_STREAM frame MUST be prepared to receive
+%   any frames that were sent or enqueued for sending by the remote peer.
+%   These frames can be ignored, except where they modify connection
+%   state (such as the state maintained for header compression
+%   (Section 4.3) or flow control).
+%
+%   Normally, an endpoint SHOULD NOT send more than one RST_STREAM frame
+%   for any stream.  However, an endpoint MAY send additional RST_STREAM
+%   frames if it receives frames on a closed stream after more than a
+%   round-trip time.  This behavior is permitted to deal with misbehaving
+%   implementations.
+%
+%   To avoid looping, an endpoint MUST NOT send a RST_STREAM in response
+%   to a RST_STREAM frame.
+
+%% (RFC7540 5.5)
+%   Extensions are permitted to use new frame types (Section 4.1), new
+%   settings (Section 6.5.2), or new error codes (Section 7).  Registries
+%   are established for managing these extension points: frame types
+%   (Section 11.2), settings (Section 11.3), and error codes
+%   (Section 11.4).
+%
+%   Implementations MUST ignore unknown or unsupported values in all
+%   extensible protocol elements.  Implementations MUST discard frames
+%   that have unknown or unsupported types.  This means that any of these
+%   extension points can be safely used by extensions without prior
+%   arrangement or negotiation.  However, extension frames that appear in
+%   the middle of a header block (Section 4.3) are not permitted; these
+%   MUST be treated as a connection error (Section 5.4.1) of type
+%   PROTOCOL_ERROR.
+
+continuation_with_extension_frame_interleaved_error(Config) ->
+	doc("Extension frames interleaved in a header block must be rejected "
+		"with a PROTOCOL_ERROR connection error. "
+		"(RFC7540 4.3, RFC7540 5.5, RFC7540 6.2, RFC7540 6.10)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send an unterminated HEADERS frame followed by an extension frame.
+	ok = gen_tcp:send(Socket, [
+		<< 0:24, 1:8, 0:7, 1:1, 0:1, 1:31 >>,
+		<< 0:24, 128:8, 0:8, 0:32 >>
+	]),
+	%% Receive a PROTOCOL_ERROR connection error.
+	{ok, << _:24, 7:8, _:72, 1:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+%% (RFC7540 6.1) DATA
+%   Padding:  Padding octets that contain no application semantic value.
+%      Padding octets MUST be set to zero when sending.  A receiver is
+%      not obligated to verify padding but MAY treat non-zero padding as
+%      a connection error (Section 5.4.1) of type PROTOCOL_ERROR.
+%
+%   DATA frames MUST be associated with a stream.  If a DATA frame is
+%   received whose stream identifier field is 0x0, the recipient MUST
+%   respond with a connection error (Section 5.4.1) of type
+%   PROTOCOL_ERROR.
+
+%% (RFC7540 6.2) HEADERS
+%   Padding:  Padding octets that contain no application semantic value.
+%      Padding octets MUST be set to zero when sending.  A receiver is
+%      not obligated to verify padding but MAY treat non-zero padding as
+%      a connection error (Section 5.4.1) of type PROTOCOL_ERROR.
+%
+%      A HEADERS frame carries the END_STREAM flag that signals the end
+%      of a stream.  However, a HEADERS frame with the END_STREAM flag
+%      set can be followed by CONTINUATION frames on the same stream.
+%      Logically, the CONTINUATION frames are part of the HEADERS frame.
+%
+%% @todo We probably need a test for the server sending HEADERS too large.
+%   The payload of a HEADERS frame contains a header block fragment
+%   (Section 4.3).  A header block that does not fit within a HEADERS
+%   frame is continued in a CONTINUATION frame (Section 6.10).
+%
+%   HEADERS frames MUST be associated with a stream.  If a HEADERS frame
+%   is received whose stream identifier field is 0x0, the recipient MUST
+%   respond with a connection error (Section 5.4.1) of type
+%   PROTOCOL_ERROR.
+
+%% (RFC7540 6.3) PRIORITY
+%   The PRIORITY frame always identifies a stream.  If a PRIORITY frame
+%   is received with a stream identifier of 0x0, the recipient MUST
+%   respond with a connection error (Section 5.4.1) of type
+%   PROTOCOL_ERROR.
+
+%% (RFC7540 6.4) RST_STREAM
+%   The RST_STREAM frame fully terminates the referenced stream and
+%   causes it to enter the "closed" state.  After receiving a RST_STREAM
+%   on a stream, the receiver MUST NOT send additional frames for that
+%   stream, with the exception of PRIORITY.  However, after sending the
+%   RST_STREAM, the sending endpoint MUST be prepared to receive and
+%   process additional frames sent on the stream that might have been
+%   sent by the peer prior to the arrival of the RST_STREAM.
+%
+%   RST_STREAM frames MUST be associated with a stream.  If a RST_STREAM
+%   frame is received with a stream identifier of 0x0, the recipient MUST
+%   treat this as a connection error (Section 5.4.1) of type
+%   PROTOCOL_ERROR.
+
+%% (RFC7540 6.5) SETTINGS
+%   A SETTINGS frame MUST be sent by both endpoints at the start of a
+%   connection and MAY be sent at any other time by either endpoint over
+%   the lifetime of the connection.  Implementations MUST support all of
+%   the parameters defined by this specification.
+%
+%   SETTINGS frames always apply to a connection, never a single stream.
+%   The stream identifier for a SETTINGS frame MUST be zero (0x0).  If an
+%   endpoint receives a SETTINGS frame whose stream identifier field is
+%   anything other than 0x0, the endpoint MUST respond with a connection
+%   error (Section 5.4.1) of type PROTOCOL_ERROR.
+%
+%   The SETTINGS frame affects connection state.  A badly formed or
+%   incomplete SETTINGS frame MUST be treated as a connection error
+%   (Section 5.4.1) of type PROTOCOL_ERROR.
+
+%% (RFC7540 6.5.2)
+%   SETTINGS_ENABLE_PUSH (0x2):  This setting can be used to disable
+%      server push (Section 8.2).  An endpoint MUST NOT send a
+%      PUSH_PROMISE frame if it receives this parameter set to a value of
+%      0.  An endpoint that has both set this parameter to 0 and had it
+%      acknowledged MUST treat the receipt of a PUSH_PROMISE frame as a
+%      connection error (Section 5.4.1) of type PROTOCOL_ERROR.
+%
+%   SETTINGS_MAX_CONCURRENT_STREAMS (0x3):  Indicates the maximum number
+%      of concurrent streams that the sender will allow.  This limit is
+%      directional: it applies to the number of streams that the sender
+%      permits the receiver to create.  Initially, there is no limit to
+%      this value.  It is recommended that this value be no smaller than
+%      100, so as to not unnecessarily limit parallelism.
+%
+%      A value of 0 for SETTINGS_MAX_CONCURRENT_STREAMS SHOULD NOT be
+%      treated as special by endpoints.  A zero value does prevent the
+%      creation of new streams; however, this can also happen for any
+%      limit that is exhausted with active streams.  Servers SHOULD only
+%      set a zero value for short durations; if a server does not wish to
+%      accept requests, closing the connection is more appropriate.
+%
+%   SETTINGS_INITIAL_WINDOW_SIZE (0x4):
+%      Values above the maximum flow-control window size of 2^31-1 MUST
+%      be treated as a connection error (Section 5.4.1) of type
+%      FLOW_CONTROL_ERROR.
+%
+%   SETTINGS_MAX_FRAME_SIZE (0x5):
+%      The initial value is 2^14 (16,384) octets.  The value advertised
+%      by an endpoint MUST be between this initial value and the maximum
+%      allowed frame size (2^24-1 or 16,777,215 octets), inclusive.
+%      Values outside this range MUST be treated as a connection error
+%      (Section 5.4.1) of type PROTOCOL_ERROR.
+%
+%   An endpoint that receives a SETTINGS frame with any unknown or
+%   unsupported identifier MUST ignore that setting. (6.5.2 and 6.5.3)
+
+%% (RFC7540 6.5.3)
+%   Upon receiving a SETTINGS frame with the ACK flag set, the
+%   sender of the altered parameters can rely on the setting having been
+%   applied.
+%
+%   If the sender of a SETTINGS frame does not receive an acknowledgement
+%   within a reasonable amount of time, it MAY issue a connection error
+%   (Section 5.4.1) of type SETTINGS_TIMEOUT.
+
+%% (RFC7540 6.6) PUSH_PROMISE
+% @todo PUSH_PROMISE frames have a reserved bit in the payload that must be ignored.
+%
+%   Padding:  Padding octets that contain no application semantic value.
+%      Padding octets MUST be set to zero when sending.  A receiver is
+%      not obligated to verify padding but MAY treat non-zero padding as
+%      a connection error (Section 5.4.1) of type PROTOCOL_ERROR.
+%
+%   PUSH_PROMISE frames MUST only be sent on a peer-initiated stream that
+%   is in either the "open" or "half-closed (remote)" state.  The stream
+%   identifier of a PUSH_PROMISE frame indicates the stream it is
+%   associated with.  If the stream identifier field specifies the value
+%   0x0, a recipient MUST respond with a connection error (Section 5.4.1)
+%   of type PROTOCOL_ERROR.
+%
+%   PUSH_PROMISE MUST NOT be sent if the SETTINGS_ENABLE_PUSH setting of
+%   the peer endpoint is set to 0.  An endpoint that has set this setting
+%   and has received acknowledgement MUST treat the receipt of a
+%   PUSH_PROMISE frame as a connection error (Section 5.4.1) of type
+%   PROTOCOL_ERROR.
+%
+%   Since PUSH_PROMISE reserves a stream, ignoring a PUSH_PROMISE frame
+%   causes the stream state to become indeterminate.  A receiver MUST
+%   treat the receipt of a PUSH_PROMISE on a stream that is neither
+%   "open" nor "half-closed (local)" as a connection error
+%   (Section 5.4.1) of type PROTOCOL_ERROR.
+%
+%   A receiver MUST treat the receipt of a PUSH_PROMISE that promises an
+%   illegal stream identifier (Section 5.1.1) as a connection error
+%   (Section 5.4.1) of type PROTOCOL_ERROR.  Note that an illegal stream
+%   identifier is an identifier for a stream that is not currently in the
+%   "idle" state.
+
+%% (RFC7540 6.7) PING
+%   PING frames are not associated with any individual stream.  If a PING
+%   frame is received with a stream identifier field value other than
+%   0x0, the recipient MUST respond with a connection error
+%   (Section 5.4.1) of type PROTOCOL_ERROR.
+
+%% (RFC7540 6.8) GOAWAY
+% @todo GOAWAY frames have a reserved bit in the payload that must be ignored.
+%
+%% @todo We should eventually implement the mechanism for gracefully
+%% shutting down of the connection. (Send the GOAWAY, finish processing
+%% the current set of streams, give up after a certain timeout.)
+%
+%% @todo If we graceful shutdown and receive a GOAWAY, we give up too.
+%   A GOAWAY frame might not immediately precede closing of the
+%   connection; a receiver of a GOAWAY that has no more use for the
+%   connection SHOULD still send a GOAWAY frame before terminating the
+%   connection.
+%
+%% @todo And it gets more complex when you think about h1 to h2 proxies.
+%   A server that is attempting to gracefully shut down a
+%   connection SHOULD send an initial GOAWAY frame with the last stream
+%   identifier set to 2^31-1 and a NO_ERROR code.  This signals to the
+%   client that a shutdown is imminent and that initiating further
+%   requests is prohibited.  After allowing time for any in-flight stream
+%   creation (at least one round-trip time), the server can send another
+%   GOAWAY frame with an updated last stream identifier.  This ensures
+%   that a connection can be cleanly shut down without losing requests.
+%
+%% @todo And of course even if we shutdown we need to be careful about
+%% the connection state.
+%   After sending a GOAWAY frame, the sender can discard frames for
+%   streams initiated by the receiver with identifiers higher than the
+%   identified last stream.  However, any frames that alter connection
+%   state cannot be completely ignored.  For instance, HEADERS,
+%   PUSH_PROMISE, and CONTINUATION frames MUST be minimally processed to
+%   ensure the state maintained for header compression is consistent (see
+%   Section 4.3); similarly, DATA frames MUST be counted toward the
+%   connection flow-control window.  Failure to process these frames can
+%   cause flow control or header compression state to become
+%   unsynchronized.
+%
+%   The GOAWAY frame applies to the connection, not a specific stream.
+%   An endpoint MUST treat a GOAWAY frame with a stream identifier other
+%   than 0x0 as a connection error (Section 5.4.1) of type
+%   PROTOCOL_ERROR.
+
+%% (RFC7540 6.9) WINDOW_UPDATE
+% @todo WINDOW_UPDATE frames have a reserved bit in the payload that must be ignored.
+
+window_update_reject_0(Config) ->
+	doc("WINDOW_UPDATE frames with an increment of 0 for the connection "
+		"flow control window must be rejected with a "
+		"PROTOCOL_ERROR connection error. (RFC7540 6.9.1)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send connection-wide WINDOW_UPDATE frame with a value of 0.
+	ok = gen_tcp:send(Socket, [
+		cow_http2:window_update(0)
+	]),
+	%% Receive a PROTOCOL_ERROR connection error.
+	{ok, << _:24, 7:8, _:72, 1:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+window_update_reject_0_stream(Config) ->
+	doc("WINDOW_UPDATE frames with an increment of 0 for a stream "
+		"flow control window must be rejected with a "
+		"PROTOCOL_ERROR stream error. (RFC7540 6.9.1)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame immediately followed by
+	%% a WINDOW_UPDATE frame with a value of 0.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>}
+	]),
+	ok = gen_tcp:send(Socket, [
+		cow_http2:headers(1, fin, HeadersBlock),
+		cow_http2:window_update(1, 0)
+	]),
+	%% Receive a PROTOCOL_ERROR stream error.
+	{ok, << _:24, 3:8, _:8, 1:32, 1:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+	ok.
+
+%   A receiver that receives a flow-controlled frame MUST always account
+%   for its contribution against the connection flow-control window,
+%   unless the receiver treats this as a connection error
+%   (Section 5.4.1).  This is necessary even if the frame is in error.
+%   The sender counts the frame toward the flow-control window, but if
+%   the receiver does not, the flow-control window at the sender and
+%   receiver can become different.
+
+%% (RFC7540 6.9.1)
+%   The sender MUST NOT
+%   send a flow-controlled frame with a length that exceeds the space
+%   available in either of the flow-control windows advertised by the
+%   receiver.  Frames with zero length with the END_STREAM flag set (that
+%   is, an empty DATA frame) MAY be sent if there is no available space
+%   in either flow-control window.
+
+window_update_reject_overflow(Config) ->
+	doc("WINDOW_UPDATE frames that cause the connection flow control "
+		"window to exceed 2^31-1 must be rejected with a "
+		"FLOW_CONTROL_ERROR connection error. (RFC7540 6.9.1)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send connection-wide WINDOW_UPDATE frame that causes the window to overflow.
+	ok = gen_tcp:send(Socket, [
+		cow_http2:window_update(2147483647)
+	]),
+	%% Receive a FLOW_CONTROL_ERROR connection error.
+	{ok, << _:24, 7:8, _:72, 3:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+window_update_reject_overflow_stream(Config) ->
+	doc("WINDOW_UPDATE frames that cause a stream flow control "
+		"window to exceed 2^31-1 must be rejected with a "
+		"FLOW_CONTROL_ERROR stream error. (RFC7540 6.9.1)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame immediately followed by a WINDOW_UPDATE
+	%% frame that causes the stream window to overflow.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>}
+	]),
+	ok = gen_tcp:send(Socket, [
+		cow_http2:headers(1, fin, HeadersBlock),
+		cow_http2:window_update(1, 2147483647)
+	]),
+	%% Receive a FLOW_CONTROL_ERROR stream error.
+	{ok, << _:24, 3:8, _:8, 1:32, 3:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+	ok.
