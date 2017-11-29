@@ -146,7 +146,7 @@ http_upgrade_reject_bad_http2_settings_header(Config) ->
 		"Connection: Upgrade, HTTP2-Settings\r\n"
 		"Upgrade: h2c\r\n"
 		%% We send a full SETTINGS frame on purpose.
-		"HTTP2-Settings: ", base64:encode(cow_http2:settings(#{})), "\r\n",
+		"HTTP2-Settings: ", base64:encode(iolist_to_binary(cow_http2:settings(#{}))), "\r\n",
 		"\r\n"]),
 	{ok, <<"HTTP/1.1 400">>} = gen_tcp:recv(Socket, 12, 1000),
 	ok.
