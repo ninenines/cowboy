@@ -67,6 +67,8 @@
 	id = undefined :: cowboy_stream:streamid(),
 	%% Stream handlers and their state.
 	state = undefined :: {module(), any()},
+	%% Request method.
+	method = undefined :: binary(),
 	%% Client HTTP version for this stream.
 	version = undefined :: cowboy:http_version(),
 	%% Unparsed te header. Used to know if we can send trailers.
@@ -265,13 +267,14 @@ parse(Buffer, State=#state{in_state=#ps_body{}}) ->
 	after_parse(parse_body(Buffer, State)).
 %% @todo Don't parse if body is finished but request isn't. Let's not parallelize for now.
 
-after_parse({request, Req=#{streamid := StreamID, headers := Headers, version := Version},
+after_parse({request, Req=#{streamid := StreamID, method := Method,
+		headers := Headers, version := Version},
 		State0=#state{opts=Opts, streams=Streams0}, Buffer}) ->
 	try cowboy_stream:init(StreamID, Req, Opts) of
 		{Commands, StreamState} ->
 			TE = maps:get(<<"te">>, Headers, undefined),
 			Streams = [#stream{id=StreamID, state=StreamState,
-				version=Version, te=TE}|Streams0],
+				method=Method, version=Version, te=TE}|Streams0],
 			State1 = case maybe_req_close(State0, Headers, Version) of
 				close -> State0#state{streams=Streams, last_streamid=StreamID};
 				keepalive -> State0#state{streams=Streams}
@@ -900,6 +903,8 @@ commands(State0=#state{socket=Socket, transport=Transport, streams=Streams}, Str
 		0 ->
 			%% We send the last chunk only if version is HTTP/1.1 and IsFin=fin.
 			case lists:keyfind(StreamID, #stream.id, Streams) of
+				#stream{method= <<"HEAD">>} ->
+					ok;
 				#stream{version='HTTP/1.1'} when IsFin =:= fin ->
 					Transport:send(Socket, <<"0\r\n\r\n">>);
 				_ ->
@@ -909,6 +914,8 @@ commands(State0=#state{socket=Socket, transport=Transport, streams=Streams}, Str
 			%% @todo We need to kill the stream if it tries to send data before headers.
 			%% @todo Same as above.
 			case lists:keyfind(StreamID, #stream.id, Streams) of
+				#stream{method= <<"HEAD">>} ->
+					ok;
 				#stream{version='HTTP/1.1'} ->
 					Transport:send(Socket, [
 						integer_to_binary(Size, 16), <<"\r\n">>, Data,
