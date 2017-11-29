@@ -380,6 +380,7 @@ do_terminate_on_switch_protocol(Config) ->
 	]),
 	%% Confirm init/3 is called and receive the response.
 	Pid = receive {Self, P, init, _, _, _} -> P after 1000 -> error(timeout) end,
+	{inform, 101, _} = gun:await(ConnPid, Ref),
 	%% Confirm terminate/3 is called.
 	receive {Self, Pid, terminate, _, _, _} -> ok after 1000 -> error(timeout) end,
 	%% Confirm takeover/7 is called.
