@@ -1760,7 +1760,7 @@ same_transfer_encoding_as_get_in_head_response(Config) ->
 %not include a content-length or transfer-encoding header. (RFC7230 3.3.1, RFC7230 3.3.2)
 
 no_content_length_in_204_response(Config) ->
-	doc("204 responses must not include a transfer-encoding header. "
+	doc("204 responses must not include a content-length header. "
 		"(RFC7230 3.3.1, RFC7230 3.3.2)"),
 	Client = raw_open(Config),
 	ok = raw_send(Client, [
