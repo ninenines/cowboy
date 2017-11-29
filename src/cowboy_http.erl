@@ -394,6 +394,8 @@ parse_uri_skip_host(<< C, Rest/bits >>, State, Method) ->
 	case C of
 		$\r -> error_terminate(400, State, {connection_error, protocol_error,
 			'The request-target must not be followed by a line break. (RFC7230 3.1.1)'});
+		$@ -> error_terminate(400, State, {connection_error, protocol_error,
+			'Absolute URIs must not include a userinfo component. (RFC7230 2.7.1)'});
 		$/ -> parse_uri_path(Rest, State, Method, <<"/">>);
 		$\s -> parse_version(Rest, State, Method, <<"/">>, <<>>);
 		$? -> parse_uri_query(Rest, State, Method, <<"/">>, <<>>);
