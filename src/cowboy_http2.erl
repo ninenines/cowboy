@@ -274,7 +274,6 @@ parse(State=#state{socket=Socket, transport=Transport, parse_state={preface, seq
 			<< Preface:Len/binary, _/bits >> = <<"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n">>,
 			case Data of
 				Preface ->
-					%% @todo OK we should have a timeout when waiting for the preface.
 					before_loop(State, Data);
 				_ ->
 					Transport:close(Socket),
@@ -794,6 +793,9 @@ headers_encode(Headers0, EncodeState) ->
 
 -spec terminate(#state{}, _) -> no_return().
 terminate(undefined, Reason) ->
+	exit({shutdown, Reason});
+terminate(#state{socket=Socket, transport=Transport, parse_state={preface, _, _}}, Reason) ->
+	Transport:close(Socket),
 	exit({shutdown, Reason});
 terminate(#state{socket=Socket, transport=Transport, client_streamid=LastStreamID,
 		streams=Streams, children=Children}, Reason) ->
