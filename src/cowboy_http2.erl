@@ -611,7 +611,12 @@ commands(State0=#state{socket=Socket, transport=Transport, server_streamid=Promi
 	{HeaderBlock, EncodeState} = headers_encode(Headers, EncodeState0),
 	Transport:send(Socket, cow_http2:push_promise(StreamID, PromisedStreamID, HeaderBlock)),
 	State = stream_req_init(State0#state{server_streamid=PromisedStreamID + 2,
-		encode_state=EncodeState}, PromisedStreamID, fin, Headers),
+		encode_state=EncodeState}, PromisedStreamID, fin, Headers1, #{
+			method => Method,
+			scheme => Scheme,
+			authority => Authority,
+			path => Path
+		}),
 	commands(State, Stream, Tail);
 commands(State=#state{socket=Socket, transport=Transport, remote_window=ConnWindow},
 		Stream=#stream{id=StreamID, remote_window=StreamWindow},
@@ -772,6 +777,15 @@ queue_data(Stream=#stream{local_buffer=Q0, local_buffer_size=Size0}, IsFin, Data
 	Q = queue:In({IsFin, DataSize, Data}, Q0),
 	Stream#stream{local_buffer=Q, local_buffer_size=Size0 + DataSize}.
 
+%% The set-cookie header is special; we can only send one cookie per header.
+headers_encode(Headers0=#{<<"set-cookie">> := SetCookies}, EncodeState) ->
+	Headers1 = maps:to_list(maps:remove(<<"set-cookie">>, Headers0)),
+	Headers = Headers1 ++ [{<<"set-cookie">>, Value} || Value <- SetCookies],
+	cow_hpack:encode(Headers, EncodeState);
+headers_encode(Headers0, EncodeState) ->
+	Headers = maps:to_list(Headers0),
+	cow_hpack:encode(Headers, EncodeState).
+
 -spec terminate(#state{}, _) -> no_return().
 terminate(undefined, Reason) ->
 	exit({shutdown, Reason});
@@ -801,26 +815,100 @@ terminate_all_streams([#stream{id=StreamID, state=StreamState}|Tail], Reason) ->
 
 %% Stream functions.
 
-stream_decode_init(State=#state{socket=Socket, transport=Transport,
-		decode_state=DecodeState0}, StreamID, IsFin, HeaderBlock) ->
-	%% @todo Add clause for CONNECT requests (no scheme/path).
-	try headers_decode(HeaderBlock, DecodeState0) of
-		{Headers=#{<<":method">> := _, <<":scheme">> := _,
-				<<":authority">> := _, <<":path">> := _}, DecodeState} ->
-			stream_req_init(State#state{decode_state=DecodeState}, StreamID, IsFin, Headers);
-		{_, DecodeState} ->
-			Transport:send(Socket, cow_http2:rst_stream(StreamID, protocol_error)),
-			State#state{decode_state=DecodeState}
+stream_decode_init(State=#state{decode_state=DecodeState0}, StreamID, IsFin, HeaderBlock) ->
+	try cow_hpack:decode(HeaderBlock, DecodeState0) of
+		{Headers, DecodeState} ->
+			stream_pseudo_headers_init(State#state{decode_state=DecodeState},
+				StreamID, IsFin, Headers)
 	catch _:_ ->
 		terminate(State, {connection_error, compression_error,
 			'Error while trying to decode HPACK-encoded header block. (RFC7540 4.3)'})
 	end.
 
+stream_pseudo_headers_init(State, StreamID, IsFin, Headers0) ->
+	case pseudo_headers(Headers0, #{}) of
+		%% @todo Add clause for CONNECT requests (no scheme/path).
+		{ok, PseudoHeaders=#{method := _, scheme := _, authority := _, path := _}, Headers} ->
+			stream_regular_headers_init(State, StreamID, IsFin, Headers, PseudoHeaders);
+		{ok, _, _} ->
+			stream_malformed(State, StreamID,
+				'A required pseudo-header was not found. (RFC7540 8.1.2.3)');
+		{error, HumanReadable} ->
+			stream_malformed(State, StreamID, HumanReadable)
+	end.
+
+pseudo_headers([{<<":method">>, _}|_], #{method := _}) ->
+	{error, 'Multiple :method pseudo-headers were found. (RFC7540 8.1.2.3)'};
+pseudo_headers([{<<":method">>, Method}|Tail], PseudoHeaders) ->
+	pseudo_headers(Tail, PseudoHeaders#{method => Method});
+pseudo_headers([{<<":scheme">>, _}|_], #{scheme := _}) ->
+	{error, 'Multiple :scheme pseudo-headers were found. (RFC7540 8.1.2.3)'};
+pseudo_headers([{<<":scheme">>, Scheme}|Tail], PseudoHeaders) ->
+	pseudo_headers(Tail, PseudoHeaders#{scheme => Scheme});
+pseudo_headers([{<<":authority">>, _}|_], #{authority := _}) ->
+	{error, 'Multiple :authority pseudo-headers were found. (RFC7540 8.1.2.3)'};
+pseudo_headers([{<<":authority">>, Authority}|Tail], PseudoHeaders) ->
+	%% @todo Probably parse the authority here.
+	pseudo_headers(Tail, PseudoHeaders#{authority => Authority});
+pseudo_headers([{<<":path">>, _}|_], #{path := _}) ->
+	{error, 'Multiple :path pseudo-headers were found. (RFC7540 8.1.2.3)'};
+pseudo_headers([{<<":path">>, Path}|Tail], PseudoHeaders) ->
+	%% @todo Probably parse the path here.
+	pseudo_headers(Tail, PseudoHeaders#{path => Path});
+pseudo_headers([{<<":", _/bits>>, _}|_], _) ->
+	{error, 'An unknown or invalid pseudo-header was found. (RFC7540 8.1.2.1)'};
+pseudo_headers(Headers, PseudoHeaders) ->
+	{ok, PseudoHeaders, Headers}.
+
+stream_regular_headers_init(State, StreamID, IsFin, Headers, PseudoHeaders) ->
+	case regular_headers(Headers) of
+		ok ->
+			stream_req_init(State, StreamID, IsFin,
+				headers_to_map(Headers, #{}), PseudoHeaders);
+		{error, HumanReadable} ->
+			stream_malformed(State, StreamID, HumanReadable)
+	end.
+
+regular_headers([{<<":", _/bits>>, _}|_]) ->
+	{error, 'Pseudo-headers were found after regular headers. (RFC7540 8.1.2.1)'};
+regular_headers([{<<"connection">>, _}|_]) ->
+	{error, 'The connection header is not allowed. (RFC7540 8.1.2.2)'};
+regular_headers([{<<"keep-alive">>, _}|_]) ->
+	{error, 'The keep-alive header is not allowed. (RFC7540 8.1.2.2)'};
+regular_headers([{<<"proxy-authenticate">>, _}|_]) ->
+	{error, 'The proxy-authenticate header is not allowed. (RFC7540 8.1.2.2)'};
+regular_headers([{<<"proxy-authorization">>, _}|_]) ->
+	{error, 'The proxy-authorization header is not allowed. (RFC7540 8.1.2.2)'};
+regular_headers([{<<"transfer-encoding">>, _}|_]) ->
+	{error, 'The transfer-encoding header is not allowed. (RFC7540 8.1.2.2)'};
+regular_headers([{<<"upgrade">>, _}|_]) ->
+	{error, 'The upgrade header is not allowed. (RFC7540 8.1.2.2)'};
+regular_headers([{<<"te">>, Value}|_]) when Value =/= <<"trailers">> ->
+	{error, 'The te header with a value other than "trailers" is not allowed. (RFC7540 8.1.2.2)'};
+regular_headers([{Name, _}|Tail]) ->
+	case cowboy_bstr:to_lower(Name) of
+		Name -> regular_headers(Tail);
+		_ -> {error, 'Header names must be lowercase. (RFC7540 8.1.2)'}
+	end;
+regular_headers([]) ->
+	ok.
+
+%% This function is necessary to properly handle duplicate headers
+%% and the special-case cookie header.
+headers_to_map([], Acc) ->
+	Acc;
+headers_to_map([{Name, Value}|Tail], Acc0) ->
+	Acc = case Acc0 of
+		%% The cookie header does not use proper HTTP header lists.
+		#{Name := Value0} when Name =:= <<"cookie">> -> Acc0#{Name => << Value0/binary, "; ", Value/binary >>};
+		#{Name := Value0} -> Acc0#{Name => << Value0/binary, ", ", Value/binary >>};
+		_ -> Acc0#{Name => Value}
+	end,
+	headers_to_map(Tail, Acc).
+
 stream_req_init(State=#state{ref=Ref, peer=Peer, sock=Sock, cert=Cert},
-		StreamID, IsFin, Headers0=#{
-			<<":method">> := Method, <<":scheme">> := Scheme,
-			<<":authority">> := Authority, <<":path">> := PathWithQs}) ->
-	Headers = maps:without([<<":method">>, <<":scheme">>, <<":authority">>, <<":path">>], Headers0),
+		StreamID, IsFin, Headers, #{method := Method, scheme := Scheme,
+			authority := Authority, path := PathWithQs}) ->
 	BodyLength = case Headers of
 		_ when IsFin =:= fin ->
 			0;
@@ -836,28 +924,44 @@ stream_req_init(State=#state{ref=Ref, peer=Peer, sock=Sock, cert=Cert},
 		_ ->
 			undefined
 	end,
-	%% @todo If this fails to parse we want to gracefully handle the crash.
-	{Host, Port} = cow_http_hd:parse_host(Authority),
-	{Path, Qs} = cow_http:parse_fullpath(PathWithQs),
-	Req = #{
-		ref => Ref,
-		pid => self(),
-		streamid => StreamID,
-		peer => Peer,
-		sock => Sock,
-		cert => Cert,
-		method => Method,
-		scheme => Scheme,
-		host => Host,
-		port => Port,
-		path => Path,
-		qs => Qs,
-		version => 'HTTP/2',
-		headers => Headers,
-		has_body => IsFin =:= nofin,
-		body_length => BodyLength
-	},
-	stream_handler_init(State, StreamID, IsFin, idle, Req).
+	try cow_http_hd:parse_host(Authority) of
+		{Host, Port} ->
+			try cow_http:parse_fullpath(PathWithQs) of
+				{<<>>, _} ->
+					stream_malformed(State, StreamID,
+						'The path component must not be empty. (RFC7540 8.1.2.3)');
+				{Path, Qs} ->
+					Req = #{
+						ref => Ref,
+						pid => self(),
+						streamid => StreamID,
+						peer => Peer,
+						sock => Sock,
+						cert => Cert,
+						method => Method,
+						scheme => Scheme,
+						host => Host,
+						port => Port,
+						path => Path,
+						qs => Qs,
+						version => 'HTTP/2',
+						headers => Headers,
+						has_body => IsFin =:= nofin,
+						body_length => BodyLength
+					},
+					stream_handler_init(State, StreamID, IsFin, idle, Req)
+			catch _:_ ->
+				stream_malformed(State, StreamID,
+					'The :path pseudo-header is invalid. (RFC7540 8.1.2.3)')
+			end
+	catch _:_ ->
+		stream_malformed(State, StreamID,
+			'The :authority pseudo-header is invalid. (RFC7540 8.1.2.3)')
+	end.
+
+stream_malformed(State=#state{socket=Socket, transport=Transport}, StreamID, _) ->
+	Transport:send(Socket, cow_http2:rst_stream(StreamID, protocol_error)),
+	State.
 
 stream_handler_init(State=#state{opts=Opts,
 		local_settings=#{initial_window_size := RemoteWindow},
@@ -956,34 +1060,6 @@ stream_call_terminate(StreamID, Reason, StreamState) ->
 			[StreamID, Reason, StreamState],
 			Class, Exception, erlang:get_stacktrace())
 	end.
-
-%% Headers encode/decode.
-
-headers_decode(HeaderBlock, DecodeState0) ->
-	{Headers, DecodeState} = cow_hpack:decode(HeaderBlock, DecodeState0),
-	{headers_to_map(Headers, #{}), DecodeState}.
-
-%% This function is necessary to properly handle duplicate headers
-%% and the special-case cookie header.
-headers_to_map([], Acc) ->
-	Acc;
-headers_to_map([{Name, Value}|Tail], Acc0) ->
-	Acc = case Acc0 of
-		%% The cookie header does not use proper HTTP header lists.
-		#{Name := Value0} when Name =:= <<"cookie">> -> Acc0#{Name => << Value0/binary, "; ", Value/binary >>};
-		#{Name := Value0} -> Acc0#{Name => << Value0/binary, ", ", Value/binary >>};
-		_ -> Acc0#{Name => Value}
-	end,
-	headers_to_map(Tail, Acc).
-
-%% The set-cookie header is special; we can only send one cookie per header.
-headers_encode(Headers0=#{<<"set-cookie">> := SetCookies}, EncodeState) ->
-	Headers1 = maps:to_list(maps:remove(<<"set-cookie">>, Headers0)),
-	Headers = Headers1 ++ [{<<"set-cookie">>, Value} || Value <- SetCookies],
-	cow_hpack:encode(Headers, EncodeState);
-headers_encode(Headers0, EncodeState) ->
-	Headers = maps:to_list(Headers0),
-	cow_hpack:encode(Headers, EncodeState).
 
 %% System callbacks.
 

@@ -17,6 +17,7 @@
 
 -import(ct_helper, [config/2]).
 -import(ct_helper, [doc/1]).
+-import(cowboy_test, [gun_open/1]).
 -import(cowboy_test, [raw_open/1]).
 -import(cowboy_test, [raw_send/2]).
 -import(cowboy_test, [raw_recv_head/1]).
@@ -45,7 +46,8 @@ end_per_group(Name, _) ->
 init_routes(_) -> [
 	{"localhost", [
 		{"/", hello_h, []},
-		{"/echo/:key", echo_h, []}
+		{"/echo/:key", echo_h, []},
+		{"/resp/:key[/:arg]", resp_h, []}
 	]}
 ].
 
@@ -2731,3 +2733,593 @@ settings_initial_window_size_reject_overflow(Config) ->
 	%% Receive a FLOW_CONTROL_ERROR connection error.
 	{ok, << _:24, 7:8, _:72, 3:32 >>} = gen_tcp:recv(Socket, 17, 6000),
 	ok.
+
+%% (RFC7540 6.9.3)
+%% @todo The right way to do this seems to be to wait for the SETTINGS ack
+%% before we KNOW the flow control window was updated on the other side.
+%   A receiver that wishes to use a smaller flow-control window than the
+%   current size can send a new SETTINGS frame.  However, the receiver
+%   MUST be prepared to receive data that exceeds this window size, since
+%   the sender might send data that exceeds the lower limit prior to
+%   processing the SETTINGS frame.
+
+%% (RFC7540 6.10) CONTINUATION
+%   CONTINUATION frames MUST be associated with a stream.  If a
+%   CONTINUATION frame is received whose stream identifier field is 0x0,
+%   the recipient MUST respond with a connection error (Section 5.4.1) of
+%   type PROTOCOL_ERROR.
+%
+%   A CONTINUATION frame MUST be preceded by a HEADERS, PUSH_PROMISE or
+%   CONTINUATION frame without the END_HEADERS flag set.  A recipient
+%   that observes violation of this rule MUST respond with a connection
+%   error (Section 5.4.1) of type PROTOCOL_ERROR.
+
+%% (RFC7540 7) Error Codes
+%   Unknown or unsupported error codes MUST NOT trigger any special
+%   behavior.  These MAY be treated by an implementation as being
+%   equivalent to INTERNAL_ERROR.
+
+%% (RFC7540 8.1)
+%   A HEADERS frame (and associated CONTINUATION frames) can only appear
+%   at the start or end of a stream.  An endpoint that receives a HEADERS
+%   frame without the END_STREAM flag set after receiving a final (non-
+%   informational) status code MUST treat the corresponding request or
+%   response as malformed (Section 8.1.2.6).
+%
+%% @todo This one is interesting to implement because Cowboy DOES this.
+%   A server can
+%   send a complete response prior to the client sending an entire
+%   request if the response does not depend on any portion of the request
+%   that has not been sent and received.  When this is true, a server MAY
+%   request that the client abort transmission of a request without error
+%   by sending a RST_STREAM with an error code of NO_ERROR after sending
+%   a complete response (i.e., a frame with the END_STREAM flag).
+
+headers_reject_uppercase_header_name(Config) ->
+	doc("Requests containing uppercase header names must be rejected "
+		"with a PROTOCOL_ERROR stream error. (RFC7540 8.1.2, RFC7540 8.1.2.6)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame with a uppercase header name.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>},
+		{<<"HELLO">>, <<"world">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+	%% Receive a PROTOCOL_ERROR stream error.
+	{ok, << _:24, 3:8, _:8, 1:32, 1:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+	ok.
+
+reject_response_pseudo_headers(Config) ->
+	doc("Requests containing response pseudo-headers must be rejected "
+		"with a PROTOCOL_ERROR stream error. (RFC7540 8.1.2.1, RFC7540 8.1.2.6)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame with a response pseudo-header.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>},
+		{<<":status">>, <<"200">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+	%% Receive a PROTOCOL_ERROR stream error.
+	{ok, << _:24, 3:8, _:8, 1:32, 1:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+	ok.
+
+reject_unknown_pseudo_headers(Config) ->
+	doc("Requests containing unknown pseudo-headers must be rejected "
+		"with a PROTOCOL_ERROR stream error. (RFC7540 8.1.2.1, RFC7540 8.1.2.6)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame with an unknown pseudo-header.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>},
+		{<<":upgrade">>, <<"websocket">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+	%% Receive a PROTOCOL_ERROR stream error.
+	{ok, << _:24, 3:8, _:8, 1:32, 1:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+	ok.
+
+%% @todo Implement request trailers. reject_pseudo_headers_in_trailers(Config) ->
+%   Pseudo-header fields MUST NOT appear in trailers.
+%   Endpoints MUST treat a request or response that contains
+%   undefined or invalid pseudo-header fields as malformed
+%   (Section 8.1.2.6).
+
+reject_pseudo_headers_after_regular_headers(Config) ->
+	doc("Requests containing pseudo-headers after regular headers must be rejected "
+		"with a PROTOCOL_ERROR stream error. (RFC7540 8.1.2.1, RFC7540 8.1.2.6)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame with a pseudo-header after regular headers.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<"content-length">>, <<"0">>},
+		{<<":path">>, <<"/">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+	%% Receive a PROTOCOL_ERROR stream error.
+	{ok, << _:24, 3:8, _:8, 1:32, 1:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+	ok.
+
+reject_connection_header(Config) ->
+	doc("Requests containing a connection header must be rejected "
+		"with a PROTOCOL_ERROR stream error. (RFC7540 8.1.2.2, RFC7540 8.1.2.6)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame with a connection header.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>},
+		{<<"connection">>, <<"close">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+	%% Receive a PROTOCOL_ERROR stream error.
+	{ok, << _:24, 3:8, _:8, 1:32, 1:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+	ok.
+
+reject_keep_alive_header(Config) ->
+	doc("Requests containing a keep-alive header must be rejected "
+		"with a PROTOCOL_ERROR stream error. (RFC7540 8.1.2.2, RFC7540 8.1.2.6)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame with a keep-alive header.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>},
+		{<<"keep-alive">>, <<"timeout=5, max=1000">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+	%% Receive a PROTOCOL_ERROR stream error.
+	{ok, << _:24, 3:8, _:8, 1:32, 1:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+	ok.
+
+reject_proxy_authenticate_header(Config) ->
+	doc("Requests containing a connection header must be rejected "
+		"with a PROTOCOL_ERROR stream error. (RFC7540 8.1.2.2, RFC7540 8.1.2.6)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame with a proxy-authenticate header.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>},
+		{<<"proxy-authenticate">>, <<"Basic">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+	%% Receive a PROTOCOL_ERROR stream error.
+	{ok, << _:24, 3:8, _:8, 1:32, 1:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+	ok.
+
+reject_proxy_authorization_header(Config) ->
+	doc("Requests containing a connection header must be rejected "
+		"with a PROTOCOL_ERROR stream error. (RFC7540 8.1.2.2, RFC7540 8.1.2.6)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame with a proxy-authorization header.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>},
+		{<<"proxy-authorization">>, <<"Basic YWxhZGRpbjpvcGVuc2VzYW1l">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+	%% Receive a PROTOCOL_ERROR stream error.
+	{ok, << _:24, 3:8, _:8, 1:32, 1:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+	ok.
+
+reject_transfer_encoding_header(Config) ->
+	doc("Requests containing a connection header must be rejected "
+		"with a PROTOCOL_ERROR stream error. (RFC7540 8.1.2.2, RFC7540 8.1.2.6)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame with a transfer-encoding header.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>},
+		{<<"transfer-encoding">>, <<"chunked">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+	%% Receive a PROTOCOL_ERROR stream error.
+	{ok, << _:24, 3:8, _:8, 1:32, 1:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+	ok.
+
+reject_upgrade_header(Config) ->
+	doc("Requests containing a connection header must be rejected "
+		"with a PROTOCOL_ERROR stream error. (RFC7540 8.1.2.2, RFC7540 8.1.2.6)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame with a upgrade header.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>},
+		{<<"upgrade">>, <<"websocket">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+	%% Receive a PROTOCOL_ERROR stream error.
+	{ok, << _:24, 3:8, _:8, 1:32, 1:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+	ok.
+
+accept_te_header_value_trailers(Config) ->
+	doc("Requests containing a TE header with a value of \"trailers\" "
+		"must be accepted. (RFC7540 8.1.2.2)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame with a TE header with value "trailers".
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>},
+		{<<"te">>, <<"trailers">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+	%% Receive a response.
+	{ok, << _:24, 1:8, _:8, 1:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+	ok.
+
+reject_te_header_other_values(Config) ->
+	doc("Requests containing a TE header with a value other than \"trailers\" must be rejected "
+		"with a PROTOCOL_ERROR stream error. (RFC7540 8.1.2.2, RFC7540 8.1.2.6)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame with a TE header with a different value.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>},
+		{<<"te">>, <<"trailers, deflate;q=0.5">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+	%% Receive a PROTOCOL_ERROR stream error.
+	{ok, << _:24, 3:8, _:8, 1:32, 1:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+	ok.
+
+%% (RFC7540 8.1.2.2)
+%   This means that an intermediary transforming an HTTP/1.x message to
+%   HTTP/2 will need to remove any header fields nominated by the
+%   Connection header field, along with the Connection header field
+%   itself.  Such intermediaries SHOULD also remove other connection-
+%   specific header fields, such as Keep-Alive, Proxy-Connection,
+%   Transfer-Encoding, and Upgrade, even if they are not nominated by the
+%   Connection header field.
+
+reject_userinfo(Config) ->
+	doc("An authority containing a userinfo component must be rejected "
+		"with a PROTOCOL_ERROR stream error. (RFC7540 8.1.2.3, RFC7540 8.1.2.6)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame with a userinfo authority component.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"user@localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+	%% Receive a PROTOCOL_ERROR stream error.
+	{ok, << _:24, 3:8, _:8, 1:32, 1:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+	ok.
+
+%% (RFC7540 8.1.2.3)
+%      To ensure that the HTTP/1.1 request line can be reproduced
+%      accurately, this pseudo-header field MUST be omitted when
+%      translating from an HTTP/1.1 request that has a request target in
+%      origin or asterisk form (see [RFC7230], Section 5.3).  Clients
+%      that generate HTTP/2 requests directly SHOULD use the ":authority"
+%      pseudo-header field instead of the Host header field.  An
+%      intermediary that converts an HTTP/2 request to HTTP/1.1 MUST
+%      create a Host header field if one is not present in a request by
+%      copying the value of the ":authority" pseudo-header field.
+
+reject_empty_path(Config) ->
+	doc("A request containing an empty path component must be rejected "
+		"with a PROTOCOL_ERROR stream error. (RFC7540 8.1.2.3, RFC7540 8.1.2.6)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame with an empty path component.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<>>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+	%% Receive a PROTOCOL_ERROR stream error.
+	{ok, << _:24, 3:8, _:8, 1:32, 1:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+	ok.
+
+reject_missing_pseudo_header_method(Config) ->
+	doc("A request without a method component must be rejected "
+		"with a PROTOCOL_ERROR stream error. (RFC7540 8.1.2.3, RFC7540 8.1.2.6)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame without a :method pseudo-header.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<>>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+	%% Receive a PROTOCOL_ERROR stream error.
+	{ok, << _:24, 3:8, _:8, 1:32, 1:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+	ok.
+
+reject_many_pseudo_header_method(Config) ->
+	doc("A request containing more than one method component must be rejected "
+		"with a PROTOCOL_ERROR stream error. (RFC7540 8.1.2.3, RFC7540 8.1.2.6)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame with more than one :method pseudo-header.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<>>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+	%% Receive a PROTOCOL_ERROR stream error.
+	{ok, << _:24, 3:8, _:8, 1:32, 1:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+	ok.
+
+reject_missing_pseudo_header_scheme(Config) ->
+	doc("A request without a scheme component must be rejected "
+		"with a PROTOCOL_ERROR stream error. (RFC7540 8.1.2.3, RFC7540 8.1.2.6)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame without a :scheme pseudo-header.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<>>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+	%% Receive a PROTOCOL_ERROR stream error.
+	{ok, << _:24, 3:8, _:8, 1:32, 1:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+	ok.
+
+reject_many_pseudo_header_scheme(Config) ->
+	doc("A request containing more than one scheme component must be rejected "
+		"with a PROTOCOL_ERROR stream error. (RFC7540 8.1.2.3, RFC7540 8.1.2.6)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame with more than one :scheme pseudo-header.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<>>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+	%% Receive a PROTOCOL_ERROR stream error.
+	{ok, << _:24, 3:8, _:8, 1:32, 1:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+	ok.
+
+reject_missing_pseudo_header_authority(Config) ->
+	doc("A request without an authority component must be rejected "
+		"with a PROTOCOL_ERROR stream error. (RFC7540 8.1.2.3, RFC7540 8.1.2.6)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame without an :authority pseudo-header.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":path">>, <<>>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+	%% Receive a PROTOCOL_ERROR stream error.
+	{ok, << _:24, 3:8, _:8, 1:32, 1:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+	ok.
+
+reject_many_pseudo_header_authority(Config) ->
+	doc("A request containing more than one authority component must be rejected "
+		"with a PROTOCOL_ERROR stream error. (RFC7540 8.1.2.3, RFC7540 8.1.2.6)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame with more than one :authority pseudo-header.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<>>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+	%% Receive a PROTOCOL_ERROR stream error.
+	{ok, << _:24, 3:8, _:8, 1:32, 1:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+	ok.
+
+reject_missing_pseudo_header_path(Config) ->
+	doc("A request without a path component must be rejected "
+		"with a PROTOCOL_ERROR stream error. (RFC7540 8.1.2.3, RFC7540 8.1.2.6)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame without a :path pseudo-header.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>} %% @todo Correct port number.
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+	%% Receive a PROTOCOL_ERROR stream error.
+	{ok, << _:24, 3:8, _:8, 1:32, 1:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+	ok.
+
+reject_many_pseudo_header_path(Config) ->
+	doc("A request containing more than one path component must be rejected "
+		"with a PROTOCOL_ERROR stream error. (RFC7540 8.1.2.3, RFC7540 8.1.2.6)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame with more than one :path pseudo-header.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<>>},
+		{<<":path">>, <<>>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+	%% Receive a PROTOCOL_ERROR stream error.
+	{ok, << _:24, 3:8, _:8, 1:32, 1:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+	ok.
+
+%% (RFC7540 8.1.2.4)
+%   For HTTP/2 responses, a single ":status" pseudo-header field is
+%   defined that carries the HTTP status code field (see [RFC7231],
+%   Section 6).  This pseudo-header field MUST be included in all
+%   responses; otherwise, the response is malformed (Section 8.1.2.6).
+
+%% (RFC7540 8.1.2.5)
+%   To allow for better compression efficiency, the Cookie header field
+%   MAY be split into separate header fields, each with one or more
+%   cookie-pairs.  If there are multiple Cookie header fields after
+%   decompression, these MUST be concatenated into a single octet string
+%   using the two-octet delimiter of 0x3B, 0x20 (the ASCII string "; ")
+%   before being passed into a non-HTTP/2 context, such as an HTTP/1.1
+%   connection, or a generic HTTP server application.
+
+%% (RFC7540 8.1.2.6)
+%   A request or response that includes a payload body can include a
+%   content-length header field.  A request or response is also malformed
+%   if the value of a content-length header field does not equal the sum
+%   of the DATA frame payload lengths that form the body.  A response
+%   that is defined to have no payload, as described in [RFC7230],
+%   Section 3.3.2, can have a non-zero content-length header field, even
+%   though no content is included in DATA frames.
+%
+%   Intermediaries that process HTTP requests or responses (i.e., any
+%   intermediary not acting as a tunnel) MUST NOT forward a malformed
+%   request or response.  Malformed requests or responses that are
+%   detected MUST be treated as a stream error (Section 5.4.2) of type
+%   PROTOCOL_ERROR.
+%
+%   For malformed requests, a server MAY send an HTTP response prior to
+%   closing or resetting the stream.  Clients MUST NOT accept a malformed
+%   response.  Note that these requirements are intended to protect
+%   against several types of common attacks against HTTP; they are
+%   deliberately strict because being permissive can expose
+%   implementations to these vulnerabilities.
+
+%% @todo It migh be worth reproducing the good examples. (RFC7540 8.1.3)
+
+%% (RFC7540 8.1.4)
+%   A server MUST NOT indicate that a stream has not been processed
+%   unless it can guarantee that fact.  If frames that are on a stream
+%   are passed to the application layer for any stream, then
+%   REFUSED_STREAM MUST NOT be used for that stream, and a GOAWAY frame
+%   MUST include a stream identifier that is greater than or equal to the
+%   given stream identifier.
+
+%% (RFC7540 8.2)
+%   Promised requests MUST be cacheable (see [RFC7231], Section 4.2.3),
+%   MUST be safe (see [RFC7231], Section 4.2.1), and MUST NOT include a
+%   request body.
+%
+%   The server MUST include a value in the ":authority" pseudo-header
+%   field for which the server is authoritative (see Section 10.1).
+%
+%   A client cannot push.  Thus, servers MUST treat the receipt of a
+%   PUSH_PROMISE frame as a connection error (Section 5.4.1) of type
+%   PROTOCOL_ERROR.
+
+%% (RFC7540 8.2.1)
+%   The header fields in PUSH_PROMISE and any subsequent CONTINUATION
+%   frames MUST be a valid and complete set of request header fields
+%   (Section 8.1.2.3).  The server MUST include a method in the ":method"
+%   pseudo-header field that is safe and cacheable.  If a client receives
+%   a PUSH_PROMISE that does not include a complete and valid set of
+%   header fields or the ":method" pseudo-header field identifies a
+%   method that is not safe, it MUST respond with a stream error
+%   (Section 5.4.2) of type PROTOCOL_ERROR.
+%
+%% @todo This probably should be documented.
+%   The server SHOULD send PUSH_PROMISE (Section 6.6) frames prior to
+%   sending any frames that reference the promised responses.  This
+%   avoids a race where clients issue requests prior to receiving any
+%   PUSH_PROMISE frames.
+%
+%   PUSH_PROMISE frames MUST NOT be sent by the client.
+%
+%   PUSH_PROMISE frames can be sent by the server in response to any
+%   client-initiated stream, but the stream MUST be in either the "open"
+%   or "half-closed (remote)" state with respect to the server.
+%   PUSH_PROMISE frames are interspersed with the frames that comprise a
+%   response, though they cannot be interspersed with HEADERS and
+%   CONTINUATION frames that comprise a single header block.
+
+%% (RFC7540 8.2.2)
+%   If the client determines, for any reason, that it does not wish to
+%   receive the pushed response from the server or if the server takes
+%   too long to begin sending the promised response, the client can send
+%   a RST_STREAM frame, using either the CANCEL or REFUSED_STREAM code
+%   and referencing the pushed stream's identifier.
+%
+%   A client can use the SETTINGS_MAX_CONCURRENT_STREAMS setting to limit
+%   the number of responses that can be concurrently pushed by a server.
+%   Advertising a SETTINGS_MAX_CONCURRENT_STREAMS value of zero disables
+%   server push by preventing the server from creating the necessary
+%   streams.  This does not prohibit a server from sending PUSH_PROMISE
+%   frames; clients need to reset any promised streams that are not
+%   wanted.
+
+%% @todo Implement CONNECT. (RFC7540 8.3)
+
+status_code_421(Config) ->
+	doc("The 421 Misdirected Request status code can be sent. (RFC7540 9.1.2)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/resp/reply2/421"),
+	{response, fin, 421, _} = gun:await(ConnPid, Ref),
+	ok.
+
+%% @todo Review (RFC7540 9.2, 9.2.1, 9.2.2) TLS 1.2 usage.
+%% We probably want different ways to enforce these to simplify the life
+%% of users. A function cowboy:start_h2_tls could do the same as start_tls
+%% but with the security requirements of HTTP/2 enforced. Another way is to
+%% have an option at the establishment of the connection that checks that
+%% the security of the connection is adequate.
+
+%% (RFC7540 10.3)
+%   The HTTP/2 header field encoding allows the expression of names that
+%   are not valid field names in the Internet Message Syntax used by
+%   HTTP/1.1.  Requests or responses containing invalid header field
+%   names MUST be treated as malformed (Section 8.1.2.6).
+%
+%   Similarly, HTTP/2 allows header field values that are not valid.
+%   While most of the values that can be encoded will not alter header
+%   field parsing, carriage return (CR, ASCII 0xd), line feed (LF, ASCII
+%   0xa), and the zero character (NUL, ASCII 0x0) might be exploited by
+%   an attacker if they are translated verbatim.  Any request or response
+%   that contains a character not permitted in a header field value MUST
+%   be treated as malformed (Section 8.1.2.6).  Valid characters are
+%   defined by the "field-content" ABNF rule in Section 3.2 of [RFC7230].
+
+%% (RFC7540 10.5) Denial-of-Service Considerations
+%   An endpoint that doesn't monitor this behavior exposes itself to a
+%   risk of denial-of-service attack.  Implementations SHOULD track the
+%   use of these features and set limits on their use.  An endpoint MAY
+%   treat activity that is suspicious as a connection error
+%   (Section 5.4.1) of type ENHANCE_YOUR_CALM.
+
+%% (RFC7540 10.5.1)
+%   A server that receives a larger header block than it is willing to
+%   handle can send an HTTP 431 (Request Header Fields Too Large) status
+%   code [RFC6585].  A client can discard responses that it cannot
+%   process.  The header block MUST be processed to ensure a consistent
+%   connection state, unless the connection is closed.
+
+%% @todo Implement CONNECT and limit the number of CONNECT streams (RFC7540 10.5.2).
+
+%% @todo This probably should be documented. (RFC7540 10.6)
+%   Implementations communicating on a secure channel MUST NOT compress
+%   content that includes both confidential and attacker-controlled data
+%   unless separate compression dictionaries are used for each source of
+%   data.  Compression MUST NOT be used if the source of data cannot be
+%   reliably determined.  Generic stream compression, such as that
+%   provided by TLS, MUST NOT be used with HTTP/2 (see Section 9.2).
+
+%% (RFC7540 A)
+%   An HTTP/2 implementation MAY treat the negotiation of any of the
+%   following cipher suites with TLS 1.2 as a connection error
+%   (Section 5.4.1) of type INADEQUATE_SECURITY.
