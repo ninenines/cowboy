@@ -1243,7 +1243,14 @@ max_frame_size_allow_exactly_default(Config) ->
 		cow_http2:data(1, fin, << 0:16384/unit:8 >>)
 	]),
 	%% Receive a response with the same DATA frame.
-	{ok, << SkipLen:24, 1:8, _:8, 1:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+	{ok, << SkipLen:24, 1:8, _:8, 1:32 >>} = case gen_tcp:recv(Socket, 9, 1000) of
+		%% We received a WINDOW_UPDATE first. Skip it and the next.
+		{ok, <<4:24, 8:8, 0:40>>} ->
+			{ok, _} = gen_tcp:recv(Socket, 4 + 13, 1000),
+			gen_tcp:recv(Socket, 9, 1000);
+		Res ->
+			Res
+	end,
 	{ok, _} = gen_tcp:recv(Socket, SkipLen, 1000),
 	{ok, << 16384:24, 0:8, 1:8, 1:32 >>} = gen_tcp:recv(Socket, 9, 1000),
 	{ok, << 0:16384/unit:8 >>} = gen_tcp:recv(Socket, 16384, 1000),
