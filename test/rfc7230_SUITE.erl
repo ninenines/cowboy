@@ -1764,7 +1764,7 @@ no_content_length_in_204_response(Config) ->
 		"(RFC7230 3.3.1, RFC7230 3.3.2)"),
 	Client = raw_open(Config),
 	ok = raw_send(Client, [
-		"GET /resp/reply4/204 HTTP/1.1\r\n"
+		"GET /resp/reply3/204 HTTP/1.1\r\n"
 		"Host: localhost\r\n"
 		"\r\n"]),
 	{_, 204, _, Rest} = cow_http:parse_status_line(raw_recv_head(Client)),
