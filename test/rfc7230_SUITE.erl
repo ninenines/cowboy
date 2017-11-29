@@ -14,6 +14,7 @@
 
 -module(rfc7230_SUITE).
 -compile(export_all).
+-compile(nowarn_export_all).
 
 -import(ct_helper, [doc/1]).
 -import(cowboy_test, [gun_open/1]).

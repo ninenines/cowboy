@@ -14,6 +14,7 @@
 
 -module(cowboy_test).
 -compile(export_all).
+-compile(nowarn_export_all).
 
 -import(ct_helper, [config/2]).
 

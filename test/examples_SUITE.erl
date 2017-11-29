@@ -14,6 +14,7 @@
 
 -module(examples_SUITE).
 -compile(export_all).
+-compile(nowarn_export_all).
 
 -import(ct_helper, [config/2]).
 -import(ct_helper, [doc/1]).

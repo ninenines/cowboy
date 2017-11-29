@@ -15,6 +15,7 @@
 
 -module(http_SUITE).
 -compile(export_all).
+-compile(nowarn_export_all).
 
 -import(ct_helper, [config/2]).
 -import(cowboy_test, [gun_open/1]).
