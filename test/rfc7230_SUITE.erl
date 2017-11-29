@@ -244,18 +244,18 @@ reject_two_sp_between_method_and_request_target(Config) ->
 ignore_uri_fragment_after_path(Config) ->
 	doc("The fragment part of the target URI is not sent. It must be "
 		"ignored by a server receiving it. (RFC7230 5.1)"),
-	Echo = <<"http://localhost/echo/url">>,
+	Echo = <<"http://localhost/echo/uri">>,
 	#{code := 200, body := Echo} = do_raw(Config,
-		"GET /echo/url#fragment HTTP/1.1\r\n"
+		"GET /echo/uri#fragment HTTP/1.1\r\n"
 		"Host: localhost\r\n"
 		"\r\n").
 
 ignore_uri_fragment_after_query(Config) ->
 	doc("The fragment part of the target URI is not sent. It must be "
 		"ignored by a server receiving it. (RFC7230 5.1)"),
-	Echo = <<"http://localhost/echo/url?key=value">>,
+	Echo = <<"http://localhost/echo/uri?key=value">>,
 	#{code := 200, body := Echo} = do_raw(Config,
-		"GET /echo/url?key=value#fragment HTTP/1.1\r\n"
+		"GET /echo/uri?key=value#fragment HTTP/1.1\r\n"
 		"Host: localhost\r\n"
 		"\r\n").
 
@@ -282,9 +282,9 @@ origin_form_reject_if_connect(Config) ->
 origin_form_tcp_scheme(Config) ->
 	doc("The scheme is either resolved from configuration or is \"https\" "
 		"when on a TLS connection and \"http\" otherwise. (RFC7230 5.5)"),
-	Echo = <<"http://localhost/echo/url">>,
+	Echo = <<"http://localhost/echo/uri">>,
 	#{code := 200, body := Echo} = do_raw(Config,
-		"GET /echo/url HTTP/1.1\r\n"
+		"GET /echo/uri HTTP/1.1\r\n"
 		"Host: localhost\r\n"
 		"\r\n").
 
@@ -344,17 +344,17 @@ must_understand_absolute_form(Config) ->
 
 absolute_form_case_insensitive_scheme(Config) ->
 	doc("The scheme is case insensitive and normally provided in lowercase. (RFC7230 2.7.3)"),
-	Echo = <<"http://localhost/echo/url">>,
+	Echo = <<"http://localhost/echo/uri">>,
 	#{code := 200, body := Echo} = do_raw(Config,
-		"GET HttP://localhost/echo/url HTTP/1.1\r\n"
+		"GET HttP://localhost/echo/uri HTTP/1.1\r\n"
 		"Host: localhost\r\n"
 		"\r\n").
 
 absolute_form_case_insensitive_host(Config) ->
 	doc("The host is case insensitive and normally provided in lowercase. (RFC7230 2.7.3)"),
-	Echo = <<"http://localhost/echo/url">>,
+	Echo = <<"http://localhost/echo/uri">>,
 	#{code := 200, body := Echo} = do_raw(Config,
-		"GET http://LoCaLHOsT/echo/url HTTP/1.1\r\n"
+		"GET http://LoCaLHOsT/echo/uri HTTP/1.1\r\n"
 		"Host: localhost\r\n"
 		"\r\n").
 
@@ -371,9 +371,9 @@ absolute_form_drop_scheme_tcp(Config) ->
 	doc("The scheme provided with the request must be dropped. The effective "
 		"scheme is either resolved from configuration or is \"https\" when on "
 		"a TLS connection and \"http\" otherwise. (RFC7230 5.5)"),
-	Echo = <<"http://localhost/echo/url">>,
+	Echo = <<"http://localhost/echo/uri">>,
 	#{code := 200, body := Echo} = do_raw(Config,
-		"GET https://localhost/echo/url HTTP/1.1\r\n"
+		"GET https://localhost/echo/uri HTTP/1.1\r\n"
 		"Host: localhost\r\n"
 		"\r\n").
 

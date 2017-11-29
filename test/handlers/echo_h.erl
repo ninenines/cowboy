@@ -50,7 +50,7 @@ echo(<<"uri">>, Req, Opts) ->
 		[<<"no-qs">>] -> cowboy_req:uri(Req, #{qs => undefined});
 		[<<"no-path">>] -> cowboy_req:uri(Req, #{path => undefined, qs => undefined});
 		[<<"set-port">>] -> cowboy_req:uri(Req, #{port => 123});
-		[] -> cowboy_req:uri(Req)
+		_ -> cowboy_req:uri(Req)
 	end,
 	{ok, cowboy_req:reply(200, #{}, Value, Req), Opts};
 echo(<<"match">>, Req, Opts) ->
