@@ -490,7 +490,7 @@ down(State=#state{children=Children0}, Pid, Msg) ->
 			State
 	end.
 
-info(State=#state{streams=Streams}, StreamID, Msg) ->
+info(State=#state{client_streamid=LastStreamID, streams=Streams}, StreamID, Msg) ->
 	case lists:keyfind(StreamID, #stream.id, Streams) of
 		#stream{state=flush} ->
 			error_logger:error_msg("Received message ~p for terminated stream ~p.", [Msg, StreamID]),
@@ -506,8 +506,14 @@ info(State=#state{streams=Streams}, StreamID, Msg) ->
 				stream_reset(State, StreamID, {internal_error, {Class, Exception},
 					'Unhandled exception in cowboy_stream:info/3.'})
 			end;
+		false when StreamID =< LastStreamID ->
+			%% Streams that were reset by the client or streams that are
+			%% in the lingering state may still have Erlang messages going
+			%% around. In these cases we do not want to log anything.
+			State;
 		false ->
-			error_logger:error_msg("Received message ~p for unknown stream ~p.", [Msg, StreamID]),
+			error_logger:error_msg("Received message ~p for unknown stream ~p.",
+				[Msg, StreamID]),
 			State
 	end.
 
