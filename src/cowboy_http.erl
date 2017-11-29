@@ -490,18 +490,13 @@ parse_hd_name(<< $:, Rest/bits >>, State, H, SoFar) ->
 parse_hd_name(<< C, _/bits >>, State=#state{in_state=PS}, H, <<>>) when ?IS_WS(C) ->
 	error_terminate(400, State#state{in_state=PS#ps_header{headers=H}},
 		{connection_error, protocol_error,
-			'Whitespace is not allowed between the header name and the colon. (RFC7230 3.2)'});
-parse_hd_name(<< C, Rest/bits >>, State, H, SoFar) when ?IS_WS(C) ->
-	parse_hd_name_ws(Rest, State, H, SoFar);
+			'Whitespace is not allowed before the header name. (RFC7230 3.2)'});
+parse_hd_name(<< C, _/bits >>, State=#state{in_state=PS}, H, _) when ?IS_WS(C) ->
+	error_terminate(400, State#state{in_state=PS#ps_header{headers=H}},
+		{connection_error, protocol_error,
+			'Whitespace is not allowed between the header name and the colon. (RFC7230 3.2.4)'});
 parse_hd_name(<< C, Rest/bits >>, State, H, SoFar) ->
 	?LOWER(parse_hd_name, Rest, State, H, SoFar).
-
-parse_hd_name_ws(<< C, Rest/bits >>, S, H, Name) ->
-	case C of
-		$\s -> parse_hd_name_ws(Rest, S, H, Name);
-		$\t -> parse_hd_name_ws(Rest, S, H, Name);
-		$: -> parse_hd_before_value(Rest, S, H, Name)
-	end.
 
 parse_hd_before_value(<< $\s, Rest/bits >>, S, H, N) ->
 	parse_hd_before_value(Rest, S, H, N);
