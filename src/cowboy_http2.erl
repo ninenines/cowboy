@@ -601,10 +601,10 @@ commands(State0=#state{socket=Socket, transport=Transport, server_streamid=Promi
 		{<<"https">>, 443} -> Host;
 		_ -> iolist_to_binary([Host, $:, integer_to_binary(Port)])
 	end,
-	PathWithQs = case Qs of
+	PathWithQs = iolist_to_binary(case Qs of
 		<<>> -> Path;
 		_ -> [Path, $?, Qs]
-	end,
+	end),
 	%% We need to make sure the header value is binary before we can
 	%% pass it to stream_req_init, as it expects them to be flat.
 	Headers1 = maps:map(fun(_, V) -> iolist_to_binary(V) end, Headers0),
@@ -612,7 +612,7 @@ commands(State0=#state{socket=Socket, transport=Transport, server_streamid=Promi
 		<<":method">> => Method,
 		<<":scheme">> => Scheme,
 		<<":authority">> => Authority,
-		<<":path">> => iolist_to_binary(PathWithQs)},
+		<<":path">> => PathWithQs},
 	{HeaderBlock, EncodeState} = headers_encode(Headers, EncodeState0),
 	Transport:send(Socket, cow_http2:push_promise(StreamID, PromisedStreamID, HeaderBlock)),
 	State = stream_req_init(State0#state{server_streamid=PromisedStreamID + 2,
@@ -620,7 +620,7 @@ commands(State0=#state{socket=Socket, transport=Transport, server_streamid=Promi
 			method => Method,
 			scheme => Scheme,
 			authority => Authority,
-			path => Path
+			path => PathWithQs
 		}),
 	commands(State, Stream, Tail);
 commands(State=#state{socket=Socket, transport=Transport, remote_window=ConnWindow},
