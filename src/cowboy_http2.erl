@@ -37,6 +37,8 @@
 	id = undefined :: cowboy_stream:streamid(),
 	%% Stream handlers and their state.
 	state = undefined :: {module(), any()} | flush,
+	%% Request method.
+	method = undefined :: binary(),
 	%% Whether we finished sending data.
 	local = idle :: idle | upgrade | cowboy_stream:fin() | flush,
 	%% Local flow control window (how much we can send).
@@ -536,18 +538,19 @@ commands(State=#state{socket=Socket, transport=Transport, encode_state=EncodeSta
 %% @todo Keep IsFin in the state.
 %% @todo Same two things above apply to DATA, possibly promise too.
 commands(State=#state{socket=Socket, transport=Transport, encode_state=EncodeState0},
-		Stream=#stream{id=StreamID, local=idle}, [{response, StatusCode, Headers0, Body}|Tail]) ->
+		Stream=#stream{id=StreamID, method=Method, local=idle},
+		[{response, StatusCode, Headers0, Body}|Tail]) ->
 	Headers = Headers0#{<<":status">> => status(StatusCode)},
 	{HeaderBlock, EncodeState} = headers_encode(Headers, EncodeState0),
-	case Body of
-		<<>> ->
+	if
+		Method =:= <<"HEAD">>; Body =:= <<>> ->
 			Transport:send(Socket, cow_http2:headers(StreamID, fin, HeaderBlock)),
 			commands(State#state{encode_state=EncodeState}, Stream#stream{local=fin}, Tail);
-		{sendfile, O, B, P} ->
+		element(1, Body) =:= sendfile ->
 			Transport:send(Socket, cow_http2:headers(StreamID, nofin, HeaderBlock)),
 			commands(State#state{encode_state=EncodeState}, Stream#stream{local=nofin},
-				[{sendfile, fin, O, B, P}|Tail]);
-		_ ->
+				[erlang:insert_element(2, Body, fin)|Tail]);
+		true ->
 			Transport:send(Socket, cow_http2:headers(StreamID, nofin, HeaderBlock)),
 			{State1, Stream1} = send_data(State, Stream#stream{local=nofin}, fin, Body),
 			commands(State1#state{encode_state=EncodeState}, Stream1, Tail)
@@ -555,11 +558,16 @@ commands(State=#state{socket=Socket, transport=Transport, encode_state=EncodeSta
 %% @todo response when local!=idle
 %% Send response headers.
 commands(State=#state{socket=Socket, transport=Transport, encode_state=EncodeState0},
-		Stream=#stream{id=StreamID, local=idle}, [{headers, StatusCode, Headers0}|Tail]) ->
+		Stream=#stream{id=StreamID, method=Method, local=idle},
+		[{headers, StatusCode, Headers0}|Tail]) ->
 	Headers = Headers0#{<<":status">> => status(StatusCode)},
 	{HeaderBlock, EncodeState} = headers_encode(Headers, EncodeState0),
-	Transport:send(Socket, cow_http2:headers(StreamID, nofin, HeaderBlock)),
-	commands(State#state{encode_state=EncodeState}, Stream#stream{local=nofin}, Tail);
+	IsFin = case Method of
+		<<"HEAD">> -> fin;
+		_ -> nofin
+	end,
+	Transport:send(Socket, cow_http2:headers(StreamID, IsFin, HeaderBlock)),
+	commands(State#state{encode_state=EncodeState}, Stream#stream{local=IsFin}, Tail);
 %% @todo headers when local!=idle
 %% Send a response body chunk.
 commands(State0, Stream0=#stream{local=nofin}, [{data, IsFin, Data}|Tail]) ->
@@ -974,12 +982,13 @@ stream_malformed(State=#state{socket=Socket, transport=Transport}, StreamID, _) 
 stream_handler_init(State=#state{opts=Opts,
 		local_settings=#{initial_window_size := RemoteWindow},
 		remote_settings=#{initial_window_size := LocalWindow}},
-		StreamID, RemoteIsFin, LocalIsFin, Req=#{headers := Headers}) ->
+		StreamID, RemoteIsFin, LocalIsFin,
+		Req=#{method := Method, headers := Headers}) ->
 	try cowboy_stream:init(StreamID, Req, Opts) of
 		{Commands, StreamState} ->
 			commands(State#state{client_streamid=StreamID},
 				#stream{id=StreamID, state=StreamState,
-					remote=RemoteIsFin, local=LocalIsFin,
+					method=Method, remote=RemoteIsFin, local=LocalIsFin,
 					local_window=LocalWindow, remote_window=RemoteWindow,
 					te=maps:get(<<"te">>, Headers, undefined)},
 				Commands)
