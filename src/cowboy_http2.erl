@@ -526,48 +526,28 @@ commands(State, Stream=#stream{local=idle}, [{error_response, StatusCode, Header
 commands(State, Stream, [{error_response, _, _, _}|Tail]) ->
 	commands(State, Stream, Tail);
 %% Send an informational response.
-commands(State=#state{socket=Socket, transport=Transport, encode_state=EncodeState0},
-		Stream=#stream{id=StreamID, local=idle}, [{inform, StatusCode, Headers0}|Tail]) ->
-	Headers = Headers0#{<<":status">> => status(StatusCode)},
-	{HeaderBlock, EncodeState} = headers_encode(Headers, EncodeState0),
-	Transport:send(Socket, cow_http2:headers(StreamID, fin, HeaderBlock)),
-	commands(State#state{encode_state=EncodeState}, Stream, Tail);
+commands(State0, Stream=#stream{local=idle}, [{inform, StatusCode, Headers}|Tail]) ->
+	State = send_headers(State0, Stream, StatusCode, Headers, fin),
+	commands(State, Stream, Tail);
 %% Send response headers.
 %%
 %% @todo Kill the stream if it sent a response when one has already been sent.
 %% @todo Keep IsFin in the state.
 %% @todo Same two things above apply to DATA, possibly promise too.
-commands(State=#state{socket=Socket, transport=Transport, encode_state=EncodeState0},
-		Stream=#stream{id=StreamID, method=Method, local=idle},
-		[{response, StatusCode, Headers0, Body}|Tail]) ->
-	Headers = Headers0#{<<":status">> => status(StatusCode)},
-	{HeaderBlock, EncodeState} = headers_encode(Headers, EncodeState0),
-	if
-		Method =:= <<"HEAD">>; Body =:= <<>> ->
-			Transport:send(Socket, cow_http2:headers(StreamID, fin, HeaderBlock)),
-			commands(State#state{encode_state=EncodeState}, Stream#stream{local=fin}, Tail);
-		element(1, Body) =:= sendfile ->
-			Transport:send(Socket, cow_http2:headers(StreamID, nofin, HeaderBlock)),
-			commands(State#state{encode_state=EncodeState}, Stream#stream{local=nofin},
-				[erlang:insert_element(2, Body, fin)|Tail]);
-		true ->
-			Transport:send(Socket, cow_http2:headers(StreamID, nofin, HeaderBlock)),
-			{State1, Stream1} = send_data(State, Stream#stream{local=nofin}, fin, Body),
-			commands(State1#state{encode_state=EncodeState}, Stream1, Tail)
-	end;
+commands(State0, Stream0=#stream{local=idle},
+		[{response, StatusCode, Headers, Body}|Tail]) ->
+	{State, Stream} = send_response(State0, Stream0, StatusCode, Headers, Body),
+	commands(State, Stream, Tail);
 %% @todo response when local!=idle
 %% Send response headers.
-commands(State=#state{socket=Socket, transport=Transport, encode_state=EncodeState0},
-		Stream=#stream{id=StreamID, method=Method, local=idle},
-		[{headers, StatusCode, Headers0}|Tail]) ->
-	Headers = Headers0#{<<":status">> => status(StatusCode)},
-	{HeaderBlock, EncodeState} = headers_encode(Headers, EncodeState0),
+commands(State0, Stream=#stream{method=Method, local=idle},
+		[{headers, StatusCode, Headers}|Tail]) ->
 	IsFin = case Method of
 		<<"HEAD">> -> fin;
 		_ -> nofin
 	end,
-	Transport:send(Socket, cow_http2:headers(StreamID, IsFin, HeaderBlock)),
-	commands(State#state{encode_state=EncodeState}, Stream#stream{local=IsFin}, Tail);
+	State = send_headers(State0, Stream, StatusCode, Headers, IsFin),
+	commands(State, Stream#stream{local=IsFin}, Tail);
 %% @todo headers when local!=idle
 %% Send a response body chunk.
 commands(State0, Stream0=#stream{local=nofin}, [{data, IsFin, Data}|Tail]) ->
@@ -668,6 +648,24 @@ commands(State, Stream=#stream{id=StreamID}, [stop|_Tail]) ->
 after_commands(State=#state{streams=Streams0}, Stream=#stream{id=StreamID}) ->
 	Streams = lists:keystore(StreamID, #stream.id, Streams0, Stream),
 	State#state{streams=Streams}.
+
+send_response(State0, Stream=#stream{method=Method}, StatusCode, Headers0, Body) ->
+	if
+		Method =:= <<"HEAD">>; Body =:= <<>> ->
+			State = send_headers(State0, Stream, StatusCode, Headers0, fin),
+			{State, Stream#stream{local=fin}};
+		true ->
+			State = send_headers(State0, Stream, StatusCode, Headers0, nofin),
+			%% send_data works with both sendfile and iolists.
+			send_data(State, Stream#stream{local=nofin}, fin, Body)
+	end.
+
+send_headers(State=#state{socket=Socket, transport=Transport, encode_state=EncodeState0},
+		#stream{id=StreamID}, StatusCode, Headers0, IsFin) ->
+	Headers = Headers0#{<<":status">> => status(StatusCode)},
+	{HeaderBlock, EncodeState} = headers_encode(Headers, EncodeState0),
+	Transport:send(Socket, cow_http2:headers(StreamID, IsFin, HeaderBlock)),
+	State#state{encode_state=EncodeState}.
 
 status(Status) when is_integer(Status) ->
 	integer_to_binary(Status);
@@ -844,6 +842,10 @@ stream_decode_init(State=#state{decode_state=DecodeState0}, StreamID, IsFin, Hea
 stream_pseudo_headers_init(State, StreamID, IsFin, Headers0) ->
 	case pseudo_headers(Headers0, #{}) of
 		%% @todo Add clause for CONNECT requests (no scheme/path).
+		{ok, PseudoHeaders=#{method := Method}, _}
+				when Method =:= <<"CONNECT">> ->
+			stream_early_error(State, StreamID, 501, PseudoHeaders,
+				'The CONNECT method is currently not implemented. (RFC7231 4.3.6)');
 		{ok, PseudoHeaders=#{method := _, scheme := _, authority := _, path := _}, Headers} ->
 			stream_regular_headers_init(State, StreamID, IsFin, Headers, PseudoHeaders);
 		{ok, _, _} ->
@@ -978,6 +980,38 @@ stream_req_init(State=#state{ref=Ref, peer=Peer, sock=Sock, cert=Cert},
 stream_malformed(State=#state{socket=Socket, transport=Transport}, StreamID, _) ->
 	Transport:send(Socket, cow_http2:rst_stream(StreamID, protocol_error)),
 	State.
+
+stream_early_error(State0=#state{ref=Ref, opts=Opts, peer=Peer, streams=Streams},
+		StreamID, StatusCode0, #{method := Method}, HumanReadable) ->
+	%% We automatically terminate the stream but it is not an error
+	%% per se (at least not in the first implementation).
+	Reason = {stream_error, no_error, HumanReadable},
+	%% The partial Req is minimal for now. We only have one case
+	%% where it can be called (when a method is completely disabled).
+	PartialReq = #{
+		ref => Ref,
+		peer => Peer,
+		method => Method
+	},
+	Resp = {response, StatusCode0, RespHeaders0=#{<<"content-length">> => <<"0">>}, <<>>},
+	%% We need a stream to talk to the send_* functions.
+	Stream0 = #stream{id=StreamID, method=Method},
+	try cowboy_stream:early_error(StreamID, Reason, PartialReq, Resp, Opts) of
+		{response, StatusCode, RespHeaders, RespBody} ->
+			case send_response(State0, Stream0, StatusCode, RespHeaders, RespBody) of
+				{State, #stream{local=fin}} ->
+					State;
+				{State, Stream} ->
+					State#state{streams=[Stream|Streams]}
+			end
+	catch Class:Exception ->
+		cowboy_stream:report_error(early_error,
+			[StreamID, Reason, PartialReq, Resp, Opts],
+			Class, Exception, erlang:get_stacktrace()),
+		%% We still need to send an error response, so send what we initially
+		%% wanted to send. It's better than nothing.
+		send_headers(State0, Stream0, StatusCode0, RespHeaders0, fin)
+	end.
 
 stream_handler_init(State=#state{opts=Opts,
 		local_settings=#{initial_window_size := RemoteWindow},

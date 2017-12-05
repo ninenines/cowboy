@@ -129,8 +129,14 @@ method_delete(Config) ->
 	{ok, <<"DELETE">>} = gun:await_body(ConnPid, Ref),
 	ok.
 
-%% @todo Should probably disable CONNECT and TRACE entirely until they're implemented.
-%method_connect(Config) ->
+method_connect(Config) ->
+	doc("The CONNECT method is currently not implemented. (RFC7231 4.3.6)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:request(ConnPid, <<"CONNECT">>, "localhost:8080", [
+		{<<"accept-encoding">>, <<"gzip">>}
+	]),
+	{response, fin, 501, _} = gun:await(ConnPid, Ref),
+	ok.
 
 method_options(Config) ->
 	doc("The OPTIONS method is accepted. (RFC7231 4.3.7)"),
@@ -145,6 +151,7 @@ method_options(Config) ->
 %method_options_asterisk(Config) ->
 %method_options_content_length_0(Config) ->
 
+%% @todo Should probably disable TRACE entirely until they're implemented.
 %method_trace(Config) ->
 
 %% Request headers.
