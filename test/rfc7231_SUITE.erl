@@ -41,7 +41,8 @@ init_dispatch(_) ->
 		{"*", asterisk_h, []},
 		{"/", hello_h, []},
 		{"/echo/:key", echo_h, []},
-		{"/resp/:key[/:arg]", resp_h, []}
+		{"/resp/:key[/:arg]", resp_h, []},
+		{"/ws", ws_init_h, []}
 	]}]).
 
 %% @todo The documentation should list what methods, headers and status codes
@@ -512,6 +513,25 @@ status_code_426(Config) ->
 		{<<"accept-encoding">>, <<"gzip">>}
 	]),
 	{response, _, 426, _} = gun:await(ConnPid, Ref),
+	ok.
+
+status_code_426_upgrade_header(Config) ->
+	case config(protocol, Config) of
+		http ->
+			do_status_code_426_upgrade_header(Config);
+		http2 ->
+			doc("HTTP/2 does not support the HTTP/1.1 Upgrade mechanism.")
+	end.
+
+do_status_code_426_upgrade_header(Config) ->
+	doc("A 426 response must include a upgrade header. (RFC7231 6.5.15)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/ws?ok", [
+		{<<"accept-encoding">>, <<"gzip">>}
+	]),
+	{response, _, 426, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"upgrade">>} = lists:keyfind(<<"connection">>, 1, Headers),
+	{_, <<"websocket">>} = lists:keyfind(<<"upgrade">>, 1, Headers),
 	ok.
 
 status_code_500(Config) ->

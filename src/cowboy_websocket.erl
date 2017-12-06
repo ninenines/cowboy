@@ -97,7 +97,12 @@ upgrade(Req0, Env, Handler, HandlerState, Opts) ->
 	State0 = #state{handler=Handler, timeout=Timeout, compress=Compress, req=FilteredReq},
 	try websocket_upgrade(State0, Req0) of
 		{ok, State, Req} ->
-			websocket_handshake(State, Req, HandlerState, Env)
+			websocket_handshake(State, Req, HandlerState, Env);
+		{error, upgrade_required} ->
+			{ok, cowboy_req:reply(426, #{
+				<<"connection">> => <<"upgrade">>,
+				<<"upgrade">> => <<"websocket">>
+			}, Req0), Env}
 	catch _:_ ->
 		%% @todo Probably log something here?
 		%% @todo Test that we can have 2 /ws 400 status code in a row on the same connection.
@@ -108,17 +113,25 @@ upgrade(Req0, Env, Handler, HandlerState, Opts) ->
 -spec websocket_upgrade(#state{}, Req)
 	-> {ok, #state{}, Req} when Req::cowboy_req:req().
 websocket_upgrade(State, Req) ->
-	ConnTokens = cowboy_req:parse_header(<<"connection">>, Req),
-	true = lists:member(<<"upgrade">>, ConnTokens),
-	%% @todo Should probably send a 426 if the Upgrade header is missing.
-	[<<"websocket">>] = cowboy_req:parse_header(<<"upgrade">>, Req),
-	Version = cowboy_req:header(<<"sec-websocket-version">>, Req),
-	IntVersion = binary_to_integer(Version),
-	true = (IntVersion =:= 7) orelse (IntVersion =:= 8)
-		orelse (IntVersion =:= 13),
-	Key = cowboy_req:header(<<"sec-websocket-key">>, Req),
-	false = Key =:= undefined,
-	websocket_extensions(State#state{key=Key}, Req#{websocket_version => IntVersion}).
+	ConnTokens = cowboy_req:parse_header(<<"connection">>, Req, []),
+	case lists:member(<<"upgrade">>, ConnTokens) of
+		false ->
+			{error, upgrade_required};
+		true ->
+			UpgradeTokens = cowboy_req:parse_header(<<"upgrade">>, Req, []),
+			case lists:member(<<"websocket">>, UpgradeTokens) of
+				false ->
+					{error, upgrade_required};
+				true ->
+					Version = cowboy_req:header(<<"sec-websocket-version">>, Req),
+					IntVersion = binary_to_integer(Version),
+					true = (IntVersion =:= 7) orelse (IntVersion =:= 8)
+						orelse (IntVersion =:= 13),
+					Key = cowboy_req:header(<<"sec-websocket-key">>, Req),
+					false = Key =:= undefined,
+					websocket_extensions(State#state{key=Key}, Req#{websocket_version => IntVersion})
+			end
+	end.
 
 -spec websocket_extensions(#state{}, Req)
 	-> {ok, #state{}, Req} when Req::cowboy_req:req().
