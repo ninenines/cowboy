@@ -112,7 +112,8 @@ gun_open(Config, Opts) ->
 		retry => 0,
 		transport => config(type, Config),
 		transport_opts => proplists:get_value(transport_opts, Config, []),
-		protocols => [config(protocol, Config)]
+		protocols => [config(protocol, Config)],
+		http_opts => proplists:get_value(http_opts, Config, #{})
 	}),
 	ConnPid.
 

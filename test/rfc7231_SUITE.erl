@@ -186,6 +186,34 @@ method_trace(Config) ->
 
 %% Status codes.
 
+http10_status_code_100(Config) ->
+	case config(protocol, Config) of
+		http ->
+			doc("The 100 Continue status code must not "
+				"be sent to HTTP/1.0 endpoints. (RFC7231 6.2)"),
+			do_http10_status_code_1xx(100, Config);
+		http2 ->
+			status_code_100(Config)
+	end.
+
+http10_status_code_101(Config) ->
+	case config(protocol, Config) of
+		http ->
+			doc("The 101 Switching Protocols status code must not "
+				"be sent to HTTP/1.0 endpoints. (RFC7231 6.2)"),
+			do_http10_status_code_1xx(101, Config);
+		http2 ->
+			status_code_101(Config)
+	end.
+
+do_http10_status_code_1xx(StatusCode, Config) ->
+	ConnPid = gun_open([{http_opts, #{version => 'HTTP/1.0'}}|Config]),
+	Ref = gun:get(ConnPid, "/resp/inform2/" ++ integer_to_list(StatusCode), [
+		{<<"accept-encoding">>, <<"gzip">>}
+	]),
+	{response, _, 200, _} = gun:await(ConnPid, Ref),
+	ok.
+
 status_code_100(Config) ->
 	doc("The 100 Continue status code can be sent. (RFC7231 6.2.1)"),
 	ConnPid = gun_open(Config),
@@ -195,8 +223,6 @@ status_code_100(Config) ->
 	{inform, 100, []} = gun:await(ConnPid, Ref),
 	ok.
 
-%http10_status_code_100(Config) ->
-
 status_code_101(Config) ->
 	doc("The 101 Switching Protocols status code can be sent. (RFC7231 6.2.2)"),
 	ConnPid = gun_open(Config),
@@ -205,8 +231,6 @@ status_code_101(Config) ->
 	]),
 	{inform, 101, []} = gun:await(ConnPid, Ref),
 	ok.
-
-%http10_status_code_100(Config) ->
 
 status_code_200(Config) ->
 	doc("The 200 OK status code can be sent. (RFC7231 6.3.1)"),
