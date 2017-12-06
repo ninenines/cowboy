@@ -19,6 +19,10 @@
 -import(ct_helper, [config/2]).
 -import(ct_helper, [doc/1]).
 -import(cowboy_test, [gun_open/1]).
+-import(cowboy_test, [raw_open/1]).
+-import(cowboy_test, [raw_send/2]).
+-import(cowboy_test, [raw_recv_head/1]).
+-import(cowboy_test, [raw_recv/3]).
 
 all() ->
 	cowboy_test:common_all().
@@ -138,6 +142,20 @@ method_connect(Config) ->
 	]),
 	{response, fin, 501, _} = gun:await(ConnPid, Ref),
 	ok.
+
+%   A client sending a CONNECT request MUST send the authority form of
+%   request-target (Section 5.3 of [RFC7230]); i.e., the request-target
+%   consists of only the host name and port number of the tunnel
+%   destination, separated by a colon.
+%
+%   A server MUST NOT send any Transfer-Encoding or Content-Length header
+%   fields in a 2xx (Successful) response to CONNECT.  A client MUST
+%   ignore any Content-Length or Transfer-Encoding header fields received
+%   in a successful response to CONNECT.
+%
+%   A payload within a CONNECT request message has no defined semantics;
+%   sending a payload body on a CONNECT request might cause some existing
+%   implementations to reject the request.
 
 method_options(Config) ->
 	doc("The OPTIONS method is accepted. (RFC7231 4.3.7)"),
@@ -403,6 +421,25 @@ status_code_408(Config) ->
 		{<<"accept-encoding">>, <<"gzip">>}
 	]),
 	{response, _, 408, _} = gun:await(ConnPid, Ref),
+	ok.
+
+status_code_408_connection_close(Config) ->
+	case config(protocol, Config) of
+		http ->
+			do_http11_status_code_408_connection_close(Config);
+		http2 ->
+			doc("HTTP/2 connections are not closed on 408 responses.")
+	end.
+
+do_http11_status_code_408_connection_close(Config) ->
+	doc("A 408 response should result in a connection close "
+		"for HTTP/1.1 connections. (RFC7231 6.5.7)"),
+	Client = raw_open(Config),
+	ok = raw_send(Client, "GET / HTTP/1.1\r\n"),
+	{_, 408, _, Rest} = cow_http:parse_status_line(raw_recv_head(Client)),
+	{Headers, <<>>} = cow_http:parse_headers(Rest),
+	{_, <<"close">>} = lists:keyfind(<<"connection">>, 1, Headers),
+	{error, closed} = raw_recv(Client, 0, 1000),
 	ok.
 
 status_code_409(Config) ->

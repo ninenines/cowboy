@@ -1157,16 +1157,22 @@ error_terminate(StatusCode, State=#state{ref=Ref, peer=Peer, in_state=StreamStat
 			end
 		}
 	end,
-	early_error(StatusCode, State, Reason, PartialReq),
+	early_error(StatusCode, State, Reason, PartialReq, #{<<"connection">> => <<"close">>}),
 	terminate(State, Reason).
 
+early_error(StatusCode, State, Reason, PartialReq) ->
+	early_error(StatusCode, State, Reason, PartialReq, #{}).
+
 early_error(StatusCode0, #state{socket=Socket, transport=Transport,
-		opts=Opts, in_streamid=StreamID}, Reason, PartialReq) ->
-	Resp = {response, StatusCode0, RespHeaders0=#{<<"content-length">> => <<"0">>}, <<>>},
+		opts=Opts, in_streamid=StreamID}, Reason, PartialReq, RespHeaders0) ->
+	RespHeaders1 = RespHeaders0#{<<"content-length">> => <<"0">>},
+	Resp = {response, StatusCode0, RespHeaders1, <<>>},
 	try cowboy_stream:early_error(StreamID, Reason, PartialReq, Resp, Opts) of
 		{response, StatusCode, RespHeaders, RespBody} ->
 			Transport:send(Socket, [
 				cow_http:response(StatusCode, 'HTTP/1.1', maps:to_list(RespHeaders)),
+				%% @todo We shouldn't send the body when the method is HEAD.
+				%% @todo Technically we allow the sendfile tuple.
 				RespBody
 			])
 	catch Class:Exception ->
@@ -1176,7 +1182,7 @@ early_error(StatusCode0, #state{socket=Socket, transport=Transport,
 		%% We still need to send an error response, so send what we initially
 		%% wanted to send. It's better than nothing.
 		Transport:send(Socket, cow_http:response(StatusCode0,
-			'HTTP/1.1', maps:to_list(RespHeaders0)))
+			'HTTP/1.1', maps:to_list(RespHeaders1)))
 	end,
 	ok.
 
