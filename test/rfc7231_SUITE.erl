@@ -34,6 +34,7 @@ end_per_group(Name, _) ->
 
 init_dispatch(_) ->
 	cowboy_router:compile([{"[...]", [
+		{"*", asterisk_h, []},
 		{"/", hello_h, []},
 		{"/echo/:key", echo_h, []},
 		{"/resp/:key[/:arg]", resp_h, []}
@@ -148,8 +149,27 @@ method_options(Config) ->
 	{ok, <<"OPTIONS">>} = gun:await_body(ConnPid, Ref),
 	ok.
 
-%method_options_asterisk(Config) ->
-%method_options_content_length_0(Config) ->
+method_options_asterisk(Config) ->
+	doc("The OPTIONS method is accepted with an asterisk. (RFC7231 4.3.7)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:options(ConnPid, "*", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"x-echo">>, <<"method">>}
+	]),
+	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
+	{ok, <<"OPTIONS">>} = gun:await_body(ConnPid, Ref),
+	ok.
+
+method_options_content_length_0(Config) ->
+	doc("The OPTIONS method must set the content-length header "
+		"to 0 when no body is returned. (RFC7231 4.3.7)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:options(ConnPid, "*", [
+		{<<"accept-encoding">>, <<"gzip">>}
+	]),
+	{response, fin, 200, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"0">>} = lists:keyfind(<<"content-length">>, 1, Headers),
+	ok.
 
 method_trace(Config) ->
 	doc("The TRACE method is currently not implemented. (RFC7231 4.3.8)"),

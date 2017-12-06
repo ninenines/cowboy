@@ -82,6 +82,8 @@ compile_paths([{PathMatch, Fields, Handler, Opts}|Tail], Acc)
 		Fields, Handler, Opts}|Tail], Acc);
 compile_paths([{'_', Fields, Handler, Opts}|Tail], Acc) ->
 	compile_paths(Tail, [{'_', Fields, Handler, Opts}] ++ Acc);
+compile_paths([{<<"*">>, Fields, Handler, Opts}|Tail], Acc) ->
+	compile_paths(Tail, [{<<"*">>, Fields, Handler, Opts}|Acc]);
 compile_paths([{<< $/, PathMatch/bits >>, Fields, Handler, Opts}|Tail],
 		Acc) ->
 	PathRules = compile_rules(PathMatch, $/, [], [], <<>>),
@@ -252,6 +254,8 @@ match_path([{'_', [], Handler, Opts}|_Tail], HostInfo, _, Bindings) ->
 	{ok, Handler, Opts, Bindings, HostInfo, undefined};
 match_path([{<<"*">>, _, Handler, Opts}|_Tail], HostInfo, <<"*">>, Bindings) ->
 	{ok, Handler, Opts, Bindings, HostInfo, undefined};
+match_path([_|Tail], HostInfo, <<"*">>, Bindings) ->
+	match_path(Tail, HostInfo, <<"*">>, Bindings);
 match_path([{PathMatch, Fields, Handler, Opts}|Tail], HostInfo, Tokens,
 		Bindings) when is_list(Tokens) ->
 	case list_match(Tokens, PathMatch, Bindings) of

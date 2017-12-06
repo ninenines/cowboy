@@ -41,9 +41,8 @@ init_routes(_) -> [
 		{"/echo/:key[/:arg]", echo_h, []},
 		{"/length/echo/:key", echo_h, []},
 		{"/resp/:key[/:arg]", resp_h, []},
-		{"/send_message", send_message_h, []}
-%% @todo Something is clearly wrong about routing * right now.
-%%		{"*", asterisk_h, []}
+		{"/send_message", send_message_h, []},
+		{"*", asterisk_h, []}
 	]},
 	{"127.0.0.1", [{"/echo/:key", echo_h, []}]},
 	{"example.org", [{"/echo/:key", echo_h, []}]}
@@ -603,20 +602,12 @@ asterisk_form_reject_if_not_options(Config) ->
 		"\r\n"),
 	{error, closed} = raw_recv(Client, 0, 1000).
 
-asterisk_form_empty_path(Config) ->
-	doc("The path is empty when using asterisk-form. (RFC7230 5.5)"),
-	#{code := 200, body := <<>>} = do_raw(Config,
+asterisk_form_empty_path_query(Config) ->
+	doc("The path and query components are empty when using asterisk-form. (RFC7230 5.5)"),
+	#{code := 200, body := <<"http://localhost">>} = do_raw(Config,
 		"OPTIONS * HTTP/1.1\r\n"
 		"Host: localhost\r\n"
-		"X-Echo: path\r\n"
-		"\r\n").
-
-asterisk_form_empty_query(Config) ->
-	doc("The query is empty when using asterisk-form. (RFC7230 5.5)"),
-	#{code := 200, body := <<>>} = do_raw(Config,
-		"OPTIONS * HTTP/1.1\r\n"
-		"Host: localhost\r\n"
-		"X-Echo: query\r\n"
+		"X-Echo: uri\r\n"
 		"\r\n").
 
 %% Invalid request-target.

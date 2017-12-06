@@ -7,6 +7,8 @@
 init(Req, Opts) ->
 	echo(cowboy_req:header(<<"x-echo">>, Req), Req, Opts).
 
+echo(undefined, Req, Opts) ->
+	{ok, cowboy_req:reply(200, Req), Opts};
 echo(What, Req, Opts) ->
 	F = binary_to_atom(What, latin1),
 	Value = case cowboy_req:F(Req) of

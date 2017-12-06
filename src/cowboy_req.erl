@@ -228,8 +228,10 @@ uri(#{scheme := Scheme0, host := Host0, port := Port0,
 	end,
 	Host = maps:get(host, Opts, Host0),
 	Port = maps:get(port, Opts, Port0),
-	Path = maps:get(path, Opts, Path0),
-	Qs = maps:get(qs, Opts, Qs0),
+	{Path, Qs} = case maps:get(path, Opts, Path0) of
+		<<"*">> -> {<<>>, <<>>};
+		P -> {P, maps:get(qs, Opts, Qs0)}
+	end,
 	Fragment = maps:get(fragment, Opts, undefined),
 	[uri_host(Scheme, Scheme0, Port, Host), uri_path(Path), uri_qs(Qs), uri_fragment(Fragment)].
 
