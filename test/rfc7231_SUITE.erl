@@ -151,8 +151,14 @@ method_options(Config) ->
 %method_options_asterisk(Config) ->
 %method_options_content_length_0(Config) ->
 
-%% @todo Should probably disable TRACE entirely until they're implemented.
-%method_trace(Config) ->
+method_trace(Config) ->
+	doc("The TRACE method is currently not implemented. (RFC7231 4.3.8)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:request(ConnPid, <<"TRACE">>, "/", [
+		{<<"accept-encoding">>, <<"gzip">>}
+	]),
+	{response, fin, 501, _} = gun:await(ConnPid, Ref),
+	ok.
 
 %% Request headers.
 

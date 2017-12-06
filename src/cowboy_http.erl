@@ -350,6 +350,9 @@ parse_request(Buffer, State=#state{opts=Opts, in_streamid=InStreamID}, EmptyLine
 				<<"CONNECT ", _/bits>> ->
 					error_terminate(501, State, {connection_error, no_error,
 						'The CONNECT method is currently not implemented. (RFC7231 4.3.6)'});
+				<<"TRACE ", _/bits>> ->
+					error_terminate(501, State, {connection_error, no_error,
+						'The TRACE method is currently not implemented. (RFC7231 4.3.8)'});
 				%% Accept direct HTTP/2 only at the beginning of the connection.
 				<< "PRI * HTTP/2.0\r\n", _/bits >> when InStreamID =:= 1 ->
 					%% @todo Might be worth throwing to get a clean stacktrace.

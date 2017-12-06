@@ -842,10 +842,12 @@ stream_decode_init(State=#state{decode_state=DecodeState0}, StreamID, IsFin, Hea
 stream_pseudo_headers_init(State, StreamID, IsFin, Headers0) ->
 	case pseudo_headers(Headers0, #{}) of
 		%% @todo Add clause for CONNECT requests (no scheme/path).
-		{ok, PseudoHeaders=#{method := Method}, _}
-				when Method =:= <<"CONNECT">> ->
+		{ok, PseudoHeaders=#{method := <<"CONNECT">>}, _} ->
 			stream_early_error(State, StreamID, 501, PseudoHeaders,
 				'The CONNECT method is currently not implemented. (RFC7231 4.3.6)');
+		{ok, PseudoHeaders=#{method := <<"TRACE">>}, _} ->
+			stream_early_error(State, StreamID, 501, PseudoHeaders,
+				'The TRACE method is currently not implemented. (RFC7231 4.3.8)');
 		{ok, PseudoHeaders=#{method := _, scheme := _, authority := _, path := _}, Headers} ->
 			stream_regular_headers_init(State, StreamID, IsFin, Headers, PseudoHeaders);
 		{ok, _, _} ->
