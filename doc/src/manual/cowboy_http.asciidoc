@@ -28,6 +28,7 @@ opts() :: #{
     max_keepalive           => non_neg_integer(),
     max_method_length       => non_neg_integer(),
     max_request_line_length => non_neg_integer(),
+    max_skip_body_length    => non_neg_integer(),
     middlewares             => [module()],
     request_timeout         => timeout(),
     shutdown_timeout        => timeout(),
@@ -79,6 +80,10 @@ max_method_length (32)::
 max_request_line_length (8000)::
     Maximum length of the request line.
 
+max_skip_body_length (1000000)::
+    Maximum length Cowboy is willing to skip when the user code did not read the body fully.
+    When the remaining length is too large or unknown Cowboy will close the connection.
+
 middlewares ([cowboy_router, cowboy_handler])::
     Middlewares to run for every request.
 
@@ -93,6 +98,7 @@ stream_handlers ([cowboy_stream_h])::
 
 == Changelog
 
+* *2.2*: The `max_skip_body_length` option was added.
 * *2.0*: The `timeout` option was renamed `request_timeout`.
 * *2.0*: The `idle_timeout`, `inactivity_timeout` and `shutdown_timeout` options were added.
 * *2.0*: The `max_method_length` option was added.

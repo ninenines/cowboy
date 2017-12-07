@@ -41,12 +41,26 @@ init_dispatch(_) ->
 		{"*", asterisk_h, []},
 		{"/", hello_h, []},
 		{"/echo/:key", echo_h, []},
+		{"/delay/echo/:key", echo_h, []},
 		{"/resp/:key[/:arg]", resp_h, []},
 		{"/ws", ws_init_h, []}
 	]}]).
 
 %% @todo The documentation should list what methods, headers and status codes
 %% are handled automatically so users can know what befalls to them to implement.
+
+%% Representations.
+
+%% Cowboy has cowboy_compress_h that could be concerned with this.
+%% However Cowboy will not attempt to compress if any content-coding
+%% is already applied, regardless of what they are.
+%
+%   If one or more encodings have been applied to a representation, the
+%   sender that applied the encodings MUST generate a Content-Encoding
+%   header field that lists the content codings in the order in which
+%   they were applied.  Additional information about the encoding
+%   parameters can be provided by other header fields not defined by this
+%   specification. (RFC7231 3.1.2.2)
 
 %% Methods.
 
@@ -201,7 +215,201 @@ method_trace(Config) ->
 
 %% Request headers.
 
-%% @todo
+expect(Config) ->
+	doc("A server that receives a 100-continue expectation should honor it. (RFC7231 5.1.1)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:post(ConnPid, "/echo/read_body", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"content-type">>, <<"application/x-www-form-urlencoded">>},
+		{<<"expect">>, <<"100-continue">>}
+	]),
+	{inform, 100, _} = gun:await(ConnPid, Ref),
+	ok.
+
+http10_expect(Config) ->
+	case config(protocol, Config) of
+		http ->
+			do_http10_expect(Config);
+		http2 ->
+			expect(Config)
+	end.
+
+do_http10_expect(Config) ->
+	doc("A server that receives a 100-continue expectation "
+		"in an HTTP/1.0 request must ignore it. (RFC7231 5.1.1)"),
+	Body = <<"hello=world">>,
+	ConnPid = gun_open([{http_opts, #{version => 'HTTP/1.0'}}|Config]),
+	Ref = gun:post(ConnPid, "/echo/read_body", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"content-type">>, <<"application/x-www-form-urlencoded">>},
+		{<<"content-length">>, integer_to_binary(byte_size(Body))},
+		{<<"expect">>, <<"100-continue">>}
+	]),
+	timer:sleep(500),
+	ok = gun:data(ConnPid, Ref, fin, Body),
+	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
+	{ok, Body} = gun:await_body(ConnPid, Ref),
+	ok.
+
+%% Cowboy ignores the expect header when the value is not 100-continue.
+%
+%   A server that receives an Expect field-value other than 100-continue
+%   MAY respond with a 417 (Expectation Failed) status code to indicate
+%   that the unexpected expectation cannot be met.
+
+expect_receive_body_omit_100_continue(Config) ->
+	doc("A server may omit sending a 100 Continue response if it has "
+		"already started receiving the request body. (RFC7231 5.1.1)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:post(ConnPid, "/delay/echo/read_body", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"content-type">>, <<"application/x-www-form-urlencoded">>},
+		{<<"expect">>, <<"100-continue">>}
+	], <<"hello=world">>),
+	%% We receive the response directly without a 100 Continue.
+	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
+	{ok, <<"hello=world">>} = gun:await_body(ConnPid, Ref),
+	ok.
+
+expect_discard_body_skip(Config) ->
+	doc("A server that responds with a final status code before reading "
+		"the entire message body should keep the connection open and skip "
+		"the body when appropriate. (RFC7231 5.1.1)"),
+	ConnPid = gun_open(Config),
+	Ref1 = gun:post(ConnPid, "/echo/method", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"content-type">>, <<"application/x-www-form-urlencoded">>},
+		{<<"expect">>, <<"100-continue">>}
+	], <<"hello=world">>),
+	{response, nofin, 200, _} = gun:await(ConnPid, Ref1),
+	{ok, <<"POST">>} = gun:await_body(ConnPid, Ref1),
+	Ref2 = gun:get(ConnPid, "/echo/method", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"content-type">>, <<"application/x-www-form-urlencoded">>}
+	]),
+	{response, nofin, 200, _} = gun:await(ConnPid, Ref2),
+	{ok, <<"GET">>} = gun:await_body(ConnPid, Ref2),
+	ok.
+
+expect_discard_body_close(Config) ->
+	case config(protocol, Config) of
+		http ->
+			do_expect_discard_body_close(Config);
+		http2 ->
+			doc("There's no reason to close the connection when using HTTP/2, "
+				"even if a stream body is too large. We just cancel the stream.")
+	end.
+
+do_expect_discard_body_close(Config) ->
+	doc("A server that responds with a final status code before reading "
+		"the entire message body may close the connection to avoid "
+		"reading a potentially large request body. (RFC7231 5.1.1, RFC7230 6.6)"),
+	ConnPid = gun_open(Config),
+	Ref1 = gun:post(ConnPid, "/echo/method", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"content-length">>, <<"10000000">>},
+		{<<"content-type">>, <<"application/x-www-form-urlencoded">>},
+		{<<"expect">>, <<"100-continue">>}
+	]),
+	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref1),
+	%% Ideally we would send a connection: close. Cowboy however
+	%% cannot know the intent of the application until after we
+	%% sent the response.
+%	{_, <<"close">>} = lists:keyfind(<<"connection">>, 1, Headers),
+	{ok, <<"POST">>} = gun:await_body(ConnPid, Ref1),
+	%% The connection is gone.
+	receive
+		{gun_down, ConnPid, _, closed, _, _} ->
+			ok
+	after 1000 ->
+		error(timeout)
+	end.
+
+no_accept_encoding(Config) ->
+	doc("While a request with no accept-encoding header implies the "
+		"user agent has no preferences and any would be acceptable, "
+		"Cowboy will not serve content-codings by defaults to ensure "
+		"the content can safely be read. (RFC7231 5.3.4)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/resp/stream_reply2/200"),
+	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
+	false = lists:keyfind(<<"content-encoding">>, 1, Headers),
+	ok.
+
+%% Cowboy currently ignores any information about the identity content-coding
+%% and instead considers it always acceptable.
+%
+%   2.  If the representation has no content-coding, then it is
+%       acceptable by default unless specifically excluded by the
+%       Accept-Encoding field stating either "identity;q=0" or "*;q=0"
+%       without a more specific entry for "identity".
+
+accept_encoding_gzip(Config) ->
+	doc("No qvalue means the content-coding is acceptable. (RFC7231 5.3.4)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/resp/stream_reply2/200", [
+		{<<"accept-encoding">>, <<"gzip">>}
+	]),
+	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
+	_ = case config(flavor, Config) of
+		compress ->
+			{_, <<"gzip">>} = lists:keyfind(<<"content-encoding">>, 1, Headers);
+		_ ->
+			false = lists:keyfind(<<"content-encoding">>, 1, Headers)
+	end,
+	ok.
+
+accept_encoding_gzip_1(Config) ->
+	doc("A qvalue different than 0 means the content-coding is acceptable. (RFC7231 5.3.4)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/resp/stream_reply2/200", [
+		{<<"accept-encoding">>, <<"gzip;q=1.0">>}
+	]),
+	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
+	_ = case config(flavor, Config) of
+		compress ->
+			{_, <<"gzip">>} = lists:keyfind(<<"content-encoding">>, 1, Headers);
+		_ ->
+			false = lists:keyfind(<<"content-encoding">>, 1, Headers)
+	end,
+	ok.
+
+accept_encoding_gzip_0(Config) ->
+	doc("A qvalue of 0 means the content-coding is not acceptable. (RFC7231 5.3.1, RFC7231 5.3.4)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/resp/stream_reply2/200", [
+		{<<"accept-encoding">>, <<"gzip;q=0">>}
+	]),
+	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
+	false = lists:keyfind(<<"content-encoding">>, 1, Headers),
+	ok.
+
+%% Cowboy currently only supports gzip automatically via cowboy_compress_h.
+%
+%   4.  If multiple content-codings are acceptable, then the acceptable
+%       content-coding with the highest non-zero qvalue is preferred.
+
+accept_encoding_empty(Config) ->
+	doc("An empty content-coding means that the user agent does not "
+		"want any content-coding applied to the response. (RFC7231 5.3.4)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/resp/stream_reply2/200", [
+		{<<"accept-encoding">>, <<>>}
+	]),
+	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
+	false = lists:keyfind(<<"content-encoding">>, 1, Headers),
+	ok.
+
+accept_encoding_unknown(Config) ->
+	doc("An accept-encoding header only containing unknown content-codings "
+		"should result in no content-coding being applied. (RFC7231 5.3.4)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/resp/stream_reply2/200", [
+		{<<"accept-encoding">>, <<"deflate">>}
+	]),
+	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
+	false = lists:keyfind(<<"content-encoding">>, 1, Headers),
+	ok.
 
 %% Status codes.
 
@@ -587,3 +795,11 @@ status_code_505(Config) ->
 	]),
 	{response, _, 505, _} = gun:await(ConnPid, Ref),
 	ok.
+
+%% The 505 response code is supposed to be about the major HTTP version.
+%% Cowboy instead rejects any version that isn't HTTP/1.0 or HTTP/1.1
+%% when expecting an h1 request. While this is not correct in theory
+%% it works in practice because there are no other minor versions.
+%%
+%% Cowboy does not do version checking for HTTP/2 since the protocol
+%% does not include a version number in the messages.

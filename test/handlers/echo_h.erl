@@ -21,6 +21,9 @@ echo(<<"read_body">>, Req0, Opts) ->
 		<<"/100-continue", _/bits>> ->
 			cowboy_req:inform(100, Req0),
 			cowboy_req:read_body(Req0);
+		<<"/delay", _/bits>> ->
+			timer:sleep(500),
+			cowboy_req:read_body(Req0);
 		<<"/full", _/bits>> -> read_body(Req0, <<>>);
 		<<"/length", _/bits>> ->
 			{_, _, Req1} = read_body(Req0, <<>>),

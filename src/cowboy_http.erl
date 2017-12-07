@@ -58,6 +58,8 @@
 %% by not reading from the socket when the window is empty).
 
 -record(ps_body, {
+	length :: non_neg_integer() | undefined,
+	received = 0 :: non_neg_integer(),
 	%% @todo flow
 	transfer_decode_fun :: fun(), %% @todo better type
 	transfer_decode_state :: any() %% @todo better type
@@ -305,7 +307,8 @@ after_parse({data, StreamID, IsFin, Data, State=#state{
 		stream_reset(State, StreamID, {internal_error, {Class, Exception},
 			'Unhandled exception in cowboy_stream:data/4.'})
 	end;
-%% No corresponding stream, skip.
+%% No corresponding stream. We must skip the body of the previous request
+%% in order to process the next one.
 after_parse({data, _, _, _, State, Buffer}) ->
 	before_loop(State, Buffer);
 after_parse({more, State, Buffer}) ->
@@ -667,6 +670,7 @@ request(Buffer, State0=#state{ref=Ref, transport=Transport, peer=Peer, sock=Sock
 			State = case HasBody of
 				true ->
 					State0#state{in_state=#ps_body{
+						length = BodyLength,
 						transfer_decode_fun = TDecodeFun,
 						transfer_decode_state = TDecodeState
 					}};
@@ -735,7 +739,8 @@ http2_upgrade(State=#state{parent=Parent, ref=Ref, socket=Socket, transport=Tran
 %% Request body parsing.
 
 parse_body(Buffer, State=#state{in_streamid=StreamID, in_state=
-		PS=#ps_body{transfer_decode_fun=TDecode, transfer_decode_state=TState0}}) ->
+		PS=#ps_body{received=Received, transfer_decode_fun=TDecode,
+			transfer_decode_state=TState0}}) ->
 	%% @todo Proper trailers.
 	try TDecode(Buffer, TState0) of
 		more ->
@@ -744,15 +749,18 @@ parse_body(Buffer, State=#state{in_streamid=StreamID, in_state=
 		{more, Data, TState} ->
 			%% @todo Asks for 0 or more bytes.
 			{data, StreamID, nofin, Data, State#state{in_state=
-				PS#ps_body{transfer_decode_state=TState}}, <<>>};
+				PS#ps_body{received=Received + byte_size(Data),
+					transfer_decode_state=TState}}, <<>>};
 		{more, Data, _Length, TState} when is_integer(_Length) ->
 			%% @todo Asks for Length more bytes.
 			{data, StreamID, nofin, Data, State#state{in_state=
-				PS#ps_body{transfer_decode_state=TState}}, <<>>};
+				PS#ps_body{received=Received + byte_size(Data),
+					transfer_decode_state=TState}}, <<>>};
 		{more, Data, Rest, TState} ->
 			%% @todo Asks for 0 or more bytes.
 			{data, StreamID, nofin, Data, State#state{in_state=
-				PS#ps_body{transfer_decode_state=TState}}, Rest};
+				PS#ps_body{received=Received + byte_size(Data),
+					transfer_decode_state=TState}}, Rest};
 		{done, _HasTrailers, Rest} ->
 			{data, StreamID, fin, <<>>, set_timeout(
 				State#state{in_streamid=StreamID + 1, in_state=#ps_request_line{}}), Rest};
@@ -1043,8 +1051,8 @@ stream_reset(State, StreamID, StreamError={internal_error, _, _}) ->
 %	stream_terminate(State#state{out_state=done}, StreamID, StreamError).
 	stream_terminate(State, StreamID, StreamError).
 
-stream_terminate(State0=#state{out_streamid=OutStreamID, out_state=OutState,
-		streams=Streams0, children=Children0}, StreamID, Reason) ->
+stream_terminate(State0=#state{opts=Opts, in_state=InState, out_streamid=OutStreamID,
+		out_state=OutState, streams=Streams0, children=Children0}, StreamID, Reason) ->
 	#stream{version=Version} = lists:keyfind(StreamID, #stream.id, Streams0),
 	State1 = #state{streams=Streams1} = case OutState of
 		wait when element(1, Reason) =:= internal_error ->
@@ -1070,22 +1078,32 @@ stream_terminate(State0=#state{out_streamid=OutStreamID, out_state=OutState,
 		[] -> set_timeout(State2);
 		_ -> State2
 	end,
-	%% Move on to the next stream.
-	%% @todo Skip the body, if any, or drop the connection if too large.
+	%% We want to drop the connection if the body was not read fully
+	%% and we don't know its length or more remains to be read than
+	%% configuration allows.
 	%% @todo Only do this if Current =:= StreamID.
-	NextOutStreamID = OutStreamID + 1,
-	case lists:keyfind(NextOutStreamID, #stream.id, Streams) of
-		false ->
-			%% @todo This is clearly wrong, if the stream is gone we need to check if
-			%% there used to be such a stream, and if there was to send an error.
-			State#state{out_streamid=NextOutStreamID, out_state=wait, streams=Streams, children=Children};
-		#stream{queue=Commands} ->
-			%% @todo Remove queue from the stream.
-			commands(State#state{out_streamid=NextOutStreamID, out_state=wait,
-				streams=Streams, children=Children}, NextOutStreamID, Commands)
+	MaxSkipBodyLength = maps:get(max_skip_body_length, Opts, 1000000),
+	case InState of
+		#ps_body{length=undefined} ->
+			terminate(State#state{streams=Streams, children=Children}, skip_body_unknown_length);
+		#ps_body{length=Len, received=Received} when Received + MaxSkipBodyLength < Len ->
+			terminate(State#state{streams=Streams, children=Children}, skip_body_too_large);
+		_ ->
+			%% Move on to the next stream.
+			NextOutStreamID = OutStreamID + 1,
+			case lists:keyfind(NextOutStreamID, #stream.id, Streams) of
+				false ->
+					%% @todo This is clearly wrong, if the stream is gone we need to check if
+					%% there used to be such a stream, and if there was to send an error.
+					State#state{out_streamid=NextOutStreamID, out_state=wait,
+						streams=Streams, children=Children};
+				#stream{queue=Commands} ->
+					%% @todo Remove queue from the stream.
+					commands(State#state{out_streamid=NextOutStreamID, out_state=wait,
+						streams=Streams, children=Children}, NextOutStreamID, Commands)
+			end
 	end.
 
-%% @todo Taken directly from _http2
 stream_call_terminate(StreamID, Reason, StreamState) ->
 	try
 		cowboy_stream:terminate(StreamID, Reason, StreamState)
