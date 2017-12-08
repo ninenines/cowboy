@@ -667,7 +667,9 @@ Return the list of request headers that affect the
 representation of the resource.
 
 Cowboy automatically adds the accept, accept-charset and
-accept-language headers when necessary.
+accept-language headers when necessary. It's also useful
+to note that some standard headers also do not need to be
+listed here, like the authorization header.
 
 == Changelog
 

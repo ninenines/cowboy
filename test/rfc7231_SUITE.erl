@@ -215,6 +215,9 @@ method_trace(Config) ->
 
 %% Request headers.
 
+%% @todo It could be useful to check that we can parse all request headers defined in this RFC.
+%% @todo The same applies to any other RFC for which we have a test suite.
+
 expect(Config) ->
 	doc("A server that receives a 100-continue expectation should honor it. (RFC7231 5.1.1)"),
 	ConnPid = gun_open(Config),
@@ -311,7 +314,7 @@ do_expect_discard_body_close(Config) ->
 		{<<"content-type">>, <<"application/x-www-form-urlencoded">>},
 		{<<"expect">>, <<"100-continue">>}
 	]),
-	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref1),
+	{response, nofin, 200, _Headers} = gun:await(ConnPid, Ref1),
 	%% Ideally we would send a connection: close. Cowboy however
 	%% cannot know the intent of the application until after we
 	%% sent the response.
@@ -803,3 +806,94 @@ status_code_505(Config) ->
 %%
 %% Cowboy does not do version checking for HTTP/2 since the protocol
 %% does not include a version number in the messages.
+
+%% Response headers.
+
+%% @todo No such header in this suite, but some in other suites (if-(un)modified-since).
+%   A recipient that parses a timestamp value in an HTTP header field
+%   MUST accept all three HTTP-date formats. (RFC7231 7.1.1.1)
+
+date_imf_fixdate(Config) ->
+	doc("The date header uses the IMF-fixdate format. (RFC7231 7.1.1.1, RFC7231 7.1.1.2)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/", [
+		{<<"accept-encoding">>, <<"gzip">>}
+	]),
+	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
+	{_, <<_,_,_,", ",_,_," ",_,_,_," ",_,_,_,_," ",_,_,":",_,_,":",_,_," GMT">>}
+		= lists:keyfind(<<"date">>, 1, Headers),
+	ok.
+
+%% @todo Applies to both date and other headers (if-(un)modified-since).
+%   HTTP-date is case sensitive.  A sender MUST NOT generate additional
+%   whitespace in an HTTP-date beyond that specifically included as SP in
+%   the grammar.  The semantics of day-name, day, month, year, and
+%   time-of-day are the same as those defined for the Internet Message
+%   Format constructs with the corresponding name ([RFC5322], Section
+%   3.3). (RFC7231 7.1.1.1)
+
+%% @todo No such header in this suite, but some in other suites (if-(un)modified-since).
+%   Recipients of a timestamp value in rfc850-date format, which uses a
+%   two-digit year, MUST interpret a timestamp that appears to be more
+%   than 50 years in the future as representing the most recent year in
+%   the past that had the same last two digits. (RFC7231 7.1.1.1)
+
+%% @todo Add an option to disable sending the date header.
+%   An origin server MUST NOT send a Date header field if it does not
+%   have a clock capable of providing a reasonable approximation of the
+%   current instance in Coordinated Universal Time. (RFC7231 7.1.1.2)
+
+no_date_1xx(Config) ->
+	doc("The date header is optional for 1xx responses. "
+		"Cowboy does not send it with those responses. (RFC7231 7.1.1.2)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/resp/inform2/100", [
+		{<<"accept-encoding">>, <<"gzip">>}
+	]),
+	{inform, 100, Headers} = gun:await(ConnPid, Ref),
+	false = lists:keyfind(<<"date">>, 1, Headers),
+	ok.
+
+date_2xx(Config) ->
+	doc("A date header must be sent for 2xx status codes. (RFC7231 7.1.1.2)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/resp/reply2/200", [
+		{<<"accept-encoding">>, <<"gzip">>}
+	]),
+	{response, _, 200, Headers} = gun:await(ConnPid, Ref),
+	{_, _} = lists:keyfind(<<"date">>, 1, Headers),
+	ok.
+
+date_3xx(Config) ->
+	doc("A date header must be sent for 3xx status codes. (RFC7231 7.1.1.2)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/resp/reply2/300", [
+		{<<"accept-encoding">>, <<"gzip">>}
+	]),
+	{response, _, 300, Headers} = gun:await(ConnPid, Ref),
+	{_, _} = lists:keyfind(<<"date">>, 1, Headers),
+	ok.
+
+date_4xx(Config) ->
+	doc("A date header must be sent for 4xx status codes. (RFC7231 7.1.1.2)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/resp/reply2/400", [
+		{<<"accept-encoding">>, <<"gzip">>}
+	]),
+	{response, _, 400, Headers} = gun:await(ConnPid, Ref),
+	{_, _} = lists:keyfind(<<"date">>, 1, Headers),
+	ok.
+
+date_5xx(Config) ->
+	doc("The date header is optional for 5xx status codes. "
+		"Cowboy however does send it with those responses. (RFC7231 7.1.1.2)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/resp/reply2/500", [
+		{<<"accept-encoding">>, <<"gzip">>}
+	]),
+	{response, _, 500, Headers} = gun:await(ConnPid, Ref),
+	{_, _} = lists:keyfind(<<"date">>, 1, Headers),
+	ok.
+
+%% @todo It's worth revisiting this RFC in the context of cowboy_rest
+%% to ensure the state machine is doing what's expected by the RFC.
