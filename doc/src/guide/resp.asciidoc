@@ -128,7 +128,35 @@ in advance. This will ensure that the best response method
 is selected and help clients understand when the response
 is fully received.
 
-// @todo Document trailers here.
+Cowboy also provides a function to send response trailers.
+Response trailers are semantically equivalent to the headers
+you send in the response, only they are sent at the end.
+This is especially useful to attach information to the
+response that could not be generated until the response
+body was fully generated.
+
+Trailer fields must be listed in the trailer header. Any
+field not listed might be dropped by the client or an intermediary.
+
+[source,erlang]
+----
+Req = cowboy_req:stream_reply(200, #{
+    <<"content-type">> => <<"text/html">>,
+    <<"trailer">> => <<"expires, content-md5">>
+}, Req0),
+
+cowboy_req:stream_body("<html><head>Hello world!</head>", nofin, Req),
+cowboy_req:stream_body("<body><p>Hats off!</p></body></html>", nofin, Req),
+
+cowboy_req:stream_trailers(#{
+    <<"expires">> => <<"Sun, 10 Dec 2017 19:13:47 GMT">>,
+    <<"content-md5">> => <<"c6081d20ff41a42ce17048ed1c0345e2">>
+}, Req).
+----
+
+The stream ends with trailers. It is no longer possible to
+send data after sending trailers. You cannot send trailers
+after setting the `fin` flag when streaming the body.
 
 === Preset response headers
 
