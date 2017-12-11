@@ -24,7 +24,9 @@ function.
 The second argument indicates if this call is the final
 call. Use the `nofin` value until you know no more data
 will be sent. The final call should use `fin` (possibly
-with an empty data value).
+with an empty data value) or be a call to the
+link:man:cowboy_req:stream_trailers(3)[cowboy_req:stream_trailers(3)]
+function.
 
 Note that not using `fin` for the final call is not an
 error; Cowboy will take care of it when the request
@@ -74,4 +76,5 @@ cowboy_req:stream_body(<<"World!\n">>, fin, Req).
 == See also
 
 link:man:cowboy_req(3)[cowboy_req(3)],
-link:man:cowboy_req:stream_reply(3)[cowboy_req:stream_reply(3)]
+link:man:cowboy_req:stream_reply(3)[cowboy_req:stream_reply(3)],
+link:man:cowboy_req:stream_trailers(3)[cowboy_req:stream_trailers(3)]

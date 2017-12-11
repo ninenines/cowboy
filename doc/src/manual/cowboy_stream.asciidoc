@@ -114,8 +114,8 @@ Initiate a response to the client.
 ----
 
 This initiates a response to the client. The stream
-will end when a data command with the `fin` flag is
-returned.
+will end when a data command with the `fin` flag or
+a trailer command is returned.
 
 [[data_command]]
 === data
@@ -125,6 +125,16 @@ Send data to the client.
 [source,erlang]
 ----
 {data, fin(), iodata()}
+----
+
+[[trailers_command]]
+=== trailers
+
+Send response trailers to the client.
+
+[source,erlang]
+----
+{trailers, cowboy:http_headers()}
 ----
 
 [[push_command]]
@@ -285,6 +295,13 @@ Sent when the request process starts replying to the client.
 Same as the xref:data_command[data command].
 
 Sent when the request process streams data to the client.
+
+=== trailers
+
+Same as the xref:trailers_command[trailers command].
+
+Sent when the request process sends the trailer field values
+to the client.
 
 === push
 

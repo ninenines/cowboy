@@ -1,0 +1,70 @@
+= cowboy_req:stream_trailers(3)
+
+== Name
+
+cowboy_req:stream_trailers - Send the response trailers
+
+== Description
+
+[source,erlang]
+----
+stream_trailers(Trailers, Req :: cowboy_req:req()) -> ok
+
+Trailers :: cowboy:http_headers()
+----
+
+Send the response trailers and terminate the stream.
+
+This function can only be called once, after initiating
+a response using
+link:man:cowboy_req:stream_reply(3)[cowboy_req:stream_reply(3)]
+and sending zero or more body chunks using
+link:man:cowboy_req:stream_body(3)[cowboy_req:stream_body(3)]
+with the `nofin` argument set. The function `stream_trailers/2`
+implies `fin` and automatically terminate the response.
+
+You must list all field names sent in trailers in the
+trailer header, otherwise they might be dropped by intermediaries
+or clients.
+
+== Arguments
+
+Trailers::
+
+Trailer field values to be sent.
+
+Req::
+
+The Req object.
+
+== Return value
+
+The atom `ok` is always returned. It can be safely ignored.
+
+== Changelog
+
+* *2.2*: Function introduced.
+
+== Examples
+
+.Stream a response body with trailers
+[source,erlang]
+----
+Req = cowboy_req:stream_reply(200, #{
+    <<"content-type">> => <<"text/plain">>,
+    <<"trailer">> => <<"expires, content-md5">>
+}, Req0),
+cowboy_req:stream_body(<<"Hello\n">>, nofin, Req),
+timer:sleep(1000),
+cowboy_req:stream_body(<<"World!\n">>, nofin, Req).
+cowboy_req:stream_trailers(#{
+    <<"expires">> => <<"Sun, 10 Dec 2017 19:13:47 GMT">>,
+    <<"content-md5">> => <<"fbf68a8e34b2ded53bba54e68794b4fe">>
+}, Req).
+----
+
+== See also
+
+link:man:cowboy_req(3)[cowboy_req(3)],
+link:man:cowboy_req:stream_reply(3)[cowboy_req:stream_reply(3)],
+link:man:cowboy_req:stream_reply(3)[cowboy_req:stream_body(3)]

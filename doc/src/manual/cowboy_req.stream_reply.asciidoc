@@ -34,7 +34,9 @@ If a response body was set before calling this function,
 it will not be sent.
 
 Use link:man:cowboy_req:stream_body(3)[cowboy_req:stream_body(3)]
-to stream the response body.
+to stream the response body and optionally
+link:man:cowboy_req:stream_trailers(3)[cowboy_req:stream_trailers(3)]
+to send response trailer field values.
 
 You may want to set the content-length header when using
 this function, if it is known in advance. This will allow
@@ -106,4 +108,5 @@ link:man:cowboy_req:set_resp_headers(3)[cowboy_req:set_resp_headers(3)],
 link:man:cowboy_req:inform(3)[cowboy_req:inform(3)],
 link:man:cowboy_req:reply(3)[cowboy_req:reply(3)],
 link:man:cowboy_req:stream_body(3)[cowboy_req:stream_body(3)],
+link:man:cowboy_req:stream_trailers(3)[cowboy_req:stream_trailers(3)],
 link:man:cowboy_req:push(3)[cowboy_req:push(3)]

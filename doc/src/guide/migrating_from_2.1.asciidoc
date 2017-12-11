@@ -1,0 +1,107 @@
+[appendix]
+== Migrating from Cowboy 2.1 to 2.2
+
+Cowboy 2.2 focused on adding features required for writing
+gRPC servers and on completing test suites for the core
+HTTP RFCs, fixing many bugs along the way.
+
+=== Features added
+
+* Add support for sending trailers at the end of response bodies.
+  Trailers are additional header fields that may be sent after the
+  body to add more information to the response. Their usage is
+  required in gRPC servers. They are optional and may be discarded
+  in other scenarios (for example if the request goes through an
+  HTTP/1.0 proxy, as HTTP/1.0 does not support trailers).
+
+* The `max_skip_body_length` option was added to `cowboy_http`.
+  It controls how much of a request body Cowboy is willing to skip
+  when the handler did not touch it. If the remaining body size is
+  too large Cowboy instead closes the connection. It defaults to 1MB.
+
+* The CONNECT and TRACE methods are now rejected as they are
+  currently not implemented and must be handled differently than
+  other methods. They will be implemented in a future release.
+
+=== New functions
+
+* The function `stream_trailers/2` has been added. It terminates
+  a stream and adds trailer fields at the end of the response. A
+  corresponding stream handler command `{trailers, Trailers}`
+  has also been added.
+
+=== Bugs fixed
+
+* Test suites for the core HTTP RFCs RFC7230, RFC7231 and RFC7540
+  have been completed. Many of the bugs listed here were fixed as
+  a result of this work.
+
+* Many HTTP/2 edge cases when clients are misbehaving have been
+  corrected. This includes many cases where the request is malformed
+  (for example when a pseudo-header is present twice).
+
+* When the HTTP/2 SETTINGS_INITIAL_WINDOW_SIZE value changes,
+  Cowboy now properly updates the flow control windows.
+
+* HTTP/2 could mistakenly log stray messages that actually were
+  expected. This is no longer the case.
+
+* We no longer send a GOAWAY frame when the HTTP/2 preface is invalid.
+
+* Some values in the Req object of pushed requests were in the
+  wrong type. They are now the expected binary instead of iolist.
+
+* A response body was sometimes sent in response to HEAD requests
+  when using HTTP/2. The body is now ignored.
+
+* The `max_headers` option for `cowboy_http` was not always respected
+  depending on the contents of the buffer. The limit is now strict.
+
+* When an early error occurred on the HTTP/1.1 request line, the
+  partial Req given to stream handlers was missing the `ref` and
+  `peer` information. This has been corrected.
+
+* Absolute URIs with a userinfo component, or without an authority
+  component, are now properly rejected for HTTP/1.0 and HTTP/1.1.
+
+* Whitespace is no longer allowed in header lines before the colon.
+
+* 408 responses to HTTP/1.1 requests now properly include a
+  connection: close header indicating that we are going to
+  close the connection. This header will also be sent for
+  other early errors resulting in the closing of the connection.
+
+* When both the transfer-encoding and content-length headers are
+  sent in an HTTP/1.1 request, the transfer-encoding now takes
+  precedence over the content-length header and the latter is
+  removed from the Req object.
+
+* A 400 response is now returned when the transfer-encoding
+  header is invalid or contains any transfer-coding other
+  than chunked.
+
+* Invalid chunk sizes are now rejected immediately.
+
+* Chunk extensions are now limited to 129 characters. They are
+  not used in practice and are still ignored by Cowboy. The limit
+  is not configurable.
+
+* The final chunk was mistakenly sent in responses to HEAD
+  requests. This is now corrected.
+
+* `OPTIONS *` requests were broken in Cowboy 2.0. They are now
+  working again. Both the routing and `cowboy_req:uri/1,2` have
+  been corrected.
+
+* 204 responses no longer include a content-length header.
+
+* A packet could be lost when switching to Websocket or any
+  other protocol via the `switch_protocol` command. This is
+  now fixed.
+
+* A 426 response will now be sent when a handler requires
+  the client to upgrade to Websocket and the request did not
+  include the required headers.
+
+* Both experimental stream handlers `cowboy_metrics_h` and
+  `cowboy_tracer_h` received a number of fixes and improvements.
