@@ -19,6 +19,7 @@
 -import(ct_helper, [config/2]).
 -import(ct_helper, [doc/1]).
 -import(cowboy_test, [gun_open/1]).
+-import(cowboy_test, [gun_open/2]).
 -import(cowboy_test, [raw_open/1]).
 -import(cowboy_test, [raw_send/2]).
 -import(cowboy_test, [raw_recv_head/1]).
@@ -241,7 +242,7 @@ do_http10_expect(Config) ->
 	doc("A server that receives a 100-continue expectation "
 		"in an HTTP/1.0 request must ignore it. (RFC7231 5.1.1)"),
 	Body = <<"hello=world">>,
-	ConnPid = gun_open([{http_opts, #{version => 'HTTP/1.0'}}|Config]),
+	ConnPid = gun_open(Config, #{http_opts => #{version => 'HTTP/1.0'}}),
 	Ref = gun:post(ConnPid, "/echo/read_body", [
 		{<<"accept-encoding">>, <<"gzip">>},
 		{<<"content-type">>, <<"application/x-www-form-urlencoded">>},
@@ -437,7 +438,7 @@ http10_status_code_101(Config) ->
 	end.
 
 do_http10_status_code_1xx(StatusCode, Config) ->
-	ConnPid = gun_open([{http_opts, #{version => 'HTTP/1.0'}}|Config]),
+	ConnPid = gun_open(Config, #{http_opts => #{version => 'HTTP/1.0'}}),
 	Ref = gun:get(ConnPid, "/resp/inform2/" ++ integer_to_list(StatusCode), [
 		{<<"accept-encoding">>, <<"gzip">>}
 	]),
