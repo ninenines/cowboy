@@ -411,6 +411,7 @@ tuple.
 
 == Changelog
 
+* *2.2*: The trailers command was introduced.
 * *2.0*: Module introduced.
 
 == See also
