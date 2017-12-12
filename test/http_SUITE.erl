@@ -464,9 +464,15 @@ rest_keepalive(Config) ->
 rest_keepalive_post(Config) ->
 	ConnPid = gun_open(Config),
 	Refs = [begin
-		Ref1 = gun:post(ConnPid, "/forbidden_post", [{<<"content-type">>, <<"text/plain">>}]),
+		Ref1 = gun:post(ConnPid, "/forbidden_post", [
+			{<<"content-type">>, <<"text/plain">>},
+			{<<"content-length">>, <<"12">>}
+		]),
 		gun:data(ConnPid, Ref1, fin, "Hello world!"),
-		Ref2 = gun:post(ConnPid, "/simple_post", [{<<"content-type">>, <<"text/plain">>}]),
+		Ref2 = gun:post(ConnPid, "/simple_post", [
+			{<<"content-type">>, <<"text/plain">>},
+			{<<"content-length">>, <<"12">>}
+		]),
 		gun:data(ConnPid, Ref2, fin, "Hello world!"),
 		{Ref1, Ref2}
 	end || _ <- lists:seq(1, 5)],
@@ -550,8 +556,8 @@ rest_resource_etags(Config) ->
 		{200, <<"\"etag-header-value\"">>, "tuple-strong"},
 		{200, <<"W/\"etag-header-value\"">>, "binary-weak-quoted"},
 		{200, <<"\"etag-header-value\"">>, "binary-strong-quoted"},
-		{400, false, "binary-strong-unquoted"},
-		{400, false, "binary-weak-unquoted"}
+		{500, false, "binary-strong-unquoted"},
+		{500, false, "binary-weak-unquoted"}
 	],
 	_ = [{Status, ETag, Type} = begin
 		{Ret, RespETag} = rest_resource_get_etag(Config, Type),

@@ -1051,8 +1051,9 @@ stream_reset(State, StreamID, StreamError={internal_error, _, _}) ->
 %	stream_terminate(State#state{out_state=done}, StreamID, StreamError).
 	stream_terminate(State, StreamID, StreamError).
 
-stream_terminate(State0=#state{opts=Opts, in_state=InState, out_streamid=OutStreamID,
-		out_state=OutState, streams=Streams0, children=Children0}, StreamID, Reason) ->
+stream_terminate(State0=#state{opts=Opts, in_streamid=InStreamID, in_state=InState,
+		out_streamid=OutStreamID, out_state=OutState, streams=Streams0,
+		children=Children0}, StreamID, Reason) ->
 	#stream{version=Version} = lists:keyfind(StreamID, #stream.id, Streams0),
 	State1 = #state{streams=Streams1} = case OutState of
 		wait when element(1, Reason) =:= internal_error ->
@@ -1084,9 +1085,11 @@ stream_terminate(State0=#state{opts=Opts, in_state=InState, out_streamid=OutStre
 	%% @todo Only do this if Current =:= StreamID.
 	MaxSkipBodyLength = maps:get(max_skip_body_length, Opts, 1000000),
 	case InState of
-		#ps_body{length=undefined} ->
+		#ps_body{length=undefined}
+				when InStreamID =:= OutStreamID ->
 			terminate(State#state{streams=Streams, children=Children}, skip_body_unknown_length);
-		#ps_body{length=Len, received=Received} when Received + MaxSkipBodyLength < Len ->
+		#ps_body{length=Len, received=Received}
+				when InStreamID =:= OutStreamID, Received + MaxSkipBodyLength < Len ->
 			terminate(State#state{streams=Streams, children=Children}, skip_body_too_large);
 		_ ->
 			%% Move on to the next stream.

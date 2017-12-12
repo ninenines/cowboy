@@ -17,7 +17,7 @@ content_types_provided(Req, State) ->
 	{[{{<<"text">>, <<"plain">>, '*'}, get_text_plain}], Req, State}.
 
 get_text_plain(Req, State) ->
-	{_, _, Param} = maps:get(media_type, Req, {{<<"text">>, <<"plain">>}, []}),
+	{_, _, Param} = maps:get(media_type, Req, {<<"text">>, <<"plain">>, []}),
 	Body = if
 		Param == '*' ->
 			<<"'*'">>;
@@ -31,5 +31,6 @@ get_text_plain(Req, State) ->
 content_types_accepted(Req, State) ->
 	{[{{<<"text">>, <<"plain">>, '*'}, put_text_plain}], Req, State}.
 
-put_text_plain(Req, State) ->
+put_text_plain(Req0, State) ->
+	{ok, _, Req} = cowboy_req:read_body(Req0),
 	{true, Req, State}.
