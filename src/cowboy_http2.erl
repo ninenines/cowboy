@@ -200,7 +200,7 @@ init(Parent, Ref, Socket, Transport, Opts, Peer, Sock, Cert, Buffer, _Settings, 
 
 preface(#state{socket=Socket, transport=Transport, next_settings=Settings}) ->
 	%% We send next_settings and use defaults until we get a ack.
-	ok = Transport:send(Socket, cow_http2:settings(Settings)).
+	Transport:send(Socket, cow_http2:settings(Settings)).
 
 preface_timeout(Opts) ->
 	PrefaceTimeout = maps:get(preface_timeout, Opts, 5000),
