@@ -90,6 +90,19 @@ the `early_error/5` callback must return a response command.
 
 The following commands are defined:
 
+[[inform_command]]
+=== inform
+
+Send an informational response to the client.
+
+[source,erlang]
+----
+{inform, cowboy:http_status(), cowboy:http_headers()}
+----
+
+Any number of informational responses may be sent,
+but only until the final response is sent.
+
 [[response_command]]
 === response
 
@@ -276,6 +289,15 @@ This is the raw exit message without any modification.
 // TODO so we have to make it easy to say which process should
 // TODO receive the message, and perhaps *identify* which process
 // TODO gets it?
+
+=== inform
+
+Same as the xref:inform_command[inform command].
+
+Sent when the request process reads the body and an
+expect: 100-continue header was present in the request,
+or when the request process sends an informational
+response on its own.
 
 === response
 
