@@ -981,8 +981,9 @@ commands(State0=#state{socket=Socket, transport=Transport}, StreamID,
 		[{sendfile, IsFin, Offset, Bytes, Path}|Tail]) ->
 	Transport:sendfile(Socket, Path, Offset, Bytes),
 	State = case IsFin of
-		fin -> State0#state{out_state=done};
-		nofin -> State0
+		fin -> State0#state{out_state=done}
+%% @todo Add the sendfile command.
+%		nofin -> State0
 	end,
 	commands(State, StreamID, Tail);
 %% Protocol takeover.

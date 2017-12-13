@@ -110,8 +110,6 @@ upgrade(Req0, Env, Handler, HandlerState, Opts) ->
 		{ok, cowboy_req:reply(400, Req0), Env}
 	end.
 
--spec websocket_upgrade(#state{}, Req)
-	-> {ok, #state{}, Req} when Req::cowboy_req:req().
 websocket_upgrade(State, Req) ->
 	ConnTokens = cowboy_req:parse_header(<<"connection">>, Req, []),
 	case lists:member(<<"upgrade">>, ConnTokens) of
@@ -133,8 +131,6 @@ websocket_upgrade(State, Req) ->
 			end
 	end.
 
--spec websocket_extensions(#state{}, Req)
-	-> {ok, #state{}, Req} when Req::cowboy_req:req().
 websocket_extensions(State=#state{compress=Compress}, Req) ->
 	%% @todo We want different options for this. For example
 	%% * compress everything auto

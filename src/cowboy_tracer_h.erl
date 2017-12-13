@@ -169,6 +169,7 @@ tracer_loop(Parent, Fun, State0) ->
 			tracer_loop(Parent, Fun, State0)
 	end.
 
+-spec tracer_terminate(_, _, _) -> no_return().
 tracer_terminate(Reason, Fun, State) ->
 	_ = Fun(terminate, State),
 	exit(Reason).

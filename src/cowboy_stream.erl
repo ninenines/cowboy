@@ -29,9 +29,11 @@
 	:: {response, cowboy:http_status(), cowboy:http_headers(), cowboy_req:resp_body()}.
 -export_type([resp_command/0]).
 
--type commands() :: [resp_command()
+-type commands() :: [{inform, cowboy:http_status(), cowboy:http_headers()}
+	| resp_command()
 	| {headers, cowboy:http_status(), cowboy:http_headers()}
 	| {data, fin(), iodata()}
+	| {trailers, cowboy:http_headers()}
 	| {push, binary(), binary(), binary(), inet:port_number(),
 		binary(), binary(), cowboy:http_headers()}
 	| {flow, pos_integer()}

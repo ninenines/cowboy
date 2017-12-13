@@ -572,10 +572,11 @@ commands(State0, Stream0=#stream{local=nofin, te=TE0}, [{trailers, Trailers}|Tai
 	end,
 	commands(State, Stream, Tail);
 %% Send a file.
-commands(State0, Stream0=#stream{local=nofin},
-		[{sendfile, IsFin, Offset, Bytes, Path}|Tail]) ->
-	{State, Stream} = send_data(State0, Stream0, IsFin, {sendfile, Offset, Bytes, Path}),
-	commands(State, Stream, Tail);
+%% @todo Add the sendfile command.
+%commands(State0, Stream0=#stream{local=nofin},
+%		[{sendfile, IsFin, Offset, Bytes, Path}|Tail]) ->
+%	{State, Stream} = send_data(State0, Stream0, IsFin, {sendfile, Offset, Bytes, Path}),
+%	commands(State, Stream, Tail);
 %% @todo sendfile when local!=nofin
 %% Send a push promise.
 %%
@@ -843,10 +844,10 @@ stream_pseudo_headers_init(State, StreamID, IsFin, Headers0) ->
 	case pseudo_headers(Headers0, #{}) of
 		%% @todo Add clause for CONNECT requests (no scheme/path).
 		{ok, PseudoHeaders=#{method := <<"CONNECT">>}, _} ->
-			stream_early_error(State, StreamID, 501, PseudoHeaders,
+			stream_early_error(State, StreamID, IsFin, 501, PseudoHeaders,
 				'The CONNECT method is currently not implemented. (RFC7231 4.3.6)');
 		{ok, PseudoHeaders=#{method := <<"TRACE">>}, _} ->
-			stream_early_error(State, StreamID, 501, PseudoHeaders,
+			stream_early_error(State, StreamID, IsFin, 501, PseudoHeaders,
 				'The TRACE method is currently not implemented. (RFC7231 4.3.8)');
 		{ok, PseudoHeaders=#{method := _, scheme := _, authority := _, path := _}, Headers} ->
 			stream_regular_headers_init(State, StreamID, IsFin, Headers, PseudoHeaders);
@@ -983,8 +984,11 @@ stream_malformed(State=#state{socket=Socket, transport=Transport}, StreamID, _) 
 	Transport:send(Socket, cow_http2:rst_stream(StreamID, protocol_error)),
 	State.
 
-stream_early_error(State0=#state{ref=Ref, opts=Opts, peer=Peer, streams=Streams},
-		StreamID, StatusCode0, #{method := Method}, HumanReadable) ->
+stream_early_error(State0=#state{ref=Ref, opts=Opts, peer=Peer,
+		local_settings=#{initial_window_size := RemoteWindow},
+		remote_settings=#{initial_window_size := LocalWindow},
+		streams=Streams}, StreamID, IsFin, StatusCode0,
+		#{method := Method}, HumanReadable) ->
 	%% We automatically terminate the stream but it is not an error
 	%% per se (at least not in the first implementation).
 	Reason = {stream_error, no_error, HumanReadable},
@@ -997,7 +1001,9 @@ stream_early_error(State0=#state{ref=Ref, opts=Opts, peer=Peer, streams=Streams}
 	},
 	Resp = {response, StatusCode0, RespHeaders0=#{<<"content-length">> => <<"0">>}, <<>>},
 	%% We need a stream to talk to the send_* functions.
-	Stream0 = #stream{id=StreamID, method=Method},
+	Stream0 = #stream{id=StreamID, state=flush, method=Method,
+		remote=IsFin, local=idle,
+		local_window=LocalWindow, remote_window=RemoteWindow},
 	try cowboy_stream:early_error(StreamID, Reason, PartialReq, Resp, Opts) of
 		{response, StatusCode, RespHeaders, RespBody} ->
 			case send_response(State0, Stream0, StatusCode, RespHeaders, RespBody) of
