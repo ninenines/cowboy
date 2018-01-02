@@ -85,6 +85,7 @@ for or related to HTTP.
 * https://tools.ietf.org/html/rfc8187[RFC 8187]: Indicating Character Encoding and Language for HTTP Header Field Parameters
 * https://tools.ietf.org/html/rfc8188[RFC 8188]: Encrypted Content-Encoding for HTTP
 * https://tools.ietf.org/html/rfc8246[RFC 8246]: HTTP Immutable Responses
+* https://tools.ietf.org/html/rfc8297[RFC 8297]: An HTTP Status Code for Indicating Hints
 * https://www.w3.org/TR/webmention/[Webmention]: Webmention
 
 ==== Upcoming
