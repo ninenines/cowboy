@@ -631,6 +631,8 @@ choose_charset(Req, State=#state{charsets_p=CP}, [Charset|Tail]) ->
 
 match_charset(Req, State, Accept, [], _Charset) ->
 	choose_charset(Req, State, Accept);
+match_charset(Req, State, _Accept, [Provided|_], {<<"*">>, _}) ->
+	set_content_type(Req, State#state{charset_a=Provided});
 match_charset(Req, State, _Accept, [Provided|_], {Provided, _}) ->
 	set_content_type(Req, State#state{charset_a=Provided});
 match_charset(Req, State, Accept, [_|Tail], Charset) ->
