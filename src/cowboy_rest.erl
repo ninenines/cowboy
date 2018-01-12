@@ -500,18 +500,19 @@ match_media_type(Req, State, Accept, [_Any|Tail], MediaType) ->
 	match_media_type(Req, State, Accept, Tail, MediaType).
 
 match_media_type_params(Req, State, _Accept,
-		[Provided = {{TP, STP, '*'}, _Fun}|_Tail],
+		[{{TP, STP, '*'}, Fun}|_Tail],
 		{{_TA, _STA, Params_A}, _QA, _APA}) ->
 	PMT = {TP, STP, Params_A},
 	languages_provided(Req#{media_type => PMT},
-		State#state{content_type_a=Provided});
+		State#state{content_type_a={{TP, STP, []}, Fun}});
 match_media_type_params(Req, State, Accept,
 		[Provided = {PMT = {_TP, _STP, Params_P}, _Fun}|Tail],
 		MediaType = {{_TA, _STA, Params_A}, _QA, _APA}) ->
 	case lists:sort(Params_P) =:= lists:sort(Params_A) of
 		true ->
+			Charset = proplists:get_value(<<"charset">>, Params_P),
 			languages_provided(Req#{media_type => PMT},
-				State#state{content_type_a=Provided});
+				State#state{content_type_a=Provided, charset_a=Charset});
 		false ->
 			match_media_type(Req, State, Accept, Tail, MediaType)
 	end.
@@ -583,7 +584,9 @@ set_language(Req, State=#state{language_a=Language}) ->
 
 %% charsets_provided should return a list of binary values indicating
 %% which charsets are accepted by the resource.
-charsets_provided(Req, State) ->
+%% It is ignored if we have already matched a charset in content_types_provided
+charsets_provided(Req=#{media_type := {_, _, Params}},
+		State=#state{charset_a=undefined}) ->
 	case call(Req, State, charsets_provided) of
 		no_call ->
 			set_content_type(Req, State);
@@ -595,14 +598,21 @@ charsets_provided(Req, State) ->
 			not_acceptable(Req2, State#state{handler_state=HandlerState});
 		{CP, Req2, HandlerState} ->
 			State2 = State#state{handler_state=HandlerState, charsets_p=CP},
-			case cowboy_req:parse_header(<<"accept-charset">>, Req2) of
+			%% Try getting charset from content type params first
+			Charsets = case proplists:get_value(<<"charset">>, Params) of
+				undefined -> cowboy_req:parse_header(<<"accept-charset">>, Req2);
+				Value     -> [{Value, 1000}]
+			end,
+			case Charsets of
 				undefined ->
 					set_content_type(Req2, State2#state{charset_a=hd(CP)});
-				AcceptCharset ->
-					AcceptCharset2 = prioritize_charsets(AcceptCharset),
-					choose_charset(Req2, State2, AcceptCharset2)
+				AcceptCharsets ->
+					AcceptCharsets2 = prioritize_charsets(AcceptCharsets),
+					choose_charset(Req2, State2, AcceptCharsets2)
 			end
-	end.
+	end;
+charsets_provided(Req, State) ->
+	set_content_type(Req, State).
 
 %% The special value "*", if present in the Accept-Charset field,
 %% matches every character set (including ISO-8859-1) which is not
@@ -641,9 +651,11 @@ set_content_type(Req, State=#state{
 		charset_a=Charset}) ->
 	ParamsBin = set_content_type_build_params(Params, []),
 	ContentType = [Type, <<"/">>, SubType, ParamsBin],
-	ContentType2 = case Charset of
-		undefined -> ContentType;
-		Charset -> [ContentType, <<"; charset=">>, Charset]
+	ContentType2 = case {Type, Charset, proplists:is_defined(<<"charset">>, Params)} of
+		{_Type, undefined, _AlreadyDefined} -> ContentType;
+		{_Type, _Charset, true}             -> ContentType;
+		{<<"text">>, Charset, false}        -> [ContentType, <<";charset=">>, Charset];
+		_                                   -> ContentType
 	end,
 	Req2 = cowboy_req:set_resp_header(<<"content-type">>, ContentType2, Req),
 	encodings_provided(Req2#{charset => Charset}, State).
