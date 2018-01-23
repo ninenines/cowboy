@@ -16,6 +16,10 @@
 
 -export([split/2]).
 
+-ifdef(TEST).
+-include_lib("proper/include/proper.hrl").
+-endif.
+
 -spec split(non_neg_integer(), iodata()) -> {iodata(), iodata()}.
 split(N, Iolist) ->
 	case split(N, Iolist, []) of
@@ -44,7 +48,13 @@ split(N, [Char|Tail], Acc) when is_integer(Char) ->
 split(N, [List|Tail], Acc0) ->
 	case split(N, List, Acc0) of
 		{ok, Before, After} ->
-			{ok, Before, [After|Tail]};
+			IolistSize = iolist_size(Before),
+			if
+				IolistSize < N ->
+					split(N - IolistSize, [After|Tail], Before);
+				true ->
+					{ok, Before, [After|Tail]}
+			end;
 		{more, More, Acc} ->
 			split(More, Tail, Acc)
 	end.
@@ -60,12 +70,30 @@ split_test_() ->
 		{10, "Hello!", "Hello!", ""},
 		{10, <<"Hello!">>, "Hello!", ""},
 		{10, ["He", [<<"ll">>], $o, [["!"]]], "Hello!", ""},
-		{10, ["Hel"|<<"lo!">>], "Hello!", ""}
+		{10, ["Hel"|<<"lo!">>], "Hello!", ""},
+		{10, [[<<>>|<<>>], [], <<"Hello world!">>], "Hello worl", "d!"}
 	],
 	[{iolist_to_binary(V), fun() ->
 		{B, A} = split(N, V),
 		true = iolist_to_binary(RB) =:= iolist_to_binary(B),
 		true = iolist_to_binary(RA) =:= iolist_to_binary(A)
 	end} || {N, V, RB, RA} <- Tests].
+
+prop_split_test() ->
+	?FORALL({N, Input},
+		{non_neg_integer(), iolist()},
+		begin
+			Size = iolist_size(Input),
+			{Before, After} = split(N, Input),
+			if
+				N >= Size ->
+					((iolist_size(After) =:= 0)
+						andalso iolist_to_binary(Before) =:= iolist_to_binary(Input));
+				true ->
+					<<ExpectBefore:N/binary, ExpectAfter/bits>> = iolist_to_binary(Input),
+					(ExpectBefore =:= iolist_to_binary(Before))
+						andalso (ExpectAfter =:= iolist_to_binary(After))
+			end
+		end).
 
 -endif.
