@@ -1,0 +1,17 @@
+[appendix]
+== Changes since Cowboy 2.2
+
+The following patch versions were released since Cowboy 2.2:
+
+=== Cowboy 2.2.1
+
+* Colons are now allowed within path segments in routes provided
+  to `cowboy_router:compile/1` as long as they are not the first
+  character of the path segment.
+
+* The `cowboy_req:delete_resp_header/2` function will no longer
+  crash when no response header was set before calling it.
+
+* A miscount of the output HTTP/2 flow control window has been
+  fixed. It prevented sending the response body fully with some
+  clients. The issue only affected response bodies sent as iolists.
