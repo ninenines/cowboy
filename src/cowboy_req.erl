@@ -690,7 +690,7 @@ has_resp_body(_) ->
 delete_resp_header(Name, Req=#{resp_headers := RespHeaders}) ->
 	Req#{resp_headers => maps:remove(Name, RespHeaders)};
 %% There are no resp headers so we have nothing to delete.
-delete_resp_header(Name, Req) ->
+delete_resp_header(_, Req) ->
 	Req.
 
 -spec inform(cowboy:http_status(), req()) -> ok.
