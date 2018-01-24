@@ -11,7 +11,7 @@ because it uses *binary strings*.
 Cowboy provides *routing* capabilities, selectively dispatching requests
 to handlers written in Erlang.
 
-Because it uses Ranch for managing connections, Cowboy can easily be
+Because it uses https://github.com/ninenines/ranch[Ranch] for managing connections, Cowboy can easily be
 *embedded* in any other application.
 
 Cowboy is *clean* and *well tested* Erlang code.
