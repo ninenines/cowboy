@@ -3,6 +3,12 @@
 
 The following patch versions were released since Cowboy 2.2:
 
+=== Cowboy 2.2.2
+
+* While fixing the miscount in the previous patch release an
+  issue was introduced where HTTP/2 bodies could be sent out
+  of orders when using iolists. This has been corrected.
+
 === Cowboy 2.2.1
 
 * Colons are now allowed within path segments in routes provided
