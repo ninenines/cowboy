@@ -45,7 +45,7 @@ values are case sensitive binary strings.
 [source,erlang]
 ----
 Cookies = cowboy_req:parse_cookies(Req),
-{_, Token} = lists:keyfind(token, 1, Cookies).
+{_, Token} = lists:keyfind(<<"token">>, 1, Cookies).
 ----
 
 == See also
