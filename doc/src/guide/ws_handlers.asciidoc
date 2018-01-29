@@ -267,3 +267,11 @@ Sending a `close` frame will immediately initiate the closing
 of the Websocket connection. Note that when sending a list of
 frames that include a close frame, any frame found after the
 close frame will not be sent.
+
+The following example sends a close frame with a reason message:
+
+[source,erlang]
+----
+websocket_info(_Info, State) ->
+    {reply, {close, 1000, <<"some-reason">>}, State}.
+----
