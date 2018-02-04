@@ -132,6 +132,8 @@ init_dispatch(Config) ->
 			[{mimetypes, <<"application/vnd.ninenines.cowboy+xml;v=1">>}]}},
 		{"/mime/hardcode/tuple-form", cowboy_static, {priv_file, ct_helper, "static/file.cowboy",
 			[{mimetypes, {<<"application">>, <<"vnd.ninenines.cowboy+xml">>, [{<<"v">>, <<"1">>}]}}]}},
+		{"/mime/hardcode/charset", cowboy_static, {priv_file, ct_helper, "static/file.cowboy",
+			[{mimetypes, {<<"text">>, <<"html">>, [{<<"charset">>, <<"utf-8">>}]}}]}},
 		{"/etag/custom", cowboy_static, {file, config(static_dir, Config) ++ "/style.css",
 			[{etag, ?MODULE, do_etag_custom}]}},
 		{"/etag/crash", cowboy_static, {file, config(static_dir, Config) ++ "/style.css",
@@ -753,6 +755,15 @@ mime_hardcode_tuple(Config) ->
 	doc("Get a .cowboy file with hardcoded route."),
 	{200, Headers, _} = do_get("/mime/hardcode/tuple-form", Config),
 	{_, <<"application/vnd.ninenines.cowboy+xml;v=1">>} = lists:keyfind(<<"content-type">>, 1, Headers),
+	ok.
+
+mime_hardcode_charset(Config) ->
+	doc("Get a .cowboy file with hardcoded route and utf-8"),
+	% This works:
+	% ReqHeaders = [{<<"accept">> , <<"text/html;charset=utf-8,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8">>}],
+	ReqHeaders = [{<<"accept">> , <<"text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8">>}],
+	{200, Headers, _} = do_get("/mime/hardcode/charset", ReqHeaders, Config),
+	{_, <<"text/html;charset=utf-8">>} = lists:keyfind(<<"content-type">>, 1, Headers),
 	ok.
 
 priv_dir_in_ez_archive(Config) ->
