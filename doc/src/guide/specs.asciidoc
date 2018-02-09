@@ -30,6 +30,7 @@ for or related to HTTP.
 * http://www.w3.org/TR/eventsource/[eventsource]: Server-Sent Events
 * https://www.w3.org/TR/html4/interact/forms.html#h-17.13.4[Form content types]: Form content types
 * https://www.w3.org/TR/preload/[Preload]: Preload
+* https://www.haproxy.org/download/1.8/doc/proxy-protocol.txt[PROXY]: The PROXY protocol
 * http://www.ics.uci.edu/~fielding/pubs/dissertation/rest_arch_style.htm[REST]: Fielding's Dissertation
 * https://tools.ietf.org/html/rfc1945[RFC 1945]: HTTP/1.0
 * https://tools.ietf.org/html/rfc1951[RFC 1951]: DEFLATE Compressed Data Format Specification version 1.3
