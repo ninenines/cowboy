@@ -189,3 +189,4 @@ for or related to HTTP.
 * https://tools.ietf.org/html/rfc7967[RFC 7967]: CoAP Option for No Server Response
 * https://tools.ietf.org/html/rfc8075[RFC 8075]: Guidelines for Mapping Implementations: HTTP to CoAP
 * https://tools.ietf.org/html/rfc8132[RFC 8132]: PATCH and FETCH Methods for CoAP
+* https://tools.ietf.org/html/rfc8323[RFC 8323]: CoAP over TCP, TLS, and WebSockets
