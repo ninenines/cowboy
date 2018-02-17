@@ -11,6 +11,8 @@ init(Req0, State=reply) ->
 			cowboy_req:reply(200, #{}, lists:duplicate(100, $a), Req0);
 		<<"large">> ->
 			cowboy_req:reply(200, #{}, lists:duplicate(100000, $a), Req0);
+		<<"over-threshold">> ->
+			cowboy_req:reply(200, #{}, lists:duplicate(200, $a), Req0);
 		<<"content-encoding">> ->
 			cowboy_req:reply(200, #{<<"content-encoding">> => <<"compress">>},
 				lists:duplicate(100000, $a), Req0);

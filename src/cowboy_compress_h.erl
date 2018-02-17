@@ -24,15 +24,20 @@
 -record(state, {
 	next :: any(),
 	compress = undefined :: undefined | gzip,
-	deflate = undefined :: undefined | zlib:zstream()
+	deflate = undefined :: undefined | zlib:zstream(),
+	resp_compression_threshold :: non_neg_integer()
 }).
 
 -spec init(cowboy_stream:streamid(), cowboy_req:req(), cowboy:opts())
 	-> {cowboy_stream:commands(), #state{}}.
 init(StreamID, Req, Opts) ->
 	State0 = check_req(Req),
+	RespCompressionThreshold = maps:get(resp_compression_threshold, Opts, 300),
 	{Commands0, Next} = cowboy_stream:init(StreamID, Req, Opts),
-	fold(Commands0, State0#state{next=Next}).
+	fold(Commands0, State0#state{
+		next=Next,
+		resp_compression_threshold=RespCompressionThreshold
+	}).
 
 -spec data(cowboy_stream:streamid(), cowboy_stream:fin(), cowboy_req:resp_body(), State)
 	-> {cowboy_stream:commands(), State} when State::#state{}.
@@ -101,15 +106,15 @@ fold([Response={response, _, _, {sendfile, _, _, _}}|Tail], State, Acc) ->
 	fold(Tail, State, [Response|Acc]);
 %% We compress full responses directly, unless they are lower than
 %% 300 bytes or we find we are not able to by looking at the headers.
-%% @todo It might be good to allow this size to be configured?
-fold([Response0={response, _, Headers, Body}|Tail], State0, Acc) ->
+fold([Response0={response, _, Headers, Body}|Tail],
+		State0=#state{resp_compression_threshold=RespCompressionThreshold}, Acc) ->
 	case check_resp_headers(Headers, State0) of
 		State=#state{compress=undefined} ->
 			fold(Tail, State, [Response0|Acc]);
 		State1 ->
 			BodyLength = iolist_size(Body),
 			if
-				BodyLength =< 300 ->
+				BodyLength =< RespCompressionThreshold ->
 					fold(Tail, State1, [Response0|Acc]);
 				true ->
 					{Response, State} = gzip_response(Response0, State1),

@@ -128,3 +128,13 @@ gzip_stream_reply_content_encoding(Config) ->
 	{_, <<"compress">>} = lists:keyfind(<<"content-encoding">>, 1, Headers),
 	100000 = iolist_size(Body),
 	ok.
+
+gzip_reply_compression_threshold(Config) ->
+	doc("Reply a small body; with compression threshold get a compressed response."),
+	{200, Headers, GzBody} = do_get("/reply/over-threshold",
+		[{<<"accept-encoding">>, <<"gzip">>}], Config),
+	true = lists:keyfind(<<"content-encoding">>, 1, Headers),
+	{_, Length} = lists:keyfind(<<"content-length">>, 1, Headers),
+	ct:log("Original length: 200; compressed: ~s.", [Length]),
+	_ = zlib:gunzip(GzBody),
+	ok.
