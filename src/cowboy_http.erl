@@ -25,6 +25,7 @@
 -export([system_code_change/4]).
 
 -type opts() :: #{
+	compress_threshold => non_neg_integer(),
 	connection_type => worker | supervisor,
 	env => cowboy_middleware:env(),
 	idle_timeout => timeout(),
@@ -46,7 +47,9 @@
 	shutdown_timeout => timeout(),
 	stream_handlers => [module()],
 	tracer_callback => cowboy_tracer_h:tracer_callback(),
-	tracer_match_specs => cowboy_tracer_h:tracer_match_specs()
+	tracer_match_specs => cowboy_tracer_h:tracer_match_specs(),
+	%% Open ended because configured stream handlers might add options.
+	_ => _
 }.
 -export_type([opts/0]).
 
