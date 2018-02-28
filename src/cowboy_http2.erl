@@ -927,24 +927,27 @@ headers_to_map([{Name, Value}|Tail], Acc0) ->
 	end,
 	headers_to_map(Tail, Acc).
 
-stream_req_init(State=#state{ref=Ref, peer=Peer, sock=Sock, cert=Cert},
-		StreamID, IsFin, Headers, #{method := Method, scheme := Scheme,
-			authority := Authority, path := PathWithQs}) ->
-	BodyLength = case Headers of
+stream_req_init(State, StreamID, IsFin, Headers, PseudoHeaders) ->
+	case Headers of
 		_ when IsFin =:= fin ->
-			0;
+			stream_req_init(State, StreamID, IsFin, Headers, PseudoHeaders, 0);
 		#{<<"content-length">> := <<"0">>} ->
-			0;
+			stream_req_init(State, StreamID, IsFin, Headers, PseudoHeaders, 0);
 		#{<<"content-length">> := BinLength} ->
 			try
-				cow_http_hd:parse_content_length(BinLength)
+				stream_req_init(State, StreamID, IsFin, Headers, PseudoHeaders,
+					cow_http_hd:parse_content_length(BinLength))
 			catch _:_ ->
-				terminate(State, {stream_error, StreamID, protocol_error,
-					'The content-length header is invalid. (RFC7230 3.3.2)'})
+				stream_malformed(State, StreamID,
+					'The content-length header is invalid. (RFC7230 3.3.2)')
 			end;
 		_ ->
-			undefined
-	end,
+			stream_req_init(State, StreamID, IsFin, Headers, PseudoHeaders, undefined)
+	end.
+
+stream_req_init(State=#state{ref=Ref, peer=Peer, sock=Sock, cert=Cert},
+		StreamID, IsFin, Headers, #{method := Method, scheme := Scheme,
+			authority := Authority, path := PathWithQs}, BodyLength) ->
 	try cow_http_hd:parse_host(Authority) of
 		{Host, Port} ->
 			try cow_http:parse_fullpath(PathWithQs) of

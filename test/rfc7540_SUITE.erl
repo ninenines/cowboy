@@ -3196,7 +3196,25 @@ reject_many_pseudo_header_path(Config) ->
 %   that is defined to have no payload, as described in [RFC7230],
 %   Section 3.3.2, can have a non-zero content-length header field, even
 %   though no content is included in DATA frames.
-%
+
+reject_duplicate_content_length_header(Config) ->
+	doc("A request with duplicate content-length headers must be rejected "
+		"with a PROTOCOL_ERROR stream error. (RFC7230 3.3.2, RFC7540 8.1.2.6)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame with more than one content-length header.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<>>},
+		{<<"content-length">>, <<"12">>},
+		{<<"content-length">>, <<"12">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, nofin, HeadersBlock)),
+	%% Receive a PROTOCOL_ERROR stream error.
+	{ok, << _:24, 3:8, _:8, 1:32, 1:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+	ok.
+
 %   Intermediaries that process HTTP requests or responses (i.e., any
 %   intermediary not acting as a tunnel) MUST NOT forward a malformed
 %   request or response.  Malformed requests or responses that are
