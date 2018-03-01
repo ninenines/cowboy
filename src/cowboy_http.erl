@@ -222,8 +222,10 @@ set_timeout(State0=#state{opts=Opts, streams=Streams}) ->
 		[] -> {request_timeout, 5000};
 		_ -> {idle_timeout, 60000}
 	end,
-	Timeout = maps:get(Name, Opts, Default),
-	TimerRef = erlang:start_timer(Timeout, self(), Name),
+	TimerRef = case maps:get(Name, Opts, Default) of
+		infinity -> undefined;
+		Timeout -> erlang:start_timer(Timeout, self(), Name)
+	end,
 	State#state{timer=TimerRef}.
 
 cancel_timeout(State=#state{timer=TimerRef}) ->
