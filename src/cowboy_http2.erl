@@ -122,7 +122,7 @@
 	%% is established and continues normally. An exception is when a HEADERS
 	%% frame is sent followed by CONTINUATION frames: no other frame can be
 	%% sent in between.
-	parse_state = undefined :: {preface, sequence, reference()}
+	parse_state = undefined :: {preface, sequence, undefined | reference()}
 		| {preface, settings, reference()}
 		| normal
 		| {continuation, cowboy_stream:streamid(), cowboy_stream:fin(), binary()},
@@ -203,8 +203,10 @@ preface(#state{socket=Socket, transport=Transport, next_settings=Settings}) ->
 	Transport:send(Socket, cow_http2:settings(Settings)).
 
 preface_timeout(Opts) ->
-	PrefaceTimeout = maps:get(preface_timeout, Opts, 5000),
-	erlang:start_timer(PrefaceTimeout, self(), preface_timeout).
+	case maps:get(preface_timeout, Opts, 5000) of
+		infinity -> undefined;
+		PrefaceTimeout -> erlang:start_timer(PrefaceTimeout, self(), preface_timeout)
+	end.
 
 %% @todo Add the timeout for last time since we heard of connection.
 before_loop(State, Buffer) ->
@@ -310,7 +312,10 @@ parse(State=#state{local_settings=#{max_frame_size := MaxFrameSize},
 	end.
 
 parse_settings_preface(State, Frame={settings, _}, Rest, TRef) ->
-	_ = erlang:cancel_timer(TRef, [{async, true}, {info, false}]),
+	ok = case TRef of
+		undefined -> ok;
+		_ -> erlang:cancel_timer(TRef, [{async, true}, {info, false}])
+	end,
 	parse(frame(State#state{parse_state=normal}, Frame), Rest);
 parse_settings_preface(State, _, _, _) ->
 	terminate(State, {connection_error, protocol_error,

@@ -59,6 +59,23 @@ inactivity_timeout(Config) ->
 	{ok, << _:24, 7:8, _:72, 2:32 >>} = gen_tcp:recv(Socket, 17, 1000),
 	ok.
 
+preface_timeout_infinity(Config) ->
+	doc("Ensure infinity for preface_timeout is accepted"),
+	ProtoOpts = #{
+		env => #{dispatch => cowboy_router:compile(init_routes(Config))},
+		preface_timeout => infinity
+	},
+	{ok, Pid} = cowboy:start_clear(preface_timeout_infinity, [{port, 0}], ProtoOpts),
+	Ref = erlang:monitor(process, Pid),
+	Port = ranch:get_port(preface_timeout_infinity),
+	{ok, _} = do_handshake([{port, Port}|Config]),
+	receive
+		{'DOWN', Ref, process, Pid, Reason} ->
+			error(Reason)
+	after 1000 ->
+		cowboy:stop_listener(preface_timeout_infinity)
+	end.
+
 resp_iolist_body(Config) ->
 	doc("Regression test when response bodies are iolists that "
 		"include improper lists, empty lists and empty binaries. "
