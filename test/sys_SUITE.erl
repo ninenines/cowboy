@@ -27,6 +27,8 @@ groups() ->
 	[{sys, [parallel], ct_helper:all(?MODULE)}].
 
 init_per_suite(Config) ->
+	ct:print("This test suite will produce error reports about "
+		"EXIT signals for unknown processes."),
 	ProtoOpts = #{
 		env => #{dispatch => init_dispatch(Config)}
 	},
@@ -467,8 +469,7 @@ trap_exit_other_exit_ws(Config) ->
 	{ok, {http_response, {1, 1}, 101, _}, _} = erlang:decode_packet(http, Handshake, []),
 	timer:sleep(100),
 	Pid = do_get_remote_pid_tcp(Socket),
-	Parent = do_get_parent_pid(Pid),
-	Pid ! {'EXIT', Parent, shutdown},
+	Pid ! {'EXIT', self(), shutdown},
 	%% The process stays alive.
 	{error, timeout} = gen_tcp:recv(Socket, 0, 1000),
 	true = is_process_alive(Pid),

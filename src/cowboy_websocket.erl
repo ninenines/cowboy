@@ -22,6 +22,10 @@
 -export([takeover/7]).
 -export([handler_loop/3]).
 
+-export([system_continue/3]).
+-export([system_terminate/4]).
+-export([system_code_change/4]).
+
 -type call_result(State) :: {ok, State}
 	| {ok, State, hibernate}
 	| {reply, cow_ws:frame() | [cow_ws:frame()], State}
@@ -58,6 +62,8 @@
 -export_type([opts/0]).
 
 -record(state, {
+	parent = undefined :: pid(),
+	ref :: ranch:ref(),
 	socket = undefined :: inet:socket() | undefined,
 	transport = undefined :: module(),
 	handler :: module(),
@@ -199,11 +205,12 @@ websocket_handshake(State=#state{key=Key},
 %% @todo Keep parent and handle system messages.
 -spec takeover(pid(), ranch:ref(), inet:socket(), module(), any(), binary(),
 	{#state{}, any()}) -> ok.
-takeover(_Parent, Ref, Socket, Transport, _Opts, Buffer,
+takeover(Parent, Ref, Socket, Transport, _Opts, Buffer,
 		{State0=#state{handler=Handler}, HandlerState}) ->
 	%% @todo We should have an option to disable this behavior.
 	ranch:remove_connection(Ref),
-	State1 = handler_loop_timeout(State0#state{socket=Socket, transport=Transport}),
+	State1 = handler_loop_timeout(State0#state{parent=Parent,
+		ref=Ref, socket=Socket, transport=Transport}),
 	State = State1#state{key=undefined, messages=Transport:messages()},
 	case erlang:function_exported(Handler, websocket_init, 1) of
 		true -> handler_call(State, HandlerState, Buffer, websocket_init, undefined, fun handler_before_loop/3);
@@ -235,7 +242,7 @@ handler_loop_timeout(State=#state{timeout=Timeout, timeout_ref=PrevRef}) ->
 
 -spec handler_loop(#state{}, any(), binary())
 	-> {ok, cowboy_middleware:env()}.
-handler_loop(State=#state{socket=Socket, messages={OK, Closed, Error},
+handler_loop(State=#state{parent=Parent, socket=Socket, messages={OK, Closed, Error},
 		timeout_ref=TRef}, HandlerState, SoFar) ->
 	receive
 		{OK, Socket, Data} ->
@@ -250,6 +257,13 @@ handler_loop(State=#state{socket=Socket, messages={OK, Closed, Error},
 			websocket_close(State, HandlerState, timeout);
 		{timeout, OlderTRef, ?MODULE} when is_reference(OlderTRef) ->
 			handler_loop(State, HandlerState, SoFar);
+		%% System messages.
+		{'EXIT', Parent, Reason} ->
+			%% @todo We should exit gracefully.
+			exit(Reason);
+		{system, From, Request} ->
+			sys:handle_system_msg(Request, From, Parent, ?MODULE, [],
+				{State, HandlerState, SoFar});
 		%% Calls from supervisor module.
 		{'$gen_call', From, Call} ->
 			cowboy_children:handle_supervisor_call(Call, From, [], ?MODULE),
@@ -441,3 +455,18 @@ terminate(State, HandlerState, Reason) ->
 
 handler_terminate(#state{handler=Handler, req=Req}, HandlerState, Reason) ->
 	cowboy_handler:terminate(Reason, Req, HandlerState, Handler).
+
+%% System callbacks.
+
+-spec system_continue(_, _, {#state{}, any(), binary()}) -> ok.
+system_continue(_, _, {State, HandlerState, SoFar}) ->
+	handler_loop(State, HandlerState, SoFar).
+
+-spec system_terminate(any(), _, _, {#state{}, any(), binary()}) -> no_return().
+system_terminate(Reason, _, _, {State, HandlerState, _}) ->
+	%% @todo We should exit gracefully, if possible.
+	terminate(State, HandlerState, Reason).
+
+-spec system_code_change(Misc, _, _, _) -> {ok, Misc} when Misc::{#state{}, any(), binary()}.
+system_code_change(Misc, _, _, _) ->
+	{ok, Misc}.

@@ -192,6 +192,7 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport, opts=Opts,
 			loop(State, Buffer);
 		%% System messages.
 		{'EXIT', Parent, Reason} ->
+			%% @todo We should exit gracefully, if possible.
 			exit(Reason);
 		{system, From, Request} ->
 			sys:handle_system_msg(Request, From, Parent, ?MODULE, [], {State, Buffer});
@@ -1224,6 +1225,7 @@ system_continue(_, _, {State, Buffer}) ->
 
 -spec system_terminate(any(), _, _, {#state{}, binary()}) -> no_return().
 system_terminate(Reason, _, _, {State, _}) ->
+	%% @todo We should exit gracefully, if possible.
 	terminate(State, Reason).
 
 -spec system_code_change(Misc, _, _, _) -> {ok, Misc} when Misc::{#state{}, binary()}.
