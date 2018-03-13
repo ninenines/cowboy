@@ -250,6 +250,10 @@ handler_loop(State=#state{socket=Socket, messages={OK, Closed, Error},
 			websocket_close(State, HandlerState, timeout);
 		{timeout, OlderTRef, ?MODULE} when is_reference(OlderTRef) ->
 			handler_loop(State, HandlerState, SoFar);
+		%% Calls from supervisor module.
+		{'$gen_call', From, Call} ->
+			cowboy_children:handle_supervisor_call(Call, From, [], ?MODULE),
+			handler_loop(State, HandlerState, SoFar);
 		Message ->
 			handler_call(State, HandlerState,
 				SoFar, websocket_info, Message, fun handler_before_loop/3)

@@ -202,14 +202,8 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport, opts=Opts,
 		Msg = {'EXIT', Pid, _} ->
 			loop(down(State, Pid, Msg), Buffer);
 		%% Calls from supervisor module.
-		{'$gen_call', {From, Tag}, which_children} ->
-			From ! {Tag, cowboy_children:which_children(Children, ?MODULE)},
-			loop(State, Buffer);
-		{'$gen_call', {From, Tag}, count_children} ->
-			From ! {Tag, cowboy_children:count_children(Children)},
-			loop(State, Buffer);
-		{'$gen_call', {From, Tag}, _} ->
-			From ! {Tag, {error, ?MODULE}},
+		{'$gen_call', From, Call} ->
+			cowboy_children:handle_supervisor_call(Call, From, Children, ?MODULE),
 			loop(State, Buffer);
 		%% Unknown messages.
 		Msg ->

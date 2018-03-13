@@ -670,10 +670,7 @@ supervisor_count_children_ws(Config) ->
 	{ok, {http_response, {1, 1}, 101, _}, _} = erlang:decode_packet(http, Handshake, []),
 	timer:sleep(100),
 	Pid = do_get_remote_pid_tcp(Socket),
-	%% We use gen_server:call directly because the supervisor:count_children
-	%% function has a timeout of infinity.
-	%% @todo This can be changed to supervisor:count_children/1 once it is fixed.
-	Counts = gen_server:call(Pid, count_children, 1000),
+	Counts = supervisor:count_children(Pid),
 	1 = proplists:get_value(specs, Counts),
 	0 = proplists:get_value(active, Counts),
 	0 = proplists:get_value(supervisors, Counts),
@@ -741,10 +738,7 @@ supervisor_delete_child_not_found_ws(Config) ->
 	{ok, {http_response, {1, 1}, 101, _}, _} = erlang:decode_packet(http, Handshake, []),
 	timer:sleep(100),
 	Pid = do_get_remote_pid_tcp(Socket),
-	%% We use gen_server:call directly because the supervisor:delete_child
-	%% function has a timeout of infinity.
-	%% @todo This can be changed to supervisor:delete_child/2 once it is fixed.
-	{error, not_found} = gen_server:call(Pid, {delete_child, cowboy_websocket}, 1000),
+	{error, not_found} = supervisor:delete_child(Pid, cowboy_websocket),
 	ok.
 
 %% supervisor:get_childspec/2.
@@ -808,10 +802,7 @@ supervisor_get_childspec_not_found_ws(Config) ->
 	{ok, {http_response, {1, 1}, 101, _}, _} = erlang:decode_packet(http, Handshake, []),
 	timer:sleep(100),
 	Pid = do_get_remote_pid_tcp(Socket),
-	%% We use gen_server:call directly because the supervisor:get_childspec
-	%% function has a timeout of infinity.
-	%% @todo This can be changed to supervisor:get_childspec/2 once it is fixed.
-	{error, not_found} = gen_server:call(Pid, {get_childspec, cowboy_websocket}, 1000),
+	{error, not_found} = supervisor:get_childspec(Pid, cowboy_websocket),
 	ok.
 
 %% supervisor:restart_child/2.
@@ -875,10 +866,7 @@ supervisor_restart_child_not_found_ws(Config) ->
 	{ok, {http_response, {1, 1}, 101, _}, _} = erlang:decode_packet(http, Handshake, []),
 	timer:sleep(100),
 	Pid = do_get_remote_pid_tcp(Socket),
-	%% We use gen_server:call directly because the supervisor:restart_child
-	%% function has a timeout of infinity.
-	%% @todo This can be changed to supervisor:restart_child/2 once it is fixed.
-	{error, not_found} = gen_server:call(Pid, {restart_child, cowboy_websocket}, 1000),
+	{error, not_found} = supervisor:restart_child(Pid, cowboy_websocket),
 	ok.
 
 %% supervisor:start_child/2 must return {error, start_child_disabled}
@@ -929,13 +917,10 @@ supervisor_start_child_not_found_ws(Config) ->
 	{ok, {http_response, {1, 1}, 101, _}, _} = erlang:decode_packet(http, Handshake, []),
 	timer:sleep(100),
 	Pid = do_get_remote_pid_tcp(Socket),
-	%% We use gen_server:call directly because the supervisor:start_child
-	%% function has a timeout of infinity.
-	%% @todo This can be changed to supervisor:start_child/2 once it is fixed.
-	{error, start_child_disabled} = gen_server:call(Pid, {start_child, #{
+	{error, start_child_disabled} = supervisor:start_child(Pid, #{
 		id => error,
 		start => {error, error, []}
-	}}, 1000),
+	}),
 	ok.
 
 %% supervisor:terminate_child/2.
@@ -999,10 +984,7 @@ supervisor_terminate_child_not_found_ws(Config) ->
 	{ok, {http_response, {1, 1}, 101, _}, _} = erlang:decode_packet(http, Handshake, []),
 	timer:sleep(100),
 	Pid = do_get_remote_pid_tcp(Socket),
-	%% We use gen_server:call directly because the supervisor:terminate_child
-	%% function has a timeout of infinity.
-	%% @todo This can be changed to supervisor:terminate_child/2 once it is fixed.
-	{error, not_found} = gen_server:call(Pid, {terminate_child, cowboy_websocket}, 1000),
+	{error, not_found} = supervisor:terminate_child(Pid, cowboy_websocket),
 	ok.
 
 %% supervisor:which_children/1.
@@ -1072,8 +1054,5 @@ supervisor_which_children_ws(Config) ->
 	{ok, {http_response, {1, 1}, 101, _}, _} = erlang:decode_packet(http, Handshake, []),
 	timer:sleep(100),
 	Pid = do_get_remote_pid_tcp(Socket),
-	%% We use gen_server:call directly because the supervisor:which_children
-	%% function has a timeout of infinity.
-	%% @todo This can be changed to supervisor:which_children/1 once it is fixed.
-	[] = gen_server:call(Pid, which_children, 1000),
+	[] = supervisor:which_children(Pid),
 	ok.

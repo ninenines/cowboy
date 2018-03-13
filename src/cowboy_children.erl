@@ -20,8 +20,7 @@
 -export([shutdown/2]).
 -export([shutdown_timeout/3]).
 -export([terminate/1]).
--export([which_children/2]).
--export([count_children/1]).
+-export([handle_supervisor_call/4]).
 
 -record(child, {
 	pid :: pid(),
@@ -159,6 +158,24 @@ longest_shutdown_time([#child{shutdown=ChildTime}|Tail], Time) when ChildTime > 
 	longest_shutdown_time(Tail, ChildTime);
 longest_shutdown_time([_|Tail], Time) ->
 	longest_shutdown_time(Tail, Time).
+
+-spec handle_supervisor_call(any(), {pid(), any()}, children(), module()) -> ok.
+handle_supervisor_call(which_children, {From, Tag}, Children, Module) ->
+	From ! {Tag, which_children(Children, Module)},
+	ok;
+handle_supervisor_call(count_children, {From, Tag}, Children, _) ->
+	From ! {Tag, count_children(Children)},
+	ok;
+%% We disable start_child since only incoming requests
+%% end up creating a new process.
+handle_supervisor_call({start_child, _}, {From, Tag}, _, _) ->
+	From ! {Tag, {error, start_child_disabled}},
+	ok;
+%% All other calls refer to children. We act in a similar way
+%% to a simple_one_for_one so we never find those.
+handle_supervisor_call(_, {From, Tag}, _, _) ->
+	From ! {Tag, {error, not_found}},
+	ok.
 
 -spec which_children(children(), module()) -> [{module(), pid(), worker, [module()]}].
 which_children(Children, Module) ->
