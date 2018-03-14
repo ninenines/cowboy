@@ -62,7 +62,7 @@
 -export_type([opts/0]).
 
 -record(state, {
-	parent = undefined :: pid(),
+	parent :: undefined | pid(),
 	ref :: ranch:ref(),
 	socket = undefined :: inet:socket() | undefined,
 	transport = undefined :: module(),
