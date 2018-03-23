@@ -19,6 +19,10 @@
 -export([upgrade/5]).
 -export([loop/4]).
 
+-export([system_continue/3]).
+-export([system_terminate/4]).
+-export([system_code_change/4]).
+
 -callback init(Req, any())
 	-> {ok | module(), Req, any()}
 	| {module(), Req, any(), any()}
@@ -49,8 +53,18 @@ upgrade(Req, Env, Handler, HandlerState, hibernate) ->
 	-> {ok, Req, Env} | {suspend, ?MODULE, loop, [any()]}
 	when Req::cowboy_req:req(), Env::cowboy_middleware:env().
 %% @todo Handle system messages.
-loop(Req, Env, Handler, HandlerState) ->
+loop(Req=#{pid := Parent}, Env, Handler, HandlerState) ->
 	receive
+		%% System messages.
+		{'EXIT', Parent, Reason} ->
+			terminate(Req, Env, Handler, HandlerState, Reason);
+		{system, From, Request} ->
+			sys:handle_system_msg(Request, From, Parent, ?MODULE, [],
+				{Req, Env, Handler, HandlerState});
+		%% Calls from supervisor module.
+		{'$gen_call', From, Call} ->
+			cowboy_children:handle_supervisor_call(Call, From, [], ?MODULE),
+			loop(Req, Env, Handler, HandlerState);
 		Message ->
 			call(Req, Env, Handler, HandlerState, Message)
 	end.
@@ -74,3 +88,21 @@ suspend(Req, Env, Handler, HandlerState) ->
 terminate(Req, Env, Handler, HandlerState, Reason) ->
 	Result = cowboy_handler:terminate(Reason, Req, HandlerState, Handler),
 	{ok, Req, Env#{result => Result}}.
+
+%% System callbacks.
+
+-spec system_continue(_, _, {Req, Env, module(), any()})
+	-> {ok, Req, Env} | {suspend, ?MODULE, loop, [any()]}
+	when Req::cowboy_req:req(), Env::cowboy_middleware:env().
+system_continue(_, _, {Req, Env, Handler, HandlerState}) ->
+	loop(Req, Env, Handler, HandlerState).
+
+-spec system_terminate(any(), _, _, {Req, Env, module(), any()})
+	-> {ok, Req, Env} when Req::cowboy_req:req(), Env::cowboy_middleware:env().
+system_terminate(Reason, _, _, {Req, Env, Handler, HandlerState}) ->
+	terminate(Req, Env, Handler, HandlerState, Reason).
+
+-spec system_code_change(Misc, _, _, _) -> {ok, Misc}
+	when Misc::{cowboy_req:req(), cowboy_middleware:env(), module(), any()}.
+system_code_change(Misc, _, _, _) ->
+	{ok, Misc}.

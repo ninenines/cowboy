@@ -10,7 +10,7 @@
 init(Req, _) ->
 	process_flag(trap_exit, true),
 	erlang:send_after(500, self(), timeout),
-	{cowboy_loop, Req, undefined, hibernate}.
+	{cowboy_loop, Req, undefined}.
 
 info(timeout, Req, State) ->
 	%% Send an unused status code to make sure there's no
@@ -19,5 +19,5 @@ info(timeout, Req, State) ->
 info(_, Req, State) ->
 	{ok, Req, State}.
 
-terminate({crash, _, _}, _, _) ->
+terminate(_, _, _) ->
 	ok.

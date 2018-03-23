@@ -400,9 +400,8 @@ trap_exit_parent_exit_loop(Config) ->
 	Parent = do_get_remote_pid_tcp(Socket),
 	[{_, Pid, _, _}] = supervisor:which_children(Parent),
 	Pid ! {'EXIT', Parent, shutdown},
-	%% We're getting a 500 because the process exited in an unexpected way
-	%% from Cowboy's point of view.
-	{ok, "HTTP/1.1 500 "} = gen_tcp:recv(Socket, 13, 1000),
+	%% We exit normally but didn't send a response.
+	{ok, "HTTP/1.1 204 "} = gen_tcp:recv(Socket, 13, 1000),
 	false = is_process_alive(Pid),
 	ok.
 
@@ -483,7 +482,7 @@ trap_exit_other_exit_loop(Config) ->
 	timer:sleep(100),
 	Parent = do_get_remote_pid_tcp(Socket),
 	[{_, Pid, _, _}] = supervisor:which_children(Parent),
-	Pid ! {'EXIT', Parent, shutdown},
+	Pid ! {'EXIT', self(), shutdown},
 	%% The process stays alive.
 	{ok, "HTTP/1.1 299 "} = gen_tcp:recv(Socket, 13, 1000),
 	true = is_process_alive(Pid),
