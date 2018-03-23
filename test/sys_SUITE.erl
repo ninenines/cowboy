@@ -112,9 +112,6 @@ proc_lib_initial_call_tls(Config) ->
 %% so that it doesn't eat up system messages. It should only
 %% flush messages that are specific to cowboy_http.
 
-%% @todo The cowboy_websocket module needs to have the functions
-%% handler_loop and websocket_payload_loop merged into one.
-
 bad_system_from_h1(Config) ->
 	doc("h1: Sending a system message with a bad From value results in a process crash."),
 	{ok, Socket} = gen_tcp:connect("localhost", config(clear_port, Config), [{active, false}]),
