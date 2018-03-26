@@ -280,7 +280,7 @@ good_system_message_h2(Config) ->
 	end.
 
 good_system_message_ws(Config) ->
-	doc("ws: Sending a system message with a bad Request value results in an error."),
+	doc("ws: System messages are handled properly."),
 	{ok, Socket} = gen_tcp:connect("localhost", config(clear_port, Config),
 		[binary, {active, false}]),
 	ok = gen_tcp:send(Socket,
@@ -306,7 +306,7 @@ good_system_message_ws(Config) ->
 	end.
 
 good_system_message_loop(Config) ->
-	doc("loop: Sending a system message with a bad Request value results in an error."),
+	doc("loop: System messages are handled properly."),
 	{ok, Socket} = gen_tcp:connect("localhost", config(clear_port, Config), [{active, false}]),
 	ok = gen_tcp:send(Socket,
 		"GET /loop HTTP/1.1\r\n"
@@ -527,17 +527,126 @@ trap_exit_other_exit_loop(Config) ->
 %sys_change_code_ws(Config) ->
 %sys_change_code_loop(Config) ->
 
-%% @todo sys:get_state/1,2 and Module:system_get_state/1
-%sys_get_state_h1(Config) ->
-%sys_get_state_h2(Config) ->
-%sys_get_state_ws(Config) ->
-%sys_get_state_loop(Config) ->
+%% sys:get_state/1,2.
+%%
+%% None of the modules implement Module:system_get_state/1
+%% at this time so sys:get_state/1,2 returns the Misc value.
 
-%% @todo sys:get_status/1,2
-%sys_get_status_h1(Config) ->
-%sys_get_status_h2(Config) ->
-%sys_get_status_ws(Config) ->
-%sys_get_status_loop(Config) ->
+sys_get_state_h1(Config) ->
+	doc("h1: The sys:get_state/1 function works as expected."),
+	{ok, Socket} = gen_tcp:connect("localhost", config(clear_port, Config), []),
+	timer:sleep(100),
+	Pid = do_get_remote_pid_tcp(Socket),
+	{State, Buffer} = sys:get_state(Pid),
+	state = element(1, State),
+	true = is_binary(Buffer),
+	ok.
+
+sys_get_state_h2(Config) ->
+	doc("h2: The sys:get_state/1 function works as expected."),
+	{ok, Socket} = ssl:connect("localhost", config(tls_port, Config),
+		[{active, false}, binary, {alpn_advertised_protocols, [<<"h2">>]}]),
+	%% Skip the SETTINGS frame.
+	{ok, <<_,_,_,4,_/bits>>} = ssl:recv(Socket, 0, 1000),
+	timer:sleep(100),
+	Pid = do_get_remote_pid_tls(Socket),
+	{State, Buffer} = sys:get_state(Pid),
+	state = element(1, State),
+	true = is_binary(Buffer),
+	ok.
+
+sys_get_state_ws(Config) ->
+	doc("ws: The sys:get_state/1 function works as expected."),
+	{ok, Socket} = gen_tcp:connect("localhost", config(clear_port, Config),
+		[binary, {active, false}]),
+	ok = gen_tcp:send(Socket,
+		"GET /ws HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Connection: Upgrade\r\n"
+		"Origin: http://localhost\r\n"
+		"Sec-WebSocket-Version: 13\r\n"
+		"Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n"
+		"Upgrade: websocket\r\n"
+		"\r\n"),
+	{ok, Handshake} = gen_tcp:recv(Socket, 0, 5000),
+	{ok, {http_response, {1, 1}, 101, _}, _} = erlang:decode_packet(http, Handshake, []),
+	timer:sleep(100),
+	Pid = do_get_remote_pid_tcp(Socket),
+	{State, undefined, ParseState} = sys:get_state(Pid),
+	state = element(1, State),
+	case element(1, ParseState) of
+		ps_header -> ok;
+		ps_payload -> ok
+	end.
+
+sys_get_state_loop(Config) ->
+	doc("loop: The sys:get_state/1 function works as expected."),
+	{ok, Socket} = gen_tcp:connect("localhost", config(clear_port, Config), [{active, false}]),
+	ok = gen_tcp:send(Socket,
+		"GET /loop HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"\r\n"),
+	timer:sleep(100),
+	SupPid = do_get_remote_pid_tcp(Socket),
+	[{_, Pid, _, _}] = supervisor:which_children(SupPid),
+	{Req, Env, long_polling_sys_h, undefined} = sys:get_state(Pid),
+	#{pid := _, streamid := _} = Req,
+	#{dispatch := _} = Env,
+	ok.
+
+%% sys:get_status/1,2.
+
+sys_get_status_h1(Config) ->
+	doc("h1: The sys:get_status/1 function works as expected."),
+	{ok, Socket} = gen_tcp:connect("localhost", config(clear_port, Config), []),
+	timer:sleep(100),
+	Pid = do_get_remote_pid_tcp(Socket),
+	{status, Pid, {module, cowboy_http}, _} = sys:get_status(Pid),
+	ok.
+
+sys_get_status_h2(Config) ->
+	doc("h2: The sys:get_status/1 function works as expected."),
+	{ok, Socket} = ssl:connect("localhost", config(tls_port, Config),
+		[{active, false}, binary, {alpn_advertised_protocols, [<<"h2">>]}]),
+	%% Skip the SETTINGS frame.
+	{ok, <<_,_,_,4,_/bits>>} = ssl:recv(Socket, 0, 1000),
+	timer:sleep(100),
+	Pid = do_get_remote_pid_tls(Socket),
+	{status, Pid, {module, cowboy_http2}, _} = sys:get_status(Pid),
+	ok.
+
+sys_get_status_ws(Config) ->
+	doc("ws: The sys:get_status/1 function works as expected."),
+	{ok, Socket} = gen_tcp:connect("localhost", config(clear_port, Config),
+		[binary, {active, false}]),
+	ok = gen_tcp:send(Socket,
+		"GET /ws HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Connection: Upgrade\r\n"
+		"Origin: http://localhost\r\n"
+		"Sec-WebSocket-Version: 13\r\n"
+		"Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n"
+		"Upgrade: websocket\r\n"
+		"\r\n"),
+	{ok, Handshake} = gen_tcp:recv(Socket, 0, 5000),
+	{ok, {http_response, {1, 1}, 101, _}, _} = erlang:decode_packet(http, Handshake, []),
+	timer:sleep(100),
+	Pid = do_get_remote_pid_tcp(Socket),
+	{status, Pid, {module, cowboy_websocket}, _} = sys:get_status(Pid),
+	ok.
+
+sys_get_status_loop(Config) ->
+	doc("loop: The sys:get_status/1 function works as expected."),
+	{ok, Socket} = gen_tcp:connect("localhost", config(clear_port, Config), [{active, false}]),
+	ok = gen_tcp:send(Socket,
+		"GET /loop HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"\r\n"),
+	timer:sleep(100),
+	SupPid = do_get_remote_pid_tcp(Socket),
+	[{_, Pid, _, _}] = supervisor:which_children(SupPid),
+	{status, Pid, {module, cowboy_loop}, _} = sys:get_status(Pid),
+	ok.
 
 %% @todo sys:replace_state/2,3 and Module:replace_state/2
 %sys_replace_state_h1(Config) ->
