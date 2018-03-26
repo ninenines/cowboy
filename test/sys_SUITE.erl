@@ -108,10 +108,6 @@ proc_lib_initial_call_tls(Config) ->
 %% the receiving process module. When a system message is received,
 %% function handle_system_msg/6 is called to handle the request.
 
-%% @todo The flush/0 function in cowboy_http needs to be fixed
-%% so that it doesn't eat up system messages. It should only
-%% flush messages that are specific to cowboy_http.
-
 bad_system_from_h1(Config) ->
 	doc("h1: Sending a system message with a bad From value results in a process crash."),
 	{ok, Socket} = gen_tcp:connect("localhost", config(clear_port, Config), [{active, false}]),

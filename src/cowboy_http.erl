@@ -1004,7 +1004,7 @@ commands(State0=#state{ref=Ref, parent=Parent, socket=Socket, transport=Transpor
 	stream_call_terminate(StreamID, switch_protocol, StreamState),
 	%% Terminate children processes and flush any remaining messages from the mailbox.
 	cowboy_children:terminate(Children),
-	flush(),
+	flush(Parent),
 	%% @todo This is no good because commands return a state normally and here it doesn't
 	%% we need to let this module go entirely. Perhaps it should be handled directly in
 	%% cowboy_clear/cowboy_tls?
@@ -1030,8 +1030,19 @@ headers_to_list(Headers0=#{<<"set-cookie">> := SetCookies}) ->
 headers_to_list(Headers) ->
 	maps:to_list(Headers).
 
-flush() ->
-	receive _ -> flush() after 0 -> ok end.
+%% Flush messages specific to cowboy_http before handing over the
+%% connection to another protocol.
+flush(Parent) ->
+	receive
+		{timeout, _, _} ->
+			flush(Parent);
+		{{Pid, _}, _} when Pid =:= self() ->
+			flush(Parent);
+		{'EXIT', Pid, _} when Pid =/= Parent ->
+			flush(Parent)
+	after 0 ->
+		ok
+	end.
 
 %% @todo In these cases I'm not sure if we should continue processing commands.
 maybe_terminate(State=#state{last_streamid=StreamID}, StreamID, _Tail) ->
