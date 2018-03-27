@@ -519,13 +519,105 @@ trap_exit_other_exit_loop(Config) ->
 %% @todo On top of this we will want to make the supervisor calls
 %% in ranch_conns_sup return dynamic instead of a list of modules.
 
-%% sys.
+%% sys:change_code/4,5.
+%%
+%% We do not actually change the module code, we just ensure that
+%% calling this function does not crash the process. The function
+%% Module:system_code_change/4 will be called within the process.
 
-%% @todo sys:change_code/4,5 and Module:system_code_change/4
-%sys_change_code_h1(Config) ->
-%sys_change_code_h2(Config) ->
-%sys_change_code_ws(Config) ->
-%sys_change_code_loop(Config) ->
+sys_change_code_h1(Config) ->
+	doc("h1: The sys:change_code/4 function works as expected."),
+	{ok, Socket} = gen_tcp:connect("localhost", config(clear_port, Config), [{active, false}]),
+	timer:sleep(100),
+	Pid = do_get_remote_pid_tcp(Socket),
+	ok = sys:suspend(Pid),
+	ok = gen_tcp:send(Socket,
+		"GET / HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"\r\n"),
+	{error, timeout} = gen_tcp:recv(Socket, 13, 500),
+	ok = sys:change_code(Pid, cowboy_http, undefined, undefined),
+	ok = sys:resume(Pid),
+	{ok, "HTTP/1.1 200 "} = gen_tcp:recv(Socket, 13, 500),
+	ok.
+
+sys_change_code_h2(Config) ->
+	doc("h2: The sys:change_code/4 function works as expected."),
+	{ok, Socket} = ssl:connect("localhost", config(tls_port, Config),
+		[{active, false}, binary, {alpn_advertised_protocols, [<<"h2">>]}]),
+	timer:sleep(100),
+	Pid = do_get_remote_pid_tls(Socket),
+	%% Send a valid preface.
+	ok = ssl:send(Socket, ["PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n", cow_http2:settings(#{})]),
+	%% Receive the server preface.
+	{ok, << Len:24 >>} = ssl:recv(Socket, 3, 1000),
+	{ok, << 4:8, 0:40, _:Len/binary >>} = ssl:recv(Socket, 6 + Len, 1000),
+	%% Send the SETTINGS ack.
+	ok = ssl:send(Socket, cow_http2:settings_ack()),
+	%% Receive the SETTINGS ack.
+	{ok, << 0:24, 4:8, 1:8, 0:32 >>} = ssl:recv(Socket, 9, 1000),
+	%% Suspend the process and try to get a request in. The
+	%% response will not come back until we resume the process.
+	ok = sys:suspend(Pid),
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>}
+	]),
+	ok = ssl:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+	%% Receive a HEADERS frame as a response.
+	{error, timeout} = ssl:recv(Socket, 9, 500),
+	ok = sys:change_code(Pid, cowboy_http2, undefined, undefined),
+	ok = sys:resume(Pid),
+	{ok, << _:24, 1:8, _:40 >>} = ssl:recv(Socket, 9, 6000),
+	ok.
+
+sys_change_code_ws(Config) ->
+	doc("ws: The sys:change_code/4 function works as expected."),
+	{ok, Socket} = gen_tcp:connect("localhost", config(clear_port, Config),
+		[binary, {active, false}]),
+	ok = gen_tcp:send(Socket,
+		"GET /ws HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Connection: Upgrade\r\n"
+		"Origin: http://localhost\r\n"
+		"Sec-WebSocket-Version: 13\r\n"
+		"Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n"
+		"Upgrade: websocket\r\n"
+		"\r\n"),
+	{ok, Handshake} = gen_tcp:recv(Socket, 0, 5000),
+	{ok, {http_response, {1, 1}, 101, _}, _} = erlang:decode_packet(http, Handshake, []),
+	timer:sleep(100),
+	Pid = do_get_remote_pid_tcp(Socket),
+	ok = sys:suspend(Pid),
+	Mask = 16#37fa213d,
+	MaskedHello = ws_SUITE:do_mask(<<"Hello">>, Mask, <<>>),
+	ok = gen_tcp:send(Socket, << 1:1, 0:3, 1:4, 1:1, 5:7, Mask:32, MaskedHello/binary >>),
+	{error, timeout} = gen_tcp:recv(Socket, 0, 500),
+	ok = sys:change_code(Pid, cowboy_websocket, undefined, undefined),
+	ok = sys:resume(Pid),
+	{ok, << 1:1, 0:3, 1:4, 0:1, 5:7, "Hello" >>} = gen_tcp:recv(Socket, 0, 6000),
+	ok.
+
+sys_change_code_loop(Config) ->
+	doc("loop: The sys:change_code/4 function works as expected."),
+	{ok, Socket} = gen_tcp:connect("localhost", config(clear_port, Config), [{active, false}]),
+	ok = gen_tcp:send(Socket,
+		"GET /loop HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"\r\n"),
+	timer:sleep(100),
+	SupPid = do_get_remote_pid_tcp(Socket),
+	[{_, Pid, _, _}] = supervisor:which_children(SupPid),
+	%% The process sends a response 500ms after initializing.
+	%% We expect to not receive it until we resume it.
+	ok = sys:suspend(Pid),
+	{error, timeout} = gen_tcp:recv(Socket, 13, 1000),
+	ok = sys:change_code(Pid, cowboy_loop, undefined, undefined),
+	ok = sys:resume(Pid),
+	{ok, "HTTP/1.1 299 "} = gen_tcp:recv(Socket, 13, 500),
+	ok.
 
 %% sys:get_state/1,2.
 %%
@@ -648,29 +740,234 @@ sys_get_status_loop(Config) ->
 	{status, Pid, {module, cowboy_loop}, _} = sys:get_status(Pid),
 	ok.
 
-%% @todo sys:replace_state/2,3 and Module:replace_state/2
-%sys_replace_state_h1(Config) ->
-%sys_replace_state_h2(Config) ->
-%sys_replace_state_ws(Config) ->
-%sys_replace_state_loop(Config) ->
+%% sys:replace_state/2,3.
+%%
+%% None of the modules implement Module:system_replace_state/2
+%% at this time so sys:replace_state/2,3 handles the Misc value.
+%%
+%% We don't actually replace the state, we only care about
+%% whether the call executes as expected.
 
-%% @todo sys:resume/1,2 and sys:suspend/1,2 and Module:system_continue/3
-%sys_suspend_and_resume_h1(Config) ->
-%sys_suspend_and_resume_h2(Config) ->
-%sys_suspend_and_resume_ws(Config) ->
-%sys_suspend_and_resume_loop(Config) ->
+sys_replace_state_h1(Config) ->
+	doc("h1: The sys:replace_state/2 function works as expected."),
+	{ok, Socket} = gen_tcp:connect("localhost", config(clear_port, Config), []),
+	timer:sleep(100),
+	Pid = do_get_remote_pid_tcp(Socket),
+	{State, Buffer} = sys:replace_state(Pid, fun(S) -> S end),
+	state = element(1, State),
+	true = is_binary(Buffer),
+	ok.
 
-%% @todo sys:terminate/2,3 and Module:system_terminate/4
-%sys_terminate_h1(Config) ->
-%sys_terminate_h2(Config) ->
-%sys_terminate_ws(Config) ->
-%sys_terminate_loop(Config) ->
+sys_replace_state_h2(Config) ->
+	doc("h2: The sys:replace_state/2 function works as expected."),
+	{ok, Socket} = ssl:connect("localhost", config(tls_port, Config),
+		[{active, false}, binary, {alpn_advertised_protocols, [<<"h2">>]}]),
+	%% Skip the SETTINGS frame.
+	{ok, <<_,_,_,4,_/bits>>} = ssl:recv(Socket, 0, 1000),
+	timer:sleep(100),
+	Pid = do_get_remote_pid_tls(Socket),
+	{State, Buffer} = sys:replace_state(Pid, fun(S) -> S end),
+	state = element(1, State),
+	true = is_binary(Buffer),
+	ok.
+
+sys_replace_state_ws(Config) ->
+	doc("ws: The sys:replace_state/2 function works as expected."),
+	{ok, Socket} = gen_tcp:connect("localhost", config(clear_port, Config),
+		[binary, {active, false}]),
+	ok = gen_tcp:send(Socket,
+		"GET /ws HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Connection: Upgrade\r\n"
+		"Origin: http://localhost\r\n"
+		"Sec-WebSocket-Version: 13\r\n"
+		"Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n"
+		"Upgrade: websocket\r\n"
+		"\r\n"),
+	{ok, Handshake} = gen_tcp:recv(Socket, 0, 5000),
+	{ok, {http_response, {1, 1}, 101, _}, _} = erlang:decode_packet(http, Handshake, []),
+	timer:sleep(100),
+	Pid = do_get_remote_pid_tcp(Socket),
+	{State, undefined, ParseState} = sys:replace_state(Pid, fun(S) -> S end),
+	state = element(1, State),
+	case element(1, ParseState) of
+		ps_header -> ok;
+		ps_payload -> ok
+	end.
+
+sys_replace_state_loop(Config) ->
+	doc("loop: The sys:replace_state/2 function works as expected."),
+	{ok, Socket} = gen_tcp:connect("localhost", config(clear_port, Config), [{active, false}]),
+	ok = gen_tcp:send(Socket,
+		"GET /loop HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"\r\n"),
+	timer:sleep(100),
+	SupPid = do_get_remote_pid_tcp(Socket),
+	[{_, Pid, _, _}] = supervisor:which_children(SupPid),
+	{Req, Env, long_polling_sys_h, undefined} = sys:replace_state(Pid, fun(S) -> S end),
+	#{pid := _, streamid := _} = Req,
+	#{dispatch := _} = Env,
+	ok.
+
+%% sys:suspend/1 and sys:resume/1.
+
+sys_suspend_and_resume_h1(Config) ->
+	doc("h1: The sys:suspend/1 and sys:resume/1 functions work as expected."),
+	{ok, Socket} = gen_tcp:connect("localhost", config(clear_port, Config), [{active, false}]),
+	timer:sleep(100),
+	Pid = do_get_remote_pid_tcp(Socket),
+	ok = sys:suspend(Pid),
+	ok = gen_tcp:send(Socket,
+		"GET / HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"\r\n"),
+	{error, timeout} = gen_tcp:recv(Socket, 13, 500),
+	ok = sys:resume(Pid),
+	{ok, "HTTP/1.1 200 "} = gen_tcp:recv(Socket, 13, 500),
+	ok.
+
+sys_suspend_and_resume_h2(Config) ->
+	doc("h2: The sys:suspend/1 and sys:resume/1 functions work as expected."),
+	{ok, Socket} = ssl:connect("localhost", config(tls_port, Config),
+		[{active, false}, binary, {alpn_advertised_protocols, [<<"h2">>]}]),
+	timer:sleep(100),
+	Pid = do_get_remote_pid_tls(Socket),
+	%% Send a valid preface.
+	ok = ssl:send(Socket, ["PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n", cow_http2:settings(#{})]),
+	%% Receive the server preface.
+	{ok, << Len:24 >>} = ssl:recv(Socket, 3, 1000),
+	{ok, << 4:8, 0:40, _:Len/binary >>} = ssl:recv(Socket, 6 + Len, 1000),
+	%% Send the SETTINGS ack.
+	ok = ssl:send(Socket, cow_http2:settings_ack()),
+	%% Receive the SETTINGS ack.
+	{ok, << 0:24, 4:8, 1:8, 0:32 >>} = ssl:recv(Socket, 9, 1000),
+	%% Suspend the process and try to get a request in. The
+	%% response will not come back until we resume the process.
+	ok = sys:suspend(Pid),
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>}
+	]),
+	ok = ssl:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+	%% Receive a HEADERS frame as a response.
+	{error, timeout} = ssl:recv(Socket, 9, 500),
+	ok = sys:resume(Pid),
+	{ok, << _:24, 1:8, _:40 >>} = ssl:recv(Socket, 9, 6000),
+	ok.
+
+sys_suspend_and_resume_ws(Config) ->
+	doc("ws: The sys:suspend/1 and sys:resume/1 functions work as expected."),
+	{ok, Socket} = gen_tcp:connect("localhost", config(clear_port, Config),
+		[binary, {active, false}]),
+	ok = gen_tcp:send(Socket,
+		"GET /ws HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Connection: Upgrade\r\n"
+		"Origin: http://localhost\r\n"
+		"Sec-WebSocket-Version: 13\r\n"
+		"Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n"
+		"Upgrade: websocket\r\n"
+		"\r\n"),
+	{ok, Handshake} = gen_tcp:recv(Socket, 0, 5000),
+	{ok, {http_response, {1, 1}, 101, _}, _} = erlang:decode_packet(http, Handshake, []),
+	timer:sleep(100),
+	Pid = do_get_remote_pid_tcp(Socket),
+	ok = sys:suspend(Pid),
+	Mask = 16#37fa213d,
+	MaskedHello = ws_SUITE:do_mask(<<"Hello">>, Mask, <<>>),
+	ok = gen_tcp:send(Socket, << 1:1, 0:3, 1:4, 1:1, 5:7, Mask:32, MaskedHello/binary >>),
+	{error, timeout} = gen_tcp:recv(Socket, 0, 500),
+	ok = sys:resume(Pid),
+	{ok, << 1:1, 0:3, 1:4, 0:1, 5:7, "Hello" >>} = gen_tcp:recv(Socket, 0, 6000),
+	ok.
+
+sys_suspend_and_resume_loop(Config) ->
+	doc("loop: The sys:suspend/1 and sys:resume/1 functions work as expected."),
+	{ok, Socket} = gen_tcp:connect("localhost", config(clear_port, Config), [{active, false}]),
+	ok = gen_tcp:send(Socket,
+		"GET /loop HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"\r\n"),
+	timer:sleep(100),
+	SupPid = do_get_remote_pid_tcp(Socket),
+	[{_, Pid, _, _}] = supervisor:which_children(SupPid),
+	%% The process sends a response 500ms after initializing.
+	%% We expect to not receive it until we resume it.
+	ok = sys:suspend(Pid),
+	{error, timeout} = gen_tcp:recv(Socket, 13, 1000),
+	ok = sys:resume(Pid),
+	{ok, "HTTP/1.1 299 "} = gen_tcp:recv(Socket, 13, 500),
+	ok.
+
+%% sys:terminate/2,3.
+%%
+%% The callback Module:system_terminate/4 is used in all cases.
+
+sys_terminate_h1(Config) ->
+	doc("h1: The sys:terminate/1 function works as expected."),
+	{ok, Socket} = gen_tcp:connect("localhost", config(clear_port, Config), [{active, false}]),
+	timer:sleep(100),
+	Pid = do_get_remote_pid_tcp(Socket),
+	ok = sys:terminate(Pid, {shutdown, test}),
+	{error, closed} = gen_tcp:recv(Socket, 0, 500),
+	ok.
+
+sys_terminate_h2(Config) ->
+	doc("h2: The sys:terminate/1 function works as expected."),
+	{ok, Socket} = ssl:connect("localhost", config(tls_port, Config),
+		[{active, false}, binary, {alpn_advertised_protocols, [<<"h2">>]}]),
+	%% Skip the SETTINGS frame.
+	{ok, <<_,_,_,4,_/bits>>} = ssl:recv(Socket, 0, 1000),
+	timer:sleep(100),
+	Pid = do_get_remote_pid_tls(Socket),
+	ok = sys:terminate(Pid, {shutdown, test}),
+	{error, closed} = ssl:recv(Socket, 0, 500),
+	ok.
+
+sys_terminate_ws(Config) ->
+	doc("ws: The sys:terminate/1 function works as expected."),
+	{ok, Socket} = gen_tcp:connect("localhost", config(clear_port, Config),
+		[binary, {active, false}]),
+	ok = gen_tcp:send(Socket,
+		"GET /ws HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Connection: Upgrade\r\n"
+		"Origin: http://localhost\r\n"
+		"Sec-WebSocket-Version: 13\r\n"
+		"Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n"
+		"Upgrade: websocket\r\n"
+		"\r\n"),
+	{ok, Handshake} = gen_tcp:recv(Socket, 0, 5000),
+	{ok, {http_response, {1, 1}, 101, _}, _} = erlang:decode_packet(http, Handshake, []),
+	timer:sleep(100),
+	Pid = do_get_remote_pid_tcp(Socket),
+	ok = sys:terminate(Pid, {shutdown, test}),
+	{error, closed} = gen_tcp:recv(Socket, 0, 500),
+	ok.
+
+sys_terminate_loop(Config) ->
+	doc("loop: The sys:terminate/1 function works as expected."),
+	{ok, Socket} = gen_tcp:connect("localhost", config(clear_port, Config), [{active, false}]),
+	ok = gen_tcp:send(Socket,
+		"GET /loop HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"\r\n"),
+	timer:sleep(100),
+	SupPid = do_get_remote_pid_tcp(Socket),
+	[{_, Pid, _, _}] = supervisor:which_children(SupPid),
+	%% We stop the process normally and therefore get a 204.
+	ok = sys:terminate(Pid, {shutdown, test}),
+	{ok, "HTTP/1.1 204 "} = gen_tcp:recv(Socket, 13, 500),
+	ok.
 
 %% @todo Debugging functionality from sys.
 %%
 %% The functions make references to a debug structure.
 %% The debug structure is a list of dbg_opt(), which is
-%% an internal data type used by function handle_system_msg/6.
+%% an internal data type used by the function handle_system_msg/6.
 %% No debugging is performed if it is an empty list.
 %%
 %% Cowboy currently does not implement sys debugging.
