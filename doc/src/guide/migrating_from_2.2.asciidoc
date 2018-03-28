@@ -1,15 +1,48 @@
 [appendix]
-== Changes since Cowboy 2.2
+== Migrating from Cowboy 2.2 to 2.3
 
-The following patch versions were released since Cowboy 2.2:
+Cowboy 2.3 focused on making the Cowboy processes behave
+properly according to OTP principles. This version is a
+very good milestone toward that goal and most of everything
+should now work. Release upgrades and a few details will
+be improved in future versions.
 
-=== Cowboy 2.2.2
+=== Features added
 
-* While fixing the miscount in the previous patch release an
-  issue was introduced where HTTP/2 bodies could be sent out
-  of orders when using iolists. This has been corrected.
+* Add support for all functions from the module `sys`. Note
+  that Cowboy currently does not implement the `sys` debugging
+  mechanisms as tracing is recommended instead.
 
-=== Cowboy 2.2.1
+* Add a `max_frame_size` option for Websocket handlers
+  to close the connection when the client attempts to
+  send a frame that's too large. It currently defaults
+  to `infinity` to avoid breaking existing code but will
+  be changed in a future version.
+
+* Update Cowlib to 2.2.1.
+
+* Add support for the 308 status code and a test suite
+  for RFC7538 where it is defined.
+
+=== Bugs fixed
+
+* Ensure timeout options accept the value `infinity` as
+  documented.
+
+* Properly reject HTTP/2 requests with an invalid content-length
+  header instead of simply crashing.
+
+* When switching from HTTP/1.1 to Websocket or user protocols
+  all the messages in the mailbox were flushed. Only messages
+  specific to `cowboy_http` should now be flushed.
+
+* Parsing of the x-forwarded-for header has been corrected.
+  It now supports IPv6 addresses both with and without port.
+
+* Websocket subprotocol tokens are now parsed in a case
+  insensitive manner, according to the spec.
+
+* Cookies without values are now allowed. For example `Cookie: foo`.
 
 * Colons are now allowed within path segments in routes provided
   to `cowboy_router:compile/1` as long as they are not the first
@@ -19,5 +52,5 @@ The following patch versions were released since Cowboy 2.2:
   crash when no response header was set before calling it.
 
 * A miscount of the output HTTP/2 flow control window has been
-  fixed. It prevented sending the response body fully with some
+  fixed. It prevented sending the response body fully to some
   clients. The issue only affected response bodies sent as iolists.
