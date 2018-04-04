@@ -17,13 +17,14 @@ as a Ranch protocol.
 [source,erlang]
 ----
 opts() :: #{
-    connection_type    => worker | supervisor,
-    env                => cowboy_middleware:env(),
-    inactivity_timeout => timeout(),
-    middlewares        => [module()],
-    preface_timeout    => timeout(),
-    shutdown_timeout   => timeout(),
-    stream_handlers    => [module()]
+    connection_type         => worker | supervisor,
+    enable_connect_protocol => boolean(),
+    env                     => cowboy_middleware:env(),
+    inactivity_timeout      => timeout(),
+    middlewares             => [module()],
+    preface_timeout         => timeout(),
+    shutdown_timeout        => timeout(),
+    stream_handlers         => [module()]
 }
 ----
 
@@ -40,6 +41,10 @@ The default value is given next to the option name:
 
 connection_type (supervisor)::
     Whether the connection process also acts as a supervisor.
+
+enable_connect_protocol (false)::
+    Whether to enable the extended CONNECT method to allow
+    protocols like Websocket to be used over an HTTP/2 stream.
 
 env (#{})::
     Middleware environment.

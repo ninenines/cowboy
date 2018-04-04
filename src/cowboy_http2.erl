@@ -165,9 +165,10 @@ init(Parent, Ref, Socket, Transport, Opts) ->
 	{inet:ip_address(), inet:port_number()}, {inet:ip_address(), inet:port_number()},
 	binary() | undefined, binary()) -> ok.
 init(Parent, Ref, Socket, Transport, Opts, Peer, Sock, Cert, Buffer) ->
-	State = #state{parent=Parent, ref=Ref, socket=Socket,
+	State0 = #state{parent=Parent, ref=Ref, socket=Socket,
 		transport=Transport, opts=Opts, peer=Peer, sock=Sock, cert=Cert,
 		parse_state={preface, sequence, preface_timeout(Opts)}},
+	State = settings_init(State0, Opts),
 	preface(State),
 	case Buffer of
 		<<>> -> before_loop(State, Buffer);
@@ -188,15 +189,20 @@ init(Parent, Ref, Socket, Transport, Opts, Peer, Sock, Cert, Buffer, _Settings, 
 	State1 = stream_handler_init(State0, 1, fin, upgrade, Req),
 	%% We assume that the upgrade will be applied. A stream handler
 	%% must not prevent the normal operations of the server.
-	State = info(State1, 1, {switch_protocol, #{
+	State2 = info(State1, 1, {switch_protocol, #{
 		<<"connection">> => <<"Upgrade">>,
 		<<"upgrade">> => <<"h2c">>
 	}, ?MODULE, undefined}), %% @todo undefined or #{}?
+	State = settings_init(State2, Opts),
 	preface(State),
 	case Buffer of
 		<<>> -> before_loop(State, Buffer);
 		_ -> parse(State, Buffer)
 	end.
+
+settings_init(State=#state{next_settings=Settings}, Opts) ->
+	EnableConnectProtocol = maps:get(enable_connect_protocol, Opts, false),
+	State#state{next_settings=Settings#{enable_connect_protocol => EnableConnectProtocol}}.
 
 preface(#state{socket=Socket, transport=Transport, next_settings=Settings}) ->
 	%% We send next_settings and use defaults until we get a ack.
@@ -413,9 +419,9 @@ frame(State0=#state{socket=Socket, transport=Transport, remote_settings=Settings
 			State
 	end;
 %% Ack for a previously sent SETTINGS frame.
-frame(State=#state{next_settings=_NextSettings}, settings_ack) ->
-	%% @todo Apply SETTINGS that require synchronization.
-	State;
+frame(State=#state{local_settings=Local0, next_settings=Next}, settings_ack) ->
+	Local = maps:merge(Local0, Next),
+	State#state{local_settings=Local, next_settings=#{}};
 %% Unexpected PUSH_PROMISE frame.
 frame(State, {push_promise, _, _, _, _}) ->
 	terminate(State, {connection_error, protocol_error,
@@ -637,9 +643,11 @@ commands(State=#state{socket=Socket, transport=Transport},
 		Stream=#stream{local=upgrade}, [{switch_protocol, Headers, ?MODULE, _}|Tail]) ->
 	Transport:send(Socket, cow_http:response(101, 'HTTP/1.1', maps:to_list(Headers))),
 	commands(State, Stream#stream{local=idle}, Tail);
-%% HTTP/2 has no support for the Upgrade mechanism.
-commands(State, Stream, [{switch_protocol, _Headers, _Mod, _ModState}|Tail]) ->
-	%% @todo This is an error. Not sure what to do here yet.
+%% Use a different protocol within the stream (CONNECT :protocol).
+%% @todo Make sure we error out when the feature is disabled.
+commands(State0, #stream{id=StreamID}, [{switch_protocol, Headers, _Mod, _ModState}|Tail]) ->
+	State = #state{streams=Streams} = info(State0, StreamID, {headers, 200, Headers}),
+	Stream = lists:keyfind(StreamID, #stream.id, Streams),
 	commands(State, Stream, Tail);
 commands(State, Stream=#stream{id=StreamID}, [stop|_Tail]) ->
 	%% @todo Do we want to run the commands after a stop?
@@ -840,8 +848,22 @@ stream_decode_init(State=#state{decode_state=DecodeState0}, StreamID, IsFin, Hea
 			'Error while trying to decode HPACK-encoded header block. (RFC7540 4.3)'})
 	end.
 
-stream_pseudo_headers_init(State, StreamID, IsFin, Headers0) ->
+stream_pseudo_headers_init(State=#state{local_settings=LocalSettings},
+		StreamID, IsFin, Headers0) ->
+	IsExtendedConnectEnabled = maps:get(enable_connect_protocol, LocalSettings, false),
 	case pseudo_headers(Headers0, #{}) of
+		{ok, PseudoHeaders=#{method := <<"CONNECT">>, scheme := _,
+			authority := _, path := _, protocol := _}, Headers}
+			when IsExtendedConnectEnabled ->
+			stream_regular_headers_init(State, StreamID, IsFin, Headers, PseudoHeaders);
+		{ok, #{method := <<"CONNECT">>, scheme := _,
+			authority := _, path := _}, _}
+			when IsExtendedConnectEnabled ->
+			stream_malformed(State, StreamID,
+				'The :protocol pseudo-header MUST be sent with an extended CONNECT. (draft_h2_websockets 4)');
+		{ok, #{protocol := _}, _} ->
+			stream_malformed(State, StreamID,
+				'The :protocol pseudo-header is only defined for the extended CONNECT. (draft_h2_websockets 4)');
 		%% @todo Add clause for CONNECT requests (no scheme/path).
 		{ok, PseudoHeaders=#{method := <<"CONNECT">>}, _} ->
 			stream_early_error(State, StreamID, IsFin, 501, PseudoHeaders,
@@ -869,13 +891,15 @@ pseudo_headers([{<<":scheme">>, Scheme}|Tail], PseudoHeaders) ->
 pseudo_headers([{<<":authority">>, _}|_], #{authority := _}) ->
 	{error, 'Multiple :authority pseudo-headers were found. (RFC7540 8.1.2.3)'};
 pseudo_headers([{<<":authority">>, Authority}|Tail], PseudoHeaders) ->
-	%% @todo Probably parse the authority here.
 	pseudo_headers(Tail, PseudoHeaders#{authority => Authority});
 pseudo_headers([{<<":path">>, _}|_], #{path := _}) ->
 	{error, 'Multiple :path pseudo-headers were found. (RFC7540 8.1.2.3)'};
 pseudo_headers([{<<":path">>, Path}|Tail], PseudoHeaders) ->
-	%% @todo Probably parse the path here.
 	pseudo_headers(Tail, PseudoHeaders#{path => Path});
+pseudo_headers([{<<":protocol">>, _}|_], #{protocol := _}) ->
+	{error, 'Multiple :protocol pseudo-headers were found. (RFC7540 8.1.2.3)'};
+pseudo_headers([{<<":protocol">>, Protocol}|Tail], PseudoHeaders) ->
+	pseudo_headers(Tail, PseudoHeaders#{protocol => Protocol});
 pseudo_headers([{<<":", _/bits>>, _}|_], _) ->
 	{error, 'An unknown or invalid pseudo-header was found. (RFC7540 8.1.2.1)'};
 pseudo_headers(Headers, PseudoHeaders) ->
@@ -946,7 +970,7 @@ stream_req_init(State, StreamID, IsFin, Headers, PseudoHeaders) ->
 	end.
 
 stream_req_init(State=#state{ref=Ref, peer=Peer, sock=Sock, cert=Cert},
-		StreamID, IsFin, Headers, #{method := Method, scheme := Scheme,
+		StreamID, IsFin, Headers, PseudoHeaders=#{method := Method, scheme := Scheme,
 			authority := Authority, path := PathWithQs}, BodyLength) ->
 	try cow_http_hd:parse_host(Authority) of
 		{Host, Port} ->
@@ -955,7 +979,7 @@ stream_req_init(State=#state{ref=Ref, peer=Peer, sock=Sock, cert=Cert},
 					stream_malformed(State, StreamID,
 						'The path component must not be empty. (RFC7540 8.1.2.3)');
 				{Path, Qs} ->
-					Req = #{
+					Req0 = #{
 						ref => Ref,
 						pid => self(),
 						streamid => StreamID,
@@ -973,6 +997,13 @@ stream_req_init(State=#state{ref=Ref, peer=Peer, sock=Sock, cert=Cert},
 						has_body => IsFin =:= nofin,
 						body_length => BodyLength
 					},
+					%% We add the protocol information for extended CONNECTs.
+					Req = case PseudoHeaders of
+						#{protocol := Protocol} ->
+							Req0#{protocol => Protocol};
+						_ ->
+							Req0
+					end,
 					stream_handler_init(State, StreamID, IsFin, idle, Req)
 			catch _:_ ->
 				stream_malformed(State, StreamID,
