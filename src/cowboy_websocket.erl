@@ -66,8 +66,8 @@
 -record(state, {
 	parent :: undefined | pid(),
 	ref :: ranch:ref(),
-	socket = undefined :: inet:socket() | undefined,
-	transport = undefined :: module(),
+	socket = undefined :: inet:socket() | {pid(), cowboy_stream:streamid()} | undefined,
+	transport = undefined :: module() | undefined,
 	handler :: module(),
 	key = undefined :: undefined | binary(),
 	timeout = infinity :: timeout(),
