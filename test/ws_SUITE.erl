@@ -92,7 +92,7 @@ init_dispatch() ->
 autobahn_fuzzingclient(Config) ->
 	doc("Autobahn test suite for the Websocket protocol."),
 	Self = self(),
-	spawn_link(fun() -> start_port(Config, Self) end),
+	spawn_link(fun() -> do_start_port(Config, Self) end),
 	receive autobahn_exit -> ok end,
 	ct:log("<h2><a href=\"log_private/reports/servers/index.html\">Full report</a></h2>~n"),
 	Report = config(priv_dir, Config) ++ "reports/servers/index.html",
@@ -103,19 +103,46 @@ autobahn_fuzzingclient(Config) ->
 		false -> ok
 	end.
 
-start_port(Config, Pid) ->
+do_start_port(Config, Pid) ->
 	Port = open_port({spawn, "wstest -m fuzzingclient -s " ++ config(data_dir, Config) ++ "client.json"},
 		[{line, 10000}, {cd, config(priv_dir, Config)}, binary, eof]),
-	receive_infinity(Port, Pid).
+	do_receive_infinity(Port, Pid).
 
-receive_infinity(Port, Pid) ->
+do_receive_infinity(Port, Pid) ->
 	receive
 		{Port, {data, {eol, Line}}} ->
 			io:format(user, "~s~n", [Line]),
-			receive_infinity(Port, Pid);
+			do_receive_infinity(Port, Pid);
 		{Port, eof} ->
 			Pid ! autobahn_exit
 	end.
+
+unlimited_connections(Config) ->
+	doc("Websocket connections are not limited. The connections "
+		"are removed from the count after the handshake completes."),
+	_ = [begin
+		spawn_link(fun() -> do_connect_and_loop(Config) end),
+		timer:sleep(1)
+	end || _ <- lists:seq(1, 3000)],
+	timer:sleep(1000),
+	%% We have at least 3000 client and 3000 server sockets.
+	true = length(erlang:ports()) > 6000,
+	%% Ranch thinks we have no connections.
+	0 = ranch_server:count_connections(ws),
+	ok.
+
+do_connect_and_loop(Config) ->
+	{ok, Socket, _} = do_handshake("/ws_echo", Config),
+	do_loop(Socket).
+
+do_loop(Socket) ->
+	%% Masked text hello echoed back clear by the server.
+	Mask = 16#37fa213d,
+	MaskedHello = do_mask(<<"Hello">>, Mask, <<>>),
+	ok = gen_tcp:send(Socket, << 1:1, 0:3, 1:4, 1:1, 5:7, Mask:32, MaskedHello/binary >>),
+	{ok, << 1:1, 0:3, 1:4, 0:1, 5:7, "Hello" >>} = gen_tcp:recv(Socket, 0, 6000),
+	timer:sleep(1000),
+	do_loop(Socket).
 
 ws0(Config) ->
 	doc("Websocket version 0 (hixie-76 draft) is no longer supported."),
