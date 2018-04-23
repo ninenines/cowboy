@@ -2767,6 +2767,27 @@ settings_initial_window_size_reject_overflow(Config) ->
 %   behavior.  These MAY be treated by an implementation as being
 %   equivalent to INTERNAL_ERROR.
 
+headers_informational_nofin(Config) ->
+	doc("Informational HEADERS frames must not have the END_STREAM flag set. (RFC7540 8.1)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame on an idle stream.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"POST">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/echo/read_body">>},
+		{<<"expect">>, <<"100-continue">>},
+		{<<"content-length">>, <<"1000000">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, nofin, HeadersBlock)),
+	%% Receive an informational HEADERS frame without the END_STREAM flag.
+	{ok, << Len:24, 1:8, 0:5, 1:1, 0:2, _:32 >>} = gen_tcp:recv(Socket, 9, 6000),
+	{ok, RespHeadersBlock} = gen_tcp:recv(Socket, Len, 6000),
+	%% Confirm it has a 100 status code.
+	{RespHeaders, _} = cow_hpack:decode(RespHeadersBlock),
+	{_, <<"100">>} = lists:keyfind(<<":status">>, 1, RespHeaders),
+	ok.
+
 %% (RFC7540 8.1)
 %   A HEADERS frame (and associated CONTINUATION frames) can only appear
 %   at the start or end of a stream.  An endpoint that receives a HEADERS

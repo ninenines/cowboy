@@ -534,7 +534,7 @@ commands(State, Stream, [{error_response, _, _, _}|Tail]) ->
 	commands(State, Stream, Tail);
 %% Send an informational response.
 commands(State0, Stream=#stream{local=idle}, [{inform, StatusCode, Headers}|Tail]) ->
-	State = send_headers(State0, Stream, StatusCode, Headers, fin),
+	State = send_headers(State0, Stream, StatusCode, Headers, nofin),
 	commands(State, Stream, Tail);
 %% Send response headers.
 %%
