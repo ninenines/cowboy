@@ -24,6 +24,7 @@
 
 -type opts() :: #{
 	connection_type => worker | supervisor,
+	enable_connect_protocol => boolean(),
 	env => cowboy_middleware:env(),
 	inactivity_timeout => timeout(),
 	middlewares => [module()],
