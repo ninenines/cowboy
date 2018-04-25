@@ -21,6 +21,7 @@ opts() :: #{
     enable_connect_protocol => boolean(),
     env                     => cowboy_middleware:env(),
     inactivity_timeout      => timeout(),
+    max_concurrent_streams  => non_neg_integer() | infinity,
     max_decode_table_size   => non_neg_integer(),
     max_encode_table_size   => non_neg_integer(),
     middlewares             => [module()],
@@ -55,6 +56,9 @@ env (#{})::
 inactivity_timeout (300000)::
     Time in ms with nothing received at all before Cowboy closes the connection.
 
+max_concurrent_streams (infinity)::
+    Maximum number of concurrent streams allowed on the connection.
+
 max_decode_table_size (4096)::
     Maximum header table size used by the decoder. This is the value advertised
     to the client. The client can then choose a header table size equal or lower
@@ -79,7 +83,9 @@ stream_handlers ([cowboy_stream_h])::
 
 == Changelog
 
-* *2.4*: Add the options `max_decode_table_size` and `max_encode_table_size`.
+* *2.4*: Add the options `max_concurrent_streams`,
+         `max_decode_table_size` and `max_encode_table_size`
+         to configure HTTP/2 SETTINGS.
 * *2.4*: Add the experimental option `enable_connect_protocol`.
 * *2.0*: Protocol introduced.
 

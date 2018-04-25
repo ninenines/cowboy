@@ -30,7 +30,8 @@ init_per_suite(Config) ->
 			skip;
 		_ ->
 			cowboy_test:init_http2(h2spec, #{
-				env => #{dispatch => init_dispatch()}
+				env => #{dispatch => init_dispatch()},
+				max_concurrent_streams => 100
 			}, Config)
 	end.
 

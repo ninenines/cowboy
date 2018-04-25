@@ -49,6 +49,7 @@ init_routes(_) -> [
 	{"localhost", [
 		{"/", hello_h, []},
 		{"/echo/:key", echo_h, []},
+		{"/long_polling", long_polling_h, []},
 		{"/resp/:key[/:arg]", resp_h, []}
 	]}
 ].
@@ -2263,34 +2264,6 @@ reject_streamid_lower(Config) ->
 %   frame so that the client is forced to open a new connection for new
 %   streams.
 
-%% @todo We need this option too. (RFC7540 5.1.2)
-%   A peer can limit the number of concurrently active streams using the
-%   SETTINGS_MAX_CONCURRENT_STREAMS parameter (see Section 6.5.2) within
-%   a SETTINGS frame.  The maximum concurrent streams setting is specific
-%   to each endpoint and applies only to the peer that receives the
-%   setting.  That is, clients specify the maximum number of concurrent
-%   streams the server can initiate, and servers specify the maximum
-%   number of concurrent streams the client can initiate.
-%
-%   Streams that are in the "open" state or in either of the "half-
-%   closed" states count toward the maximum number of streams that an
-%   endpoint is permitted to open.  Streams in any of these three states
-%   count toward the limit advertised in the
-%   SETTINGS_MAX_CONCURRENT_STREAMS setting.  Streams in either of the
-%   "reserved" states do not count toward the stream limit.
-%
-%   Endpoints MUST NOT exceed the limit set by their peer.  An endpoint
-%   that receives a HEADERS frame that causes its advertised concurrent
-%   stream limit to be exceeded MUST treat this as a stream error
-%   (Section 5.4.2) of type PROTOCOL_ERROR or REFUSED_STREAM.  The choice
-%   of error code determines whether the endpoint wishes to enable
-%   automatic retry (see Section 8.1.4) for details).
-%
-%   An endpoint that wishes to reduce the value of
-%   SETTINGS_MAX_CONCURRENT_STREAMS to a value that is below the current
-%   number of open streams can either close streams that exceed the new
-%   value or allow streams to complete.
-
 %% (RFC7540 5.2.1)
 %   3.  Flow control is directional with overall control provided by the
 %       receiver.  A receiver MAY choose to set any window size that it
@@ -2539,21 +2512,72 @@ settings_header_table_size_server(Config0) ->
 %      0.  An endpoint that has both set this parameter to 0 and had it
 %      acknowledged MUST treat the receipt of a PUSH_PROMISE frame as a
 %      connection error (Section 5.4.1) of type PROTOCOL_ERROR.
+%% @todo settings_disable_push
+
+settings_max_concurrent_streams(Config0) ->
+	doc("The SETTINGS_MAX_CONCURRENT_STREAMS setting can be used to "
+		"restrict the number of concurrent streams. (RFC7540 5.1.2, RFC7540 6.5.2)"),
+	%% Create a new listener that allows only a single concurrent stream.
+	Config = cowboy_test:init_http(name(), #{
+		env => #{dispatch => cowboy_router:compile(init_routes(Config0))},
+		max_concurrent_streams => 1
+	}, Config0),
+	{ok, Socket} = do_handshake(Config),
+	%% Send two HEADERS frames as two separate streams.
+	Headers = [
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/long_polling">>}
+	],
+	{ReqHeadersBlock1, EncodeState} = cow_hpack:encode(Headers),
+	{ReqHeadersBlock2, _} = cow_hpack:encode(Headers, EncodeState),
+	ok = gen_tcp:send(Socket, [
+		cow_http2:headers(1, fin, ReqHeadersBlock1),
+		cow_http2:headers(3, fin, ReqHeadersBlock2)
+	]),
+	%% Receive a REFUSED_STREAM stream error.
+	{ok, << _:24, 3:8, _:8, 3:32, 7:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+	ok.
+
+settings_max_concurrent_streams_0(Config0) ->
+	doc("The SETTINGS_MAX_CONCURRENT_STREAMS setting can be set to "
+		"0 to refuse all incoming streams. (RFC7540 5.1.2, RFC7540 6.5.2)"),
+	%% Create a new listener that allows only a single concurrent stream.
+	Config = cowboy_test:init_http(name(), #{
+		env => #{dispatch => cowboy_router:compile(init_routes(Config0))},
+		max_concurrent_streams => 0
+	}, Config0),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/long_polling">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+	%% Receive a REFUSED_STREAM stream error.
+	{ok, << _:24, 3:8, _:8, 1:32, 7:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+	ok.
+
+%% @todo The client can limit the number of concurrent streams too. (RFC7540 5.1.2)
 %
-%   SETTINGS_MAX_CONCURRENT_STREAMS (0x3):  Indicates the maximum number
-%      of concurrent streams that the sender will allow.  This limit is
-%      directional: it applies to the number of streams that the sender
-%      permits the receiver to create.  Initially, there is no limit to
-%      this value.  It is recommended that this value be no smaller than
-%      100, so as to not unnecessarily limit parallelism.
+%   A peer can limit the number of concurrently active streams using the
+%   SETTINGS_MAX_CONCURRENT_STREAMS parameter (see Section 6.5.2) within
+%   a SETTINGS frame.  The maximum concurrent streams setting is specific
+%   to each endpoint and applies only to the peer that receives the
+%   setting.  That is, clients specify the maximum number of concurrent
+%   streams the server can initiate, and servers specify the maximum
+%   number of concurrent streams the client can initiate.
 %
-%      A value of 0 for SETTINGS_MAX_CONCURRENT_STREAMS SHOULD NOT be
-%      treated as special by endpoints.  A zero value does prevent the
-%      creation of new streams; however, this can also happen for any
-%      limit that is exhausted with active streams.  Servers SHOULD only
-%      set a zero value for short durations; if a server does not wish to
-%      accept requests, closing the connection is more appropriate.
-%
+%   Endpoints MUST NOT exceed the limit set by their peer.  An endpoint
+%   that receives a HEADERS frame that causes its advertised concurrent
+%   stream limit to be exceeded MUST treat this as a stream error
+%   (Section 5.4.2) of type PROTOCOL_ERROR or REFUSED_STREAM.  The choice
+%   of error code determines whether the endpoint wishes to enable
+%   automatic retry (see Section 8.1.4) for details).
+
 %   SETTINGS_INITIAL_WINDOW_SIZE (0x4):
 %      Values above the maximum flow-control window size of 2^31-1 MUST
 %      be treated as a connection error (Section 5.4.1) of type
@@ -2565,6 +2589,16 @@ settings_header_table_size_server(Config0) ->
 %      allowed frame size (2^24-1 or 16,777,215 octets), inclusive.
 %      Values outside this range MUST be treated as a connection error
 %      (Section 5.4.1) of type PROTOCOL_ERROR.
+%
+%   SETTINGS_MAX_HEADER_LIST_SIZE (0x6):  This advisory setting informs a
+%      peer of the maximum size of header list that the sender is
+%      prepared to accept, in octets.  The value is based on the
+%      uncompressed size of header fields, including the length of the
+%      name and value in octets plus an overhead of 32 octets for each
+%      header field.
+%
+%      For any given request, a lower limit than what is advertised MAY
+%      be enforced.  The initial value of this setting is unlimited.
 %
 %   An endpoint that receives a SETTINGS frame with any unknown or
 %   unsupported identifier MUST ignore that setting. (6.5.2 and 6.5.3)

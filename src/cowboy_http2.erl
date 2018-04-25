@@ -27,6 +27,7 @@
 	enable_connect_protocol => boolean(),
 	env => cowboy_middleware:env(),
 	inactivity_timeout => timeout(),
+	max_concurrent_streams => non_neg_integer() | infinity,
 	max_decode_table_size => non_neg_integer(),
 	max_encode_table_size => non_neg_integer(),
 	middlewares => [module()],
@@ -206,11 +207,12 @@ init(Parent, Ref, Socket, Transport, Opts, Peer, Sock, Cert, Buffer, _Settings, 
 settings_init(State, Opts) ->
 	S0 = setting_from_opt(#{}, Opts, max_decode_table_size,
 		header_table_size, 4096),
-	%% @todo max_concurrent_streams + enforce it
+	S1 = setting_from_opt(S0, Opts, max_concurrent_streams,
+		max_concurrent_streams, infinity),
 	%% @todo initial_window_size
 	%% @todo max_frame_size
 	%% @todo max_header_list_size
-	Settings = setting_from_opt(S0, Opts, enable_connect_protocol,
+	Settings = setting_from_opt(S1, Opts, enable_connect_protocol,
 		enable_connect_protocol, false),
 	State#state{next_settings=Settings}.
 
@@ -868,11 +870,22 @@ terminate_all_streams([#stream{id=StreamID, state=StreamState}|Tail], Reason) ->
 stream_decode_init(State=#state{decode_state=DecodeState0}, StreamID, IsFin, HeaderBlock) ->
 	try cow_hpack:decode(HeaderBlock, DecodeState0) of
 		{Headers, DecodeState} ->
-			stream_pseudo_headers_init(State#state{decode_state=DecodeState},
+			stream_enforce_concurrency_limit(State#state{decode_state=DecodeState},
 				StreamID, IsFin, Headers)
 	catch _:_ ->
 		terminate(State, {connection_error, compression_error,
 			'Error while trying to decode HPACK-encoded header block. (RFC7540 4.3)'})
+	end.
+
+stream_enforce_concurrency_limit(State=#state{opts=Opts, streams=Streams},
+		StreamID, IsFin, Headers) ->
+	MaxConcurrentStreams = maps:get(max_concurrent_streams, Opts, infinity),
+	case length(Streams) < MaxConcurrentStreams of
+		true ->
+			stream_pseudo_headers_init(State, StreamID, IsFin, Headers);
+		false ->
+			stream_refused(State, StreamID,
+				'Maximum number of concurrent streams has been reached. (RFC7540 5.1.2)')
 	end.
 
 stream_pseudo_headers_init(State=#state{local_settings=LocalSettings},
@@ -1043,6 +1056,10 @@ stream_req_init(State=#state{ref=Ref, peer=Peer, sock=Sock, cert=Cert},
 
 stream_malformed(State=#state{socket=Socket, transport=Transport}, StreamID, _) ->
 	Transport:send(Socket, cow_http2:rst_stream(StreamID, protocol_error)),
+	State.
+
+stream_refused(State=#state{socket=Socket, transport=Transport}, StreamID, _) ->
+	Transport:send(Socket, cow_http2:rst_stream(StreamID, refused_stream)),
 	State.
 
 stream_early_error(State0=#state{ref=Ref, opts=Opts, peer=Peer,
