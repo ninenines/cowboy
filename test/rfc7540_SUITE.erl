@@ -18,6 +18,7 @@
 
 -import(ct_helper, [config/2]).
 -import(ct_helper, [doc/1]).
+-import(ct_helper, [name/0]).
 -import(cowboy_test, [gun_open/1]).
 -import(cowboy_test, [raw_open/1]).
 -import(cowboy_test, [raw_send/2]).
@@ -2449,6 +2450,89 @@ continuation_with_extension_frame_interleaved_error(Config) ->
 %   (Section 5.4.1) of type PROTOCOL_ERROR.
 
 %% (RFC7540 6.5.2)
+
+settings_header_table_size_client(Config) ->
+	doc("The SETTINGS_HEADER_TABLE_SIZE setting can be used to "
+		"inform the server of the maximum header table size "
+		"used by the client to decode header blocks. (RFC7540 6.5.2)"),
+	HeaderTableSize = 128,
+	%% Do the handhsake.
+	{ok, Socket} = gen_tcp:connect("localhost", config(port, Config), [binary, {active, false}]),
+	%% Send a valid preface.
+	ok = gen_tcp:send(Socket, ["PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n",
+		cow_http2:settings(#{header_table_size => HeaderTableSize})]),
+	%% Receive the server preface.
+	{ok, << Len0:24 >>} = gen_tcp:recv(Socket, 3, 1000),
+	{ok, << 4:8, 0:40, _:Len0/binary >>} = gen_tcp:recv(Socket, 6 + Len0, 1000),
+	%% Send the SETTINGS ack.
+	ok = gen_tcp:send(Socket, cow_http2:settings_ack()),
+	%% Receive the SETTINGS ack.
+	{ok, << 0:24, 4:8, 1:8, 0:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+	%% Initialize decoding/encoding states.
+	DecodeState = cow_hpack:set_max_size(HeaderTableSize, cow_hpack:init()),
+	EncodeState = cow_hpack:init(),
+	%% Send a HEADERS frame as a request.
+	{ReqHeadersBlock1, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>}
+	], EncodeState),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, ReqHeadersBlock1)),
+	%% Receive a HEADERS frame as a response.
+	{ok, << Len1:24, 1:8, _:40 >>} = gen_tcp:recv(Socket, 9, 6000),
+	{ok, RespHeadersBlock1} = gen_tcp:recv(Socket, Len1, 6000),
+	{RespHeaders, _} = cow_hpack:decode(RespHeadersBlock1, DecodeState),
+	{_, <<"200">>} = lists:keyfind(<<":status">>, 1, RespHeaders),
+	%% The decoding succeeded, confirming that the table size is
+	%% lower than or equal to HeaderTableSize.
+	ok.
+
+settings_header_table_size_server(Config0) ->
+	doc("The SETTINGS_HEADER_TABLE_SIZE setting can be used to "
+		"inform the client of the maximum header table size "
+		"used by the server to decode header blocks. (RFC7540 6.5.2)"),
+	HeaderTableSize = 128,
+	%% Create a new listener that allows larger header table sizes.
+	Config = cowboy_test:init_http(name(), #{
+		env => #{dispatch => cowboy_router:compile(init_routes(Config0))},
+		max_decode_table_size => HeaderTableSize
+	}, Config0),
+	%% Do the handhsake.
+	{ok, Socket} = gen_tcp:connect("localhost", config(port, Config), [binary, {active, false}]),
+	%% Send a valid preface.
+	ok = gen_tcp:send(Socket, ["PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n",
+		cow_http2:settings(#{header_table_size => HeaderTableSize})]),
+	%% Receive the server preface.
+	{ok, << Len0:24 >>} = gen_tcp:recv(Socket, 3, 1000),
+	{ok, Data = <<_:48, _:Len0/binary>>} = gen_tcp:recv(Socket, 6 + Len0, 1000),
+	%% Confirm the server's SETTINGS_HEADERS_TABLE_SIZE uses HeaderTableSize.
+	{ok, {settings, #{header_table_size := HeaderTableSize}}, <<>>}
+		= cow_http2:parse(<<Len0:24, Data/binary>>),
+	%% Send the SETTINGS ack.
+	ok = gen_tcp:send(Socket, cow_http2:settings_ack()),
+	%% Receive the SETTINGS ack.
+	{ok, << 0:24, 4:8, 1:8, 0:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+	%% Initialize decoding/encoding states.
+	DecodeState = cow_hpack:init(),
+	EncodeState = cow_hpack:set_max_size(HeaderTableSize, cow_hpack:init()),
+	%% Send a HEADERS frame as a request.
+	{ReqHeadersBlock1, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>}
+	], EncodeState),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, ReqHeadersBlock1)),
+	%% Receive a HEADERS frame as a response.
+	{ok, << Len1:24, 1:8, _:40 >>} = gen_tcp:recv(Socket, 9, 6000),
+	{ok, RespHeadersBlock1} = gen_tcp:recv(Socket, Len1, 6000),
+	{RespHeaders, _} = cow_hpack:decode(RespHeadersBlock1, DecodeState),
+	{_, <<"200">>} = lists:keyfind(<<":status">>, 1, RespHeaders),
+	%% The decoding succeeded on the server, confirming that
+	%% the table size was updated to HeaderTableSize.
+	ok.
+
 %   SETTINGS_ENABLE_PUSH (0x2):  This setting can be used to disable
 %      server push (Section 8.2).  An endpoint MUST NOT send a
 %      PUSH_PROMISE frame if it receives this parameter set to a value of

@@ -27,6 +27,8 @@
 	enable_connect_protocol => boolean(),
 	env => cowboy_middleware:env(),
 	inactivity_timeout => timeout(),
+	max_decode_table_size => non_neg_integer(),
+	max_encode_table_size => non_neg_integer(),
 	middlewares => [module()],
 	preface_timeout => timeout(),
 	shutdown_timeout => timeout(),
@@ -93,7 +95,7 @@
 	%% @todo We need a TimerRef to do SETTINGS_TIMEOUT errors.
 	%% We need to be careful there. It's well possible that we send
 	%% two SETTINGS frames before we receive a SETTINGS ack.
-	next_settings = #{} :: undefined | map(), %% @todo perhaps set to undefined by default
+	next_settings = undefined :: undefined | map(),
 	remote_settings = #{
 		initial_window_size => 65535
 	} :: map(),
@@ -201,9 +203,22 @@ init(Parent, Ref, Socket, Transport, Opts, Peer, Sock, Cert, Buffer, _Settings, 
 		_ -> parse(State, Buffer)
 	end.
 
-settings_init(State=#state{next_settings=Settings}, Opts) ->
-	EnableConnectProtocol = maps:get(enable_connect_protocol, Opts, false),
-	State#state{next_settings=Settings#{enable_connect_protocol => EnableConnectProtocol}}.
+settings_init(State, Opts) ->
+	S0 = setting_from_opt(#{}, Opts, max_decode_table_size,
+		header_table_size, 4096),
+	%% @todo max_concurrent_streams + enforce it
+	%% @todo initial_window_size
+	%% @todo max_frame_size
+	%% @todo max_header_list_size
+	Settings = setting_from_opt(S0, Opts, enable_connect_protocol,
+		enable_connect_protocol, false),
+	State#state{next_settings=Settings}.
+
+setting_from_opt(Settings, Opts, OptName, SettingName, Default) ->
+	case maps:get(OptName, Opts, Default) of
+		Default -> Settings;
+		Value -> Settings#{SettingName => Value}
+	end.
 
 preface(#state{socket=Socket, transport=Transport, next_settings=Settings}) ->
 	%% We send next_settings and use defaults until we get a ack.
@@ -408,21 +423,32 @@ frame(State=#state{client_streamid=LastStreamID}, {rst_stream, StreamID, _})
 frame(State, {rst_stream, StreamID, Reason}) ->
 	stream_terminate(State, StreamID, {stream_error, Reason, 'Stream reset requested by client.'});
 %% SETTINGS frame.
-frame(State0=#state{socket=Socket, transport=Transport, remote_settings=Settings0},
-		{settings, Settings}) ->
+frame(State0=#state{socket=Socket, transport=Transport, opts=Opts,
+		remote_settings=Settings0}, {settings, Settings}) ->
 	Transport:send(Socket, cow_http2:settings_ack()),
-	State = State0#state{remote_settings=maps:merge(Settings0, Settings)},
-	case Settings of
-		#{initial_window_size := NewWindowSize} ->
+	State1 = State0#state{remote_settings=maps:merge(Settings0, Settings)},
+	maps:fold(fun
+		(header_table_size, NewSize, State=#state{encode_state=EncodeState0}) ->
+			MaxSize = maps:get(max_encode_table_size, Opts, 4096),
+			EncodeState = cow_hpack:set_max_size(min(NewSize, MaxSize), EncodeState0),
+			State#state{encode_state=EncodeState};
+		(initial_window_size, NewWindowSize, State) ->
 			OldWindowSize = maps:get(initial_window_size, Settings0, 65535),
 			update_stream_windows(State, NewWindowSize - OldWindowSize);
-		_ ->
+		(_, _, State) ->
 			State
-	end;
+	end, State1, Settings);
 %% Ack for a previously sent SETTINGS frame.
-frame(State=#state{local_settings=Local0, next_settings=Next}, settings_ack) ->
-	Local = maps:merge(Local0, Next),
-	State#state{local_settings=Local, next_settings=#{}};
+frame(State0=#state{local_settings=Local0, next_settings=NextSettings}, settings_ack) ->
+	Local = maps:merge(Local0, NextSettings),
+	State1 = State0#state{local_settings=Local, next_settings=#{}},
+	maps:fold(fun
+		(header_table_size, MaxSize, State=#state{decode_state=DecodeState0}) ->
+			DecodeState = cow_hpack:set_max_size(MaxSize, DecodeState0),
+			State#state{decode_state=DecodeState};
+		(_, _, State) ->
+			State
+	end, State1, NextSettings);
 %% Unexpected PUSH_PROMISE frame.
 frame(State, {push_promise, _, _, _, _}) ->
 	terminate(State, {connection_error, protocol_error,

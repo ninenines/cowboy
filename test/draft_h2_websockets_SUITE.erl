@@ -78,7 +78,10 @@ reject_handshake_when_disabled(Config0) ->
 	}, Config0),
 	%% Connect to server and confirm that SETTINGS_ENABLE_CONNECT_PROTOCOL = 0.
 	{ok, Socket, Settings} = do_handshake(Config),
-	#{enable_connect_protocol := false} = Settings,
+	case Settings of
+		#{enable_connect_protocol := false} -> ok;
+		_ when map_size(Settings) =:= 0 -> ok
+	end,
 	%% Send a CONNECT :protocol request to upgrade the stream to Websocket.
 	{ReqHeadersBlock, _} = cow_hpack:encode([
 		{<<":method">>, <<"CONNECT">>},
@@ -102,7 +105,10 @@ reject_handshake_disabled_by_default(Config0) ->
 	}, Config0),
 	%% Connect to server and confirm that SETTINGS_ENABLE_CONNECT_PROTOCOL = 0.
 	{ok, Socket, Settings} = do_handshake(Config),
-	#{enable_connect_protocol := false} = Settings,
+	case Settings of
+		#{enable_connect_protocol := false} -> ok;
+		_ when map_size(Settings) =:= 0 -> ok
+	end,
 	%% Send a CONNECT :protocol request to upgrade the stream to Websocket.
 	{ReqHeadersBlock, _} = cow_hpack:encode([
 		{<<":method">>, <<"CONNECT">>},
