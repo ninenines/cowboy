@@ -51,6 +51,23 @@ app:: rebar.config
 
 # DIALYZER_OPTS += --src -r test
 
+# h2spec setup.
+
+GOPATH := $(ERLANG_MK_TMP)/gopath
+export GOPATH
+
+H2SPEC := $(GOPATH)/src/github.com/summerwind/h2spec/h2spec
+export H2SPEC
+
+# @todo It would be better to allow these dependencies to be specified
+# on a per-target basis instead of for all targets.
+test-build:: $(H2SPEC)
+
+$(H2SPEC):
+	$(gen_verbose) mkdir -p $(GOPATH)/src/github.com/summerwind
+	$(verbose) git clone git@github.com:summerwind/h2spec.git $(dir $(H2SPEC))
+	$(verbose) make -C $(GOPATH)/src/github.com/summerwind/h2spec build
+
 # Use erl_make_certs from the tested release during CI.
 
 ci-setup:: clean deps test-deps
