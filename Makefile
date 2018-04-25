@@ -65,7 +65,7 @@ test-build:: $(H2SPEC)
 
 $(H2SPEC):
 	$(gen_verbose) mkdir -p $(GOPATH)/src/github.com/summerwind
-	$(verbose) git clone git@github.com:summerwind/h2spec.git $(dir $(H2SPEC))
+	$(verbose) git clone --depth 1 https://github.com/summerwind/h2spec $(dir $(H2SPEC))
 	$(verbose) make -C $(GOPATH)/src/github.com/summerwind/h2spec build
 
 # Use erl_make_certs from the tested release during CI.
