@@ -18,6 +18,7 @@
 
 -import(ct_helper, [config/2]).
 -import(ct_helper, [doc/1]).
+-import(ct_helper, [name/0]).
 -import(cowboy_test, [gun_open/1]).
 
 all() -> [{group, clear}].
@@ -46,28 +47,49 @@ do_handshake(Config) ->
 	{ok, Socket}.
 
 inactivity_timeout(Config) ->
-	doc("Terminate when the inactivity timeout is reached"),
+	doc("Terminate when the inactivity timeout is reached."),
 	ProtoOpts = #{
 		env => #{dispatch => cowboy_router:compile(init_routes(Config))},
 		inactivity_timeout => 1000
 	},
-	{ok, _} = cowboy:start_clear(inactivity_timeout, [{port, 0}], ProtoOpts),
-	Port = ranch:get_port(inactivity_timeout),
+	{ok, _} = cowboy:start_clear(name(), [{port, 0}], ProtoOpts),
+	Port = ranch:get_port(name()),
 	{ok, Socket} = do_handshake([{port, Port}|Config]),
 	receive after 1000 -> ok end,
 	%% Receive a GOAWAY frame back with an INTERNAL_ERROR.
 	{ok, << _:24, 7:8, _:72, 2:32 >>} = gen_tcp:recv(Socket, 17, 1000),
 	ok.
 
+initial_connection_window_size(Config) ->
+	doc("Confirm a WINDOW_UPDATE frame is sent when the configured "
+		"connection window is larger than the default."),
+	ConfiguredSize = 100000,
+	ProtoOpts = #{
+		env => #{dispatch => cowboy_router:compile(init_routes(Config))},
+		initial_connection_window_size => ConfiguredSize
+	},
+	{ok, _} = cowboy:start_clear(name(), [{port, 0}], ProtoOpts),
+	Port = ranch:get_port(name()),
+	{ok, Socket} = gen_tcp:connect("localhost", Port, [binary, {active, false}]),
+	%% Send a valid preface.
+	ok = gen_tcp:send(Socket, ["PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n", cow_http2:settings(#{})]),
+	%% Receive the server preface.
+	{ok, << Len:24 >>} = gen_tcp:recv(Socket, 3, 1000),
+	{ok, << 4:8, 0:40, _:Len/binary >>} = gen_tcp:recv(Socket, 6 + Len, 1000),
+	%% Receive a WINDOW_UPDATE frame incrementing the connection window to 100000.
+	{ok, <<4:24, 8:8, 0:41, Size:31>>} = gen_tcp:recv(Socket, 13, 1000),
+	ConfiguredSize = Size + 65535,
+	ok.
+
 preface_timeout_infinity(Config) ->
-	doc("Ensure infinity for preface_timeout is accepted"),
+	doc("Ensure infinity for preface_timeout is accepted."),
 	ProtoOpts = #{
 		env => #{dispatch => cowboy_router:compile(init_routes(Config))},
 		preface_timeout => infinity
 	},
-	{ok, Pid} = cowboy:start_clear(preface_timeout_infinity, [{port, 0}], ProtoOpts),
+	{ok, Pid} = cowboy:start_clear(name(), [{port, 0}], ProtoOpts),
 	Ref = erlang:monitor(process, Pid),
-	Port = ranch:get_port(preface_timeout_infinity),
+	Port = ranch:get_port(name()),
 	{ok, _} = do_handshake([{port, Port}|Config]),
 	receive
 		{'DOWN', Ref, process, Pid, Reason} ->
@@ -83,8 +105,8 @@ resp_iolist_body(Config) ->
 	ProtoOpts = #{
 		env => #{dispatch => cowboy_router:compile(init_routes(Config))}
 	},
-	{ok, _} = cowboy:start_clear(resp_iolist_body, [{port, 0}], ProtoOpts),
-	Port = ranch:get_port(resp_iolist_body),
+	{ok, _} = cowboy:start_clear(name(), [{port, 0}], ProtoOpts),
+	Port = ranch:get_port(name()),
 	ConnPid = gun_open([{type, tcp}, {protocol, http2}, {port, Port}|Config]),
 	Ref = gun:get(ConnPid, "/resp_iolist_body"),
 	{response, nofin, 200, RespHeaders} = gun:await(ConnPid, Ref),

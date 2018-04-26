@@ -2578,11 +2578,139 @@ settings_max_concurrent_streams_0(Config0) ->
 %   of error code determines whether the endpoint wishes to enable
 %   automatic retry (see Section 8.1.4) for details).
 
-%   SETTINGS_INITIAL_WINDOW_SIZE (0x4):
-%      Values above the maximum flow-control window size of 2^31-1 MUST
-%      be treated as a connection error (Section 5.4.1) of type
-%      FLOW_CONTROL_ERROR.
-%
+settings_initial_window_size(Config0) ->
+	doc("The SETTINGS_INITIAL_WINDOW_SIZE setting can be used to "
+		"change the initial window size of streams. (RFC7540 6.5.2)"),
+	%% Create a new listener that allows only a single concurrent stream.
+	Config = cowboy_test:init_http(name(), #{
+		env => #{dispatch => cowboy_router:compile(init_routes(Config0))},
+		initial_connection_window_size => 100000,
+		initial_stream_window_size => 100000
+	}, Config0),
+	%% We need to do the handshake manually because a WINDOW_UPDATE
+	%% frame will be sent to update the connection window.
+	{ok, Socket} = gen_tcp:connect("localhost", config(port, Config), [binary, {active, false}]),
+	%% Send a valid preface.
+	ok = gen_tcp:send(Socket, ["PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n", cow_http2:settings(#{})]),
+	%% Receive the server preface.
+	{ok, << Len1:24 >>} = gen_tcp:recv(Socket, 3, 1000),
+	{ok, << 4:8, 0:40, _:Len1/binary >>} = gen_tcp:recv(Socket, 6 + Len1, 1000),
+	%% Send the SETTINGS ack.
+	ok = gen_tcp:send(Socket, cow_http2:settings_ack()),
+	%% Receive the WINDOW_UPDATE for the connection.
+	{ok, << 4:24, 8:8, 0:40, _:32 >>} = gen_tcp:recv(Socket, 13, 1000),
+	%% Receive the SETTINGS ack.
+	{ok, << 0:24, 4:8, 1:8, 0:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+	%% Send a HEADERS frame initiating a stream followed by
+	%% DATA frames totaling 90000 bytes of body.
+	Headers = [
+		{<<":method">>, <<"POST">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/long_polling">>}
+	],
+	{HeadersBlock, _} = cow_hpack:encode(Headers),
+	ok = gen_tcp:send(Socket, [
+		cow_http2:headers(1, nofin, HeadersBlock),
+		cow_http2:data(1, nofin, <<0:15000/unit:8>>),
+		cow_http2:data(1, nofin, <<0:15000/unit:8>>),
+		cow_http2:data(1, nofin, <<0:15000/unit:8>>),
+		cow_http2:data(1, nofin, <<0:15000/unit:8>>),
+		cow_http2:data(1, nofin, <<0:15000/unit:8>>),
+		cow_http2:data(1, fin, <<0:15000/unit:8>>)
+	]),
+	%% Receive a proper response.
+	{ok, << Len2:24, 1:8, _:40 >>} = gen_tcp:recv(Socket, 9, 6000),
+	{ok, _} = gen_tcp:recv(Socket, Len2, 6000),
+	%% No errors follow due to our sending of more than 65535 bytes of data.
+	{error, timeout} = gen_tcp:recv(Socket, 0, 1000),
+	ok.
+
+settings_initial_window_size_after_ack(Config0) ->
+	doc("The SETTINGS_INITIAL_WINDOW_SIZE setting can be used to "
+		"change the initial window size of streams. It is applied "
+		"to all existing streams upon receipt of the SETTINGS ack. (RFC7540 6.5.2)"),
+	%% Create a new listener that allows only a single concurrent stream.
+	Config = cowboy_test:init_http(name(), #{
+		env => #{dispatch => cowboy_router:compile(init_routes(Config0))},
+		initial_stream_window_size => 0
+	}, Config0),
+	%% We need to do the handshake manually because we don't
+	%% want to send the SETTINGS ack immediately.
+	{ok, Socket} = gen_tcp:connect("localhost", config(port, Config), [binary, {active, false}]),
+	%% Send a valid preface.
+	ok = gen_tcp:send(Socket, ["PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n", cow_http2:settings(#{})]),
+	%% Receive the server preface.
+	{ok, << Len1:24 >>} = gen_tcp:recv(Socket, 3, 1000),
+	{ok, << 4:8, 0:40, _:Len1/binary >>} = gen_tcp:recv(Socket, 6 + Len1, 1000),
+	%%
+	%% Don't send the SETTINGS ack yet! We want to create a stream first.
+	%%
+	%% Receive the SETTINGS ack.
+	{ok, << 0:24, 4:8, 1:8, 0:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+	%% Send a HEADERS frame initiating a stream, a SETTINGS ack
+	%% and a small DATA frame despite no window available in the stream.
+	Headers = [
+		{<<":method">>, <<"POST">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/long_polling">>}
+	],
+	{HeadersBlock, _} = cow_hpack:encode(Headers),
+	ok = gen_tcp:send(Socket, [
+		cow_http2:headers(1, nofin, HeadersBlock),
+		cow_http2:settings_ack(),
+		cow_http2:data(1, fin, <<0:32/unit:8>>)
+	]),
+	%% Receive a FLOW_CONTROL_ERROR stream error.
+	{ok, << _:24, 3:8, _:8, 1:32, 3:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+	ok.
+
+settings_initial_window_size_before_ack(Config0) ->
+	doc("The SETTINGS_INITIAL_WINDOW_SIZE setting can be used to "
+		"change the initial window size of streams. It is only "
+		"applied upon receipt of the SETTINGS ack. (RFC7540 6.5.2)"),
+	%% Create a new listener that allows only a single concurrent stream.
+	Config = cowboy_test:init_http(name(), #{
+		env => #{dispatch => cowboy_router:compile(init_routes(Config0))},
+		initial_stream_window_size => 0
+	}, Config0),
+	%% We need to do the handshake manually because we don't
+	%% want to send the SETTINGS ack.
+	{ok, Socket} = gen_tcp:connect("localhost", config(port, Config), [binary, {active, false}]),
+	%% Send a valid preface.
+	ok = gen_tcp:send(Socket, ["PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n", cow_http2:settings(#{})]),
+	%% Receive the server preface.
+	{ok, << Len1:24 >>} = gen_tcp:recv(Socket, 3, 1000),
+	{ok, << 4:8, 0:40, _:Len1/binary >>} = gen_tcp:recv(Socket, 6 + Len1, 1000),
+	%%
+	%% Don't send the SETTINGS ack! We want the server to keep the original settings.
+	%%
+	%% Receive the SETTINGS ack.
+	{ok, << 0:24, 4:8, 1:8, 0:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+	%% Send a HEADERS frame initiating a stream followed by
+	%% DATA frames totaling 60000 bytes of body.
+	Headers = [
+		{<<":method">>, <<"POST">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/long_polling">>}
+	],
+	{HeadersBlock, _} = cow_hpack:encode(Headers),
+	ok = gen_tcp:send(Socket, [
+		cow_http2:headers(1, nofin, HeadersBlock),
+		cow_http2:data(1, nofin, <<0:15000/unit:8>>),
+		cow_http2:data(1, nofin, <<0:15000/unit:8>>),
+		cow_http2:data(1, nofin, <<0:15000/unit:8>>),
+		cow_http2:data(1, fin, <<0:15000/unit:8>>)
+	]),
+	%% Receive a proper response.
+	{ok, << Len2:24, 1:8, _:40 >>} = gen_tcp:recv(Socket, 9, 6000),
+	{ok, _} = gen_tcp:recv(Socket, Len2, 6000),
+	%% No errors follow due to our sending of more than 0 bytes of data.
+	{error, timeout} = gen_tcp:recv(Socket, 0, 1000),
+	ok.
+
 %   SETTINGS_MAX_FRAME_SIZE (0x5):
 %      The initial value is 2^14 (16,384) octets.  The value advertised
 %      by an endpoint MUST be between this initial value and the maximum
@@ -2737,11 +2865,85 @@ window_update_reject_0_stream(Config) ->
 %   the receiver does not, the flow-control window at the sender and
 %   receiver can become different.
 
+data_reject_overflow(Config0) ->
+	doc("DATA frames that cause the connection flow control window "
+		"to overflow must be rejected with a FLOW_CONTROL_ERROR "
+		"connection error. (RFC7540 6.9.1)"),
+	%% Create a new listener that allows only a single concurrent stream.
+	Config = cowboy_test:init_http(name(), #{
+		env => #{dispatch => cowboy_router:compile(init_routes(Config0))},
+		initial_stream_window_size => 100000
+	}, Config0),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame initiating a stream followed by
+	%% DATA frames totaling 90000 bytes of body.
+	Headers = [
+		{<<":method">>, <<"POST">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/long_polling">>}
+	],
+	{HeadersBlock, _} = cow_hpack:encode(Headers),
+	ok = gen_tcp:send(Socket, [
+		cow_http2:headers(1, nofin, HeadersBlock),
+		cow_http2:data(1, nofin, <<0:15000/unit:8>>),
+		cow_http2:data(1, nofin, <<0:15000/unit:8>>),
+		cow_http2:data(1, nofin, <<0:15000/unit:8>>),
+		cow_http2:data(1, nofin, <<0:15000/unit:8>>),
+		cow_http2:data(1, nofin, <<0:15000/unit:8>>),
+		cow_http2:data(1, fin, <<0:15000/unit:8>>)
+	]),
+	%% Receive a FLOW_CONTROL_ERROR connection error.
+	{ok, << _:24, 7:8, _:72, 3:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+data_reject_overflow_stream(Config0) ->
+	doc("DATA frames that cause the stream flow control window "
+		"to overflow must be rejected with a FLOW_CONTROL_ERROR "
+		"stream error. (RFC7540 6.9.1)"),
+	%% Create a new listener that allows only a single concurrent stream.
+	Config = cowboy_test:init_http(name(), #{
+		env => #{dispatch => cowboy_router:compile(init_routes(Config0))},
+		initial_connection_window_size => 100000
+	}, Config0),
+	%% We need to do the handshake manually because a WINDOW_UPDATE
+	%% frame will be sent to update the connection window.
+	{ok, Socket} = gen_tcp:connect("localhost", config(port, Config), [binary, {active, false}]),
+	%% Send a valid preface.
+	ok = gen_tcp:send(Socket, ["PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n", cow_http2:settings(#{})]),
+	%% Receive the server preface.
+	{ok, << Len1:24 >>} = gen_tcp:recv(Socket, 3, 1000),
+	{ok, << 4:8, 0:40, _:Len1/binary >>} = gen_tcp:recv(Socket, 6 + Len1, 1000),
+	%% Send the SETTINGS ack.
+	ok = gen_tcp:send(Socket, cow_http2:settings_ack()),
+	%% Receive the WINDOW_UPDATE for the connection.
+	{ok, << 4:24, 8:8, 0:40, _:32 >>} = gen_tcp:recv(Socket, 13, 1000),
+	%% Receive the SETTINGS ack.
+	{ok, << 0:24, 4:8, 1:8, 0:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+	%% Send a HEADERS frame initiating a stream followed by
+	%% DATA frames totaling 90000 bytes of body.
+	Headers = [
+		{<<":method">>, <<"POST">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/long_polling">>}
+	],
+	{HeadersBlock, _} = cow_hpack:encode(Headers),
+	ok = gen_tcp:send(Socket, [
+		cow_http2:headers(1, nofin, HeadersBlock),
+		cow_http2:data(1, nofin, <<0:15000/unit:8>>),
+		cow_http2:data(1, nofin, <<0:15000/unit:8>>),
+		cow_http2:data(1, nofin, <<0:15000/unit:8>>),
+		cow_http2:data(1, nofin, <<0:15000/unit:8>>),
+		cow_http2:data(1, nofin, <<0:15000/unit:8>>),
+		cow_http2:data(1, fin, <<0:15000/unit:8>>)
+	]),
+	%% Receive a FLOW_CONTROL_ERROR stream error.
+	{ok, << _:24, 3:8, _:8, 1:32, 3:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+	ok.
+
 %% (RFC7540 6.9.1)
-%   The sender MUST NOT
-%   send a flow-controlled frame with a length that exceeds the space
-%   available in either of the flow-control windows advertised by the
-%   receiver.  Frames with zero length with the END_STREAM flag set (that
+%   Frames with zero length with the END_STREAM flag set (that
 %   is, an empty DATA frame) MAY be sent if there is no available space
 %   in either flow-control window.
 
@@ -2852,7 +3054,7 @@ settings_initial_window_size_changes_negative(Config) ->
 settings_initial_window_size_reject_overflow(Config) ->
 	doc("A SETTINGS_INITIAL_WINDOW_SIZE that causes a flow control window "
 		"to exceed 2^31-1 must be rejected with a FLOW_CONTROL_ERROR "
-		"connection error. (RFC7540 6.9.2)"),
+		"connection error. (RFC7540 6.5.2, RFC7540 6.9.2)"),
 	{ok, Socket} = do_handshake(Config),
 	%% Set SETTINGS_INITIAL_WINDOW_SIZE to 2^31.
 	ok = gen_tcp:send(Socket, cow_http2:settings(#{initial_window_size => 16#80000000})),
