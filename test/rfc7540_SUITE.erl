@@ -1277,64 +1277,62 @@ max_frame_size_reject_larger_than_default(Config) ->
 	{ok, << _:24, 7:8, _:72, 6:32 >>} = gen_tcp:recv(Socket, 17, 6000),
 	ok.
 
-%% @todo We need configurable SETTINGS in Cowboy for these tests.
-%%	max_frame_size_config_reject_too_small(Config) ->
-%%		doc("SETTINGS_MAX_FRAME_SIZE configuration values smaller than "
-%%			"16384 must be rejected. (RFC7540 6.5.2)"),
-%%		%% @todo This requires us to have a configurable SETTINGS in Cowboy.
-%%		todo.
-%%
-%%	max_frame_size_config_reject_too_large(Config) ->
-%%		doc("SETTINGS_MAX_FRAME_SIZE configuration values larger than "
-%%			"16777215 must be rejected. (RFC7540 6.5.2)"),
-%%		%% @todo This requires us to have a configurable SETTINGS in Cowboy.
-%%		todo.
-%%
-%%	max_frame_size_allow_exactly_custom(Config) ->
-%%		doc("An endpoint that sets SETTINGS_MAX_FRAME_SIZE must allow frames "
-%%			"of up to that size. (RFC7540 4.2, RFC7540 6.5.2)"),
-%%		%% @todo This requires us to have a configurable SETTINGS in Cowboy.
-%%		todo.
-%%
-%%	max_frame_size_reject_larger_than_custom(Config) ->
-%%		doc("An endpoint that sets SETTINGS_MAX_FRAME_SIZE must reject frames "
-%%			"of up to that size with a FRAME_SIZE_ERROR connection error. (RFC7540 4.2, RFC7540 6.5.2)"),
-%%		%% @todo This requires us to have a configurable SETTINGS in Cowboy.
-%%		todo.
-
-%% @todo How do I test this?
-%%
-%%	max_frame_size_client_default_respect_limits(Config) ->
-%%		doc("The server must not send frame sizes of more "
-%%			"than 16384 by default. (RFC7540 4.1, RFC7540 4.2)"),
-
-%% This is about the client sending a SETTINGS frame.
-max_frame_size_client_override_reject_too_small(Config) ->
-	doc("A SETTINGS_MAX_FRAME_SIZE smaller than 16384 must be rejected "
-		"with a PROTOCOL_ERROR connection error. (RFC7540 6.5.2)"),
+max_frame_size_allow_exactly_custom(Config0) ->
+	doc("An endpoint that sets SETTINGS_MAX_FRAME_SIZE must allow frames "
+		"of up to that size. (RFC7540 4.2, RFC7540 6.5.2)"),
+	%% Create a new listener that sets the maximum frame size to 30000.
+	Config = cowboy_test:init_http(name(), #{
+		env => #{dispatch => cowboy_router:compile(init_routes(Config0))},
+		max_frame_size_received => 30000
+	}, Config0),
+	%% Do the handshake.
 	{ok, Socket} = do_handshake(Config),
-	%% Send a SETTINGS frame with a SETTINGS_MAX_FRAME_SIZE lower than 16384.
-	ok = gen_tcp:send(Socket, << 6:24, 4:8, 0:40, 5:16, 16383:32 >>),
-	%% Receive a PROTOCOL_ERROR connection error.
-	{ok, << _:24, 7:8, _:72, 1:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	%% Send a HEADERS frame initiating a stream followed by
+	%% a single 30000 bytes DATA frame.
+	Headers = [
+		{<<":method">>, <<"POST">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/long_polling">>}
+	],
+	{HeadersBlock, _} = cow_hpack:encode(Headers),
+	ok = gen_tcp:send(Socket, [
+		cow_http2:headers(1, nofin, HeadersBlock),
+		cow_http2:data(1, fin, <<0:30000/unit:8>>)
+	]),
+	%% Receive a proper response.
+	{ok, << Len2:24, 1:8, _:40 >>} = gen_tcp:recv(Socket, 9, 6000),
+	{ok, _} = gen_tcp:recv(Socket, Len2, 6000),
+	%% No errors follow due to our sending of a 25000 bytes frame.
+	{error, timeout} = gen_tcp:recv(Socket, 0, 1000),
 	ok.
 
-%% This is about the client sending a SETTINGS frame.
-max_frame_size_client_override_reject_too_large(Config) ->
-	doc("A SETTINGS_MAX_FRAME_SIZE larger than 16777215 must be rejected "
-		"with a PROTOCOL_ERROR connection error. (RFC7540 6.5.2)"),
+max_frame_size_reject_larger_than_custom(Config0) ->
+	doc("An endpoint that sets SETTINGS_MAX_FRAME_SIZE must reject frames "
+		"of up to that size with a FRAME_SIZE_ERROR connection error. (RFC7540 4.2, RFC7540 6.5.2)"),
+	%% Create a new listener that sets the maximum frame size to 30000.
+	Config = cowboy_test:init_http(name(), #{
+		env => #{dispatch => cowboy_router:compile(init_routes(Config0))},
+		max_frame_size_received => 30000
+	}, Config0),
+	%% Do the handshake.
 	{ok, Socket} = do_handshake(Config),
-	%% Send a SETTINGS frame with a SETTINGS_MAX_FRAME_SIZE larger than 16777215.
-	ok = gen_tcp:send(Socket, << 6:24, 4:8, 0:40, 5:16, 16777216:32 >>),
-	%% Receive a PROTOCOL_ERROR connection error.
-	{ok, << _:24, 7:8, _:72, 1:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	%% Send a HEADERS frame initiating a stream followed by
+	%% a single DATA frame larger than 30000 bytes.
+	Headers = [
+		{<<":method">>, <<"POST">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/long_polling">>}
+	],
+	{HeadersBlock, _} = cow_hpack:encode(Headers),
+	ok = gen_tcp:send(Socket, [
+		cow_http2:headers(1, nofin, HeadersBlock),
+		cow_http2:data(1, fin, <<0:30001/unit:8>>)
+	]),
+	%% Receive a FRAME_SIZE_ERROR connection error.
+	{ok, << _:24, 7:8, _:72, 6:32 >>} = gen_tcp:recv(Socket, 17, 6000),
 	ok.
-
-%% @todo How do I test this?
-%%
-%%	max_frame_size_client_custom_respect_limits(Config) ->
-%%		doc("The server must not send frame sizes of more than "
-%%			"client's advertised limits. (RFC7540 4.1, RFC7540 4.2)"),
 
 %% I am using FRAME_SIZE_ERROR here because the information in the
 %% frame header tells us this frame is at least 1 byte long, while
@@ -2422,7 +2420,7 @@ continuation_with_extension_frame_interleaved_error(Config) ->
 %   incomplete SETTINGS frame MUST be treated as a connection error
 %   (Section 5.4.1) of type PROTOCOL_ERROR.
 
-%% (RFC7540 6.5.2)
+%% Settings.
 
 settings_header_table_size_client(Config) ->
 	doc("The SETTINGS_HEADER_TABLE_SIZE setting can be used to "
@@ -2581,7 +2579,7 @@ settings_max_concurrent_streams_0(Config0) ->
 settings_initial_window_size(Config0) ->
 	doc("The SETTINGS_INITIAL_WINDOW_SIZE setting can be used to "
 		"change the initial window size of streams. (RFC7540 6.5.2)"),
-	%% Create a new listener that allows only a single concurrent stream.
+	%% Create a new listener that sets initial window sizes to 100000.
 	Config = cowboy_test:init_http(name(), #{
 		env => #{dispatch => cowboy_router:compile(init_routes(Config0))},
 		initial_connection_window_size => 100000,
@@ -2630,7 +2628,7 @@ settings_initial_window_size_after_ack(Config0) ->
 	doc("The SETTINGS_INITIAL_WINDOW_SIZE setting can be used to "
 		"change the initial window size of streams. It is applied "
 		"to all existing streams upon receipt of the SETTINGS ack. (RFC7540 6.5.2)"),
-	%% Create a new listener that allows only a single concurrent stream.
+	%% Create a new listener that sets the initial stream window sizes to 0.
 	Config = cowboy_test:init_http(name(), #{
 		env => #{dispatch => cowboy_router:compile(init_routes(Config0))},
 		initial_stream_window_size => 0
@@ -2670,7 +2668,7 @@ settings_initial_window_size_before_ack(Config0) ->
 	doc("The SETTINGS_INITIAL_WINDOW_SIZE setting can be used to "
 		"change the initial window size of streams. It is only "
 		"applied upon receipt of the SETTINGS ack. (RFC7540 6.5.2)"),
-	%% Create a new listener that allows only a single concurrent stream.
+	%% Create a new listener that sets the initial stream window sizes to 0.
 	Config = cowboy_test:init_http(name(), #{
 		env => #{dispatch => cowboy_router:compile(init_routes(Config0))},
 		initial_stream_window_size => 0
@@ -2711,13 +2709,56 @@ settings_initial_window_size_before_ack(Config0) ->
 	{error, timeout} = gen_tcp:recv(Socket, 0, 1000),
 	ok.
 
-%   SETTINGS_MAX_FRAME_SIZE (0x5):
-%      The initial value is 2^14 (16,384) octets.  The value advertised
-%      by an endpoint MUST be between this initial value and the maximum
-%      allowed frame size (2^24-1 or 16,777,215 octets), inclusive.
-%      Values outside this range MUST be treated as a connection error
-%      (Section 5.4.1) of type PROTOCOL_ERROR.
-%
+settings_max_frame_size(Config0) ->
+	doc("The SETTINGS_MAX_FRAME_SIZE setting can be used to "
+		"change the maximum frame size allowed. (RFC7540 6.5.2)"),
+	%% Create a new listener that sets the maximum frame size to 30000.
+	Config = cowboy_test:init_http(name(), #{
+		env => #{dispatch => cowboy_router:compile(init_routes(Config0))},
+		max_frame_size_received => 30000
+	}, Config0),
+	%% Do the handshake.
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame initiating a stream followed by
+	%% a single 25000 bytes DATA frame.
+	Headers = [
+		{<<":method">>, <<"POST">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/long_polling">>}
+	],
+	{HeadersBlock, _} = cow_hpack:encode(Headers),
+	ok = gen_tcp:send(Socket, [
+		cow_http2:headers(1, nofin, HeadersBlock),
+		cow_http2:data(1, fin, <<0:25000/unit:8>>)
+	]),
+	%% Receive a proper response.
+	{ok, << Len2:24, 1:8, _:40 >>} = gen_tcp:recv(Socket, 9, 6000),
+	{ok, _} = gen_tcp:recv(Socket, Len2, 6000),
+	%% No errors follow due to our sending of a 25000 bytes frame.
+	{error, timeout} = gen_tcp:recv(Socket, 0, 1000),
+	ok.
+
+settings_max_frame_size_reject_too_small(Config) ->
+	doc("A SETTINGS_MAX_FRAME_SIZE smaller than 16384 must be rejected "
+		"with a PROTOCOL_ERROR connection error. (RFC7540 6.5.2)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a SETTINGS frame with a SETTINGS_MAX_FRAME_SIZE lower than 16384.
+	ok = gen_tcp:send(Socket, << 6:24, 4:8, 0:40, 5:16, 16383:32 >>),
+	%% Receive a PROTOCOL_ERROR connection error.
+	{ok, << _:24, 7:8, _:72, 1:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+settings_max_frame_size_reject_too_large(Config) ->
+	doc("A SETTINGS_MAX_FRAME_SIZE larger than 16777215 must be rejected "
+		"with a PROTOCOL_ERROR connection error. (RFC7540 6.5.2)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a SETTINGS frame with a SETTINGS_MAX_FRAME_SIZE larger than 16777215.
+	ok = gen_tcp:send(Socket, << 6:24, 4:8, 0:40, 5:16, 16777216:32 >>),
+	%% Receive a PROTOCOL_ERROR connection error.
+	{ok, << _:24, 7:8, _:72, 1:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
 %   SETTINGS_MAX_HEADER_LIST_SIZE (0x6):  This advisory setting informs a
 %      peer of the maximum size of header list that the sender is
 %      prepared to accept, in octets.  The value is based on the

@@ -28,15 +28,19 @@ groups() -> [{clear, [parallel], ct_helper:all(?MODULE)}].
 init_routes(_) -> [
 	{"localhost", [
 		{"/", hello_h, []},
+		{"/echo/:key", echo_h, []},
 		{"/resp_iolist_body", resp_iolist_body_h, []}
 	]}
 ].
 
-%% Do a prior knowledge handshake (function copied from rfc7540_SUITE).
+%% Do a prior knowledge handshake (function originally copied from rfc7540_SUITE).
 do_handshake(Config) ->
+	do_handshake(#{}, Config).
+
+do_handshake(Settings, Config) ->
 	{ok, Socket} = gen_tcp:connect("localhost", config(port, Config), [binary, {active, false}]),
 	%% Send a valid preface.
-	ok = gen_tcp:send(Socket, ["PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n", cow_http2:settings(#{})]),
+	ok = gen_tcp:send(Socket, ["PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n", cow_http2:settings(Settings)]),
 	%% Receive the server preface.
 	{ok, << Len:24 >>} = gen_tcp:recv(Socket, 3, 1000),
 	{ok, << 4:8, 0:40, _:Len/binary >>} = gen_tcp:recv(Socket, 6 + Len, 1000),
@@ -79,6 +83,38 @@ initial_connection_window_size(Config) ->
 	%% Receive a WINDOW_UPDATE frame incrementing the connection window to 100000.
 	{ok, <<4:24, 8:8, 0:41, Size:31>>} = gen_tcp:recv(Socket, 13, 1000),
 	ConfiguredSize = Size + 65535,
+	ok.
+
+max_frame_size_sent(Config) ->
+	doc("Confirm that frames sent by Cowboy are limited in size "
+		"by the max_frame_size_sent configuration value."),
+	MaxFrameSize = 20000,
+	ProtoOpts = #{
+		env => #{dispatch => cowboy_router:compile(init_routes(Config))},
+		max_frame_size_sent => MaxFrameSize
+	},
+	{ok, _} = cowboy:start_clear(name(), [{port, 0}], ProtoOpts),
+	Port = ranch:get_port(name()),
+	{ok, Socket} = do_handshake(#{max_frame_size => MaxFrameSize + 10000}, [{port, Port}|Config]),
+	%% Send a request with a 30000 bytes body.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"POST">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/echo/read_body">>}
+	]),
+	ok = gen_tcp:send(Socket, [
+		cow_http2:headers(1, nofin, HeadersBlock),
+		cow_http2:data(1, nofin, <<0:16384/unit:8>>),
+		cow_http2:data(1, fin, <<0:13616/unit:8>>)
+	]),
+	%% Receive a HEADERS frame as a response.
+	{ok, <<Len:24, 1:8, _:40>>} = gen_tcp:recv(Socket, 9, 6000),
+	{ok, _} = gen_tcp:recv(Socket, Len, 6000),
+	%% The DATA frames following must have lengths of 20000
+	%% and then 10000 due to the limit.
+	{ok, <<20000:24, 0:8, _:40, _:20000/unit:8>>} = gen_tcp:recv(Socket, 20009, 6000),
+	{ok, <<10000:24, 0:8, _:40, _:10000/unit:8>>} = gen_tcp:recv(Socket, 10009, 6000),
 	ok.
 
 preface_timeout_infinity(Config) ->

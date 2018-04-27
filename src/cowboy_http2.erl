@@ -32,6 +32,8 @@
 	max_concurrent_streams => non_neg_integer() | infinity,
 	max_decode_table_size => non_neg_integer(),
 	max_encode_table_size => non_neg_integer(),
+	max_frame_size_received => 16384..16777215,
+	max_frame_size_sent => 16384..16777215 | infinity,
 	middlewares => [module()],
 	preface_timeout => timeout(),
 	shutdown_timeout => timeout(),
@@ -89,7 +91,7 @@
 	%% the final settings handling will be very different.
 	local_settings = #{
 %		header_table_size => 4096,
-%		enable_push => false, %% We are the server. Push is never enabled.
+%		enable_push => false, %% We are the server. Push is never enabled for clients.
 %		max_concurrent_streams => infinity,
 		initial_window_size => 65535,
 		max_frame_size => 16384
@@ -215,9 +217,10 @@ settings_init(State, Opts) ->
 		max_concurrent_streams, infinity),
 	S2 = setting_from_opt(S1, Opts, initial_stream_window_size,
 		initial_window_size, 65535),
-	%% @todo max_frame_size
+	S3 = setting_from_opt(S2, Opts, max_frame_size_received,
+		max_frame_size, 16384),
 	%% @todo max_header_list_size
-	Settings = setting_from_opt(S2, Opts, enable_connect_protocol,
+	Settings = setting_from_opt(S3, Opts, enable_connect_protocol,
 		enable_connect_protocol, false),
 	State#state{next_settings=Settings}.
 
@@ -810,10 +813,15 @@ send_data(State=#state{local_window=ConnWindow},
 		Stream=#stream{local_window=StreamWindow}, IsFin, Data, In)
 		when ConnWindow =< 0; StreamWindow =< 0 ->
 	{State, queue_data(Stream, IsFin, Data, In)};
-send_data(State=#state{socket=Socket, transport=Transport, local_window=ConnWindow},
+send_data(State=#state{socket=Socket, transport=Transport, opts=Opts,
+		remote_settings=RemoteSettings, local_window=ConnWindow},
 		Stream=#stream{id=StreamID, local_window=StreamWindow}, IsFin, Data, In) ->
-	MaxFrameSize = 16384, %% @todo Use the real SETTINGS_MAX_FRAME_SIZE set by the client.
-	MaxSendSize = min(min(ConnWindow, StreamWindow), MaxFrameSize),
+	RemoteMaxFrameSize = maps:get(max_frame_size, RemoteSettings, 16384),
+	ConfiguredMaxFrameSize = maps:get(max_frame_size_sent, Opts, infinity),
+	MaxSendSize = min(
+		min(ConnWindow, StreamWindow),
+		min(RemoteMaxFrameSize, ConfiguredMaxFrameSize)
+	),
 	case Data of
 		{sendfile, Offset, Bytes, Path} when Bytes =< MaxSendSize ->
 			Transport:send(Socket, cow_http2:data_header(StreamID, IsFin, Bytes)),

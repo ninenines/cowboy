@@ -26,6 +26,8 @@ opts() :: #{
     max_concurrent_streams         => non_neg_integer() | infinity,
     max_decode_table_size          => non_neg_integer(),
     max_encode_table_size          => non_neg_integer(),
+    max_frame_size_received        => 16384..16777215,
+    max_frame_size_sent            => 16384..16777215 | infinity,
     middlewares                    => [module()],
     preface_timeout                => timeout(),
     shutdown_timeout               => timeout(),
@@ -84,6 +86,19 @@ max_encode_table_size (4096)::
     value to what the client advertises and choose the smallest one as the
     encoder's header table size.
 
+max_frame_size_received (16384)::
+    Maximum size of the frames received by the server. This value is
+    advertised to the remote endpoint which can then decide to use
+    any value lower or equal for its frame sizes.
+
+max_frame_size_sent (infinity)::
+    Maximum size of the frames sent by the server. This option allows
+    setting an upper limit to the frame sizes instead of blindly
+    following the client's advertised maximum.
++
+    Note that actual frame sizes may be lower than the limit when
+    there is not enough space left in the flow control window.
+
 middlewares ([cowboy_router, cowboy_handler])::
     Middlewares to run for every request.
 
@@ -100,7 +115,8 @@ stream_handlers ([cowboy_stream_h])::
 
 * *2.4*: Add the options `initial_connection_window_size`,
          `initial_stream_window_size`, `max_concurrent_streams`,
-         `max_decode_table_size` and `max_encode_table_size`
+         `max_decode_table_size`, `max_encode_table_size`,
+         `max_frame_size_received` and `max_frame_size_sent`
          to configure HTTP/2 SETTINGS.
 * *2.4*: Add the experimental option `enable_connect_protocol`.
 * *2.0*: Protocol introduced.
