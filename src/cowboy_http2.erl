@@ -117,9 +117,15 @@
 	%% by the client or by the server through PUSH_PROMISE frames.
 	streams = [] :: [stream()],
 
-	%% HTTP/2 streams that have been reset recently. We are expected
-	%% to keep receiving additional frames after sending an RST_STREAM.
+	%% HTTP/2 streams that have been reset recently by the server.
+	%% We are expected to keep receiving additional frames after
+	%% sending an RST_STREAM.
 	lingering_streams = [] :: [cowboy_stream:streamid()],
+
+	%% HTTP/2 streams that have been reset recently by the client.
+	%% We keep a few of these around in order to reject subsequent
+	%% frames on these streams.
+	rst_lingering_streams = [] :: [cowboy_stream:streamid()],
 
 	%% Streams can spawn zero or more children which are then managed
 	%% by this module if operating as a supervisor.
@@ -445,7 +451,8 @@ frame(State=#state{client_streamid=LastStreamID}, {rst_stream, StreamID, _})
 	terminate(State, {connection_error, protocol_error,
 		'RST_STREAM frame received on a stream in idle state. (RFC7540 5.1)'});
 frame(State, {rst_stream, StreamID, Reason}) ->
-	stream_terminate(State, StreamID, {stream_error, Reason, 'Stream reset requested by client.'});
+	stream_terminate(stream_rst_linger(State, StreamID), StreamID,
+		{stream_error, Reason, 'Stream reset requested by client.'});
 %% SETTINGS frame.
 frame(State0=#state{socket=Socket, transport=Transport, opts=Opts,
 		remote_settings=Settings0}, {settings, Settings}) ->
@@ -504,7 +511,8 @@ frame(State=#state{client_streamid=LastStreamID}, {window_update, StreamID, _})
 		when StreamID > LastStreamID ->
 	terminate(State, {connection_error, protocol_error,
 		'WINDOW_UPDATE frame received on a stream in idle state. (RFC7540 5.1)'});
-frame(State0=#state{streams=Streams0}, {window_update, StreamID, Increment}) ->
+frame(State0=#state{streams=Streams0, rst_lingering_streams=RstLingering},
+		{window_update, StreamID, Increment}) ->
 	case lists:keyfind(StreamID, #stream.id, Streams0) of
 		#stream{local_window=StreamWindow} when StreamWindow + Increment > 16#7fffffff ->
 			stream_reset(State0, StreamID, {stream_error, flow_control_error,
@@ -514,11 +522,14 @@ frame(State0=#state{streams=Streams0}, {window_update, StreamID, Increment}) ->
 				Stream0#stream{local_window=StreamWindow + Increment}),
 			Streams = lists:keystore(StreamID, #stream.id, Streams0, Stream),
 			State#state{streams=Streams};
-		%% @todo We must reject WINDOW_UPDATE frames on RST_STREAM closed streams.
 		false ->
 			%% WINDOW_UPDATE frames may be received for a short period of time
 			%% after a stream is closed. They must be ignored.
-			State0
+			case lists:member(StreamID, RstLingering) of
+				false -> State0;
+				true -> stream_closed(State0, StreamID, {stream_error, stream_closed,
+					'WINDOW_UPDATE frame received after the stream was reset. (RFC7540 5.1)'})
+			end
 	end;
 %% Unexpected CONTINUATION frame.
 frame(State, {continuation, _, _, _}) ->
@@ -1092,6 +1103,10 @@ stream_req_init(State=#state{ref=Ref, peer=Peer, sock=Sock, cert=Cert},
 			'The :authority pseudo-header is invalid. (RFC7540 8.1.2.3)')
 	end.
 
+stream_closed(State=#state{socket=Socket, transport=Transport}, StreamID, _) ->
+	Transport:send(Socket, cow_http2:rst_stream(StreamID, stream_closed)),
+	State.
+
 stream_malformed(State=#state{socket=Socket, transport=Transport}, StreamID, _) ->
 	Transport:send(Socket, cow_http2:rst_stream(StreamID, protocol_error)),
 	State.
@@ -1171,6 +1186,11 @@ stream_reset(State=#state{socket=Socket, transport=Transport}, StreamID, StreamE
 stream_linger(State=#state{lingering_streams=Lingering0}, StreamID) ->
 	Lingering = [StreamID|lists:sublist(Lingering0, 100 - 1)],
 	State#state{lingering_streams=Lingering}.
+
+%% We only keep up to 10 streams in this state. @todo Make it configurable?
+stream_rst_linger(State=#state{rst_lingering_streams=Lingering0}, StreamID) ->
+	Lingering = [StreamID|lists:sublist(Lingering0, 10 - 1)],
+	State#state{rst_lingering_streams=Lingering}.
 
 stream_terminate(State0=#state{streams=Streams0, children=Children0}, StreamID, Reason) ->
 	case lists:keytake(StreamID, #stream.id, Streams0) of
