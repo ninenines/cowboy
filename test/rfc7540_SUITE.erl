@@ -385,9 +385,24 @@ http_upgrade_accept_client_preface_empty_settings(Config) ->
 	%% Receive the server preface.
 	{ok, << Len:24 >>} = gen_tcp:recv(Socket, 3, 1000),
 	{ok, << 4:8, 0:40, _:Len/binary >>} = gen_tcp:recv(Socket, 6 + Len, 1000),
-	%% Receive the SETTINGS ack.
-	{ok, << 0:24, 4:8, 1:8, 0:32 >>} = gen_tcp:recv(Socket, 9, 1000),
-	ok.
+	%% Receive the SETTINGS ack. The response might arrive beforehand.
+	Received = lists:reverse(lists:foldl(fun(_, Acc) ->
+		case gen_tcp:recv(Socket, 9, 1000) of
+			{ok, << SkipLen:24, 1:8, _:8, 1:32 >>} ->
+				{ok, _} = gen_tcp:recv(Socket, SkipLen, 1000),
+				[headers|Acc];
+			{ok, << SkipLen:24, 0:8, _:8, 1:32 >>} ->
+				{ok, _} = gen_tcp:recv(Socket, SkipLen, 1000),
+				[data|Acc];
+			{ok, << 0:24, 4:8, 1:8, 0:32 >>} ->
+				[settings_ack|Acc]
+		end
+	end, [], [1, 2, 3])),
+	case Received of
+		[settings_ack|_] -> ok;
+		[headers, settings_ack|_] -> ok;
+		[headers, data, settings_ack] -> ok
+	end.
 
 http_upgrade_client_preface_settings_ack_timeout(Config) ->
 	doc("The SETTINGS frames sent by the client must be acknowledged. (RFC7540 3.5, RFC7540 6.5.3)"),
@@ -510,7 +525,10 @@ http_upgrade_response_half_closed(Config) ->
 	%% Receive the server preface.
 	{ok, << Len:24 >>} = gen_tcp:recv(Socket, 3, 1000),
 	{ok, << 4:8, 0:40, _:Len/binary >>} = gen_tcp:recv(Socket, 6 + Len, 1000),
-	%% Skip the SETTINGS ack, receive the response HEADERS, DATA and RST_STREAM (streamid 1).
+	%% Skip the SETTINGS ack. Receive an RST_STREAM possibly following by
+	%% a HEADERS frame, or a GOAWAY following HEADERS and DATA. This
+	%% corresponds to the stream being in half-closed and closed states.
+	%% The reason must be STREAM_CLOSED.
 	Received = lists:reverse(lists:foldl(fun(_, Acc) ->
 		case gen_tcp:recv(Socket, 9, 1000) of
 			{ok, << 0:24, 4:8, 1:8, 0:32 >>} ->
@@ -525,6 +543,10 @@ http_upgrade_response_half_closed(Config) ->
 				%% We expect a STREAM_CLOSED reason.
 				{ok, << 5:32 >>} = gen_tcp:recv(Socket, 4, 1000),
 				[rst_stream|Acc];
+			{ok, << 8:24, 7:8, 0:40 >>} ->
+				%% We expect a STREAM_CLOSED reason.
+				{ok, << 1:32, 5:32 >>} = gen_tcp:recv(Socket, 8, 1000),
+				[goaway|Acc];
 			{error, _} ->
 				%% Can be timeouts, ignore them.
 				Acc
@@ -533,7 +555,7 @@ http_upgrade_response_half_closed(Config) ->
 	case Received of
 		[rst_stream] -> ok;
 		[headers, rst_stream] -> ok;
-		[headers, data, rst_stream] -> ok
+		[headers, data, goaway] -> ok
 	end.
 
 %% Starting HTTP/2 for "https" URIs.
