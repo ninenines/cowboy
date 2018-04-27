@@ -2173,9 +2173,11 @@ reject_streamid_0(Config) ->
 	{ok, << _:24, 7:8, _:72, 1:32 >>} = gen_tcp:recv(Socket, 17, 6000),
 	ok.
 
+%% See the comment for reject_streamid_lower for the rationale behind
+%% having a STREAM_CLOSED connection error.
 http_upgrade_reject_reuse_streamid_1(Config) ->
 	doc("Attempts to reuse streamid 1 after upgrading to HTTP/2 "
-		"must be rejected with a PROTOCOL_ERROR connection error. (RFC7540 5.1.1)"),
+		"must be rejected with a STREAM_CLOSED connection error. (RFC7540 5.1.1)"),
 	{ok, Socket} = gen_tcp:connect("localhost", config(port, Config), [binary, {active, false}]),
 	ok = gen_tcp:send(Socket, [
 		"GET / HTTP/1.1\r\n"
@@ -2218,8 +2220,8 @@ http_upgrade_reject_reuse_streamid_1(Config) ->
 		{<<":path">>, <<"/">>}
 	]),
 	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
-	%% Receive a PROTOCOL_ERROR connection error.
-	{ok, << _:24, 7:8, _:72, 1:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	%% Receive a STREAM_CLOSED connection error.
+	{ok, << _:24, 7:8, _:72, 5:32 >>} = gen_tcp:recv(Socket, 17, 6000),
 	ok.
 
 %% The RFC gives us various error codes to return for this case,
