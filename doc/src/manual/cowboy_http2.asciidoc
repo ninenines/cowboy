@@ -30,6 +30,7 @@ opts() :: #{
     max_frame_size_sent            => 16384..16777215 | infinity,
     middlewares                    => [module()],
     preface_timeout                => timeout(),
+    settings_timeout               => timeout(),
     shutdown_timeout               => timeout(),
     stream_handlers                => [module()]
 }
@@ -105,6 +106,9 @@ middlewares ([cowboy_router, cowboy_handler])::
 preface_timeout (5000)::
     Time in ms Cowboy is willing to wait for the connection preface.
 
+settings_timeout (5000)::
+    Time in ms Cowboy is willing to wait for a SETTINGS ack.
+
 shutdown_timeout (5000)::
     Time in ms Cowboy will wait for child processes to shut down before killing them.
 
@@ -116,8 +120,9 @@ stream_handlers ([cowboy_stream_h])::
 * *2.4*: Add the options `initial_connection_window_size`,
          `initial_stream_window_size`, `max_concurrent_streams`,
          `max_decode_table_size`, `max_encode_table_size`,
-         `max_frame_size_received` and `max_frame_size_sent`
-         to configure HTTP/2 SETTINGS.
+         `max_frame_size_received`, `max_frame_size_sent`
+         and `settings_timeout` to configure HTTP/2 SETTINGS
+         and related behavior.
 * *2.4*: Add the experimental option `enable_connect_protocol`.
 * *2.0*: Protocol introduced.
 

@@ -420,11 +420,32 @@ http_upgrade_client_preface_settings_ack_timeout(Config) ->
 	%% Receive the server preface.
 	{ok, << Len:24 >>} = gen_tcp:recv(Socket, 3, 1000),
 	{ok, << 4:8, 0:40, _:Len/binary >>} = gen_tcp:recv(Socket, 6 + Len, 1000),
-	%% Receive the SETTINGS ack.
-	{ok, << 0:24, 4:8, 1:8, 0:32 >>} = gen_tcp:recv(Socket, 9, 1000),
-	%% Do not ack the server preface. Expect a GOAWAY with reason SETTINGS_TIMEOUT.
-	{ok, << _:24, 7:8, _:72, 4:32 >>} = gen_tcp:recv(Socket, 17, 6000),
-	ok.
+	%% Skip the SETTINGS ack. Receive a GOAWAY with reason SETTINGS_TIMEOUT,
+	%% possibly following a HEADERS or HEADERS and DATA frames.
+	Received = lists:reverse(lists:foldl(fun(_, Acc) ->
+		case gen_tcp:recv(Socket, 9, 6000) of
+			{ok, << 0:24, 4:8, 1:8, 0:32 >>} ->
+				Acc;
+			{ok, << SkipLen:24, 1:8, _:8, 1:32 >>} ->
+				{ok, _} = gen_tcp:recv(Socket, SkipLen, 1000),
+				[headers|Acc];
+			{ok, << SkipLen:24, 0:8, _:8, 1:32 >>} ->
+				{ok, _} = gen_tcp:recv(Socket, SkipLen, 1000),
+				[data|Acc];
+			{ok, << 8:24, 7:8, 0:40 >>} ->
+				%% We expect a SETTINGS_TIMEOUT reason.
+				{ok, << 1:32, 4:32 >>} = gen_tcp:recv(Socket, 8, 1000),
+				[goaway|Acc];
+			{error, _} ->
+				%% Can be timeouts, ignore them.
+				Acc
+		end
+	end, [], [1, 2, 3, 4])),
+	case Received of
+		[goaway] -> ok;
+		[headers, goaway] -> ok;
+		[headers, data, goaway] -> ok
+	end.
 
 %% @todo We need a successful test with actual options in HTTP2-Settings.
 %% SETTINGS_MAX_FRAME_SIZE is probably the easiest to test. The relevant

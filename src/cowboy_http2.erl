@@ -36,6 +36,7 @@
 	max_frame_size_sent => 16384..16777215 | infinity,
 	middlewares => [module()],
 	preface_timeout => timeout(),
+	settings_timeout => timeout(),
 	shutdown_timeout => timeout(),
 	stream_handlers => [module()]
 }.
@@ -85,10 +86,6 @@
 
 	%% Settings are separate for each endpoint. In addition, settings
 	%% must be acknowledged before they can be expected to be applied.
-	%%
-	%% @todo Since the ack is required, we must timeout if we don't receive it.
-	%% @todo I haven't put as much thought as I should have on this,
-	%% the final settings handling will be very different.
 	local_settings = #{
 %		header_table_size => 4096,
 %		enable_push => false, %% We are the server. Push is never enabled for clients.
@@ -97,10 +94,8 @@
 		max_frame_size => 16384
 %		max_header_list_size => infinity
 	} :: map(),
-	%% @todo We need a TimerRef to do SETTINGS_TIMEOUT errors.
-	%% We need to be careful there. It's well possible that we send
-	%% two SETTINGS frames before we receive a SETTINGS ack.
 	next_settings = undefined :: undefined | map(),
+	next_settings_timer = undefined :: undefined | reference(),
 	remote_settings = #{
 		initial_window_size => 65535
 	} :: map(),
@@ -228,7 +223,13 @@ settings_init(State, Opts) ->
 	%% @todo max_header_list_size
 	Settings = setting_from_opt(S3, Opts, enable_connect_protocol,
 		enable_connect_protocol, false),
-	State#state{next_settings=Settings}.
+	%% Start a timer if necessary. The timer will trigger only
+	%% if no SETTINGS ack was received in time.
+	TRef = case maps:get(settings_timeout, Opts, 5000) of
+		infinity -> undefined;
+		SettingsTimeout -> erlang:start_timer(SettingsTimeout, self(), settings_timeout)
+	end,
+	State#state{next_settings=Settings, next_settings_timer=TRef}.
 
 setting_from_opt(Settings, Opts, OptName, SettingName, Default) ->
 	case maps:get(OptName, Opts, Default) of
@@ -258,7 +259,8 @@ before_loop(State, Buffer) ->
 	loop(State, Buffer).
 
 loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
-		opts=Opts, children=Children, parse_state=PS}, Buffer) ->
+		opts=Opts, children=Children, next_settings_timer=SettingsTRef,
+		parse_state=PS}, Buffer) ->
 	Transport:setopts(Socket, [{active, once}]),
 	{OK, Closed, Error} = Transport:messages(),
 	InactivityTimeout = maps:get(inactivity_timeout, Opts, 300000),
@@ -288,6 +290,9 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 				_ ->
 					loop(State, Buffer)
 			end;
+		{timeout, SettingsTRef, settings_timeout} ->
+			terminate(State, {connection_error, settings_timeout,
+				'The SETTINGS ack was not received within the configured time. (RFC7540 6.5.3)'});
 		%% Messages pertaining to a stream.
 		{{Pid, StreamID}, Msg} when Pid =:= self() ->
 			loop(info(State, StreamID, Msg), Buffer);
@@ -470,9 +475,12 @@ frame(State0=#state{socket=Socket, transport=Transport, opts=Opts,
 			State
 	end, State1, Settings);
 %% Ack for a previously sent SETTINGS frame.
-frame(State0=#state{local_settings=Local0, next_settings=NextSettings}, settings_ack) ->
+frame(State0=#state{local_settings=Local0, next_settings=NextSettings,
+		next_settings_timer=TRef}, settings_ack) ->
+	ok = erlang:cancel_timer(TRef, [{async, true}, {info, false}]),
 	Local = maps:merge(Local0, NextSettings),
-	State1 = State0#state{local_settings=Local, next_settings=#{}},
+	State1 = State0#state{local_settings=Local, next_settings=#{},
+		next_settings_timer=undefined},
 	maps:fold(fun
 		(header_table_size, MaxSize, State=#state{decode_state=DecodeState0}) ->
 			DecodeState = cow_hpack:set_max_size(MaxSize, DecodeState0),
