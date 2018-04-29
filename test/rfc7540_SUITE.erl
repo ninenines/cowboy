@@ -2335,7 +2335,49 @@ reject_streamid_lower(Config) ->
 %   timely fashion.  Failure to do so could lead to a deadlock when
 %   critical frames, such as WINDOW_UPDATE, are not read and acted upon.
 
-%% @todo Stream priorities. (RFC7540 5.3 5.3.x)
+%% (RFC7540 5.3.1)
+%   Inside the dependency tree, a dependent stream SHOULD only be
+%   allocated resources if either all of the streams that it depends on
+%   (the chain of parent streams up to 0x0) are closed or it is not
+%   possible to make progress on them.
+
+%% We reject all invalid HEADERS with a connection error because
+%% we do not want to waste resources decoding them.
+reject_self_dependent_stream_headers(Config) ->
+	doc("HEADERS frames opening a stream that depends on itself "
+		"must be rejected with a PROTOCOL_ERROR connection error. (RFC7540 5.3.1)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame with priority set to depend on itself.
+	ok = gen_tcp:send(Socket, << 5:24, 1:8,
+		0:2, 1:1, 0:4, 1:1, 0:1, 1:31, 0:1, 1:31, 0:8 >>),
+	%% Receive a PROTOCOL_ERROR connection error.
+	{ok, << _:24, 7:8, _:72, 1:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+%% We reject all invalid HEADERS with a connection error because
+%% we do not want to waste resources decoding them.
+reject_self_dependent_stream_headers_with_padding(Config) ->
+	doc("HEADERS frames opening a stream that depends on itself "
+		"must be rejected with a PROTOCOL_ERROR connection error. (RFC7540 5.3.1)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame with priority set to depend on itself.
+	ok = gen_tcp:send(Socket, << 6:24, 1:8,
+		0:2, 1:1, 0:1, 1:1, 0:2, 1:1, 0:1, 1:31, 0:8, 0:1, 1:31, 0:8 >>),
+	%% Receive a PROTOCOL_ERROR connection error.
+	{ok, << _:24, 7:8, _:72, 1:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+reject_self_dependent_stream_priority(Config) ->
+	doc("PRIORITY frames making a stream depend on itself "
+		"must be rejected with a PROTOCOL_ERROR stream error. (RFC7540 5.3.1)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a PRIORITY frame making a stream depend on itself.
+	ok = gen_tcp:send(Socket, cow_http2:priority(1, shared, 1, 123)),
+	%% Receive a PROTOCOL_ERROR stream error.
+	{ok, << _:24, 3:8, _:8, 1:32, 1:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+	ok.
+
+%% @todo Stream priorities. (RFC7540 5.3.2 5.3.3 5.3.4 5.3.5)
 
 %% (RFC7540 5.4.1)
 %   An endpoint that encounters a connection error SHOULD first send a
