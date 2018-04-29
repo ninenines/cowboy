@@ -420,14 +420,28 @@ frame(State0=#state{remote_window=ConnWindow, streams=Streams, lingering_streams
 frame(State, {headers, StreamID, _, _, _}) when StreamID rem 2 =:= 0 ->
 	terminate(State, {connection_error, protocol_error,
 		'HEADERS frame received with even-numbered streamid. (RFC7540 5.1.1)'});
-%% HEADERS frame received on (half-)closed stream.
-%%
-%% We always close the connection here to avoid having to decode
-%% the headers to not waste resources on non-compliant clients.
-frame(State=#state{client_streamid=LastStreamID}, {headers, StreamID, _, _, _})
+%% Either a HEADERS frame received on (half-)closed stream,
+%% or a HEADERS frame containing the trailers.
+frame(State=#state{client_streamid=LastStreamID, streams=Streams},
+		{headers, StreamID, IsFin, IsHeadFin, HeaderBlockOrFragment})
 		when StreamID =< LastStreamID ->
-	terminate(State, {connection_error, stream_closed,
-		'HEADERS frame received on a stream in closed or half-closed state. (RFC7540 5.1)'});
+	case lists:keyfind(StreamID, #stream.id, Streams) of
+		Stream = #stream{remote=nofin} when IsFin =:= fin ->
+			case IsHeadFin of
+				head_fin ->
+					stream_decode_trailers(State, Stream, HeaderBlockOrFragment);
+				head_nofin ->
+					State#state{parse_state={continuation, StreamID, IsFin, HeaderBlockOrFragment}}
+			end;
+		%% We always close the connection here to avoid having to decode
+		%% the headers to not waste resources on non-compliant clients.
+		#stream{remote=nofin} when IsFin =:= nofin ->
+			terminate(State, {connection_error, protocol_error,
+				'Trailing HEADERS frame received without the END_STREAM flag set. (RFC7540 8.1, RFC7540 8.1.2.6)'});
+		_ ->
+			terminate(State, {connection_error, stream_closed,
+				'HEADERS frame received on a stream in closed or half-closed state. (RFC7540 5.1)'})
+	end;
 %% Single HEADERS frame headers block.
 frame(State, {headers, StreamID, IsFin, head_fin, HeaderBlock}) ->
 	%% @todo We probably need to validate StreamID here and in 4 next clauses.
@@ -544,10 +558,17 @@ frame(State, {continuation, _, _, _}) ->
 	terminate(State, {connection_error, protocol_error,
 		'CONTINUATION frames MUST be preceded by a HEADERS frame. (RFC7540 6.10)'}).
 
-continuation_frame(State=#state{parse_state={continuation, StreamID, IsFin, HeaderBlockFragment0}},
+continuation_frame(State=#state{client_streamid=LastStreamID, streams=Streams,
+		parse_state={continuation, StreamID, IsFin, HeaderBlockFragment0}},
 		{continuation, StreamID, head_fin, HeaderBlockFragment1}) ->
-	stream_decode_init(State#state{parse_state=normal}, StreamID, IsFin,
-		<< HeaderBlockFragment0/binary, HeaderBlockFragment1/binary >>);
+	HeaderBlock = << HeaderBlockFragment0/binary, HeaderBlockFragment1/binary >>,
+	case StreamID > LastStreamID of
+		true -> %% New stream.
+			stream_decode_init(State#state{parse_state=normal}, StreamID, IsFin, HeaderBlock);
+		false -> %% Trailers.
+			Stream = lists:keyfind(StreamID, #stream.id, Streams),
+			stream_decode_trailers(State, Stream, HeaderBlock)
+	end;
 continuation_frame(State=#state{parse_state={continuation, StreamID, IsFin, HeaderBlockFragment0}},
 		{continuation, StreamID, head_nofin, HeaderBlockFragment1}) ->
 	State#state{parse_state={continuation, StreamID, IsFin,
@@ -1180,6 +1201,34 @@ stream_handler_init(State=#state{opts=Opts,
 		stream_reset(State, StreamID, {internal_error, {Class, Exception},
 			'Unhandled exception in cowboy_stream:init/3.'})
 	end.
+
+stream_decode_trailers(State=#state{decode_state=DecodeState0}, Stream, HeaderBlock) ->
+	try cow_hpack:decode(HeaderBlock, DecodeState0) of
+		{Headers, DecodeState} ->
+			stream_reject_pseudo_headers_in_trailers(State#state{decode_state=DecodeState},
+				Stream#stream{remote=fin}, Headers)
+	catch _:_ ->
+		terminate(State, {connection_error, compression_error,
+			'Error while trying to decode HPACK-encoded header block. (RFC7540 4.3)'})
+	end.
+
+stream_reject_pseudo_headers_in_trailers(State, Stream=#stream{id=StreamID}, Headers) ->
+	case has_pseudo_header(Headers) of
+		false ->
+			%% @todo There's probably a number of regular headers forbidden too.
+			%% @todo Propagate trailers.
+			after_commands(State, Stream);
+		true ->
+			stream_reset(State, StreamID, {stream_error, protocol_error,
+				'Trailer header blocks must not contain pseudo-headers. (RFC7540 8.1.2.1)'})
+	end.
+
+has_pseudo_header([]) ->
+	false;
+has_pseudo_header([{<<":", _/bits>>, _}|_]) ->
+	true;
+has_pseudo_header([_|Tail]) ->
+	has_pseudo_header(Tail).
 
 %% @todo Don't send an RST_STREAM if one was already sent.
 stream_reset(State=#state{socket=Socket, transport=Transport}, StreamID, StreamError) ->

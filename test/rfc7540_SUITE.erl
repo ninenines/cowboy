@@ -3173,6 +3173,114 @@ settings_initial_window_size_reject_overflow(Config) ->
 %   behavior.  These MAY be treated by an implementation as being
 %   equivalent to INTERNAL_ERROR.
 
+accept_trailers(Config) ->
+	doc("Trailing HEADERS frames must be accepted. (RFC7540 8.1)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a request containing DATA and trailing HEADERS frames.
+	{HeadersBlock, EncodeState} = cow_hpack:encode([
+		{<<":method">>, <<"POST">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/long_polling">>},
+		{<<"trailer">>, <<"x-checksum">>}
+	]),
+	{TrailersBlock, _} = cow_hpack:encode([
+		{<<"x-checksum">>, <<"md5:4cc909a007407f3706399b6496babec3">>}
+	], EncodeState),
+	ok = gen_tcp:send(Socket, [
+		cow_http2:headers(1, nofin, HeadersBlock),
+		cow_http2:data(1, nofin, <<0:10000/unit:8>>),
+		cow_http2:headers(1, fin, TrailersBlock)
+	]),
+	%% Receive a HEADERS frame as a response.
+	{ok, << _:24, 1:8, _:40 >>} = gen_tcp:recv(Socket, 9, 6000),
+	ok.
+
+accept_trailers_continuation(Config) ->
+	doc("Trailing HEADERS and CONTINUATION frames must be accepted. (RFC7540 8.1)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a request containing DATA and trailing HEADERS and CONTINUATION frames.
+	{HeadersBlock, EncodeState} = cow_hpack:encode([
+		{<<":method">>, <<"POST">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/long_polling">>},
+		{<<"trailer">>, <<"x-checksum">>}
+	]),
+	{TrailersBlock, _} = cow_hpack:encode([
+		{<<"x-checksum">>, <<"md5:4cc909a007407f3706399b6496babec3">>}
+	], EncodeState),
+	Len = iolist_size(TrailersBlock),
+	ok = gen_tcp:send(Socket, [
+		cow_http2:headers(1, nofin, HeadersBlock),
+		cow_http2:data(1, nofin, <<0:10000/unit:8>>),
+		<<0:24, 1:8, 0:7, 1:1, 0:1, 1:31>>,
+		<<Len:24, 9:8, 0:5, 1:1, 0:3, 1:31>>,
+		TrailersBlock
+	]),
+	%% Receive a HEADERS frame as a response.
+	{ok, << _:24, 1:8, _:40 >>} = gen_tcp:recv(Socket, 9, 6000),
+	ok.
+
+%% We reject all invalid HEADERS with a connection error because
+%% we do not want to waste resources decoding them.
+reject_trailers_nofin(Config) ->
+	doc("Trailing HEADERS frames received without the END_STREAM flag "
+		"set must be rejected with a PROTOCOL_ERROR connection error. "
+		"(RFC7540 8.1, RFC7540 8.1.2.6)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a request containing DATA and trailing HEADERS frames.
+	%% The trailing HEADERS does not have the END_STREAM flag set.
+	{HeadersBlock, EncodeState} = cow_hpack:encode([
+		{<<":method">>, <<"POST">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/long_polling">>},
+		{<<"trailer">>, <<"x-checksum">>}
+	]),
+	{TrailersBlock, _} = cow_hpack:encode([
+		{<<"x-checksum">>, <<"md5:4cc909a007407f3706399b6496babec3">>}
+	], EncodeState),
+	ok = gen_tcp:send(Socket, [
+		cow_http2:headers(1, nofin, HeadersBlock),
+		cow_http2:data(1, nofin, <<0:10000/unit:8>>),
+		cow_http2:headers(1, nofin, TrailersBlock)
+	]),
+	%% Receive a PROTOCOL_ERROR connection error.
+	{ok, << _:24, 7:8, _:72, 1:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+%% We reject all invalid HEADERS with a connection error because
+%% we do not want to waste resources decoding them.
+reject_trailers_nofin_continuation(Config) ->
+	doc("Trailing HEADERS frames received without the END_STREAM flag "
+		"set must be rejected with a PROTOCOL_ERROR connection error. "
+		"(RFC7540 8.1, RFC7540 8.1.2.6)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a request containing DATA and trailing HEADERS and CONTINUATION frames.
+	%% The trailing HEADERS does not have the END_STREAM flag set.
+	{HeadersBlock, EncodeState} = cow_hpack:encode([
+		{<<":method">>, <<"POST">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/long_polling">>},
+		{<<"trailer">>, <<"x-checksum">>}
+	]),
+	{TrailersBlock, _} = cow_hpack:encode([
+		{<<"x-checksum">>, <<"md5:4cc909a007407f3706399b6496babec3">>}
+	], EncodeState),
+	Len = iolist_size(TrailersBlock),
+	ok = gen_tcp:send(Socket, [
+		cow_http2:headers(1, nofin, HeadersBlock),
+		cow_http2:data(1, nofin, <<0:10000/unit:8>>),
+		<<0:24, 1:8, 0:9, 1:31>>,
+		<<Len:24, 9:8, 0:5, 1:1, 0:3, 1:31>>,
+		TrailersBlock
+	]),
+	%% Receive a PROTOCOL_ERROR connection error.
+	{ok, << _:24, 7:8, _:72, 1:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
 headers_informational_nofin(Config) ->
 	doc("Informational HEADERS frames must not have the END_STREAM flag set. (RFC7540 8.1)"),
 	{ok, Socket} = do_handshake(Config),
@@ -3194,13 +3302,6 @@ headers_informational_nofin(Config) ->
 	{_, <<"100">>} = lists:keyfind(<<":status">>, 1, RespHeaders),
 	ok.
 
-%% (RFC7540 8.1)
-%   A HEADERS frame (and associated CONTINUATION frames) can only appear
-%   at the start or end of a stream.  An endpoint that receives a HEADERS
-%   frame without the END_STREAM flag set after receiving a final (non-
-%   informational) status code MUST treat the corresponding request or
-%   response as malformed (Section 8.1.2.6).
-%
 %% @todo This one is interesting to implement because Cowboy DOES this.
 %   A server can
 %   send a complete response prior to the client sending an entire
@@ -3261,11 +3362,31 @@ reject_unknown_pseudo_headers(Config) ->
 	{ok, << _:24, 3:8, _:8, 1:32, 1:32 >>} = gen_tcp:recv(Socket, 13, 6000),
 	ok.
 
-%% @todo Implement request trailers. reject_pseudo_headers_in_trailers(Config) ->
-%   Pseudo-header fields MUST NOT appear in trailers.
-%   Endpoints MUST treat a request or response that contains
-%   undefined or invalid pseudo-header fields as malformed
-%   (Section 8.1.2.6).
+reject_pseudo_headers_in_trailers(Config) ->
+	doc("Requests containing pseudo-headers in trailers must be rejected "
+		"with a PROTOCOL_ERROR stream error. (RFC7540 8.1.2.1, RFC7540 8.1.2.6)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a request containing DATA and trailing HEADERS frames.
+	%% The trailing HEADERS contains pseudo-headers.
+	{HeadersBlock, EncodeState} = cow_hpack:encode([
+		{<<":method">>, <<"POST">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/long_polling">>},
+		{<<"trailer">>, <<"x-checksum">>}
+	]),
+	{TrailersBlock, _} = cow_hpack:encode([
+		{<<"x-checksum">>, <<"md5:4cc909a007407f3706399b6496babec3">>},
+		{<<":path">>, <<"/">>}
+	], EncodeState),
+	ok = gen_tcp:send(Socket, [
+		cow_http2:headers(1, nofin, HeadersBlock),
+		cow_http2:data(1, nofin, <<0:10000/unit:8>>),
+		cow_http2:headers(1, fin, TrailersBlock)
+	]),
+	%% Receive a PROTOCOL_ERROR stream error.
+	{ok, << _:24, 3:8, _:8, 1:32, 1:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+	ok.
 
 reject_pseudo_headers_after_regular_headers(Config) ->
 	doc("Requests containing pseudo-headers after regular headers must be rejected "
