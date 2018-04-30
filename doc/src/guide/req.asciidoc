@@ -52,8 +52,6 @@ unless strictly necessary. If adding new fields, make sure
 to namespace the field names so that no conflict can occur
 with future Cowboy updates or third party projects.
 
-// @todo There are currently no tests for direct access.
-
 === Introduction to the cowboy_req interface
 
 // @todo Link to cowboy_req manual

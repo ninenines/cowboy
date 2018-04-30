@@ -435,7 +435,6 @@ frame(State=#state{client_streamid=LastStreamID, streams=Streams},
 	end;
 %% Single HEADERS frame headers block.
 frame(State, {headers, StreamID, IsFin, head_fin, HeaderBlock}) ->
-	%% @todo We probably need to validate StreamID here and in 4 next clauses.
 	stream_decode_init(State, StreamID, IsFin, HeaderBlock);
 %% HEADERS frame starting a headers block. Enter continuation mode.
 frame(State, {headers, StreamID, IsFin, head_nofin, HeaderBlockFragment}) ->
@@ -452,7 +451,6 @@ frame(State, {headers, StreamID, IsFin, head_nofin,
 	State#state{parse_state={continuation, StreamID, IsFin, HeaderBlockFragment}};
 %% PRIORITY frame.
 frame(State, {priority, _StreamID, _IsExclusive, _DepStreamID, _Weight}) ->
-	%% @todo Validate StreamID?
 	%% @todo Handle priority.
 	State;
 %% RST_STREAM frame.
@@ -653,6 +651,9 @@ info(State=#state{client_streamid=LastStreamID, streams=Streams}, StreamID, Msg)
 			State
 	end.
 
+%% @todo Kill the stream if it tries to send a response, headers,
+%% data or push promise when the stream is closed or half-closed.
+
 commands(State, Stream, []) ->
 	after_commands(State, Stream);
 %% Error responses are sent only if a response wasn't sent already.
@@ -665,15 +666,10 @@ commands(State0, Stream=#stream{local=idle}, [{inform, StatusCode, Headers}|Tail
 	State = send_headers(State0, Stream, StatusCode, Headers, nofin),
 	commands(State, Stream, Tail);
 %% Send response headers.
-%%
-%% @todo Kill the stream if it sent a response when one has already been sent.
-%% @todo Keep IsFin in the state.
-%% @todo Same two things above apply to DATA, possibly promise too.
 commands(State0, Stream0=#stream{local=idle},
 		[{response, StatusCode, Headers, Body}|Tail]) ->
 	{State, Stream} = send_response(State0, Stream0, StatusCode, Headers, Body),
 	commands(State, Stream, Tail);
-%% @todo response when local!=idle
 %% Send response headers.
 commands(State0, Stream=#stream{method=Method, local=idle},
 		[{headers, StatusCode, Headers}|Tail]) ->
@@ -683,12 +679,10 @@ commands(State0, Stream=#stream{method=Method, local=idle},
 	end,
 	State = send_headers(State0, Stream, StatusCode, Headers, IsFin),
 	commands(State, Stream#stream{local=IsFin}, Tail);
-%% @todo headers when local!=idle
 %% Send a response body chunk.
 commands(State0, Stream0=#stream{local=nofin}, [{data, IsFin, Data}|Tail]) ->
 	{State, Stream} = send_data(State0, Stream0, IsFin, Data),
 	commands(State, Stream, Tail);
-%% @todo data when local!=nofin
 %% Send trailers.
 commands(State0, Stream0=#stream{local=nofin, te=TE0}, [{trailers, Trailers}|Tail]) ->
 	%% We only accept TE headers containing exactly "trailers" (RFC7540 8.1.2.1).
@@ -712,7 +706,6 @@ commands(State0, Stream0=#stream{local=nofin, te=TE0}, [{trailers, Trailers}|Tai
 %		[{sendfile, IsFin, Offset, Bytes, Path}|Tail]) ->
 %	{State, Stream} = send_data(State0, Stream0, IsFin, {sendfile, Offset, Bytes, Path}),
 %	commands(State, Stream, Tail);
-%% @todo sendfile when local!=nofin
 %% Send a push promise.
 %%
 %% @todo We need to keep track of what promises we made so that we don't
@@ -858,8 +851,6 @@ resume_streams(State0, [Stream0|Tail], Acc) ->
 send_data(State, Stream=#stream{local=Local, local_buffer_size=0, local_trailers=Trailers})
 		when (Trailers =/= undefined) andalso ((Local =:= idle) orelse (Local =:= nofin)) ->
 	send_trailers(State, Stream#stream{local_trailers=undefined}, Trailers);
-%% @todo We might want to print an error if local=fin.
-%%
 %% @todo It's possible that the stream terminates. We must remove it.
 send_data(State=#state{local_window=ConnWindow},
 		Stream=#stream{local=IsFin, local_window=StreamWindow, local_buffer_size=BufferSize})
@@ -883,7 +874,6 @@ send_data(State, Stream=#stream{local_buffer_size=0}, fin, {trailers, Trailers},
 send_data(State, Stream, fin, {trailers, Trailers}, _) ->
 	{State, Stream#stream{local_trailers=Trailers}};
 %% Send data immediately if we can, buffer otherwise.
-%% @todo We might want to print an error if local=fin.
 send_data(State=#state{local_window=ConnWindow},
 		Stream=#stream{local_window=StreamWindow}, IsFin, Data, In)
 		when ConnWindow =< 0; StreamWindow =< 0 ->

@@ -335,7 +335,6 @@ Sent when the request process pushes a resource to the client.
 
 Same as the xref:switch_protocol_command[switch_protocol command].
 
-// @todo Not done for HTTP/2 yet.
 Sent when switching to the HTTP/2 or Websocket protocol.
 
 == Exports
