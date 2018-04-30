@@ -3643,7 +3643,7 @@ reject_missing_pseudo_header_method(Config) ->
 	{HeadersBlock, _} = cow_hpack:encode([
 		{<<":scheme">>, <<"http">>},
 		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
-		{<<":path">>, <<>>}
+		{<<":path">>, <<"/">>}
 	]),
 	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
 	%% Receive a PROTOCOL_ERROR stream error.
@@ -3660,7 +3660,7 @@ reject_many_pseudo_header_method(Config) ->
 		{<<":method">>, <<"GET">>},
 		{<<":scheme">>, <<"http">>},
 		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
-		{<<":path">>, <<>>}
+		{<<":path">>, <<"/">>}
 	]),
 	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
 	%% Receive a PROTOCOL_ERROR stream error.
@@ -3675,7 +3675,7 @@ reject_missing_pseudo_header_scheme(Config) ->
 	{HeadersBlock, _} = cow_hpack:encode([
 		{<<":method">>, <<"GET">>},
 		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
-		{<<":path">>, <<>>}
+		{<<":path">>, <<"/">>}
 	]),
 	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
 	%% Receive a PROTOCOL_ERROR stream error.
@@ -3692,7 +3692,7 @@ reject_many_pseudo_header_scheme(Config) ->
 		{<<":scheme">>, <<"http">>},
 		{<<":scheme">>, <<"http">>},
 		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
-		{<<":path">>, <<>>}
+		{<<":path">>, <<"/">>}
 	]),
 	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
 	%% Receive a PROTOCOL_ERROR stream error.
@@ -3707,7 +3707,7 @@ reject_missing_pseudo_header_authority(Config) ->
 	{HeadersBlock, _} = cow_hpack:encode([
 		{<<":method">>, <<"GET">>},
 		{<<":scheme">>, <<"http">>},
-		{<<":path">>, <<>>}
+		{<<":path">>, <<"/">>}
 	]),
 	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
 	%% Receive a PROTOCOL_ERROR stream error.
@@ -3724,7 +3724,7 @@ reject_many_pseudo_header_authority(Config) ->
 		{<<":scheme">>, <<"http">>},
 		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
 		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
-		{<<":path">>, <<>>}
+		{<<":path">>, <<"/">>}
 	]),
 	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
 	%% Receive a PROTOCOL_ERROR stream error.
@@ -3755,8 +3755,8 @@ reject_many_pseudo_header_path(Config) ->
 		{<<":method">>, <<"GET">>},
 		{<<":scheme">>, <<"http">>},
 		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
-		{<<":path">>, <<>>},
-		{<<":path">>, <<>>}
+		{<<":path">>, <<"/">>},
+		{<<":path">>, <<"/">>}
 	]),
 	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
 	%% Receive a PROTOCOL_ERROR stream error.
@@ -3878,7 +3878,7 @@ reject_duplicate_content_length_header(Config) ->
 		{<<":method">>, <<"GET">>},
 		{<<":scheme">>, <<"http">>},
 		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
-		{<<":path">>, <<>>},
+		{<<":path">>, <<"/">>},
 		{<<"content-length">>, <<"12">>},
 		{<<"content-length">>, <<"12">>}
 	]),
