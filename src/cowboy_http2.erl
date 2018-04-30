@@ -62,6 +62,9 @@
 	remote = nofin :: cowboy_stream:fin(),
 	%% Remote flow control window (how much we accept to receive).
 	remote_window :: integer(),
+	%% Size expected and read from the request body.
+	remote_expected_size = undefined :: undefined | non_neg_integer(),
+	remote_read_size = 0 :: non_neg_integer(),
 	%% Unparsed te header. Used to know if we can send trailers.
 	te :: undefined | binary()
 }).
@@ -386,20 +389,8 @@ frame(State0=#state{remote_window=ConnWindow, streams=Streams, lingering_streams
 		#stream{remote_window=StreamWindow} when StreamWindow < DataLen ->
 			stream_reset(State, StreamID, {stream_error, flow_control_error,
 				'DATA frame overflowed the stream flow control window. (RFC7540 6.9, RFC7540 6.9.1)'});
-		Stream = #stream{state=flush, remote=nofin, remote_window=StreamWindow} ->
-			after_commands(State, Stream#stream{remote=IsFin, remote_window=StreamWindow - DataLen});
-		Stream = #stream{state=StreamState0, remote=nofin, remote_window=StreamWindow} ->
-			try cowboy_stream:data(StreamID, IsFin, Data, StreamState0) of
-				{Commands, StreamState} ->
-					commands(State, Stream#stream{state=StreamState, remote=IsFin,
-						remote_window=StreamWindow - DataLen}, Commands)
-			catch Class:Exception ->
-				cowboy_stream:report_error(data,
-					[StreamID, IsFin, Data, StreamState0],
-					Class, Exception, erlang:get_stacktrace()),
-				stream_reset(State, StreamID, {internal_error, {Class, Exception},
-					'Unhandled exception in cowboy_stream:data/4.'})
-			end;
+		Stream = #stream{remote=nofin} ->
+			data_frame(State, Stream, IsFin, DataLen, Data);
 		#stream{remote=fin} ->
 			stream_reset(State, StreamID, {stream_error, stream_closed,
 				'DATA frame received for a half-closed (remote) stream. (RFC7540 5.1)'});
@@ -557,6 +548,50 @@ frame(State0=#state{streams=Streams0, rst_lingering_streams=RstLingering},
 frame(State, {continuation, _, _, _}) ->
 	terminate(State, {connection_error, protocol_error,
 		'CONTINUATION frames MUST be preceded by a HEADERS frame. (RFC7540 6.10)'}).
+
+data_frame(State, Stream0=#stream{id=StreamID, remote_window=StreamWindow,
+		remote_read_size=StreamRead}, IsFin, DataLen, Data) ->
+	Stream = Stream0#stream{remote=IsFin,
+		remote_window=StreamWindow - DataLen,
+		remote_read_size=StreamRead + DataLen},
+	case is_body_size_valid(Stream) of
+		true ->
+			data_frame(State, Stream, IsFin, Data);
+		false ->
+			stream_reset(after_commands(State, Stream), StreamID, {stream_error, protocol_error,
+				'The total size of DATA frames is different than the content-length. (RFC7540 8.1.2.6)'})
+	end.
+
+%% We ignore DATA frames for streams that are flushing out data.
+data_frame(State, Stream=#stream{state=flush}, _, _) ->
+	after_commands(State, Stream);
+data_frame(State, Stream=#stream{id=StreamID, state=StreamState0}, IsFin, Data) ->
+	try cowboy_stream:data(StreamID, IsFin, Data, StreamState0) of
+		{Commands, StreamState} ->
+			commands(State, Stream#stream{state=StreamState}, Commands)
+	catch Class:Exception ->
+		cowboy_stream:report_error(data,
+			[StreamID, IsFin, Data, StreamState0],
+			Class, Exception, erlang:get_stacktrace()),
+		stream_reset(State, StreamID, {internal_error, {Class, Exception},
+			'Unhandled exception in cowboy_stream:data/4.'})
+	end.
+
+%% It's always valid when no content-length header was specified.
+is_body_size_valid(#stream{remote_expected_size=undefined}) ->
+	true;
+%% We didn't finish reading the body but the size is already larger than expected.
+is_body_size_valid(#stream{remote=nofin, remote_expected_size=Expected,
+		remote_read_size=Read}) when Read > Expected ->
+	false;
+is_body_size_valid(#stream{remote=nofin}) ->
+	true;
+is_body_size_valid(#stream{remote=fin, remote_expected_size=Expected,
+		remote_read_size=Expected}) ->
+	true;
+%% We finished reading the body and the size read is not the one expected.
+is_body_size_valid(_) ->
+	false.
 
 continuation_frame(State=#state{client_streamid=LastStreamID, streams=Streams,
 		parse_state={continuation, StreamID, IsFin, HeaderBlockFragment0}},
@@ -1071,6 +1106,9 @@ headers_to_map([{Name, Value}|Tail], Acc0) ->
 
 stream_req_init(State, StreamID, IsFin, Headers, PseudoHeaders) ->
 	case Headers of
+		#{<<"content-length">> := BinLength} when BinLength =/= <<"0">>, IsFin =:= fin ->
+			stream_malformed(State, StreamID,
+				'HEADERS frame with the END_STREAM flag contains a non-zero content-length. (RFC7540 8.1.2.6)');
 		_ when IsFin =:= fin ->
 			stream_req_init(State, StreamID, IsFin, Headers, PseudoHeaders, 0);
 		#{<<"content-length">> := <<"0">>} ->
@@ -1185,13 +1223,14 @@ stream_handler_init(State=#state{opts=Opts,
 		local_settings=#{initial_window_size := RemoteWindow},
 		remote_settings=#{initial_window_size := LocalWindow}},
 		StreamID, RemoteIsFin, LocalIsFin,
-		Req=#{method := Method, headers := Headers}) ->
+		Req=#{method := Method, headers := Headers, body_length := BodyLength}) ->
 	try cowboy_stream:init(StreamID, Req, Opts) of
 		{Commands, StreamState} ->
 			commands(State#state{client_streamid=StreamID},
 				#stream{id=StreamID, state=StreamState,
 					method=Method, remote=RemoteIsFin, local=LocalIsFin,
 					local_window=LocalWindow, remote_window=RemoteWindow,
+					remote_expected_size=BodyLength,
 					te=maps:get(<<"te">>, Headers, undefined)},
 				Commands)
 	catch Class:Exception ->
@@ -1205,11 +1244,20 @@ stream_handler_init(State=#state{opts=Opts,
 stream_decode_trailers(State=#state{decode_state=DecodeState0}, Stream, HeaderBlock) ->
 	try cow_hpack:decode(HeaderBlock, DecodeState0) of
 		{Headers, DecodeState} ->
-			stream_reject_pseudo_headers_in_trailers(State#state{decode_state=DecodeState},
+			stream_trailers_is_body_size_valid(State#state{decode_state=DecodeState},
 				Stream#stream{remote=fin}, Headers)
 	catch _:_ ->
 		terminate(State, {connection_error, compression_error,
 			'Error while trying to decode HPACK-encoded header block. (RFC7540 4.3)'})
+	end.
+
+stream_trailers_is_body_size_valid(State, Stream=#stream{id=StreamID}, Headers) ->
+	case is_body_size_valid(Stream) of
+		true ->
+			stream_reject_pseudo_headers_in_trailers(State, Stream, Headers);
+		false ->
+			stream_reset(after_commands(State, Stream), StreamID, {stream_error, protocol_error,
+				'The total size of DATA frames is different than the content-length. (RFC7540 8.1.2.6)'})
 	end.
 
 stream_reject_pseudo_headers_in_trailers(State, Stream=#stream{id=StreamID}, Headers) ->
@@ -1219,7 +1267,7 @@ stream_reject_pseudo_headers_in_trailers(State, Stream=#stream{id=StreamID}, Hea
 			%% @todo Propagate trailers.
 			after_commands(State, Stream);
 		true ->
-			stream_reset(State, StreamID, {stream_error, protocol_error,
+			stream_reset(after_commands(State, Stream), StreamID, {stream_error, protocol_error,
 				'Trailer header blocks must not contain pseudo-headers. (RFC7540 8.1.2.1)'})
 	end.
 

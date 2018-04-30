@@ -3778,14 +3778,96 @@ reject_many_pseudo_header_path(Config) ->
 %   before being passed into a non-HTTP/2 context, such as an HTTP/1.1
 %   connection, or a generic HTTP server application.
 
-%% (RFC7540 8.1.2.6)
-%   A request or response that includes a payload body can include a
-%   content-length header field.  A request or response is also malformed
-%   if the value of a content-length header field does not equal the sum
-%   of the DATA frame payload lengths that form the body.  A response
-%   that is defined to have no payload, as described in [RFC7230],
-%   Section 3.3.2, can have a non-zero content-length header field, even
-%   though no content is included in DATA frames.
+reject_data_size_smaller_than_content_length(Config) ->
+	doc("Requests that have a content-length header whose value does not "
+		"match the total length of the DATA frames must be rejected with "
+		"a PROTOCOL_ERROR stream error. (RFC7540 8.1.2.6)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame with a content-length header different
+	%% than the sum of the DATA frame sizes.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"POST">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/long_polling">>},
+		{<<"content-length">>, <<"12">>}
+	]),
+	ok = gen_tcp:send(Socket, [
+		cow_http2:headers(1, nofin, HeadersBlock),
+		cow_http2:data(1, fin, <<"Hello!">>)
+	]),
+	%% Receive a PROTOCOL_ERROR stream error.
+	{ok, << _:24, 3:8, _:8, 1:32, 1:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+	ok.
+
+reject_data_size_larger_than_content_length(Config) ->
+	doc("Requests that have a content-length header whose value does not "
+		"match the total length of the DATA frames must be rejected with "
+		"a PROTOCOL_ERROR stream error. (RFC7540 8.1.2.6)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame with a content-length header different
+	%% than the sum of the DATA frame sizes.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"POST">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/long_polling">>},
+		{<<"content-length">>, <<"12">>}
+	]),
+	ok = gen_tcp:send(Socket, [
+		cow_http2:headers(1, nofin, HeadersBlock),
+		cow_http2:data(1, nofin, <<"Hello! World! Universe!">>),
+		cow_http2:data(1, fin, <<"Multiverse!">>)
+	]),
+	%% Receive a PROTOCOL_ERROR stream error.
+	{ok, << _:24, 3:8, _:8, 1:32, 1:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+	ok.
+
+reject_content_length_without_data(Config) ->
+	doc("Requests that have a content-length header whose value does not "
+		"match the total length of the DATA frames must be rejected with "
+		"a PROTOCOL_ERROR stream error. (RFC7540 8.1.2.6)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame with a content-length header different
+	%% than the sum of the DATA frame sizes.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"POST">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/long_polling">>},
+		{<<"content-length">>, <<"12">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+	%% Receive a PROTOCOL_ERROR stream error.
+	{ok, << _:24, 3:8, _:8, 1:32, 1:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+	ok.
+
+reject_data_size_different_than_content_length_with_trailers(Config) ->
+	doc("Requests that have a content-length header whose value does not "
+		"match the total length of the DATA frames must be rejected with "
+		"a PROTOCOL_ERROR stream error. (RFC7540 8.1.2.6)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame with a content-length header different
+	%% than the sum of the DATA frame sizes.
+	{HeadersBlock, EncodeState} = cow_hpack:encode([
+		{<<":method">>, <<"POST">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/long_polling">>},
+		{<<"content-length">>, <<"12">>},
+		{<<"trailer">>, <<"x-checksum">>}
+	]),
+	{TrailersBlock, _} = cow_hpack:encode([
+		{<<"x-checksum">>, <<"md5:4cc909a007407f3706399b6496babec3">>}
+	], EncodeState),
+	ok = gen_tcp:send(Socket, [
+		cow_http2:headers(1, nofin, HeadersBlock),
+		cow_http2:data(1, nofin, <<"Hello!">>),
+		cow_http2:headers(1, fin, TrailersBlock)
+	]),
+	%% Receive a PROTOCOL_ERROR stream error.
+	{ok, << _:24, 3:8, _:8, 1:32, 1:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+	ok.
 
 reject_duplicate_content_length_header(Config) ->
 	doc("A request with duplicate content-length headers must be rejected "
