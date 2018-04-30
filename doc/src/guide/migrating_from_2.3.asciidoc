@@ -1,0 +1,66 @@
+[appendix]
+== Migrating from Cowboy 2.3 to 2.4
+
+Cowboy 2.4 focused on improving the HTTP/2 implementation.
+All existing tests from RFC7540 and the h2spec test suite
+now all pass. Numerous options have been added to control
+SETTINGS and related behavior. In addition experimental
+support for Websocket over HTTP/2 was added.
+
+=== Features added
+
+* Add experimental support for Websocket over HTTP/2.
+  You can use the `enable_connect_protocol` option to
+  enable. It implements the following draft:
+  https://tools.ietf.org/html/draft-ietf-httpbis-h2-websockets-01
+
+* Add options `max_decode_table_size` and
+  `max_encode_table_size` to restrict the size of the
+  HPACK compression dictionary.
+
+* Add option `max_concurrent_streams` to restrict the
+  number of HTTP/2 streams that can be opened concurrently.
+
+* Add options `initial_connection_window_size` and
+  `initial_stream_window_size` to restrict the size of
+  the HTTP/2 request body buffers for the whole connection
+  and per stream, respectively.
+
+* Add options `max_frame_size_received` and
+  `max_frame_size_sent` to restrict the size of
+  HTTP/2 frames.
+
+* Add option `settings_timeout` to reject clients that
+  did not send a SETTINGS ack. Note that this currently
+  may only occur at the beginning of the connection.
+
+* Update Ranch to 1.5.0
+
+* Update Cowlib to 2.3.0
+
+=== Bugs fixed
+
+* Fix the END_STREAM flag for informational responses
+  when using HTTP/2.
+
+* Receive and ignore HTTP/2 request trailers if any
+  for HTTP/2 requests. Request trailer information will
+  be propagated to the user code in a future release.
+
+* Reject WINDOW_UPDATE frames that are sent after the
+  client sent an RST_STREAM. Note that Cowboy will not
+  keep state information about terminated streams
+  forever and so the behavior might differ depending
+  on when the stream was reset.
+
+* Reject streams that depend on themselves. Note that
+  Cowboy currently does not implement HTTP/2's priority
+  mechanisms so this issue was harmless.
+
+* Reject HTTP/2 requests where the body size is different
+  than the content-length value. Note that due to how Cowboy
+  works some requests might go through regardless, for
+  example when the user code does not read the request body.
+
+* Fix all existing test failures from RFC7540. This was
+  mostly incorrect test cases or intermittent failures.
