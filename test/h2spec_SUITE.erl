@@ -43,7 +43,7 @@ end_per_suite(_Config) ->
 init_dispatch() ->
 	cowboy_router:compile([
 		{'_', [
-			{"/", delay_hello_h, 500}
+			{"/", delay_hello_h, 50}
 		]}
 	]).
 
