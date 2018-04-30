@@ -530,7 +530,7 @@ http_upgrade_response_half_closed(Config) ->
 	%% Try sending more data after the upgrade and get an error.
 	{ok, Socket} = gen_tcp:connect("localhost", config(port, Config), [binary, {active, false}]),
 	ok = gen_tcp:send(Socket, [
-		"GET / HTTP/1.1\r\n"
+		"GET /long_polling HTTP/1.1\r\n"
 		"Host: localhost\r\n"
 		"Connection: Upgrade, HTTP2-Settings\r\n"
 		"Upgrade: h2c\r\n"
@@ -1893,7 +1893,7 @@ half_closed_remote_accept_rst_stream(Config) ->
 		{<<":method">>, <<"GET">>},
 		{<<":scheme">>, <<"http">>},
 		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
-		{<<":path">>, <<"/">>}
+		{<<":path">>, <<"/long_polling">>}
 	]),
 	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
 	%% Send an RST_STREAM frame on that now half-closed (remote) stream.
