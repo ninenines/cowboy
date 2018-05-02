@@ -48,72 +48,88 @@ Ranch functions `ranch:get_protocol_options/1` and
 The default value is given next to the option name:
 
 connection_type (supervisor)::
-    Whether the connection process also acts as a supervisor.
+
+Whether the connection process also acts as a supervisor.
 
 enable_connect_protocol (false)::
-    Whether to enable the extended CONNECT method to allow
-    protocols like Websocket to be used over an HTTP/2 stream.
-    This option is experimental and disabled by default.
+
+Whether to enable the extended CONNECT method to allow
+protocols like Websocket to be used over an HTTP/2 stream.
+This option is experimental and disabled by default.
 
 env (#{})::
-    Middleware environment.
+
+Middleware environment.
 
 inactivity_timeout (300000)::
-    Time in ms with nothing received at all before Cowboy closes the connection.
+
+Time in ms with nothing received at all before Cowboy closes the connection.
 
 initial_connection_window_size (65535)::
-    Initial window size for the connection. This is the total amount
-    of data (from request bodies for example) that may be buffered
-    by the connection across all streams before the user code
-    explicitly requests it.
+
+Initial window size for the connection. This is the total amount
+of data (from request bodies for example) that may be buffered
+by the connection across all streams before the user code
+explicitly requests it.
 +
-    Note that this value cannot be lower than the default.
+Note that this value cannot be lower than the default.
 
 initial_stream_window_size (65535)::
-    Initial window size for new streams. This is the total amount
-    of data (from request bodies for example) that may be buffered
-    by a single stream before the user code explicitly requests it.
+
+Initial window size for new streams. This is the total amount
+of data (from request bodies for example) that may be buffered
+by a single stream before the user code explicitly requests it.
 
 max_concurrent_streams (infinity)::
-    Maximum number of concurrent streams allowed on the connection.
+
+Maximum number of concurrent streams allowed on the connection.
 
 max_decode_table_size (4096)::
-    Maximum header table size used by the decoder. This is the value advertised
-    to the client. The client can then choose a header table size equal or lower
-    to the advertised value.
+
+Maximum header table size used by the decoder. This is the value advertised
+to the client. The client can then choose a header table size equal or lower
+to the advertised value.
 
 max_encode_table_size (4096)::
-    Maximum header table size used by the encoder. The server will compare this
-    value to what the client advertises and choose the smallest one as the
-    encoder's header table size.
+
+Maximum header table size used by the encoder. The server will compare this
+value to what the client advertises and choose the smallest one as the
+encoder's header table size.
 
 max_frame_size_received (16384)::
-    Maximum size of the frames received by the server. This value is
-    advertised to the remote endpoint which can then decide to use
-    any value lower or equal for its frame sizes.
+
+Maximum size of the frames received by the server. This value is
+advertised to the remote endpoint which can then decide to use
+any value lower or equal for its frame sizes.
 
 max_frame_size_sent (infinity)::
-    Maximum size of the frames sent by the server. This option allows
-    setting an upper limit to the frame sizes instead of blindly
-    following the client's advertised maximum.
+
+Maximum size of the frames sent by the server. This option allows
+setting an upper limit to the frame sizes instead of blindly
+following the client's advertised maximum.
 +
-    Note that actual frame sizes may be lower than the limit when
-    there is not enough space left in the flow control window.
+Note that actual frame sizes may be lower than the limit when
+there is not enough space left in the flow control window.
 
 middlewares ([cowboy_router, cowboy_handler])::
-    Middlewares to run for every request.
+
+Middlewares to run for every request.
 
 preface_timeout (5000)::
-    Time in ms Cowboy is willing to wait for the connection preface.
+
+Time in ms Cowboy is willing to wait for the connection preface.
 
 settings_timeout (5000)::
-    Time in ms Cowboy is willing to wait for a SETTINGS ack.
+
+Time in ms Cowboy is willing to wait for a SETTINGS ack.
 
 shutdown_timeout (5000)::
-    Time in ms Cowboy will wait for child processes to shut down before killing them.
+
+Time in ms Cowboy will wait for child processes to shut down before killing them.
 
 stream_handlers ([cowboy_stream_h])::
-    Ordered list of stream handlers that will handle all stream events.
+
+Ordered list of stream handlers that will handle all stream events.
 
 == Changelog
 
