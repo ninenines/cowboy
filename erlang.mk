@@ -17,7 +17,7 @@
 ERLANG_MK_FILENAME := $(realpath $(lastword $(MAKEFILE_LIST)))
 export ERLANG_MK_FILENAME
 
-ERLANG_MK_VERSION = 2017.08.28-19-g8e3d863
+ERLANG_MK_VERSION = 2018.03.05-10-g4522af8
 ERLANG_MK_WITHOUT = 
 
 # Make 3.81 and 3.82 are deprecated.
@@ -187,9 +187,11 @@ ERLANG_MK_BUILD_DIR ?= .erlang.mk.build
 
 erlang-mk: WITHOUT ?= $(ERLANG_MK_WITHOUT)
 erlang-mk:
-	git clone $(ERLANG_MK_REPO) $(ERLANG_MK_BUILD_DIR)
 ifdef ERLANG_MK_COMMIT
+	git clone $(ERLANG_MK_REPO) $(ERLANG_MK_BUILD_DIR)
 	cd $(ERLANG_MK_BUILD_DIR) && git checkout $(ERLANG_MK_COMMIT)
+else
+	git clone --depth 1 $(ERLANG_MK_REPO) $(ERLANG_MK_BUILD_DIR)
 endif
 	if [ -f $(ERLANG_MK_BUILD_CONFIG) ]; then cp $(ERLANG_MK_BUILD_CONFIG) $(ERLANG_MK_BUILD_DIR)/build.config; fi
 	$(MAKE) -C $(ERLANG_MK_BUILD_DIR) WITHOUT='$(strip $(WITHOUT))'
@@ -248,6 +250,10 @@ distclean-kerl:
 	$(gen_verbose) rm -rf $(KERL)
 
 # Allow users to select which version of Erlang/OTP to use for a project.
+
+ifneq ($(strip $(LATEST_ERLANG_OTP)),)
+ERLANG_OTP := $(notdir $(lastword $(sort $(wildcard $(KERL_INSTALL_DIR)/*[^-native]))))
+endif
 
 ERLANG_OTP ?=
 ERLANG_HIPE ?=
@@ -615,14 +621,6 @@ pkg_cl_homepage = https://github.com/tonyrog/cl
 pkg_cl_fetch = git
 pkg_cl_repo = https://github.com/tonyrog/cl
 pkg_cl_commit = master
-
-PACKAGES += classifier
-pkg_classifier_name = classifier
-pkg_classifier_description = An Erlang Bayesian Filter and Text Classifier
-pkg_classifier_homepage = https://github.com/inaka/classifier
-pkg_classifier_fetch = git
-pkg_classifier_repo = https://github.com/inaka/classifier
-pkg_classifier_commit = master
 
 PACKAGES += clique
 pkg_clique_name = clique
@@ -1023,14 +1021,6 @@ pkg_dnssd_homepage = https://github.com/benoitc/dnssd_erlang
 pkg_dnssd_fetch = git
 pkg_dnssd_repo = https://github.com/benoitc/dnssd_erlang
 pkg_dnssd_commit = master
-
-PACKAGES += dtl
-pkg_dtl_name = dtl
-pkg_dtl_description = Django Template Language: A full-featured port of the Django template engine to Erlang.
-pkg_dtl_homepage = https://github.com/oinksoft/dtl
-pkg_dtl_fetch = git
-pkg_dtl_repo = https://github.com/oinksoft/dtl
-pkg_dtl_commit = master
 
 PACKAGES += dynamic_compile
 pkg_dynamic_compile_name = dynamic_compile
@@ -2000,14 +1990,6 @@ pkg_gold_fever_fetch = git
 pkg_gold_fever_repo = https://github.com/inaka/gold_fever
 pkg_gold_fever_commit = master
 
-PACKAGES += gossiperl
-pkg_gossiperl_name = gossiperl
-pkg_gossiperl_description = Gossip middleware in Erlang
-pkg_gossiperl_homepage = http://gossiperl.com/
-pkg_gossiperl_fetch = git
-pkg_gossiperl_repo = https://github.com/gossiperl/gossiperl
-pkg_gossiperl_commit = master
-
 PACKAGES += gpb
 pkg_gpb_name = gpb
 pkg_gpb_description = A Google Protobuf implementation for Erlang
@@ -2031,6 +2013,22 @@ pkg_grapherl_homepage = https://github.com/eproxus/grapherl
 pkg_grapherl_fetch = git
 pkg_grapherl_repo = https://github.com/eproxus/grapherl
 pkg_grapherl_commit = master
+
+PACKAGES += grpc
+pkg_grpc_name = grpc
+pkg_grpc_description = gRPC server in Erlang
+pkg_grpc_homepage = https://github.com/Bluehouse-Technology/grpc
+pkg_grpc_fetch = git
+pkg_grpc_repo = https://github.com/Bluehouse-Technology/grpc
+pkg_grpc_commit = master
+
+PACKAGES += grpc_client
+pkg_grpc_client_name = grpc_client
+pkg_grpc_client_description = gRPC client in Erlang
+pkg_grpc_client_homepage = https://github.com/Bluehouse-Technology/grpc_client
+pkg_grpc_client_fetch = git
+pkg_grpc_client_repo = https://github.com/Bluehouse-Technology/grpc_client
+pkg_grpc_client_commit = master
 
 PACKAGES += gun
 pkg_gun_name = gun
@@ -2888,6 +2886,14 @@ pkg_oauth2_fetch = git
 pkg_oauth2_repo = https://github.com/kivra/oauth2
 pkg_oauth2_commit = master
 
+PACKAGES += observer_cli
+pkg_observer_cli_name = observer_cli
+pkg_observer_cli_description = Visualize Erlang/Elixir Nodes On The Command Line
+pkg_observer_cli_homepage = http://zhongwencool.github.io/observer_cli
+pkg_observer_cli_fetch = git
+pkg_observer_cli_repo = https://github.com/zhongwencool/observer_cli
+pkg_observer_cli_commit = master
+
 PACKAGES += octopus
 pkg_octopus_name = octopus
 pkg_octopus_description = Small and flexible pool manager written in Erlang
@@ -2935,6 +2941,14 @@ pkg_openpoker_homepage = https://github.com/hpyhacking/openpoker
 pkg_openpoker_fetch = git
 pkg_openpoker_repo = https://github.com/hpyhacking/openpoker
 pkg_openpoker_commit = master
+
+PACKAGES += otpbp
+pkg_otpbp_name = otpbp
+pkg_otpbp_description = Parse transformer for use new OTP functions in old Erlang/OTP releases (R15, R16, 17, 18, 19)
+pkg_otpbp_homepage = https://github.com/Ledest/otpbp
+pkg_otpbp_fetch = git
+pkg_otpbp_repo = https://github.com/Ledest/otpbp
+pkg_otpbp_commit = master
 
 PACKAGES += pal
 pkg_pal_name = pal
@@ -4482,11 +4496,33 @@ define dep_autopatch_rebar.erl
 		end,
 		Write("\n")
 	end(),
+	GetHexVsn = fun(N) ->
+		case file:consult("$(call core_native_path,$(DEPS_DIR)/$1/rebar.lock)") of
+			{ok, Lock} ->
+				io:format("~p~n", [Lock]),
+				case lists:keyfind("1.1.0", 1, Lock) of
+					{_, LockPkgs} ->
+						io:format("~p~n", [LockPkgs]),
+						case lists:keyfind(atom_to_binary(N, latin1), 1, LockPkgs) of
+							{_, {pkg, _, Vsn}, _} ->
+								io:format("~p~n", [Vsn]),
+								{N, {hex, binary_to_list(Vsn)}};
+							_ ->
+								false
+						end;
+					_ ->
+						false
+				end;
+			_ ->
+				false
+		end
+	end,
 	fun() ->
 		File = case lists:keyfind(deps, 1, Conf) of
 			false -> [];
 			{_, Deps} ->
 				[begin case case Dep of
+							N when is_atom(N) -> GetHexVsn(N);
 							{N, S} when is_atom(N), is_list(S) -> {N, {hex, S}};
 							{N, S} when is_tuple(S) -> {N, S};
 							{N, _, S} -> {N, S};
@@ -4523,7 +4559,8 @@ define dep_autopatch_rebar.erl
 	Write("\npre-deps::\n"),
 	Write("\npre-app::\n"),
 	PatchHook = fun(Cmd) ->
-		case Cmd of
+		Cmd2 = re:replace(Cmd, "^([g]?make)(.*)( -C.*)", "\\\\1\\\\3\\\\2", [{return, list}]),
+		case Cmd2 of
 			"make -C" ++ Cmd1 -> "$$\(MAKE) -C" ++ Escape(Cmd1);
 			"gmake -C" ++ Cmd1 -> "$$\(MAKE) -C" ++ Escape(Cmd1);
 			"make " ++ Cmd1 -> "$$\(MAKE) -f Makefile.orig.mk " ++ Escape(Cmd1);
@@ -4693,7 +4730,10 @@ define dep_autopatch_appsrc_script.erl
 	Bindings0 = erl_eval:new_bindings(),
 	Bindings1 = erl_eval:add_binding('CONFIG', Conf0, Bindings0),
 	Bindings = erl_eval:add_binding('SCRIPT', AppSrcScript, Bindings1),
-	{ok, [Conf]} = file:script(AppSrcScript, Bindings),
+	Conf = case file:script(AppSrcScript, Bindings) of
+		{ok, [C]} -> C;
+		{ok, C} -> C
+	end,
 	ok = file:write_file(AppSrc, io_lib:format("~p.~n", [Conf])),
 	halt()
 endef
@@ -4748,7 +4788,7 @@ endef
 define dep_fetch_hex
 	mkdir -p $(ERLANG_MK_TMP)/hex $(DEPS_DIR)/$1; \
 	$(call core_http_get,$(ERLANG_MK_TMP)/hex/$1.tar,\
-		https://s3.amazonaws.com/s3.hex.pm/tarballs/$1-$(strip $(word 2,$(dep_$1))).tar); \
+		https://repo.hex.pm/tarballs/$1-$(strip $(word 2,$(dep_$1))).tar); \
 	tar -xOf $(ERLANG_MK_TMP)/hex/$1.tar contents.tar.gz | tar -C $(DEPS_DIR)/$1 -xzf -;
 endef
 
@@ -5636,6 +5676,51 @@ handle_sync_event(_Event, _From, StateName, StateData) ->
 	{reply, ignored, StateName, StateData}.
 
 handle_info(_Info, StateName, StateData) ->
+	{next_state, StateName, StateData}.
+
+terminate(_Reason, _StateName, _StateData) ->
+	ok.
+
+code_change(_OldVsn, StateName, StateData, _Extra) ->
+	{ok, StateName, StateData}.
+endef
+
+define tpl_gen_statem
+-module($(n)).
+-behaviour(gen_statem).
+
+%% API.
+-export([start_link/0]).
+
+%% gen_statem.
+-export([callback_mode/0]).
+-export([init/1]).
+-export([state_name/3]).
+-export([handle_event/4]).
+-export([terminate/3]).
+-export([code_change/4]).
+
+-record(state, {
+}).
+
+%% API.
+
+-spec start_link() -> {ok, pid()}.
+start_link() ->
+	gen_statem:start_link(?MODULE, [], []).
+
+%% gen_statem.
+
+callback_mode() ->
+	state_functions.
+
+init([]) ->
+	{ok, state_name, #state{}}.
+
+state_name(_EventType, _EventData, StateData) ->
+	{next_state, state_name, StateData}.
+
+handle_event(_EventType, _EventData, StateName, StateData) ->
 	{next_state, StateName, StateData}.
 
 terminate(_Reason, _StateName, _StateData) ->
@@ -6604,6 +6689,7 @@ distclean:: distclean-relx-rel
 # Plugin-specific targets.
 
 $(RELX):
+	$(verbose) mkdir -p $(ERLANG_MK_TMP)
 	$(gen_verbose) $(call core_http_get,$(RELX),$(RELX_URL))
 	$(verbose) chmod +x $(RELX)
 
@@ -6683,6 +6769,69 @@ build-shell-deps: $(ALL_SHELL_DEPS_DIRS)
 
 shell: build-shell-deps
 	$(gen_verbose) $(SHELL_ERL) -pa $(SHELL_PATHS) $(SHELL_OPTS)
+
+# Copyright 2017, Stanislaw Klekot <dozzie@jarowit.net>
+# This file is part of erlang.mk and subject to the terms of the ISC License.
+
+.PHONY: distclean-sphinx sphinx
+
+# Configuration.
+
+SPHINX_BUILD ?= sphinx-build
+SPHINX_SOURCE ?= doc
+SPHINX_CONFDIR ?=
+SPHINX_FORMATS ?= html
+SPHINX_DOCTREES ?= $(ERLANG_MK_TMP)/sphinx.doctrees
+SPHINX_OPTS ?=
+
+#sphinx_html_opts =
+#sphinx_html_output = html
+#sphinx_man_opts =
+#sphinx_man_output = man
+#sphinx_latex_opts =
+#sphinx_latex_output = latex
+
+# Helpers.
+
+sphinx_build_0 = @echo " SPHINX" $1; $(SPHINX_BUILD) -N -q
+sphinx_build_1 = $(SPHINX_BUILD) -N
+sphinx_build_2 = set -x; $(SPHINX_BUILD)
+sphinx_build = $(sphinx_build_$(V))
+
+define sphinx.build
+$(call sphinx_build,$1) -b $1 -d $(SPHINX_DOCTREES) $(if $(SPHINX_CONFDIR),-c $(SPHINX_CONFDIR)) $(SPHINX_OPTS) $(sphinx_$1_opts) -- $(SPHINX_SOURCE) $(call sphinx.output,$1)
+
+endef
+
+define sphinx.output
+$(if $(sphinx_$1_output),$(sphinx_$1_output),$1)
+endef
+
+# Targets.
+
+ifneq ($(wildcard $(if $(SPHINX_CONFDIR),$(SPHINX_CONFDIR),$(SPHINX_SOURCE))/conf.py),)
+docs:: sphinx
+distclean:: distclean-sphinx
+endif
+
+help::
+	$(verbose) printf "%s\n" "" \
+		"Sphinx targets:" \
+		"  sphinx      Generate Sphinx documentation." \
+		"" \
+		"ReST sources and 'conf.py' file are expected in directory pointed by" \
+		"SPHINX_SOURCE ('doc' by default). SPHINX_FORMATS lists formats to build (only" \
+		"'html' format is generated by default); target directory can be specified by" \
+		'setting sphinx_$${format}_output, for example: sphinx_html_output = output/html' \
+		"Additional Sphinx options can be set in SPHINX_OPTS."
+
+# Plugin-specific targets.
+
+sphinx:
+	$(foreach F,$(SPHINX_FORMATS),$(call sphinx.build,$F))
+
+distclean-sphinx:
+	$(gen_verbose) rm -rf $(filter-out $(SPHINX_SOURCE),$(foreach F,$(SPHINX_FORMATS),$(call sphinx.output,$F)))
 
 # Copyright (c) 2017, Jean-Sébastien Pédron <jean-sebastien@rabbitmq.com>
 # This file is contributed to erlang.mk and subject to the terms of the ISC License.
