@@ -907,7 +907,7 @@ send_data(State=#state{socket=Socket, transport=Transport, opts=Opts,
 					{State#state{local_window=ConnWindow - IolistSize},
 						Stream#stream{local=IsFin, local_window=StreamWindow - IolistSize}};
 				true ->
-					{Iolist, More} = cowboy_iolists:split(MaxSendSize, Iolist0),
+					{Iolist, More} = cow_iolists:split(MaxSendSize, Iolist0),
 					Transport:send(Socket, cow_http2:data(StreamID, nofin, Iolist)),
 					send_data(State#state{local_window=ConnWindow - MaxSendSize},
 						Stream#stream{local_window=StreamWindow - MaxSendSize},
