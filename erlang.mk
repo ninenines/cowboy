@@ -17,7 +17,7 @@
 ERLANG_MK_FILENAME := $(realpath $(lastword $(MAKEFILE_LIST)))
 export ERLANG_MK_FILENAME
 
-ERLANG_MK_VERSION = 2018.03.05-10-g4522af8
+ERLANG_MK_VERSION = 2018.05.15
 ERLANG_MK_WITHOUT = 
 
 # Make 3.81 and 3.82 are deprecated.
@@ -154,9 +154,13 @@ define comma_list
 $(subst $(space),$(comma),$(strip $(1)))
 endef
 
+define escape_dquotes
+$(subst ",\",$1)
+endef
+
 # Adding erlang.mk to make Erlang scripts who call init:get_plain_arguments() happy.
 define erlang
-$(ERL) $(2) -pz $(ERLANG_MK_TMP)/rebar/ebin -eval "$(subst $(newline),,$(subst ",\",$(1)))" -- erlang.mk
+$(ERL) $2 -pz $(ERLANG_MK_TMP)/rebar/ebin -eval "$(subst $(newline),,$(call escape_dquotes,$1))" -- erlang.mk
 endef
 
 ifeq ($(PLATFORM),msys2)
@@ -252,7 +256,8 @@ distclean-kerl:
 # Allow users to select which version of Erlang/OTP to use for a project.
 
 ifneq ($(strip $(LATEST_ERLANG_OTP)),)
-ERLANG_OTP := $(notdir $(lastword $(sort $(wildcard $(KERL_INSTALL_DIR)/*[^-native]))))
+ERLANG_OTP := $(notdir $(lastword $(sort $(filter-out %-rc1 %-rc2 %-rc3,\
+	$(wildcard $(KERL_INSTALL_DIR)/*[^-native])))))
 endif
 
 ERLANG_OTP ?=
@@ -4290,7 +4295,7 @@ export NO_AUTOPATCH
 
 # Verbosity.
 
-dep_verbose_0 = @echo " DEP   " $(1);
+dep_verbose_0 = @echo " DEP   $1 ($(call dep_commit,$1))";
 dep_verbose_2 = set -x;
 dep_verbose = $(dep_verbose_$(V))
 
@@ -5068,6 +5073,14 @@ define makedep.erl
 	E = ets:new(makedep, [bag]),
 	G = digraph:new([acyclic]),
 	ErlFiles = lists:usort(string:tokens("$(ERL_FILES)", " ")),
+	DepsDir = "$(call core_native_path,$(DEPS_DIR))",
+	AppsDir = "$(call core_native_path,$(APPS_DIR))",
+	DepsDirsSrc = "$(if $(wildcard $(DEPS_DIR)/*/src), $(call core_native_path,$(wildcard $(DEPS_DIR)/*/src)))",
+	DepsDirsInc = "$(if $(wildcard $(DEPS_DIR)/*/include), $(call core_native_path,$(wildcard $(DEPS_DIR)/*/include)))",
+	AppsDirsSrc = "$(if $(wildcard $(APPS_DIR)/*/src), $(call core_native_path,$(wildcard $(APPS_DIR)/*/src)))",
+	AppsDirsInc = "$(if $(wildcard $(APPS_DIR)/*/include), $(call core_native_path,$(wildcard $(APPS_DIR)/*/include)))",
+	DepsDirs = lists:usort(string:tokens(DepsDirsSrc++DepsDirsInc, " ")),
+	AppsDirs = lists:usort(string:tokens(AppsDirsSrc++AppsDirsInc, " ")),
 	Modules = [{list_to_atom(filename:basename(F, ".erl")), F} || F <- ErlFiles],
 	Add = fun (Mod, Dep) ->
 		case lists:keyfind(Dep, 1, Modules) of
@@ -5082,33 +5095,50 @@ define makedep.erl
 	end,
 	AddHd = fun (F, Mod, DepFile) ->
 		case file:open(DepFile, [read]) of
-			{error, enoent} -> ok;
+			{error, enoent} ->
+				ok;
 			{ok, Fd} ->
-				F(F, Fd, Mod),
 				{_, ModFile} = lists:keyfind(Mod, 1, Modules),
-				ets:insert(E, {ModFile, DepFile})
+				case ets:match(E, {ModFile, DepFile}) of
+					[] ->
+						ets:insert(E, {ModFile, DepFile}),
+						F(F, Fd, Mod,0);
+					_ -> ok
+				end
 		end
 	end,
+	SearchHrl = fun
+		F(_Hrl, []) -> {error,enoent};
+		F(Hrl, [Dir|Dirs]) ->
+			HrlF = filename:join([Dir,Hrl]),
+			case filelib:is_file(HrlF) of
+				true  ->
+				{ok, HrlF};
+				false -> F(Hrl,Dirs)
+			end
+	end,
 	Attr = fun
-		(F, Mod, behavior, Dep) -> Add(Mod, Dep);
-		(F, Mod, behaviour, Dep) -> Add(Mod, Dep);
-		(F, Mod, compile, {parse_transform, Dep}) -> Add(Mod, Dep);
-		(F, Mod, compile, Opts) when is_list(Opts) ->
+		(_F, Mod, behavior, Dep) ->
+			Add(Mod, Dep);
+		(_F, Mod, behaviour, Dep) ->
+			Add(Mod, Dep);
+		(_F, Mod, compile, {parse_transform, Dep}) ->
+			Add(Mod, Dep);
+		(_F, Mod, compile, Opts) when is_list(Opts) ->
 			case proplists:get_value(parse_transform, Opts) of
 				undefined -> ok;
 				Dep -> Add(Mod, Dep)
 			end;
 		(F, Mod, include, Hrl) ->
-			case filelib:is_file("include/" ++ Hrl) of
-				true -> AddHd(F, Mod, "include/" ++ Hrl);
-				false ->
-					case filelib:is_file("src/" ++ Hrl) of
-						true -> AddHd(F, Mod, "src/" ++ Hrl);
-						false -> false
-					end
+			case SearchHrl(Hrl, ["src", "include",AppsDir,DepsDir]++AppsDirs++DepsDirs) of
+				{ok, FoundHrl} -> AddHd(F, Mod, FoundHrl);
+				{error, _} -> false
 			end;
-		(F, Mod, include_lib, "$1/include/" ++ Hrl) -> AddHd(F, Mod, "include/" ++ Hrl);
-		(F, Mod, include_lib, Hrl) -> AddHd(F, Mod, "include/" ++ Hrl);
+		(F, Mod, include_lib, Hrl) ->
+			case SearchHrl(Hrl, ["src", "include",AppsDir,DepsDir]++AppsDirs++DepsDirs) of
+				{ok, FoundHrl} -> AddHd(F, Mod, FoundHrl);
+				{error, _} -> false
+			end;
 		(F, Mod, import, {Imp, _}) ->
 			IsFile =
 				case lists:keyfind(Imp, 1, Modules) of
@@ -5121,21 +5151,29 @@ define makedep.erl
 			end;
 		(_, _, _, _) -> ok
 	end,
-	MakeDepend = fun(F, Fd, Mod) ->
-		case io:parse_erl_form(Fd, undefined) of
-			{ok, {attribute, _, Key, Value}, _} ->
-				Attr(F, Mod, Key, Value),
-				F(F, Fd, Mod);
-			{eof, _} ->
-				file:close(Fd);
-			_ ->
-				F(F, Fd, Mod)
-		end
+	MakeDepend = fun
+		(F, Fd, Mod, StartLocation) ->
+			{ok, Filename} = file:pid2name(Fd),
+			case io:parse_erl_form(Fd, undefined, StartLocation) of
+				{ok, AbsData, EndLocation} ->
+					case AbsData of
+						{attribute, _, Key, Value} ->
+							Attr(F, Mod, Key, Value),
+							F(F, Fd, Mod, EndLocation);
+						_ -> F(F, Fd, Mod, EndLocation)
+					end;
+				{eof, _ } -> file:close(Fd);
+				{error, ErrorDescription } ->
+					file:close(Fd);
+				{error, ErrorInfo, ErrorLocation} ->
+					F(F, Fd, Mod, ErrorLocation)
+			end,
+			ok
 	end,
 	[begin
 		Mod = list_to_atom(filename:basename(F, ".erl")),
 		{ok, Fd} = file:open(F, [read]),
-		MakeDepend(MakeDepend, Fd, Mod)
+		MakeDepend(MakeDepend, Fd, Mod,0)
 	end || F <- ErlFiles],
 	Depend = sofs:to_external(sofs:relation_to_family(sofs:relation(ets:tab2list(E)))),
 	CompileFirst = [X || X <- lists:reverse(digraph_utils:topsort(G)), [] =/= digraph:in_neighbours(G, X)],
@@ -5291,17 +5329,17 @@ endif
 ifeq ($(wildcard src),)
 test-build:: ERLC_OPTS=$(TEST_ERLC_OPTS)
 test-build:: clean deps test-deps
-	$(verbose) $(MAKE) --no-print-directory test-dir ERLC_OPTS="$(TEST_ERLC_OPTS)"
+	$(verbose) $(MAKE) --no-print-directory test-dir ERLC_OPTS="$(call escape_dquotes,$(TEST_ERLC_OPTS))"
 else
 ifeq ($(wildcard ebin/test),)
 test-build:: ERLC_OPTS=$(TEST_ERLC_OPTS)
 test-build:: clean deps test-deps $(PROJECT).d
-	$(verbose) $(MAKE) --no-print-directory app-build test-dir ERLC_OPTS="$(TEST_ERLC_OPTS)"
+	$(verbose) $(MAKE) --no-print-directory app-build test-dir ERLC_OPTS="$(call escape_dquotes,$(TEST_ERLC_OPTS))"
 	$(gen_verbose) touch ebin/test
 else
 test-build:: ERLC_OPTS=$(TEST_ERLC_OPTS)
 test-build:: deps test-deps $(PROJECT).d
-	$(verbose) $(MAKE) --no-print-directory app-build test-dir ERLC_OPTS="$(TEST_ERLC_OPTS)"
+	$(verbose) $(MAKE) --no-print-directory app-build test-dir ERLC_OPTS="$(call escape_dquotes,$(TEST_ERLC_OPTS))"
 endif
 
 clean:: clean-test-dir
@@ -5926,13 +5964,14 @@ ifndef n
 	$(error Usage: $(MAKE) new t=TEMPLATE n=NAME [in=APP])
 endif
 ifdef in
-	$(verbose) $(MAKE) -C $(APPS_DIR)/$(in)/ new t=$t n=$n in=
+	$(call render_template,tpl_$(t),$(APPS_DIR)/$(in)/src/$(n).erl)
 else
 	$(call render_template,tpl_$(t),src/$(n).erl)
 endif
 
 list-templates:
-	$(verbose) echo Available templates: $(sort $(patsubst tpl_%,%,$(filter tpl_%,$(.VARIABLES))))
+	$(verbose) @echo Available templates:
+	$(verbose) printf "    %s\n" $(sort $(patsubst tpl_%,%,$(filter tpl_%,$(.VARIABLES))))
 
 # Copyright (c) 2014-2016, Loïc Hoguin <essen@ninenines.eu>
 # This file is part of erlang.mk and subject to the terms of the ISC License.
@@ -6327,6 +6366,7 @@ export DIALYZER_PLT
 PLT_APPS ?=
 DIALYZER_DIRS ?= --src -r $(wildcard src) $(ALL_APPS_DIRS)
 DIALYZER_OPTS ?= -Werror_handling -Wrace_conditions -Wunmatched_returns # -Wunderspecs
+DIALYZER_PLT_OPTS ?=
 
 # Core targets.
 
@@ -6360,8 +6400,8 @@ endef
 $(DIALYZER_PLT): deps app
 	$(eval DEPS_LOG := $(shell test -f $(ERLANG_MK_TMP)/deps.log && \
 		while read p; do test -d $$p/ebin && echo $$p/ebin; done <$(ERLANG_MK_TMP)/deps.log))
-	$(verbose) dialyzer --build_plt --apps erts kernel stdlib \
-		$(PLT_APPS) $(OTP_DEPS) $(LOCAL_DEPS) $(DEPS_LOG)
+	$(verbose) dialyzer --build_plt $(DIALYZER_PLT_OPTS) --apps \
+		erts kernel stdlib $(PLT_APPS) $(OTP_DEPS) $(LOCAL_DEPS) $(DEPS_LOG)
 
 plt: $(DIALYZER_PLT)
 
@@ -6373,7 +6413,7 @@ dialyze:
 else
 dialyze: $(DIALYZER_PLT)
 endif
-	$(verbose) dialyzer --no_native `$(ERL) -eval "$(subst $(newline),,$(subst ",\",$(call filter_opts.erl)))" -extra $(ERLC_OPTS)` $(DIALYZER_DIRS) $(DIALYZER_OPTS)
+	$(verbose) dialyzer --no_native `$(ERL) -eval "$(subst $(newline),,$(call escape_dquotes,$(call filter_opts.erl)))" -extra $(ERLC_OPTS)` $(DIALYZER_DIRS) $(DIALYZER_OPTS)
 
 # Copyright (c) 2013-2016, Loïc Hoguin <essen@ninenines.eu>
 # This file is part of erlang.mk and subject to the terms of the ISC License.
@@ -6546,20 +6586,25 @@ help::
 # Plugin-specific targets.
 
 define eunit.erl
-	case "$(COVER)" of
-		"" -> ok;
+	Enabled = case "$(COVER)" of
+		"" -> false;
 		_ ->
-			case cover:compile_beam_directory("ebin") of
-				{error, _} -> halt(1);
-				_ -> ok
+			case filelib:is_dir("ebin") of
+				false -> false;
+				true ->
+					case cover:compile_beam_directory("ebin") of
+						{error, _} -> halt(1);
+						_ -> true
+					end
 			end
 	end,
 	case eunit:test($1, [$(EUNIT_OPTS)]) of
 		ok -> ok;
 		error -> halt(2)
 	end,
-	case "$(COVER)" of
-		"" -> ok;
+	case {Enabled, "$(COVER)"} of
+		{false, _} -> ok;
+		{_, ""} -> ok;
 		_ ->
 			cover:export("$(COVER_DATA_DIR)/eunit.coverdata")
 	end,
@@ -6605,7 +6650,10 @@ ifeq ($(filter proper,$(DEPS) $(TEST_DEPS)),proper)
 tests:: proper
 
 define proper_check.erl
-	code:add_pathsa(["$(call core_native_path,$(CURDIR)/ebin)", "$(call core_native_path,$(DEPS_DIR)/*/ebin)"]),
+	code:add_pathsa([
+		"$(call core_native_path,$(CURDIR)/ebin)",
+		"$(call core_native_path,$(DEPS_DIR)/*/ebin)",
+		"$(call core_native_path,$(TEST_DIR))"]),
 	Module = fun(M) ->
 		[true] =:= lists:usort([
 			case atom_to_list(F) of
@@ -6643,7 +6691,8 @@ proper: test-build
 endif
 else
 proper: test-build
-	$(eval MODULES := $(patsubst %,'%',$(sort $(notdir $(basename $(wildcard ebin/*.beam))))))
+	$(eval MODULES := $(patsubst %,'%',$(sort $(notdir $(basename \
+		$(wildcard ebin/*.beam) $(call core_find,$(TEST_DIR)/,*.beam))))))
 	$(gen_verbose) $(call erlang,$(call proper_check.erl,all,undefined,$(MODULES)))
 endif
 endif
