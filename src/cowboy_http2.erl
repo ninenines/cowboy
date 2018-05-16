@@ -1119,7 +1119,8 @@ stream_req_init(State=#state{ref=Ref, peer=Peer, sock=Sock, cert=Cert},
 		StreamID, IsFin, Headers, PseudoHeaders=#{method := Method, scheme := Scheme,
 			authority := Authority, path := PathWithQs}, BodyLength) ->
 	try cow_http_hd:parse_host(Authority) of
-		{Host, Port} ->
+		{Host, Port0} ->
+			Port = ensure_port(Scheme, Port0),
 			try cow_http:parse_fullpath(PathWithQs) of
 				{<<>>, _} ->
 					stream_malformed(State, StreamID,
@@ -1159,6 +1160,10 @@ stream_req_init(State=#state{ref=Ref, peer=Peer, sock=Sock, cert=Cert},
 		stream_malformed(State, StreamID,
 			'The :authority pseudo-header is invalid. (RFC7540 8.1.2.3)')
 	end.
+
+ensure_port(<<"http">>, undefined) -> 80;
+ensure_port(<<"https">>, undefined) -> 443;
+ensure_port(_, Port) -> Port.
 
 stream_closed(State=#state{socket=Socket, transport=Transport}, StreamID, _) ->
 	Transport:send(Socket, cow_http2:rst_stream(StreamID, stream_closed)),

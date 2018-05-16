@@ -334,6 +334,12 @@ port(Config) ->
 	Port = integer_to_binary(config(port, Config)),
 	Port = do_get_body("/port", Config),
 	Port = do_get_body("/direct/port", Config),
+	ExpectedPort = case config(type, Config) of
+		tcp -> <<"80">>;
+		ssl -> <<"443">>
+	end,
+	ExpectedPort = do_get_body("/port", [{<<"host">>, <<"localhost">>}], Config),
+	ExpectedPort = do_get_body("/direct/port", [{<<"host">>, <<"localhost">>}], Config),
 	ok.
 
 qs(Config) ->

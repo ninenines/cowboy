@@ -110,7 +110,7 @@
 	method => binary(),
 	scheme => binary(),
 	host => binary(),
-	port => binary(),
+	port => inet:port_number(),
 	qs => binary()
 }.
 -export_type([push_opts/0]).
