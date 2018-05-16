@@ -45,7 +45,9 @@ more efficiently.
 
 The streaming method varies depending on the protocol being
 used. HTTP/2 will use the usual DATA frames. HTTP/1.1 will
-use chunked transfer-encoding. HTTP/1.0 will send the body
+use chunked transfer-encoding, if the content-length
+response header is set the body will be sent without chunked
+chunked transfer-encoding. HTTP/1.0 will send the body
 unmodified and close the connection at the end if no
 content-length was set.
 
