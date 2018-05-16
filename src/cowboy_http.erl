@@ -976,13 +976,30 @@ commands(State=#state{socket=Socket, transport=Transport, streams=Streams}, Stre
 %% Send a file.
 commands(State0=#state{socket=Socket, transport=Transport}, StreamID,
 		[{sendfile, IsFin, Offset, Bytes, Path}|Tail]) ->
-	Transport:sendfile(Socket, Path, Offset, Bytes),
-	State = case IsFin of
-		fin -> State0#state{out_state=done}
+	%% We wrap the sendfile call into a try/catch because on OTP-20
+	%% and earlier a few different crashes could occur for sockets
+	%% that were closing or closed. For example a badarg in
+	%% erlang:port_get_data(#Port<...>) or a badmatch like
+	%% {{badmatch,{error,einval}},[{prim_file,sendfile,8,[]}...
+	%%
+	%% OTP-21 uses a NIF instead of a port so the implementation
+	%% and behavior has dramatically changed and it is unclear
+	%% whether it will be necessary in the future.
+	%%
+	%% This try/catch prevents some noisy logs to be written
+	%% when these errors occur.
+	try
+		Transport:sendfile(Socket, Path, Offset, Bytes),
+		State = case IsFin of
+			fin -> State0#state{out_state=done}
 %% @todo Add the sendfile command.
-%		nofin -> State0
-	end,
-	commands(State, StreamID, Tail);
+%			nofin -> State0
+		end,
+		commands(State, StreamID, Tail)
+	catch _:_ ->
+		terminate(State0, {socket_error, sendfile_crash,
+			'An error occurred when using the sendfile function.'})
+	end;
 %% Protocol takeover.
 commands(State0=#state{ref=Ref, parent=Parent, socket=Socket, transport=Transport,
 		opts=Opts, children=Children}, StreamID,
