@@ -29,7 +29,7 @@ init_per_suite(Config) ->
 		false ->
 			skip;
 		_ ->
-			cowboy_test:init_http2(h2spec, #{
+			cowboy_test:init_http(h2spec, #{
 				env => #{dispatch => init_dispatch()},
 				max_concurrent_streams => 100
 			}, Config)
@@ -66,7 +66,7 @@ start_port(Config, Pid) ->
 	H2spec = os:getenv("H2SPEC"),
 	ListenPort = config(port, Config),
 	Port = open_port(
-		{spawn, H2spec ++ " -S -t -k -p "
+		{spawn, H2spec ++ " -S -p "
 			++ integer_to_list(ListenPort)},
 		[{line, 10000}, {cd, config(priv_dir, Config)}, binary, exit_status]),
 	receive_infinity(Port, Pid, []).
