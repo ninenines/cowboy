@@ -2591,14 +2591,6 @@ settings_header_table_size_server(Config0) ->
 	%% the table size was updated to HeaderTableSize.
 	ok.
 
-%   SETTINGS_ENABLE_PUSH (0x2):  This setting can be used to disable
-%      server push (Section 8.2).  An endpoint MUST NOT send a
-%      PUSH_PROMISE frame if it receives this parameter set to a value of
-%      0.  An endpoint that has both set this parameter to 0 and had it
-%      acknowledged MUST treat the receipt of a PUSH_PROMISE frame as a
-%      connection error (Section 5.4.1) of type PROTOCOL_ERROR.
-%% @todo settings_disable_push
-
 settings_max_concurrent_streams(Config0) ->
 	doc("The SETTINGS_MAX_CONCURRENT_STREAMS setting can be used to "
 		"restrict the number of concurrent streams. (RFC7540 5.1.2, RFC7540 6.5.2)"),
@@ -2882,13 +2874,35 @@ settings_max_frame_size_reject_too_large(Config) ->
 %   associated with.  If the stream identifier field specifies the value
 %   0x0, a recipient MUST respond with a connection error (Section 5.4.1)
 %   of type PROTOCOL_ERROR.
-%
-%   PUSH_PROMISE MUST NOT be sent if the SETTINGS_ENABLE_PUSH setting of
-%   the peer endpoint is set to 0.  An endpoint that has set this setting
-%   and has received acknowledgement MUST treat the receipt of a
-%   PUSH_PROMISE frame as a connection error (Section 5.4.1) of type
-%   PROTOCOL_ERROR.
-%
+
+client_settings_disable_push(Config) ->
+	doc("PUSH_PROMISE frames must not be sent when the setting "
+		"SETTINGS_ENABLE_PUSH is disabled. (RFC7540 6.5.2, RFC7540 6.6, RFC7540 8.2)"),
+	%% Do a prior knowledge handshake.
+	{ok, Socket} = gen_tcp:connect("localhost", config(port, Config), [binary, {active, false}]),
+	%% Send a valid preface.
+	ok = gen_tcp:send(Socket, ["PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n", cow_http2:settings(#{
+		enable_push => false
+	})]),
+	%% Receive the server preface.
+	{ok, << Len:24 >>} = gen_tcp:recv(Socket, 3, 1000),
+	{ok, << 4:8, 0:40, _:Len/binary >>} = gen_tcp:recv(Socket, 6 + Len, 1000),
+	%% Send the SETTINGS ack.
+	ok = gen_tcp:send(Socket, cow_http2:settings_ack()),
+	%% Receive the SETTINGS ack.
+	{ok, << 0:24, 4:8, 1:8, 0:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+	%% Send a HEADERS frame on a resource that sends PUSH_PROMISE frames.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/resp/push">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+	%% Receive a HEADERS frame as a response, no PUSH_PROMISE frames.
+	{ok, << _:24, 1:8, _:40 >>} = gen_tcp:recv(Socket, 9, 6000),
+	ok.
+
 %   Since PUSH_PROMISE reserves a stream, ignoring a PUSH_PROMISE frame
 %   causes the stream state to become indeterminate.  A receiver MUST
 %   treat the receipt of a PUSH_PROMISE on a stream that is neither

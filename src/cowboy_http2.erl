@@ -706,6 +706,10 @@ commands(State0, Stream0=#stream{local=nofin, te=TE0}, [{trailers, Trailers}|Tai
 %		[{sendfile, IsFin, Offset, Bytes, Path}|Tail]) ->
 %	{State, Stream} = send_data(State0, Stream0, IsFin, {sendfile, Offset, Bytes, Path}),
 %	commands(State, Stream, Tail);
+%% Push promises are not sent to clients who disabled them.
+commands(State=#state{remote_settings=#{enable_push := false}}, Stream,
+		[{push, _, _, _, _, _, _, _}|Tail]) ->
+	commands(State, Stream, Tail);
 %% Send a push promise.
 %%
 %% @todo We need to keep track of what promises we made so that we don't
