@@ -77,7 +77,7 @@ do_body(Method, Path, Headers0, Body, Config) ->
 		<<>> -> gun:request(ConnPid, Method, Path, Headers);
 		_ -> gun:request(ConnPid, Method, Path, Headers, Body)
 	end,
-	{response, IsFin, 200, RespHeaders} = gun:await(ConnPid, Ref),
+	{response, IsFin, 200, RespHeaders} = gun:await(ConnPid, Ref, 10000),
 	{ok, RespBody} = case IsFin of
 		nofin -> gun:await_body(ConnPid, Ref);
 		fin -> {ok, <<>>}
