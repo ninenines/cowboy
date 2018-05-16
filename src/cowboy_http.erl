@@ -25,6 +25,7 @@
 	env => cowboy_middleware:env(),
 	idle_timeout => timeout(),
 	inactivity_timeout => timeout(),
+	linger_timeout => timeout(),
 	max_empty_lines => non_neg_integer(),
 	max_header_name_length => non_neg_integer(),
 	max_header_value_length => non_neg_integer(),
@@ -1236,9 +1237,10 @@ early_error(StatusCode0, #state{socket=Socket, transport=Transport,
 -spec terminate(_, _) -> no_return().
 terminate(undefined, Reason) ->
 	exit({shutdown, Reason});
-terminate(#state{streams=Streams, children=Children}, Reason) ->
+terminate(State=#state{streams=Streams, children=Children}, Reason) ->
 	terminate_all_streams(Streams, Reason),
 	cowboy_children:terminate(Children),
+	terminate_linger(State),
 	exit({shutdown, Reason}).
 
 terminate_all_streams([], _) ->
@@ -1246,6 +1248,44 @@ terminate_all_streams([], _) ->
 terminate_all_streams([#stream{id=StreamID, state=StreamState}|Tail], Reason) ->
 	stream_call_terminate(StreamID, Reason, StreamState),
 	terminate_all_streams(Tail, Reason).
+
+terminate_linger(State=#state{socket=Socket, transport=Transport, opts=Opts}) ->
+	case Transport:shutdown(Socket, write) of
+		ok ->
+			case maps:get(linger_timeout, Opts, 1000) of
+				0 ->
+					ok;
+				infinity ->
+					terminate_linger_loop(State, undefined);
+				Timeout ->
+					TimerRef = erlang:start_timer(Timeout, self(), linger_timeout),
+					terminate_linger_loop(State, TimerRef)
+			end;
+		{error, _} ->
+			ok
+	end.
+
+terminate_linger_loop(State=#state{socket=Socket, transport=Transport}, TimerRef) ->
+	{OK, Closed, Error} = Transport:messages(),
+	%% We may already have a message in the mailbox when we do this
+	%% but it's OK because we are shutting down anyway.
+	case Transport:setopts(Socket, [{active, once}]) of
+		ok ->
+			receive
+				{OK, Socket, _} ->
+					terminate_linger_loop(State, TimerRef);
+				{Closed, Socket} ->
+					ok;
+				{Error, Socket, _} ->
+					ok;
+				{timeout, TimerRef, linger_timeout} ->
+					ok;
+				_ ->
+					terminate_linger_loop(State, TimerRef)
+			end;
+		{error, _} ->
+			ok
+	end.
 
 %% System callbacks.
 

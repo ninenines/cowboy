@@ -21,6 +21,7 @@ opts() :: #{
     env                     => cowboy_middleware:env(),
     idle_timeout            => timeout(),
     inactivity_timeout      => timeout(),
+    linger_timeout          => timeout(),
     max_empty_lines         => non_neg_integer(),
     max_header_name_length  => non_neg_integer(),
     max_header_value_length => non_neg_integer(),
@@ -58,6 +59,11 @@ idle_timeout (60000)::
 
 inactivity_timeout (300000)::
     Time in ms with nothing received at all before Cowboy closes the connection.
+
+linger_timeout (1000)::
+    Time in ms that Cowboy will wait when closing the connection. This is
+    necessary to avoid the TCP reset problem as described in the
+    https://tools.ietf.org/html/rfc7230#section-6.6[section 6.6 of RFC7230].
 
 max_empty_lines (5)::
     Maximum number of empty lines before a request.
@@ -98,6 +104,7 @@ stream_handlers ([cowboy_stream_h])::
 
 == Changelog
 
+* *2.5*: The `linger_timeout` option was added.
 * *2.2*: The `max_skip_body_length` option was added.
 * *2.0*: The `timeout` option was renamed `request_timeout`.
 * *2.0*: The `idle_timeout`, `inactivity_timeout` and `shutdown_timeout` options were added.
