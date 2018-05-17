@@ -35,16 +35,13 @@ all() ->
 		{group, http_compress},
 		{group, https_compress},
 		{group, parse_host},
-		{group, request_timeout_infinity},
-		{group, idle_timeout_infinity},
 		{group, set_env},
 		{group, router_compile}
 	].
 
 groups() ->
 	Tests = ct_helper:all(?MODULE) -- [
-		parse_host, set_env_dispatch, path_allow_colon,
-		request_timeout_infinity, idle_timeout_infinity
+		parse_host, set_env_dispatch, path_allow_colon
 	],
 	[
 		{http, [], Tests}, %% @todo parallel
@@ -53,12 +50,6 @@ groups() ->
 		{https_compress, [parallel], Tests},
 		{parse_host, [], [
 			parse_host
-		]},
-		{request_timeout_infinity, [], [
-			request_timeout_infinity
-		]},
-		{idle_timeout_infinity, [], [
-			idle_timeout_infinity
 		]},
 		{set_env, [], [
 			set_env_dispatch
@@ -93,22 +84,6 @@ init_per_group(parse_host, Config) ->
 	}),
 	Port = ranch:get_port(parse_host),
 	[{type, tcp}, {protocol, http}, {port, Port}, {opts, []}|Config];
-init_per_group(request_timeout_infinity, Config) ->
-	Ref = request_timeout_infinity,
-	{ok, Pid} = cowboy:start_clear(Ref, [{port, 0}], #{
-		env => #{dispatch => init_dispatch(Config)},
-		request_timeout => infinity
-	}),
-	Port = ranch:get_port(request_timeout_infinity),
-	[{pid, Pid}, {ref, Ref}, {type, tcp}, {protocol, http}, {port, Port}, {opts, []}|Config];
-init_per_group(idle_timeout_infinity, Config) ->
-	Ref = idle_timeout_infinity,
-	{ok, Pid} = cowboy:start_clear(Ref, [{port, 0}], #{
-		env => #{dispatch => init_dispatch(Config)},
-		idle_timeout => infinity
-	}),
-	Port = ranch:get_port(idle_timeout_infinity),
-	[{pid, Pid}, {ref, Ref}, {type, tcp}, {protocol, http}, {port, Port}, {opts, []}|Config];
 init_per_group(set_env, Config) ->
 	{ok, _} = cowboy:start_clear(set_env, [{port, 0}], #{
 		env => #{dispatch => []}
@@ -732,26 +707,3 @@ te_identity(Config) ->
 	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
 	{ok, Body} = gun:await_body(ConnPid, Ref),
 	ok.
-
-request_timeout_infinity(Config) ->
-	Pid = config(pid, Config),
-	Ref = erlang:monitor(process, Pid),
-	_ = gun_open(Config),
-	receive
-		{'DOWN', Ref, process, Pid, Reason} ->
-			error(Reason)
-	after 1000 ->
-		ok
-	end.
-
-idle_timeout_infinity(Config) ->
-	Pid = config(pid, Config),
-	Ref = erlang:monitor(process, Pid),
-	ConnPid = gun_open(Config),
-	gun:post(ConnPid, "/echo/body", [], <<"TEST">>),
-	receive
-		{'DOWN', Ref, process, Pid, Reason} ->
-			error(Reason)
-	after 1000 ->
-		ok
-	end.
