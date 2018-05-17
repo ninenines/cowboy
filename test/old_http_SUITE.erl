@@ -209,19 +209,15 @@ The document has moved
 		{400, "\n"},
 		{400, "Garbage\r\n\r\n"},
 		{400, "\r\n\r\n\r\n\r\n\r\n\r\n"},
-		{400, " / HTTP/1.1\r\nHost: localhost\r\n\r\n"},
 		{400, "GET  HTTP/1.1\r\nHost: localhost\r\n\r\n"},
 		{400, "GET / HTTP/1.1\r\nHost: ninenines.eu\r\n\r\n"},
 		{400, "GET http://proxy/ HTTP/1.1\r\n\r\n"},
 		{400, "GET / HTTP/1.1\r\nHost: localhost:bad_port\r\n\r\n"},
 		{400, ResponsePacket},
-		{408, "GET / HTTP/1.1\r\n"},
 		{408, "GET / HTTP/1.1\r\nHost: localhost"},
 		{408, "GET / HTTP/1.1\r\nHost: localhost\r\n"},
 		{408, "GET / HTTP/1.1\r\nHost: localhost\r\n\r"},
 		{closed, Huge},
-		{431, "GET / HTTP/1.1\r\n" ++ Huge},
-		{505, "GET / HTTP/1.2\r\nHost: localhost\r\n\r\n"},
 		{closed, ""},
 		{closed, "\r\n"},
 		{closed, "\r\n\r\n"},
@@ -604,22 +600,6 @@ set_env_dispatch(Config) ->
 
 path_allow_colon(_Config) ->
 	cowboy_router:compile([{'_', [{"/foo/bar:blah", http_handler, []}]}]),
-	ok.
-
-set_resp_body(Config) ->
-	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, "/set_resp/body"),
-	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
-	{ok, <<"A flameless dance does not equal a cycle">>}
-		= gun:await_body(ConnPid, Ref),
-	ok.
-
-set_resp_header(Config) ->
-	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, "/set_resp/header"),
-	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
-	{_, <<"Accept">>} = lists:keyfind(<<"vary">>, 1, Headers),
-	{_, _} = lists:keyfind(<<"set-cookie">>, 1, Headers),
 	ok.
 
 set_resp_overwrite(Config) ->
