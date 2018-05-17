@@ -107,7 +107,7 @@ end_per_group(Name, _) ->
 init_large_file(Filename) ->
 	case os:type() of
 		{unix, _} ->
-			"" = os:cmd("truncate -s 512M " ++ Filename),
+			"" = os:cmd("truncate -s 32M " ++ Filename),
 			ok;
 		{win32, _} ->
 			ok
@@ -422,7 +422,7 @@ dir_large_file(Config) ->
 		[{<<"accept-encoding">>, <<"gzip">>}]),
 	{response, nofin, 200, RespHeaders} = gun:await(ConnPid, Ref),
 	{_, <<"application/octet-stream">>} = lists:keyfind(<<"content-type">>, 1, RespHeaders),
-	Size = 512*1024*1024,
+	Size = 32*1024*1024,
 	{ok, Size} = do_dir_large_file(ConnPid, Ref, 0),
 	ok.
 
