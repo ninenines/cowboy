@@ -245,25 +245,6 @@ check_status(Config) ->
 		{Ret, URL}
 	end || {Status, URL} <- Tests].
 
-%% Check if sending requests whose size is around the MTU breaks something.
-echo_body(Config) ->
-	MTU = ct_helper:get_loopback_mtu(),
-	_ = [begin
-		Body = list_to_binary(lists:duplicate(Size, $a)),
-		ConnPid = gun_open(Config),
-		Ref = gun:post(ConnPid, "/echo/body", [], Body),
-		{response, nofin, 200, _} = gun:await(ConnPid, Ref),
-		{ok, Body} = gun:await_body(ConnPid, Ref)
-	end || Size <- lists:seq(MTU - 500, MTU)],
-	ok.
-
-%% Check if sending request whose size is bigger than 1000000 bytes causes 413
-echo_body_max_length(Config) ->
-	ConnPid = gun_open(Config),
-	Ref = gun:post(ConnPid, "/echo/body", [], << 0:10000000/unit:8 >>),
-	{response, nofin, 413, _} = gun:await(ConnPid, Ref),
-	ok.
-
 error_init_after_reply(Config) ->
 	ConnPid = gun_open(Config),
 	Ref = gun:get(ConnPid, "/handler_errors?case=init_after_reply"),

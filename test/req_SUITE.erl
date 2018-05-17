@@ -432,28 +432,35 @@ read_body(Config) ->
 	<<"hello world!">> = do_body("POST", "/read_body", [], "hello world!", Config),
 	%% We expect to have read *at least* 1000 bytes.
 	<<0:8000, _/bits>> = do_body("POST", "/opts/read_body/length", [], <<0:8000000>>, Config),
-	%% We read any length for at most 1 second.
-	%%
-	%% The body is sent twice, first with nofin, then wait 2 seconds, then again with fin.
-	<<0:8000000>> = do_read_body_period("/opts/read_body/period", <<0:8000000>>, Config),
 	%% The timeout value is set too low on purpose to ensure a crash occurs.
 	ok = do_read_body_timeout("/opts/read_body/timeout", <<0:8000000>>, Config),
 	%% 10MB body larger than default length.
 	<<0:80000000>> = do_body("POST", "/full/read_body", [], <<0:80000000>>, Config),
 	ok.
 
-do_read_body_period(Path, Body, Config) ->
+read_body_mtu(Config) ->
+	doc("Request body whose sizes are around the MTU."),
+	MTU = ct_helper:get_loopback_mtu(),
+	_ = [begin
+		Body = <<0:Size/unit:8>>,
+		Body = do_body("POST", "/full/read_body", [], Body, Config)
+	end || Size <- lists:seq(MTU - 10, MTU + 10)],
+	ok.
+
+read_body_period(Config) ->
+	doc("Read the request body for at most 1 second."),
 	ConnPid = gun_open(Config),
-	Ref = gun:request(ConnPid, "POST", Path, [
+	Body = <<0:8000000>>,
+	Ref = gun:request(ConnPid, "POST", "/opts/read_body/period", [
 		{<<"content-length">>, integer_to_binary(byte_size(Body) * 2)}
 	]),
+	%% The body is sent twice, first with nofin, then wait 2 seconds, then again with fin.
 	gun:data(ConnPid, Ref, nofin, Body),
 	timer:sleep(2000),
 	gun:data(ConnPid, Ref, fin, Body),
 	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
-	{ok, RespBody} = gun:await_body(ConnPid, Ref),
-	gun:close(ConnPid),
-	RespBody.
+	{ok, Body} = gun:await_body(ConnPid, Ref),
+	gun:close(ConnPid).
 
 %% We expect a crash.
 do_read_body_timeout(Path, Body, Config) ->
