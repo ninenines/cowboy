@@ -25,12 +25,20 @@
 all() ->
 	ct_helper:all(?MODULE).
 
-%% Remove environment variables inherited from Erlang.mk.
 init_per_suite(Config) ->
+	%% Remove environment variables inherited from Erlang.mk.
 	os:unsetenv("ERLANG_MK_TMP"),
 	os:unsetenv("APPS_DIR"),
 	os:unsetenv("DEPS_DIR"),
 	os:unsetenv("ERL_LIBS"),
+	%% Clone and build Cowboy, Cowlib and Ranch only once and
+	%% reuse the same build across all tests.
+	Make = do_find_make_cmd(),
+	CommonDir = config(priv_dir, Config),
+	ct:log("~s~n", [os:cmd("git clone --depth 1 https://github.com/ninenines/cowboy "
+		++ CommonDir ++ "cowboy")]),
+	ct:log("~s~n", [os:cmd(Make ++ " -C " ++ CommonDir ++ "cowboy distclean")]),
+	ct:log("~s~n", [os:cmd(Make ++ " -C " ++ CommonDir ++ "cowboy DEPS_DIR=" ++ CommonDir)]),
 	Config.
 
 end_per_suite(_) ->
@@ -59,11 +67,18 @@ do_get_paths(Example0) ->
 	Log = Dir ++ "/_rel/" ++ Example ++ "_example/log/erlang.log.1",
 	{Dir, Rel, Log}.
 
-do_compile_and_start(Example) ->
+do_compile_and_start(Example, Config) ->
 	Make = do_find_make_cmd(),
 	{Dir, Rel, _} = do_get_paths(Example),
+	ct:log("~s~n", [os:cmd(Make ++ " -C " ++ Dir ++ " distclean")]),
+	%% We use a common build for Cowboy, Cowlib and Ranch to speed things up.
+	CommonDir = config(priv_dir, Config),
+	ct:log("~s~n", [os:cmd("mkdir " ++ Dir ++ "/deps")]),
+	ct:log("~s~n", [os:cmd("ln -s " ++ CommonDir ++ "cowboy " ++ Dir ++ "/deps/cowboy")]),
+	ct:log("~s~n", [os:cmd("ln -s " ++ CommonDir ++ "cowlib " ++ Dir ++ "/deps/cowlib")]),
+	ct:log("~s~n", [os:cmd("ln -s " ++ CommonDir ++ "ranch " ++ Dir ++ "/deps/ranch")]),
 	%% TERM=dumb disables relx coloring.
-	ct:log("~s~n", [os:cmd("cd " ++ Dir ++ " && " ++ Make ++ " distclean && " ++ Make ++ " all TERM=dumb")]),
+	ct:log("~s~n", [os:cmd(Make ++ " -C " ++ Dir ++ " TERM=dumb")]),
 	ct:log("~s~n", [os:cmd(Rel ++ " stop")]),
 	ct:log("~s~n", [os:cmd(Rel ++ " start")]),
 	timer:sleep(2000),
@@ -100,7 +115,7 @@ do_get(Transport, Protocol, Path, ReqHeaders, Config) ->
 hello_world(Config) ->
 	doc("Hello World example."),
 	try
-		do_compile_and_start(hello_world),
+		do_compile_and_start(hello_world, Config),
 		do_hello_world(tcp, http, Config),
 		do_hello_world(tcp, http2, Config)
 	after
@@ -110,7 +125,7 @@ hello_world(Config) ->
 ssl_hello_world(Config) ->
 	doc("SSL Hello World example."),
 	try
-		do_compile_and_start(ssl_hello_world),
+		do_compile_and_start(ssl_hello_world, Config),
 		do_hello_world(ssl, http, Config),
 		do_hello_world(ssl, http2, Config)
 	after
@@ -126,7 +141,7 @@ do_hello_world(Transport, Protocol, Config) ->
 chunked_hello_world(Config) ->
 	doc("Chunked Hello World example."),
 	try
-		do_compile_and_start(chunked_hello_world),
+		do_compile_and_start(chunked_hello_world, Config),
 		do_chunked_hello_world(tcp, http, Config),
 		do_chunked_hello_world(tcp, http2, Config)
 	after
@@ -155,7 +170,7 @@ do_chunked_hello_world(Transport, Protocol, Config) ->
 compress_response(Config) ->
 	doc("Compressed response example."),
 	try
-		do_compile_and_start(compress_response),
+		do_compile_and_start(compress_response, Config),
 		do_compress_response(tcp, http, Config),
 		do_compress_response(tcp, http2, Config)
 	after
@@ -174,7 +189,7 @@ do_compress_response(Transport, Protocol, Config) ->
 cookie(Config) ->
 	doc("Cookie example."),
 	try
-		do_compile_and_start(cookie),
+		do_compile_and_start(cookie, Config),
 		do_cookie(tcp, http, Config),
 		do_cookie(tcp, http2, Config)
 	after
@@ -192,7 +207,7 @@ do_cookie(Transport, Protocol, Config) ->
 echo_get(Config) ->
 	doc("GET parameter echo example."),
 	try
-		do_compile_and_start(echo_get),
+		do_compile_and_start(echo_get, Config),
 		do_echo_get(tcp, http, Config),
 		do_echo_get(tcp, http2, Config)
 	after
@@ -209,7 +224,7 @@ do_echo_get(Transport, Protocol, Config) ->
 echo_post(Config) ->
 	doc("POST parameter echo example."),
 	try
-		do_compile_and_start(echo_post),
+		do_compile_and_start(echo_post, Config),
 		do_echo_post(tcp, http, Config),
 		do_echo_post(tcp, http2, Config)
 	after
@@ -230,7 +245,7 @@ do_echo_post(Transport, Protocol, Config) ->
 eventsource(Config) ->
 	doc("Eventsource example."),
 	try
-		do_compile_and_start(eventsource),
+		do_compile_and_start(eventsource, Config),
 		do_eventsource(tcp, http, Config),
 		do_eventsource(tcp, http2, Config)
 	after
@@ -253,7 +268,7 @@ do_eventsource(Transport, Protocol, Config) ->
 rest_hello_world(Config) ->
 	doc("REST Hello World example."),
 	try
-		do_compile_and_start(rest_hello_world),
+		do_compile_and_start(rest_hello_world, Config),
 		do_rest_hello_world(tcp, http, Config),
 		do_rest_hello_world(tcp, http2, Config)
 	after
@@ -300,7 +315,7 @@ do_rest_get(Transport, Protocol, Path, Accept, Auth, Config) ->
 rest_basic_auth(Config) ->
 	doc("REST basic authorization example."),
 	try
-		do_compile_and_start(rest_basic_auth),
+		do_compile_and_start(rest_basic_auth, Config),
 		do_rest_basic_auth(tcp, http, Config),
 		do_rest_basic_auth(tcp, http2, Config)
 	after
@@ -317,7 +332,7 @@ do_rest_basic_auth(Transport, Protocol, Config) ->
 rest_pastebin(Config) ->
 	doc("REST pastebin example."),
 	try
-		do_compile_and_start(rest_pastebin),
+		do_compile_and_start(rest_pastebin, Config),
 		do_rest_pastebin(tcp, http, Config),
 		do_rest_pastebin(tcp, http2, Config)
 	after
@@ -347,7 +362,7 @@ do_rest_pastebin(Transport, Protocol, Config) ->
 file_server(Config) ->
 	doc("File server example with directory listing."),
 	try
-		do_compile_and_start(file_server),
+		do_compile_and_start(file_server, Config),
 		do_file_server(tcp, http, Config),
 		do_file_server(tcp, http2, Config)
 	after
@@ -371,7 +386,7 @@ do_file_server(Transport, Protocol, Config) ->
 markdown_middleware(Config) ->
 	doc("Markdown middleware example."),
 	try
-		do_compile_and_start(markdown_middleware),
+		do_compile_and_start(markdown_middleware, Config),
 		do_markdown_middleware(tcp, http, Config),
 		do_markdown_middleware(tcp, http2, Config)
 	after
@@ -388,7 +403,7 @@ do_markdown_middleware(Transport, Protocol, Config) ->
 upload(Config) ->
 	doc("Upload example."),
 	try
-		do_compile_and_start(upload),
+		do_compile_and_start(upload, Config),
 		do_upload(tcp, http, Config),
 		do_upload(tcp, http2, Config)
 	after
@@ -413,10 +428,10 @@ do_upload(Transport, Protocol, Config) ->
 
 %% Websocket.
 
-websocket(_) ->
+websocket(Config) ->
 	doc("Websocket example."),
 	try
-		do_compile_and_start(websocket),
+		do_compile_and_start(websocket, Config),
 		%% We can only initiate a Websocket connection from HTTP/1.1.
 		{ok, Pid} = gun:open("127.0.0.1", 8080, #{protocols => [http], retry => 0}),
 		{ok, http} = gun:await_up(Pid),
