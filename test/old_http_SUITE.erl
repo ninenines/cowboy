@@ -33,22 +33,16 @@ all() ->
 		{group, http},
 		{group, https},
 		{group, http_compress},
-		{group, https_compress},
-		{group, set_env}
+		{group, https_compress}
 	].
 
 groups() ->
-	Tests = ct_helper:all(?MODULE) -- [
-		set_env_dispatch
-	],
+	Tests = ct_helper:all(?MODULE),
 	[
 		{http, [], Tests}, %% @todo parallel
 		{https, [parallel], Tests},
 		{http_compress, [parallel], Tests},
-		{https_compress, [parallel], Tests},
-		{set_env, [], [
-			set_env_dispatch
-		]}
+		{https_compress, [parallel], Tests}
 	].
 
 init_per_group(Name = http, Config) ->
@@ -64,13 +58,7 @@ init_per_group(Name = https_compress, Config) ->
 	cowboy_test:init_https(Name, #{
 		env => #{dispatch => init_dispatch(Config)},
 		compress => true
-	}, Config);
-init_per_group(set_env, Config) ->
-	{ok, _} = cowboy:start_clear(set_env, [{port, 0}], #{
-		env => #{dispatch => []}
-	}),
-	Port = ranch:get_port(set_env),
-	[{type, tcp}, {protocol, http}, {port, Port}, {opts, []}|Config].
+	}, Config).
 
 end_per_group(Name, _) ->
 	ok = cowboy:stop_listener(Name).
@@ -518,17 +506,6 @@ rest_resource_etags_if_none_match(Config) ->
 			[{<<"if-none-match">>, ETag}]),
 		{Ret, Type}
 	end || {Status, ETag, Type} <- Tests].
-
-set_env_dispatch(Config) ->
-	ConnPid1 = gun_open(Config),
-	Ref1 = gun:get(ConnPid1, "/"),
-	{response, fin, 400, _} = gun:await(ConnPid1, Ref1),
-	ok = cowboy:set_env(set_env, dispatch,
-		cowboy_router:compile([{'_', [{"/", http_handler, []}]}])),
-	ConnPid2 = gun_open(Config),
-	Ref2 = gun:get(ConnPid2, "/"),
-	{response, nofin, 200, _} = gun:await(ConnPid2, Ref2),
-	ok.
 
 set_resp_overwrite(Config) ->
 	ConnPid = gun_open(Config),

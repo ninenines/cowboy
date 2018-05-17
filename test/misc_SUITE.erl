@@ -18,25 +18,31 @@
 
 -import(ct_helper, [config/2]).
 -import(ct_helper, [doc/1]).
+-import(ct_helper, [name/0]).
 -import(cowboy_test, [gun_open/1]).
 
 all() ->
-	[{group, no_env}|cowboy_test:common_all()].
+	[{group, app}, {group, set_env}|cowboy_test:common_all()].
 
 groups() ->
-	Common = ct_helper:all(?MODULE) -- [restart_gracefully, set_env_missing],
+	Common = ct_helper:all(?MODULE)
+		-- [restart_gracefully, set_env, set_env_missing],
 	[
 		{app, [], [restart_gracefully]},
-		{no_env, [], [set_env_missing]}
+		{set_env, [parallel], [set_env, set_env_missing]}
 	|cowboy_test:common_groups(Common)].
 
-init_per_group(app, Config) ->
-	cowboy_test:init_common_groups(http, Config, ?MODULE);
-init_per_group(Name=no_env, Config) ->
-	cowboy_test:init_http(Name, #{}, Config);
+init_per_group(Name=app, Config) ->
+	cowboy_test:init_http(Name, #{
+		env => #{dispatch => init_dispatch(Config)}
+	}, Config);
+init_per_group(set_env, Config) ->
+	Config;
 init_per_group(Name, Config) ->
 	cowboy_test:init_common_groups(Name, Config, ?MODULE).
 
+end_per_group(set_env, _) ->
+	ok;
 end_per_group(Name, _) ->
 	cowboy:stop_listener(Name).
 
@@ -72,26 +78,28 @@ router_invalid_path(Config) ->
 	{response, _, 400, _} = gun:await(ConnPid, Ref),
 	ok.
 
-set_env(Config) ->
+set_env(Config0) ->
 	doc("Live replace a middleware environment value."),
+	Config = cowboy_test:init_http(name(), #{
+		env => #{dispatch => []}
+	}, Config0),
 	ConnPid1 = gun_open(Config),
 	Ref1 = gun:get(ConnPid1, "/"),
-	{response, _, 200, _} = gun:await(ConnPid1, Ref1),
-	Listener = proplists:get_value(name, config(tc_group_properties, Config)),
-	cowboy:set_env(Listener, dispatch, []),
+	{response, _, 400, _} = gun:await(ConnPid1, Ref1),
+	cowboy:set_env(name(), dispatch, init_dispatch(Config)),
 	%% Only new connections get the updated environment.
 	ConnPid2 = gun_open(Config),
 	Ref2 = gun:get(ConnPid2, "/"),
-	{response, _, 400, _} = gun:await(ConnPid2, Ref2),
+	{response, _, 200, _} = gun:await(ConnPid2, Ref2),
 	ok.
 
-set_env_missing(Config) ->
+set_env_missing(Config0) ->
 	doc("Live replace a middleware environment value when env was not provided."),
+	Config = cowboy_test:init_http(name(), #{}, Config0),
 	ConnPid1 = gun_open(Config),
 	Ref1 = gun:get(ConnPid1, "/"),
 	{response, _, 500, _} = gun:await(ConnPid1, Ref1),
-	Listener = proplists:get_value(name, config(tc_group_properties, Config)),
-	cowboy:set_env(Listener, dispatch, []),
+	cowboy:set_env(name(), dispatch, []),
 	%% Only new connections get the updated environment.
 	ConnPid2 = gun_open(Config),
 	Ref2 = gun:get(ConnPid2, "/"),
