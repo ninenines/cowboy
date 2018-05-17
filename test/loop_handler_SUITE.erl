@@ -45,6 +45,14 @@ init_dispatch(_) ->
 
 %% Tests.
 
+info_read_body(Config) ->
+	doc("Check that a loop handler can read the request body in info/3."),
+	ConnPid = gun_open(Config),
+	Ref = gun:post(ConnPid, "/loop_body", [{<<"accept-encoding">>, <<"gzip">>}],
+		<< 0:100000/unit:8 >>),
+	{response, fin, 200, _} = gun:await(ConnPid, Ref),
+	ok.
+
 long_polling(Config) ->
 	doc("Simple long-polling."),
 	ConnPid = gun_open(Config),
@@ -52,20 +60,12 @@ long_polling(Config) ->
 	{response, fin, 299, _} = gun:await(ConnPid, Ref),
 	ok.
 
-long_polling_body(Config) ->
-	doc("Long-polling with a body that falls within the configurable limits."),
-	ConnPid = gun_open(Config),
-	Ref = gun:post(ConnPid, "/long_polling", [{<<"accept-encoding">>, <<"gzip">>}],
-		<< 0:5000/unit:8 >>),
-	{response, fin, 299, _} = gun:await(ConnPid, Ref),
-	ok.
-
-long_polling_body_too_large(Config) ->
-	doc("Long-polling with a body that exceeds the configurable limits."),
+long_polling_unread_body(Config) ->
+	doc("Long-polling with a body that is not read by the handler."),
 	ConnPid = gun_open(Config),
 	Ref = gun:post(ConnPid, "/long_polling", [{<<"accept-encoding">>, <<"gzip">>}],
 		<< 0:100000/unit:8 >>),
-	{response, fin, 500, _} = gun:await(ConnPid, Ref),
+	{response, fin, 299, _} = gun:await(ConnPid, Ref),
 	ok.
 
 long_polling_pipeline(Config) ->
@@ -76,15 +76,7 @@ long_polling_pipeline(Config) ->
 	_ = [{response, fin, 299, _} = gun:await(ConnPid, Ref) || Ref <- Refs],
 	ok.
 
-loop_body(Config) ->
-	doc("Check that a loop handler can read the request body in info/3."),
-	ConnPid = gun_open(Config),
-	Ref = gun:post(ConnPid, "/loop_body", [{<<"accept-encoding">>, <<"gzip">>}],
-		<< 0:100000/unit:8 >>),
-	{response, fin, 200, _} = gun:await(ConnPid, Ref),
-	ok.
-
-loop_request_timeout(Config) ->
+request_timeout(Config) ->
 	doc("Ensure that the request_timeout isn't applied when a request is ongoing."),
 	ConnPid = gun_open(Config),
 	Ref = gun:get(ConnPid, "/loop_timeout", [{<<"accept-encoding">>, <<"gzip">>}]),
