@@ -34,22 +34,18 @@ all() ->
 		{group, https},
 		{group, http_compress},
 		{group, https_compress},
-		{group, parse_host},
 		{group, set_env}
 	].
 
 groups() ->
 	Tests = ct_helper:all(?MODULE) -- [
-		parse_host, set_env_dispatch
+		set_env_dispatch
 	],
 	[
 		{http, [], Tests}, %% @todo parallel
 		{https, [parallel], Tests},
 		{http_compress, [parallel], Tests},
 		{https_compress, [parallel], Tests},
-		{parse_host, [], [
-			parse_host
-		]},
 		{set_env, [], [
 			set_env_dispatch
 		]}
@@ -69,17 +65,6 @@ init_per_group(Name = https_compress, Config) ->
 		env => #{dispatch => init_dispatch(Config)},
 		compress => true
 	}, Config);
-init_per_group(parse_host, Config) ->
-	Dispatch = cowboy_router:compile([
-		{'_', [
-			{"/req_attr", http_req_attr, []}
-		]}
-	]),
-	{ok, _} = cowboy:start_clear(parse_host, [{port, 0}], #{
-		env => #{dispatch => Dispatch}
-	}),
-	Port = ranch:get_port(parse_host),
-	[{type, tcp}, {protocol, http}, {port, Port}, {opts, []}|Config];
 init_per_group(set_env, Config) ->
 	{ok, _} = cowboy:start_clear(set_env, [{port, 0}], #{
 		env => #{dispatch => []}
@@ -334,26 +319,6 @@ nc_rand(Config) ->
 
 nc_zero(Config) ->
 	do_nc(Config, "/dev/zero").
-
-parse_host(Config) ->
-	ConnPid = gun_open(Config),
-	Tests = [
-		{<<"example.org:8080">>, <<"example.org\n8080">>},
-		{<<"example.org">>, <<"example.org\n80">>},
-		{<<"192.0.2.1:8080">>, <<"192.0.2.1\n8080">>},
-		{<<"192.0.2.1">>, <<"192.0.2.1\n80">>},
-		{<<"[2001:db8::1]:8080">>, <<"[2001:db8::1]\n8080">>},
-		{<<"[2001:db8::1]">>, <<"[2001:db8::1]\n80">>},
-		{<<"[::ffff:192.0.2.1]:8080">>, <<"[::ffff:192.0.2.1]\n8080">>},
-		{<<"[::ffff:192.0.2.1]">>, <<"[::ffff:192.0.2.1]\n80">>}
-	],
-	[begin
-		Ref = gun:get(ConnPid, "/req_attr?attr=host_and_port",
-			[{<<"host">>, Host}]),
-		{response, nofin, 200, _} = gun:await(ConnPid, Ref),
-		{ok, Body} = gun:await_body(ConnPid, Ref)
-	end || {Host, Body} <- Tests],
-	ok.
 
 rest_param_all(Config) ->
 	ConnPid = gun_open(Config),
