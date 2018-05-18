@@ -26,6 +26,7 @@
 	idle_timeout => timeout(),
 	inactivity_timeout => timeout(),
 	linger_timeout => timeout(),
+	max_authority_length => non_neg_integer(),
 	max_empty_lines => non_neg_integer(),
 	max_header_name_length => non_neg_integer(),
 	max_header_value_length => non_neg_integer(),
@@ -46,6 +47,7 @@
 
 -record(ps_header, {
 	method = undefined :: binary(),
+	authority = undefined :: binary() | undefined,
 	path = undefined :: binary(),
 	qs = undefined :: binary(),
 	version = undefined :: cowboy:http_version(),
@@ -347,7 +349,7 @@ parse_request(Buffer, State=#state{opts=Opts, in_streamid=InStreamID}, EmptyLine
 			case Buffer of
 				%% @todo * is only for server-wide OPTIONS request (RFC7230 5.3.4); tests
 				<< "OPTIONS * ", Rest/bits >> ->
-					parse_version(Rest, State, <<"OPTIONS">>, <<"*">>, <<>>);
+					parse_version(Rest, State, <<"OPTIONS">>, undefined, <<"*">>, <<>>);
 				<<"CONNECT ", _/bits>> ->
 					error_terminate(501, State, {connection_error, no_error,
 						'The CONNECT method is currently not implemented. (RFC7231 4.3.6)'});
@@ -387,18 +389,28 @@ parse_method(<< C, Rest/bits >>, State, SoFar, Remaining) ->
 parse_uri(<< H, T, T, P, "://", Rest/bits >>, State, Method)
 		when H =:= $h orelse H =:= $H, T =:= $t orelse T =:= $T;
 			P =:= $p orelse P =:= $P ->
-	parse_uri_skip_host(Rest, State, Method, <<>>);
+	parse_uri_authority(Rest, State, Method);
 parse_uri(<< H, T, T, P, S, "://", Rest/bits >>, State, Method)
 		when H =:= $h orelse H =:= $H, T =:= $t orelse T =:= $T;
 			P =:= $p orelse P =:= $P; S =:= $s orelse S =:= $S ->
-	parse_uri_skip_host(Rest, State, Method, <<>>);
+	parse_uri_authority(Rest, State, Method);
 parse_uri(<< $/, Rest/bits >>, State, Method) ->
-	parse_uri_path(Rest, State, Method, << $/ >>);
+	parse_uri_path(Rest, State, Method, undefined, <<$/>>);
 parse_uri(_, State, _) ->
 	error_terminate(400, State, {connection_error, protocol_error,
 		'Invalid request-line or request-target. (RFC7230 3.1.1, RFC7230 5.3)'}).
 
-parse_uri_skip_host(<< C, Rest/bits >>, State, Method, SoFar) ->
+%% @todo We probably want to apply max_authority_length also
+%% to the host header and to document this option. It might
+%% also be useful for HTTP/2 requests.
+parse_uri_authority(Rest, State=#state{opts=Opts}, Method) ->
+	parse_uri_authority(Rest, State, Method, <<>>,
+		maps:get(max_authority_length, Opts, 255)).
+
+parse_uri_authority(_, State, _, _, 0) ->
+	error_terminate(414, State, {connection_error, limit_reached,
+		'The authority component of the absolute URI is longer than configuration allows. (RFC7230 2.7.1)'});
+parse_uri_authority(<<C, Rest/bits>>, State, Method, SoFar, Remaining) ->
 	case C of
 		$\r ->
 			error_terminate(400, State, {connection_error, protocol_error,
@@ -409,58 +421,61 @@ parse_uri_skip_host(<< C, Rest/bits >>, State, Method, SoFar) ->
 		C when SoFar =:= <<>> andalso
 				((C =:= $/) orelse (C =:= $\s) orelse (C =:= $?) orelse (C =:= $#)) ->
 			error_terminate(400, State, {connection_error, protocol_error,
-				'Absolute URIs must include an authority component. (RFC7230 2.7.1)'});
-		$/ -> parse_uri_path(Rest, State, Method, <<"/">>);
-		$\s -> parse_version(Rest, State, Method, <<"/">>, <<>>);
-		$? -> parse_uri_query(Rest, State, Method, <<"/">>, <<>>);
-		$# -> skip_uri_fragment(Rest, State, Method, <<"/">>, <<>>);
-		C -> parse_uri_skip_host(Rest, State, Method, <<SoFar/binary, C>>)
+				'Absolute URIs must include a non-empty host component. (RFC7230 2.7.1)'});
+		$: when SoFar =:= <<>> ->
+			error_terminate(400, State, {connection_error, protocol_error,
+				'Absolute URIs must include a non-empty host component. (RFC7230 2.7.1)'});
+		$/ -> parse_uri_path(Rest, State, Method, SoFar, <<"/">>);
+		$\s -> parse_version(Rest, State, Method, SoFar, <<"/">>, <<>>);
+		$? -> parse_uri_query(Rest, State, Method, SoFar, <<"/">>, <<>>);
+		$# -> skip_uri_fragment(Rest, State, Method, SoFar, <<"/">>, <<>>);
+		C -> parse_uri_authority(Rest, State, Method, <<SoFar/binary, C>>, Remaining - 1)
 	end.
 
-parse_uri_path(<< C, Rest/bits >>, State, Method, SoFar) ->
+parse_uri_path(<<C, Rest/bits>>, State, Method, Authority, SoFar) ->
 	case C of
 		$\r -> error_terminate(400, State, {connection_error, protocol_error,
 			'The request-target must not be followed by a line break. (RFC7230 3.1.1)'});
-		$\s -> parse_version(Rest, State, Method, SoFar, <<>>);
-		$? -> parse_uri_query(Rest, State, Method, SoFar, <<>>);
-		$# -> skip_uri_fragment(Rest, State, Method, SoFar, <<>>);
-		_ -> parse_uri_path(Rest, State, Method, << SoFar/binary, C >>)
+		$\s -> parse_version(Rest, State, Method, Authority, SoFar, <<>>);
+		$? -> parse_uri_query(Rest, State, Method, Authority, SoFar, <<>>);
+		$# -> skip_uri_fragment(Rest, State, Method, Authority, SoFar, <<>>);
+		_ -> parse_uri_path(Rest, State, Method, Authority, <<SoFar/binary, C>>)
 	end.
 
-parse_uri_query(<< C, Rest/bits >>, State, M, P, SoFar) ->
+parse_uri_query(<<C, Rest/bits>>, State, M, A, P, SoFar) ->
 	case C of
 		$\r -> error_terminate(400, State, {connection_error, protocol_error,
 			'The request-target must not be followed by a line break. (RFC7230 3.1.1)'});
-		$\s -> parse_version(Rest, State, M, P, SoFar);
-		$# -> skip_uri_fragment(Rest, State, M, P, SoFar);
-		_ -> parse_uri_query(Rest, State, M, P, << SoFar/binary, C >>)
+		$\s -> parse_version(Rest, State, M, A, P, SoFar);
+		$# -> skip_uri_fragment(Rest, State, M, A, P, SoFar);
+		_ -> parse_uri_query(Rest, State, M, A, P, <<SoFar/binary, C>>)
 	end.
 
-skip_uri_fragment(<< C, Rest/bits >>, State, M, P, Q) ->
+skip_uri_fragment(<<C, Rest/bits>>, State, M, A, P, Q) ->
 	case C of
 		$\r -> error_terminate(400, State, {connection_error, protocol_error,
 			'The request-target must not be followed by a line break. (RFC7230 3.1.1)'});
-		$\s -> parse_version(Rest, State, M, P, Q);
-		_ -> skip_uri_fragment(Rest, State, M, P, Q)
+		$\s -> parse_version(Rest, State, M, A, P, Q);
+		_ -> skip_uri_fragment(Rest, State, M, A, P, Q)
 	end.
 
-parse_version(<< "HTTP/1.1\r\n", Rest/bits >>, State, M, P, Q) ->
-	parse_headers(Rest, State, M, P, Q, 'HTTP/1.1');
-parse_version(<< "HTTP/1.0\r\n", Rest/bits >>, State, M, P, Q) ->
-	parse_headers(Rest, State, M, P, Q, 'HTTP/1.0');
-parse_version(<< "HTTP/1.", _, C, _/bits >>, State, _, _, _) when C =:= $\s; C =:= $\t ->
+parse_version(<< "HTTP/1.1\r\n", Rest/bits >>, State, M, A, P, Q) ->
+	before_parse_headers(Rest, State, M, A, P, Q, 'HTTP/1.1');
+parse_version(<< "HTTP/1.0\r\n", Rest/bits >>, State, M, A, P, Q) ->
+	before_parse_headers(Rest, State, M, A, P, Q, 'HTTP/1.0');
+parse_version(<< "HTTP/1.", _, C, _/bits >>, State, _, _, _, _) when C =:= $\s; C =:= $\t ->
 	error_terminate(400, State, {connection_error, protocol_error,
 		'Whitespace is not allowed after the HTTP version. (RFC7230 3.1.1)'});
-parse_version(<< C, _/bits >>, State, _, _, _) when C =:= $\s; C =:= $\t ->
+parse_version(<< C, _/bits >>, State, _, _, _, _) when C =:= $\s; C =:= $\t ->
 	error_terminate(400, State, {connection_error, protocol_error,
 		'The separator between request target and version must be a single SP. (RFC7230 3.1.1)'});
-parse_version(_, State, _, _, _) ->
+parse_version(_, State, _, _, _, _) ->
 	error_terminate(505, State, {connection_error, protocol_error,
 		'Unsupported HTTP version. (RFC7230 2.6)'}).
 
-parse_headers(Rest, State, M, P, Q, V) ->
+before_parse_headers(Rest, State, M, A, P, Q, V) ->
 	parse_header(Rest, State#state{in_state=#ps_header{
-		method=M, path=P, qs=Q, version=V}}, #{}).
+		method=M, authority=A, path=P, qs=Q, version=V}}, #{}).
 
 %% Headers.
 
@@ -578,7 +593,7 @@ horse_clean_value_ws_end() ->
 -endif.
 
 request(Buffer, State=#state{transport=Transport, in_streamid=StreamID,
-		in_state=PS=#ps_header{version=Version}}, Headers) ->
+		in_state=PS=#ps_header{authority=Authority, version=Version}}, Headers) ->
 	case maps:get(<<"host">>, Headers, undefined) of
 		undefined when Version =:= 'HTTP/1.1' ->
 			%% @todo Might want to not close the connection on this and next one.
@@ -587,17 +602,34 @@ request(Buffer, State=#state{transport=Transport, in_streamid=StreamID,
 					'HTTP/1.1 requests must include a host header. (RFC7230 5.4)'});
 		undefined ->
 			request(Buffer, State, Headers, <<>>, default_port(Transport:secure()));
-		RawHost ->
-			try cow_http_hd:parse_host(RawHost) of
-				{Host, undefined} ->
-					request(Buffer, State, Headers, Host, default_port(Transport:secure()));
-				{Host, Port} ->
-					request(Buffer, State, Headers, Host, Port)
-			catch _:_ ->
-				error_terminate(400, State#state{in_state=PS#ps_header{headers=Headers}},
-					{stream_error, StreamID, protocol_error,
-						'The host header is invalid. (RFC7230 5.4)'})
-			end
+		%% @todo When CONNECT requests come in we need to ignore the RawHost
+		%% and instead use the Authority as the source of host.
+		RawHost when Authority =:= undefined; Authority =:= RawHost ->
+			request_parse_host(Buffer, State, Headers, RawHost);
+		%% RFC7230 does not explicitly ask us to reject requests
+		%% that have a different authority component and host header.
+		%% However it DOES ask clients to set them to the same value,
+		%% so we enforce that.
+		_ ->
+			error_terminate(400, State#state{in_state=PS#ps_header{headers=Headers}},
+				{stream_error, StreamID, protocol_error,
+					'The host header is different than the absolute-form authority component. (RFC7230 5.4)'})
+	end.
+
+request_parse_host(Buffer, State=#state{transport=Transport,
+		in_streamid=StreamID, in_state=PS}, Headers, RawHost) ->
+	try cow_http_hd:parse_host(RawHost) of
+		{Host, undefined} ->
+			request(Buffer, State, Headers, Host, default_port(Transport:secure()));
+		{Host, Port} when Port > 0, Port =< 65535 ->
+			request(Buffer, State, Headers, Host, Port);
+		_ ->
+			error_terminate(400, State, {stream_error, StreamID, protocol_error,
+				'The port component of the absolute-form is not in the range 0..65535. (RFC7230 2.7.1)'})
+	catch _:_ ->
+		error_terminate(400, State#state{in_state=PS#ps_header{headers=Headers}},
+			{stream_error, StreamID, protocol_error,
+				'The host header is invalid. (RFC7230 5.4)'})
 	end.
 
 -spec default_port(boolean()) -> 80 | 443.

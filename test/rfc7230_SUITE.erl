@@ -375,7 +375,7 @@ absolute_form_case_insensitive_host(Config) ->
 	Echo = <<"http://localhost/echo/uri">>,
 	#{code := 200, body := Echo} = do_raw(Config,
 		"GET http://LoCaLHOsT/echo/uri HTTP/1.1\r\n"
-		"Host: localhost\r\n"
+		"Host: LoCaLHOsT\r\n"
 		"\r\n").
 
 absolute_form_reject_unknown_schemes(Config) ->
@@ -492,7 +492,8 @@ absolute_form_invalid_port_0(Config) ->
 	{error, closed} = raw_recv(Client, 0, 1000).
 
 absolute_form_invalid_port_65536(Config) ->
-	doc("Port numbers above 65535 are invalid. The request must be rejected and the connection closed."),
+	doc("Port numbers above 65535 are invalid. The request must be rejected "
+		"and the connection closed."),
 	#{code := 400, client := Client} = do_raw(Config,
 		"GET http://localhost:65536/ HTTP/1.1\r\n"
 		"Host: localhost:65536\r\n"
