@@ -169,17 +169,24 @@ do(<<"reply4">>, Req0, Opts) ->
 	end,
 	{ok, Req, Opts};
 do(<<"stream_reply2">>, Req0, Opts) ->
-	Req = case cowboy_req:binding(arg, Req0) of
+	case cowboy_req:binding(arg, Req0) of
 		<<"binary">> ->
-			cowboy_req:stream_reply(<<"200 GOOD">>, Req0);
+			Req = cowboy_req:stream_reply(<<"200 GOOD">>, Req0),
+			stream_body(Req),
+			{ok, Req, Opts};
 		<<"error">> ->
 			ct_helper:ignore(cowboy_req, stream_reply, 3),
-			cowboy_req:stream_reply(ok, Req0);
+			Req = cowboy_req:stream_reply(ok, Req0),
+			stream_body(Req),
+			{ok, Req, Opts};
+		<<"204">> ->
+			Req = cowboy_req:stream_reply(204, Req0),
+			{ok, Req, Opts};
 		Status ->
-			cowboy_req:stream_reply(binary_to_integer(Status), Req0)
-	end,
-	stream_body(Req),
-	{ok, Req, Opts};
+			Req = cowboy_req:stream_reply(binary_to_integer(Status), Req0),
+			stream_body(Req),
+			{ok, Req, Opts}
+	end;
 do(<<"stream_reply3">>, Req0, Opts) ->
 	Req = case cowboy_req:binding(arg, Req0) of
 		<<"error">> ->

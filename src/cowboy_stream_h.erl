@@ -178,10 +178,8 @@ info(_StreamID, {read_body_timeout, _}, State) ->
 %% We reset the expect field when a 100 continue response
 %% is sent or when any final response is sent.
 info(_StreamID, Inform = {inform, Status, _}, State0) ->
-	State = case Status of
+	State = case cow_http:status_to_integer(Status) of
 		100 -> State0#state{expect=undefined};
-		<<"100">> -> State0#state{expect=undefined};
-		<<"100 ", _/bits>> -> State0#state{expect=undefined};
 		_ -> State0
 	end,
 	{[Inform], State};

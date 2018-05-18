@@ -929,17 +929,19 @@ commands(State0=#state{socket=Socket, transport=Transport, streams=Streams}, Str
 		[{headers, StatusCode, Headers0}|Tail]) ->
 	%% @todo Same as above.
 	#stream{version=Version} = lists:keyfind(StreamID, #stream.id, Streams),
-	{State1, Headers1} = case Version of
-		'HTTP/1.1' ->
-			{State0, Headers0#{<<"transfer-encoding">> => <<"chunked">>}};
+	{State1, Headers1} = case {cow_http:status_to_integer(StatusCode), Version} of
+		{204, 'HTTP/1.1'} ->
+			{State0#state{out_state=done}, Headers0};
+		{_, 'HTTP/1.1'} ->
+			{State0#state{out_state=chunked}, Headers0#{<<"transfer-encoding">> => <<"chunked">>}};
 		%% Close the connection after streaming the data to HTTP/1.0 client.
 		%% @todo I'm guessing we need to differentiate responses with a content-length and others.
-		'HTTP/1.0' ->
-			{State0#state{last_streamid=StreamID}, Headers0}
+		{_, 'HTTP/1.0'} ->
+			{State0#state{out_state=chunked, last_streamid=StreamID}, Headers0}
 	end,
 	{State, Headers} = connection(State1, Headers1, StreamID, Version),
 	Transport:send(Socket, cow_http:response(StatusCode, 'HTTP/1.1', headers_to_list(Headers))),
-	commands(State#state{out_state=chunked}, StreamID, Tail);
+	commands(State, StreamID, Tail);
 %% Send a response body chunk.
 %%
 %% @todo WINDOW_UPDATE stuff require us to buffer some data.
