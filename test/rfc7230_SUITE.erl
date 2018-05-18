@@ -288,15 +288,16 @@ must_understand_origin_form(Config) ->
 		"Host: localhost\r\n"
 		"\r\n").
 
-origin_form_reject_if_connect(Config) ->
-	doc("origin-form is used when the client does not connect to a proxy, "
-		"does not use the CONNECT method and does not issue a site-wide "
-		"OPTIONS request. (RFC7230 5.3.1)"),
-	#{code := 400, client := Client} = do_raw(Config,
-		"CONNECT / HTTP/1.1\r\n"
-		"Host: localhost\r\n"
-		"\r\n"),
-	{error, closed} = raw_recv(Client, 0, 1000).
+%% @todo Reenable this test once support for CONNECT is added.
+%origin_form_reject_if_connect(Config) ->
+%	doc("origin-form is used when the client does not connect to a proxy, "
+%		"does not use the CONNECT method and does not issue a site-wide "
+%		"OPTIONS request. (RFC7230 5.3.1)"),
+%	#{code := 400, client := Client} = do_raw(Config,
+%		"CONNECT / HTTP/1.1\r\n"
+%		"Host: localhost\r\n"
+%		"\r\n"),
+%	{error, closed} = raw_recv(Client, 0, 1000).
 
 %% @todo Equivalent test for https.
 origin_form_tcp_scheme(Config) ->
