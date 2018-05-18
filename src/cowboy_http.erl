@@ -169,10 +169,15 @@ before_loop(State=#state{socket=Socket, transport=Transport}, Buffer) ->
 	loop(State, Buffer).
 
 loop(State=#state{parent=Parent, socket=Socket, transport=Transport, opts=Opts,
-		timer=TimerRef, children=Children, streams=Streams}, Buffer) ->
+		timer=TimerRef, children=Children, in_streamid=InStreamID,
+		last_streamid=LastStreamID, streams=Streams}, Buffer) ->
 	{OK, Closed, Error} = Transport:messages(),
 	InactivityTimeout = maps:get(inactivity_timeout, Opts, 300000),
 	receive
+		%% Discard data coming in after the last request
+		%% we want to process was received fully.
+		{OK, Socket, _} when InStreamID > LastStreamID ->
+			before_loop(State, Buffer);
 		%% Socket messages.
 		{OK, Socket, Data} ->
 			%% Only reset the timeout if it is idle_timeout (active streams).
@@ -249,8 +254,12 @@ timeout(State, idle_timeout) ->
 	terminate(State, {connection_error, timeout,
 		'Connection idle longer than configuration allows.'}).
 
-%% Request-line.
 parse(<<>>, State) ->
+	before_loop(State, <<>>);
+%% Do not process requests that come in after the last request
+%% and discard the buffer if any to save memory.
+parse(_, State=#state{in_streamid=InStreamID, in_state=#ps_request_line{},
+		last_streamid=LastStreamID}) when InStreamID > LastStreamID ->
 	before_loop(State, <<>>);
 parse(Buffer, State=#state{in_state=#ps_request_line{empty_lines=EmptyLines}}) ->
 	after_parse(parse_request(Buffer, State, EmptyLines));
@@ -267,7 +276,6 @@ parse(Buffer, State=#state{in_state=#ps_body{}}) ->
 	%% We may want to get bodies that are below a threshold without waiting, and buffer them
 	%% until the request asks, though.
 	after_parse(parse_body(Buffer, State)).
-%% @todo Don't parse if body is finished but request isn't. Let's not parallelize for now.
 
 after_parse({request, Req=#{streamid := StreamID, method := Method,
 		headers := Headers, version := Version},
