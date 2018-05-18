@@ -18,6 +18,7 @@
 
 -import(ct_helper, [doc/1]).
 -import(cowboy_test, [gun_open/1]).
+-import(cowboy_test, [gun_down/1]).
 -import(cowboy_test, [raw_open/1]).
 -import(cowboy_test, [raw_send/2]).
 -import(cowboy_test, [raw_recv_head/1]).
@@ -1428,7 +1429,7 @@ limit_requests_keepalive(Config) ->
 	{response, nofin, 200, RespHeaders} = gun:await(ConnPid, Ref),
 	{ok, <<"Hello world!">>} = gun:await_body(ConnPid, Ref),
 	{_, <<"close">>} = lists:keyfind(<<"connection">>, 1, RespHeaders),
-	ok.
+	gun_down(ConnPid).
 
 %skip_request_body_by_closing_connection(Config) ->
 %%A server that doesn't want to read the entire body of a message
