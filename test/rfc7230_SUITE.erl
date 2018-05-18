@@ -1912,7 +1912,7 @@ te_trailers(Config) ->
 	#{code := 200, headers := RespHeaders} = do_raw(Config, [
 		"GET /resp/stream_trailers HTTP/1.1\r\n"
 		"Host: localhost\r\n"
-		"TE: trailer\r\n"
+		"TE: trailers\r\n"
 		"\r\n"]),
 	{_, <<"chunked">>} = lists:keyfind(<<"transfer-encoding">>, 1, RespHeaders),
 	{_, <<"grpc-status">>} = lists:keyfind(<<"trailer">>, 1, RespHeaders),

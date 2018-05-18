@@ -927,8 +927,8 @@ commands(State0=#state{socket=Socket, transport=Transport, out_state=wait, strea
 %% Send response headers and initiate chunked encoding.
 commands(State0=#state{socket=Socket, transport=Transport, streams=Streams}, StreamID,
 		[{headers, StatusCode, Headers0}|Tail]) ->
-	%% @todo Same as above.
-	#stream{version=Version} = lists:keyfind(StreamID, #stream.id, Streams),
+	%% @todo Same as above (about the last stream in the list).
+	Stream = #stream{version=Version} = lists:keyfind(StreamID, #stream.id, Streams),
 	{State1, Headers1} = case {cow_http:status_to_integer(StatusCode), Version} of
 		{204, 'HTTP/1.1'} ->
 			{State0#state{out_state=done}, Headers0};
@@ -939,7 +939,11 @@ commands(State0=#state{socket=Socket, transport=Transport, streams=Streams}, Str
 		{_, 'HTTP/1.0'} ->
 			{State0#state{out_state=chunked, last_streamid=StreamID}, Headers0}
 	end,
-	{State, Headers} = connection(State1, Headers1, StreamID, Version),
+	Headers2 = case stream_te(Stream) of
+		trailers -> Headers1;
+		_ -> maps:remove(<<"trailer">>, Headers1)
+	end,
+	{State, Headers} = connection(State1, Headers2, StreamID, Version),
 	Transport:send(Socket, cow_http:response(StatusCode, 'HTTP/1.1', headers_to_list(Headers))),
 	commands(State, StreamID, Tail);
 %% Send a response body chunk.
@@ -988,22 +992,7 @@ commands(State0=#state{socket=Socket, transport=Transport, streams=Streams}, Str
 %% Send trailers.
 commands(State=#state{socket=Socket, transport=Transport, streams=Streams}, StreamID,
 		[{trailers, Trailers}|Tail]) ->
-	TE = case lists:keyfind(StreamID, #stream.id, Streams) of
-		%% HTTP/1.0 doesn't support chunked transfer-encoding.
-		#stream{version='HTTP/1.0'} ->
-			not_chunked;
-		%% No TE header was sent.
-		#stream{te=undefined} ->
-			no_trailers;
-		#stream{te=TE0} ->
-			try cow_http_hd:parse_te(TE0) of
-				{TE1, _} -> TE1
-			catch _:_ ->
-				%% If we can't parse the TE header, assume we can't send trailers.
-				no_trailers
-			end
-	end,
-	case TE of
+	case stream_te(lists:keyfind(StreamID, #stream.id, Streams)) of
 		trailers ->
 			Transport:send(Socket, [
 				<<"0\r\n">>,
@@ -1224,6 +1213,20 @@ connection(State, Headers, _, _) ->
 connection_hd_is_close(Conn) ->
 	Conns = cow_http_hd:parse_connection(iolist_to_binary(Conn)),
 	lists:member(<<"close">>, Conns).
+
+%% HTTP/1.0 doesn't support chunked transfer-encoding.
+stream_te(#stream{version='HTTP/1.0'}) ->
+	not_chunked;
+%% No TE header was sent.
+stream_te(#stream{te=undefined}) ->
+	no_trailers;
+stream_te(#stream{te=TE0}) ->
+	try cow_http_hd:parse_te(TE0) of
+		{TE1, _} -> TE1
+	catch _:_ ->
+		%% If we can't parse the TE header, assume we can't send trailers.
+		no_trailers
+	end.
 
 %% This function is only called when an error occurs on a new stream.
 -spec error_terminate(cowboy:http_status(), #state{}, _) -> no_return().
