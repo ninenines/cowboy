@@ -148,8 +148,29 @@ timeout_after_request_line(Config) ->
 	doc("The time the request (request line and headers) takes to be "
 		"received by the server must be limited and subject to configuration. "
 		"A 408 status code must be sent if the request line was received."),
-	#{code := 408, client := Client} = do_raw(Config, "GET / HTTP/1.1\r\n"),
-	{error, closed} = raw_recv(Client, 0, 6000).
+	#{code := 408, client := Client1} = do_raw(Config, "GET / HTTP/1.1\r\n"),
+	{error, closed} = raw_recv(Client1, 0, 6000).
+
+timeout_after_request_line_host(Config) ->
+	doc("The time the request (request line and headers) takes to be "
+		"received by the server must be limited and subject to configuration. "
+		"A 408 status code must be sent if the request line was received."),
+	#{code := 408, client := Client2} = do_raw(Config, "GET / HTTP/1.1\r\nHost: localhost"),
+	{error, closed} = raw_recv(Client2, 0, 6000).
+
+timeout_after_request_line_host_crlf(Config) ->
+	doc("The time the request (request line and headers) takes to be "
+		"received by the server must be limited and subject to configuration. "
+		"A 408 status code must be sent if the request line was received."),
+	#{code := 408, client := Client3} = do_raw(Config, "GET / HTTP/1.1\r\nHost: localhost\r\n"),
+	{error, closed} = raw_recv(Client3, 0, 6000).
+
+timeout_after_request_line_host_crlfcr(Config) ->
+	doc("The time the request (request line and headers) takes to be "
+		"received by the server must be limited and subject to configuration. "
+		"A 408 status code must be sent if the request line was received."),
+	#{code := 408, client := Client4} = do_raw(Config, "GET / HTTP/1.1\r\nHost: localhost\r\n\r"),
+	{error, closed} = raw_recv(Client4, 0, 6000).
 
 %% @todo Add an HTTP/1.0 test suite.
 %An HTTP/1.1 server must understand any valid HTTP/1.0 request,

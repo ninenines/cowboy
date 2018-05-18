@@ -123,24 +123,6 @@ check_raw_status(Config) ->
 	Huge = [$0 || _ <- lists:seq(1, 5000)],
 	HugeCookie = lists:flatten(["whatever_man_biiiiiiiiiiiig_cookie_me_want_77="
 		"Wed Apr 06 2011 10:38:52 GMT-0500 (CDT)" || _ <- lists:seq(1, 40)]),
-	ResponsePacket =
-"HTTP/1.0 302 Found\r
-Location: http://www.google.co.il/\r
-Cache-Control: private\r
-Content-Type: text/html; charset=UTF-8\r
-Set-Cookie: PREF=ID=568f67013d4a7afa:FF=0:TM=1323014101:LM=1323014101:S=XqctDWC65MzKT0zC; expires=Tue, 03-Dec-2013 15:55:01 GMT; path=/; domain=.google.com\r
-Date: Sun, 04 Dec 2011 15:55:01 GMT\r
-Server: gws\r
-Content-Length: 221\r
-X-XSS-Protection: 1; mode=block\r
-X-Frame-Options: SAMEORIGIN\r
-\r
-<HTML><HEAD><meta http-equiv=\"content-type\" content=\"text/html;charset=utf-8\">
-<TITLE>302 Moved</TITLE></HEAD><BODY>
-<H1>302 Moved</H1>
-The document has moved
-<A HREF=\"http://www.google.co.il/\">here</A>.
-</BODY></HTML>",
 	Tests = [
 		{200, ["GET / HTTP/1.0\r\nHost: localhost\r\n"
 			"Set-Cookie: ", HugeCookie, "\r\n\r\n"]},
@@ -153,15 +135,7 @@ The document has moved
 		{400, "GET / HTTP/1.1\r\nHost: ninenines.eu\r\n\r\n"},
 		{400, "GET http://proxy/ HTTP/1.1\r\n\r\n"},
 		{400, "GET / HTTP/1.1\r\nHost: localhost:bad_port\r\n\r\n"},
-		{400, ResponsePacket},
-		{408, "GET / HTTP/1.1\r\nHost: localhost"},
-		{408, "GET / HTTP/1.1\r\nHost: localhost\r\n"},
-		{408, "GET / HTTP/1.1\r\nHost: localhost\r\n\r"},
-		{closed, Huge},
-		{closed, ""},
-		{closed, "\r\n"},
-		{closed, "\r\n\r\n"},
-		{closed, "GET / HTTP/1.1"}
+		{closed, Huge}
 	],
 	_ = [{Status, Packet} = begin
 		Ret = do_raw(Packet, Config),
@@ -171,7 +145,6 @@ The document has moved
 
 check_status(Config) ->
 	Tests = [
-		{200, "/"},
 		{200, "/simple"},
 		{404, "/not/found"},
 		{500, "/handler_errors?case=init_before_reply"}
