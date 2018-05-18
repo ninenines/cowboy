@@ -1504,7 +1504,8 @@ ignore_requests_after_response_connection_close(Config) ->
 	doc("The server must not process any request after "
 		"sending the \"close\" connection option. (RFC7230 6.6)"),
 	Self = self(),
-	#{code := 200} = do_raw(Config, [
+	Client = raw_open(Config),
+	ok = raw_send(Client, [
 		[
 			"GET / HTTP/1.1\r\n"
 			"Host: localhost\r\n"
