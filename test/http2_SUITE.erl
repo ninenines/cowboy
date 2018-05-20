@@ -109,13 +109,21 @@ max_frame_size_sent(Config) ->
 		cow_http2:data(1, fin, <<0:13616/unit:8>>)
 	]),
 	%% Receive a HEADERS frame as a response.
-	{ok, <<Len:24, 1:8, _:40>>} = gen_tcp:recv(Socket, 9, 6000),
-	{ok, _} = gen_tcp:recv(Socket, Len, 6000),
+	{ok, << SkipLen:24, 1:8, _:8, 1:32 >>} = case gen_tcp:recv(Socket, 9, 1000) of
+		%% We received a WINDOW_UPDATE first. Skip it and the next.
+		{ok, <<4:24, 8:8, 0:40>>} ->
+			{ok, _} = gen_tcp:recv(Socket, 4 + 13, 1000),
+			gen_tcp:recv(Socket, 9, 1000);
+		Res ->
+			Res
+	end,
+	{ok, _} = gen_tcp:recv(Socket, SkipLen, 6000),
 	%% The DATA frames following must have lengths of 20000
 	%% and then 10000 due to the limit.
 	{ok, <<20000:24, 0:8, _:40, _:20000/unit:8>>} = gen_tcp:recv(Socket, 20009, 6000),
 	{ok, <<10000:24, 0:8, _:40, _:10000/unit:8>>} = gen_tcp:recv(Socket, 10009, 6000),
-	ok.
+	%% Stop the listener.
+	cowboy:stop_listener(name()).
 
 preface_timeout_infinity(Config) ->
 	doc("Ensure infinity for preface_timeout is accepted."),
@@ -131,7 +139,7 @@ preface_timeout_infinity(Config) ->
 		{'DOWN', Ref, process, Pid, Reason} ->
 			error(Reason)
 	after 1000 ->
-		cowboy:stop_listener(preface_timeout_infinity)
+		cowboy:stop_listener(name())
 	end.
 
 resp_iolist_body(Config) ->
