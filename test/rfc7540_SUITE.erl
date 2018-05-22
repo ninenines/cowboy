@@ -34,11 +34,11 @@ groups() ->
 	[{clear, [parallel], Clear}, {tls, [parallel], TLS}].
 
 init_per_group(Name = clear, Config) ->
-	cowboy_test:init_http(Name = clear, #{
+	cowboy_test:init_http(Name, #{
 		env => #{dispatch => cowboy_router:compile(init_routes(Config))}
 	}, Config);
 init_per_group(Name = tls, Config) ->
-	cowboy_test:init_http2(Name = tls, #{
+	cowboy_test:init_http2(Name, #{
 		env => #{dispatch => cowboy_router:compile(init_routes(Config))}
 	}, Config).
 
@@ -1348,7 +1348,7 @@ max_frame_size_allow_exactly_custom(Config0) ->
 	{ok, _} = gen_tcp:recv(Socket, Len2, 6000),
 	%% No errors follow due to our sending of a 25000 bytes frame.
 	{error, timeout} = gen_tcp:recv(Socket, 0, 1000),
-	ok.
+	cowboy:stop_listener(name()).
 
 max_frame_size_reject_larger_than_custom(Config0) ->
 	doc("An endpoint that sets SETTINGS_MAX_FRAME_SIZE must reject frames "
@@ -1375,7 +1375,7 @@ max_frame_size_reject_larger_than_custom(Config0) ->
 	]),
 	%% Receive a FRAME_SIZE_ERROR connection error.
 	{ok, << _:24, 7:8, _:72, 6:32 >>} = gen_tcp:recv(Socket, 17, 6000),
-	ok.
+	cowboy:stop_listener(name()).
 
 %% I am using FRAME_SIZE_ERROR here because the information in the
 %% frame header tells us this frame is at least 1 byte long, while
@@ -2589,7 +2589,7 @@ settings_header_table_size_server(Config0) ->
 	{_, <<"200">>} = lists:keyfind(<<":status">>, 1, RespHeaders),
 	%% The decoding succeeded on the server, confirming that
 	%% the table size was updated to HeaderTableSize.
-	ok.
+	cowboy:stop_listener(name()).
 
 settings_max_concurrent_streams(Config0) ->
 	doc("The SETTINGS_MAX_CONCURRENT_STREAMS setting can be used to "
@@ -2615,7 +2615,7 @@ settings_max_concurrent_streams(Config0) ->
 	]),
 	%% Receive a REFUSED_STREAM stream error.
 	{ok, << _:24, 3:8, _:8, 3:32, 7:32 >>} = gen_tcp:recv(Socket, 13, 6000),
-	ok.
+	cowboy:stop_listener(name()).
 
 settings_max_concurrent_streams_0(Config0) ->
 	doc("The SETTINGS_MAX_CONCURRENT_STREAMS setting can be set to "
@@ -2636,7 +2636,7 @@ settings_max_concurrent_streams_0(Config0) ->
 	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
 	%% Receive a REFUSED_STREAM stream error.
 	{ok, << _:24, 3:8, _:8, 1:32, 7:32 >>} = gen_tcp:recv(Socket, 13, 6000),
-	ok.
+	cowboy:stop_listener(name()).
 
 %% @todo The client can limit the number of concurrent streams too. (RFC7540 5.1.2)
 %
@@ -2701,7 +2701,7 @@ settings_initial_window_size(Config0) ->
 	{ok, _} = gen_tcp:recv(Socket, Len2, 6000),
 	%% No errors follow due to our sending of more than 65535 bytes of data.
 	{error, timeout} = gen_tcp:recv(Socket, 0, 1000),
-	ok.
+	cowboy:stop_listener(name()).
 
 settings_initial_window_size_after_ack(Config0) ->
 	doc("The SETTINGS_INITIAL_WINDOW_SIZE setting can be used to "
@@ -2741,7 +2741,7 @@ settings_initial_window_size_after_ack(Config0) ->
 	]),
 	%% Receive a FLOW_CONTROL_ERROR stream error.
 	{ok, << _:24, 3:8, _:8, 1:32, 3:32 >>} = gen_tcp:recv(Socket, 13, 6000),
-	ok.
+	cowboy:stop_listener(name()).
 
 settings_initial_window_size_before_ack(Config0) ->
 	doc("The SETTINGS_INITIAL_WINDOW_SIZE setting can be used to "
@@ -2786,7 +2786,7 @@ settings_initial_window_size_before_ack(Config0) ->
 	{ok, _} = gen_tcp:recv(Socket, Len2, 6000),
 	%% No errors follow due to our sending of more than 0 bytes of data.
 	{error, timeout} = gen_tcp:recv(Socket, 0, 1000),
-	ok.
+	cowboy:stop_listener(name()).
 
 settings_max_frame_size(Config0) ->
 	doc("The SETTINGS_MAX_FRAME_SIZE setting can be used to "
@@ -2816,7 +2816,7 @@ settings_max_frame_size(Config0) ->
 	{ok, _} = gen_tcp:recv(Socket, Len2, 6000),
 	%% No errors follow due to our sending of a 25000 bytes frame.
 	{error, timeout} = gen_tcp:recv(Socket, 0, 1000),
-	ok.
+	cowboy:stop_listener(name()).
 
 settings_max_frame_size_reject_too_small(Config) ->
 	doc("A SETTINGS_MAX_FRAME_SIZE smaller than 16384 must be rejected "
@@ -3037,7 +3037,7 @@ data_reject_overflow(Config0) ->
 	]),
 	%% Receive a FLOW_CONTROL_ERROR connection error.
 	{ok, << _:24, 7:8, _:72, 3:32 >>} = gen_tcp:recv(Socket, 17, 6000),
-	ok.
+	cowboy:stop_listener(name()).
 
 data_reject_overflow_stream(Config0) ->
 	doc("DATA frames that cause the stream flow control window "
@@ -3082,7 +3082,7 @@ data_reject_overflow_stream(Config0) ->
 	]),
 	%% Receive a FLOW_CONTROL_ERROR stream error.
 	{ok, << _:24, 3:8, _:8, 1:32, 3:32 >>} = gen_tcp:recv(Socket, 13, 6000),
-	ok.
+	cowboy:stop_listener(name()).
 
 %% (RFC7540 6.9.1)
 %   Frames with zero length with the END_STREAM flag set (that
