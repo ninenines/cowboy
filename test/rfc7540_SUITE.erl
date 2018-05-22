@@ -1839,7 +1839,7 @@ half_closed_remote_reject_data(Config) ->
 		{<<":method">>, <<"GET">>},
 		{<<":scheme">>, <<"http">>},
 		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
-		{<<":path">>, <<"/">>}
+		{<<":path">>, <<"/long_polling">>}
 	]),
 	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
 	%% Send a DATA frame on that now half-closed (remote) stream.
@@ -1859,7 +1859,7 @@ half_closed_remote_reject_headers(Config) ->
 		{<<":method">>, <<"GET">>},
 		{<<":scheme">>, <<"http">>},
 		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
-		{<<":path">>, <<"/">>}
+		{<<":path">>, <<"/long_polling">>}
 	]),
 	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
 	%% Send a HEADERS frame on that now half-closed (remote) stream.
@@ -1876,7 +1876,7 @@ half_closed_remote_accept_priority(Config) ->
 		{<<":method">>, <<"GET">>},
 		{<<":scheme">>, <<"http">>},
 		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
-		{<<":path">>, <<"/">>}
+		{<<":path">>, <<"/long_polling">>}
 	]),
 	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
 	%% Send a PRIORITY frame on that now half-closed (remote) stream.
@@ -1916,7 +1916,7 @@ half_closed_remote_accept_window_update(Config) ->
 		{<<":method">>, <<"GET">>},
 		{<<":scheme">>, <<"http">>},
 		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
-		{<<":path">>, <<"/">>}
+		{<<":path">>, <<"/long_polling">>}
 	]),
 	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
 	%% Send a WINDOW_UPDATE frame on that now half-closed (remote) stream.
@@ -1938,7 +1938,7 @@ rst_stream_closed_reject_data(Config) ->
 		{<<":method">>, <<"GET">>},
 		{<<":scheme">>, <<"http">>},
 		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
-		{<<":path">>, <<"/">>}
+		{<<":path">>, <<"/long_polling">>}
 	]),
 	ok = gen_tcp:send(Socket, cow_http2:headers(1, nofin, HeadersBlock)),
 	%% Send an RST_STREAM frame to close the stream.
@@ -1960,7 +1960,7 @@ rst_stream_closed_reject_headers(Config) ->
 		{<<":method">>, <<"GET">>},
 		{<<":scheme">>, <<"http">>},
 		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
-		{<<":path">>, <<"/">>}
+		{<<":path">>, <<"/long_polling">>}
 	]),
 	ok = gen_tcp:send(Socket, cow_http2:headers(1, nofin, HeadersBlock)),
 	%% Send an RST_STREAM frame to close the stream.
@@ -1980,7 +1980,7 @@ rst_stream_closed_accept_priority(Config) ->
 		{<<":method">>, <<"GET">>},
 		{<<":scheme">>, <<"http">>},
 		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
-		{<<":path">>, <<"/">>}
+		{<<":path">>, <<"/long_polling">>}
 	]),
 	ok = gen_tcp:send(Socket, cow_http2:headers(1, nofin, HeadersBlock)),
 	%% Send an RST_STREAM frame to close the stream.
@@ -2000,7 +2000,7 @@ rst_stream_closed_ignore_rst_stream(Config) ->
 		{<<":method">>, <<"GET">>},
 		{<<":scheme">>, <<"http">>},
 		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
-		{<<":path">>, <<"/">>}
+		{<<":path">>, <<"/long_polling">>}
 	]),
 	ok = gen_tcp:send(Socket, cow_http2:headers(1, nofin, HeadersBlock)),
 	%% Send an RST_STREAM frame to close the stream.
@@ -2026,7 +2026,7 @@ rst_stream_closed_reject_window_update(Config) ->
 		{<<":method">>, <<"GET">>},
 		{<<":scheme">>, <<"http">>},
 		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
-		{<<":path">>, <<"/">>}
+		{<<":path">>, <<"/long_polling">>}
 	]),
 	ok = gen_tcp:send(Socket, cow_http2:headers(1, nofin, HeadersBlock)),
 	%% Send an RST_STREAM frame to close the stream.
