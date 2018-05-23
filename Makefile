@@ -71,4 +71,4 @@ $(H2SPEC):
 # Use erl_make_certs from the tested release during CI.
 
 ci-setup:: clean deps test-deps
-	$(gen_verbose) cp ~/.kerl/builds/$(CI_OTP_RELEASE)/otp_src_git/lib/ssl/test/erl_make_certs.erl deps/ct_helper/src/
+	$(gen_verbose) cp ~/.kerl/builds/$(CI_OTP_RELEASE)/otp_src_git/lib/ssl/test/erl_make_certs.erl deps/ct_helper/src/ || true
