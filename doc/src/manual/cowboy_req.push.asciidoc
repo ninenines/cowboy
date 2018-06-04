@@ -41,6 +41,10 @@ By default, Cowboy will use the GET method, an empty query string,
 and take the scheme, host and port directly from the current
 request's URI. You can override them by passing options.
 
+Note that clients may cancel the push or ignore it entirely.
+For example browsers may ignore the resource when the connection
+is not considered secure.
+
 It is not possible to push resources after sending a response.
 Any attempt will result in an error.
 
