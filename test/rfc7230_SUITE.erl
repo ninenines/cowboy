@@ -17,6 +17,7 @@
 -compile(nowarn_export_all).
 
 -import(ct_helper, [doc/1]).
+-import(ct_helper, [name/0]).
 -import(cowboy_test, [gun_open/1]).
 -import(cowboy_test, [gun_down/1]).
 -import(cowboy_test, [raw_open/1]).
@@ -1587,8 +1588,21 @@ reject_absolute_form_different_host(Config) ->
 %identical to the host header. Invalid requests must be rejected
 %with a 400 status code and the closing of the connection.
 
-%empty_host(Config) ->
-%The host header is empty when the authority component is undefined. (RFC7230 5.4)
+empty_host(Config0) ->
+	doc("The host header is empty when the authority component is undefined. (RFC7230 5.4)"),
+	Routes = [{'_', [{"/echo/:key[/:arg]", echo_h, []}]}],
+	Config = cowboy_test:init_http(name(), #{
+		env => #{dispatch => cowboy_router:compile(Routes)}
+	}, Config0),
+	#{code := 200, body := <<>>} = do_raw(Config, [
+		"GET /echo/host HTTP/1.1\r\n"
+		"Host:\r\n"
+		"\r\n"]),
+	#{code := 200, body := <<>>} = do_raw(Config, [
+		"GET /echo/host HTTP/1.1\r\n"
+		"Host: \r\n"
+		"\r\n"]),
+	cowboy:stop_listener(name()).
 
 %% The effective request URI can be rebuilt by concatenating scheme,
 %% "://", authority, path and query components. (RFC7230 5.5)
