@@ -361,7 +361,13 @@ parse_hd_value(<<>>, S, M, P, Q, V, H, N, SoFar) ->
 request(B, State=#state{transport=Transport}, M, P, Q, Version, Headers) ->
 	case lists:keyfind(<<"host">>, 1, Headers) of
 		false when Version =:= 'HTTP/1.1' ->
-			error_terminate(400, State);
+			%% Advenias:
+			%% Why: AWS Application Load Balancer's health check seems to respond with empty `Host:`
+			%% - https://github.com/phoenixframework/phoenix/issues/2437
+			%% - https://github.com/ninenines/cowboy/issues/1294
+			%% - https://forums.aws.amazon.com/thread.jspa?messageID=423533
+			%% Temporary patch:
+			error_terminate(200, State);
 		false ->
 			request(B, State, M, P, Q, Version, Headers,
 				<<>>, default_port(Transport:name()));
