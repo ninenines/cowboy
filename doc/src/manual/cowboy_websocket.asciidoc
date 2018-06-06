@@ -128,7 +128,7 @@ timeout::
 
 == Types
 
-==== cow_ws:frame()
+=== cow_ws:frame()
 
 [source,erlang]
 ----
