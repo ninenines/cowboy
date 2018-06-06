@@ -2,7 +2,7 @@
 
 == Name
 
-cowboy_handler - Stream handlers
+cowboy_stream - Stream handlers
 
 == Description
 
