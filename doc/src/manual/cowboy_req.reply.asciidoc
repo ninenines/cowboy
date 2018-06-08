@@ -57,7 +57,7 @@ The status code for the response.
 Headers::
 
 The response headers.
-
++
 Header names must be given as lowercase binary strings.
 
 Body::
