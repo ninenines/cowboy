@@ -19,7 +19,8 @@ and can be accessed directly. They are the fields that have
 a direct mapping to HTTP: the request `method`; the HTTP
 `version` used; the effective URI components `scheme`,
 `host`, `port`, `path` and `qs`; the request `headers`;
-and the connection `peer` address and port.
+the connection `peer` address and port; and the TLS
+certificate `cert` when applicable.
 
 Note that the `version` field can be used to determine
 whether a connection is using HTTP/2.
