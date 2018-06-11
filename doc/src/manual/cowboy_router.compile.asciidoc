@@ -39,7 +39,7 @@ must be given to Cowboy as a middleware environment value.
 Dispatch = cowboy_router:compile([
     {'_', [
         {"/", toppage_h, []},
-        {"/[...], cowboy_static, {priv_dir, my_example_app, ""}}
+        {"/[...]", cowboy_static, {priv_dir, my_example_app, ""}}
     ]}
 ]),
 
