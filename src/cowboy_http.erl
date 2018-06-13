@@ -78,6 +78,10 @@
 	version = undefined :: cowboy:http_version(),
 	%% Unparsed te header. Used to know if we can send trailers.
 	te :: undefined | binary(),
+	%% Expected body size.
+	local_expected_size :: undefined | non_neg_integer(),
+	%% Sent body size.
+	local_sent_size :: non_neg_integer(),
 	%% Commands queued.
 	queue = [] :: cowboy_stream:commands()
 }).
@@ -113,7 +117,7 @@
 	out_streamid = 1 :: pos_integer(),
 
 	%% Whether we finished writing data for the current stream.
-	out_state = wait :: wait | chunked | done,
+	out_state = wait :: wait | chunked | streaming | done,
 
 	%% The connection will be closed after this stream.
 	last_streamid = undefined :: pos_integer(),
@@ -924,75 +928,98 @@ commands(State0=#state{socket=Socket, transport=Transport, out_state=wait, strea
 			Transport:send(Socket, [Response, Body]),
 			commands(State#state{out_state=done}, StreamID, Tail)
 	end;
-%% Send response headers and initiate chunked encoding.
-commands(State0=#state{socket=Socket, transport=Transport, streams=Streams}, StreamID,
-		[{headers, StatusCode, Headers0}|Tail]) ->
-	%% @todo Same as above (about the last stream in the list).
-	Stream = #stream{version=Version} = lists:keyfind(StreamID, #stream.id, Streams),
-	{State1, Headers1} = case {cow_http:status_to_integer(StatusCode), Version} of
-		{204, 'HTTP/1.1'} ->
-			{State0#state{out_state=done}, Headers0};
-		{_, 'HTTP/1.1'} ->
-			{State0#state{out_state=chunked}, Headers0#{<<"transfer-encoding">> => <<"chunked">>}};
-		%% Close the connection after streaming the data to HTTP/1.0 client.
-		%% @todo I'm guessing we need to differentiate responses with a content-length and others.
-		{_, 'HTTP/1.0'} ->
-			{State0#state{out_state=chunked, last_streamid=StreamID}, Headers0}
+%% Send response headers and initiate chunked encoding or streaming.
+commands(State0=#state{socket=Socket, transport=Transport, streams=Streams0, out_state=OutState},
+		StreamID, [{headers, StatusCode, Headers0}|Tail]) ->
+    %% @todo Same as above (about the last stream in the list).
+	#stream{version=Version} = Stream = lists:keyfind(StreamID, #stream.id, Streams0),
+    Status = cow_http:status_to_integer(StatusCode),
+    HasContentLength = maps:is_key(<<"content-length">>, Headers0),
+	{State2, Headers2} = case {Status, HasContentLength, Version} of
+        {204, _, 'HTTP/1.1'} ->
+            {State0#state{out_state=done}, Headers0};
+		{_, true, _} ->
+			ContentLength = maps:get(<<"content-length">>, Headers0),
+			ExpectedSize = cow_http_hd:parse_content_length(ContentLength),
+			Streams = lists:keyreplace(StreamID, #stream.id, Streams0,
+				Stream#stream{local_expected_size=ExpectedSize, local_sent_size=0}),
+			{State0#state{out_state=streaming, streams=Streams}, Headers0};
+		{_, false, 'HTTP/1.1'} ->
+			State1 = State0#state{out_state=chunked},
+			Headers1 = Headers0#{<<"transfer-encoding">> => <<"chunked">>},
+			{State1, Headers1};
+		%% Close the connection after streaming without content-length to HTTP/1.0 client.
+		{_, false, 'HTTP/1.0'} ->
+            Streams = lists:keyreplace(StreamID, #stream.id, Streams0,
+				Stream#stream{local_sent_size=0}),
+			State1 = State0#state{out_state=streaming, last_streamid=StreamID, streams=Streams},
+			{State1, Headers0}
 	end,
-	Headers2 = case stream_te(Stream) of
-		trailers -> Headers1;
-		_ -> maps:remove(<<"trailer">>, Headers1)
+	Headers3 = case stream_te(OutState, Stream) of
+		trailers -> Headers2;
+		_ -> maps:remove(<<"trailer">>, Headers2)
 	end,
-	{State, Headers} = connection(State1, Headers2, StreamID, Version),
+	{State, Headers} = connection(State2, Headers3, StreamID, Version),
 	Transport:send(Socket, cow_http:response(StatusCode, 'HTTP/1.1', headers_to_list(Headers))),
 	commands(State, StreamID, Tail);
 %% Send a response body chunk.
 %%
 %% @todo WINDOW_UPDATE stuff require us to buffer some data.
 %% @todo We probably want to allow Data to be the {sendfile, ...} tuple also.
-commands(State0=#state{socket=Socket, transport=Transport, streams=Streams}, StreamID,
-		[{data, IsFin, Data}|Tail]) ->
+commands(State0=#state{socket=Socket, transport=Transport, streams=Streams0, out_state=OutState},
+		StreamID, [{data, IsFin, Data}|Tail]) ->
 	%% Do not send anything when the user asks to send an empty
 	%% data frame, as that would break the protocol.
 	Size = iolist_size(Data),
-	case Size of
+	Stream0 = lists:keyfind(StreamID, #stream.id, Streams0),
+	Stream = case Size of
 		0 ->
 			%% We send the last chunk only if version is HTTP/1.1 and IsFin=fin.
-			case lists:keyfind(StreamID, #stream.id, Streams) of
-				#stream{method= <<"HEAD">>} ->
+			case {OutState, Stream0} of
+				{_, #stream{method= <<"HEAD">>}} ->
 					ok;
-				#stream{version='HTTP/1.1'} when IsFin =:= fin ->
+				{chunked, _} when IsFin =:= fin ->
 					Transport:send(Socket, <<"0\r\n\r\n">>);
 				_ ->
 					ok
-			end;
+			end,
+			Stream0;
 		_ ->
 			%% @todo We need to kill the stream if it tries to send data before headers.
 			%% @todo Same as above.
-			case lists:keyfind(StreamID, #stream.id, Streams) of
-				#stream{method= <<"HEAD">>} ->
-					ok;
-				#stream{version='HTTP/1.1'} ->
+			case {OutState, Stream0} of
+				{_, #stream{method= <<"HEAD">>}} ->
+					Stream0;
+				{chunked, _} ->
 					Transport:send(Socket, [
 						integer_to_binary(Size, 16), <<"\r\n">>, Data,
 						case IsFin of
 							fin -> <<"\r\n0\r\n\r\n">>;
 							nofin -> <<"\r\n">>
 						end
-					]);
-				#stream{version='HTTP/1.0'} ->
-					Transport:send(Socket, Data)
+					]),
+					Stream0;
+				{streaming, _} ->
+					SentSize = Stream0#stream.local_sent_size + Size,
+                    ExpectedSize = Stream0#stream.local_expected_size,
+					case is_integer(ExpectedSize) andalso SentSize > ExpectedSize of
+						true ->
+							terminate(State0, response_body_too_large);
+						false ->
+							Transport:send(Socket, Data),
+							Stream0#stream{local_sent_size=SentSize}
+					end
 			end
 	end,
 	State = case IsFin of
 		fin -> State0#state{out_state=done};
 		nofin -> State0
 	end,
-	commands(State, StreamID, Tail);
-%% Send trailers.
-commands(State=#state{socket=Socket, transport=Transport, streams=Streams}, StreamID,
-		[{trailers, Trailers}|Tail]) ->
-	case stream_te(lists:keyfind(StreamID, #stream.id, Streams)) of
+	Streams = lists:keyreplace(StreamID, #stream.id, Streams0, Stream),
+	commands(State#state{streams=Streams}, StreamID, Tail);
+commands(State=#state{socket=Socket, transport=Transport, streams=Streams, out_state=OutState},
+		StreamID, [{trailers, Trailers}|Tail]) ->
+	case stream_te(OutState, lists:keyfind(StreamID, #stream.id, Streams)) of
 		trailers ->
 			Transport:send(Socket, [
 				<<"0\r\n">>,
@@ -1008,6 +1035,7 @@ commands(State=#state{socket=Socket, transport=Transport, streams=Streams}, Stre
 %% Send a file.
 commands(State0=#state{socket=Socket, transport=Transport}, StreamID,
 		[{sendfile, IsFin, Offset, Bytes, Path}|Tail]) ->
+	%% @todo exit with response_body_too_large if we exceed content-length
 	%% We wrap the sendfile call into a try/catch because on OTP-20
 	%% and earlier a few different crashes could occur for sockets
 	%% that were closing or closed. For example a badarg in
@@ -1112,7 +1140,8 @@ stream_reset(State, StreamID, StreamError={internal_error, _, _}) ->
 stream_terminate(State0=#state{opts=Opts, in_streamid=InStreamID, in_state=InState,
 		out_streamid=OutStreamID, out_state=OutState, streams=Streams0,
 		children=Children0}, StreamID, Reason) ->
-	#stream{version=Version} = lists:keyfind(StreamID, #stream.id, Streams0),
+	#stream{version=Version, local_expected_size=ExpectedSize, local_sent_size=SentSize} =
+		lists:keyfind(StreamID, #stream.id, Streams0),
 	State1 = #state{streams=Streams1} = case OutState of
 		wait when element(1, Reason) =:= internal_error ->
 			info(State0, StreamID, {response, 500, #{<<"content-length">> => <<"0">>}, <<>>});
@@ -1122,6 +1151,8 @@ stream_terminate(State0=#state{opts=Opts, in_streamid=InStreamID, in_state=InSta
 			info(State0, StreamID, {response, 204, #{}, <<>>});
 		chunked when Version =:= 'HTTP/1.1' ->
 			info(State0, StreamID, {data, fin, <<>>});
+		streaming when ExpectedSize < SentSize ->
+			terminate(State0, response_body_too_small);
 		_ -> %% done or Version =:= 'HTTP/1.0'
 			State0
 	end,
@@ -1214,13 +1245,12 @@ connection_hd_is_close(Conn) ->
 	Conns = cow_http_hd:parse_connection(iolist_to_binary(Conn)),
 	lists:member(<<"close">>, Conns).
 
-%% HTTP/1.0 doesn't support chunked transfer-encoding.
-stream_te(#stream{version='HTTP/1.0'}) ->
+stream_te(streaming, _) ->
 	not_chunked;
 %% No TE header was sent.
-stream_te(#stream{te=undefined}) ->
+stream_te(_, #stream{te=undefined}) ->
 	no_trailers;
-stream_te(#stream{te=TE0}) ->
+stream_te(_, #stream{te=TE0}) ->
 	try cow_http_hd:parse_te(TE0) of
 		{TE1, _} -> TE1
 	catch _:_ ->

@@ -220,6 +220,37 @@ do(<<"stream_body">>, Req0, Opts) ->
 			cowboy_req:stream_body(<<0:800000>>, fin, Req0),
 			{ok, Req0, Opts}
 	end;
+do(<<"stream_body_content_length">>, Req0, Opts) ->
+	case cowboy_req:binding(arg, Req0) of
+		<<"fin0">> ->
+			Req1 = cowboy_req:set_resp_header(<<"content-length">>, <<"12">>, Req0),
+			Req = cowboy_req:stream_reply(200, Req1),
+			cowboy_req:stream_body(<<"Hello world!">>, nofin, Req),
+			cowboy_req:stream_body(<<>>, fin, Req),
+			{ok, Req, Opts};
+		<<"multiple">> ->
+			Req1 = cowboy_req:set_resp_header(<<"content-length">>, <<"12">>, Req0),
+			Req = cowboy_req:stream_reply(200, Req1),
+			cowboy_req:stream_body(<<"Hello ">>, nofin, Req),
+			cowboy_req:stream_body(<<"world">>, nofin, Req),
+			cowboy_req:stream_body(<<"!">>, fin, Req),
+			{ok, Req, Opts};
+		<<"nofin">> ->
+			Req1 = cowboy_req:set_resp_header(<<"content-length">>, <<"12">>, Req0),
+			Req = cowboy_req:stream_reply(200, Req1),
+			cowboy_req:stream_body(<<"Hello world!">>, nofin, Req),
+			{ok, Req, Opts};
+		<<"nofin-error">> ->
+			Req1 = cowboy_req:set_resp_header(<<"content-length">>, <<"12">>, Req0),
+			Req = cowboy_req:stream_reply(200, Req1),
+			cowboy_req:stream_body(<<"Hello">>, nofin, Req),
+			{ok, Req, Opts};
+		_ ->
+			%% Call stream_body without initiating streaming.
+			Req1 = cowboy_req:set_resp_header(<<"content-length">>, <<"100000">>, Req0),
+			cowboy_req:stream_body(<<0:800000>>, fin, Req1),
+			{ok, Req1, Opts}
+	end;
 do(<<"stream_trailers">>, Req0, Opts) ->
 	case cowboy_req:binding(arg, Req0) of
 		<<"large">> ->
