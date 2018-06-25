@@ -80,7 +80,8 @@
 -export([stream_reply/3]).
 %% @todo stream_body/2 (nofin)
 -export([stream_body/3]).
-%% @todo stream_event/2,3
+%% @todo stream_events/2 (nofin)
+-export([stream_events/3]).
 -export([stream_trailers/2]).
 -export([push/3]).
 -export([push/4]).
@@ -784,6 +785,13 @@ stream_body(Data, IsFin=nofin, #{pid := Pid, streamid := StreamID, has_sent_resp
 	end;
 stream_body(Data, IsFin, #{pid := Pid, streamid := StreamID, has_sent_resp := headers}) ->
 	Pid ! {{Pid, StreamID}, {data, IsFin, Data}},
+	ok.
+
+-spec stream_events(cow_sse:event() | [cow_sse:event()], fin | nofin, req()) -> ok.
+stream_events(Event, IsFin, Req) when is_map(Event) ->
+	stream_events([Event], IsFin, Req);
+stream_events(Events, IsFin, #{pid := Pid, streamid := StreamID, has_sent_resp := headers}) ->
+	Pid ! {{Pid, StreamID}, {data, IsFin, cow_sse:events(Events)}},
 	ok.
 
 -spec stream_trailers(cowboy:http_headers(), req()) -> ok.
