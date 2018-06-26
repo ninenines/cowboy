@@ -371,7 +371,7 @@ do_ws(Config) ->
 	doc("Confirm metrics are correct when switching to Websocket."),
 	ConnPid = gun_open(Config),
 	{ok, http} = gun:await_up(ConnPid),
-	gun:ws_upgrade(ConnPid, "/ws_echo", [
+	StreamRef = gun:ws_upgrade(ConnPid, "/ws_echo", [
 		{<<"accept-encoding">>, <<"gzip">>},
 		{<<"x-test-pid">>, pid_to_list(self())}
 	]),
@@ -428,7 +428,7 @@ do_ws(Config) ->
 	end,
 	%% And of course the upgrade completed successfully after that.
 	receive
-		{gun_ws_upgrade, ConnPid, ok, _} ->
+		{gun_upgrade, ConnPid, StreamRef, _, _} ->
 			ok
 	after 1000 ->
 		error(timeout)

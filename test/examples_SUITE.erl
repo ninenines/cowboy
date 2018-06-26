@@ -436,23 +436,23 @@ websocket(Config) ->
 		{ok, Pid} = gun:open("127.0.0.1", 8080, #{protocols => [http], retry => 0}),
 		{ok, http} = gun:await_up(Pid),
 		_ = monitor(process, Pid),
-		gun:ws_upgrade(Pid, "/websocket", [], #{compress => true}),
+		StreamRef = gun:ws_upgrade(Pid, "/websocket", [], #{compress => true}),
 		receive
-			{gun_ws_upgrade, Pid, ok, _} ->
+			{gun_upgrade, Pid, StreamRef, _, _} ->
 				ok;
 			Msg1 ->
 				exit({connection_failed, Msg1})
 		end,
 		%% Check that we receive the message sent on timer on init.
 		receive
-			{gun_ws, Pid, {text, <<"Hello!">>}} ->
+			{gun_ws, Pid, StreamRef, {text, <<"Hello!">>}} ->
 				ok
 		after 2000 ->
 			exit(timeout)
 		end,
 		%% Check that we receive subsequent messages sent on timer.
 		receive
-			{gun_ws, Pid, {text, <<"How' you doin'?">>}} ->
+			{gun_ws, Pid, StreamRef, {text, <<"How' you doin'?">>}} ->
 				ok
 		after 2000 ->
 			exit(timeout)
@@ -460,7 +460,7 @@ websocket(Config) ->
 		%% Check that we receive the echoed message.
 		gun:ws_send(Pid, {text, <<"hello">>}),
 		receive
-			{gun_ws, Pid, {text, <<"That's what she said! hello">>}} ->
+			{gun_ws, Pid, StreamRef, {text, <<"That's what she said! hello">>}} ->
 				ok
 		after 500 ->
 			exit(timeout)
