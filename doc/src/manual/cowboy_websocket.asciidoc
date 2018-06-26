@@ -31,7 +31,7 @@ Req        :: cowboy_req:req()
 PartialReq :: map()
 State      :: any()
 Opts       :: cowboy_websocket:opts()
-InFrame    :: {text | binary | ping | pong, binary()}
+InFrame    :: ping | pong | {text | binary | ping | pong, binary()}
 OutFrame   :: cow_ws:frame()                    %% see types below
 Info       :: any()
 

@@ -47,7 +47,7 @@
 	-> call_result(State) when State::any().
 -optional_callbacks([websocket_init/1]).
 
--callback websocket_handle({text | binary | ping | pong, binary()}, State)
+-callback websocket_handle(ping | pong | {text | binary | ping | pong, binary()}, State)
 	-> call_result(State) when State::any().
 -callback websocket_info(any(), State)
 	-> call_result(State) when State::any().
