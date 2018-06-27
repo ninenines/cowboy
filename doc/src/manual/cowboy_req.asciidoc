@@ -84,6 +84,7 @@ Response:
 * link:man:cowboy_req:reply(3)[cowboy_req:reply(3)] - Send the response
 * link:man:cowboy_req:stream_reply(3)[cowboy_req:stream_reply(3)] - Send the response headers
 * link:man:cowboy_req:stream_body(3)[cowboy_req:stream_body(3)] - Stream the response body
+* link:man:cowboy_req:stream_events(3)[cowboy_req:stream_events(3)] - Stream events
 * link:man:cowboy_req:stream_trailers(3)[cowboy_req:stream_trailers(3)] - Send the response trailers
 * link:man:cowboy_req:push(3)[cowboy_req:push(3)] - Push a resource to the client
 

@@ -1,20 +1,33 @@
-= cowboy_req:stream_body(3)
+= cowboy_req:stream_events(3)
 
 == Name
 
-cowboy_req:stream_body - Stream the response body
+cowboy_req:stream_events - Stream events
 
 == Description
 
 [source,erlang]
 ----
-stream_body(Data, IsFin, Req :: cowboy_req:req()) -> ok
+stream_events(Events, IsFin, Req :: cowboy_req:req()) -> ok
 
-Data  :: iodata()
-IsFin :: fin | nofin
+Events :: Event | [Event]
+IsFin  :: fin | nofin
+
+Event  :: #{
+    comment => iodata(),
+    data    => iodata(),
+    event   => iodata() | atom(),
+    id      => iodata(),
+    retry   => non_neg_integer()
+}
 ----
 
-Stream the response body.
+Stream events.
+
+This function should only be used for `text/event-stream`
+responses when using server-sent events. Cowboy will
+automatically encode the given events to their text
+representation.
 
 This function may be called as many times as needed after
 initiating a response using the
@@ -39,9 +52,9 @@ Cowboy will ensure no data is sent when you call this function.
 
 == Arguments
 
-Data::
+Events::
 
-The data to be sent.
+Events to be sent. All fields are optional.
 
 IsFin::
 
@@ -58,24 +71,31 @@ The atom `ok` is always returned. It can be safely ignored.
 
 == Changelog
 
-* *2.0*: Function introduced. Replaces `chunk/2`.
+* *2.5*: Function introduced.
 
 == Examples
 
-.Stream the response body
+.Stream events
 [source,erlang]
 ----
 Req = cowboy_req:stream_reply(200, #{
-    <<"content-type">> => <<"text/plain">>
+    <<"content-type">> => <<"text/event-stream">>
 }, Req0),
-cowboy_req:stream_body(<<"Hello\n">>, nofin, Req),
+cowboy_req:stream_events(#{
+    id => <<"comment-123">>,
+    event => <<"add_comment">>,
+    data => <<"Hello,\n\nI noticed something wrong in ...">>
+}, nofin, Req),
 timer:sleep(1000),
-cowboy_req:stream_body(<<"World!\n">>, fin, Req).
+cowboy_req:stream_events(#{
+    event => <<"debug">>,
+    data => io_lib:format("An error occurred: ~p~n", [Error])
+}, fin, Req).
 ----
 
 == See also
 
 link:man:cowboy_req(3)[cowboy_req(3)],
 link:man:cowboy_req:stream_reply(3)[cowboy_req:stream_reply(3)],
-link:man:cowboy_req:stream_events(3)[cowboy_req:stream_events(3)],
+link:man:cowboy_req:stream_body(3)[cowboy_req:stream_body(3)],
 link:man:cowboy_req:stream_trailers(3)[cowboy_req:stream_trailers(3)]
