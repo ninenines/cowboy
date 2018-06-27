@@ -14,7 +14,10 @@ init(Req0, Opts) ->
 	{cowboy_loop, Req, Opts}.
 
 info({message, Msg}, Req, State) ->
-	cowboy_req:stream_body(["id: ", id(), "\ndata: ", Msg, "\n\n"], nofin, Req),
+	cowboy_req:stream_events(#{
+		id => id(),
+		data => Msg
+	}, nofin, Req),
 	erlang:send_after(1000, self(), {message, "Tick"}),
 	{ok, Req, State}.
 
