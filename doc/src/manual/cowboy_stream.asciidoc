@@ -85,9 +85,6 @@ the `early_error/5` callback must return a response command.
 // It's better than doing in the handlers directly because
 // then we can have other stream handlers manipulate those logs.
 
-// @todo We need a command to send a message so that other
-// stream handlers can manipulate these messages if necessary.
-
 The following commands are defined:
 
 [[inform_command]]
@@ -278,17 +275,6 @@ This is the raw exit message without any modification.
 // //info(StreamID, {read_body, Ref, Length, Period}, State) ->
 // 
 // TODO yeah I am not actually sure this one should be public just yet
-// TODO if it is, then we probably shouldn't send a message directly,
-// TODO but rather return a command that will end up sending the message
-// 
-// TODO The problem being that no stream handler has access to that
-// TODO message if we send it directly. So we should have a command
-// TODO send_message or something that can be seen from all handlers.
-// 
-// TODO The thing is that stream handlers can have 0 to N processes
-// TODO so we have to make it easy to say which process should
-// TODO receive the message, and perhaps *identify* which process
-// TODO gets it?
 
 === inform
 
