@@ -15,6 +15,10 @@
 
 -module(cowboy_req).
 
+-ifdef(OTP_RELEASE).
+-compile({nowarn_deprecated_function, [{erlang, get_stacktrace, 0}]}).
+-endif.
+
 %% Request.
 -export([method/1]).
 -export([version/1]).

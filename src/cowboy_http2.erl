@@ -14,6 +14,10 @@
 
 -module(cowboy_http2).
 
+-ifdef(OTP_RELEASE).
+-compile({nowarn_deprecated_function, [{erlang, get_stacktrace, 0}]}).
+-endif.
+
 -export([init/5]).
 -export([init/9]).
 -export([init/11]).

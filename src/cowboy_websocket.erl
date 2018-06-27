@@ -17,6 +17,10 @@
 -module(cowboy_websocket).
 -behaviour(cowboy_sub_protocol).
 
+-ifdef(OTP_RELEASE).
+-compile({nowarn_deprecated_function, [{erlang, get_stacktrace, 0}]}).
+-endif.
+
 -export([is_upgrade_request/1]).
 -export([upgrade/4]).
 -export([upgrade/5]).

@@ -15,6 +15,10 @@
 -module(cowboy_stream_h).
 -behavior(cowboy_stream).
 
+-ifdef(OTP_RELEASE).
+-compile({nowarn_deprecated_function, [{erlang, get_stacktrace, 0}]}).
+-endif.
+
 -export([init/3]).
 -export([data/4]).
 -export([info/3]).

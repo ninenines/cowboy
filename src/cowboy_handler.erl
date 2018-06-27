@@ -20,6 +20,10 @@
 -module(cowboy_handler).
 -behaviour(cowboy_middleware).
 
+-ifdef(OTP_RELEASE).
+-compile({nowarn_deprecated_function, [{erlang, get_stacktrace, 0}]}).
+-endif.
+
 -export([execute/2]).
 -export([terminate/4]).
 

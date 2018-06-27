@@ -15,6 +15,10 @@
 -module(cowboy_loop).
 -behaviour(cowboy_sub_protocol).
 
+-ifdef(OTP_RELEASE).
+-compile({nowarn_deprecated_function, [{erlang, get_stacktrace, 0}]}).
+-endif.
+
 -export([upgrade/4]).
 -export([upgrade/5]).
 -export([loop/4]).
