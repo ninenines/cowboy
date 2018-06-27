@@ -246,6 +246,58 @@ do(<<"stream_body_content_length">>, Req0, Opts) ->
 			cowboy_req:stream_body(<<"Hello">>, nofin, Req),
 			{ok, Req, Opts}
 	end;
+do(<<"stream_events">>, Req0, Opts) ->
+	case cowboy_req:binding(arg, Req0) of
+		%%<<"single">>
+		%%<<"list">>
+		<<"single">> ->
+			Req = cowboy_req:stream_reply(200,
+				#{<<"content-type">> => <<"text/event-stream">>},
+				Req0),
+			cowboy_req:stream_events(#{
+				event => <<"add_comment">>,
+				data => <<"Comment text.\nWith many lines.">>
+			}, fin, Req),
+			{ok, Req, Opts};
+		<<"list">> ->
+			Req = cowboy_req:stream_reply(200,
+				#{<<"content-type">> => <<"text/event-stream">>},
+				Req0),
+			cowboy_req:stream_events([
+				#{
+					event => <<"add_comment">>,
+					data => <<"Comment text.\nWith many lines.">>
+				},
+				#{
+					comment => <<"Set retry higher\nwith many lines also.">>,
+					retry => 10000
+				},
+				#{
+					id => <<"123">>,
+					event => <<"add_comment">>,
+					data => <<"Closing!">>
+				}
+			], fin, Req),
+			{ok, Req, Opts};
+		<<"multiple">> ->
+			Req = cowboy_req:stream_reply(200,
+				#{<<"content-type">> => <<"text/event-stream">>},
+				Req0),
+			cowboy_req:stream_events(#{
+				event => <<"add_comment">>,
+				data => <<"Comment text.\nWith many lines.">>
+			}, nofin, Req),
+			cowboy_req:stream_events(#{
+				comment => <<"Set retry higher\nwith many lines also.">>,
+				retry => 10000
+			}, nofin, Req),
+			cowboy_req:stream_events(#{
+				id => <<"123">>,
+				event => <<"add_comment">>,
+				data => <<"Closing!">>
+			}, fin, Req),
+			{ok, Req, Opts}
+	end;
 do(<<"stream_trailers">>, Req0, Opts) ->
 	case cowboy_req:binding(arg, Req0) of
 		<<"large">> ->

@@ -909,6 +909,55 @@ stream_body_content_length_nofin_error(Config) ->
 %% @todo Crash when calling stream_body after calling reply.
 %% @todo Crash when calling stream_body before calling stream_reply.
 
+stream_events_single(Config) ->
+	doc("Streamed event."),
+	{200, Headers, <<
+		"event: add_comment\n"
+		"data: Comment text.\n"
+		"data: With many lines.\n"
+		"\n"
+	>>} = do_get("/resp/stream_events/single", Config),
+	{_, <<"text/event-stream">>} = lists:keyfind(<<"content-type">>, 1, Headers),
+	ok.
+
+stream_events_list(Config) ->
+	doc("Streamed list of events."),
+	{200, Headers, <<
+		"event: add_comment\n"
+		"data: Comment text.\n"
+		"data: With many lines.\n"
+		"\n"
+		": Set retry higher\n"
+		": with many lines also.\n"
+		"retry: 10000\n"
+		"\n"
+		"id: 123\n"
+		"event: add_comment\n"
+		"data: Closing!\n"
+		"\n"
+	>>} = do_get("/resp/stream_events/list", Config),
+	{_, <<"text/event-stream">>} = lists:keyfind(<<"content-type">>, 1, Headers),
+	ok.
+
+stream_events_multiple(Config) ->
+	doc("Streamed events via multiple calls."),
+	{200, Headers, <<
+		"event: add_comment\n"
+		"data: Comment text.\n"
+		"data: With many lines.\n"
+		"\n"
+		": Set retry higher\n"
+		": with many lines also.\n"
+		"retry: 10000\n"
+		"\n"
+		"id: 123\n"
+		"event: add_comment\n"
+		"data: Closing!\n"
+		"\n"
+	>>} = do_get("/resp/stream_events/multiple", Config),
+	{_, <<"text/event-stream">>} = lists:keyfind(<<"content-type">>, 1, Headers),
+	ok.
+
 stream_trailers(Config) ->
 	doc("Stream body followed by trailer headers."),
 	{200, RespHeaders, <<"Hello world!">>, [
