@@ -81,9 +81,8 @@ Stream handlers can return a list of commands to be executed
 from the `init/3`, `data/4` and `info/3` callbacks. In addition,
 the `early_error/5` callback must return a response command.
 
-// @todo We need a 'log' command that would call error_logger.
-// It's better than doing in the handlers directly because
-// then we can have other stream handlers manipulate those logs.
+// @todo The logger option and the {log, Level, Format, Args}
+// options need to be documented and tested.
 
 The following commands are defined:
 

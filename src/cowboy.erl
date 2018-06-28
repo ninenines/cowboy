@@ -19,6 +19,10 @@
 -export([stop_listener/1]).
 -export([set_env/3]).
 
+%% Internal.
+-export([log/2]).
+-export([log/4]).
+
 %% @todo Detailed opts.
 -type opts() :: map().
 -export_type([opts/0]).
@@ -71,3 +75,30 @@ set_env(Ref, Name, Value) ->
 	Env = maps:get(env, Opts, #{}),
 	Opts2 = maps:put(env, maps:put(Name, Value, Env), Opts),
 	ok = ranch:set_protocol_options(Ref, Opts2).
+
+%% Internal.
+
+-spec log({log, logger:level(), io:format(), list()}, opts()) -> ok.
+log({log, Level, Format, Args}, Opts) ->
+	log(Level, Format, Args, Opts).
+
+-spec log(logger:level(), io:format(), list(), opts()) -> ok.
+log(Level, Format, Args, #{logger := Logger})
+		when Logger =/= error_logger ->
+	_ = Logger:Level(Format, Args),
+	ok;
+%% We use error_logger by default. Because error_logger does
+%% not have all the levels we accept we have to do some
+%% mapping to error_logger functions.
+log(Level, Format, Args, _) ->
+	Function = case Level of
+		emergency -> error_msg;
+		alert -> error_msg;
+		critical -> error_msg;
+		error -> error_msg;
+		warning -> warning_msg;
+		notice -> warning_msg;
+		info -> info_msg;
+		debug -> info_msg
+	end,
+	error_logger:Function(Format, Args).

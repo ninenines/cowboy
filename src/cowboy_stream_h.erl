@@ -134,24 +134,32 @@ info(StreamID, Info={'EXIT', Pid, normal}, State=#state{pid=Pid}) ->
 	do_info(StreamID, Info, [stop], State);
 info(StreamID, Info={'EXIT', Pid, {{request_error, Reason, _HumanReadable}, _}},
 		State=#state{pid=Pid}) ->
-	%% @todo Optionally report the crash to help debugging.
-	%%report_crash(Ref, StreamID, Pid, Reason, Stacktrace),
 	Status = case Reason of
 		timeout -> 408;
 		payload_too_large -> 413;
 		_ -> 400
 	end,
-	%% @todo Headers? Details in body? More stuff in debug only?
+	%% @todo Headers? Details in body? Log the crash? More stuff in debug only?
 	do_info(StreamID, Info, [
 		{error_response, Status, #{<<"content-length">> => <<"0">>}, <<>>},
 		stop
 	], State);
 info(StreamID, Exit={'EXIT', Pid, {Reason, Stacktrace}}, State=#state{ref=Ref, pid=Pid}) ->
-	report_crash(Ref, StreamID, Pid, Reason, Stacktrace),
+	Commands0 = [{internal_error, Exit, 'Stream process crashed.'}],
+	Commands = case Reason of
+		normal -> Commands0;
+		shutdown -> Commands0;
+		{shutdown, _} -> Commands0;
+		_ -> [{log, error,
+				"Ranch listener ~p, connection process ~p, stream ~p "
+				"had its request process ~p exit with reason "
+				"~999999p and stacktrace ~999999p~n",
+				[Ref, self(), StreamID, Pid, Reason, Stacktrace]}
+			|Commands0]
+	end,
 	do_info(StreamID, Exit, [
-		{error_response, 500, #{<<"content-length">> => <<"0">>}, <<>>},
-		{internal_error, Exit, 'Stream process crashed.'}
-	], State);
+		{error_response, 500, #{<<"content-length">> => <<"0">>}, <<>>}
+	|Commands], State);
 %% Request body, auto mode, no body buffered.
 info(StreamID, Info={read_body, Ref, auto, infinity}, State=#state{read_body_buffer= <<>>}) ->
 	do_info(StreamID, Info, [], State#state{
@@ -243,21 +251,6 @@ send_request_body(Pid, Ref, nofin, _, Data) ->
 send_request_body(Pid, Ref, fin, BodyLen, Data) ->
 	Pid ! {request_body, Ref, fin, BodyLen, Data},
 	ok.
-
-%% We use ~999999p here instead of ~w because the latter doesn't
-%% support printable strings.
-report_crash(_, _, _, normal, _) ->
-	ok;
-report_crash(_, _, _, shutdown, _) ->
-	ok;
-report_crash(_, _, _, {shutdown, _}, _) ->
-	ok;
-report_crash(Ref, StreamID, Pid, Reason, Stacktrace) ->
-	error_logger:error_msg(
-		"Ranch listener ~p, connection process ~p, stream ~p "
-		"had its request process ~p exit with reason "
-		"~999999p and stacktrace ~999999p~n",
-		[Ref, self(), StreamID, Pid, Reason, Stacktrace]).
 
 %% Request process.
 

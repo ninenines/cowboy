@@ -152,37 +152,37 @@ tracer_process(StreamID, Req=#{pid := Parent}, Opts=#{tracer_callback := Fun}) -
 	%% before it has finished processing the events in its queue.
 	process_flag(trap_exit, true),
 	State = Fun(init, {StreamID, Req, Opts}),
-	tracer_loop(Parent, Fun, State).
+	tracer_loop(Parent, Opts, State).
 
-tracer_loop(Parent, Fun, State0) ->
+tracer_loop(Parent, Opts=#{tracer_callback := Fun}, State0) ->
 	receive
 		Msg when element(1, Msg) =:= trace_ts ->
 			State = Fun(Msg, State0),
-			tracer_loop(Parent, Fun, State);
+			tracer_loop(Parent, Opts, State);
 		{'EXIT', Parent, Reason} ->
-			tracer_terminate(Reason, Fun, State0);
+			tracer_terminate(Reason, Opts, State0);
 		{system, From, Request} ->
-			sys:handle_system_msg(Request, From, Parent, ?MODULE, [], {Fun, State0});
+			sys:handle_system_msg(Request, From, Parent, ?MODULE, [], {Opts, State0});
 		Msg ->
-			error_logger:error_msg("~p: Tracer process received stray message ~9999p~n",
-				[?MODULE, Msg]),
-			tracer_loop(Parent, Fun, State0)
+			cowboy:log(warning, "~p: Tracer process received stray message ~9999p~n",
+				[?MODULE, Msg], Opts),
+			tracer_loop(Parent, Opts, State0)
 	end.
 
 -spec tracer_terminate(_, _, _) -> no_return().
-tracer_terminate(Reason, Fun, State) ->
+tracer_terminate(Reason, #{tracer_callback := Fun}, State) ->
 	_ = Fun(terminate, State),
 	exit(Reason).
 
 %% System callbacks.
 
--spec system_continue(pid(), _, {fun(), any()}) -> no_return().
-system_continue(Parent, _, {Fun, State}) ->
-	tracer_loop(Parent, Fun, State).
+-spec system_continue(pid(), _, {cowboy:opts(), any()}) -> no_return().
+system_continue(Parent, _, {Opts, State}) ->
+	tracer_loop(Parent, Opts, State).
 
 -spec system_terminate(any(), _, _, _) -> no_return().
-system_terminate(Reason, _, _, {Fun, State}) ->
-	tracer_terminate(Reason, Fun, State).
+system_terminate(Reason, _, _, {Opts, State}) ->
+	tracer_terminate(Reason, Opts, State).
 
 -spec system_code_change(Misc, _, _, _) -> {ok, Misc} when Misc::any().
 system_code_change(Misc, _, _, _) ->

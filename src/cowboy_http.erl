@@ -30,6 +30,7 @@
 	idle_timeout => timeout(),
 	inactivity_timeout => timeout(),
 	linger_timeout => timeout(),
+	logger => module(),
 	max_authority_length => non_neg_integer(),
 	max_empty_lines => non_neg_integer(),
 	max_header_name_length => non_neg_integer(),
@@ -224,7 +225,7 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport, opts=Opts,
 			loop(State, Buffer);
 		%% Unknown messages.
 		Msg ->
-			error_logger:error_msg("Received stray message ~p.~n", [Msg]),
+			cowboy:log(warning, "Received stray message ~p.~n", [Msg], Opts),
 			loop(State, Buffer)
 	after InactivityTimeout ->
 		terminate(State, {internal_error, timeout, 'No message or data received before timeout.'})
@@ -300,16 +301,16 @@ after_parse({request, Req=#{streamid := StreamID, method := Method,
 			State = set_timeout(State1),
 			parse(Buffer, commands(State, StreamID, Commands))
 	catch Class:Exception ->
-		cowboy_stream:report_error(init,
+		cowboy:log(cowboy_stream:make_error_log(init,
 			[StreamID, Req, Opts],
-			Class, Exception, erlang:get_stacktrace()),
+			Class, Exception, erlang:get_stacktrace()), Opts),
 		early_error(500, State0, {internal_error, {Class, Exception},
 			'Unhandled exception in cowboy_stream:init/3.'}, Req),
 		parse(Buffer, State0)
 	end;
 %% Streams are sequential so the body is always about the last stream created
 %% unless that stream has terminated.
-after_parse({data, StreamID, IsFin, Data, State=#state{
+after_parse({data, StreamID, IsFin, Data, State=#state{opts=Opts,
 		streams=Streams0=[Stream=#stream{id=StreamID, state=StreamState0}|_]}, Buffer}) ->
 	try cowboy_stream:data(StreamID, IsFin, Data, StreamState0) of
 		{Commands, StreamState} ->
@@ -317,9 +318,9 @@ after_parse({data, StreamID, IsFin, Data, State=#state{
 				Stream#stream{state=StreamState}),
 			parse(Buffer, commands(State#state{streams=Streams}, StreamID, Commands))
 	catch Class:Exception ->
-		cowboy_stream:report_error(data,
+		cowboy:log(cowboy_stream:make_error_log(data,
 			[StreamID, IsFin, Data, StreamState0],
-			Class, Exception, erlang:get_stacktrace()),
+			Class, Exception, erlang:get_stacktrace()), Opts),
 		stream_reset(State, StreamID, {internal_error, {Class, Exception},
 			'Unhandled exception in cowboy_stream:data/4.'})
 	end;
@@ -821,7 +822,7 @@ parse_body(Buffer, State=#state{in_streamid=StreamID, in_state=
 
 %% Message handling.
 
-down(State=#state{children=Children0}, Pid, Msg) ->
+down(State=#state{opts=Opts, children=Children0}, Pid, Msg) ->
 	case cowboy_children:down(Children0, Pid) of
 		%% The stream was terminated already.
 		{ok, undefined, Children} ->
@@ -831,11 +832,12 @@ down(State=#state{children=Children0}, Pid, Msg) ->
 			info(State#state{children=Children}, StreamID, Msg);
 		%% The process was unknown.
 		error ->
-			error_logger:error_msg("Received EXIT signal ~p for unknown process ~p.~n", [Msg, Pid]),
+			cowboy:log(warning, "Received EXIT signal ~p for unknown process ~p.~n",
+				[Msg, Pid], Opts),
 			State
 	end.
 
-info(State=#state{streams=Streams0}, StreamID, Msg) ->
+info(State=#state{opts=Opts, streams=Streams0}, StreamID, Msg) ->
 	case lists:keyfind(StreamID, #stream.id, Streams0) of
 		Stream = #stream{state=StreamState0} ->
 			try cowboy_stream:info(StreamID, Msg, StreamState0) of
@@ -844,14 +846,15 @@ info(State=#state{streams=Streams0}, StreamID, Msg) ->
 						Stream#stream{state=StreamState}),
 					commands(State#state{streams=Streams}, StreamID, Commands)
 			catch Class:Exception ->
-				cowboy_stream:report_error(info,
+				cowboy:log(cowboy_stream:make_error_log(info,
 					[StreamID, Msg, StreamState0],
-					Class, Exception, erlang:get_stacktrace()),
+					Class, Exception, erlang:get_stacktrace()), Opts),
 				stream_reset(State, StreamID, {internal_error, {Class, Exception},
 					'Unhandled exception in cowboy_stream:info/3.'})
 			end;
 		false ->
-			error_logger:error_msg("Received message ~p for unknown stream ~p.~n", [Msg, StreamID]),
+			cowboy:log(warning, "Received message ~p for unknown stream ~p.~n",
+				[Msg, StreamID], Opts),
 			State
 	end.
 
@@ -1077,7 +1080,7 @@ commands(State0=#state{ref=Ref, parent=Parent, socket=Socket, transport=Transpor
 	#state{streams=Streams} = info(State, StreamID, {inform, 101, Headers}),
 	#stream{state=StreamState} = lists:keyfind(StreamID, #stream.id, Streams),
 	%% @todo We need to shutdown processes here first.
-	stream_call_terminate(StreamID, switch_protocol, StreamState),
+	stream_call_terminate(StreamID, switch_protocol, StreamState, State),
 	%% Terminate children processes and flush any remaining messages from the mailbox.
 	cowboy_children:terminate(Children),
 	flush(Parent),
@@ -1095,6 +1098,10 @@ commands(State, StreamID, [stop|Tail]) ->
 	%% the next request concurrently. This can be done as a
 	%% future optimization.
 	maybe_terminate(State, StreamID, Tail);
+%% Log event.
+commands(State=#state{opts=Opts}, StreamID, [Log={log, _, _, _}|Tail]) ->
+	cowboy:log(Log, Opts),
+	commands(State, StreamID, Tail);
 %% HTTP/1.1 does not support push; ignore.
 commands(State, StreamID, [{push, _, _, _, _, _, _, _}|Tail]) ->
 	commands(State, StreamID, Tail).
@@ -1160,7 +1167,7 @@ stream_terminate(State0=#state{opts=Opts, in_streamid=InStreamID, in_state=InSta
 		= lists:keytake(StreamID, #stream.id, Streams1),
 	State2 = State1#state{streams=Streams},
 	%% Stop the stream.
-	stream_call_terminate(StreamID, Reason, StreamState),
+	stream_call_terminate(StreamID, Reason, StreamState, State2),
 	Children = cowboy_children:shutdown(Children0, StreamID),
 	%% We reset the timeout if there are no active streams anymore.
 	State = case Streams of
@@ -1195,13 +1202,13 @@ stream_terminate(State0=#state{opts=Opts, in_streamid=InStreamID, in_state=InSta
 			end
 	end.
 
-stream_call_terminate(StreamID, Reason, StreamState) ->
+stream_call_terminate(StreamID, Reason, StreamState, #state{opts=Opts}) ->
 	try
 		cowboy_stream:terminate(StreamID, Reason, StreamState)
 	catch Class:Exception ->
-		cowboy_stream:report_error(terminate,
+		cowboy:log(cowboy_stream:make_error_log(terminate,
 			[StreamID, Reason, StreamState],
-			Class, Exception, erlang:get_stacktrace())
+			Class, Exception, erlang:get_stacktrace()), Opts)
 	end.
 
 %% @todo max_reqs also
@@ -1298,9 +1305,9 @@ early_error(StatusCode0, #state{socket=Socket, transport=Transport,
 				RespBody
 			])
 	catch Class:Exception ->
-		cowboy_stream:report_error(early_error,
+		cowboy:log(cowboy_stream:make_error_log(early_error,
 			[StreamID, Reason, PartialReq, Resp, Opts],
-			Class, Exception, erlang:get_stacktrace()),
+			Class, Exception, erlang:get_stacktrace()), Opts),
 		%% We still need to send an error response, so send what we initially
 		%% wanted to send. It's better than nothing.
 		Transport:send(Socket, cow_http:response(StatusCode0,
@@ -1312,16 +1319,16 @@ early_error(StatusCode0, #state{socket=Socket, transport=Transport,
 terminate(undefined, Reason) ->
 	exit({shutdown, Reason});
 terminate(State=#state{streams=Streams, children=Children}, Reason) ->
-	terminate_all_streams(Streams, Reason),
+	terminate_all_streams(State, Streams, Reason),
 	cowboy_children:terminate(Children),
 	terminate_linger(State),
 	exit({shutdown, Reason}).
 
-terminate_all_streams([], _) ->
+terminate_all_streams(_, [], _) ->
 	ok;
-terminate_all_streams([#stream{id=StreamID, state=StreamState}|Tail], Reason) ->
-	stream_call_terminate(StreamID, Reason, StreamState),
-	terminate_all_streams(Tail, Reason).
+terminate_all_streams(State, [#stream{id=StreamID, state=StreamState}|Tail], Reason) ->
+	stream_call_terminate(StreamID, Reason, StreamState, State),
+	terminate_all_streams(State, Tail, Reason).
 
 terminate_linger(State=#state{socket=Socket, transport=Transport, opts=Opts}) ->
 	case Transport:shutdown(Socket, write) of
