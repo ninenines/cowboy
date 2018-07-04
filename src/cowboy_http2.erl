@@ -484,7 +484,10 @@ frame(State0=#state{socket=Socket, transport=Transport, opts=Opts,
 %% Ack for a previously sent SETTINGS frame.
 frame(State0=#state{local_settings=Local0, next_settings=NextSettings,
 		next_settings_timer=TRef}, settings_ack) ->
-	ok = erlang:cancel_timer(TRef, [{async, true}, {info, false}]),
+	ok = case TRef of
+		undefined -> ok;
+		_ -> erlang:cancel_timer(TRef, [{async, true}, {info, false}])
+	end,
 	Local = maps:merge(Local0, NextSettings),
 	State1 = State0#state{local_settings=Local, next_settings=#{},
 		next_settings_timer=undefined},
