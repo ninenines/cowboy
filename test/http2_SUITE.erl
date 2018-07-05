@@ -159,3 +159,20 @@ resp_iolist_body(Config) ->
 	{ok, RespBody} = gun:await_body(ConnPid, Ref),
 	Len = iolist_size(RespBody),
 	gun:close(ConnPid).
+
+settings_timeout_infinity(Config) ->
+	doc("Ensure infinity for settings_timeout is accepted."),
+	ProtoOpts = #{
+		env => #{dispatch => cowboy_router:compile(init_routes(Config))},
+		settings_timeout => infinity
+	},
+	{ok, Pid} = cowboy:start_clear(name(), [{port, 0}], ProtoOpts),
+	Ref = erlang:monitor(process, Pid),
+	Port = ranch:get_port(name()),
+	{ok, _} = do_handshake([{port, Port}|Config]),
+	receive
+		{'DOWN', Ref, process, Pid, Reason} ->
+			error(Reason)
+	after 1000 ->
+		cowboy:stop_listener(name())
+	end.
