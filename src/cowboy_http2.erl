@@ -33,6 +33,7 @@
 	env => cowboy_middleware:env(),
 	goaway_initial_timeout => timeout(),
 	goaway_complete_timeout => timeout(),
+	headers_raw => boolean(),
 	idle_timeout => timeout(),
 	inactivity_timeout => timeout(),
 	initial_connection_window_size => 65535..16#7fffffff,
@@ -452,7 +453,7 @@ headers_frame(State, StreamID, IsFin, Headers, PseudoHeaders, BodyLen) ->
 				'Requests translated from HTTP/1.1 must include a host header. (RFC7540 8.1.2.3, RFC7230 5.4)'})
 	end.
 
-headers_frame_parse_host(State=#state{ref=Ref, peer=Peer, sock=Sock, cert=Cert, proxy_header=ProxyHeader},
+headers_frame_parse_host(State=#state{ref=Ref, peer=Peer, sock=Sock, cert=Cert, proxy_header=ProxyHeader, opts=#{headers_raw:=HeadersRaw}},
 		StreamID, IsFin, Headers, PseudoHeaders=#{method := Method, scheme := Scheme, path := PathWithQs},
 		BodyLen, Authority) ->
 	try cow_http_hd:parse_host(Authority) of
@@ -486,10 +487,14 @@ headers_frame_parse_host(State=#state{ref=Ref, peer=Peer, sock=Sock, cert=Cert, 
 						undefined -> Req0;
 						_ -> Req0#{proxy_header => ProxyHeader}
 					end,
+					Req2 = case HeadersRaw of
+						undefined -> Req1;
+						_ -> Req1#{headers_raw => Headers}
+					end,
 					%% We add the protocol information for extended CONNECTs.
 					Req = case PseudoHeaders of
-						#{protocol := Protocol} -> Req1#{protocol => Protocol};
-						_ -> Req1
+						#{protocol := Protocol} -> Req2#{protocol => Protocol};
+						_ -> Req2
 					end,
 					headers_frame(State, StreamID, Req)
 			catch _:_ ->

@@ -20,6 +20,7 @@ opts() :: #{
     active_n                 => pos_integer(),
     chunked                  => boolean(),
     connection_type          => worker | supervisor,
+    headers_raw              => boolean(),
     http10_keepalive         => boolean(),
     idle_timeout             => timeout(),
     inactivity_timeout       => timeout(),
@@ -120,6 +121,12 @@ Maximum length of header values.
 max_headers (100)::
 
 Maximum number of headers allowed per request.
+
+headers_raw (false)::
+
+Populate `headers_raw` in the Req object, with a `binary()` (for HTTP/1.x)
+or `cow_http:headers()` (for HTTP/2) that retains the raw headers sent by
+the client; useful for passive user-agent identification.
 
 max_keepalive (1000)::
 
