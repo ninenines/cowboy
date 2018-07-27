@@ -655,7 +655,7 @@ default_port(_) -> 80.
 
 %% End of request parsing.
 
-request(Buffer, State0=#state{ref=Ref, transport=Transport, peer=Peer, sock=Sock, cert=Cert,
+request(Buffer, State0=#state{socket=Socket, ref=Ref, transport=Transport, peer=Peer, sock=Sock, cert=Cert,
 		in_streamid=StreamID, in_state=
 			PS=#ps_header{method=Method, path=Path, qs=Qs, version=Version}},
 		Headers0, Host, Port) ->
@@ -710,7 +710,8 @@ request(Buffer, State0=#state{ref=Ref, transport=Transport, peer=Peer, sock=Sock
 		%% the user code has no need to know about it.
 		headers => maps:remove(<<"transfer-encoding">>, Headers),
 		has_body => HasBody,
-		body_length => BodyLength
+		body_length => BodyLength,
+		socket => Socket
 	},
 	case is_http2_upgrade(Headers, Version) of
 		false ->
