@@ -41,6 +41,7 @@
 	| {error_response, cowboy:http_status(), cowboy:http_headers(), iodata()}
 	| {switch_protocol, cowboy:http_headers(), module(), state()}
 	| {internal_error, any(), human_reason()}
+	| {log, logger:level(), io:format(), list()}
 	| stop].
 -export_type([commands/0]).
 
