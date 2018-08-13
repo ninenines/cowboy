@@ -1069,7 +1069,7 @@ set_resp_body_expires(Req, State) ->
 %% Set the response headers and call the callback found using
 %% content_types_provided/2 to obtain the request body and add
 %% it to the response.
-set_resp_body(Req, State=#state{content_type_a={_, Callback}}) ->
+set_resp_body(Req, State=#state{handler=Handler, content_type_a={_, Callback}}) ->
 	try case call(Req, State, Callback) of
 		{stop, Req2, HandlerState2} ->
 			terminate(Req2, State#state{handler_state=HandlerState2});
@@ -1079,8 +1079,9 @@ set_resp_body(Req, State=#state{content_type_a={_, Callback}}) ->
 			State2 = State#state{handler_state=HandlerState2},
 			Req3 = cowboy_req:set_resp_body(Body, Req2),
 			multiple_choices(Req3, State2)
-	end catch Class:Reason = {case_clause, no_call} ->
-		error_terminate(Req, State, Class, Reason)
+	end catch Class:{case_clause, no_call} ->
+		error_terminate(Req, State, Class, {error, {missing_callback, {Handler, Callback, 2}},
+			'A callback specified in content_types_provided/2 is not exported.'})
 	end.
 
 multiple_choices(Req, State) ->

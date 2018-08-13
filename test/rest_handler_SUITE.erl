@@ -38,6 +38,7 @@ end_per_group(Name, _) ->
 
 init_dispatch(_) ->
 	cowboy_router:compile([{'_', [
+		{"/provide_callback_missing", provide_callback_missing_h, []},
 		{"/switch_handler", switch_handler_h, run},
 		{"/switch_handler_opts", switch_handler_h, hibernate}
 	]}]).
@@ -51,6 +52,13 @@ do_decode(Headers, Body) ->
 	end.
 
 %% Tests.
+
+provide_callback_missing(Config) ->
+	doc("A 500 response must be sent when the ProvideCallback can't be called."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/provide_callback_missing", [{<<"accept-encoding">>, <<"gzip">>}]),
+	{response, fin, 500, _} = gun:await(ConnPid, Ref),
+	ok.
 
 switch_handler(Config) ->
 	doc("Switch REST to loop handler for streaming the response body."),
