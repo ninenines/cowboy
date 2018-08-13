@@ -68,7 +68,9 @@ $(H2SPEC):
 	$(verbose) git clone --depth 1 https://github.com/summerwind/h2spec $(dir $(H2SPEC))
 	$(verbose) $(MAKE) -C $(GOPATH)/src/github.com/summerwind/h2spec build MAKEFLAGS=
 
-# Use erl_make_certs from the tested release during CI.
+# Use erl_make_certs from the tested release during CI
+# and ensure that ct_helper is always recompiled.
 
 ci-setup:: clean deps test-deps
 	$(gen_verbose) cp ~/.kerl/builds/$(CI_OTP_RELEASE)/otp_src_git/lib/ssl/test/erl_make_certs.erl deps/ct_helper/src/ || true
+	$(gen_verbose) $(MAKE) -C $(DEPS_DIR)/ct_helper clean app
