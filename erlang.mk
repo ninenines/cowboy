@@ -17,7 +17,7 @@
 ERLANG_MK_FILENAME := $(realpath $(lastword $(MAKEFILE_LIST)))
 export ERLANG_MK_FILENAME
 
-ERLANG_MK_VERSION = 2018.05.15-1-g9fff0a1-dirty
+ERLANG_MK_VERSION = 6c8664c
 ERLANG_MK_WITHOUT = 
 
 # Make 3.81 and 3.82 are deprecated.
@@ -216,8 +216,6 @@ ifeq ($(strip $(KERL)),)
 KERL := $(ERLANG_MK_TMP)/kerl/kerl
 endif
 
-KERL_DIR = $(ERLANG_MK_TMP)/kerl
-
 export KERL
 
 KERL_GIT ?= https://github.com/kerl/kerl
@@ -244,9 +242,7 @@ $(KERL_INSTALL_DIR)/$1-native: $(KERL)
 endif
 endef
 
-$(KERL): $(KERL_DIR)
-
-$(KERL_DIR):
+$(KERL):
 	$(verbose) mkdir -p $(ERLANG_MK_TMP)
 	$(gen_verbose) git clone --depth 1 $(KERL_GIT) $(ERLANG_MK_TMP)/kerl
 	$(verbose) cd $(ERLANG_MK_TMP)/kerl && git checkout $(KERL_COMMIT)
@@ -255,13 +251,13 @@ $(KERL_DIR):
 distclean:: distclean-kerl
 
 distclean-kerl:
-	$(gen_verbose) rm -rf $(KERL_DIR)
+	$(gen_verbose) rm -rf $(KERL)
 
 # Allow users to select which version of Erlang/OTP to use for a project.
 
 ifneq ($(strip $(LATEST_ERLANG_OTP)),)
-ERLANG_OTP := $(notdir $(lastword $(sort $(filter-out %-rc1 %-rc2 %-rc3,\
-	$(wildcard $(KERL_INSTALL_DIR)/*[^-native])))))
+ERLANG_OTP := $(notdir $(lastword $(sort $(filter-out $(KERL_INSTALL_DIR)/OTP_R%,\
+	$(filter-out %-rc1 %-rc2 %-rc3,$(wildcard $(KERL_INSTALL_DIR)/*[^-native]))))))
 endif
 
 ERLANG_OTP ?=
@@ -418,9 +414,9 @@ pkg_basho_bench_commit = master
 PACKAGES += bcrypt
 pkg_bcrypt_name = bcrypt
 pkg_bcrypt_description = Bcrypt Erlang / C library
-pkg_bcrypt_homepage = https://github.com/riverrun/branglecrypt
+pkg_bcrypt_homepage = https://github.com/erlangpack/bcrypt
 pkg_bcrypt_fetch = git
-pkg_bcrypt_repo = https://github.com/riverrun/branglecrypt
+pkg_bcrypt_repo = https://github.com/erlangpack/bcrypt.git
 pkg_bcrypt_commit = master
 
 PACKAGES += beam
@@ -3914,9 +3910,9 @@ pkg_trie_commit = master
 PACKAGES += triq
 pkg_triq_name = triq
 pkg_triq_description = Trifork QuickCheck
-pkg_triq_homepage = https://github.com/triqng/triq
+pkg_triq_homepage = https://triq.gitlab.io
 pkg_triq_fetch = git
-pkg_triq_repo = https://github.com/triqng/triq.git
+pkg_triq_repo = https://gitlab.com/triq/triq.git
 pkg_triq_commit = master
 
 PACKAGES += tunctl
@@ -4299,7 +4295,7 @@ export NO_AUTOPATCH
 
 # Verbosity.
 
-dep_verbose_0 = @echo " DEP   $1 ($(call dep_commit,$1))";
+dep_verbose_0 = @echo " DEP    $1 ($(call dep_commit,$1))";
 dep_verbose_2 = set -x;
 dep_verbose = $(dep_verbose_$(V))
 
@@ -5276,7 +5272,7 @@ ifneq ($(SKIP_DEPS),)
 doc-deps:
 else
 doc-deps: $(ALL_DOC_DEPS_DIRS)
-	$(verbose) set -e; for dep in $(ALL_DOC_DEPS_DIRS) ; do $(MAKE) -C $$dep; done
+	$(verbose) set -e; for dep in $(ALL_DOC_DEPS_DIRS) ; do $(MAKE) -C $$dep IS_DEP=1; done
 endif
 
 # Copyright (c) 2015-2016, Loïc Hoguin <essen@ninenines.eu>
@@ -6246,7 +6242,7 @@ ci_verbose = $(ci_verbose_$(V))
 
 define ci_target
 ci-$1: $(KERL_INSTALL_DIR)/$2
-	$(verbose) $(MAKE) --no-print-directory clean
+	$(verbose) $(MAKE) --no-print-directory clean distclean-c_src-env
 	$(ci_verbose) \
 		PATH="$(KERL_INSTALL_DIR)/$2/bin:$(PATH)" \
 		CI_OTP_RELEASE="$1" \
@@ -6405,7 +6401,7 @@ $(DIALYZER_PLT): deps app
 	$(eval DEPS_LOG := $(shell test -f $(ERLANG_MK_TMP)/deps.log && \
 		while read p; do test -d $$p/ebin && echo $$p/ebin; done <$(ERLANG_MK_TMP)/deps.log))
 	$(verbose) dialyzer --build_plt $(DIALYZER_PLT_OPTS) --apps \
-		erts kernel stdlib $(PLT_APPS) $(OTP_DEPS) $(LOCAL_DEPS) $(DEPS_LOG)
+		erts kernel stdlib $(PLT_APPS) $(OTP_DEPS) $(LOCAL_DEPS) $(DEPS_LOG) || test $$? -eq 2
 
 plt: $(DIALYZER_PLT)
 
@@ -6711,7 +6707,7 @@ endif
 RELX ?= $(ERLANG_MK_TMP)/relx
 RELX_CONFIG ?= $(CURDIR)/relx.config
 
-RELX_URL ?= https://erlang.mk/res/relx-v3.24.5
+RELX_URL ?= https://erlang.mk/res/relx-v3.26.0
 RELX_OPTS ?=
 RELX_OUTPUT_DIR ?= _rel
 RELX_REL_EXT ?=
@@ -6785,6 +6781,13 @@ endif
 run:: all
 	$(verbose) $(RELX_OUTPUT_DIR)/$(RELX_REL_NAME)/bin/$(RELX_REL_NAME)$(RELX_REL_EXT) console
 
+ifdef RELOAD
+rel::
+	$(verbose) $(RELX_OUTPUT_DIR)/$(RELX_REL_NAME)/bin/$(RELX_REL_NAME)$(RELX_REL_EXT) ping
+	$(verbose) $(RELX_OUTPUT_DIR)/$(RELX_REL_NAME)/bin/$(RELX_REL_NAME)$(RELX_REL_EXT) \
+		eval "io:format(\"~p~n\", [c:lm()])"
+endif
+
 help::
 	$(verbose) printf "%s\n" "" \
 		"Relx targets:" \
@@ -6801,7 +6804,7 @@ endif
 # Configuration.
 
 SHELL_ERL ?= erl
-SHELL_PATHS ?= $(CURDIR)/ebin $(APPS_DIR)/*/ebin $(DEPS_DIR)/*/ebin
+SHELL_PATHS ?= $(CURDIR)/ebin $(APPS_DIR)/*/ebin $(DEPS_DIR)/*/ebin $(TEST_DIR)
 SHELL_OPTS ?=
 
 ALL_SHELL_DEPS_DIRS = $(addprefix $(DEPS_DIR)/,$(SHELL_DEPS))
