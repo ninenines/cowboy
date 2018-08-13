@@ -18,6 +18,9 @@
 
 -import(ct_helper, [config/2]).
 -import(ct_helper, [doc/1]).
+-import(ct_helper, [get_parent_pid/1]).
+-import(ct_helper, [get_remote_pid_tcp/1]).
+-import(ct_helper, [get_remote_pid_tls/1]).
 -import(cowboy_test, [gun_open/1]).
 
 all() ->
@@ -57,39 +60,13 @@ init_dispatch(_) ->
 		{"/ws", ws_echo, []}
 	]}]).
 
-do_get_remote_pid_tcp(Socket) when is_port(Socket) ->
-	do_get_remote_pid_tcp(inet:sockname(Socket));
-do_get_remote_pid_tcp(SockName) ->
-	AllPorts = [{P, erlang:port_info(P)} || P <- erlang:ports()],
-	[Pid] = [
-		proplists:get_value(connected, I)
-	|| {P, I} <- AllPorts,
-		I =/= undefined,
-		proplists:get_value(name, I) =:= "tcp_inet",
-		inet:peername(P) =:= SockName],
-	Pid.
-
--include_lib("ssl/src/ssl_connection.hrl").
-
-do_get_remote_pid_tls(Socket) ->
-	%% This gives us the pid of the sslsocket process.
-	%% We must introspect this process in order to retrieve the connection pid.
-	TLSPid = do_get_remote_pid_tcp(ssl:sockname(Socket)),
-	{_, #state{user_application={_, UserPid}}} = sys:get_state(TLSPid),
-	UserPid.
-
-do_get_parent_pid(Pid) ->
-	{_, ProcDict} = process_info(Pid, dictionary),
-	{_, [Parent|_]} = lists:keyfind('$ancestors', 1, ProcDict),
-	Parent.
-
 %% proc_lib.
 
 proc_lib_initial_call_clear(Config) ->
 	doc("Confirm that clear connection processes are started using proc_lib."),
 	{ok, Socket} = gen_tcp:connect("localhost", config(clear_port, Config), []),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tcp(Socket),
+	Pid = get_remote_pid_tcp(Socket),
 	{cowboy_clear, _, _} = proc_lib:initial_call(Pid),
 	ok.
 
@@ -97,7 +74,7 @@ proc_lib_initial_call_tls(Config) ->
 	doc("Confirm that TLS connection processes are started using proc_lib."),
 	{ok, Socket} = ssl:connect("localhost", config(tls_port, Config), config(tls_opts, Config)),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tls(Socket),
+	Pid = get_remote_pid_tls(Socket),
 	{cowboy_tls, _, _} = proc_lib:initial_call(Pid),
 	ok.
 
@@ -112,7 +89,7 @@ bad_system_from_h1(Config) ->
 	doc("h1: Sending a system message with a bad From value results in a process crash."),
 	{ok, Socket} = gen_tcp:connect("localhost", config(clear_port, Config), [{active, false}]),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tcp(Socket),
+	Pid = get_remote_pid_tcp(Socket),
 	ct_helper_error_h:ignore(Pid, gen, reply, 2),
 	Pid ! {system, bad, get_state},
 	{error, closed} = gen_tcp:recv(Socket, 0, 1000),
@@ -126,7 +103,7 @@ bad_system_from_h2(Config) ->
 	%% Skip the SETTINGS frame.
 	{ok, <<_,_,_,4,_/bits>>} = ssl:recv(Socket, 0, 1000),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tls(Socket),
+	Pid = get_remote_pid_tls(Socket),
 	ct_helper_error_h:ignore(Pid, gen, reply, 2),
 	Pid ! {system, bad, get_state},
 	{error, closed} = ssl:recv(Socket, 0, 1000),
@@ -149,7 +126,7 @@ bad_system_from_ws(Config) ->
 	{ok, Handshake} = gen_tcp:recv(Socket, 0, 5000),
 	{ok, {http_response, {1, 1}, 101, _}, _} = erlang:decode_packet(http, Handshake, []),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tcp(Socket),
+	Pid = get_remote_pid_tcp(Socket),
 	ct_helper_error_h:ignore(Pid, gen, reply, 2),
 	Pid ! {system, bad, get_state},
 	{error, closed} = gen_tcp:recv(Socket, 0, 1000),
@@ -164,7 +141,7 @@ bad_system_from_loop(Config) ->
 		"Host: localhost\r\n"
 		"\r\n"),
 	timer:sleep(100),
-	SupPid = do_get_remote_pid_tcp(Socket),
+	SupPid = get_remote_pid_tcp(Socket),
 	[{_, Pid, _, _}] = supervisor:which_children(SupPid),
 	ct_helper_error_h:ignore(Pid, gen, reply, 2),
 	Pid ! {system, bad, get_state},
@@ -176,7 +153,7 @@ bad_system_message_h1(Config) ->
 	doc("h1: Sending a system message with a bad Request value results in an error."),
 	{ok, Socket} = gen_tcp:connect("localhost", config(clear_port, Config), []),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tcp(Socket),
+	Pid = get_remote_pid_tcp(Socket),
 	Ref = make_ref(),
 	Pid ! {system, {self(), Ref}, hello},
 	receive
@@ -193,7 +170,7 @@ bad_system_message_h2(Config) ->
 	%% Skip the SETTINGS frame.
 	{ok, <<_,_,_,4,_/bits>>} = ssl:recv(Socket, 0, 1000),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tls(Socket),
+	Pid = get_remote_pid_tls(Socket),
 	Ref = make_ref(),
 	Pid ! {system, {self(), Ref}, hello},
 	receive
@@ -219,7 +196,7 @@ bad_system_message_ws(Config) ->
 	{ok, Handshake} = gen_tcp:recv(Socket, 0, 5000),
 	{ok, {http_response, {1, 1}, 101, _}, _} = erlang:decode_packet(http, Handshake, []),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tcp(Socket),
+	Pid = get_remote_pid_tcp(Socket),
 	Ref = make_ref(),
 	Pid ! {system, {self(), Ref}, hello},
 	receive
@@ -237,7 +214,7 @@ bad_system_message_loop(Config) ->
 		"Host: localhost\r\n"
 		"\r\n"),
 	timer:sleep(100),
-	SupPid = do_get_remote_pid_tcp(Socket),
+	SupPid = get_remote_pid_tcp(Socket),
 	[{_, Pid, _, _}] = supervisor:which_children(SupPid),
 	Ref = make_ref(),
 	Pid ! {system, {self(), Ref}, hello},
@@ -252,7 +229,7 @@ good_system_message_h1(Config) ->
 	doc("h1: System messages are handled properly."),
 	{ok, Socket} = gen_tcp:connect("localhost", config(clear_port, Config), []),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tcp(Socket),
+	Pid = get_remote_pid_tcp(Socket),
 	Ref = make_ref(),
 	Pid ! {system, {self(), Ref}, get_state},
 	receive
@@ -269,7 +246,7 @@ good_system_message_h2(Config) ->
 	%% Skip the SETTINGS frame.
 	{ok, <<_,_,_,4,_/bits>>} = ssl:recv(Socket, 0, 1000),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tls(Socket),
+	Pid = get_remote_pid_tls(Socket),
 	Ref = make_ref(),
 	Pid ! {system, {self(), Ref}, get_state},
 	receive
@@ -295,7 +272,7 @@ good_system_message_ws(Config) ->
 	{ok, Handshake} = gen_tcp:recv(Socket, 0, 5000),
 	{ok, {http_response, {1, 1}, 101, _}, _} = erlang:decode_packet(http, Handshake, []),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tcp(Socket),
+	Pid = get_remote_pid_tcp(Socket),
 	Ref = make_ref(),
 	Pid ! {system, {self(), Ref}, get_state},
 	receive
@@ -313,7 +290,7 @@ good_system_message_loop(Config) ->
 		"Host: localhost\r\n"
 		"\r\n"),
 	timer:sleep(100),
-	SupPid = do_get_remote_pid_tcp(Socket),
+	SupPid = get_remote_pid_tcp(Socket),
 	[{_, Pid, _, _}] = supervisor:which_children(SupPid),
 	Ref = make_ref(),
 	Pid ! {system, {self(), Ref}, get_state},
@@ -338,8 +315,8 @@ trap_exit_parent_exit_h1(Config) ->
 	{ok, Socket} = gen_tcp:connect("localhost", config(clear_port, Config),
 		[{active, false}]),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tcp(Socket),
-	Parent = do_get_parent_pid(Pid),
+	Pid = get_remote_pid_tcp(Socket),
+	Parent = get_parent_pid(Pid),
 	Pid ! {'EXIT', Parent, shutdown},
 	{error, closed} = gen_tcp:recv(Socket, 0, 1000),
 	false = is_process_alive(Pid),
@@ -353,8 +330,8 @@ trap_exit_parent_exit_h2(Config) ->
 	%% Skip the SETTINGS frame.
 	{ok, <<_,_,_,4,_/bits>>} = ssl:recv(Socket, 0, 1000),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tls(Socket),
-	Parent = do_get_parent_pid(Pid),
+	Pid = get_remote_pid_tls(Socket),
+	Parent = get_parent_pid(Pid),
 	Pid ! {'EXIT', Parent, shutdown},
 	{error, closed} = ssl:recv(Socket, 0, 1000),
 	false = is_process_alive(Pid),
@@ -377,8 +354,8 @@ trap_exit_parent_exit_ws(Config) ->
 	{ok, Handshake} = gen_tcp:recv(Socket, 0, 5000),
 	{ok, {http_response, {1, 1}, 101, _}, _} = erlang:decode_packet(http, Handshake, []),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tcp(Socket),
-	Parent = do_get_parent_pid(Pid),
+	Pid = get_remote_pid_tcp(Socket),
+	Parent = get_parent_pid(Pid),
 	Pid ! {'EXIT', Parent, shutdown},
 	{error, closed} = gen_tcp:recv(Socket, 0, 1000),
 	false = is_process_alive(Pid),
@@ -393,7 +370,7 @@ trap_exit_parent_exit_loop(Config) ->
 		"Host: localhost\r\n"
 		"\r\n"),
 	timer:sleep(100),
-	Parent = do_get_remote_pid_tcp(Socket),
+	Parent = get_remote_pid_tcp(Socket),
 	[{_, Pid, _, _}] = supervisor:which_children(Parent),
 	Pid ! {'EXIT', Parent, shutdown},
 	%% We exit normally but didn't send a response.
@@ -407,7 +384,7 @@ trap_exit_other_exit_h1(Config) ->
 	{ok, Socket} = gen_tcp:connect("localhost", config(clear_port, Config),
 		[{active, false}]),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tcp(Socket),
+	Pid = get_remote_pid_tcp(Socket),
 	Pid ! {'EXIT', self(), shutdown},
 	ok = gen_tcp:send(Socket,
 		"GET / HTTP/1.1\r\n"
@@ -428,7 +405,7 @@ trap_exit_other_exit_h2(Config) ->
 	ok = ssl:send(Socket, cow_http2:settings_ack()),
 	{ok, << 0:24, 4:8, 1:8, 0:32 >>} = ssl:recv(Socket, 9, 1000),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tls(Socket),
+	Pid = get_remote_pid_tls(Socket),
 	Pid ! {'EXIT', self(), shutdown},
 	%% Send a HEADERS frame as a request.
 	{HeadersBlock, _} = cow_hpack:encode([
@@ -460,7 +437,7 @@ trap_exit_other_exit_ws(Config) ->
 	{ok, Handshake} = gen_tcp:recv(Socket, 0, 5000),
 	{ok, {http_response, {1, 1}, 101, _}, _} = erlang:decode_packet(http, Handshake, []),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tcp(Socket),
+	Pid = get_remote_pid_tcp(Socket),
 	Pid ! {'EXIT', self(), shutdown},
 	%% The process stays alive.
 	{error, timeout} = gen_tcp:recv(Socket, 0, 1000),
@@ -476,7 +453,7 @@ trap_exit_other_exit_loop(Config) ->
 		"Host: localhost\r\n"
 		"\r\n"),
 	timer:sleep(100),
-	Parent = do_get_remote_pid_tcp(Socket),
+	Parent = get_remote_pid_tcp(Socket),
 	[{_, Pid, _, _}] = supervisor:which_children(Parent),
 	Pid ! {'EXIT', self(), shutdown},
 	%% The process stays alive.
@@ -529,7 +506,7 @@ sys_change_code_h1(Config) ->
 	doc("h1: The sys:change_code/4 function works as expected."),
 	{ok, Socket} = gen_tcp:connect("localhost", config(clear_port, Config), [{active, false}]),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tcp(Socket),
+	Pid = get_remote_pid_tcp(Socket),
 	ok = sys:suspend(Pid),
 	ok = gen_tcp:send(Socket,
 		"GET / HTTP/1.1\r\n"
@@ -546,7 +523,7 @@ sys_change_code_h2(Config) ->
 	{ok, Socket} = ssl:connect("localhost", config(tls_port, Config),
 		[{active, false}, binary, {alpn_advertised_protocols, [<<"h2">>]}]),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tls(Socket),
+	Pid = get_remote_pid_tls(Socket),
 	%% Send a valid preface.
 	ok = ssl:send(Socket, ["PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n", cow_http2:settings(#{})]),
 	%% Receive the server preface.
@@ -589,7 +566,7 @@ sys_change_code_ws(Config) ->
 	{ok, Handshake} = gen_tcp:recv(Socket, 0, 5000),
 	{ok, {http_response, {1, 1}, 101, _}, _} = erlang:decode_packet(http, Handshake, []),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tcp(Socket),
+	Pid = get_remote_pid_tcp(Socket),
 	ok = sys:suspend(Pid),
 	Mask = 16#37fa213d,
 	MaskedHello = ws_SUITE:do_mask(<<"Hello">>, Mask, <<>>),
@@ -608,7 +585,7 @@ sys_change_code_loop(Config) ->
 		"Host: localhost\r\n"
 		"\r\n"),
 	timer:sleep(100),
-	SupPid = do_get_remote_pid_tcp(Socket),
+	SupPid = get_remote_pid_tcp(Socket),
 	[{_, Pid, _, _}] = supervisor:which_children(SupPid),
 	%% The process sends a response 500ms after initializing.
 	%% We expect to not receive it until we resume it.
@@ -628,7 +605,7 @@ sys_get_state_h1(Config) ->
 	doc("h1: The sys:get_state/1 function works as expected."),
 	{ok, Socket} = gen_tcp:connect("localhost", config(clear_port, Config), []),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tcp(Socket),
+	Pid = get_remote_pid_tcp(Socket),
 	{State, Buffer} = sys:get_state(Pid),
 	state = element(1, State),
 	true = is_binary(Buffer),
@@ -641,7 +618,7 @@ sys_get_state_h2(Config) ->
 	%% Skip the SETTINGS frame.
 	{ok, <<_,_,_,4,_/bits>>} = ssl:recv(Socket, 0, 1000),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tls(Socket),
+	Pid = get_remote_pid_tls(Socket),
 	{State, Buffer} = sys:get_state(Pid),
 	state = element(1, State),
 	true = is_binary(Buffer),
@@ -663,7 +640,7 @@ sys_get_state_ws(Config) ->
 	{ok, Handshake} = gen_tcp:recv(Socket, 0, 5000),
 	{ok, {http_response, {1, 1}, 101, _}, _} = erlang:decode_packet(http, Handshake, []),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tcp(Socket),
+	Pid = get_remote_pid_tcp(Socket),
 	{State, undefined, ParseState} = sys:get_state(Pid),
 	state = element(1, State),
 	case element(1, ParseState) of
@@ -679,7 +656,7 @@ sys_get_state_loop(Config) ->
 		"Host: localhost\r\n"
 		"\r\n"),
 	timer:sleep(100),
-	SupPid = do_get_remote_pid_tcp(Socket),
+	SupPid = get_remote_pid_tcp(Socket),
 	[{_, Pid, _, _}] = supervisor:which_children(SupPid),
 	{Req, Env, long_polling_sys_h, undefined} = sys:get_state(Pid),
 	#{pid := _, streamid := _} = Req,
@@ -692,7 +669,7 @@ sys_get_status_h1(Config) ->
 	doc("h1: The sys:get_status/1 function works as expected."),
 	{ok, Socket} = gen_tcp:connect("localhost", config(clear_port, Config), []),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tcp(Socket),
+	Pid = get_remote_pid_tcp(Socket),
 	{status, Pid, {module, cowboy_http}, _} = sys:get_status(Pid),
 	ok.
 
@@ -703,7 +680,7 @@ sys_get_status_h2(Config) ->
 	%% Skip the SETTINGS frame.
 	{ok, <<_,_,_,4,_/bits>>} = ssl:recv(Socket, 0, 1000),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tls(Socket),
+	Pid = get_remote_pid_tls(Socket),
 	{status, Pid, {module, cowboy_http2}, _} = sys:get_status(Pid),
 	ok.
 
@@ -723,7 +700,7 @@ sys_get_status_ws(Config) ->
 	{ok, Handshake} = gen_tcp:recv(Socket, 0, 5000),
 	{ok, {http_response, {1, 1}, 101, _}, _} = erlang:decode_packet(http, Handshake, []),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tcp(Socket),
+	Pid = get_remote_pid_tcp(Socket),
 	{status, Pid, {module, cowboy_websocket}, _} = sys:get_status(Pid),
 	ok.
 
@@ -735,7 +712,7 @@ sys_get_status_loop(Config) ->
 		"Host: localhost\r\n"
 		"\r\n"),
 	timer:sleep(100),
-	SupPid = do_get_remote_pid_tcp(Socket),
+	SupPid = get_remote_pid_tcp(Socket),
 	[{_, Pid, _, _}] = supervisor:which_children(SupPid),
 	{status, Pid, {module, cowboy_loop}, _} = sys:get_status(Pid),
 	ok.
@@ -752,7 +729,7 @@ sys_replace_state_h1(Config) ->
 	doc("h1: The sys:replace_state/2 function works as expected."),
 	{ok, Socket} = gen_tcp:connect("localhost", config(clear_port, Config), []),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tcp(Socket),
+	Pid = get_remote_pid_tcp(Socket),
 	{State, Buffer} = sys:replace_state(Pid, fun(S) -> S end),
 	state = element(1, State),
 	true = is_binary(Buffer),
@@ -765,7 +742,7 @@ sys_replace_state_h2(Config) ->
 	%% Skip the SETTINGS frame.
 	{ok, <<_,_,_,4,_/bits>>} = ssl:recv(Socket, 0, 1000),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tls(Socket),
+	Pid = get_remote_pid_tls(Socket),
 	{State, Buffer} = sys:replace_state(Pid, fun(S) -> S end),
 	state = element(1, State),
 	true = is_binary(Buffer),
@@ -787,7 +764,7 @@ sys_replace_state_ws(Config) ->
 	{ok, Handshake} = gen_tcp:recv(Socket, 0, 5000),
 	{ok, {http_response, {1, 1}, 101, _}, _} = erlang:decode_packet(http, Handshake, []),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tcp(Socket),
+	Pid = get_remote_pid_tcp(Socket),
 	{State, undefined, ParseState} = sys:replace_state(Pid, fun(S) -> S end),
 	state = element(1, State),
 	case element(1, ParseState) of
@@ -803,7 +780,7 @@ sys_replace_state_loop(Config) ->
 		"Host: localhost\r\n"
 		"\r\n"),
 	timer:sleep(100),
-	SupPid = do_get_remote_pid_tcp(Socket),
+	SupPid = get_remote_pid_tcp(Socket),
 	[{_, Pid, _, _}] = supervisor:which_children(SupPid),
 	{Req, Env, long_polling_sys_h, undefined} = sys:replace_state(Pid, fun(S) -> S end),
 	#{pid := _, streamid := _} = Req,
@@ -816,7 +793,7 @@ sys_suspend_and_resume_h1(Config) ->
 	doc("h1: The sys:suspend/1 and sys:resume/1 functions work as expected."),
 	{ok, Socket} = gen_tcp:connect("localhost", config(clear_port, Config), [{active, false}]),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tcp(Socket),
+	Pid = get_remote_pid_tcp(Socket),
 	ok = sys:suspend(Pid),
 	ok = gen_tcp:send(Socket,
 		"GET / HTTP/1.1\r\n"
@@ -832,7 +809,7 @@ sys_suspend_and_resume_h2(Config) ->
 	{ok, Socket} = ssl:connect("localhost", config(tls_port, Config),
 		[{active, false}, binary, {alpn_advertised_protocols, [<<"h2">>]}]),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tls(Socket),
+	Pid = get_remote_pid_tls(Socket),
 	%% Send a valid preface.
 	ok = ssl:send(Socket, ["PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n", cow_http2:settings(#{})]),
 	%% Receive the server preface.
@@ -874,7 +851,7 @@ sys_suspend_and_resume_ws(Config) ->
 	{ok, Handshake} = gen_tcp:recv(Socket, 0, 5000),
 	{ok, {http_response, {1, 1}, 101, _}, _} = erlang:decode_packet(http, Handshake, []),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tcp(Socket),
+	Pid = get_remote_pid_tcp(Socket),
 	ok = sys:suspend(Pid),
 	Mask = 16#37fa213d,
 	MaskedHello = ws_SUITE:do_mask(<<"Hello">>, Mask, <<>>),
@@ -892,7 +869,7 @@ sys_suspend_and_resume_loop(Config) ->
 		"Host: localhost\r\n"
 		"\r\n"),
 	timer:sleep(100),
-	SupPid = do_get_remote_pid_tcp(Socket),
+	SupPid = get_remote_pid_tcp(Socket),
 	[{_, Pid, _, _}] = supervisor:which_children(SupPid),
 	%% The process sends a response 500ms after initializing.
 	%% We expect to not receive it until we resume it.
@@ -910,7 +887,7 @@ sys_terminate_h1(Config) ->
 	doc("h1: The sys:terminate/1 function works as expected."),
 	{ok, Socket} = gen_tcp:connect("localhost", config(clear_port, Config), [{active, false}]),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tcp(Socket),
+	Pid = get_remote_pid_tcp(Socket),
 	ok = sys:terminate(Pid, {shutdown, test}),
 	{error, closed} = gen_tcp:recv(Socket, 0, 500),
 	ok.
@@ -922,7 +899,7 @@ sys_terminate_h2(Config) ->
 	%% Skip the SETTINGS frame.
 	{ok, <<_,_,_,4,_/bits>>} = ssl:recv(Socket, 0, 1000),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tls(Socket),
+	Pid = get_remote_pid_tls(Socket),
 	ok = sys:terminate(Pid, {shutdown, test}),
 	{error, closed} = ssl:recv(Socket, 0, 500),
 	ok.
@@ -943,7 +920,7 @@ sys_terminate_ws(Config) ->
 	{ok, Handshake} = gen_tcp:recv(Socket, 0, 5000),
 	{ok, {http_response, {1, 1}, 101, _}, _} = erlang:decode_packet(http, Handshake, []),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tcp(Socket),
+	Pid = get_remote_pid_tcp(Socket),
 	ok = sys:terminate(Pid, {shutdown, test}),
 	{error, closed} = gen_tcp:recv(Socket, 0, 500),
 	ok.
@@ -956,7 +933,7 @@ sys_terminate_loop(Config) ->
 		"Host: localhost\r\n"
 		"\r\n"),
 	timer:sleep(100),
-	SupPid = do_get_remote_pid_tcp(Socket),
+	SupPid = get_remote_pid_tcp(Socket),
 	[{_, Pid, _, _}] = supervisor:which_children(SupPid),
 	%% We stop the process normally and therefore get a 204.
 	ok = sys:terminate(Pid, {shutdown, test}),
@@ -998,7 +975,7 @@ supervisor_count_children_h1(Config) ->
 	{ok, Socket} = gen_tcp:connect("localhost", config(clear_port, Config),
 		[{active, false}]),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tcp(Socket),
+	Pid = get_remote_pid_tcp(Socket),
 	%% No request was sent so there's no children.
 	Counts1 = supervisor:count_children(Pid),
 	1 = proplists:get_value(specs, Counts1),
@@ -1028,7 +1005,7 @@ supervisor_count_children_h2(Config) ->
 	ok = ssl:send(Socket, cow_http2:settings_ack()),
 	{ok, << 0:24, 4:8, 1:8, 0:32 >>} = ssl:recv(Socket, 9, 1000),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tls(Socket),
+	Pid = get_remote_pid_tls(Socket),
 	%% No request was sent so there's no children.
 	Counts1 = supervisor:count_children(Pid),
 	1 = proplists:get_value(specs, Counts1),
@@ -1068,7 +1045,7 @@ supervisor_count_children_ws(Config) ->
 	{ok, Handshake} = gen_tcp:recv(Socket, 0, 5000),
 	{ok, {http_response, {1, 1}, 101, _}, _} = erlang:decode_packet(http, Handshake, []),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tcp(Socket),
+	Pid = get_remote_pid_tcp(Socket),
 	Counts = supervisor:count_children(Pid),
 	1 = proplists:get_value(specs, Counts),
 	0 = proplists:get_value(active, Counts),
@@ -1083,7 +1060,7 @@ supervisor_delete_child_not_found_h1(Config) ->
 	{ok, Socket} = gen_tcp:connect("localhost", config(clear_port, Config),
 		[{active, false}]),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tcp(Socket),
+	Pid = get_remote_pid_tcp(Socket),
 	%% When no children exist.
 	{error, not_found} = supervisor:delete_child(Pid, cowboy_http),
 	%% When a child exists.
@@ -1105,7 +1082,7 @@ supervisor_delete_child_not_found_h2(Config) ->
 	ok = ssl:send(Socket, cow_http2:settings_ack()),
 	{ok, << 0:24, 4:8, 1:8, 0:32 >>} = ssl:recv(Socket, 9, 1000),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tls(Socket),
+	Pid = get_remote_pid_tls(Socket),
 	%% When no children exist.
 	{error, not_found} = supervisor:delete_child(Pid, cowboy_http2),
 	%% When a child exists.
@@ -1136,7 +1113,7 @@ supervisor_delete_child_not_found_ws(Config) ->
 	{ok, Handshake} = gen_tcp:recv(Socket, 0, 5000),
 	{ok, {http_response, {1, 1}, 101, _}, _} = erlang:decode_packet(http, Handshake, []),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tcp(Socket),
+	Pid = get_remote_pid_tcp(Socket),
 	{error, not_found} = supervisor:delete_child(Pid, cowboy_websocket),
 	ok.
 
@@ -1147,7 +1124,7 @@ supervisor_get_childspec_not_found_h1(Config) ->
 	{ok, Socket} = gen_tcp:connect("localhost", config(clear_port, Config),
 		[{active, false}]),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tcp(Socket),
+	Pid = get_remote_pid_tcp(Socket),
 	%% When no children exist.
 	{error, not_found} = supervisor:get_childspec(Pid, cowboy_http),
 	%% When a child exists.
@@ -1169,7 +1146,7 @@ supervisor_get_childspec_not_found_h2(Config) ->
 	ok = ssl:send(Socket, cow_http2:settings_ack()),
 	{ok, << 0:24, 4:8, 1:8, 0:32 >>} = ssl:recv(Socket, 9, 1000),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tls(Socket),
+	Pid = get_remote_pid_tls(Socket),
 	%% When no children exist.
 	{error, not_found} = supervisor:get_childspec(Pid, cowboy_http2),
 	%% When a child exists.
@@ -1200,7 +1177,7 @@ supervisor_get_childspec_not_found_ws(Config) ->
 	{ok, Handshake} = gen_tcp:recv(Socket, 0, 5000),
 	{ok, {http_response, {1, 1}, 101, _}, _} = erlang:decode_packet(http, Handshake, []),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tcp(Socket),
+	Pid = get_remote_pid_tcp(Socket),
 	{error, not_found} = supervisor:get_childspec(Pid, cowboy_websocket),
 	ok.
 
@@ -1211,7 +1188,7 @@ supervisor_restart_child_not_found_h1(Config) ->
 	{ok, Socket} = gen_tcp:connect("localhost", config(clear_port, Config),
 		[{active, false}]),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tcp(Socket),
+	Pid = get_remote_pid_tcp(Socket),
 	%% When no children exist.
 	{error, not_found} = supervisor:restart_child(Pid, cowboy_http),
 	%% When a child exists.
@@ -1233,7 +1210,7 @@ supervisor_restart_child_not_found_h2(Config) ->
 	ok = ssl:send(Socket, cow_http2:settings_ack()),
 	{ok, << 0:24, 4:8, 1:8, 0:32 >>} = ssl:recv(Socket, 9, 1000),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tls(Socket),
+	Pid = get_remote_pid_tls(Socket),
 	%% When no children exist.
 	{error, not_found} = supervisor:restart_child(Pid, cowboy_http2),
 	%% When a child exists.
@@ -1264,7 +1241,7 @@ supervisor_restart_child_not_found_ws(Config) ->
 	{ok, Handshake} = gen_tcp:recv(Socket, 0, 5000),
 	{ok, {http_response, {1, 1}, 101, _}, _} = erlang:decode_packet(http, Handshake, []),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tcp(Socket),
+	Pid = get_remote_pid_tcp(Socket),
 	{error, not_found} = supervisor:restart_child(Pid, cowboy_websocket),
 	ok.
 
@@ -1275,7 +1252,7 @@ supervisor_start_child_not_found_h1(Config) ->
 	{ok, Socket} = gen_tcp:connect("localhost", config(clear_port, Config),
 		[{active, false}]),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tcp(Socket),
+	Pid = get_remote_pid_tcp(Socket),
 	{error, start_child_disabled} = supervisor:start_child(Pid, #{
 		id => error,
 		start => {error, error, []}
@@ -1292,7 +1269,7 @@ supervisor_start_child_not_found_h2(Config) ->
 	ok = ssl:send(Socket, cow_http2:settings_ack()),
 	{ok, << 0:24, 4:8, 1:8, 0:32 >>} = ssl:recv(Socket, 9, 1000),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tls(Socket),
+	Pid = get_remote_pid_tls(Socket),
 	{error, start_child_disabled} = supervisor:start_child(Pid, #{
 		id => error,
 		start => {error, error, []}
@@ -1315,7 +1292,7 @@ supervisor_start_child_not_found_ws(Config) ->
 	{ok, Handshake} = gen_tcp:recv(Socket, 0, 5000),
 	{ok, {http_response, {1, 1}, 101, _}, _} = erlang:decode_packet(http, Handshake, []),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tcp(Socket),
+	Pid = get_remote_pid_tcp(Socket),
 	{error, start_child_disabled} = supervisor:start_child(Pid, #{
 		id => error,
 		start => {error, error, []}
@@ -1329,7 +1306,7 @@ supervisor_terminate_child_not_found_h1(Config) ->
 	{ok, Socket} = gen_tcp:connect("localhost", config(clear_port, Config),
 		[{active, false}]),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tcp(Socket),
+	Pid = get_remote_pid_tcp(Socket),
 	%% When no children exist.
 	{error, not_found} = supervisor:terminate_child(Pid, cowboy_http),
 	%% When a child exists.
@@ -1351,7 +1328,7 @@ supervisor_terminate_child_not_found_h2(Config) ->
 	ok = ssl:send(Socket, cow_http2:settings_ack()),
 	{ok, << 0:24, 4:8, 1:8, 0:32 >>} = ssl:recv(Socket, 9, 1000),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tls(Socket),
+	Pid = get_remote_pid_tls(Socket),
 	%% When no children exist.
 	{error, not_found} = supervisor:terminate_child(Pid, cowboy_http2),
 	%% When a child exists.
@@ -1382,7 +1359,7 @@ supervisor_terminate_child_not_found_ws(Config) ->
 	{ok, Handshake} = gen_tcp:recv(Socket, 0, 5000),
 	{ok, {http_response, {1, 1}, 101, _}, _} = erlang:decode_packet(http, Handshake, []),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tcp(Socket),
+	Pid = get_remote_pid_tcp(Socket),
 	{error, not_found} = supervisor:terminate_child(Pid, cowboy_websocket),
 	ok.
 
@@ -1396,7 +1373,7 @@ supervisor_which_children_h1(Config) ->
 	{ok, Socket} = gen_tcp:connect("localhost", config(clear_port, Config),
 		[{active, false}]),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tcp(Socket),
+	Pid = get_remote_pid_tcp(Socket),
 	%% No request was sent so there's no children.
 	[] = supervisor:which_children(Pid),
 	%% Send a request, observe that a children exists.
@@ -1419,7 +1396,7 @@ supervisor_which_children_h2(Config) ->
 	ok = ssl:send(Socket, cow_http2:settings_ack()),
 	{ok, << 0:24, 4:8, 1:8, 0:32 >>} = ssl:recv(Socket, 9, 1000),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tls(Socket),
+	Pid = get_remote_pid_tls(Socket),
 	%% No request was sent so there's no children.
 	[] = supervisor:which_children(Pid),
 	%% Send a request, observe that a children exists.
@@ -1452,6 +1429,6 @@ supervisor_which_children_ws(Config) ->
 	{ok, Handshake} = gen_tcp:recv(Socket, 0, 5000),
 	{ok, {http_response, {1, 1}, 101, _}, _} = erlang:decode_packet(http, Handshake, []),
 	timer:sleep(100),
-	Pid = do_get_remote_pid_tcp(Socket),
+	Pid = get_remote_pid_tcp(Socket),
 	[] = supervisor:which_children(Pid),
 	ok.
