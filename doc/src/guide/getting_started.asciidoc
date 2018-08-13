@@ -76,8 +76,9 @@ DEP_PLUGINS = cowboy
 include erlang.mk
 ----
 
-We also tell the build system to load the plugins Cowboy provides.
-These include predefined templates that we will use soon.
+The `DEP_PLUGINS` line tells the build system to load the plugins
+Cowboy provides. These include predefined templates that we will
+use soon.
 
 If you do `make run` now, Cowboy will be included in the release
 and started automatically. This is not enough however, as Cowboy
