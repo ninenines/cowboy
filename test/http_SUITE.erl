@@ -18,6 +18,7 @@
 
 -import(ct_helper, [config/2]).
 -import(ct_helper, [doc/1]).
+-import(ct_helper, [get_remote_pid_tcp/1]).
 -import(ct_helper, [name/0]).
 -import(cowboy_test, [gun_open/1]).
 
@@ -34,16 +35,19 @@ init_routes(_) -> [
 
 idle_timeout_infinity(Config) ->
 	doc("Ensure the idle_timeout option accepts the infinity value."),
-	{ok, ListenerPid} = cowboy:start_clear(name(), [{port, 0}], #{
+	{ok, _} = cowboy:start_clear(name(), [{port, 0}], #{
 		env => #{dispatch => cowboy_router:compile(init_routes(Config))},
 		request_timeout => infinity
 	}),
 	Port = ranch:get_port(name()),
-	Ref = erlang:monitor(process, ListenerPid),
 	ConnPid = gun_open([{type, tcp}, {protocol, http}, {port, Port}|Config]),
 	_ = gun:post(ConnPid, "/echo/read_body", [], <<"TEST">>),
+	%% @todo Gun should have a debug function to retrieve the socket.
+	Socket = element(9, element(2,  sys:get_state(ConnPid))),
+	Pid = get_remote_pid_tcp(Socket),
+	Ref = erlang:monitor(process, Pid),
 	receive
-		{'DOWN', Ref, process, ListenerPid, Reason} ->
+		{'DOWN', Ref, process, Pid, Reason} ->
 			error(Reason)
 	after 1000 ->
 		ok
@@ -51,15 +55,18 @@ idle_timeout_infinity(Config) ->
 
 request_timeout_infinity(Config) ->
 	doc("Ensure the request_timeout option accepts the infinity value."),
-	{ok, ListenerPid} = cowboy:start_clear(name(), [{port, 0}], #{
+	{ok, _} = cowboy:start_clear(name(), [{port, 0}], #{
 		env => #{dispatch => cowboy_router:compile(init_routes(Config))},
 		idle_timeout => infinity
 	}),
 	Port = ranch:get_port(name()),
-	Ref = erlang:monitor(process, ListenerPid),
-	_ = gun_open([{type, tcp}, {protocol, http}, {port, Port}|Config]),
+	ConnPid = gun_open([{type, tcp}, {protocol, http}, {port, Port}|Config]),
+	%% @todo Gun should have a debug function to retrieve the socket.
+	Socket = element(9, element(2,  sys:get_state(ConnPid))),
+	Pid = get_remote_pid_tcp(Socket),
+	Ref = erlang:monitor(process, Pid),
 	receive
-		{'DOWN', Ref, process, ListenerPid, Reason} ->
+		{'DOWN', Ref, process, Pid, Reason} ->
 			error(Reason)
 	after 1000 ->
 		ok
