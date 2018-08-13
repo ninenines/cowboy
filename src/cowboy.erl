@@ -41,29 +41,30 @@
 -type http_version() :: 'HTTP/2' | 'HTTP/1.1' | 'HTTP/1.0'.
 -export_type([http_version/0]).
 
--spec start_clear(ranch:ref(), ranch_tcp:opts(), opts())
+-spec start_clear(ranch:ref(), ranch:opts(), opts())
 	-> {ok, pid()} | {error, any()}.
 start_clear(Ref, TransOpts0, ProtoOpts0) ->
-	{TransOpts, ConnectionType} = ensure_connection_type(TransOpts0),
+	TransOpts1 = ranch:normalize_opts(TransOpts0),
+	{TransOpts, ConnectionType} = ensure_connection_type(TransOpts1),
 	ProtoOpts = ProtoOpts0#{connection_type => ConnectionType},
 	ranch:start_listener(Ref, ranch_tcp, TransOpts, cowboy_clear, ProtoOpts).
 
--spec start_tls(ranch:ref(), ranch_ssl:opts(), opts())
+-spec start_tls(ranch:ref(), ranch:opts(), opts())
 	-> {ok, pid()} | {error, any()}.
 start_tls(Ref, TransOpts0, ProtoOpts0) ->
-	{TransOpts1, ConnectionType} = ensure_connection_type(TransOpts0),
-	TransOpts = [
+	TransOpts1 = [
 		{next_protocols_advertised, [<<"h2">>, <<"http/1.1">>]},
 		{alpn_preferred_protocols, [<<"h2">>, <<"http/1.1">>]}
-	|TransOpts1],
+	|TransOpts0],
+	TransOpts2 = ranch:normalize_opts(TransOpts1),
+	{TransOpts, ConnectionType} = ensure_connection_type(TransOpts2),
 	ProtoOpts = ProtoOpts0#{connection_type => ConnectionType},
 	ranch:start_listener(Ref, ranch_ssl, TransOpts, cowboy_tls, ProtoOpts).
 
+ensure_connection_type(TransOpts=#{connection_type := ConnectionType}) ->
+	{TransOpts, ConnectionType};
 ensure_connection_type(TransOpts) ->
-	case proplists:get_value(connection_type, TransOpts) of
-		undefined -> {[{connection_type, supervisor}|TransOpts], supervisor};
-		ConnectionType -> {TransOpts, ConnectionType}
-	end.
+	{TransOpts#{connection_type => supervisor}, supervisor}.
 
 -spec stop_listener(ranch:ref()) -> ok | {error, not_found}.
 stop_listener(Ref) ->
