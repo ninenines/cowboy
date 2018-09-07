@@ -1,7 +1,7 @@
 %% Feel free to use, reuse and abuse the code in this file.
 
 %% @doc Upload handler.
--module(upload_handler).
+-module(upload_h).
 
 -export([init/2]).
 

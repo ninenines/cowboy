@@ -13,7 +13,7 @@ start(_Type, _Args) ->
 	Dispatch = cowboy_router:compile([
 		{'_', [
 			{"/", cowboy_static, {priv_file, upload, "index.html"}},
-			{"/upload", upload_handler, []}
+			{"/upload", upload_h, []}
 		]}
 	]),
 	{ok, _} = cowboy:start_clear(http, [{port, 8080}], #{

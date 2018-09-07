@@ -1,7 +1,7 @@
 %% Feel free to use, reuse and abuse the code in this file.
 
 %% @doc Handler with basic HTTP authorization.
--module(toppage_handler).
+-module(toppage_h).
 
 -export([init/2]).
 -export([content_types_provided/2]).

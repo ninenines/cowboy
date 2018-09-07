@@ -13,7 +13,7 @@
 start(_Type, _Args) ->
 	Dispatch = cowboy_router:compile([
 		{'_', [
-			{"/eventsource", eventsource_handler, []},
+			{"/eventsource", eventsource_h, []},
 			{"/", cowboy_static, {priv_file, eventsource, "index.html"}}
 		]}
 	]),

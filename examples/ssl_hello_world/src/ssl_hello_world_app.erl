@@ -13,7 +13,7 @@
 start(_Type, _Args) ->
 	Dispatch = cowboy_router:compile([
 		{'_', [
-			{"/", toppage_handler, []}
+			{"/", toppage_h, []}
 		]}
 	]),
 	PrivDir = code:priv_dir(ssl_hello_world),

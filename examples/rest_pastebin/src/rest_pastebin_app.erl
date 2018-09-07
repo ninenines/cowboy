@@ -13,7 +13,7 @@
 start(_Type, _Args) ->
 	Dispatch = cowboy_router:compile([
 		{'_', [
-			{"/[:paste_id]", toppage_handler, []}
+			{"/[:paste_id]", toppage_h, []}
 		]}
 	]),
 	{ok, _} = cowboy:start_clear(http, [{port, 8080}], #{
