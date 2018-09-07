@@ -92,6 +92,7 @@ for or related to HTTP.
 
 ==== Upcoming
 
+* https://www.w3.org/TR/clear-site-data/[Clear Site Data]
 * https://www.w3.org/TR/csp-cookies/[Content Security Policy: Cookie Controls]
 * https://www.w3.org/TR/csp-embedded-enforcement/[Content Security Policy: Embedded Enforcement]
 * https://www.w3.org/TR/CSP3/[Content Security Policy Level 3]
