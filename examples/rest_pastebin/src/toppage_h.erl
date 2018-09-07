@@ -1,7 +1,7 @@
 %% Feel free to use, reuse and abuse the code in this file.
 
 %% @doc Pastebin handler.
--module(toppage_handler).
+-module(toppage_h).
 
 %% Standard callbacks.
 -export([init/2]).

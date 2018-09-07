@@ -1,7 +1,7 @@
 %% Feel free to use, reuse and abuse the code in this file.
 
 %% @doc Directory handler.
--module(directory_handler).
+-module(directory_h).
 
 %% REST Callbacks
 -export([init/2]).
