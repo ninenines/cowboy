@@ -74,7 +74,7 @@ as a map.
 
 A `done` tuple is returned if there are no more parts to read.
 
-The Req object returned in the tuple must be used for that point
+The Req object returned in the tuple must be used from that point
 onward. It contains a more up to date representation of the request.
 For example it may have an added content-length header once the
 body has been read.

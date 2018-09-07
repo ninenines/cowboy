@@ -61,7 +61,7 @@ An `ok` tuple is returned when there are no more data to be read.
 
 The data is always returned as a binary.
 
-The Req object returned in the tuple must be used for that point
+The Req object returned in the tuple must be used from that point
 onward. It contains a more up to date representation of the request.
 For example it may have an added content-length header once the
 body has been read.
