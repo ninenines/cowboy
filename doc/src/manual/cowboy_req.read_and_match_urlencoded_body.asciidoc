@@ -1,0 +1,148 @@
+= cowboy_req:read_and_match_urlencoded_body(3)
+
+== Name
+
+cowboy_req:read_and_match_urlencoded_body - Read, parse
+and match a urlencoded request body against constraints
+
+== Description
+
+[source,erlang]
+----
+read_and_match_urlencoded_body(Fields, Req)
+    -> read_and_match_urlencoded_body(Fields, Req, #{})
+
+read_and_match_urlencoded_body(Fields, Req, Opts)
+    -> {ok, Body, Req}
+
+Fields :: cowboy:fields()
+Req    :: cowboy_req:req()
+Opts   :: cowboy_req:read_body_opts()
+Body   :: #{atom() => any()}
+----
+
+Read, parse and match a urlencoded request body against
+constraints.
+
+This function reads the request body and parses it as
+`application/x-www-form-urlencoded`. It then applies
+the given field constraints to the urlencoded data
+and returns the result as a map.
+
+The urlencoded media type is used by Web browsers when
+submitting HTML forms using the POST method.
+
+Cowboy will only return the values specified
+in the fields list, and ignore all others. Fields can be
+either the key requested; the key along with a list of
+constraints; or the key, a list of constraints and a
+default value in case the key is missing.
+
+This function will crash if the key is missing and no
+default value is provided. This function will also crash
+if a constraint fails.
+
+The key must be provided as an atom. The key of the
+returned map will be that atom. The value may be converted
+through the use of constraints, making this function able
+to extract, validate and convert values all in one step.
+
+Cowboy needs to read the full body before parsing. By default
+it will read bodies of size up to 64KB. It is possible to
+provide options to read larger bodies if required.
+
+Cowboy will automatically handle protocol details including
+the expect header, chunked transfer-encoding and others.
+
+Once the body has been read, Cowboy sets the content-length
+header if it was not previously provided.
+
+This function can only be called once. Calling it again will
+result in undefined behavior.
+
+== Arguments
+
+Fields::
+
+Fields to retrieve from the urlencoded body.
++
+See link:man:cowboy(3)[cowboy(3)] for a complete description.
+
+Req::
+
+The Req object.
+
+Opts::
+
+A map of body reading options. Please refer to
+link:man:cowboy_req:read_body(3)[cowboy_req:read_body(3)]
+for details about each option.
++
+This function defaults the `length` to 64KB and the `period`
+to 5 seconds.
+
+== Return value
+
+An `ok` tuple is returned.
+
+Desired values are returned as a map. The key is the atom
+that was given in the list of fields, and the value is the
+optionally converted value after applying constraints.
+
+The map contains the same keys that were given in the fields.
+
+An exception is triggered when the match fails.
+
+The Req object returned in the tuple must be used from that point
+onward. It contains a more up to date representation of the request.
+For example it may have an added content-length header once the
+body has been read.
+
+== Changelog
+
+* *2.5*: Function introduced.
+
+== Examples
+
+.Match fields
+[source,erlang]
+----
+%% ID and Lang are binaries.
+#{id := ID, lang := Lang}
+    = cowboy_req:read_and_match_urlencoded_body(
+        [id, lang], Req).
+----
+
+.Match fields and apply constraints
+[source,erlang]
+----
+%% ID is an integer and Lang a non-empty binary.
+#{id := ID, lang := Lang}
+    = cowboy_req:read_and_match_urlencoded_body(
+        [{id, int}, {lang, nonempty}], Req).
+----
+
+.Match fields with default values
+[source,erlang]
+----
+#{lang := Lang}
+    = cowboy_req:read_and_match_urlencoded_body(
+        [{lang, [], <<"en-US">>}], Req).
+----
+
+.Allow large urlencoded bodies
+[source,erlang]
+----
+{ok, Body, Req} = cowboy_req:read_and_match_urlencoded_body(
+    Fields, Req0, #{length => 1000000}).
+----
+
+== See also
+
+link:man:cowboy_req(3)[cowboy_req(3)],
+link:man:cowboy_req:has_body(3)[cowboy_req:has_body(3)],
+link:man:cowboy_req:body_length(3)[cowboy_req:body_length(3)],
+link:man:cowboy_req:read_body(3)[cowboy_req:read_body(3)],
+link:man:cowboy_req:read_urlencoded_body(3)[cowboy_req:read_urlencoded_body(3)],
+link:man:cowboy_req:read_part(3)[cowboy_req:read_part(3)],
+link:man:cowboy_req:read_part_body(3)[cowboy_req:read_part_body(3)]

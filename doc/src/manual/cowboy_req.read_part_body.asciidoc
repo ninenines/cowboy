@@ -97,4 +97,5 @@ link:man:cowboy_req:has_body(3)[cowboy_req:has_body(3)],
 link:man:cowboy_req:body_length(3)[cowboy_req:body_length(3)],
 link:man:cowboy_req:read_body(3)[cowboy_req:read_body(3)],
 link:man:cowboy_req:read_urlencoded_body(3)[cowboy_req:read_urlencoded_body(3)],
+link:man:cowboy_req:read_and_match_urlencoded_body(3)[cowboy_req:read_and_match_urlencoded_body(3)],
 link:man:cowboy_req:read_part(3)[cowboy_req:read_part(3)]

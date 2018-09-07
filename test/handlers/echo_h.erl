@@ -46,6 +46,19 @@ echo(<<"read_urlencoded_body">>, Req0, Opts) ->
 		_ -> cowboy_req:read_urlencoded_body(Req0)
 	end,
 	{ok, cowboy_req:reply(200, #{}, value_to_iodata(Body), Req), Opts};
+echo(<<"read_and_match_urlencoded_body">>, Req0, Opts) ->
+	Path = cowboy_req:path(Req0),
+	case {Path, Opts} of
+		{<<"/opts", _/bits>>, #{crash := true}} -> ct_helper:ignore(cowboy_req, read_body, 2);
+		{_, #{crash := true}} -> ct_helper:ignore(cowboy_req, read_urlencoded_body, 2);
+		_ -> ok
+	end,
+	{ok, Body, Req} = case Path of
+		<<"/opts", _/bits>> -> cowboy_req:read_and_match_urlencoded_body([], Req0, Opts);
+		<<"/crash", _/bits>> -> cowboy_req:read_and_match_urlencoded_body([], Req0, Opts);
+		_ -> cowboy_req:read_and_match_urlencoded_body([], Req0)
+	end,
+	{ok, cowboy_req:reply(200, #{}, value_to_iodata(Body), Req), Opts};
 echo(<<"uri">>, Req, Opts) ->
 	Value = case cowboy_req:path_info(Req) of
 		[<<"origin">>] -> cowboy_req:uri(Req, #{host => undefined});
@@ -61,7 +74,12 @@ echo(<<"match">>, Req, Opts) ->
 	Fields = [binary_to_atom(F, latin1) || F <- Fields0],
 	Value = case Type of
 		<<"qs">> -> cowboy_req:match_qs(Fields, Req);
-		<<"cookies">> -> cowboy_req:match_cookies(Fields, Req)
+		<<"cookies">> -> cowboy_req:match_cookies(Fields, Req);
+		<<"body_qs">> ->
+			%% Note that the Req should not be discarded but for the
+			%% purpose of this test this has no ill impacts.
+			{ok, Match, _} = cowboy_req:read_and_match_urlencoded_body(Fields, Req),
+			Match
 	end,
 	{ok, cowboy_req:reply(200, #{}, value_to_iodata(Value), Req), Opts};
 echo(What, Req, Opts) ->

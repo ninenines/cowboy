@@ -54,7 +54,8 @@
 -export([read_body/2]).
 -export([read_urlencoded_body/1]).
 -export([read_urlencoded_body/2]).
-%% @todo read_and_match_urlencoded_body?
+-export([read_and_match_urlencoded_body/2]).
+-export([read_and_match_urlencoded_body/3]).
 
 %% Multipart.
 -export([read_part/1]).
@@ -511,6 +512,23 @@ read_urlencoded_body(Req0, Opts) ->
 					exit({request_error, payload_too_large,
 						'The request body is larger than allowed by configuration.'})
 			end
+	end.
+
+-spec read_and_match_urlencoded_body(cowboy:fields(), Req)
+	-> {ok, map(), Req} when Req::req().
+read_and_match_urlencoded_body(Fields, Req) ->
+	read_and_match_urlencoded_body(Fields, Req, #{length => 64000, period => 5000}).
+
+-spec read_and_match_urlencoded_body(cowboy:fields(), Req, read_body_opts())
+	-> {ok, map(), Req} when Req::req().
+read_and_match_urlencoded_body(Fields, Req0, Opts) ->
+	{ok, Qs, Req} = read_urlencoded_body(Req0, Opts),
+	case filter(Fields, kvlist_to_map(Fields, Qs)) of
+		{ok, Map} ->
+			{ok, Map, Req};
+		{error, Errors} ->
+			exit({request_error, {read_and_match_urlencoded_body, Errors},
+				'Urlencoded request body validation constraints failed for the reasons provided.'})
 	end.
 
 %% Multipart.

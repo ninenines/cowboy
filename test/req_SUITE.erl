@@ -564,6 +564,33 @@ do_read_urlencoded_body_too_long(Path, Body, Config) ->
 	end,
 	gun:close(ConnPid).
 
+read_and_match_urlencoded_body(Config) ->
+	doc("Read and match an application/x-www-form-urlencoded request body."),
+	<<"#{}">> = do_body("POST", "/match/body_qs", [], "a=b&c=d", Config),
+	<<"#{a => <<\"b\">>}">> = do_body("POST", "/match/body_qs/a", [], "a=b&c=d", Config),
+	<<"#{c => <<\"d\">>}">> = do_body("POST", "/match/body_qs/c", [], "a=b&c=d", Config),
+	<<"#{a => <<\"b\">>,c => <<\"d\">>}">>
+		= do_body("POST", "/match/body_qs/a/c", [], "a=b&c=d", Config),
+	<<"#{a => <<\"b\">>,c => true}">> = do_body("POST", "/match/body_qs/a/c", [], "a=b&c", Config),
+	<<"#{a => true,c => <<\"d\">>}">> = do_body("POST", "/match/body_qs/a/c", [], "a&c=d", Config),
+	%% Ensure match errors result in a 400 response.
+	{400, _} = do_body_error("POST", "/match/body_qs/a/c", [], "a=b", Config),
+	%% Ensure parse errors result in a 400 response.
+	{400, _} = do_body_error("POST", "/match/body_qs", [], "%%%%%", Config),
+	%% Send a 10MB body, larger than the default length, to ensure a crash occurs.
+	ok = do_read_urlencoded_body_too_large(
+		"/no-opts/read_and_match_urlencoded_body",
+		string:chars($a, 10000000), Config),
+	%% We read any length for at most 1 second.
+	%%
+	%% The body is sent twice, first with nofin, then wait 1.1 second, then again with fin.
+	%% We expect the handler to crash because read_and_match_urlencoded_body expects the full body.
+	ok = do_read_urlencoded_body_too_long(
+		"/crash/read_and_match_urlencoded_body/period", <<"abc">>, Config),
+	%% The timeout value is set too low on purpose to ensure a crash occurs.
+	ok = do_read_body_timeout("/opts/read_and_match_urlencoded_body/timeout", <<"abc">>, Config),
+	ok.
+
 multipart(Config) ->
 	doc("Multipart request body."),
 	do_multipart("/multipart", Config).
