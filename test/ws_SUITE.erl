@@ -22,7 +22,7 @@
 %% ct.
 
 all() ->
-	[{group, autobahn}, {group, ws}].
+	[{group, ws}, {group, autobahn}].
 
 groups() ->
 	BaseTests = ct_helper:all(?MODULE) -- [autobahn_fuzzingclient],
