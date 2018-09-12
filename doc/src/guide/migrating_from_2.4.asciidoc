@@ -1,0 +1,100 @@
+[appendix]
+== Migrating from Cowboy 2.4 to 2.5
+
+Cowboy 2.5 focused on making the test suites pass. A
+variety of new features, fixes and improvements have
+also been worked on.
+
+=== Features added
+
+* Add option `linger_timeout` to control how long
+  Cowboy will wait before closing the socket when
+  shutting down the connection. This helps avoid
+  the TCP reset problem HTTP/1.1 suffers from. The
+  default is now 1000 ms.
+
+* It is now possible to stream a response body
+  without using chunked transfer-encoding when the
+  protocol is HTTP/1.1. To enable this behavior,
+  simply pass the content-length header with the
+  expected size when initiating the streamed response.
+
+* Update Ranch to 1.6.1
+
+* Update Cowlib to 2.5.1
+
+=== Experimental features added
+
+* Websocket handlers now feature a commands-based interface.
+  The return value from the callbacks can now take the form
+  `{Commands, State}` where `Commands` can be frames to be
+  sent or commands yet to be introduced. New commands will
+  be available only through this new interface.
+
+* Add the protocol option `logger` that allows configuring
+  which logger module will be used. The logger module must
+  follow the interface of the new `logger` module in Erlang/OTP 21,
+  or be set to `error_logger` to keep the old behavior. A
+  similar transport option exists in Ranch 1.6; both options
+  are necessary to override Cowboy's default behavior completely.
+
+* Add the `{log, Level, Format, Args}` stream handler command.
+  Making it a command rather than a direct call will simplify
+  silencing particular log messages.
+
+=== New functions
+
+* The function `cowboy_req:stream_events/3` streams one or more
+  text/event-stream events, encoding them automatically.
+
+* The functions `cowboy_req:read_and_match_urlencoded_body/2,3`
+  can be used to read, parse and match application/x-www-form-urlencoded
+  request bodies, in a similar way to `cowboy_req:match_qs/2`.
+
+=== Bugs fixed
+
+* Fix Erlang/OTP 21 warnings.
+
+* Ensure that the port number is always defined in the
+  Req object. When it is not provided in the request,
+  the default port number for the protocol being used
+  will be set.
+
+* Ensure stream handlers can run after `cowboy_stream_h`.
+
+* Honor the SETTINGS_ENABLE_PUSH HTTP/2 setting: don't
+  send PUSH frames to clients that disabled it.
+
+* Fix HTTP/2 `settings_timeout` option when the value
+  is set to `infinity`.
+
+* HTTP/1.1 responses will no longer include a trailer header
+  when the request had no te header.
+
+* HTTP/1.1 204 responses no longer send the transfer-encoding
+  header when `cowboy_req:stream_reply/2,3` is used to send
+  a response.
+
+* Improve HTTP/1.1 keepalive handling to avoid processing
+  requests that follow the final request that will receive
+  a response.
+
+* Improve the validation of HTTP/1.1 absolute-form requests.
+
+* Errors that occur when a callback returned by
+  `content_types_provided` does not exist have been improved.
+
+* Prevent annoying error logs when using sendfile in
+  Erlang/OTP 20 and lower.
+
+* Add missing frame types to `websocket_handle`.
+
+* A test suite has been added for RFC8297 to ensure that
+  103 informational responses can be sent.
+
+* Numerous test cases have been fixed, improved or removed in order
+  to make the test suites pass. Most of the failures were caused
+  by broken tests.
+
+* Some misguiding or incorrect statements in the documentation
+  have been removed or clarified.
