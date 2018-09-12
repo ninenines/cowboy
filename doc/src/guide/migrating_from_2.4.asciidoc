@@ -81,6 +81,11 @@ also been worked on.
 
 * Improve the validation of HTTP/1.1 absolute-form requests.
 
+* When the `switch_protocol` is used after a response was
+  sent, Cowboy will no longer attempt to send the 101 informational
+  response for the protocol upgrade. This caused a crash of the
+  connection previously.
+
 * Errors that occur when a callback returned by
   `content_types_provided` does not exist have been improved.
 

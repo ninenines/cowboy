@@ -46,6 +46,12 @@ init_commands(_, _, State=#state{test=shutdown_timeout_on_stream_stop}) ->
 init_commands(_, _, State=#state{test=shutdown_timeout_on_socket_close}) ->
 	Spawn = init_process(true, State),
 	[{headers, 200, #{}}, {spawn, Spawn, 2000}];
+init_commands(_, _, State=#state{test=switch_protocol_after_headers}) ->
+	[{headers, 200, #{}}, {switch_protocol, #{}, ?MODULE, State}];
+init_commands(_, _, State=#state{test=switch_protocol_after_headers_data}) ->
+	[{headers, 200, #{}}, {data, fin, <<"{}">>}, {switch_protocol, #{}, ?MODULE, State}];
+init_commands(_, _, State=#state{test=switch_protocol_after_response}) ->
+	[{response, 200, #{}, <<"{}">>}, {switch_protocol, #{}, ?MODULE, State}];
 init_commands(_, _, State=#state{test=terminate_on_switch_protocol}) ->
 	[{switch_protocol, #{}, ?MODULE, State}];
 init_commands(_, _, #state{test=terminate_on_stop}) ->

@@ -205,6 +205,9 @@ Contains the headers that will be sent in the 101 response,
 along with the module implementing the protocol we are
 switching to and its initial state.
 
+Note that the 101 informational response will not be sent
+after a final response.
+
 === stop
 
 Stop the stream.

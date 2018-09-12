@@ -1064,7 +1064,7 @@ commands(State0=#state{socket=Socket, transport=Transport}, StreamID,
 	end;
 %% Protocol takeover.
 commands(State0=#state{ref=Ref, parent=Parent, socket=Socket, transport=Transport,
-		opts=Opts, children=Children}, StreamID,
+		out_state=OutState, opts=Opts, children=Children}, StreamID,
 		[{switch_protocol, Headers, Protocol, InitialState}|_Tail]) ->
 	%% @todo This should be the last stream running otherwise we need to wait before switching.
 	%% @todo If there's streams opened after this one, fail instead of 101.
@@ -1076,8 +1076,11 @@ commands(State0=#state{ref=Ref, parent=Parent, socket=Socket, transport=Transpor
 	%% @todo Handle cases where the request came with a body. We need
 	%% to process or skip the body before the upgrade can be completed.
 	Transport:setopts(Socket, [{active, false}]),
-	%% Send a 101 response, then terminate the stream.
-	#state{streams=Streams} = info(State, StreamID, {inform, 101, Headers}),
+	%% Send a 101 response if necessary, then terminate the stream.
+	#state{streams=Streams} = case OutState of
+		wait -> info(State, StreamID, {inform, 101, Headers});
+		_ -> State
+	end,
 	#stream{state=StreamState} = lists:keyfind(StreamID, #stream.id, Streams),
 	%% @todo We need to shutdown processes here first.
 	stream_call_terminate(StreamID, switch_protocol, StreamState, State),

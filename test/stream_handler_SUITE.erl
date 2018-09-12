@@ -325,6 +325,54 @@ shutdown_timeout_on_socket_close(Config) ->
 	receive {'DOWN', MRef, process, Spawn, killed} -> ok after 1000 -> error(timeout) end,
 	ok.
 
+switch_protocol_after_headers(Config) ->
+	case config(protocol, Config) of
+		http -> do_switch_protocol_after_response(
+			<<"switch_protocol_after_headers">>, Config);
+		http2 -> doc("The switch_protocol command is not currently supported for HTTP/2.")
+	end.
+
+switch_protocol_after_headers_data(Config) ->
+	case config(protocol, Config) of
+		http -> do_switch_protocol_after_response(
+			<<"switch_protocol_after_headers_data">>, Config);
+		http2 -> doc("The switch_protocol command is not currently supported for HTTP/2.")
+	end.
+
+switch_protocol_after_response(Config) ->
+	case config(protocol, Config) of
+		http -> do_switch_protocol_after_response(
+			<<"switch_protocol_after_response">>, Config);
+		http2 -> doc("The switch_protocol command is not currently supported for HTTP/2.")
+	end.
+
+do_switch_protocol_after_response(TestCase, Config) ->
+	doc("The 101 informational response must not be sent when a response "
+		"has already been sent before the switch_protocol is returned."),
+	Self = self(),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/long_polling", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"x-test-case">>, TestCase},
+		{<<"x-test-pid">>, pid_to_list(Self)}
+	]),
+	%% Confirm init/3 is called and receive the response.
+	Pid = receive {Self, P, init, _, _, _} -> P after 1000 -> error(timeout) end,
+	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
+	case TestCase of
+		<<"switch_protocol_after_headers">> ->
+			ok;
+		_ ->
+			{ok, <<"{}">>} = gun:await_body(ConnPid, Ref),
+			ok
+	end,
+	{error, _} = gun:await(ConnPid, Ref),
+	%% Confirm terminate/3 is called.
+	receive {Self, Pid, terminate, _, _, _} -> ok after 1000 -> error(timeout) end,
+	%% Confirm takeover/7 is called.
+	receive {Self, Pid, takeover, _, _, _, _, _, _, _} -> ok after 1000 -> error(timeout) end,
+	ok.
+
 terminate_on_socket_close(Config) ->
 	doc("Confirm terminate/3 is called when the socket gets closed brutally."),
 	Self = self(),
