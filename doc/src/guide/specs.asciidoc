@@ -88,6 +88,7 @@ for or related to HTTP.
 * https://tools.ietf.org/html/rfc8246[RFC 8246]: HTTP Immutable Responses
 * https://tools.ietf.org/html/rfc8297[RFC 8297]: An HTTP Status Code for Indicating Hints
 * https://tools.ietf.org/html/rfc8336[RFC 8336]: The ORIGIN HTTP/2 Frame
+* https://tools.ietf.org/html/rfc8441[RFC 8441]: Bootstrapping WebSockets with HTTP/2
 * https://www.w3.org/TR/webmention/[Webmention]: Webmention
 
 ==== Upcoming
