@@ -29,8 +29,8 @@ for plain HTTP handlers.
 
 The `init/2` function must return a `cowboy_loop` tuple to enable
 loop handler behavior. This tuple may optionally contain
-a timeout value and/or the atom `hibernate` to make the
-process enter hibernation until a message is received.
+the atom `hibernate` to make the process enter hibernation
+until a message is received.
 
 This snippet enables the loop handler:
 
