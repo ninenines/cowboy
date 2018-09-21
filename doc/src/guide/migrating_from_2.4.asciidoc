@@ -31,6 +31,10 @@ also been worked on.
   sent or commands yet to be introduced. New commands will
   be available only through this new interface.
 
+* Add the `{active, boolean()}` Websocket handler command.
+  It allows disabling reading from the socket when `false`
+  is returned. `true` reenables reading from the socket.
+
 * Add the protocol option `logger` that allows configuring
   which logger module will be used. The logger module must
   follow the interface of the new `logger` module in Erlang/OTP 21,

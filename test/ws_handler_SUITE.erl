@@ -26,6 +26,7 @@
 all() ->
 	[{group, ws}, {group, ws_hibernate}].
 
+%% @todo Test against HTTP/2 too.
 groups() ->
 	AllTests = ct_helper:all(?MODULE),
 	[{ws, [parallel], AllTests}, {ws_hibernate, [parallel], AllTests}].
@@ -48,7 +49,8 @@ init_dispatch(Name) ->
 	cowboy_router:compile([{'_', [
 		{"/init", ws_init_commands_h, RunOrHibernate},
 		{"/handle", ws_handle_commands_h, RunOrHibernate},
-		{"/info", ws_info_commands_h, RunOrHibernate}
+		{"/info", ws_info_commands_h, RunOrHibernate},
+		{"/active", ws_active_commands_h, RunOrHibernate}
 	]}]).
 
 %% Support functions for testing using Gun.
@@ -205,3 +207,13 @@ do_many_frames_then_close_frame(Config, Path) ->
 	{ok, {binary, <<"Two frames!">>}} = receive_ws(ConnPid, StreamRef),
 	{ok, close} = receive_ws(ConnPid, StreamRef),
 	gun_down(ConnPid).
+
+websocket_active_false(Config) ->
+	doc("The {active, false} command stops receiving data from the socket. "
+		"The {active, true} command reenables it."),
+	{ok, ConnPid, StreamRef} = gun_open_ws(Config, "/active", []),
+	gun:ws_send(ConnPid, {text, <<"Not received until the handler enables active again.">>}),
+	{error, timeout} = receive_ws(ConnPid, StreamRef),
+	{ok, {text, <<"Not received until the handler enables active again.">>}}
+		= receive_ws(ConnPid, StreamRef),
+	ok.

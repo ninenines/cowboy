@@ -77,6 +77,7 @@
 	ref :: ranch:ref(),
 	socket = undefined :: inet:socket() | {pid(), cowboy_stream:streamid()} | undefined,
 	transport = undefined :: module() | undefined,
+	active = true :: boolean(),
 	handler :: module(),
 	key = undefined :: undefined | binary(),
 	timeout = infinity :: timeout(),
@@ -295,6 +296,8 @@ takeover(Parent, Ref, Socket, Transport, _Opts, Buffer,
 		false -> before_loop(State, HandlerState, #ps_header{buffer=Buffer})
 	end.
 
+before_loop(State=#state{active=false}, HandlerState, ParseState) ->
+	loop(State, HandlerState, ParseState);
 %% @todo We probably shouldn't do the setopts if we have not received a socket message.
 %% @todo We need to hibernate when HTTP/2 is used too.
 before_loop(State=#state{socket=Stream={Pid, _}, transport=undefined},
@@ -516,6 +519,8 @@ commands([], State, []) ->
 commands([], State, Data) ->
 	Result = transport_send(State, nofin, lists:reverse(Data)),
 	{Result, State};
+commands([{active, Active}|Tail], State, Data) when is_boolean(Active) ->
+	commands(Tail, State#state{active=Active}, Data);
 commands([Frame|Tail], State=#state{extensions=Extensions}, Data0) ->
 	Data = [cow_ws:frame(Frame, Extensions)|Data0],
 	case is_close_frame(Frame) of
