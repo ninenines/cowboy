@@ -21,7 +21,7 @@ also been worked on.
 
 * Update Ranch to 1.6.1
 
-* Update Cowlib to 2.5.1
+* Update Cowlib to 2.6.0
 
 === Experimental features added
 
