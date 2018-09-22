@@ -19,7 +19,7 @@ also been worked on.
   simply pass the content-length header with the
   expected size when initiating the streamed response.
 
-* Update Ranch to 1.6.1
+* Update Ranch to 1.6.2
 
 * Update Cowlib to 2.6.0
 
