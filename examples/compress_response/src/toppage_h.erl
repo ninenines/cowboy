@@ -1,7 +1,7 @@
 %% Feel free to use, reuse and abuse the code in this file.
 
 %% @doc Compress response handler.
--module(toppage_handler).
+-module(toppage_h).
 
 -export([init/2]).
 
