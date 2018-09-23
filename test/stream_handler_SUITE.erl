@@ -358,12 +358,20 @@ do_switch_protocol_after_response(TestCase, Config) ->
 	]),
 	%% Confirm init/3 is called and receive the response.
 	Pid = receive {Self, P, init, _, _, _} -> P after 1000 -> error(timeout) end,
-	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
+	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
+	Gzipped =
+		lists:keyfind(<<"content-encoding">>, 1, Headers)
+			=:= {<<"content-encoding">>, <<"gzip">>},
 	case TestCase of
 		<<"switch_protocol_after_headers">> ->
 			ok;
 		_ ->
-			{ok, <<"{}">>} = gun:await_body(ConnPid, Ref),
+			<<"{}">> = case gun:await_body(ConnPid, Ref) of
+				{ok, Body} when Gzipped ->
+					zlib:gunzip(Body);
+				{ok, Body} ->
+					Body
+			end,
 			ok
 	end,
 	{error, _} = gun:await(ConnPid, Ref),
