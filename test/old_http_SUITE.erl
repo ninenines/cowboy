@@ -233,7 +233,7 @@ keepalive_nl(Config) ->
 	ConnPid = gun_open(Config),
 	Refs = [begin
 		Ref = gun:get(ConnPid, "/", [{<<"connection">>, <<"keep-alive">>}]),
-		gun:dbg_send_raw(ConnPid, <<"\r\n">>),
+		dbg_send_raw(ConnPid, <<"\r\n">>),
 		Ref
 	end || _ <- lists:seq(1, 10)],
 	_ = [begin
@@ -538,7 +538,7 @@ te_chunked_chopped(Config) ->
 	Ref = gun:post(ConnPid, "/echo/body",
 		[{<<"content-type">>, <<"text/plain">>}]),
 	_ = [begin
-		ok = gun:dbg_send_raw(ConnPid, << C >>),
+		ok = dbg_send_raw(ConnPid, << C >>),
 		receive after 10 -> ok end
 	end || << C >> <= Body2],
 	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
@@ -552,7 +552,7 @@ te_chunked_delayed(Config) ->
 	Ref = gun:post(ConnPid, "/echo/body",
 		[{<<"content-type">>, <<"text/plain">>}]),
 	_ = [begin
-		ok = gun:dbg_send_raw(ConnPid, Chunk),
+		ok = dbg_send_raw(ConnPid, Chunk),
 		receive after 10 -> ok end
 	end || Chunk <- Chunks],
 	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
@@ -568,15 +568,15 @@ te_chunked_split_body(Config) ->
 	_ = [begin
 		case Chunk of
 			<<"0\r\n\r\n">> ->
-				ok = gun:dbg_send_raw(ConnPid, Chunk);
+				ok = dbg_send_raw(ConnPid, Chunk);
 			_ ->
 				[Size, ChunkBody, <<>>] =
 					binary:split(Chunk, [<<"\r\n">>], [global]),
 				PartASize = random:uniform(byte_size(ChunkBody)),
 				<<PartA:PartASize/binary, PartB/binary>> = ChunkBody,
-				ok = gun:dbg_send_raw(ConnPid, [Size, <<"\r\n">>, PartA]),
+				ok = dbg_send_raw(ConnPid, [Size, <<"\r\n">>, PartA]),
 				receive after 10 -> ok end,
-				ok = gun:dbg_send_raw(ConnPid, [PartB, <<"\r\n">>])
+				ok = dbg_send_raw(ConnPid, [PartB, <<"\r\n">>])
 		end
 	end || Chunk <- Chunks],
 	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
@@ -593,9 +593,9 @@ te_chunked_split_crlf(Config) ->
 		%% Split in the newline just before the end of the chunk.
 		Len = byte_size(Chunk) - (random:uniform(2) - 1),
 		<< Chunk2:Len/binary, End/binary >> = Chunk,
-		ok = gun:dbg_send_raw(ConnPid, Chunk2),
+		ok = dbg_send_raw(ConnPid, Chunk2),
 		receive after 10 -> ok end,
-		ok = gun:dbg_send_raw(ConnPid, End)
+		ok = dbg_send_raw(ConnPid, End)
 	end || Chunk <- Chunks],
 	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
 	{ok, Body} = gun:await_body(ConnPid, Ref),
@@ -607,4 +607,15 @@ te_identity(Config) ->
 	Ref = gun:post(ConnPid, "/echo/body", [], Body),
 	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
 	{ok, Body} = gun:await_body(ConnPid, Ref),
+	ok.
+
+dbg_send_raw(ConnPid, Data) ->
+	#{
+		socket := Socket,
+		transport := Transport
+	} = gun:info(ConnPid),
+	_ = case Transport of
+		tcp -> gen_tcp:send(Socket, Data);
+		tls -> ssl:send(Socket, Data)
+	end,
 	ok.

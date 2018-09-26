@@ -42,8 +42,7 @@ idle_timeout_infinity(Config) ->
 	Port = ranch:get_port(name()),
 	ConnPid = gun_open([{type, tcp}, {protocol, http}, {port, Port}|Config]),
 	_ = gun:post(ConnPid, "/echo/read_body", [], <<"TEST">>),
-	%% @todo Gun should have a debug function to retrieve the socket.
-	Socket = element(11, element(2,  sys:get_state(ConnPid))),
+	#{socket := Socket} = gun:info(ConnPid),
 	Pid = get_remote_pid_tcp(Socket),
 	Ref = erlang:monitor(process, Pid),
 	receive
@@ -61,8 +60,7 @@ request_timeout_infinity(Config) ->
 	}),
 	Port = ranch:get_port(name()),
 	ConnPid = gun_open([{type, tcp}, {protocol, http}, {port, Port}|Config]),
-	%% @todo Gun should have a debug function to retrieve the socket.
-	Socket = element(11, element(2,  sys:get_state(ConnPid))),
+	#{socket := Socket} = gun:info(ConnPid),
 	Pid = get_remote_pid_tcp(Socket),
 	Ref = erlang:monitor(process, Pid),
 	receive
