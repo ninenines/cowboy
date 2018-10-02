@@ -52,11 +52,15 @@ start_clear(Ref, TransOpts0, ProtoOpts0) ->
 -spec start_tls(ranch:ref(), ranch:opts(), opts())
 	-> {ok, pid()} | {error, any()}.
 start_tls(Ref, TransOpts0, ProtoOpts0) ->
-	TransOpts1 = [
+	TransOpts1 = ranch:normalize_opts(TransOpts0),
+	SocketOpts = case TransOpts1 of
+		#{socket_opts := SocketOpts0} -> SocketOpts0;
+		_ -> []
+	end,
+	TransOpts2 = TransOpts1#{socket_opts => [
 		{next_protocols_advertised, [<<"h2">>, <<"http/1.1">>]},
 		{alpn_preferred_protocols, [<<"h2">>, <<"http/1.1">>]}
-	|TransOpts0],
-	TransOpts2 = ranch:normalize_opts(TransOpts1),
+	|SocketOpts]},
 	{TransOpts, ConnectionType} = ensure_connection_type(TransOpts2),
 	ProtoOpts = ProtoOpts0#{connection_type => ConnectionType},
 	ranch:start_listener(Ref, ranch_ssl, TransOpts, cowboy_tls, ProtoOpts).
