@@ -222,6 +222,16 @@ fold([{response, Status, Headers, Body}|Tail],
 		resp_end=Resp,
 		resp_body_length=resp_body_length(Body)
 	});
+fold([{error_response, Status, Headers, Body}|Tail],
+		State=#state{resp_status=RespStatus}) ->
+	%% The error_response command only results in a response
+	%% if no response was sent before.
+	case RespStatus of
+		undefined ->
+			fold([{response, Status, Headers, Body}|Tail], State);
+		_ ->
+			fold(Tail, State)
+	end;
 fold([{headers, Status, Headers}|Tail],
 		State=#state{resp_headers_filter=RespHeadersFilter}) ->
 	RespStart = erlang:monotonic_time(),
