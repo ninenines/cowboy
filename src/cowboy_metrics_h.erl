@@ -207,19 +207,12 @@ fold([{inform, Status, Headers}|Tail],
 		headers => Headers,
 		time => Time
 	}|Infos]});
-fold([{response, Status, Headers, Body}|Tail],
-		State=#state{resp_headers_filter=RespHeadersFilter}) ->
+fold([{response, Status, Headers, Body}|Tail], State) ->
 	Resp = erlang:monotonic_time(),
-	fold(Tail, State#state{
-		resp_status=Status,
-		resp_headers=case RespHeadersFilter of
-			undefined -> Headers;
-			_ -> RespHeadersFilter(Headers)
-		end,
-		resp_start=Resp,
-		resp_end=Resp,
-		resp_body_length=resp_body_length(Body)
-	});
+	fold(Tail, update_with_response(Resp, Status, Headers, Body, State));
+fold([{error_response, Status, Headers, Body}|Tail], State) ->
+	Resp = erlang:monotonic_time(),
+	fold(Tail, update_with_response(Resp, Status, Headers, Body, State));
 fold([{headers, Status, Headers}|Tail],
 		State=#state{resp_headers_filter=RespHeadersFilter}) ->
 	RespStart = erlang:monotonic_time(),
@@ -297,6 +290,19 @@ early_error(StreamID, Reason, PartialReq=#{ref := Ref}, Resp0, Opts=#{metrics_ca
 	},
 	Fun(Metrics),
 	Resp.
+
+update_with_response(Resp, Status, Headers, Body,
+		State=#state{resp_headers_filter=RespHeadersFilter}) ->
+	State#state{
+		resp_status=Status,
+		resp_headers=case RespHeadersFilter of
+			undefined -> Headers;
+			_ -> RespHeadersFilter(Headers)
+		end,
+		resp_start=Resp,
+		resp_end=Resp,
+		resp_body_length=resp_body_length(Body)
+	}.
 
 resp_body_length({sendfile, _, Len, _}) ->
 	Len;

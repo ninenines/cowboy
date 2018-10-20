@@ -74,7 +74,8 @@ init_routes(_) -> [
 		{"/default", default_h, []},
 		{"/full/:key", echo_h, []},
 		{"/resp/:key[/:arg]", resp_h, []},
-		{"/ws_echo", ws_echo, []}
+		{"/ws_echo", ws_echo, []},
+		{"/crash", crash_h, []}
 	]}
 ].
 
@@ -434,3 +435,60 @@ do_ws(Config) ->
 		error(timeout)
 	end,
 	gun:close(ConnPid).
+
+crash(Config) ->
+	doc("Confirm metrics are correct when error occurs in cowboy handler"),
+	%% Perform a GET request.
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/crash", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"x-test-pid">>, pid_to_list(self())}
+	]),
+	{response, fin, StatusCode, RespHeaders} = gun:await(ConnPid, Ref),
+	gun:close(ConnPid),
+	%% Receive the metrics and validate them.
+	receive
+		{metrics, From, Metrics} ->
+			%% Ensure the timestamps are in the expected order.
+			#{
+				req_start := ReqStart, req_end := ReqEnd,
+				resp_start := RespStart, resp_end := RespEnd
+			} = Metrics,
+			true = (ReqStart =< RespStart)
+				and (RespStart =< RespEnd)
+				and (RespEnd =< ReqEnd),
+			%% We didn't send a body.
+			#{
+				req_body_start := undefined,
+				req_body_end := undefined,
+				req_body_length := 0
+			} = Metrics,
+			%% We got a expected response code with a body.
+			#{
+				resp_status := StatusCode,
+				resp_headers := ExpectedRespHeaders,
+				resp_body_length := 0
+			} = Metrics,
+			ExpectedRespHeaders = maps:from_list(RespHeaders),
+			%% The request process executed normally.
+			#{procs := Procs} = Metrics,
+			[{_, #{
+				spawn := ProcSpawn,
+				exit := ProcExit,
+				reason := {crash, _StackTrace}
+			}}] = maps:to_list(Procs),
+			true = ProcSpawn =< ProcExit,
+			%% Confirm other metadata are as expected.
+			#{
+				ref := _,
+				pid := From,
+				streamid := 1,
+				reason := {internal_error, {'EXIT', _Pid, {crash, _StackTrace}}, 'Stream process crashed.'},
+				req := #{},
+				informational := []
+			} = Metrics,
+			%% All good!
+			ok
+	after 1000 ->
+		error(timeout)
+	end.
