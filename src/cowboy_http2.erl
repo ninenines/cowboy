@@ -215,27 +215,15 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 
 %% HTTP/2 protocol parsing.
 
-parse(State=#state{socket=Socket, transport=Transport, preface={sequence, TRef}}, Data) ->
-	case Data of
-		<< "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n", Rest/bits >> ->
+parse(State=#state{preface={sequence, TRef}}, Data) ->
+	case cow_http2:parse_sequence(Data) of
+		{ok, Rest} ->
 			parse(State#state{preface={settings, TRef}}, Rest);
-		_ when byte_size(Data) >= 24 ->
-			Transport:close(Socket),
-			exit({shutdown, {connection_error, protocol_error,
-				'The connection preface was invalid. (RFC7540 3.5)'}});
-		_ ->
-			Len = byte_size(Data),
-			<< Preface:Len/binary, _/bits >> = <<"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n">>,
-			case Data of
-				Preface ->
-					before_loop(State, Data);
-				_ ->
-					Transport:close(Socket),
-					exit({shutdown, {connection_error, protocol_error,
-						'The connection preface was invalid. (RFC7540 3.5)'}})
-			end
+		more ->
+			before_loop(State, Data);
+		Error = {connection_error, _, _} ->
+			terminate(State, Error)
 	end;
-%% @todo Perhaps instead of just more we can have {more, Len} to avoid all the checks.
 parse(State=#state{http2_machine=HTTP2Machine}, Data) ->
 	MaxFrameSize = cow_http2_machine:get_local_setting(max_frame_size, HTTP2Machine),
 	case cow_http2:parse(Data, MaxFrameSize) of
