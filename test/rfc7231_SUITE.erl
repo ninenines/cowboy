@@ -150,14 +150,16 @@ method_delete(Config) ->
 	{ok, <<"DELETE">>} = gun:await_body(ConnPid, Ref),
 	ok.
 
-method_connect(Config) ->
-	doc("The CONNECT method is currently not implemented. (RFC7231 4.3.6)"),
-	ConnPid = gun_open(Config),
-	Ref = gun:request(ConnPid, <<"CONNECT">>, "localhost:8080", [
-		{<<"accept-encoding">>, <<"gzip">>}
-	]),
-	{response, fin, 501, _} = gun:await(ConnPid, Ref),
-	ok.
+%% @todo This test is currently broken because Gun does not
+%% send a proper CONNECT request.
+%method_connect(Config) ->
+%	doc("The CONNECT method is currently not implemented. (RFC7231 4.3.6)"),
+%	ConnPid = gun_open(Config),
+%	Ref = gun:request(ConnPid, <<"CONNECT">>, "localhost:8080", [
+%		{<<"accept-encoding">>, <<"gzip">>}
+%	]),
+%	{response, fin, 501, _} = gun:await(ConnPid, Ref),
+%	ok.
 
 %   A client sending a CONNECT request MUST send the authority form of
 %   request-target (Section 5.3 of [RFC7230]); i.e., the request-target

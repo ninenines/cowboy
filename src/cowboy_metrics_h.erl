@@ -71,8 +71,7 @@
 	%% Start/end of the processing of the request.
 	%%
 	%% This represents the time from this stream handler's init
-	%% to terminate. Note that this doesn't indicate the response
-	%% has been sent fully, it still may be queued up in a buffer.
+	%% to terminate.
 	req_start => integer(),
 	req_end => integer(),
 
