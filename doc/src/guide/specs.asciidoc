@@ -90,6 +90,7 @@ for or related to HTTP.
 * https://tools.ietf.org/html/rfc8336[RFC 8336]: The ORIGIN HTTP/2 Frame
 * https://tools.ietf.org/html/rfc8441[RFC 8441]: Bootstrapping WebSockets with HTTP/2
 * https://tools.ietf.org/html/rfc8470[RFC 8470]: Using Early Data in HTTP
+* https://tools.ietf.org/html/rfc8473[RFC 8473]: Token Binding over HTTP
 * https://www.w3.org/TR/webmention/[Webmention]: Webmention
 
 ==== Upcoming
