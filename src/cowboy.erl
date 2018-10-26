@@ -53,10 +53,7 @@ start_clear(Ref, TransOpts0, ProtoOpts0) ->
 	-> {ok, pid()} | {error, any()}.
 start_tls(Ref, TransOpts0, ProtoOpts0) ->
 	TransOpts1 = ranch:normalize_opts(TransOpts0),
-	SocketOpts = case TransOpts1 of
-		#{socket_opts := SocketOpts0} -> SocketOpts0;
-		_ -> []
-	end,
+	SocketOpts = maps:get(socket_opts, TransOpts1, []),
 	TransOpts2 = TransOpts1#{socket_opts => [
 		{next_protocols_advertised, [<<"h2">>, <<"http/1.1">>]},
 		{alpn_preferred_protocols, [<<"h2">>, <<"http/1.1">>]}
