@@ -64,7 +64,7 @@
 	cert :: undefined | binary(),
 
 	%% HTTP/2 state machine.
-	http2_init :: sequence | upgrade | complete,
+	http2_init :: sequence | settings | upgrade | complete,
 	http2_machine :: cow_http2_machine:http2_machine(),
 
 	%% Currently active HTTP/2 streams. Streams may be initiated either
@@ -197,7 +197,7 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 parse(State=#state{http2_init=sequence}, Data) ->
 	case cow_http2:parse_sequence(Data) of
 		{ok, Rest} ->
-			parse(State#state{http2_init=complete}, Rest);
+			parse(State#state{http2_init=settings}, Rest);
 		more ->
 			before_loop(State, Data);
 		Error = {connection_error, _, _} ->
@@ -247,6 +247,10 @@ frame(State=#state{http2_machine=HTTP2Machine0}, Frame) ->
 			terminate(State#state{http2_machine=HTTP2Machine}, Error)
 	end.
 
+%% We use this opportunity to mark the HTTP/2 initialization
+%% as complete if we were still waiting for a SETTINGS frame.
+maybe_ack(State=#state{http2_init=settings}, Frame) ->
+	maybe_ack(State#state{http2_init=complete}, Frame);
 maybe_ack(State=#state{socket=Socket, transport=Transport}, Frame) ->
 	case Frame of
 		{settings, _} -> Transport:send(Socket, cow_http2:settings_ack());
@@ -417,7 +421,7 @@ ignored_frame(State=#state{http2_machine=HTTP2Machine0}) ->
 
 %% HTTP/2 timeouts.
 
-timeout(State=#state{http2_machine=HTTP2Machine0}, TRef, Name) ->
+timeout(State=#state{http2_machine=HTTP2Machine0}, Name, TRef) ->
 	case cow_http2_machine:timeout(Name, TRef, HTTP2Machine0) of
 		{ok, HTTP2Machine} ->
 			State#state{http2_machine=HTTP2Machine};
