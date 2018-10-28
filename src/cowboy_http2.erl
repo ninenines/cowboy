@@ -293,8 +293,8 @@ headers_frame(State=#state{ref=Ref, peer=Peer, sock=Sock, cert=Cert},
 			Port = ensure_port(Scheme, Port0),
 			try cow_http:parse_fullpath(PathWithQs) of
 				{<<>>, _} ->
-					malformed_request(State, StreamID,
-						'The path component must not be empty. (RFC7540 8.1.2.3)');
+					stream_reset(State, StreamID, {stream_error, protocol_error,
+						'The path component must not be empty. (RFC7540 8.1.2.3)'});
 				{Path, Qs} ->
 					Req0 = #{
 						ref => Ref,
@@ -323,12 +323,12 @@ headers_frame(State=#state{ref=Ref, peer=Peer, sock=Sock, cert=Cert},
 					end,
 					headers_frame(State, StreamID, Req)
 			catch _:_ ->
-				malformed_request(State, StreamID,
-					'The :path pseudo-header is invalid. (RFC7540 8.1.2.3)')
+				stream_reset(State, StreamID, {stream_error, protocol_error,
+					'The :path pseudo-header is invalid. (RFC7540 8.1.2.3)'})
 			end
 	catch _:_ ->
-		malformed_request(State, StreamID,
-			'The :authority pseudo-header is invalid. (RFC7540 8.1.2.3)')
+		stream_reset(State, StreamID, {stream_error, protocol_error,
+			'The :authority pseudo-header is invalid. (RFC7540 8.1.2.3)'})
 	end.
 
 ensure_port(<<"http">>, undefined) -> 80;
@@ -350,13 +350,6 @@ headers_to_map([{Name, Value}|Tail], Acc0) ->
 			Acc0#{Name => Value}
 	end,
 	headers_to_map(Tail, Acc).
-
-%% @todo Probably not a very useful function, just use stream_reset.
-malformed_request(State=#state{socket=Socket, transport=Transport,
-		http2_machine=HTTP2Machine0}, StreamID, _) ->
-	Transport:send(Socket, cow_http2:rst_stream(StreamID, protocol_error)),
-	{ok, HTTP2Machine} = cow_http2_machine:reset_stream(StreamID, HTTP2Machine0),
-	State#state{http2_machine=HTTP2Machine}.
 
 headers_frame(State=#state{opts=Opts, streams=Streams}, StreamID, Req) ->
 	try cowboy_stream:init(StreamID, Req, Opts) of
