@@ -210,7 +210,7 @@ parse(State=#state{http2_machine=HTTP2Machine}, Data) ->
 		{ignore, Rest} ->
 			parse(ignored_frame(State), Rest);
 		{stream_error, StreamID, Reason, Human, Rest} ->
-			parse(stream_reset(State, StreamID, {stream_error, Reason, Human}), Rest);
+			parse(reset_stream(State, StreamID, {stream_error, Reason, Human}), Rest);
 		Error = {connection_error, _, _} ->
 			terminate(State, Error);
 		more ->
@@ -239,7 +239,7 @@ frame(State=#state{http2_machine=HTTP2Machine0}, Frame) ->
 		{send, SendData, HTTP2Machine} ->
 			send_data(maybe_ack(State#state{http2_machine=HTTP2Machine}, Frame), SendData);
 		{error, {stream_error, StreamID, Reason, Human}, HTTP2Machine} ->
-			stream_reset(State#state{http2_machine=HTTP2Machine},
+			reset_stream(State#state{http2_machine=HTTP2Machine},
 				StreamID, {stream_error, Reason, Human});
 		{error, Error={connection_error, _, _}, HTTP2Machine} ->
 			terminate(State#state{http2_machine=HTTP2Machine}, Error)
@@ -268,7 +268,7 @@ data_frame(State=#state{opts=Opts, streams=Streams}, StreamID, IsFin, Data) ->
 				cowboy:log(cowboy_stream:make_error_log(data,
 					[StreamID, IsFin, Data, StreamState0],
 					Class, Exception, erlang:get_stacktrace()), Opts),
-				stream_reset(State, StreamID, {internal_error, {Class, Exception},
+				reset_stream(State, StreamID, {internal_error, {Class, Exception},
 					'Unhandled exception in cowboy_stream:data/4.'})
 			end;
 		%% We ignore DATA frames for streams that are stopping.
@@ -293,7 +293,7 @@ headers_frame(State=#state{ref=Ref, peer=Peer, sock=Sock, cert=Cert},
 			Port = ensure_port(Scheme, Port0),
 			try cow_http:parse_fullpath(PathWithQs) of
 				{<<>>, _} ->
-					stream_reset(State, StreamID, {stream_error, protocol_error,
+					reset_stream(State, StreamID, {stream_error, protocol_error,
 						'The path component must not be empty. (RFC7540 8.1.2.3)'});
 				{Path, Qs} ->
 					Req0 = #{
@@ -323,11 +323,11 @@ headers_frame(State=#state{ref=Ref, peer=Peer, sock=Sock, cert=Cert},
 					end,
 					headers_frame(State, StreamID, Req)
 			catch _:_ ->
-				stream_reset(State, StreamID, {stream_error, protocol_error,
+				reset_stream(State, StreamID, {stream_error, protocol_error,
 					'The :path pseudo-header is invalid. (RFC7540 8.1.2.3)'})
 			end
 	catch _:_ ->
-		stream_reset(State, StreamID, {stream_error, protocol_error,
+		reset_stream(State, StreamID, {stream_error, protocol_error,
 			'The :authority pseudo-header is invalid. (RFC7540 8.1.2.3)'})
 	end.
 
@@ -361,7 +361,7 @@ headers_frame(State=#state{opts=Opts, streams=Streams}, StreamID, Req) ->
 		cowboy:log(cowboy_stream:make_error_log(init,
 			[StreamID, Req, Opts],
 			Class, Exception, erlang:get_stacktrace()), Opts),
-		stream_reset(State, StreamID, {internal_error, {Class, Exception},
+		reset_stream(State, StreamID, {internal_error, {Class, Exception},
 			'Unhandled exception in cowboy_stream:init/3.'})
 	end.
 
@@ -395,7 +395,7 @@ early_error(State0=#state{ref=Ref, opts=Opts, peer=Peer},
 rst_stream_frame(State=#state{streams=Streams0, children=Children0}, StreamID, Reason) ->
 	case maps:take(StreamID, Streams0) of
 		{{_, StreamState}, Streams} ->
-			stream_call_terminate(StreamID, Reason, StreamState, State),
+			terminate_stream_handler(State, StreamID, Reason, StreamState),
 			Children = cowboy_children:shutdown(Children0, StreamID),
 			State#state{streams=Streams, children=Children};
 		error ->
@@ -448,7 +448,7 @@ info(State=#state{opts=Opts, streams=Streams}, StreamID, Msg) ->
 				cowboy:log(cowboy_stream:make_error_log(info,
 					[StreamID, Msg, StreamState0],
 					Class, Exception, erlang:get_stacktrace()), Opts),
-				stream_reset(State, StreamID, {internal_error, {Class, Exception},
+				reset_stream(State, StreamID, {internal_error, {Class, Exception},
 					'Unhandled exception in cowboy_stream:info/3.'})
 			end;
 		_ ->
@@ -552,7 +552,7 @@ commands(State, StreamID, [Error = {internal_error, _, _}|_Tail]) ->
 	%% @todo Do we want to run the commands after an internal_error?
 	%% @todo Do we even allow commands after?
 	%% @todo Only reset when the stream still exists.
-	stream_reset(State, StreamID, Error);
+	reset_stream(State, StreamID, Error);
 %% Upgrade to HTTP/2. This is triggered by cowboy_http2 itself.
 commands(State=#state{socket=Socket, transport=Transport, http2_init=upgrade},
 		StreamID, [{switch_protocol, Headers, ?MODULE, _}|Tail]) ->
@@ -675,12 +675,11 @@ terminate_reason({internal_error, _, _}) -> internal_error.
 terminate_all_streams(_, [], _) ->
 	ok;
 terminate_all_streams(State, [{StreamID, {_, StreamState}}|Tail], Reason) ->
-	stream_call_terminate(StreamID, Reason, StreamState, State),
+	terminate_stream_handler(State, StreamID, Reason, StreamState),
 	terminate_all_streams(State, Tail, Reason).
 
 %% @todo Don't send an RST_STREAM if one was already sent.
-%% @todo Maybe rename reset_stream.
-stream_reset(State=#state{socket=Socket, transport=Transport,
+reset_stream(State=#state{socket=Socket, transport=Transport,
 		http2_machine=HTTP2Machine0}, StreamID, Error) ->
 	Reason = case Error of
 		{internal_error, _, _} -> internal_error;
@@ -747,7 +746,7 @@ terminate_stream(State0=#state{socket=Socket, transport=Transport,
 terminate_stream(State=#state{streams=Streams0, children=Children0}, StreamID, Reason) ->
 	case maps:take(StreamID, Streams0) of
 		{{_, StreamState}, Streams} ->
-			stream_call_terminate(StreamID, Reason, StreamState, State),
+			terminate_stream_handler(State, StreamID, Reason, StreamState),
 			Children = cowboy_children:shutdown(Children0, StreamID),
 			State#state{streams=Streams, children=Children};
 		error ->
@@ -755,7 +754,7 @@ terminate_stream(State=#state{streams=Streams0, children=Children0}, StreamID, R
 	end.
 
 %% @todo Maybe put State first.
-stream_call_terminate(StreamID, Reason, StreamState, #state{opts=Opts}) ->
+terminate_stream_handler(#state{opts=Opts}, StreamID, Reason, StreamState) ->
 	try
 		cowboy_stream:terminate(StreamID, Reason, StreamState)
 	catch Class:Exception ->
