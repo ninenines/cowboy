@@ -753,7 +753,6 @@ terminate_stream(State=#state{streams=Streams0, children=Children0}, StreamID, R
 			State
 	end.
 
-%% @todo Maybe put State first.
 terminate_stream_handler(#state{opts=Opts}, StreamID, Reason, StreamState) ->
 	try
 		cowboy_stream:terminate(StreamID, Reason, StreamState)
