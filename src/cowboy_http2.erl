@@ -165,8 +165,7 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 			terminate(State, {socket_error, Reason, 'An error has occurred on the socket.'});
 		%% System messages.
 		{'EXIT', Parent, Reason} ->
-			%% @todo We should exit gracefully.
-			exit(Reason);
+			terminate(State, {stop, {exit, Reason}, 'Parent process terminated.'});
 		{system, From, Request} ->
 			sys:handle_system_msg(Request, From, Parent, ?MODULE, [], {State, Buffer});
 		%% Timeouts.
@@ -239,7 +238,6 @@ frame(State=#state{http2_machine=HTTP2Machine0}, Frame) ->
 				{stop, Frame, 'Client is going away.'});
 		{send, SendData, HTTP2Machine} ->
 			send_data(maybe_ack(State#state{http2_machine=HTTP2Machine}, Frame), SendData);
-		%% @todo Yeah StreamID would be better out of this, {error, StreamID, Tuple, State}
 		{error, {stream_error, StreamID, Reason, Human}, HTTP2Machine} ->
 			stream_reset(State#state{http2_machine=HTTP2Machine},
 				StreamID, {stream_error, Reason, Human});
@@ -591,8 +589,6 @@ send_response(State0, StreamID, StatusCode, Headers, Body) ->
 	end,
 	case Size of
 		0 ->
-			%% @todo If IsFin=fin, we may want to skip the body and terminate the stream,
-			%% if we are no longer tracking the stream.
 			State = send_headers(State0, StreamID, fin, StatusCode, Headers),
 			maybe_terminate_stream(State, StreamID, fin);
 		_ ->
@@ -783,8 +779,7 @@ system_continue(_, _, {State, Buffer}) ->
 
 -spec system_terminate(any(), _, _, {#state{}, binary()}) -> no_return().
 system_terminate(Reason, _, _, {State, _}) ->
-	%% @todo We should exit gracefully, if possible.
-	terminate(State, Reason).
+	terminate(State, {stop, {exit, Reason}, 'sys:terminate/2,3 was called.'}).
 
 -spec system_code_change(Misc, _, _, _) -> {ok, Misc} when Misc::{#state{}, binary()}.
 system_code_change(Misc, _, _, _) ->

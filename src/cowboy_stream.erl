@@ -50,7 +50,7 @@
 	| {socket_error, closed | atom(), human_reason()}
 	| {stream_error, cow_http2:error(), human_reason()}
 	| {connection_error, cow_http2:error(), human_reason()}
-	| {stop, cow_http2:frame(), human_reason()}.
+	| {stop, cow_http2:frame() | {exit, any()}, human_reason()}.
 -export_type([reason/0]).
 
 -type partial_req() :: map(). %% @todo Take what's in cowboy_req with everything? optional.

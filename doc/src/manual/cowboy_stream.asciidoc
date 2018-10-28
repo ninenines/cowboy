@@ -386,7 +386,7 @@ reason() :: normal | switch_protocol
     | {socket_error, closed | atom(), HumanReadable}
     | {stream_error, Error, HumanReadable}
     | {connection_error, Error, HumanReadable}
-    | {stop, cow_http2:frame(), HumanReadable}
+    | {stop, cow_http2:frame() | {exit, any()}, HumanReadable}
 
 Error         = atom()
 HumanReadable = atom()
@@ -420,6 +420,7 @@ tuple.
 
 == Changelog
 
+* *2.6*: The `{stop, {exit, any()}, HumanReadable}` terminate reason was added.
 * *2.2*: The trailers command was introduced.
 * *2.0*: Module introduced.
 

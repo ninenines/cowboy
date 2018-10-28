@@ -884,7 +884,7 @@ sys_suspend_and_resume_loop(Config) ->
 %% The callback Module:system_terminate/4 is used in all cases.
 
 sys_terminate_h1(Config) ->
-	doc("h1: The sys:terminate/1 function works as expected."),
+	doc("h1: The sys:terminate/2,3 function works as expected."),
 	{ok, Socket} = gen_tcp:connect("localhost", config(clear_port, Config), [{active, false}]),
 	timer:sleep(100),
 	Pid = get_remote_pid_tcp(Socket),
@@ -893,7 +893,7 @@ sys_terminate_h1(Config) ->
 	ok.
 
 sys_terminate_h2(Config) ->
-	doc("h2: The sys:terminate/1 function works as expected."),
+	doc("h2: The sys:terminate/2,3 function works as expected."),
 	{ok, Socket} = ssl:connect("localhost", config(tls_port, Config),
 		[{active, false}, binary, {alpn_advertised_protocols, [<<"h2">>]}]),
 	%% Skip the SETTINGS frame.
@@ -905,7 +905,7 @@ sys_terminate_h2(Config) ->
 	ok.
 
 sys_terminate_ws(Config) ->
-	doc("ws: The sys:terminate/1 function works as expected."),
+	doc("ws: The sys:terminate/2,3 function works as expected."),
 	{ok, Socket} = gen_tcp:connect("localhost", config(clear_port, Config),
 		[binary, {active, false}]),
 	ok = gen_tcp:send(Socket,
@@ -926,7 +926,7 @@ sys_terminate_ws(Config) ->
 	ok.
 
 sys_terminate_loop(Config) ->
-	doc("loop: The sys:terminate/1 function works as expected."),
+	doc("loop: The sys:terminate/2,3 function works as expected."),
 	{ok, Socket} = gen_tcp:connect("localhost", config(clear_port, Config), [{active, false}]),
 	ok = gen_tcp:send(Socket,
 		"GET /loop HTTP/1.1\r\n"
