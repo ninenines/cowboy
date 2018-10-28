@@ -21,6 +21,7 @@
 -import(ct_helper, [get_parent_pid/1]).
 -import(ct_helper, [get_remote_pid_tcp/1]).
 -import(ct_helper, [get_remote_pid_tls/1]).
+-import(ct_helper, [is_process_down/1]).
 -import(cowboy_test, [gun_open/1]).
 
 all() ->
@@ -319,7 +320,7 @@ trap_exit_parent_exit_h1(Config) ->
 	Parent = get_parent_pid(Pid),
 	Pid ! {'EXIT', Parent, shutdown},
 	{error, closed} = gen_tcp:recv(Socket, 0, 1000),
-	false = is_process_alive(Pid),
+	true = is_process_down(Pid),
 	ok.
 
 trap_exit_parent_exit_h2(Config) ->
@@ -334,7 +335,7 @@ trap_exit_parent_exit_h2(Config) ->
 	Parent = get_parent_pid(Pid),
 	Pid ! {'EXIT', Parent, shutdown},
 	{error, closed} = ssl:recv(Socket, 0, 1000),
-	false = is_process_alive(Pid),
+	true = is_process_down(Pid),
 	ok.
 
 trap_exit_parent_exit_ws(Config) ->
@@ -358,7 +359,7 @@ trap_exit_parent_exit_ws(Config) ->
 	Parent = get_parent_pid(Pid),
 	Pid ! {'EXIT', Parent, shutdown},
 	{error, closed} = gen_tcp:recv(Socket, 0, 1000),
-	false = is_process_alive(Pid),
+	true = is_process_down(Pid),
 	ok.
 
 trap_exit_parent_exit_loop(Config) ->
@@ -375,7 +376,7 @@ trap_exit_parent_exit_loop(Config) ->
 	Pid ! {'EXIT', Parent, shutdown},
 	%% We exit normally but didn't send a response.
 	{ok, "HTTP/1.1 204 "} = gen_tcp:recv(Socket, 13, 1000),
-	false = is_process_alive(Pid),
+	true = is_process_down(Pid),
 	ok.
 
 trap_exit_other_exit_h1(Config) ->
