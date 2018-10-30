@@ -18,9 +18,9 @@
 -compile({nowarn_deprecated_function, [{erlang, get_stacktrace, 0}]}).
 -endif.
 
--export([init/5]).
--export([init/9]).
--export([init/11]).
+-export([init/6]).
+-export([init/10]).
+-export([init/12]).
 
 -export([system_continue/3]).
 -export([system_terminate/4]).
@@ -52,6 +52,7 @@
 	ref :: ranch:ref(),
 	socket = undefined :: inet:socket(),
 	transport :: module(),
+	proxy_header :: undefined | ranch_proxy_header:proxy_info(),
 	opts = #{} :: opts(),
 
 	%% Remote address and port for the connection.
@@ -76,8 +77,9 @@
 	children = cowboy_children:init() :: cowboy_children:children()
 }).
 
--spec init(pid(), ranch:ref(), inet:socket(), module(), cowboy:opts()) -> ok.
-init(Parent, Ref, Socket, Transport, Opts) ->
+-spec init(pid(), ranch:ref(), inet:socket(), module(),
+	ranch_proxy_header:proxy_info(), cowboy:opts()) -> ok.
+init(Parent, Ref, Socket, Transport, ProxyHeader, Opts) ->
 	Peer0 = Transport:peername(Socket),
 	Sock0 = Transport:sockname(Socket),
 	Cert1 = case Transport:name() of
@@ -93,7 +95,7 @@ init(Parent, Ref, Socket, Transport, Opts) ->
 	end,
 	case {Peer0, Sock0, Cert1} of
 		{{ok, Peer}, {ok, Sock}, {ok, Cert}} ->
-			init(Parent, Ref, Socket, Transport, Opts, Peer, Sock, Cert, <<>>);
+			init(Parent, Ref, Socket, Transport, ProxyHeader, Opts, Peer, Sock, Cert, <<>>);
 		{{error, Reason}, _, _} ->
 			terminate(undefined, {socket_error, Reason,
 				'A socket error occurred when retrieving the peer name.'});
@@ -105,13 +107,15 @@ init(Parent, Ref, Socket, Transport, Opts) ->
 				'A socket error occurred when retrieving the client TLS certificate.'})
 	end.
 
--spec init(pid(), ranch:ref(), inet:socket(), module(), cowboy:opts(),
+-spec init(pid(), ranch:ref(), inet:socket(), module(),
+	ranch_proxy_header:proxy_info(), cowboy:opts(),
 	{inet:ip_address(), inet:port_number()}, {inet:ip_address(), inet:port_number()},
 	binary() | undefined, binary()) -> ok.
-init(Parent, Ref, Socket, Transport, Opts, Peer, Sock, Cert, Buffer) ->
+init(Parent, Ref, Socket, Transport, ProxyHeader, Opts, Peer, Sock, Cert, Buffer) ->
 	{ok, Preface, HTTP2Machine} = cow_http2_machine:init(server, Opts),
 	State = #state{parent=Parent, ref=Ref, socket=Socket,
-		transport=Transport, opts=Opts, peer=Peer, sock=Sock, cert=Cert,
+		transport=Transport, proxy_header=ProxyHeader,
+		opts=Opts, peer=Peer, sock=Sock, cert=Cert,
 		http2_init=sequence, http2_machine=HTTP2Machine},
 	Transport:send(Socket, Preface),
 	case Buffer of
@@ -120,16 +124,18 @@ init(Parent, Ref, Socket, Transport, Opts, Peer, Sock, Cert, Buffer) ->
 	end.
 
 %% @todo Add an argument for the request body.
--spec init(pid(), ranch:ref(), inet:socket(), module(), cowboy:opts(),
+-spec init(pid(), ranch:ref(), inet:socket(), module(),
+	ranch_proxy_header:proxy_info(), cowboy:opts(),
 	{inet:ip_address(), inet:port_number()}, {inet:ip_address(), inet:port_number()},
 	binary() | undefined, binary(), map() | undefined, cowboy_req:req()) -> ok.
-init(Parent, Ref, Socket, Transport, Opts, Peer, Sock, Cert, Buffer,
+init(Parent, Ref, Socket, Transport, ProxyHeader, Opts, Peer, Sock, Cert, Buffer,
 		_Settings, Req=#{method := Method}) ->
 	{ok, Preface, HTTP2Machine0} = cow_http2_machine:init(server, Opts),
 	{ok, StreamID, HTTP2Machine}
 		= cow_http2_machine:init_upgrade_stream(Method, HTTP2Machine0),
 	State0 = #state{parent=Parent, ref=Ref, socket=Socket,
-		transport=Transport, opts=Opts, peer=Peer, sock=Sock, cert=Cert,
+		transport=Transport, proxy_header=ProxyHeader,
+		opts=Opts, peer=Peer, sock=Sock, cert=Cert,
 		http2_init=upgrade, http2_machine=HTTP2Machine},
 	State1 = headers_frame(State0#state{
 		http2_machine=HTTP2Machine}, StreamID, Req),
@@ -285,7 +291,7 @@ headers_frame(State, StreamID, IsFin, Headers,
 		PseudoHeaders=#{method := <<"TRACE">>}, _) ->
 	early_error(State, StreamID, IsFin, Headers, PseudoHeaders, 501,
 		'The TRACE method is currently not implemented. (RFC7231 4.3.8)');
-headers_frame(State=#state{ref=Ref, peer=Peer, sock=Sock, cert=Cert},
+headers_frame(State=#state{ref=Ref, peer=Peer, sock=Sock, cert=Cert, proxy_header=ProxyHeader},
 		StreamID, IsFin, Headers, PseudoHeaders=#{method := Method, scheme := Scheme,
 			authority := Authority, path := PathWithQs}, BodyLen) ->
 	try cow_http_hd:parse_host(Authority) of
@@ -314,12 +320,15 @@ headers_frame(State=#state{ref=Ref, peer=Peer, sock=Sock, cert=Cert},
 						has_body => IsFin =:= nofin,
 						body_length => BodyLen
 					},
+					%% We add the PROXY header information if any.
+					Req1 = case ProxyHeader of
+						undefined -> Req0;
+						_ -> Req0#{proxy_header => ProxyHeader}
+					end,
 					%% We add the protocol information for extended CONNECTs.
 					Req = case PseudoHeaders of
-						#{protocol := Protocol} ->
-							Req0#{protocol => Protocol};
-						_ ->
-							Req0
+						#{protocol := Protocol} -> Req1#{protocol => Protocol};
+						_ -> Req1
 					end,
 					headers_frame(State, StreamID, Req)
 			catch _:_ ->

@@ -126,6 +126,7 @@
 %	pid := pid(),
 %	streamid := cowboy_stream:streamid(),
 %	peer := {inet:ip_address(), inet:port_number()},
+%	proxy_header => ...
 %
 %	method := binary(), %% case sensitive
 %	version := cowboy:http_version() | atom(),

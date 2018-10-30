@@ -26,17 +26,24 @@ start_link(Ref, Socket, Transport, Opts) ->
 
 -spec connection_process(pid(), ranch:ref(), ssl:sslsocket(), module(), cowboy:opts()) -> ok.
 connection_process(Parent, Ref, Socket, Transport, Opts) ->
-	ok = ranch:accept_ack(Ref),
+	ProxyInfo = case maps:get(proxy_header, Opts, false) of
+		true ->
+			{ok, ProxyInfo0} = ranch:recv_proxy_header(Ref, 1000),
+			ProxyInfo0;
+		false ->
+			undefined
+	end,
+	{ok, Socket} = ranch:handshake(Ref),
 	case ssl:negotiated_protocol(Socket) of
 		{ok, <<"h2">>} ->
-			init(Parent, Ref, Socket, Transport, Opts, cowboy_http2);
+			init(Parent, Ref, Socket, Transport, ProxyInfo, Opts, cowboy_http2);
 		_ -> %% http/1.1 or no protocol negotiated.
-			init(Parent, Ref, Socket, Transport, Opts, cowboy_http)
+			init(Parent, Ref, Socket, Transport, ProxyInfo, Opts, cowboy_http)
 	end.
 
-init(Parent, Ref, Socket, Transport, Opts, Protocol) ->
+init(Parent, Ref, Socket, Transport, ProxyInfo, Opts, Protocol) ->
 	_ = case maps:get(connection_type, Opts, supervisor) of
 		worker -> ok;
 		supervisor -> process_flag(trap_exit, true)
 	end,
-	Protocol:init(Parent, Ref, Socket, Transport, Opts).
+	Protocol:init(Parent, Ref, Socket, Transport, ProxyInfo, Opts).

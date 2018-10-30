@@ -18,7 +18,7 @@
 -compile({nowarn_deprecated_function, [{erlang, get_stacktrace, 0}]}).
 -endif.
 
--export([init/5]).
+-export([init/6]).
 
 -export([system_continue/3]).
 -export([system_terminate/4]).
@@ -98,6 +98,7 @@
 	ref :: ranch:ref(),
 	socket :: inet:socket(),
 	transport :: module(),
+	proxy_header :: undefined | ranch_proxy_header:proxy_info(),
 	opts = #{} :: map(),
 
 	%% Remote address and port for the connection.
@@ -137,8 +138,9 @@
 -include_lib("cowlib/include/cow_inline.hrl").
 -include_lib("cowlib/include/cow_parse.hrl").
 
--spec init(pid(), ranch:ref(), inet:socket(), module(), cowboy:opts()) -> ok.
-init(Parent, Ref, Socket, Transport, Opts) ->
+-spec init(pid(), ranch:ref(), inet:socket(), module(),
+	ranch_proxy_header:proxy_info(), cowboy:opts()) -> ok.
+init(Parent, Ref, Socket, Transport, ProxyHeader, Opts) ->
 	Peer0 = Transport:peername(Socket),
 	Sock0 = Transport:sockname(Socket),
 	Cert1 = case Transport:name() of
@@ -157,7 +159,7 @@ init(Parent, Ref, Socket, Transport, Opts) ->
 			LastStreamID = maps:get(max_keepalive, Opts, 100),
 			before_loop(set_timeout(#state{
 				parent=Parent, ref=Ref, socket=Socket,
-				transport=Transport, opts=Opts,
+				transport=Transport, proxy_header=ProxyHeader, opts=Opts,
 				peer=Peer, sock=Sock, cert=Cert,
 				last_streamid=LastStreamID}), <<>>);
 		{{error, Reason}, _, _} ->
@@ -655,7 +657,7 @@ default_port(_) -> 80.
 %% End of request parsing.
 
 request(Buffer, State0=#state{ref=Ref, transport=Transport, peer=Peer, sock=Sock, cert=Cert,
-		in_streamid=StreamID, in_state=
+		proxy_header=ProxyHeader, in_streamid=StreamID, in_state=
 			PS=#ps_header{method=Method, path=Path, qs=Qs, version=Version}},
 		Headers0, Host, Port) ->
 	Scheme = case Transport:secure() of
@@ -691,7 +693,7 @@ request(Buffer, State0=#state{ref=Ref, transport=Transport, peer=Peer, sock=Sock
 		_ ->
 			{Headers0, false, 0, undefined, undefined}
 	end,
-	Req = #{
+	Req0 = #{
 		ref => Ref,
 		pid => self(),
 		streamid => StreamID,
@@ -711,6 +713,11 @@ request(Buffer, State0=#state{ref=Ref, transport=Transport, peer=Peer, sock=Sock
 		has_body => HasBody,
 		body_length => BodyLength
 	},
+	%% We add the PROXY header information if any.
+	Req = case ProxyHeader of
+		undefined -> Req0;
+		_ -> Req0#{proxy_header => ProxyHeader}
+	end,
 	case is_http2_upgrade(Headers, Version) of
 		false ->
 			State = case HasBody of
@@ -754,12 +761,12 @@ is_http2_upgrade(_, _) ->
 
 %% Prior knowledge upgrade, without an HTTP/1.1 request.
 http2_upgrade(State=#state{parent=Parent, ref=Ref, socket=Socket, transport=Transport,
-		opts=Opts, peer=Peer, sock=Sock, cert=Cert}, Buffer) ->
+		proxy_header=ProxyHeader, opts=Opts, peer=Peer, sock=Sock, cert=Cert}, Buffer) ->
 	case Transport:secure() of
 		false ->
 			_ = cancel_timeout(State),
-			cowboy_http2:init(Parent, Ref, Socket, Transport, Opts,
-				Peer, Sock, Cert, Buffer);
+			cowboy_http2:init(Parent, Ref, Socket, Transport,
+				ProxyHeader, Opts, Peer, Sock, Cert, Buffer);
 		true ->
 			error_terminate(400, State, {connection_error, protocol_error,
 				'Clients that support HTTP/2 over TLS MUST use ALPN. (RFC7540 3.4)'})
@@ -767,7 +774,8 @@ http2_upgrade(State=#state{parent=Parent, ref=Ref, socket=Socket, transport=Tran
 
 %% Upgrade via an HTTP/1.1 request.
 http2_upgrade(State=#state{parent=Parent, ref=Ref, socket=Socket, transport=Transport,
-		opts=Opts, peer=Peer, sock=Sock, cert=Cert}, Buffer, HTTP2Settings, Req) ->
+		proxy_header=ProxyHeader, opts=Opts, peer=Peer, sock=Sock, cert=Cert},
+		Buffer, HTTP2Settings, Req) ->
 	%% @todo
 	%% However if the client sent a body, we need to read the body in full
 	%% and if we can't do that, return a 413 response. Some options are in order.
@@ -775,8 +783,8 @@ http2_upgrade(State=#state{parent=Parent, ref=Ref, socket=Socket, transport=Tran
 	try cow_http_hd:parse_http2_settings(HTTP2Settings) of
 		Settings ->
 			_ = cancel_timeout(State),
-			cowboy_http2:init(Parent, Ref, Socket, Transport, Opts,
-				Peer, Sock, Cert, Buffer, Settings, Req)
+			cowboy_http2:init(Parent, Ref, Socket, Transport,
+				ProxyHeader, Opts, Peer, Sock, Cert, Buffer, Settings, Req)
 	catch _:_ ->
 		error_terminate(400, State, {connection_error, protocol_error,
 			'The HTTP2-Settings header must contain a base64 SETTINGS payload. (RFC7540 3.2, RFC7540 3.2.1)'})
