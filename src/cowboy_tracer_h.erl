@@ -42,6 +42,9 @@
 ].
 -export_type([tracer_match_specs/0]).
 
+-type tracer_callback() :: fun((init | terminate | tuple(), any()) -> any()).
+-export_type([tracer_callback/0]).
+
 -spec init(cowboy_stream:streamid(), cowboy_req:req(), cowboy:opts())
 	-> {cowboy_stream:commands(), any()}.
 init(StreamID, Req, Opts) ->

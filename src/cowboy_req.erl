@@ -121,32 +121,45 @@
 }.
 -export_type([push_opts/0]).
 
--type req() :: map(). %% @todo #{
-%	ref := ranch:ref(),
-%	pid := pid(),
-%	streamid := cowboy_stream:streamid(),
-%	peer := {inet:ip_address(), inet:port_number()},
-%	proxy_header => ...
-%
-%	method := binary(), %% case sensitive
-%	version := cowboy:http_version() | atom(),
-%	scheme := binary(), %% <<"http">> or <<"https">>
-%	host := binary(), %% lowercase; case insensitive
-%	port := inet:port_number(),
-%	path := binary(), %% case sensitive
-%	qs := binary(), %% case sensitive
-%	headers := cowboy:http_headers(),
-%
-%	host_info => cowboy_router:tokens(),
-%	path_info => cowboy_router:tokens(),
-%	bindings => cowboy_router:bindings(),
-%
-%	has_body := boolean(),
-%	has_read_body => true,
-%	body_length := undefined | non_neg_integer()
-%
-%% @todo resp_*
-%}.
+-type req() :: #{
+	%% Public interface.
+	method := binary(),
+	version := cowboy:http_version() | atom(),
+	scheme := binary(),
+	host := binary(),
+	port := inet:port_number(),
+	path := binary(),
+	qs := binary(),
+	headers := cowboy:http_headers(),
+	peer := {inet:ip_address(), inet:port_number()},
+	sock := {inet:ip_address(), inet:port_number()},
+	cert := binary() | undefined,
+
+	%% Private interface.
+	ref := ranch:ref(),
+	pid := pid(),
+	streamid := cowboy_stream:streamid(),
+
+	host_info => cowboy_router:tokens(),
+	path_info => cowboy_router:tokens(),
+	bindings => cowboy_router:bindings(),
+
+	has_body := boolean(),
+	body_length := non_neg_integer() | undefined,
+	has_read_body => true,
+	multipart => {binary(), binary()} | done,
+
+	has_sent_resp => headers | true,
+	resp_cookies => #{iodata() => iodata()},
+	resp_headers => #{binary() => iodata()},
+	resp_body => resp_body(),
+
+	proxy_header => ranch_proxy_header:proxy_info(),
+	media_type => {binary(), binary(), [{binary(), binary()}]},
+	language => binary() | undefined,
+	charset => binary() | undefined,
+	websocket_version => 7 | 8 | 13
+}.
 -export_type([req/0]).
 
 %% Request.

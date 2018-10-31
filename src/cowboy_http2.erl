@@ -39,11 +39,15 @@
 	max_encode_table_size => non_neg_integer(),
 	max_frame_size_received => 16384..16777215,
 	max_frame_size_sent => 16384..16777215 | infinity,
+	metrics_callback => cowboy_metrics_h:metrics_callback(),
 	middlewares => [module()],
 	preface_timeout => timeout(),
+	proxy_header => boolean(),
 	settings_timeout => timeout(),
 	shutdown_timeout => timeout(),
-	stream_handlers => [module()]
+	stream_handlers => [module()],
+	tracer_callback => cowboy_tracer_h:tracer_callback(),
+	tracer_match_specs => cowboy_tracer_h:tracer_match_specs()
 }.
 -export_type([opts/0]).
 
@@ -78,7 +82,7 @@
 }).
 
 -spec init(pid(), ranch:ref(), inet:socket(), module(),
-	ranch_proxy_header:proxy_info(), cowboy:opts()) -> ok.
+	ranch_proxy_header:proxy_info() | undefined, cowboy:opts()) -> ok.
 init(Parent, Ref, Socket, Transport, ProxyHeader, Opts) ->
 	Peer0 = Transport:peername(Socket),
 	Sock0 = Transport:sockname(Socket),
@@ -108,7 +112,7 @@ init(Parent, Ref, Socket, Transport, ProxyHeader, Opts) ->
 	end.
 
 -spec init(pid(), ranch:ref(), inet:socket(), module(),
-	ranch_proxy_header:proxy_info(), cowboy:opts(),
+	ranch_proxy_header:proxy_info() | undefined, cowboy:opts(),
 	{inet:ip_address(), inet:port_number()}, {inet:ip_address(), inet:port_number()},
 	binary() | undefined, binary()) -> ok.
 init(Parent, Ref, Socket, Transport, ProxyHeader, Opts, Peer, Sock, Cert, Buffer) ->
@@ -125,7 +129,7 @@ init(Parent, Ref, Socket, Transport, ProxyHeader, Opts, Peer, Sock, Cert, Buffer
 
 %% @todo Add an argument for the request body.
 -spec init(pid(), ranch:ref(), inet:socket(), module(),
-	ranch_proxy_header:proxy_info(), cowboy:opts(),
+	ranch_proxy_header:proxy_info() | undefined, cowboy:opts(),
 	{inet:ip_address(), inet:port_number()}, {inet:ip_address(), inet:port_number()},
 	binary() | undefined, binary(), map() | undefined, cowboy_req:req()) -> ok.
 init(Parent, Ref, Socket, Transport, ProxyHeader, Opts, Peer, Sock, Cert, Buffer,

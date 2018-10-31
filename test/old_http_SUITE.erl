@@ -52,12 +52,12 @@ init_per_group(Name = https, Config) ->
 init_per_group(Name = http_compress, Config) ->
 	cowboy_test:init_http(Name, #{
 		env => #{dispatch => init_dispatch(Config)},
-		compress => true
+		stream_handlers => [cowboy_compress_h, cowboy_stream_h]
 	}, Config);
 init_per_group(Name = https_compress, Config) ->
 	cowboy_test:init_https(Name, #{
 		env => #{dispatch => init_dispatch(Config)},
-		compress => true
+		stream_handlers => [cowboy_compress_h, cowboy_stream_h]
 	}, Config).
 
 end_per_group(Name, _) ->

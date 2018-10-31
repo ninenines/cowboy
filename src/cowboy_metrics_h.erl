@@ -106,6 +106,9 @@
 }.
 -export_type([metrics/0]).
 
+-type metrics_callback() :: fun((metrics()) -> any()).
+-export_type([metrics_callback/0]).
+
 -record(state, {
 	next :: any(),
 	callback :: fun((metrics()) -> any()),

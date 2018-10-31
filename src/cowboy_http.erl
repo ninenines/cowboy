@@ -39,10 +39,14 @@
 	max_keepalive => non_neg_integer(),
 	max_method_length => non_neg_integer(),
 	max_request_line_length => non_neg_integer(),
+	metrics_callback => cowboy_metrics_h:metrics_callback(),
 	middlewares => [module()],
+	proxy_header => boolean(),
 	request_timeout => timeout(),
 	shutdown_timeout => timeout(),
-	stream_handlers => [module()]
+	stream_handlers => [module()],
+	tracer_callback => cowboy_tracer_h:tracer_callback(),
+	tracer_match_specs => cowboy_tracer_h:tracer_match_specs()
 }.
 -export_type([opts/0]).
 
@@ -56,7 +60,7 @@
 	path = undefined :: binary(),
 	qs = undefined :: binary(),
 	version = undefined :: cowboy:http_version(),
-	headers = undefined :: map() | undefined, %% @todo better type than map()
+	headers = undefined :: cowboy:http_headers() | undefined,
 	name = undefined :: binary() | undefined
 }).
 
@@ -99,7 +103,7 @@
 	socket :: inet:socket(),
 	transport :: module(),
 	proxy_header :: undefined | ranch_proxy_header:proxy_info(),
-	opts = #{} :: map(),
+	opts = #{} :: cowboy:opts(),
 
 	%% Remote address and port for the connection.
 	peer = undefined :: {inet:ip_address(), inet:port_number()},

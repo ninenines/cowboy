@@ -23,8 +23,7 @@
 -export([log/2]).
 -export([log/4]).
 
-%% @todo Detailed opts.
--type opts() :: map().
+-type opts() :: cowboy_http:opts() | cowboy_http2:opts().
 -export_type([opts/0]).
 
 -type fields() :: [atom()
