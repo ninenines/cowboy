@@ -31,7 +31,7 @@
 -export([system_terminate/4]).
 -export([system_code_change/4]).
 
--type commands() :: [cow_ws:frame()].
+-type commands() :: [cow_ws:frame() | {active, boolean()}].
 -export_type([commands/0]).
 
 -type call_result(State) :: {commands(), State} | {commands(), State, hibernate}.

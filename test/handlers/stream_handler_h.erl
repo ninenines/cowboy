@@ -107,6 +107,7 @@ early_error(StreamID, Reason, PartialReq, Resp, Opts) ->
 	end.
 
 %% @todo It would be good if we could allow this function to return normally.
+-spec takeover(_, _, _, _, _, _, _) -> no_return().
 takeover(Parent, Ref, Socket, Transport, Opts, Buffer, State=#state{pid=Pid}) ->
 	Pid ! {Pid, self(), takeover, Parent, Ref, Socket, Transport, Opts, Buffer, State},
 	exit(normal).

@@ -2,6 +2,8 @@
 
 -module(resp_iolist_body_h).
 
+-dialyzer(no_improper_lists).
+
 -export([init/2]).
 
 init(Req0, State) ->

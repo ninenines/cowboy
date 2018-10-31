@@ -31,4 +31,5 @@ websocket_info(_, State) ->
 	{ok, State}.
 
 terminate(Reason, Req, #state{pid=Pid}) ->
-	Pid ! {terminate, Reason, Req}.
+	Pid ! {terminate, Reason, Req},
+	ok.

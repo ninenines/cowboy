@@ -535,13 +535,13 @@ read_and_match_urlencoded_body(Fields, Req0, Opts) ->
 %% Multipart.
 
 -spec read_part(Req)
-	-> {ok, cow_multipart:headers(), Req} | {done, Req}
+	-> {ok, cowboy:http_headers(), Req} | {done, Req}
 	when Req::req().
 read_part(Req) ->
 	read_part(Req, #{length => 64000, period => 5000}).
 
 -spec read_part(Req, read_body_opts())
-	-> {ok, #{binary() => binary()}, Req} | {done, Req}
+	-> {ok, cowboy:http_headers(), Req} | {done, Req}
 	when Req::req().
 read_part(Req, Opts) ->
 	case maps:is_key(multipart, Req) of
@@ -822,7 +822,7 @@ stream_trailers(Trailers, #{pid := Pid, streamid := StreamID, has_sent_resp := h
 	Pid ! {{Pid, StreamID}, {trailers, Trailers}},
 	ok.
 
--spec push(binary(), cowboy:http_headers(), req()) -> ok.
+-spec push(iodata(), cowboy:http_headers(), req()) -> ok.
 push(Path, Headers, Req) ->
 	push(Path, Headers, Req, #{}).
 

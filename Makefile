@@ -49,7 +49,7 @@ app:: rebar.config
 
 # Dialyze the tests.
 
-# DIALYZER_OPTS += --src -r test
+DIALYZER_OPTS += --src -r test
 
 # h2spec setup.
 

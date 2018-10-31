@@ -80,7 +80,7 @@ end_per_suite(Config) ->
 	%% Special directory.
 	CharDir = config(char_dir, Config),
 	_ = [file:delete(CharDir ++ [$/, C]) || C <- lists:seq(0, 127)],
-	file:del_dir(CharDir),
+	_ = file:del_dir(CharDir),
 	%% Static directories.
 	StaticDir = config(static_dir, Config),
 	PrivDir = code:priv_dir(ct_helper) ++ "/static",
@@ -162,6 +162,7 @@ init_dispatch(Config) ->
 
 %% Internal functions.
 
+-spec do_etag_crash(_, _, _) -> no_return().
 do_etag_crash(_, _, _) ->
 	ct_helper_error_h:ignore(?MODULE, do_etag_crash, 3),
 	exit(crash).
@@ -169,6 +170,7 @@ do_etag_crash(_, _, _) ->
 do_etag_custom(_, _, _) ->
 	{strong, <<"etag">>}.
 
+-spec do_mime_crash(_) -> no_return().
 do_mime_crash(_) ->
 	ct_helper_error_h:ignore(?MODULE, do_mime_crash, 1),
 	exit(crash).

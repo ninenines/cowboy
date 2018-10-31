@@ -2,6 +2,10 @@
 
 -module(resp_h).
 
+%% @todo Probably should have a separate handler for errors,
+%% so that we can dialyze all the other correct calls.
+-dialyzer({nowarn_function, do/3}).
+
 -export([init/2]).
 
 init(Req, Opts) ->

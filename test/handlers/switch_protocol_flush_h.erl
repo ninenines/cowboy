@@ -27,6 +27,8 @@ info(_, _, State) ->
 terminate(_, _, _) ->
 	ok.
 
+%% @todo It would be good if we could allow this function to return normally.
+-spec takeover(_, _, _, _, _, _, _) -> no_return().
 takeover(_, _, _, _, _, _, Pid) ->
 	Msgs = receive_all([]),
 	Pid ! {Pid, Msgs},

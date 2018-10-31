@@ -181,7 +181,7 @@ http10_hostless(Config) ->
 		tcp -> {ranch_tcp, cowboy_clear};
 		ssl -> {ranch_ssl, cowboy_tls}
 	end,
-	ranch:start_listener(Name, 5, Transport,
+	{ok, _} = ranch:start_listener(Name, 5, Transport,
 		config(opts, Config) ++ [{port, Port10}],
 		Protocol, #{
 			env =>#{dispatch => cowboy_router:compile([
@@ -197,7 +197,7 @@ http10_keepalive_default(Config) ->
 	Normal = "GET / HTTP/1.0\r\nhost: localhost\r\n\r\n",
 	Client = raw_open(Config),
 	ok = raw_send(Client, Normal),
-	case catch raw_recv_head(Client) of
+	_ = case catch raw_recv_head(Client) of
 		{'EXIT', _} -> error(closed);
 		Data ->
 			%% Cowboy always advertises itself as HTTP/1.1.
@@ -215,7 +215,7 @@ http10_keepalive_forced(Config) ->
 	Keepalive = "GET / HTTP/1.0\r\nhost: localhost\r\nConnection: keep-alive\r\n\r\n",
 	Client = raw_open(Config),
 	ok = raw_send(Client, Keepalive),
-	case catch raw_recv_head(Client) of
+	_ = case catch raw_recv_head(Client) of
 		{'EXIT', _} -> error(closed);
 		Data ->
 			%% Cowboy always advertises itself as HTTP/1.1.
@@ -268,7 +268,7 @@ do_nc(Config, Input) ->
 		_Good ->
 			%% Throw garbage at the server then check if it's still up.
 			StrPort = integer_to_list(config(port, Config)),
-			[os:cmd("cat " ++ Input ++ " | nc localhost " ++ StrPort)
+			_ = [os:cmd("cat " ++ Input ++ " | nc localhost " ++ StrPort)
 				|| _ <- lists:seq(1, 100)],
 			200 = do_get("/", Config)
 	end.
