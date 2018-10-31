@@ -52,19 +52,12 @@ init_per_group(Name=h2, Config) ->
 		env => #{dispatch => init_dispatch()},
 		proxy_header => true
 	}, Config);
-init_per_group(Name=h2c, Config) ->
+init_per_group(Name, Config) ->
 	Config1 = cowboy_test:init_http(Name, #{
 		env => #{dispatch => init_dispatch()},
 		proxy_header => true
 	}, Config),
-	lists:keyreplace(protocol, 1, Config1, {protocol, http2});
-init_per_group(Name=h2c_upgrade, Config) ->
-	Config1 = cowboy_test:init_http(h2c, #{
-		env => #{dispatch => init_dispatch()},
-		proxy_header => true
-	}, Config),
-	Config2 = lists:keyreplace(protocol, 1, Config1, {protocol, http2}),
-	lists:keyreplace(ref, 1, Config2, {ref, Name}).
+	lists:keyreplace(protocol, 1, Config1, {protocol, http2}).
 
 end_per_group(Name, _) ->
 	cowboy:stop_listener(Name).
