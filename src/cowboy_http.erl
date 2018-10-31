@@ -899,7 +899,8 @@ commands(State, StreamID, [{flow, _Length}|Tail]) ->
 
 	commands(State, StreamID, Tail);
 %% Error responses are sent only if a response wasn't sent already.
-commands(State=#state{out_state=wait}, StreamID, [{error_response, Status, Headers0, Body}|Tail]) ->
+commands(State=#state{out_state=wait, out_streamid=StreamID}, StreamID,
+		[{error_response, Status, Headers0, Body}|Tail]) ->
 	%% We close the connection when the error response is 408, as it
 	%% indicates a timeout and the RFC recommends that we stop here. (RFC7231 6.5.7)
 	Headers = case Status of
