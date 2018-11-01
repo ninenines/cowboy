@@ -28,7 +28,7 @@ content_types_provided(Req, State) ->
 	], Req, State}.
 
 content_types_accepted(Req, State) ->
-	{[{{<<"application">>, <<"x-www-form-urlencoded">>, []}, create_paste}],
+	{[{{<<"application">>, <<"x-www-form-urlencoded">>, '*'}, create_paste}],
 		Req, State}.
 
 resource_exists(Req, _State) ->
