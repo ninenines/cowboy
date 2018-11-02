@@ -175,6 +175,9 @@ req() :: #{
 }
 ----
 
+Note that Cowboy will only append the charset to the
+content-type header of the response if the media type is text.
+
 === content_types_accepted
 
 [source,erlang]

@@ -39,6 +39,8 @@ end_per_group(Name, _) ->
 init_dispatch(_) ->
 	cowboy_router:compile([{'_', [
 		{"/", rest_hello_h, []},
+		{"/charsets_provided", charsets_provided_h, []},
+		{"/charsets_provided_empty", charsets_provided_empty_h, []},
 		{"/charset_in_content_types_provided",
 			charset_in_content_types_provided_h, []},
 		{"/charset_in_content_types_provided_implicit",
@@ -146,6 +148,136 @@ charset_in_content_types_provided_implicit_no_callback(Config) ->
 	{response, _, 200, Headers} = gun:await(ConnPid, Ref),
 	%% The charset is ignored as if it was any other parameter.
 	{_, <<"text/plain">>} = lists:keyfind(<<"content-type">>, 1, Headers),
+	ok.
+
+charsets_provided_match_text(Config) ->
+	doc("When the media type is text and the charsets_provided callback exists "
+		"and the accept-charset header was sent, the selected charset is sent "
+		"back in the content-type of the response."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/charsets_provided", [
+		{<<"accept">>, <<"text/plain">>},
+		{<<"accept-charset">>, <<"utf-8;q=0.5, utf-16">>},
+		{<<"accept-encoding">>, <<"gzip">>}
+	]),
+	{response, _, 200, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"text/plain; charset=utf-16">>} = lists:keyfind(<<"content-type">>, 1, Headers),
+	ok.
+
+charsets_provided_match_other(Config) ->
+	doc("When the media type is not text and the charsets_provided callback exists "
+		"and the accept-charset header was sent, the selected charset is not sent "
+		"back in the content-type of the response."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/charsets_provided", [
+		{<<"accept">>, <<"application/json">>},
+		{<<"accept-charset">>, <<"utf-8;q=0.5, utf-16">>},
+		{<<"accept-encoding">>, <<"gzip">>}
+	]),
+	{response, _, 200, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"application/json">>} = lists:keyfind(<<"content-type">>, 1, Headers),
+	ok.
+
+charsets_provided_wildcard_text(Config) ->
+	doc("When the media type is text and the charsets_provided callback exists "
+		"and a wildcard accept-charset header was sent, the selected charset is sent "
+		"back in the content-type of the response."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/charsets_provided", [
+		{<<"accept">>, <<"text/plain">>},
+		{<<"accept-charset">>, <<"*">>},
+		{<<"accept-encoding">>, <<"gzip">>}
+	]),
+	{response, _, 200, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"text/plain; charset=utf-8">>} = lists:keyfind(<<"content-type">>, 1, Headers),
+	ok.
+
+charsets_provided_wildcard_other(Config) ->
+	doc("When the media type is not text and the charsets_provided callback exists "
+		"and a wildcard accept-charset header was sent, the selected charset is not sent "
+		"back in the content-type of the response."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/charsets_provided", [
+		{<<"accept">>, <<"application/json">>},
+		{<<"accept-charset">>, <<"*">>},
+		{<<"accept-encoding">>, <<"gzip">>}
+	]),
+	{response, _, 200, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"application/json">>} = lists:keyfind(<<"content-type">>, 1, Headers),
+	ok.
+
+charsets_provided_nomatch(Config) ->
+	doc("Regardless of the media type negotiated, if no charset is found in the "
+		"accept-charset header match a charset configured in charsets_provided, "
+		"then a 406 not acceptable response is sent back."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/charsets_provided", [
+		{<<"accept">>, <<"text/plain">>},
+		{<<"accept-charset">>, <<"utf-8;q=0, iso-8859-1">>},
+		{<<"accept-encoding">>, <<"gzip">>}
+	]),
+	{response, _, 406, _} = gun:await(ConnPid, Ref),
+	ok.
+
+charsets_provided_noheader_text(Config) ->
+	doc("When the media type is text and the charsets_provided callback exists "
+		"but the accept-charset header was not sent, the first charset in the "
+		"list is selected and sent back in the content-type of the response."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/charsets_provided", [
+		{<<"accept">>, <<"text/plain">>},
+		{<<"accept-encoding">>, <<"gzip">>}
+	]),
+	{response, _, 200, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"text/plain; charset=utf-8">>} = lists:keyfind(<<"content-type">>, 1, Headers),
+	ok.
+
+charsets_provided_noheader_other(Config) ->
+	doc("When the media type is not text and the charsets_provided callback exists "
+		"but the accept-charset header was not sent, the first charset in the "
+		"list is selected but is not sent back in the content-type of the response."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/charsets_provided", [
+		{<<"accept">>, <<"application/json">>},
+		{<<"accept-encoding">>, <<"gzip">>}
+	]),
+	{response, _, 200, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"application/json">>} = lists:keyfind(<<"content-type">>, 1, Headers),
+	ok.
+
+charsets_provided_empty(Config) ->
+	doc("Regardless of the media type negotiated, if the charsets_provided "
+		"callback returns an empty list a 406 not acceptable response is sent back."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/charsets_provided_empty", [
+		{<<"accept">>, <<"text/plain">>},
+		{<<"accept-charset">>, <<"utf-8q=0.5, utf-16">>},
+		{<<"accept-encoding">>, <<"gzip">>}
+	]),
+	{response, _, 406, _} = gun:await(ConnPid, Ref),
+	ok.
+
+charsets_provided_empty_wildcard(Config) ->
+	doc("Regardless of the media type negotiated, if the charsets_provided "
+		"callback returns an empty list a 406 not acceptable response is sent back."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/charsets_provided_empty", [
+		{<<"accept">>, <<"text/plain">>},
+		{<<"accept-charset">>, <<"*">>},
+		{<<"accept-encoding">>, <<"gzip">>}
+	]),
+	{response, _, 406, _} = gun:await(ConnPid, Ref),
+	ok.
+
+charsets_provided_empty_noheader(Config) ->
+	doc("Regardless of the media type negotiated, if the charsets_provided "
+		"callback returns an empty list a 406 not acceptable response is sent back."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/charsets_provided_empty", [
+		{<<"accept">>, <<"text/plain">>},
+		{<<"accept-encoding">>, <<"gzip">>}
+	]),
+	{response, _, 406, _} = gun:await(ConnPid, Ref),
 	ok.
 
 provide_callback_missing(Config) ->

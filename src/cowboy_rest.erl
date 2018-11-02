@@ -680,11 +680,16 @@ prioritize_charsets(AcceptCharsets) ->
 
 choose_charset(Req, State, []) ->
 	not_acceptable(Req, State);
+%% A q-value of 0 means not acceptable.
+choose_charset(Req, State, [{_, 0}|Tail]) ->
+	choose_charset(Req, State, Tail);
 choose_charset(Req, State=#state{charsets_p=CP}, [Charset|Tail]) ->
 	match_charset(Req, State, Tail, CP, Charset).
 
 match_charset(Req, State, Accept, [], _Charset) ->
 	choose_charset(Req, State, Accept);
+match_charset(Req, State, _Accept, [Provided|_], {<<"*">>, _}) ->
+	set_content_type(Req, State#state{charset_a=Provided});
 match_charset(Req, State, _Accept, [Provided|_], {Provided, _}) ->
 	set_content_type(Req, State#state{charset_a=Provided});
 match_charset(Req, State, Accept, [_|Tail], Charset) ->
@@ -695,9 +700,11 @@ set_content_type(Req, State=#state{
 		charset_a=Charset}) ->
 	ParamsBin = set_content_type_build_params(Params, []),
 	ContentType = [Type, <<"/">>, SubType, ParamsBin],
-	ContentType2 = case Charset of
-		undefined -> ContentType;
-		Charset -> [ContentType, <<"; charset=">>, Charset]
+	ContentType2 = case {Type, Charset} of
+		{<<"text">>, Charset} when Charset =/= undefined ->
+			[ContentType, <<"; charset=">>, Charset];
+		_ ->
+			ContentType
 	end,
 	Req2 = cowboy_req:set_resp_header(<<"content-type">>, ContentType2, Req),
 	encodings_provided(Req2#{charset => Charset}, State).
