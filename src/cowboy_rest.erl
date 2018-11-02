@@ -245,7 +245,7 @@
 	language_a :: undefined | binary(),
 
 	%% Charset.
-	charsets_p = [] :: [binary()],
+	charsets_p = undefined :: undefined | [binary()],
 	charset_a :: undefined | binary(),
 
 	%% Whether the resource exists.
@@ -503,16 +503,55 @@ match_media_type(Req, State, Accept,
 match_media_type(Req, State, Accept, [_Any|Tail], MediaType) ->
 	match_media_type(Req, State, Accept, Tail, MediaType).
 
-match_media_type_params(Req, State, _Accept,
-		[Provided = {{TP, STP, '*'}, _Fun}|_Tail],
-		{{_TA, _STA, Params_A}, _QA, _APA}) ->
-	PMT = {TP, STP, Params_A},
-	languages_provided(Req#{media_type => PMT},
-		State#state{content_type_a=Provided});
 match_media_type_params(Req, State, Accept,
-		[Provided = {PMT = {_TP, _STP, Params_P}, _Fun}|Tail],
+		[Provided = {{TP, STP, '*'}, _Fun}|Tail],
+		MediaType = {{TA, _STA, Params_A0}, _QA, _APA}) ->
+	case lists:keytake(<<"charset">>, 1, Params_A0) of
+		{value, {_, Charset}, Params_A} when TA =:= <<"text">> ->
+			%% When we match against a wildcard, the media type is text
+			%% and has a charset parameter, we call charsets_provided
+			%% and check that the charset is provided. If the callback
+			%% is not exported, we accept inconditionally but ignore
+			%% the given charset so as to not send a wrong value back.
+			case call(Req, State, charsets_provided) of
+				no_call ->
+					languages_provided(Req#{media_type => {TP, STP, Params_A0}},
+						State#state{content_type_a=Provided});
+				{stop, Req2, HandlerState} ->
+					terminate(Req2, State#state{handler_state=HandlerState});
+				{Switch, Req2, HandlerState} when element(1, Switch) =:= switch_handler ->
+					switch_handler(Switch, Req2, HandlerState);
+				{CP, Req2, HandlerState} ->
+					State2 = State#state{handler_state=HandlerState, charsets_p=CP},
+					case lists:member(Charset, CP) of
+						false ->
+							match_media_type(Req2, State2, Accept, Tail, MediaType);
+						true ->
+							languages_provided(Req2#{media_type => {TP, STP, Params_A}},
+								State2#state{content_type_a=Provided,
+									charset_a=Charset})
+					end
+			end;
+		_ ->
+			languages_provided(Req#{media_type => {TP, STP, Params_A0}},
+				State#state{content_type_a=Provided})
+	end;
+match_media_type_params(Req, State, Accept,
+		[Provided = {PMT = {TP, STP, Params_P0}, Fun}|Tail],
 		MediaType = {{_TA, _STA, Params_A}, _QA, _APA}) ->
-	case lists:sort(Params_P) =:= lists:sort(Params_A) of
+	case lists:sort(Params_P0) =:= lists:sort(Params_A) of
+		true when TP =:= <<"text">> ->
+			%% When a charset was provided explicitly in both the charset header
+			%% and the media types provided and the negotiation is successful,
+			%% we keep the charset and don't call charsets_provided. This only
+			%% applies to text media types, however.
+			{Charset, Params_P} = case lists:keytake(<<"charset">>, 1, Params_P0) of
+				false -> {undefined, Params_P0};
+				{value, {_, Charset0}, Params_P1} -> {Charset0, Params_P1}
+			end,
+			languages_provided(Req#{media_type => {TP, STP, Params_P}},
+				State#state{content_type_a={{TP, STP, Params_P}, Fun},
+					charset_a=Charset});
 		true ->
 			languages_provided(Req#{media_type => PMT},
 				State#state{content_type_a=Provided});
@@ -587,6 +626,26 @@ set_language(Req, State=#state{language_a=Language}) ->
 
 %% charsets_provided should return a list of binary values indicating
 %% which charsets are accepted by the resource.
+%%
+%% A charset may have been selected while negotiating the accept header.
+%% There's no need to select one again.
+charsets_provided(Req, State=#state{charset_a=Charset})
+		when Charset =/= undefined ->
+	set_content_type(Req, State);
+%% If charsets_p is defined, use it instead of calling charsets_provided
+%% again. We also call this clause during normal execution to avoid
+%% duplicating code.
+charsets_provided(Req, State=#state{charsets_p=[]}) ->
+	not_acceptable(Req, State);
+charsets_provided(Req, State=#state{charsets_p=CP})
+		when CP =/= undefined ->
+	case cowboy_req:parse_header(<<"accept-charset">>, Req) of
+		undefined ->
+			set_content_type(Req, State#state{charset_a=hd(CP)});
+		AcceptCharset0 ->
+			AcceptCharset = prioritize_charsets(AcceptCharset0),
+			choose_charset(Req, State, AcceptCharset)
+	end;
 charsets_provided(Req, State) ->
 	case call(Req, State, charsets_provided) of
 		no_call ->
@@ -595,17 +654,8 @@ charsets_provided(Req, State) ->
 			terminate(Req2, State#state{handler_state=HandlerState});
 		{Switch, Req2, HandlerState} when element(1, Switch) =:= switch_handler ->
 			switch_handler(Switch, Req2, HandlerState);
-		{[], Req2, HandlerState} ->
-			not_acceptable(Req2, State#state{handler_state=HandlerState});
 		{CP, Req2, HandlerState} ->
-			State2 = State#state{handler_state=HandlerState, charsets_p=CP},
-			case cowboy_req:parse_header(<<"accept-charset">>, Req2) of
-				undefined ->
-					set_content_type(Req2, State2#state{charset_a=hd(CP)});
-				AcceptCharset ->
-					AcceptCharset2 = prioritize_charsets(AcceptCharset),
-					choose_charset(Req2, State2, AcceptCharset2)
-			end
+			charsets_provided(Req2, State#state{handler_state=HandlerState, charsets_p=CP})
 	end.
 
 %% The special value "*", if present in the Accept-Charset field,
@@ -690,6 +740,7 @@ variances(Req, State=#state{content_types_p=CTP,
 		[_|_] -> [<<"accept-language">>|Variances]
 	end,
 	Variances3 = case CP of
+		undefined -> Variances2;
 		[] -> Variances2;
 		[_] -> Variances2;
 		[_|_] -> [<<"accept-charset">>|Variances2]

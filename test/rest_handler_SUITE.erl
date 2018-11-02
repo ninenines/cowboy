@@ -39,6 +39,12 @@ end_per_group(Name, _) ->
 init_dispatch(_) ->
 	cowboy_router:compile([{'_', [
 		{"/", rest_hello_h, []},
+		{"/charset_in_content_types_provided",
+			charset_in_content_types_provided_h, []},
+		{"/charset_in_content_types_provided_implicit",
+			charset_in_content_types_provided_implicit_h, []},
+		{"/charset_in_content_types_provided_implicit_no_callback",
+			charset_in_content_types_provided_implicit_no_callback_h, []},
 		{"/provide_callback_missing", provide_callback_missing_h, []},
 		{"/switch_handler", switch_handler_h, run},
 		{"/switch_handler_opts", switch_handler_h, hibernate}
@@ -72,6 +78,74 @@ error_on_malformed_if_none_match(Config) ->
 		{<<"if-none-match">>, <<"bad">>}
 	]),
 	{response, _, 400, _} = gun:await(ConnPid, Ref),
+	ok.
+
+charset_in_content_types_provided(Config) ->
+	doc("When a charset is matched explictly in content_types_provided, "
+		"that charset is used and the charsets_provided callback is ignored."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/charset_in_content_types_provided", [
+		{<<"accept">>, <<"text/plain;charset=utf-8">>},
+		{<<"accept-charset">>, <<"utf-16, utf-8;q=0.5">>},
+		{<<"accept-encoding">>, <<"gzip">>}
+	]),
+	{response, _, 200, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"text/plain; charset=utf-8">>} = lists:keyfind(<<"content-type">>, 1, Headers),
+	ok.
+
+charset_in_content_types_provided_implicit_match(Config) ->
+	doc("When a charset is matched implicitly in content_types_provided, "
+		"the charsets_provided callback is used to determine if the media "
+		"type will match."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/charset_in_content_types_provided_implicit", [
+		{<<"accept">>, <<"text/plain;charset=utf-16">>},
+		{<<"accept-encoding">>, <<"gzip">>}
+	]),
+	{response, _, 200, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"text/plain; charset=utf-16">>} = lists:keyfind(<<"content-type">>, 1, Headers),
+	ok.
+
+charset_in_content_types_provided_implicit_nomatch(Config) ->
+	doc("When a charset is matched implicitly in content_types_provided, "
+		"the charsets_provided callback is used to determine if the media "
+		"type will match. If it doesn't, try the next media type."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/charset_in_content_types_provided_implicit", [
+		{<<"accept">>, <<"text/plain;charset=utf-32, text/plain">>},
+		{<<"accept-encoding">>, <<"gzip">>}
+	]),
+	{response, _, 200, Headers} = gun:await(ConnPid, Ref),
+	%% We end up with the first charset listed in charsets_provided.
+	{_, <<"text/plain; charset=utf-8">>} = lists:keyfind(<<"content-type">>, 1, Headers),
+	ok.
+
+charset_in_content_types_provided_implicit_nomatch_error(Config) ->
+	doc("When a charset is matched implicitly in content_types_provided, "
+		"the charsets_provided callback is used to determine if the media "
+		"type will match. If it doesn't, and there's no other media type, "
+		"a 406 is returned."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/charset_in_content_types_provided_implicit", [
+		{<<"accept">>, <<"text/plain;charset=utf-32">>},
+		{<<"accept-encoding">>, <<"gzip">>}
+	]),
+	{response, _, 406, _} = gun:await(ConnPid, Ref),
+	ok.
+
+charset_in_content_types_provided_implicit_no_callback(Config) ->
+	doc("When a charset is matched implicitly in content_types_provided, "
+		"and the charsets_provided callback is not exported, the media "
+		"type will match but the charset will be ignored like all other "
+		"parameters."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/charset_in_content_types_provided_implicit_no_callback", [
+		{<<"accept">>, <<"text/plain;charset=utf-32">>},
+		{<<"accept-encoding">>, <<"gzip">>}
+	]),
+	{response, _, 200, Headers} = gun:await(ConnPid, Ref),
+	%% The charset is ignored as if it was any other parameter.
+	{_, <<"text/plain">>} = lists:keyfind(<<"content-type">>, 1, Headers),
 	ok.
 
 provide_callback_missing(Config) ->

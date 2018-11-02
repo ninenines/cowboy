@@ -272,6 +272,16 @@ Cowboy treats all parameters as case sensitive, except for the
 should therefore always provide the charset as a lowercase
 binary string.
 
+When a charset is given in the media type parameters in the
+accept header, Cowboy will do some additional checks to confirm
+that it can use this charset. When the wildcard is used then Cowboy
+will immediately call `charsets_provided` to confirm the charset
+is acceptable. If the callback is undefined Cowboy assumes any
+charset is acceptable. When the wildcard is not used and the charset
+given in the accept header matches one of the configured media
+types Cowboy will use that charset and skip the `charsets_provided`
+step entirely.
+
 Cowboy will add the negotiated `media_type` to the Req object
 after this step completes:
 
@@ -283,6 +293,16 @@ req() :: #{
 ----
 
 // @todo Case sensitivity of parsed mime content?
+
+Cowboy may also add the negotiated `charset` to the Req object
+after this step completes:
+
+[source,erlang]
+----
+req() :: #{
+    charset => binary()  %% lowercase; case insensitive
+}
+----
 
 === delete_completed
 
