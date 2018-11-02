@@ -658,25 +658,11 @@ charsets_provided(Req, State) ->
 			charsets_provided(Req2, State#state{handler_state=HandlerState, charsets_p=CP})
 	end.
 
-%% The special value "*", if present in the Accept-Charset field,
-%% matches every character set (including ISO-8859-1) which is not
-%% mentioned elsewhere in the Accept-Charset field. If no "*" is present
-%% in an Accept-Charset field, then all character sets not explicitly
-%% mentioned get a quality value of 0, except for ISO-8859-1, which gets
-%% a quality value of 1 if not explicitly mentioned.
 prioritize_charsets(AcceptCharsets) ->
-	AcceptCharsets2 = lists:sort(
+	lists:sort(
 		fun ({_CharsetA, QualityA}, {_CharsetB, QualityB}) ->
 			QualityA > QualityB
-		end, AcceptCharsets),
-	case lists:keymember(<<"*">>, 1, AcceptCharsets2) of
-		true -> AcceptCharsets2;
-		false ->
-			case lists:keymember(<<"iso-8859-1">>, 1, AcceptCharsets2) of
-				true -> AcceptCharsets2;
-				false -> [{<<"iso-8859-1">>, 1000}|AcceptCharsets2]
-			end
-	end.
+		end, AcceptCharsets).
 
 choose_charset(Req, State, []) ->
 	not_acceptable(Req, State);
