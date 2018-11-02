@@ -19,11 +19,13 @@
 -export([malformed_request/2]).
 -export([forbidden/2]).
 -export([content_types_provided/2]).
+-export([charsets_provided/2]).
 -export([resource_exists/2]).
 -export([last_modified/2]).
 -export([generate_etag/2]).
 -export([get_file/2]).
 
+-type extra_charset() :: {charset, module(), function()} | {charset, binary()}.
 -type extra_etag() :: {etag, module(), function()} | {etag, false}.
 -type extra_mimetypes() :: {mimetypes, module(), function()}
 	| {mimetypes, binary() | {binary(), binary(), [{binary(), binary()}]}}.
@@ -320,6 +322,22 @@ content_types_provided(Req, State={Path, _, Extra}) ->
 			{[{Module:Function(Path), get_file}], Req, State};
 		{mimetypes, Type} ->
 			{[{Type, get_file}], Req, State}
+	end.
+
+%% Detect the charset of the file.
+
+-spec charsets_provided(Req, State)
+	-> {[binary()], Req, State}
+	when State::state().
+charsets_provided(Req, State={Path, _, Extra}) ->
+	case lists:keyfind(charset, 1, Extra) of
+		%% We simulate the callback not being exported.
+		false ->
+			no_call;
+		{charset, Module, Function} ->
+			{[Module:Function(Path)], Req, State};
+		{charset, Charset} ->
+			{[Charset], Req, State}
 	end.
 
 %% Assume the resource doesn't exist if it's not a regular file.

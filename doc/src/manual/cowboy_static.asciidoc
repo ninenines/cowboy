@@ -27,7 +27,10 @@ opts() :: {priv_file, App, Path}
 
 App        :: atom()
 Path       :: binary() | string()
-Extra      :: [Etag | Mimetypes]
+Extra      :: [Charset | Etag | Mimetypes]
+
+Charset    :: {charset, module(), function()}
+            | {charset, binary()}
 
 Etag       :: {etag, module(), function()}
             | {etag, false}
@@ -72,6 +75,20 @@ current directory.
 The extra options allow you to define how the etag should be
 calculated and how the MIME type of files should be detected.
 
+By default the static handler will not send a charset with
+the response. You can provide a specific charset that will
+be used for all files using the text media type, or provide
+a module and function that will be called when needed:
+
+[source,erlang]
+----
+detect_charset(Path :: binary()) -> Charset :: binary()
+----
+
+A charset must always be returned even if it doesn't make
+sense considering the media type of the file. A good default
+is `<<"utf-8">>`.
+
 By default the static handler will generate an etag based
 on the size and modification time of the file. You may disable
 the etag entirely with `{etag, false}` or provide a module
@@ -112,6 +129,7 @@ when it fails to detect a file's MIME type.
 
 == Changelog
 
+* *2.6*: The `charset` extra option was added.
 * *1.0*: Handler introduced.
 
 == Examples

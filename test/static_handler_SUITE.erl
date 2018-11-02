@@ -132,6 +132,12 @@ init_dispatch(Config) ->
 			[{mimetypes, <<"application/vnd.ninenines.cowboy+xml;v=1">>}]}},
 		{"/mime/hardcode/tuple-form", cowboy_static, {priv_file, ct_helper, "static/file.cowboy",
 			[{mimetypes, {<<"application">>, <<"vnd.ninenines.cowboy+xml">>, [{<<"v">>, <<"1">>}]}}]}},
+		{"/charset/custom/[...]", cowboy_static, {priv_dir, ct_helper, "static",
+			[{charset, ?MODULE, do_charset_custom}]}},
+		{"/charset/crash/[...]", cowboy_static, {priv_dir, ct_helper, "static",
+			[{charset, ?MODULE, do_charset_crash}]}},
+		{"/charset/hardcode/[...]", cowboy_static, {priv_file, ct_helper, "static/index.html",
+			[{charset, <<"utf-8">>}]}},
 		{"/etag/custom", cowboy_static, {file, config(static_dir, Config) ++ "/style.css",
 			[{etag, ?MODULE, do_etag_custom}]}},
 		{"/etag/crash", cowboy_static, {file, config(static_dir, Config) ++ "/style.css",
@@ -151,6 +157,7 @@ init_dispatch(Config) ->
 		{"/bad/file/path", cowboy_static, {file, "/bad/path/style.css"}},
 		{"/bad/options", cowboy_static, {priv_file, ct_helper, "static/style.css", bad}},
 		{"/bad/options/mime", cowboy_static, {priv_file, ct_helper, "static/style.css", [{mimetypes, bad}]}},
+		{"/bad/options/charset", cowboy_static, {priv_file, ct_helper, "static/style.css", [{charset, bad}]}},
 		{"/bad/options/etag", cowboy_static, {priv_file, ct_helper, "static/style.css", [{etag, true}]}},
 		{"/unknown/option", cowboy_static, {priv_file, ct_helper, "static/style.css", [{bad, option}]}},
 		{"/char/[...]", cowboy_static, {dir, config(char_dir, Config)}},
@@ -161,6 +168,18 @@ init_dispatch(Config) ->
 	]}]).
 
 %% Internal functions.
+
+-spec do_charset_crash(_) -> no_return().
+do_charset_crash(_) ->
+	ct_helper_error_h:ignore(?MODULE, do_charset_crash, 1),
+	exit(crash).
+
+do_charset_custom(Path) ->
+	case filename:extension(Path) of
+		<<".cowboy">> -> <<"utf-32">>;
+		<<".html">> -> <<"utf-16">>;
+		_ -> <<"utf-8">>
+	end.
 
 -spec do_etag_crash(_, _, _) -> no_return().
 do_etag_crash(_, _, _) ->
@@ -746,15 +765,44 @@ mime_custom_txt(Config) ->
 	ok.
 
 mime_hardcode_binary(Config) ->
-	doc("Get a .cowboy file with hardcoded route."),
+	doc("Get a .cowboy file with hardcoded route and media type in binary form."),
 	{200, Headers, _} = do_get("/mime/hardcode/binary-form", Config),
 	{_, <<"application/vnd.ninenines.cowboy+xml;v=1">>} = lists:keyfind(<<"content-type">>, 1, Headers),
 	ok.
 
 mime_hardcode_tuple(Config) ->
-	doc("Get a .cowboy file with hardcoded route."),
+	doc("Get a .cowboy file with hardcoded route and media type in tuple form."),
 	{200, Headers, _} = do_get("/mime/hardcode/tuple-form", Config),
 	{_, <<"application/vnd.ninenines.cowboy+xml;v=1">>} = lists:keyfind(<<"content-type">>, 1, Headers),
+	ok.
+
+charset_crash(Config) ->
+	doc("Get a file with a crashing charset function."),
+	{500, _, _} = do_get("/charset/crash/style.css", Config),
+	ok.
+
+charset_custom_cowboy(Config) ->
+	doc("Get a .cowboy file."),
+	{200, Headers, _} = do_get("/charset/custom/file.cowboy", Config),
+	{_, <<"application/octet-stream">>} = lists:keyfind(<<"content-type">>, 1, Headers),
+	ok.
+
+charset_custom_css(Config) ->
+	doc("Get a .css file."),
+	{200, Headers, _} = do_get("/charset/custom/style.css", Config),
+	{_, <<"text/css; charset=utf-8">>} = lists:keyfind(<<"content-type">>, 1, Headers),
+	ok.
+
+charset_custom_html(Config) ->
+	doc("Get a .html file."),
+	{200, Headers, _} = do_get("/charset/custom/index.html", Config),
+	{_, <<"text/html; charset=utf-16">>} = lists:keyfind(<<"content-type">>, 1, Headers),
+	ok.
+
+charset_hardcode_binary(Config) ->
+	doc("Get a .html file with hardcoded route and charset."),
+	{200, Headers, _} = do_get("/charset/hardcode", Config),
+	{_, <<"text/html; charset=utf-8">>} = lists:keyfind(<<"content-type">>, 1, Headers),
 	ok.
 
 priv_dir_in_ez_archive(Config) ->
