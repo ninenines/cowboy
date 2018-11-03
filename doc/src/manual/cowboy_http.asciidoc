@@ -32,6 +32,7 @@ opts() :: #{
     max_skip_body_length    => non_neg_integer(),
     middlewares             => [module()],
     request_timeout         => timeout(),
+    sendfile                => boolean(),
     shutdown_timeout        => timeout(),
     stream_handlers         => [module()]
 }
@@ -96,6 +97,11 @@ middlewares ([cowboy_router, cowboy_handler])::
 request_timeout (5000)::
     Time in ms with no requests before Cowboy closes the connection.
 
+sendfile (true)::
+    Whether the sendfile syscall may be used. It can be useful to disable
+    it on systems where the syscall has a buggy implementation, for example
+    under VirtualBox when using shared folders.
+
 shutdown_timeout (5000)::
     Time in ms Cowboy will wait for child processes to shut down before killing them.
 
@@ -104,6 +110,7 @@ stream_handlers ([cowboy_stream_h])::
 
 == Changelog
 
+* *2.6*: The `sendfile` option was added.
 * *2.5*: The `linger_timeout` option was added.
 * *2.2*: The `max_skip_body_length` option was added.
 * *2.0*: The `timeout` option was renamed `request_timeout`.

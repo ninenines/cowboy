@@ -44,6 +44,7 @@
 	middlewares => [module()],
 	proxy_header => boolean(),
 	request_timeout => timeout(),
+	sendfile => boolean(),
 	shutdown_timeout => timeout(),
 	stream_handlers => [module()],
 	tracer_callback => cowboy_tracer_h:tracer_callback(),
@@ -1050,7 +1051,7 @@ commands(State=#state{socket=Socket, transport=Transport, streams=Streams, out_s
 	end,
 	commands(State#state{out_state=done}, StreamID, Tail);
 %% Send a file.
-commands(State0=#state{socket=Socket, transport=Transport}, StreamID,
+commands(State0=#state{socket=Socket, transport=Transport, opts=Opts}, StreamID,
 		[{sendfile, IsFin, Offset, Bytes, Path}|Tail]) ->
 	%% @todo exit with response_body_too_large if we exceed content-length
 	%% We wrap the sendfile call into a try/catch because on OTP-20
@@ -1066,7 +1067,11 @@ commands(State0=#state{socket=Socket, transport=Transport}, StreamID,
 	%% This try/catch prevents some noisy logs to be written
 	%% when these errors occur.
 	try
-		Transport:sendfile(Socket, Path, Offset, Bytes),
+		%% When sendfile is disabled we explicitly use the fallback.
+		_ = case maps:get(sendfile, Opts, true) of
+			true -> Transport:sendfile(Socket, Path, Offset, Bytes);
+			false -> ranch_transport:sendfile(Transport, Socket, Path, Offset, Bytes, [])
+		end,
 		State = case IsFin of
 			fin -> State0#state{out_state=done}
 %% @todo Add the sendfile command.

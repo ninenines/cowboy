@@ -23,7 +23,10 @@
 %% ct.
 
 all() ->
-	cowboy_test:common_all().
+	cowboy_test:common_all() ++ [
+		{group, http_no_sendfile},
+		{group, h2c_no_sendfile}
+	].
 
 groups() ->
 	AllTests = ct_helper:all(?MODULE),
@@ -44,7 +47,10 @@ groups() ->
 		{http_compress, [parallel], GroupTests},
 		{https_compress, [parallel], GroupTests},
 		{h2_compress, [parallel], GroupTests},
-		{h2c_compress, [parallel], GroupTests}
+		{h2c_compress, [parallel], GroupTests},
+		%% No real need to test sendfile disabled against https or h2.
+		{http_no_sendfile, [parallel], GroupTests},
+		{h2c_no_sendfile, [parallel], GroupTests}
 	].
 
 init_per_suite(Config) ->
@@ -94,8 +100,17 @@ init_per_group(dir, Config) ->
 	[{prefix, "/dir"}|Config];
 init_per_group(priv_dir, Config) ->
 	[{prefix, "/priv_dir"}|Config];
-init_per_group(tttt, Config) ->
-	Config;
+init_per_group(Name=http_no_sendfile, Config) ->
+	cowboy_test:init_http(Name, #{
+		env => #{dispatch => init_dispatch(Config)},
+		sendfile => false
+	}, [{flavor, vanilla}|Config]);
+init_per_group(Name=h2c_no_sendfile, Config) ->
+	Config1 = cowboy_test:init_http(Name, #{
+		env => #{dispatch => init_dispatch(Config)},
+		sendfile => false
+	}, [{flavor, vanilla}|Config]),
+	lists:keyreplace(protocol, 1, Config1, {protocol, http2});
 init_per_group(Name, Config) ->
 	cowboy_test:init_common_groups(Name, Config, ?MODULE).
 

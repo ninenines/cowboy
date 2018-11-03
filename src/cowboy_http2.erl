@@ -44,6 +44,7 @@
 	middlewares => [module()],
 	preface_timeout => timeout(),
 	proxy_header => boolean(),
+	sendfile => boolean(),
 	settings_timeout => timeout(),
 	shutdown_timeout => timeout(),
 	stream_handlers => [module()],
@@ -650,10 +651,14 @@ send_data_frame(State=#state{socket=Socket, transport=Transport},
 		StreamID, IsFin, {data, Data}) ->
 	Transport:send(Socket, cow_http2:data(StreamID, IsFin, Data)),
 	State;
-send_data_frame(State=#state{socket=Socket, transport=Transport},
+send_data_frame(State=#state{socket=Socket, transport=Transport, opts=Opts},
 		StreamID, IsFin, {sendfile, Offset, Bytes, Path}) ->
 	Transport:send(Socket, cow_http2:data_header(StreamID, IsFin, Bytes)),
-	Transport:sendfile(Socket, Path, Offset, Bytes),
+	%% When sendfile is disabled we explicitly use the fallback.
+	_ = case maps:get(sendfile, Opts, true) of
+		true -> Transport:sendfile(Socket, Path, Offset, Bytes);
+		false -> ranch_transport:sendfile(Transport, Socket, Path, Offset, Bytes, [])
+	end,
 	State;
 %% The stream is terminated in cow_http2_machine:prepare_trailers.
 send_data_frame(State=#state{socket=Socket, transport=Transport,

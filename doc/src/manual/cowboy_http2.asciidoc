@@ -30,6 +30,7 @@ opts() :: #{
     max_frame_size_sent            => 16384..16777215 | infinity,
     middlewares                    => [module()],
     preface_timeout                => timeout(),
+    sendfile                       => boolean(),
     settings_timeout               => timeout(),
     shutdown_timeout               => timeout(),
     stream_handlers                => [module()]
@@ -119,6 +120,12 @@ preface_timeout (5000)::
 
 Time in ms Cowboy is willing to wait for the connection preface.
 
+sendfile (true)::
+
+Whether the sendfile syscall may be used. It can be useful to disable
+it on systems where the syscall has a buggy implementation, for example
+under VirtualBox when using shared folders.
+
 settings_timeout (5000)::
 
 Time in ms Cowboy is willing to wait for a SETTINGS ack.
@@ -133,6 +140,7 @@ Ordered list of stream handlers that will handle all stream events.
 
 == Changelog
 
+* *2.6*: The `sendfile` option was added.
 * *2.4*: Add the options `initial_connection_window_size`,
          `initial_stream_window_size`, `max_concurrent_streams`,
          `max_decode_table_size`, `max_encode_table_size`,
