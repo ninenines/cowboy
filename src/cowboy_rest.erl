@@ -180,6 +180,13 @@
 	when Req::cowboy_req:req(), State::any().
 -optional_callbacks([previously_existed/2]).
 
+-callback rate_limited(Req, State)
+	-> {{true, non_neg_integer() | calendar:datetime()} | false, Req, State}
+	| {stop, Req, State}
+	| {switch_handler(), Req, State}
+	when Req::cowboy_req:req(), State::any().
+-optional_callbacks([rate_limited/2]).
+
 -callback resource_exists(Req, State)
 	-> {boolean(), Req, State}
 	| {stop, Req, State}
@@ -363,7 +370,28 @@ is_authorized(Req, State) ->
 	end.
 
 forbidden(Req, State) ->
-	expect(Req, State, forbidden, false, fun valid_content_headers/2, 403).
+	expect(Req, State, forbidden, false, fun rate_limited/2, 403).
+
+rate_limited(Req, State) ->
+	case call(Req, State, rate_limited) of
+		no_call ->
+			valid_content_headers(Req, State);
+		{stop, Req2, HandlerState} ->
+			terminate(Req2, State#state{handler_state=HandlerState});
+		{Switch, Req2, HandlerState} when element(1, Switch) =:= switch_handler ->
+			switch_handler(Switch, Req2, HandlerState);
+		{false, Req2, HandlerState} ->
+			valid_content_headers(Req2, State#state{handler_state=HandlerState});
+		{{true, RetryAfter0}, Req2, HandlerState} ->
+			RetryAfter = if
+				is_integer(RetryAfter0), RetryAfter0 >= 0 ->
+					integer_to_binary(RetryAfter0);
+				is_tuple(RetryAfter0) ->
+					cowboy_clock:rfc1123(RetryAfter0)
+			end,
+			Req3 = cowboy_req:set_resp_header(<<"retry-after">>, RetryAfter, Req2),
+			respond(Req3, State#state{handler_state=HandlerState}, 429)
+	end.
 
 valid_content_headers(Req, State) ->
 	expect(Req, State, valid_content_headers, true,

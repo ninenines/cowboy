@@ -48,6 +48,7 @@ init_dispatch(_) ->
 		{"/charset_in_content_types_provided_implicit_no_callback",
 			charset_in_content_types_provided_implicit_no_callback_h, []},
 		{"/provide_callback_missing", provide_callback_missing_h, []},
+		{"/rate_limited", rate_limited_h, []},
 		{"/switch_handler", switch_handler_h, run},
 		{"/switch_handler_opts", switch_handler_h, hibernate}
 	]}]).
@@ -285,6 +286,31 @@ provide_callback_missing(Config) ->
 	ConnPid = gun_open(Config),
 	Ref = gun:get(ConnPid, "/provide_callback_missing", [{<<"accept-encoding">>, <<"gzip">>}]),
 	{response, fin, 500, _} = gun:await(ConnPid, Ref),
+	ok.
+
+rate_limited(Config) ->
+	doc("A 429 response must be sent when the rate_limited callback returns true. "
+		"The retry-after header is specified as an integer."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/rate_limited?true", [{<<"accept-encoding">>, <<"gzip">>}]),
+	{response, fin, 429, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"3600">>} = lists:keyfind(<<"retry-after">>, 1, Headers),
+	ok.
+
+rate_limited_datetime(Config) ->
+	doc("A 429 response must be sent when the rate_limited callback returns true. "
+		"The retry-after header is specified as a date/time tuple."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/rate_limited?true-date", [{<<"accept-encoding">>, <<"gzip">>}]),
+	{response, fin, 429, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"Fri, 22 Feb 2222 11:11:11 GMT">>} = lists:keyfind(<<"retry-after">>, 1, Headers),
+	ok.
+
+rate_not_limited(Config) ->
+	doc("A success response must be sent when the rate_limited callback returns false."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/rate_limited?false", [{<<"accept-encoding">>, <<"gzip">>}]),
+	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
 	ok.
 
 switch_handler(Config) ->

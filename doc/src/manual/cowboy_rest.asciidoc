@@ -603,6 +603,30 @@ release.
 
 // @todo Add a way to switch to loop handler for streaming the body.
 
+=== rate_limited
+
+[source,erlang]
+----
+rate_limited(Req, State) -> {Result, Req, State}
+
+Result     :: false | {true, RetryAfter}
+RetryAfter :: non_neg_integer() | calendar:datetime()
+Default  - false
+----
+
+Return whether the user is rate limited.
+
+This function can be used to temporarily restrict
+access to a resource when the user has issued too
+many requests.
+
+When the resource is rate limited the `RetryAfter`
+value will be sent in the retry-after header for the
+'429 Too Many Requests' response. It indicates when
+the resource will become available again and can be
+specified as a number of seconds in the future or a
+specific date/time.
+
 === resource_exists
 
 [source,erlang]
@@ -696,6 +720,7 @@ listed here, like the authorization header.
 
 == Changelog
 
+* *2.6*: The callback `rate_limited` was added.
 * *2.1*: The `switch_handler` return value was added.
 * *1.0*: Behavior introduced.
 

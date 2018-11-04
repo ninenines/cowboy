@@ -84,6 +84,7 @@ if it is undefined, moving directly to the next step. Similarly,
 | multiple_choices       | `false`
 | options                | `ok`
 | previously_existed     | `false`
+| rate_limited           | `false`
 | resource_exists        | `true`
 | service_available      | `true`
 | uri_too_long           | `false`

@@ -122,6 +122,9 @@ Can access to a resource be forbidden regardless of access
 being authorized? A simple example of that is censorship
 of a resource. Implement the `forbidden` callback.
 
+Can access be rate-limited for authenticated users? Use the
+`rate_limited` callback.
+
 Are there any constraints on the length of the resource URI?
 For example, the URI may be used as a key in storage and may
 have a limit in length. Implement `uri_too_long`.
