@@ -29,7 +29,7 @@
 -type extra_etag() :: {etag, module(), function()} | {etag, false}.
 -type extra_mimetypes() :: {mimetypes, module(), function()}
 	| {mimetypes, binary() | {binary(), binary(), [{binary(), binary()}]}}.
--type extra() :: [extra_etag() | extra_mimetypes()].
+-type extra() :: [extra_charset() | extra_etag() | extra_mimetypes()].
 -type opts() :: {file | dir, string() | binary()}
 	| {file | dir, string() | binary(), extra()}
 	| {priv_file | priv_dir, atom(), string() | binary()}
