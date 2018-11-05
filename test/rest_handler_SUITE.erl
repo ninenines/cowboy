@@ -313,19 +313,112 @@ rate_not_limited(Config) ->
 	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
 	ok.
 
-switch_handler(Config) ->
-	doc("Switch REST to loop handler for streaming the response body."),
+switch_handler_allowed_methods(Config) ->
+	do_no_body_switch_handler(Config, get, ?FUNCTION_NAME).
+
+switch_handler_allow_missing_post(Config) ->
+	do_req_body_switch_handler(Config, post, ?FUNCTION_NAME).
+
+switch_handler_charsets_provided(Config) ->
+	do_no_body_switch_handler(Config, get, ?FUNCTION_NAME).
+
+switch_handler_content_types_accepted(Config) ->
+	do_req_body_switch_handler(Config, post, ?FUNCTION_NAME).
+
+switch_handler_content_types_provided(Config) ->
+	do_no_body_switch_handler(Config, get, ?FUNCTION_NAME).
+
+switch_handler_delete_completed(Config) ->
+	do_no_body_switch_handler(Config, delete, ?FUNCTION_NAME).
+
+switch_handler_delete_resource(Config) ->
+	do_no_body_switch_handler(Config, delete, ?FUNCTION_NAME).
+
+switch_handler_forbidden(Config) ->
+	do_no_body_switch_handler(Config, get, ?FUNCTION_NAME).
+
+switch_handler_is_authorized(Config) ->
+	do_no_body_switch_handler(Config, get, ?FUNCTION_NAME).
+
+switch_handler_is_conflict(Config) ->
+	do_req_body_switch_handler(Config, put, ?FUNCTION_NAME).
+
+switch_handler_known_methods(Config) ->
+	do_no_body_switch_handler(Config, get, ?FUNCTION_NAME).
+
+switch_handler_languages_provided(Config) ->
+	do_no_body_switch_handler(Config, get, ?FUNCTION_NAME).
+
+switch_handler_malformed_request(Config) ->
+	do_no_body_switch_handler(Config, get, ?FUNCTION_NAME).
+
+switch_handler_moved_permanently(Config) ->
+	do_no_body_switch_handler(Config, get, ?FUNCTION_NAME).
+
+switch_handler_moved_temporarily(Config) ->
+	do_no_body_switch_handler(Config, get, ?FUNCTION_NAME).
+
+switch_handler_multiple_choices(Config) ->
+	do_no_body_switch_handler(Config, get, ?FUNCTION_NAME).
+
+switch_handler_options(Config) ->
+	do_no_body_switch_handler(Config, options, ?FUNCTION_NAME).
+
+switch_handler_previously_existed(Config) ->
+	do_no_body_switch_handler(Config, get, ?FUNCTION_NAME).
+
+switch_handler_rate_limited(Config) ->
+	do_no_body_switch_handler(Config, get, ?FUNCTION_NAME).
+
+switch_handler_resource_exists(Config) ->
+	do_no_body_switch_handler(Config, get, ?FUNCTION_NAME).
+
+switch_handler_service_available(Config) ->
+	do_no_body_switch_handler(Config, get, ?FUNCTION_NAME).
+
+switch_handler_uri_too_long(Config) ->
+	do_no_body_switch_handler(Config, get, ?FUNCTION_NAME).
+
+switch_handler_valid_content_headers(Config) ->
+	do_no_body_switch_handler(Config, get, ?FUNCTION_NAME).
+
+switch_handler_valid_entity_length(Config) ->
+	do_no_body_switch_handler(Config, get, ?FUNCTION_NAME).
+
+switch_handler_accept(Config) ->
+	do_req_body_switch_handler(Config, post, ?FUNCTION_NAME).
+
+switch_handler_provide(Config) ->
+	do_no_body_switch_handler(Config, get, ?FUNCTION_NAME).
+
+do_no_body_switch_handler(Config, Method, StateName0) ->
+	doc("Switch REST to loop handler for streaming the response body, "
+		"with and without options."),
+	"switch_handler_" ++ StateName = atom_to_list(StateName0),
+	do_no_body_switch_handler1(Config, Method, "/switch_handler?" ++ StateName),
+	do_no_body_switch_handler1(Config, Method, "/switch_handler_opts?" ++ StateName).
+
+do_no_body_switch_handler1(Config, Method, Path) ->
 	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, "/switch_handler", [{<<"accept-encoding">>, <<"gzip">>}]),
+	Ref = gun:Method(ConnPid, Path, [{<<"accept-encoding">>, <<"gzip">>}]),
 	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
 	{ok, Body} = gun:await_body(ConnPid, Ref),
 	<<"Hello\nstreamed\nworld!\n">> = do_decode(Headers, Body),
 	ok.
 
-switch_handler_opts(Config) ->
-	doc("Switch REST to loop handler for streaming the response body; with options."),
+do_req_body_switch_handler(Config, Method, StateName0) ->
+	doc("Switch REST to loop handler for streaming the response body, "
+		"with and without options."),
+	"switch_handler_" ++ StateName = atom_to_list(StateName0),
+	do_req_body_switch_handler1(Config, Method, "/switch_handler?" ++ StateName),
+	do_req_body_switch_handler1(Config, Method, "/switch_handler_opts?" ++ StateName).
+
+do_req_body_switch_handler1(Config, Method, Path) ->
 	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, "/switch_handler_opts", [{<<"accept-encoding">>, <<"gzip">>}]),
+	Ref = gun:Method(ConnPid, Path, [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"content-type">>, <<"text/plain">>}
+	], <<"Hocus PocuSwitch!">>),
 	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
 	{ok, Body} = gun:await_body(ConnPid, Ref),
 	<<"Hello\nstreamed\nworld!\n">> = do_decode(Headers, Body),
