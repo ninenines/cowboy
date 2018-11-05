@@ -49,6 +49,7 @@ init_dispatch(_) ->
 			charset_in_content_types_provided_implicit_no_callback_h, []},
 		{"/provide_callback_missing", provide_callback_missing_h, []},
 		{"/rate_limited", rate_limited_h, []},
+		{"/stop_handler", stop_handler_h, []},
 		{"/switch_handler", switch_handler_h, run},
 		{"/switch_handler_opts", switch_handler_h, hibernate}
 	]}]).
@@ -311,6 +312,104 @@ rate_not_limited(Config) ->
 	ConnPid = gun_open(Config),
 	Ref = gun:get(ConnPid, "/rate_limited?false", [{<<"accept-encoding">>, <<"gzip">>}]),
 	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
+	ok.
+
+stop_handler_allowed_methods(Config) ->
+	do_no_body_stop_handler(Config, get, ?FUNCTION_NAME).
+
+stop_handler_allow_missing_post(Config) ->
+	do_req_body_stop_handler(Config, post, ?FUNCTION_NAME).
+
+stop_handler_charsets_provided(Config) ->
+	do_no_body_stop_handler(Config, get, ?FUNCTION_NAME).
+
+stop_handler_content_types_accepted(Config) ->
+	do_req_body_stop_handler(Config, post, ?FUNCTION_NAME).
+
+stop_handler_content_types_provided(Config) ->
+	do_no_body_stop_handler(Config, get, ?FUNCTION_NAME).
+
+stop_handler_delete_completed(Config) ->
+	do_no_body_stop_handler(Config, delete, ?FUNCTION_NAME).
+
+stop_handler_delete_resource(Config) ->
+	do_no_body_stop_handler(Config, delete, ?FUNCTION_NAME).
+
+stop_handler_forbidden(Config) ->
+	do_no_body_stop_handler(Config, get, ?FUNCTION_NAME).
+
+stop_handler_is_authorized(Config) ->
+	do_no_body_stop_handler(Config, get, ?FUNCTION_NAME).
+
+stop_handler_is_conflict(Config) ->
+	do_req_body_stop_handler(Config, put, ?FUNCTION_NAME).
+
+stop_handler_known_methods(Config) ->
+	do_no_body_stop_handler(Config, get, ?FUNCTION_NAME).
+
+stop_handler_languages_provided(Config) ->
+	do_no_body_stop_handler(Config, get, ?FUNCTION_NAME).
+
+stop_handler_malformed_request(Config) ->
+	do_no_body_stop_handler(Config, get, ?FUNCTION_NAME).
+
+stop_handler_moved_permanently(Config) ->
+	do_no_body_stop_handler(Config, get, ?FUNCTION_NAME).
+
+stop_handler_moved_temporarily(Config) ->
+	do_no_body_stop_handler(Config, get, ?FUNCTION_NAME).
+
+stop_handler_multiple_choices(Config) ->
+	do_no_body_stop_handler(Config, get, ?FUNCTION_NAME).
+
+stop_handler_options(Config) ->
+	do_no_body_stop_handler(Config, options, ?FUNCTION_NAME).
+
+stop_handler_previously_existed(Config) ->
+	do_no_body_stop_handler(Config, get, ?FUNCTION_NAME).
+
+stop_handler_rate_limited(Config) ->
+	do_no_body_stop_handler(Config, get, ?FUNCTION_NAME).
+
+stop_handler_resource_exists(Config) ->
+	do_no_body_stop_handler(Config, get, ?FUNCTION_NAME).
+
+stop_handler_service_available(Config) ->
+	do_no_body_stop_handler(Config, get, ?FUNCTION_NAME).
+
+stop_handler_uri_too_long(Config) ->
+	do_no_body_stop_handler(Config, get, ?FUNCTION_NAME).
+
+stop_handler_valid_content_headers(Config) ->
+	do_no_body_stop_handler(Config, get, ?FUNCTION_NAME).
+
+stop_handler_valid_entity_length(Config) ->
+	do_no_body_stop_handler(Config, get, ?FUNCTION_NAME).
+
+stop_handler_accept(Config) ->
+	do_req_body_stop_handler(Config, post, ?FUNCTION_NAME).
+
+stop_handler_provide(Config) ->
+	do_no_body_stop_handler(Config, get, ?FUNCTION_NAME).
+
+do_no_body_stop_handler(Config, Method, StateName0) ->
+	doc("Send a response manually and stop the REST handler."),
+	ConnPid = gun_open(Config),
+	"stop_handler_" ++ StateName = atom_to_list(StateName0),
+	Ref = gun:Method(ConnPid, "/stop_handler?" ++ StateName,
+		[{<<"accept-encoding">>, <<"gzip">>}]),
+	{response, fin, 248, _} = gun:await(ConnPid, Ref),
+	ok.
+
+do_req_body_stop_handler(Config, Method, StateName0) ->
+	doc("Send a response manually and stop the REST handler."),
+	ConnPid = gun_open(Config),
+	"stop_handler_" ++ StateName = atom_to_list(StateName0),
+	Ref = gun:Method(ConnPid, "/stop_handler?" ++ StateName, [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"content-type">>, <<"text/plain">>}
+	], <<"Hocus PocuSwitch!">>),
+	{response, fin, 248, _} = gun:await(ConnPid, Ref),
 	ok.
 
 switch_handler_allowed_methods(Config) ->

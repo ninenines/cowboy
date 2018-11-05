@@ -1,6 +1,7 @@
-%% This module returns switch_handler based on the query string.
+%% This module returns stop based on the query string.
+%% Success is indicated via a 248 status code in the response.
 
--module(switch_handler_h).
+-module(stop_handler_h).
 
 -export([init/2]).
 
@@ -32,92 +33,90 @@
 -export([accept/2]).
 -export([provide/2]).
 
--export([info/3]).
-
 init(Req, State) ->
 	{cowboy_rest, Req, State}.
 
 allowed_methods(Req, State) ->
-	maybe_switch_handler(Req, State, ?FUNCTION_NAME).
+	maybe_stop_handler(Req, State, ?FUNCTION_NAME).
 
 allow_missing_post(Req, State) ->
-	maybe_switch_handler(Req, State, ?FUNCTION_NAME).
+	maybe_stop_handler(Req, State, ?FUNCTION_NAME).
 
 charsets_provided(Req, State) ->
-	maybe_switch_handler(Req, State, ?FUNCTION_NAME).
+	maybe_stop_handler(Req, State, ?FUNCTION_NAME).
 
 content_types_accepted(Req, State) ->
-	maybe_switch_handler(Req, State, ?FUNCTION_NAME).
+	maybe_stop_handler(Req, State, ?FUNCTION_NAME).
 
 content_types_provided(Req, State) ->
-	maybe_switch_handler(Req, State, ?FUNCTION_NAME).
+	maybe_stop_handler(Req, State, ?FUNCTION_NAME).
 
 delete_completed(Req, State) ->
-	maybe_switch_handler(Req, State, ?FUNCTION_NAME).
+	maybe_stop_handler(Req, State, ?FUNCTION_NAME).
 
 delete_resource(Req, State) ->
-	maybe_switch_handler(Req, State, ?FUNCTION_NAME).
+	maybe_stop_handler(Req, State, ?FUNCTION_NAME).
 
 forbidden(Req, State) ->
-	maybe_switch_handler(Req, State, ?FUNCTION_NAME).
+	maybe_stop_handler(Req, State, ?FUNCTION_NAME).
 
 is_authorized(Req, State) ->
-	maybe_switch_handler(Req, State, ?FUNCTION_NAME).
+	maybe_stop_handler(Req, State, ?FUNCTION_NAME).
 
 is_conflict(Req, State) ->
-	maybe_switch_handler(Req, State, ?FUNCTION_NAME).
+	maybe_stop_handler(Req, State, ?FUNCTION_NAME).
 
 known_methods(Req, State) ->
-	maybe_switch_handler(Req, State, ?FUNCTION_NAME).
+	maybe_stop_handler(Req, State, ?FUNCTION_NAME).
 
 languages_provided(Req, State) ->
-	maybe_switch_handler(Req, State, ?FUNCTION_NAME).
+	maybe_stop_handler(Req, State, ?FUNCTION_NAME).
 
 malformed_request(Req, State) ->
-	maybe_switch_handler(Req, State, ?FUNCTION_NAME).
+	maybe_stop_handler(Req, State, ?FUNCTION_NAME).
 
 moved_permanently(Req, State) ->
-	maybe_switch_handler(Req, State, ?FUNCTION_NAME).
+	maybe_stop_handler(Req, State, ?FUNCTION_NAME).
 
 moved_temporarily(Req, State) ->
-	maybe_switch_handler(Req, State, ?FUNCTION_NAME).
+	maybe_stop_handler(Req, State, ?FUNCTION_NAME).
 
 multiple_choices(Req, State) ->
-	maybe_switch_handler(Req, State, ?FUNCTION_NAME).
+	maybe_stop_handler(Req, State, ?FUNCTION_NAME).
 
 options(Req, State) ->
-	maybe_switch_handler(Req, State, ?FUNCTION_NAME).
+	maybe_stop_handler(Req, State, ?FUNCTION_NAME).
 
 previously_existed(Req, State) ->
-	maybe_switch_handler(Req, State, ?FUNCTION_NAME).
+	maybe_stop_handler(Req, State, ?FUNCTION_NAME).
 
 rate_limited(Req, State) ->
-	maybe_switch_handler(Req, State, ?FUNCTION_NAME).
+	maybe_stop_handler(Req, State, ?FUNCTION_NAME).
 
 resource_exists(Req, State) ->
-	maybe_switch_handler(Req, State, ?FUNCTION_NAME).
+	maybe_stop_handler(Req, State, ?FUNCTION_NAME).
 
 service_available(Req, State) ->
-	maybe_switch_handler(Req, State, ?FUNCTION_NAME).
+	maybe_stop_handler(Req, State, ?FUNCTION_NAME).
 
 uri_too_long(Req, State) ->
-	maybe_switch_handler(Req, State, ?FUNCTION_NAME).
+	maybe_stop_handler(Req, State, ?FUNCTION_NAME).
 
 valid_content_headers(Req, State) ->
-	maybe_switch_handler(Req, State, ?FUNCTION_NAME).
+	maybe_stop_handler(Req, State, ?FUNCTION_NAME).
 
 valid_entity_length(Req, State) ->
-	maybe_switch_handler(Req, State, ?FUNCTION_NAME).
+	maybe_stop_handler(Req, State, ?FUNCTION_NAME).
 
 accept(Req, State) ->
-	maybe_switch_handler(Req, State, ?FUNCTION_NAME).
+	maybe_stop_handler(Req, State, ?FUNCTION_NAME).
 
 provide(Req, State) ->
-	maybe_switch_handler(Req, State, ?FUNCTION_NAME).
+	maybe_stop_handler(Req, State, ?FUNCTION_NAME).
 
-maybe_switch_handler(Req=#{qs := Qs}, State, StateName) ->
+maybe_stop_handler(Req=#{qs := Qs}, State, StateName) ->
 	case atom_to_binary(StateName, latin1) of
-		Qs -> do_switch_handler(Req, State);
+		Qs -> do_stop_handler(Req, State);
 		_ -> do_default(Req, State, StateName)
 	end.
 
@@ -155,26 +154,6 @@ do_default(Req, State, provide) ->
 do_default(_, _, _) ->
 	no_call.
 
-do_switch_handler(Req0, run) ->
-	Req = cowboy_req:stream_reply(200, Req0),
-	send_after(0),
-	{{switch_handler, cowboy_loop}, Req, 0};
-do_switch_handler(Req0, hibernate) ->
-	Req = cowboy_req:stream_reply(200, Req0),
-	send_after(0),
-	{{switch_handler, cowboy_loop, hibernate}, Req, 0}.
-
-send_after(N) ->
-	erlang:send_after(100, self(), {stream, msg(N)}).
-
-msg(0) -> <<"Hello\n">>;
-msg(1) -> <<"streamed\n">>;
-msg(2) -> <<"world!\n">>;
-msg(3) -> stop.
-
-info({stream, stop}, Req, State) ->
-	{stop, Req, State};
-info({stream, What}, Req, State) ->
-	cowboy_req:stream_body(What, nofin, Req),
-	send_after(State + 1),
-	{ok, Req, State + 1}.
+do_stop_handler(Req0, State) ->
+	Req = cowboy_req:reply(<<"248 REST handler stopped!">>, #{}, <<>>, Req0),
+	{stop, Req, State}.

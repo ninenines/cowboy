@@ -550,6 +550,10 @@ links to the different representations. If the server has
 a preferred representation it can send its link inside a
 location header.
 
+Note that when replying manually in this callback you
+should either call `cowboy_req:reply/4` or remove the
+response body that Cowboy sets to avoid surprises.
+
 === options
 
 [source,erlang]
