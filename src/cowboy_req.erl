@@ -158,6 +158,8 @@
 	media_type => {binary(), binary(), [{binary(), binary()}]},
 	language => binary() | undefined,
 	charset => binary() | undefined,
+	range => {binary(), binary()
+		| [{non_neg_integer(), non_neg_integer() | infinity} | neg_integer()]},
 	websocket_version => 7 | 8 | 13
 }.
 -export_type([req/0]).
@@ -429,6 +431,7 @@ parse_header_fun(<<"expect">>) -> fun cow_http_hd:parse_expect/1;
 parse_header_fun(<<"if-match">>) -> fun cow_http_hd:parse_if_match/1;
 parse_header_fun(<<"if-modified-since">>) -> fun cow_http_hd:parse_if_modified_since/1;
 parse_header_fun(<<"if-none-match">>) -> fun cow_http_hd:parse_if_none_match/1;
+parse_header_fun(<<"if-range">>) -> fun cow_http_hd:parse_if_range/1;
 parse_header_fun(<<"if-unmodified-since">>) -> fun cow_http_hd:parse_if_unmodified_since/1;
 parse_header_fun(<<"range">>) -> fun cow_http_hd:parse_range/1;
 parse_header_fun(<<"sec-websocket-extensions">>) -> fun cow_http_hd:parse_sec_websocket_extensions/1;

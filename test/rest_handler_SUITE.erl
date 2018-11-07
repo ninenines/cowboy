@@ -47,7 +47,11 @@ init_dispatch(_) ->
 			charset_in_content_types_provided_implicit_h, []},
 		{"/charset_in_content_types_provided_implicit_no_callback",
 			charset_in_content_types_provided_implicit_no_callback_h, []},
+		{"/if_range", if_range_h, []},
 		{"/provide_callback_missing", provide_callback_missing_h, []},
+		{"/provide_range_callback", provide_range_callback_h, []},
+		{"/range_satisfiable", range_satisfiable_h, []},
+		{"/ranges_provided", ranges_provided_h, []},
 		{"/rate_limited", rate_limited_h, []},
 		{"/stop_handler", stop_handler_h, []},
 		{"/switch_handler", switch_handler_h, run},
@@ -282,6 +286,110 @@ charsets_provided_empty_noheader(Config) ->
 	{response, _, 406, _} = gun:await(ConnPid, Ref),
 	ok.
 
+if_range_etag_equal(Config) ->
+	doc("When the if-range header matches, a 206 partial content "
+		"response is expected for an otherwise valid range request. (RFC7233 3.2)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/if_range", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"range">>, <<"bytes=0-">>},
+		{<<"if-range">>, <<"\"strong-and-match\"">>}
+	]),
+	{response, nofin, 206, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"bytes">>} = lists:keyfind(<<"accept-ranges">>, 1, Headers),
+	{_, <<"bytes 0-19/20">>} = lists:keyfind(<<"content-range">>, 1, Headers),
+	ok.
+
+if_range_etag_not_equal(Config) ->
+	doc("When the if-range header does not match, the range header "
+		"must be ignored and a 200 OK response is expected for "
+		"an otherwise valid range request. (RFC7233 3.2)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/if_range", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"range">>, <<"bytes=0-">>},
+		{<<"if-range">>, <<"\"strong-but-no-match\"">>}
+	]),
+	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"bytes">>} = lists:keyfind(<<"accept-ranges">>, 1, Headers),
+	false = lists:keyfind(<<"content-range">>, 1, Headers),
+	ok.
+
+if_range_ignored_when_no_range_header(Config) ->
+	doc("When there is no range header the if-range header is ignored "
+		"and a 200 OK response is expected (RFC7233 3.2)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/if_range", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"if-range">>, <<"\"strong-and-match\"">>}
+	]),
+	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"bytes">>} = lists:keyfind(<<"accept-ranges">>, 1, Headers),
+	false = lists:keyfind(<<"content-range">>, 1, Headers),
+	ok.
+
+if_range_ignored_when_ranges_provided_missing(Config) ->
+	doc("When the resource does not support range requests "
+		"the range and if-range headers must be ignored"
+		"and a 200 OK response is expected (RFC7233 3.2)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/if_range?missing-ranges_provided", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"range">>, <<"bytes=0-">>},
+		{<<"if-range">>, <<"\"strong-and-match\"">>}
+	]),
+	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
+	false = lists:keyfind(<<"accept-ranges">>, 1, Headers),
+	false = lists:keyfind(<<"content-range">>, 1, Headers),
+	ok.
+
+if_range_ignored_when_ranges_provided_empty(Config) ->
+	doc("When the resource does not support range requests "
+		"the range and if-range headers must be ignored"
+		"and a 200 OK response is expected (RFC7233 3.2)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/if_range?empty-ranges_provided", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"range">>, <<"bytes=0-">>},
+		{<<"if-range">>, <<"\"strong-and-match\"">>}
+	]),
+	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"none">>} = lists:keyfind(<<"accept-ranges">>, 1, Headers),
+	false = lists:keyfind(<<"content-range">>, 1, Headers),
+	ok.
+
+if_range_weak_etag_not_equal(Config) ->
+	doc("The if-range header must not match weak etags; the range header "
+		"must be ignored and a 200 OK response is expected for "
+		"an otherwise valid range request. (RFC7233 3.2)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/if_range?weak-etag", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"range">>, <<"bytes=0-">>},
+		{<<"if-range">>, <<"W/\"weak-no-match\"">>}
+	]),
+	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"bytes">>} = lists:keyfind(<<"accept-ranges">>, 1, Headers),
+	false = lists:keyfind(<<"content-range">>, 1, Headers),
+	ok.
+
+if_range_date_not_equal(Config) ->
+	doc("The if-range header must not match weak dates. Cowboy "
+		"currently has no way of knowing whether a resource was "
+		"updated twice within the same second. The range header "
+		"must be ignored and a 200 OK response is expected for "
+		"an otherwise valid range request. (RFC7233 3.2)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/if_range", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"range">>, <<"bytes=0-">>},
+		{<<"if-range">>, <<"Fri, 22 Feb 2222 11:11:11 GMT">>}
+	]),
+	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"bytes">>} = lists:keyfind(<<"accept-ranges">>, 1, Headers),
+	false = lists:keyfind(<<"content-range">>, 1, Headers),
+	ok.
+
 provide_callback_missing(Config) ->
 	doc("A 500 response must be sent when the ProvideCallback can't be called."),
 	ConnPid = gun_open(Config),
@@ -289,9 +397,228 @@ provide_callback_missing(Config) ->
 	{response, fin, 500, _} = gun:await(ConnPid, Ref),
 	ok.
 
+provide_range_callback(Config) ->
+	doc("A successful request for a single range results in a "
+		"206 partial content response with content-range set. (RFC7233 4.1, RFC7233 4.2)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/provide_range_callback", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"range">>, <<"bytes=0-">>}
+	]),
+	{response, nofin, 206, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"bytes">>} = lists:keyfind(<<"accept-ranges">>, 1, Headers),
+	{_, <<"bytes 0-19/20">>} = lists:keyfind(<<"content-range">>, 1, Headers),
+	{_, <<"text/plain">>} = lists:keyfind(<<"content-type">>, 1, Headers),
+	{ok, <<"This is ranged REST!">>} = gun:await_body(ConnPid, Ref),
+	ok.
+
+provide_range_callback_multipart(Config) ->
+	doc("A successful request for multiple ranges results in a "
+		"206 partial content response using the multipart/byteranges "
+		"content-type and the content-range not being set. The real "
+		"content-type and content-range of the parts can be found in "
+		"the multipart headers. (RFC7233 4.1, RFC7233 A)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/provide_range_callback", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		%% This range selects everything except the space characters.
+		{<<"range">>, <<"bytes=0-3, 5-6, 8-13, 15-">>}
+	]),
+	{response, nofin, 206, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"bytes">>} = lists:keyfind(<<"accept-ranges">>, 1, Headers),
+	false = lists:keyfind(<<"content-range">>, 1, Headers),
+	{_, <<"multipart/byteranges; boundary=", Boundary/bits>>}
+		= lists:keyfind(<<"content-type">>, 1, Headers),
+	{ok, Body0} = gun:await_body(ConnPid, Ref),
+	Body = do_decode(Headers, Body0),
+	do_provide_range_callback_multipart_body(Body, Boundary, [], <<>>).
+
+do_provide_range_callback_multipart_body(Rest, Boundary, ContentRangesAcc, BodyAcc) ->
+	case cow_multipart:parse_headers(Rest, Boundary) of
+		{ok, Headers, Rest1} ->
+			{_, ContentRange0} = lists:keyfind(<<"content-range">>, 1, Headers),
+			ContentRange = cow_http_hd:parse_content_range(ContentRange0),
+			{_, <<"text/plain">>} = lists:keyfind(<<"content-type">>, 1, Headers),
+			case cow_multipart:parse_body(Rest1, Boundary) of
+				{done, Body} ->
+					do_provide_range_callback_multipart_body(<<>>, Boundary,
+						[ContentRange|ContentRangesAcc],
+						<<BodyAcc/binary, Body/binary>>);
+				{done, Body, Rest2} ->
+					do_provide_range_callback_multipart_body(Rest2, Boundary,
+						[ContentRange|ContentRangesAcc],
+						<<BodyAcc/binary, Body/binary>>)
+			end;
+		{done, <<>>} ->
+			[
+				{bytes, 0, 3, 20},
+				{bytes, 5, 6, 20},
+				{bytes, 8, 13, 20},
+				{bytes, 15, 19, 20}
+			] = lists:reverse(ContentRangesAcc),
+			<<"ThisisrangedREST!">> = BodyAcc,
+			ok
+	end.
+
+provide_range_callback_metadata(Config) ->
+	doc("A successful request for a single range results in a "
+		"206 partial content response with the same headers that "
+		"a normal 200 OK response would, like vary or etag. (RFC7233 4.1)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/provide_range_callback", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"range">>, <<"bytes=0-">>}
+	]),
+	{response, nofin, 206, Headers} = gun:await(ConnPid, Ref),
+	{_, _} = lists:keyfind(<<"date">>, 1, Headers),
+	{_, _} = lists:keyfind(<<"etag">>, 1, Headers),
+	{_, _} = lists:keyfind(<<"expires">>, 1, Headers),
+	{_, _} = lists:keyfind(<<"last-modified">>, 1, Headers),
+	{_, _} = lists:keyfind(<<"vary">>, 1, Headers),
+	%% Also cache-control and content-location but we don't send those.
+	ok.
+
+provide_range_callback_missing(Config) ->
+	doc("A 500 response must be sent when the ProvideRangeCallback can't be called."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/provide_range_callback?missing", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"range">>, <<"bytes=0-">>}
+	]),
+	{response, fin, 500, _} = gun:await(ConnPid, Ref),
+	ok.
+
+range_ignore_unknown_unit(Config) ->
+	doc("The range header must be ignored when the range unit "
+		"is not found in ranges_provided. (RFC7233 3.1)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/if_range", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"range">>, <<"chapters=1-">>}
+	]),
+	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"bytes">>} = lists:keyfind(<<"accept-ranges">>, 1, Headers),
+	false = lists:keyfind(<<"content-range">>, 1, Headers),
+	ok.
+
+range_ignore_when_not_modified(Config) ->
+	doc("The range header must be ignored when a conditional "
+		"GET results in a 304 not modified response. (RFC7233 3.1)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/if_range", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"range">>, <<"bytes=0-">>},
+		{<<"if-none-match">>, <<"\"strong-and-match\"">>}
+	]),
+	{response, fin, 304, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"bytes">>} = lists:keyfind(<<"accept-ranges">>, 1, Headers),
+	false = lists:keyfind(<<"content-range">>, 1, Headers),
+	ok.
+
+range_satisfiable(Config) ->
+	doc("When the range_satisfiable callback returns true "
+		"a 206 partial content response is expected for "
+		"an otherwise valid range request. (RFC7233 4.1)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/range_satisfiable?true", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"range">>, <<"bytes=0-">>}
+	]),
+	{response, nofin, 206, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"bytes">>} = lists:keyfind(<<"accept-ranges">>, 1, Headers),
+	{_, <<"bytes 0-19/20">>} = lists:keyfind(<<"content-range">>, 1, Headers),
+	ok.
+
+range_not_satisfiable(Config) ->
+	doc("When the range_satisfiable callback returns false "
+		"a 416 range not satisfiable response is expected for "
+		"an otherwise valid range request. (RFC7233 4.4)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/range_satisfiable?false", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"range">>, <<"bytes=0-">>}
+	]),
+	{response, fin, 416, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"bytes">>} = lists:keyfind(<<"accept-ranges">>, 1, Headers),
+	false = lists:keyfind(<<"content-range">>, 1, Headers),
+	ok.
+
+range_not_satisfiable_int(Config) ->
+	doc("When the range_satisfiable callback returns false "
+		"a 416 range not satisfiable response is expected for "
+		"an otherwise valid range request. If an integer is "
+		"provided it is used to construct the content-range "
+		"header. (RFC7233 4.2, RFC7233 4.4)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/range_satisfiable?false-int", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"range">>, <<"bytes=0-">>}
+	]),
+	{response, fin, 416, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"bytes">>} = lists:keyfind(<<"accept-ranges">>, 1, Headers),
+	{_, <<"bytes */123">>} = lists:keyfind(<<"content-range">>, 1, Headers),
+	ok.
+
+range_not_satisfiable_bin(Config) ->
+	doc("When the range_satisfiable callback returns false "
+		"a 416 range not satisfiable response is expected for "
+		"an otherwise valid range request. If a binary is "
+		"provided it is used to construct the content-range "
+		"header. (RFC7233 4.2, RFC7233 4.4)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/range_satisfiable?false-bin", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"range">>, <<"bytes=0-">>}
+	]),
+	{response, fin, 416, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"bytes">>} = lists:keyfind(<<"accept-ranges">>, 1, Headers),
+	{_, <<"bytes */456">>} = lists:keyfind(<<"content-range">>, 1, Headers),
+	ok.
+
+range_satisfiable_missing(Config) ->
+	doc("When the range_satisfiable callback is missing "
+		"a 206 partial content response is expected for "
+		"an otherwise valid range request. (RFC7233 4.1)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/range_satisfiable?missing", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"range">>, <<"bytes=0-">>}
+	]),
+	{response, _, 206, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"bytes">>} = lists:keyfind(<<"accept-ranges">>, 1, Headers),
+	{_, <<"bytes ", _/bits>>} = lists:keyfind(<<"content-range">>, 1, Headers),
+	ok.
+
+ranges_provided_accept_ranges(Config) ->
+	doc("When the ranges_provided callback exists the accept-ranges header "
+		"is sent in the response. (RFC7233 2.3)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/ranges_provided?list", [{<<"accept-encoding">>, <<"gzip">>}]),
+	{response, _, 200, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"bytes, pages, chapters">>} = lists:keyfind(<<"accept-ranges">>, 1, Headers),
+	ok.
+
+ranges_provided_empty_accept_ranges_none(Config) ->
+	doc("When the ranges_provided callback exists but returns an empty list "
+		"the accept-ranges header is sent in the response with the value none. (RFC7233 2.3)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/ranges_provided?none", [{<<"accept-encoding">>, <<"gzip">>}]),
+	{response, _, 200, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"none">>} = lists:keyfind(<<"accept-ranges">>, 1, Headers),
+	ok.
+
+ranges_provided_missing_no_accept_ranges(Config) ->
+	doc("When the ranges_provided callback does not exist "
+		"the accept-ranges header is not sent in the response."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/ranges_provided?missing", [{<<"accept-encoding">>, <<"gzip">>}]),
+	{response, _, 200, Headers} = gun:await(ConnPid, Ref),
+	false = lists:keyfind(<<"accept-ranges">>, 1, Headers),
+	ok.
+
 rate_limited(Config) ->
 	doc("A 429 response must be sent when the rate_limited callback returns true. "
-		"The retry-after header is specified as an integer."),
+		"The retry-after header is specified as an integer. (RFC6585 4, RFC7231 7.1.3)"),
 	ConnPid = gun_open(Config),
 	Ref = gun:get(ConnPid, "/rate_limited?true", [{<<"accept-encoding">>, <<"gzip">>}]),
 	{response, fin, 429, Headers} = gun:await(ConnPid, Ref),
@@ -300,7 +627,7 @@ rate_limited(Config) ->
 
 rate_limited_datetime(Config) ->
 	doc("A 429 response must be sent when the rate_limited callback returns true. "
-		"The retry-after header is specified as a date/time tuple."),
+		"The retry-after header is specified as a date/time tuple. (RFC6585 4, RFC7231 7.1.3)"),
 	ConnPid = gun_open(Config),
 	Ref = gun:get(ConnPid, "/rate_limited?true-date", [{<<"accept-encoding">>, <<"gzip">>}]),
 	{response, fin, 429, Headers} = gun:await(ConnPid, Ref),
@@ -368,6 +695,12 @@ stop_handler_options(Config) ->
 stop_handler_previously_existed(Config) ->
 	do_no_body_stop_handler(Config, get, ?FUNCTION_NAME).
 
+stop_handler_range_satisfiable(Config) ->
+	do_no_body_stop_handler(Config, get, ?FUNCTION_NAME).
+
+stop_handler_ranges_provided(Config) ->
+	do_no_body_stop_handler(Config, get, ?FUNCTION_NAME).
+
 stop_handler_rate_limited(Config) ->
 	do_no_body_stop_handler(Config, get, ?FUNCTION_NAME).
 
@@ -392,12 +725,17 @@ stop_handler_accept(Config) ->
 stop_handler_provide(Config) ->
 	do_no_body_stop_handler(Config, get, ?FUNCTION_NAME).
 
+stop_handler_provide_range(Config) ->
+	do_no_body_stop_handler(Config, get, ?FUNCTION_NAME).
+
 do_no_body_stop_handler(Config, Method, StateName0) ->
 	doc("Send a response manually and stop the REST handler."),
 	ConnPid = gun_open(Config),
 	"stop_handler_" ++ StateName = atom_to_list(StateName0),
-	Ref = gun:Method(ConnPid, "/stop_handler?" ++ StateName,
-		[{<<"accept-encoding">>, <<"gzip">>}]),
+	Ref = gun:Method(ConnPid, "/stop_handler?" ++ StateName, [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"range">>, <<"bytes=0-">>}
+	]),
 	{response, fin, 248, _} = gun:await(ConnPid, Ref),
 	ok.
 
@@ -466,6 +804,12 @@ switch_handler_options(Config) ->
 switch_handler_previously_existed(Config) ->
 	do_no_body_switch_handler(Config, get, ?FUNCTION_NAME).
 
+switch_handler_range_satisfiable(Config) ->
+	do_no_body_switch_handler(Config, get, ?FUNCTION_NAME).
+
+switch_handler_ranges_provided(Config) ->
+	do_no_body_switch_handler(Config, get, ?FUNCTION_NAME).
+
 switch_handler_rate_limited(Config) ->
 	do_no_body_switch_handler(Config, get, ?FUNCTION_NAME).
 
@@ -490,6 +834,9 @@ switch_handler_accept(Config) ->
 switch_handler_provide(Config) ->
 	do_no_body_switch_handler(Config, get, ?FUNCTION_NAME).
 
+switch_handler_provide_range(Config) ->
+	do_no_body_switch_handler(Config, get, ?FUNCTION_NAME).
+
 do_no_body_switch_handler(Config, Method, StateName0) ->
 	doc("Switch REST to loop handler for streaming the response body, "
 		"with and without options."),
@@ -499,7 +846,10 @@ do_no_body_switch_handler(Config, Method, StateName0) ->
 
 do_no_body_switch_handler1(Config, Method, Path) ->
 	ConnPid = gun_open(Config),
-	Ref = gun:Method(ConnPid, Path, [{<<"accept-encoding">>, <<"gzip">>}]),
+	Ref = gun:Method(ConnPid, Path, [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"range">>, <<"bytes=0-">>}
+	]),
 	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
 	{ok, Body} = gun:await_body(ConnPid, Ref),
 	<<"Hello\nstreamed\nworld!\n">> = do_decode(Headers, Body),

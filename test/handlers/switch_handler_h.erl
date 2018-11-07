@@ -22,6 +22,8 @@
 -export([multiple_choices/2]).
 -export([options/2]).
 -export([previously_existed/2]).
+-export([range_satisfiable/2]).
+-export([ranges_provided/2]).
 -export([rate_limited/2]).
 -export([resource_exists/2]).
 -export([service_available/2]).
@@ -31,6 +33,7 @@
 
 -export([accept/2]).
 -export([provide/2]).
+-export([provide_range/2]).
 
 -export([info/3]).
 
@@ -91,6 +94,12 @@ options(Req, State) ->
 previously_existed(Req, State) ->
 	maybe_switch_handler(Req, State, ?FUNCTION_NAME).
 
+range_satisfiable(Req, State) ->
+	maybe_switch_handler(Req, State, ?FUNCTION_NAME).
+
+ranges_provided(Req, State) ->
+	maybe_switch_handler(Req, State, ?FUNCTION_NAME).
+
 rate_limited(Req, State) ->
 	maybe_switch_handler(Req, State, ?FUNCTION_NAME).
 
@@ -115,6 +124,9 @@ accept(Req, State) ->
 provide(Req, State) ->
 	maybe_switch_handler(Req, State, ?FUNCTION_NAME).
 
+provide_range(Req, State) ->
+	maybe_switch_handler(Req, State, ?FUNCTION_NAME).
+
 maybe_switch_handler(Req=#{qs := Qs}, State, StateName) ->
 	case atom_to_binary(StateName, latin1) of
 		Qs -> do_switch_handler(Req, State);
@@ -129,6 +141,11 @@ do_default(Req, State, content_types_accepted) ->
 	{[{<<"text/plain">>, accept}], Req, State};
 do_default(Req, State, content_types_provided) ->
 	{[{<<"text/plain">>, provide}], Req, State};
+%% We need to accept ranges to reach these callbacks.
+do_default(Req=#{qs := <<"range_satisfiable">>}, State, ranges_provided) ->
+	{[{<<"bytes">>, provide_range}], Req, State};
+do_default(Req=#{qs := <<"provide_range">>}, State, ranges_provided) ->
+	{[{<<"bytes">>, provide_range}], Req, State};
 %% We need resource_exists to return false to reach these callbacks.
 do_default(Req=#{qs := <<"allow_missing_post">>}, State, resource_exists) ->
 	{false, Req, State};
@@ -146,11 +163,13 @@ do_default(Req=#{qs := <<"moved_temporarily">>}, State, previously_existed) ->
 %% We need the DELETE to suceed to reach this callback.
 do_default(Req=#{qs := <<"delete_completed">>}, State, delete_resource) ->
 	{true, Req, State};
-%% We should never reach these two callbacks.
+%% We should never reach these callbacks.
 do_default(Req, State, accept) ->
 	{false, Req, State};
 do_default(Req, State, provide) ->
 	{<<"This is REST!">>, Req, State};
+do_default(Req, State, provide_range) ->
+	{<<"This is ranged REST!">>, Req, State};
 %% Simulate the callback being missing in any other cases.
 do_default(_, _, _) ->
 	no_call.

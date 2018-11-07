@@ -180,6 +180,20 @@
 	when Req::cowboy_req:req(), State::any().
 -optional_callbacks([previously_existed/2]).
 
+-callback range_satisfiable(Req, State)
+	-> {boolean() | {false, non_neg_integer() | iodata()}, Req, State}
+	| {stop, Req, State}
+	| {switch_handler(), Req, State}
+	when Req::cowboy_req:req(), State::any().
+-optional_callbacks([range_satisfiable/2]).
+
+-callback ranges_provided(Req, State)
+	-> {[{binary(), atom()}], Req, State}
+	| {stop, Req, State}
+	| {switch_handler(), Req, State}
+	when Req::cowboy_req:req(), State::any().
+-optional_callbacks([ranges_provided/2]).
+
 -callback rate_limited(Req, State)
 	-> {{true, non_neg_integer() | calendar:datetime()} | false, Req, State}
 	| {stop, Req, State}
@@ -254,6 +268,9 @@
 	%% Charset.
 	charsets_p = undefined :: undefined | [binary()],
 	charset_a :: undefined | binary(),
+
+	%% Range units.
+	ranges_a = [] :: [{binary(), atom()}],
 
 	%% Whether the resource exists.
 	exists = false :: boolean(),
@@ -733,10 +750,27 @@ set_content_type_build_params([{Attr, Value}|Tail], Acc) ->
 %% @todo Don't forget to set the Content-Encoding header when we reply a body
 %% and the found encoding is something other than identity.
 encodings_provided(Req, State) ->
-	variances(Req, State).
+	ranges_provided(Req, State).
 
 not_acceptable(Req, State) ->
 	respond(Req, State, 406).
+
+ranges_provided(Req, State) ->
+	case call(Req, State, ranges_provided) of
+		no_call ->
+			variances(Req, State);
+		{stop, Req2, State2} ->
+			terminate(Req2, State2);
+		{Switch, Req2, State2} when element(1, Switch) =:= switch_handler ->
+			switch_handler(Switch, Req2, State2);
+		{[], Req2, State2} ->
+			Req3 = cowboy_req:set_resp_header(<<"accept-ranges">>, <<"none">>, Req2),
+			variances(Req3, State2#state{ranges_a=[]});
+		{RP, Req2, State2} ->
+			<<", ", AcceptRanges/binary>> = <<<<", ", R/binary>> || {R, _} <- RP>>,
+			Req3 = cowboy_req:set_resp_header(<<"accept-ranges">>, AcceptRanges, Req2),
+			variances(Req3, State2#state{ranges_a=RP})
+	end.
 
 %% variances/2 should return a list of headers that will be added
 %% to the Vary response header. The Accept, Accept-Language,
@@ -1124,10 +1158,140 @@ set_resp_body_last_modified(Req, State) ->
 set_resp_body_expires(Req, State) ->
 	try set_resp_expires(Req, State) of
 		{Req2, State2} ->
-			set_resp_body(Req2, State2)
+			if_range(Req2, State2)
 	catch Class:Reason ->
 		error_terminate(Req, State, Class, Reason)
 	end.
+
+%% When both the if-range and range headers are set, we perform
+%% a strong comparison. If it fails, we send a full response.
+if_range(Req=#{headers := #{<<"if-range">> := _, <<"range">> := _}},
+		State=#state{etag=Etag}) ->
+	try cowboy_req:parse_header(<<"if-range">>, Req) of
+		%% Strong etag comparison is an exact match with the generate_etag result.
+		Etag={strong, _} ->
+			range(Req, State);
+		%% We cannot do a strong date comparison because we have
+		%% no way of knowing whether the representation changed
+		%% twice during the second covered by the presented
+		%% validator. (RFC7232 2.2.2)
+		_ ->
+			set_resp_body(Req, State)
+	catch _:_ ->
+		set_resp_body(Req, State)
+	end;
+if_range(Req, State) ->
+	range(Req, State).
+
+range(Req, State=#state{ranges_a=[]}) ->
+	set_resp_body(Req, State);
+range(Req, State) ->
+	try cowboy_req:parse_header(<<"range">>, Req) of
+		undefined ->
+			set_resp_body(Req, State);
+		%% @todo Maybe change parse_header to return <<"bytes">> in 3.0.
+		{bytes, BytesRange} ->
+			choose_range(Req, State, {<<"bytes">>, BytesRange});
+		Range ->
+			choose_range(Req, State, Range)
+	catch _:_ ->
+		%% We send a 416 response back when we can't parse the
+		%% range header at all. I'm not sure this is the right
+		%% way to go but at least this can help clients identify
+		%% what went wrong when their range requests never work.
+		range_not_satisfiable(Req, State, undefined)
+	end.
+
+choose_range(Req, State=#state{ranges_a=RangesAccepted}, Range={RangeUnit, _}) ->
+	case lists:keyfind(RangeUnit, 1, RangesAccepted) of
+		{_, Callback} ->
+			%% We pass the selected range onward in the Req.
+			range_satisfiable(Req#{range => Range}, State, Callback);
+		false ->
+			set_resp_body(Req, State)
+	end.
+
+range_satisfiable(Req, State, Callback) ->
+	case call(Req, State, range_satisfiable) of
+		no_call ->
+			set_ranged_body(Req, State, Callback);
+		{stop, Req2, State2} ->
+			terminate(Req2, State2);
+		{Switch, Req2, State2} when element(1, Switch) =:= switch_handler ->
+			switch_handler(Switch, Req2, State2);
+		{true, Req2, State2} ->
+			set_ranged_body(Req2, State2, Callback);
+		{false, Req2, State2} ->
+			range_not_satisfiable(Req2, State2, undefined);
+		{{false, Int}, Req2, State2} when is_integer(Int) ->
+			range_not_satisfiable(Req2, State2, [<<"*/">>, integer_to_binary(Int)]);
+		{{false, Iodata}, Req2, State2} when is_binary(Iodata); is_list(Iodata) ->
+			range_not_satisfiable(Req2, State2, Iodata)
+	end.
+
+%% We send the content-range header when we can on error.
+range_not_satisfiable(Req, State, undefined) ->
+	respond(Req, State, 416);
+range_not_satisfiable(Req0=#{range := {RangeUnit, _}}, State, RangeData) ->
+	Req = cowboy_req:set_resp_header(<<"content-range">>,
+		[RangeUnit, $\s, RangeData], Req0),
+	respond(Req, State, 416).
+
+set_ranged_body(Req, State=#state{handler=Handler}, Callback) ->
+	try case call(Req, State, Callback) of
+		{stop, Req2, State2} ->
+			terminate(Req2, State2);
+		{Switch, Req2, State2} when element(1, Switch) =:= switch_handler ->
+			switch_handler(Switch, Req2, State2);
+		%% When we receive a single range, we send it directly.
+		{[OneRange], Req2, State2} ->
+			{ContentRange, Body} = prepare_range(Req2, OneRange),
+			Req3 = cowboy_req:set_resp_header(<<"content-range">>, ContentRange, Req2),
+			Req4 = cowboy_req:set_resp_body(Body, Req3),
+			respond(Req4, State2, 206);
+		%% When we receive multiple ranges we have to send them as multipart/byteranges.
+		%% This also applies to non-bytes units. (RFC7233 A) If users don't want to use
+		%% this for non-bytes units they can always return a single range with a binary
+		%% content-range information.
+		{Ranges, Req2, State2} when length(Ranges) > 1 ->
+			set_multipart_ranged_body(Req2, State2, Ranges)
+	end catch Class:{case_clause, no_call} ->
+		error_terminate(Req, State, Class, {error, {missing_callback, {Handler, Callback, 2}},
+			'A callback specified in ranges_accepted/2 is not exported.'})
+	end.
+
+set_multipart_ranged_body(Req, State, [FirstRange|MoreRanges]) ->
+	Boundary = cow_multipart:boundary(),
+	ContentType = cowboy_req:resp_header(<<"content-type">>, Req),
+	{FirstContentRange, FirstPartBody} = prepare_range(Req, FirstRange),
+	FirstPartHead = cow_multipart:first_part(Boundary, [
+		{<<"content-type">>, ContentType},
+		{<<"content-range">>, FirstContentRange}
+	]),
+	MoreParts = [begin
+		{NextContentRange, NextPartBody} = prepare_range(Req, NextRange),
+		NextPartHead = cow_multipart:part(Boundary, [
+			{<<"content-type">>, ContentType},
+			{<<"content-range">>, NextContentRange}
+		]),
+		[NextPartHead, NextPartBody]
+	end || NextRange <- MoreRanges],
+	Body = [FirstPartHead, FirstPartBody, MoreParts, cow_multipart:close(Boundary)],
+	Req2 = cowboy_req:set_resp_header(<<"content-type">>,
+		[<<"multipart/byteranges; boundary=">>, Boundary], Req),
+	Req3 = cowboy_req:set_resp_body(Body, Req2),
+	respond(Req3, State, 206).
+
+prepare_range(#{range := {RangeUnit, _}}, {{From, To, Total0}, Body}) ->
+	Total = case Total0 of
+		'*' -> <<"*">>;
+		_ -> integer_to_binary(Total0)
+	end,
+	ContentRange = [RangeUnit, $\s, integer_to_binary(From),
+		$-, integer_to_binary(To), $/, Total],
+	{ContentRange, Body};
+prepare_range(#{range := {RangeUnit, _}}, {RangeData, Body}) ->
+	{[RangeUnit, $\s, RangeData], Body}.
 
 %% Set the response headers and call the callback found using
 %% content_types_provided/2 to obtain the request body and add
