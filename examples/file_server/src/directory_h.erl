@@ -41,7 +41,13 @@ list_html(Req, {Path, Fs}) ->
 		"<body>">>, Body, <<"</body></html>\n">>],
 	{HTML, Req, Path}.
 
+links(<<>>, "..") ->
+	"<a href='/..'>..</a><br>\n";
+links(Prefix, "..") ->
+	Tokens = string:tokens(binary_to_list(Prefix), "/"),
+	Back = lists:join("/", lists:reverse(tl(lists:reverse(Tokens)))),
+	["<a href='/../", Back, "'>..</a><br>\n"];
 links(<<>>, File) ->
 	["<a href='/", File, "'>", File, "</a><br>\n"];
 links(Prefix, File) ->
-	["<a href='/", Prefix, $/, File, "'>", File, "</a><br>\n"].
+	["<a href='/", Prefix, File, "'>", File, "</a><br>\n"].
