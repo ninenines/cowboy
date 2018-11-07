@@ -42,12 +42,12 @@ list_html(Req, {Path, Fs}) ->
 	{HTML, Req, Path}.
 
 links(<<>>, "..") ->
-    ["<a href='/", "..", "'>", "..", "</a><br>\n"];
+	["<a href='/", "..", "'>", "..", "</a><br>\n"];
 links(Prefix, "..") ->
-    Toks = string:tokens(binary_to_list(Prefix), "/"),
-    Back = lists:join( "/", lists:delete(lists:last(Toks), Toks)),
-    ["<a href='/", "..", $/ ] ++ Back ++ [ "'>", "..", "</a><br>\n"];
+	Toks = string:tokens(binary_to_list(Prefix), "/"),
+	Back = lists:join( "/", lists:delete(lists:last(Toks), Toks)),
+	["<a href='/", "..", $/ ] ++ Back ++ [ "'>", "..", "</a><br>\n"];
 links(<<>>, File) ->
-    ["<a href='/", File, "'>", File, "</a><br>\n"];
+	["<a href='/", File, "'>", File, "</a><br>\n"];
 links(Prefix, File) ->
-    ["<a href='/", Prefix, File, "'>", File, "</a><br>\n"].
+	["<a href='/", Prefix, File, "'>", File, "</a><br>\n"].
