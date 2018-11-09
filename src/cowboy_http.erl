@@ -940,17 +940,18 @@ commands(State0=#state{socket=Socket, transport=Transport, out_state=wait, strea
 	%% @todo I'm pretty sure the last stream in the list is the one we want
 	%% considering all others are queued.
 	#stream{version=Version} = lists:keyfind(StreamID, #stream.id, Streams),
-	{State, Headers} = connection(State0, Headers0, StreamID, Version),
+	{State1, Headers} = connection(State0, Headers0, StreamID, Version),
+	State = State1#state{out_state=done},
 	%% @todo Ensure content-length is set.
 	Response = cow_http:response(StatusCode, 'HTTP/1.1', headers_to_list(Headers)),
 	case Body of
-		{sendfile, O, B, P} ->
+		{sendfile, _, _, _} ->
 			Transport:send(Socket, Response),
-			commands(State, StreamID, [{sendfile, fin, O, B, P}|Tail]);
+			sendfile(State, Body);
 		_ ->
-			Transport:send(Socket, [Response, Body]),
-			commands(State#state{out_state=done}, StreamID, Tail)
-	end;
+			Transport:send(Socket, [Response, Body])
+	end,
+	commands(State, StreamID, Tail);
 %% Send response headers and initiate chunked encoding or streaming.
 commands(State0=#state{socket=Socket, transport=Transport, streams=Streams0, out_state=OutState},
 		StreamID, [{headers, StatusCode, Headers0}|Tail]) ->
@@ -981,53 +982,57 @@ commands(State0=#state{socket=Socket, transport=Transport, streams=Streams0, out
 	Transport:send(Socket, cow_http:response(StatusCode, 'HTTP/1.1', headers_to_list(Headers))),
 	commands(State, StreamID, Tail);
 %% Send a response body chunk.
-%%
-%% @todo WINDOW_UPDATE stuff require us to buffer some data.
-%% @todo We probably want to allow Data to be the {sendfile, ...} tuple also.
+%% @todo We need to kill the stream if it tries to send data before headers.
 commands(State0=#state{socket=Socket, transport=Transport, streams=Streams0, out_state=OutState},
 		StreamID, [{data, IsFin, Data}|Tail]) ->
 	%% Do not send anything when the user asks to send an empty
 	%% data frame, as that would break the protocol.
-	Size = iolist_size(Data),
-	Stream0 = lists:keyfind(StreamID, #stream.id, Streams0),
-	Stream = case Size of
-		0 ->
-			%% We send the last chunk only if version is HTTP/1.1 and IsFin=fin.
-			case {OutState, Stream0} of
-				{_, #stream{method= <<"HEAD">>}} ->
-					ok;
-				{chunked, _} when IsFin =:= fin ->
-					Transport:send(Socket, <<"0\r\n\r\n">>);
-				_ ->
-					ok
-			end,
+	Size = case Data of
+		{sendfile, _, B, _} -> B;
+		_ -> iolist_size(Data)
+	end,
+	%% Depending on the current state we may need to send nothing,
+	%% the last chunk, chunked data with/without the last chunk,
+	%% or just the data as-is.
+	Stream = case lists:keyfind(StreamID, #stream.id, Streams0) of
+		Stream0=#stream{method= <<"HEAD">>} ->
 			Stream0;
-		_ ->
-			%% @todo We need to kill the stream if it tries to send data before headers.
-			%% @todo Same as above.
-			case {OutState, Stream0} of
-				{_, #stream{method= <<"HEAD">>}} ->
-					Stream0;
-				{chunked, _} ->
-					Transport:send(Socket, [
-						integer_to_binary(Size, 16), <<"\r\n">>, Data,
-						case IsFin of
-							fin -> <<"\r\n0\r\n\r\n">>;
-							nofin -> <<"\r\n">>
-						end
-					]),
-					Stream0;
-				{streaming, #stream{local_sent_size=SentSize0, local_expected_size=ExpectedSize}} ->
-					SentSize = SentSize0 + Size,
-					if
-						%% undefined is > any integer value.
-						SentSize > ExpectedSize ->
-							terminate(State0, response_body_too_large);
-						true ->
-							Transport:send(Socket, Data),
-							Stream0#stream{local_sent_size=SentSize}
-					end
-			end
+		Stream0 when Size =:= 0, IsFin =:= fin, OutState =:= chunked ->
+			Transport:send(Socket, <<"0\r\n\r\n">>),
+			Stream0;
+		Stream0 when Size =:= 0 ->
+			Stream0;
+		Stream0 when is_tuple(Data), OutState =:= chunked ->
+			Transport:send(Socket, [integer_to_binary(Size, 16), <<"\r\n">>]),
+			sendfile(State0, Data),
+			Transport:send(Socket,
+				case IsFin of
+					fin -> <<"\r\n0\r\n\r\n">>;
+					nofin -> <<"\r\n">>
+				end),
+			Stream0;
+		Stream0 when OutState =:= chunked ->
+			Transport:send(Socket, [
+				integer_to_binary(Size, 16), <<"\r\n">>, Data,
+				case IsFin of
+					fin -> <<"\r\n0\r\n\r\n">>;
+					nofin -> <<"\r\n">>
+				end
+			]),
+			Stream0;
+		Stream0 when OutState =:= streaming ->
+			#stream{local_sent_size=SentSize0, local_expected_size=ExpectedSize} = Stream0,
+			SentSize = SentSize0 + Size,
+			if
+				%% ExpectedSize may be undefined, which is > any integer value.
+				SentSize > ExpectedSize ->
+					terminate(State0, response_body_too_large);
+				is_tuple(Data) ->
+					sendfile(State0, Data);
+				true ->
+					Transport:send(Socket, Data)
+			end,
+			Stream0#stream{local_sent_size=SentSize}
 	end,
 	State = case IsFin of
 		fin -> State0#state{out_state=done};
@@ -1050,38 +1055,6 @@ commands(State=#state{socket=Socket, transport=Transport, streams=Streams, out_s
 			ok
 	end,
 	commands(State#state{out_state=done}, StreamID, Tail);
-%% Send a file.
-commands(State0=#state{socket=Socket, transport=Transport, opts=Opts}, StreamID,
-		[{sendfile, IsFin, Offset, Bytes, Path}|Tail]) ->
-	%% @todo exit with response_body_too_large if we exceed content-length
-	%% We wrap the sendfile call into a try/catch because on OTP-20
-	%% and earlier a few different crashes could occur for sockets
-	%% that were closing or closed. For example a badarg in
-	%% erlang:port_get_data(#Port<...>) or a badmatch like
-	%% {{badmatch,{error,einval}},[{prim_file,sendfile,8,[]}...
-	%%
-	%% OTP-21 uses a NIF instead of a port so the implementation
-	%% and behavior has dramatically changed and it is unclear
-	%% whether it will be necessary in the future.
-	%%
-	%% This try/catch prevents some noisy logs to be written
-	%% when these errors occur.
-	try
-		%% When sendfile is disabled we explicitly use the fallback.
-		_ = case maps:get(sendfile, Opts, true) of
-			true -> Transport:sendfile(Socket, Path, Offset, Bytes);
-			false -> ranch_transport:sendfile(Transport, Socket, Path, Offset, Bytes, [])
-		end,
-		State = case IsFin of
-			fin -> State0#state{out_state=done}
-%% @todo Add the sendfile command.
-%			nofin -> State0
-		end,
-		commands(State, StreamID, Tail)
-	catch _:_ ->
-		terminate(State0, {socket_error, sendfile_crash,
-			'An error occurred when using the sendfile function.'})
-	end;
 %% Protocol takeover.
 commands(State0=#state{ref=Ref, parent=Parent, socket=Socket, transport=Transport,
 		out_state=OutState, opts=Opts, children=Children}, StreamID,
@@ -1135,6 +1108,32 @@ headers_to_list(Headers0=#{<<"set-cookie">> := SetCookies}) ->
 	Headers1 ++ [{<<"set-cookie">>, Value} || Value <- SetCookies];
 headers_to_list(Headers) ->
 	maps:to_list(Headers).
+
+%% We wrap the sendfile call into a try/catch because on OTP-20
+%% and earlier a few different crashes could occur for sockets
+%% that were closing or closed. For example a badarg in
+%% erlang:port_get_data(#Port<...>) or a badmatch like
+%% {{badmatch,{error,einval}},[{prim_file,sendfile,8,[]}...
+%%
+%% OTP-21 uses a NIF instead of a port so the implementation
+%% and behavior has dramatically changed and it is unclear
+%% whether it will be necessary in the future.
+%%
+%% This try/catch prevents some noisy logs to be written
+%% when these errors occur.
+sendfile(State=#state{socket=Socket, transport=Transport, opts=Opts},
+		{sendfile, Offset, Bytes, Path}) ->
+	try
+		%% When sendfile is disabled we explicitly use the fallback.
+		_ = case maps:get(sendfile, Opts, true) of
+			true -> Transport:sendfile(Socket, Path, Offset, Bytes);
+			false -> ranch_transport:sendfile(Transport, Socket, Path, Offset, Bytes, [])
+		end,
+		ok
+	catch _:_ ->
+		terminate(State, {socket_error, sendfile_crash,
+			'An error occurred when using the sendfile function.'})
+	end.
 
 %% Flush messages specific to cowboy_http before handing over the
 %% connection to another protocol.

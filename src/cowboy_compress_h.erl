@@ -98,7 +98,7 @@ fold(Commands, State) ->
 
 fold([], State, Acc) ->
 	{lists:reverse(Acc), State};
-%% We do not compress sendfile bodies.
+%% We do not compress full sendfile bodies.
 fold([Response={response, _, _, {sendfile, _, _, _}}|Tail], State, Acc) ->
 	fold(Tail, State, [Response|Acc]);
 %% We compress full responses directly, unless they are lower than
@@ -171,6 +171,21 @@ gzip_headers({headers, Status, Headers0}, State) ->
 		<<"content-encoding">> => <<"gzip">>
 	}}, State#state{deflate=Z}}.
 
+%% It is not possible to combine zlib and the sendfile
+%% syscall as far as I can tell, because the zlib format
+%% includes a checksum at the end of the stream. We have
+%% to read the file in memory, making this not suitable for
+%% large files.
+gzip_data({data, nofin, Sendfile={sendfile, _, _, _}}, State=#state{deflate=Z}) ->
+	{ok, Data0} = read_file(Sendfile),
+	Data = zlib:deflate(Z, Data0),
+	{{data, nofin, Data}, State};
+gzip_data({data, fin, Sendfile={sendfile, _, _, _}}, State=#state{deflate=Z}) ->
+	{ok, Data0} = read_file(Sendfile),
+	Data = zlib:deflate(Z, Data0, finish),
+	zlib:deflateEnd(Z),
+	zlib:close(Z),
+	{{data, fin, Data}, State#state{deflate=undefined}};
 gzip_data({data, nofin, Data0}, State=#state{deflate=Z}) ->
 	Data = zlib:deflate(Z, Data0),
 	{{data, nofin, Data}, State};
@@ -179,3 +194,15 @@ gzip_data({data, fin, Data0}, State=#state{deflate=Z}) ->
 	zlib:deflateEnd(Z),
 	zlib:close(Z),
 	{{data, fin, Data}, State#state{deflate=undefined}}.
+
+read_file({sendfile, Offset, Bytes, Path}) ->
+	{ok, IoDevice} = file:open(Path, [read, raw, binary]),
+	try
+		_ = case Offset of
+			0 -> ok;
+			_ -> file:position(IoDevice, {bof, Offset})
+		end,
+		file:read(IoDevice, Bytes)
+	after
+		file:close(IoDevice)
+	end.

@@ -243,6 +243,8 @@ fold([{headers, Status, Headers}|Tail],
 		end,
 		resp_start=RespStart
 	});
+%% @todo It might be worthwhile to keep the sendfile information around,
+%% especially if these frames ultimately result in a sendfile syscall.
 fold([{data, nofin, Data}|Tail], State=#state{resp_body_length=RespBodyLen}) ->
 	fold(Tail, State#state{
 		resp_body_length=RespBodyLen + resp_body_length(Data)

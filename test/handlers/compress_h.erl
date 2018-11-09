@@ -27,7 +27,30 @@ init(Req0, State=stream_reply) ->
 		<<"large">> ->
 			stream_reply(#{}, Req0);
 		<<"content-encoding">> ->
-			stream_reply(#{<<"content-encoding">> => <<"compress">>}, Req0)
+			stream_reply(#{<<"content-encoding">> => <<"compress">>}, Req0);
+		<<"sendfile">> ->
+			Data = lists:duplicate(10000, $a),
+			AppFile = code:where_is_file("cowboy.app"),
+			Size = filelib:file_size(AppFile),
+			Req1 = cowboy_req:stream_reply(200, Req0),
+			%% We send a few files interspersed into other data.
+			cowboy_req:stream_body(Data, nofin, Req1),
+			cowboy_req:stream_body({sendfile, 0, Size, AppFile}, nofin, Req1),
+			cowboy_req:stream_body(Data, nofin, Req1),
+			cowboy_req:stream_body({sendfile, 0, Size, AppFile}, nofin, Req1),
+			cowboy_req:stream_body(Data, fin, Req1),
+			Req1;
+		<<"sendfile_fin">> ->
+			Data = lists:duplicate(10000, $a),
+			AppFile = code:where_is_file("cowboy.app"),
+			Size = filelib:file_size(AppFile),
+			Req1 = cowboy_req:stream_reply(200, Req0),
+			%% We send a few files interspersed into other data.
+			cowboy_req:stream_body(Data, nofin, Req1),
+			cowboy_req:stream_body({sendfile, 0, Size, AppFile}, nofin, Req1),
+			cowboy_req:stream_body(Data, nofin, Req1),
+			cowboy_req:stream_body({sendfile, 0, Size, AppFile}, fin, Req1),
+			Req1
 	end,
 	{ok, Req, State}.
 

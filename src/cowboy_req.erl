@@ -808,21 +808,35 @@ stream_reply(Status, Headers=#{}, Req=#{pid := Pid, streamid := StreamID})
 	Pid ! {{Pid, StreamID}, {headers, Status, response_headers(Headers, Req)}},
 	done_replying(Req, headers).
 
--spec stream_body(iodata(), fin | nofin, req()) -> ok.
+-spec stream_body(resp_body(), fin | nofin, req()) -> ok.
 %% Error out if headers were not sent.
 %% Don't send any body for HEAD responses.
 stream_body(_, _, #{method := <<"HEAD">>, has_sent_resp := headers}) ->
 	ok;
 %% Don't send a message if the data is empty, except for the
-%% very last message with IsFin=fin.
-stream_body(Data, IsFin=nofin, #{pid := Pid, streamid := StreamID, has_sent_resp := headers}) ->
+%% very last message with IsFin=fin. When using sendfile this
+%% is converted to a data tuple, however.
+stream_body({sendfile, _, 0, _}, nofin, _) ->
+	ok;
+stream_body({sendfile, _, 0, _}, IsFin=fin,
+		#{pid := Pid, streamid := StreamID, has_sent_resp := headers}) ->
+	Pid ! {{Pid, StreamID}, {data, IsFin, <<>>}},
+	ok;
+stream_body({sendfile, O, B, P}, IsFin,
+		#{pid := Pid, streamid := StreamID, has_sent_resp := headers})
+		when is_integer(O), O >= 0, is_integer(B), B > 0 ->
+	Pid ! {{Pid, StreamID}, {data, IsFin, {sendfile, O, B, P}}},
+	ok;
+stream_body(Data, IsFin=nofin, #{pid := Pid, streamid := StreamID, has_sent_resp := headers})
+		when not is_tuple(Data) ->
 	case iolist_size(Data) of
 		0 -> ok;
 		_ ->
 			Pid ! {{Pid, StreamID}, {data, IsFin, Data}},
 			ok
 	end;
-stream_body(Data, IsFin, #{pid := Pid, streamid := StreamID, has_sent_resp := headers}) ->
+stream_body(Data, IsFin, #{pid := Pid, streamid := StreamID, has_sent_resp := headers})
+		when not is_tuple(Data) ->
 	Pid ! {{Pid, StreamID}, {data, IsFin, Data}},
 	ok.
 

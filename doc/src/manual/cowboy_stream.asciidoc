@@ -133,7 +133,7 @@ Send data to the client.
 
 [source,erlang]
 ----
-{data, fin(), iodata()}
+{data, fin(), cowboy_req:resp_body()}
 ----
 
 [[trailers_command]]
@@ -420,6 +420,7 @@ tuple.
 
 == Changelog
 
+* *2.6*: The data command can now contain a sendfile tuple.
 * *2.6*: The `{stop, {exit, any()}, HumanReadable}` terminate reason was added.
 * *2.2*: The trailers command was introduced.
 * *2.0*: Module introduced.

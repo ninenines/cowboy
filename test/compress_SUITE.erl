@@ -121,6 +121,24 @@ gzip_stream_reply(Config) ->
 	_ = zlib:gunzip(GzBody),
 	ok.
 
+gzip_stream_reply_sendfile(Config) ->
+	doc("Stream reply using sendfile for some chunks; get a gzipped response."),
+	{200, Headers, GzBody} = do_get("/stream_reply/sendfile",
+		[{<<"accept-encoding">>, <<"gzip">>}], Config),
+	{_, <<"gzip">>} = lists:keyfind(<<"content-encoding">>, 1, Headers),
+	file:write_file("/tmp/test.gz", GzBody),
+	_ = zlib:gunzip(GzBody),
+	ok.
+
+gzip_stream_reply_sendfile_fin(Config) ->
+	doc("Stream reply using sendfile for some chunks; get a gzipped response."),
+	{200, Headers, GzBody} = do_get("/stream_reply/sendfile_fin",
+		[{<<"accept-encoding">>, <<"gzip">>}], Config),
+	{_, <<"gzip">>} = lists:keyfind(<<"content-encoding">>, 1, Headers),
+	file:write_file("/tmp/test.gz", GzBody),
+	_ = zlib:gunzip(GzBody),
+	ok.
+
 gzip_stream_reply_content_encoding(Config) ->
 	doc("Stream reply with content-encoding header; get an uncompressed response."),
 	{200, Headers, Body} = do_get("/stream_reply/content-encoding",

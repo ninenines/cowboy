@@ -10,7 +10,7 @@ cowboy_req:stream_body - Stream the response body
 ----
 stream_body(Data, IsFin, Req :: cowboy_req:req()) -> ok
 
-Data  :: iodata()
+Data  :: cowboy_req:resp_body()
 IsFin :: fin | nofin
 ----
 
@@ -58,6 +58,7 @@ The atom `ok` is always returned. It can be safely ignored.
 
 == Changelog
 
+* *2.6*: The `Data` argument can now be a sendfile tuple.
 * *2.0*: Function introduced. Replaces `chunk/2`.
 
 == Examples

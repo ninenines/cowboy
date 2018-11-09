@@ -885,19 +885,42 @@ stream_reply3(Config) ->
 	{500, _, _} = do_get("/resp/stream_reply3/error", Config),
 	ok.
 
-stream_body_multiple(Config) ->
-	doc("Streamed body via multiple calls."),
-	{200, _, <<"Hello world!">>} = do_get("/resp/stream_body/multiple", Config),
-	ok.
-
 stream_body_fin0(Config) ->
 	doc("Streamed body with last chunk of size 0."),
 	{200, _, <<"Hello world!">>} = do_get("/resp/stream_body/fin0", Config),
 	ok.
 
+stream_body_multiple(Config) ->
+	doc("Streamed body via multiple calls."),
+	{200, _, <<"Hello world!">>} = do_get("/resp/stream_body/multiple", Config),
+	ok.
+
 stream_body_nofin(Config) ->
 	doc("Unfinished streamed body."),
 	{200, _, <<"Hello world!">>} = do_get("/resp/stream_body/nofin", Config),
+	ok.
+
+stream_body_sendfile(Config) ->
+	doc("Streamed body via multiple calls, including sendfile calls."),
+	{ok, AppFile} = file:read_file(code:where_is_file("cowboy.app")),
+	ExpectedBody = iolist_to_binary([
+		<<"Hello ">>,
+		AppFile,
+		<<" interspersed ">>,
+		AppFile,
+		<<" world!">>
+	]),
+	{200, _, ExpectedBody} = do_get("/resp/stream_body/sendfile", Config),
+	ok.
+
+stream_body_sendfile_fin(Config) ->
+	doc("Streamed body via multiple calls, including a sendfile final call."),
+	{ok, AppFile} = file:read_file(code:where_is_file("cowboy.app")),
+	ExpectedBody = iolist_to_binary([
+		<<"Hello! ">>,
+		AppFile
+	]),
+	{200, _, ExpectedBody} = do_get("/resp/stream_body/sendfile_fin", Config),
 	ok.
 
 stream_body_content_length_multiple(Config) ->

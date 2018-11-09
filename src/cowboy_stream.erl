@@ -32,7 +32,7 @@
 -type commands() :: [{inform, cowboy:http_status(), cowboy:http_headers()}
 	| resp_command()
 	| {headers, cowboy:http_status(), cowboy:http_headers()}
-	| {data, fin(), iodata()}
+	| {data, fin(), cowboy_req:resp_body()}
 	| {trailers, cowboy:http_headers()}
 	| {push, binary(), binary(), binary(), inet:port_number(),
 		binary(), binary(), cowboy:http_headers()}

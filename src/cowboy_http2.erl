@@ -510,12 +510,6 @@ commands(State0, StreamID, [{data, IsFin, Data}|Tail]) ->
 commands(State0, StreamID, [{trailers, Trailers}|Tail]) ->
 	State = maybe_send_data(State0, StreamID, fin, {trailers, maps:to_list(Trailers)}),
 	commands(State, StreamID, Tail);
-%% Send a file.
-%% @todo Add the sendfile command.
-%commands(State0, Stream0=#stream{local=nofin},
-%		[{sendfile, IsFin, Offset, Bytes, Path}|Tail]) ->
-%	{State, Stream} = maybe_send_data(State0, Stream0, IsFin, {sendfile, Offset, Bytes, Path}),
-%	commands(State, Stream, Tail);
 %% Send a push promise.
 %%
 %% @todo Responses sent as a result of a push_promise request
