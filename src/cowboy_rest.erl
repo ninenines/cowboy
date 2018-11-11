@@ -1229,15 +1229,127 @@ range_satisfiable(Req, State, Callback) ->
 			range_not_satisfiable(Req2, State2, Iodata)
 	end.
 
-%% We send the content-range header when we can on error.
-range_not_satisfiable(Req, State, undefined) ->
-	respond(Req, State, 416);
-range_not_satisfiable(Req0=#{range := {RangeUnit, _}}, State, RangeData) ->
-	Req = cowboy_req:set_resp_header(<<"content-range">>,
-		[RangeUnit, $\s, RangeData], Req0),
-	respond(Req, State, 416).
+%% When the callback selected is 'auto' and the range unit
+%% is bytes, we call the normal provide callback and split
+%% the content automatically.
+set_ranged_body(Req=#{range := {<<"bytes">>, _}}, State, auto) ->
+	set_ranged_body_auto(Req, State);
+set_ranged_body(Req, State, Callback) ->
+	set_ranged_body_callback(Req, State, Callback).
 
-set_ranged_body(Req, State=#state{handler=Handler}, Callback) ->
+set_ranged_body_auto(Req, State=#state{handler=Handler, content_type_a={_, Callback}}) ->
+	try case call(Req, State, Callback) of
+		{stop, Req2, State2} ->
+			terminate(Req2, State2);
+		{Switch, Req2, State2} when element(1, Switch) =:= switch_handler ->
+			switch_handler(Switch, Req2, State2);
+		{Body, Req2, State2} ->
+			maybe_set_ranged_body_auto(Req2, State2, Body)
+	end catch Class:{case_clause, no_call} ->
+		error_terminate(Req, State, Class, {error, {missing_callback, {Handler, Callback, 2}},
+			'A callback specified in content_types_provided/2 is not exported.'})
+	end.
+
+maybe_set_ranged_body_auto(Req=#{range := {_, Ranges}}, State, Body) ->
+	Size = case Body of
+		{sendfile, _, Bytes, _} -> Bytes;
+		_ -> iolist_size(Body)
+	end,
+	Checks = [case Range of
+		{From, infinity} -> From < Size;
+		{From, To} -> (From < Size) andalso (From =< To) andalso (To =< Size);
+		Neg -> (Neg =/= 0) andalso (-Neg < Size)
+	end || Range <- Ranges],
+	case lists:usort(Checks) of
+		[true] -> set_ranged_body_auto(Req, State, Body);
+		_ -> range_not_satisfiable(Req, State, [<<"*/">>, integer_to_binary(Size)])
+	end.
+
+%% We might also want to have some checks about range order,
+%% number of ranges, and perhaps also join ranges that are
+%% too close into one contiguous range. Some of these can
+%% be done before calling the ProvideCallback.
+
+set_ranged_body_auto(Req=#{range := {_, Ranges}}, State, Body) ->
+	Parts = [ranged_partition(Range, Body) || Range <- Ranges],
+	case Parts of
+		[OnePart] -> set_one_ranged_body(Req, State, OnePart);
+		_ when is_tuple(Body) -> send_multipart_ranged_body(Req, State, Parts);
+		_ -> set_multipart_ranged_body(Req, State, Parts)
+	end.
+
+ranged_partition(Range, {sendfile, Offset0, Bytes0, Path}) ->
+	{From, To, Offset, Bytes} = case Range of
+		{From0, infinity} -> {From0, Bytes0 - 1, Offset0 + From0, Bytes0 - From0};
+		{From0, To0} -> {From0, To0, Offset0 + From0, 1 + To0 - From0};
+		Neg -> {Bytes0 + Neg, Bytes0 - 1, Offset0 + Bytes0 + Neg, -Neg}
+	end,
+	{{From, To, Bytes0}, {sendfile, Offset, Bytes, Path}};
+ranged_partition(Range, Data0) ->
+	Total = iolist_size(Data0),
+	{From, To, Data} = case Range of
+		{From0, infinity} ->
+			{_, Data1} = cow_iolists:split(From0, Data0),
+			{From0, Total - 1, Data1};
+		{From0, To0} ->
+			{_, Data1} = cow_iolists:split(From0, Data0),
+			{Data2, _} = cow_iolists:split(To0 - From0 + 1, Data1),
+			{From0, To0, Data2};
+		Neg ->
+			{_, Data1} = cow_iolists:split(Total + Neg, Data0),
+			{Total + Neg, Total - 1, Data1}
+	end,
+	{{From, To, Total}, Data}.
+
+-ifdef(TEST).
+ranged_partition_test_() ->
+	Tests = [
+		%% Sendfile with open-ended range.
+		{{0, infinity}, {sendfile, 0, 12, "t"}, {{0, 11, 12}, {sendfile, 0, 12, "t"}}},
+		{{6, infinity}, {sendfile, 0, 12, "t"}, {{6, 11, 12}, {sendfile, 6, 6, "t"}}},
+		{{11, infinity}, {sendfile, 0, 12, "t"}, {{11, 11, 12}, {sendfile, 11, 1, "t"}}},
+		%% Sendfile with open-ended range. Sendfile tuple has an offset originally.
+		{{0, infinity}, {sendfile, 3, 12, "t"}, {{0, 11, 12}, {sendfile, 3, 12, "t"}}},
+		{{6, infinity}, {sendfile, 3, 12, "t"}, {{6, 11, 12}, {sendfile, 9, 6, "t"}}},
+		{{11, infinity}, {sendfile, 3, 12, "t"}, {{11, 11, 12}, {sendfile, 14, 1, "t"}}},
+		%% Sendfile with a specific range.
+		{{0, 11}, {sendfile, 0, 12, "t"}, {{0, 11, 12}, {sendfile, 0, 12, "t"}}},
+		{{6, 11}, {sendfile, 0, 12, "t"}, {{6, 11, 12}, {sendfile, 6, 6, "t"}}},
+		{{11, 11}, {sendfile, 0, 12, "t"}, {{11, 11, 12}, {sendfile, 11, 1, "t"}}},
+		{{1, 10}, {sendfile, 0, 12, "t"}, {{1, 10, 12}, {sendfile, 1, 10, "t"}}},
+		%% Sendfile with a specific range. Sendfile tuple has an offset originally.
+		{{0, 11}, {sendfile, 3, 12, "t"}, {{0, 11, 12}, {sendfile, 3, 12, "t"}}},
+		{{6, 11}, {sendfile, 3, 12, "t"}, {{6, 11, 12}, {sendfile, 9, 6, "t"}}},
+		{{11, 11}, {sendfile, 3, 12, "t"}, {{11, 11, 12}, {sendfile, 14, 1, "t"}}},
+		{{1, 10}, {sendfile, 3, 12, "t"}, {{1, 10, 12}, {sendfile, 4, 10, "t"}}},
+		%% Sendfile with negative range.
+		{-12, {sendfile, 0, 12, "t"}, {{0, 11, 12}, {sendfile, 0, 12, "t"}}},
+		{-6, {sendfile, 0, 12, "t"}, {{6, 11, 12}, {sendfile, 6, 6, "t"}}},
+		{-1, {sendfile, 0, 12, "t"}, {{11, 11, 12}, {sendfile, 11, 1, "t"}}},
+		%% Sendfile with negative range. Sendfile tuple has an offset originally.
+		{-12, {sendfile, 3, 12, "t"}, {{0, 11, 12}, {sendfile, 3, 12, "t"}}},
+		{-6, {sendfile, 3, 12, "t"}, {{6, 11, 12}, {sendfile, 9, 6, "t"}}},
+		{-1, {sendfile, 3, 12, "t"}, {{11, 11, 12}, {sendfile, 14, 1, "t"}}},
+		%% Iodata with open-ended range.
+		{{0, infinity}, <<"Hello world!">>, {{0, 11, 12}, <<"Hello world!">>}},
+		{{6, infinity}, <<"Hello world!">>, {{6, 11, 12}, <<"world!">>}},
+		{{11, infinity}, <<"Hello world!">>, {{11, 11, 12}, <<"!">>}},
+		%% Iodata with a specific range. The resulting data is
+		%% wrapped in a list because of how cow_iolists:split/2 works.
+		{{0, 11}, <<"Hello world!">>, {{0, 11, 12}, [<<"Hello world!">>]}},
+		{{6, 11}, <<"Hello world!">>, {{6, 11, 12}, [<<"world!">>]}},
+		{{11, 11}, <<"Hello world!">>, {{11, 11, 12}, [<<"!">>]}},
+		{{1, 10}, <<"Hello world!">>, {{1, 10, 12}, [<<"ello world">>]}},
+		%% Iodata with negative range.
+		{-12, <<"Hello world!">>, {{0, 11, 12}, <<"Hello world!">>}},
+		{-6, <<"Hello world!">>, {{6, 11, 12}, <<"world!">>}},
+		{-1, <<"Hello world!">>, {{11, 11, 12}, <<"!">>}}
+	],
+	[{iolist_to_binary(io_lib:format("range ~p data ~p", [VR, VD])),
+		fun() -> R = ranged_partition(VR, VD) end} || {VR, VD, R} <- Tests].
+-endif.
+
+set_ranged_body_callback(Req, State=#state{handler=Handler}, Callback) ->
 	try case call(Req, State, Callback) of
 		{stop, Req2, State2} ->
 			terminate(Req2, State2);
@@ -1245,10 +1357,7 @@ set_ranged_body(Req, State=#state{handler=Handler}, Callback) ->
 			switch_handler(Switch, Req2, State2);
 		%% When we receive a single range, we send it directly.
 		{[OneRange], Req2, State2} ->
-			{ContentRange, Body} = prepare_range(Req2, OneRange),
-			Req3 = cowboy_req:set_resp_header(<<"content-range">>, ContentRange, Req2),
-			Req4 = cowboy_req:set_resp_body(Body, Req3),
-			respond(Req4, State2, 206);
+			set_one_ranged_body(Req2, State2, OneRange);
 		%% When we receive multiple ranges we have to send them as multipart/byteranges.
 		%% This also applies to non-bytes units. (RFC7233 A) If users don't want to use
 		%% this for non-bytes units they can always return a single range with a binary
@@ -1257,8 +1366,14 @@ set_ranged_body(Req, State=#state{handler=Handler}, Callback) ->
 			set_multipart_ranged_body(Req2, State2, Ranges)
 	end catch Class:{case_clause, no_call} ->
 		error_terminate(Req, State, Class, {error, {missing_callback, {Handler, Callback, 2}},
-			'A callback specified in ranges_accepted/2 is not exported.'})
+			'A callback specified in ranges_provided/2 is not exported.'})
 	end.
+
+set_one_ranged_body(Req0, State, OneRange) ->
+	{ContentRange, Body} = prepare_range(Req0, OneRange),
+	Req1 = cowboy_req:set_resp_header(<<"content-range">>, ContentRange, Req0),
+	Req = cowboy_req:set_resp_body(Body, Req1),
+	respond(Req, State, 206).
 
 set_multipart_ranged_body(Req, State, [FirstRange|MoreRanges]) ->
 	Boundary = cow_multipart:boundary(),
@@ -1282,6 +1397,34 @@ set_multipart_ranged_body(Req, State, [FirstRange|MoreRanges]) ->
 	Req3 = cowboy_req:set_resp_body(Body, Req2),
 	respond(Req3, State, 206).
 
+%% Similar to set_multipart_ranged_body except we have to stream
+%% the data because the parts contain sendfile tuples.
+send_multipart_ranged_body(Req, State, [FirstRange|MoreRanges]) ->
+	Boundary = cow_multipart:boundary(),
+	ContentType = cowboy_req:resp_header(<<"content-type">>, Req),
+	Req2 = cowboy_req:set_resp_header(<<"content-type">>,
+		[<<"multipart/byteranges; boundary=">>, Boundary], Req),
+	Req3 = cowboy_req:stream_reply(206, Req2),
+	{FirstContentRange, FirstPartBody} = prepare_range(Req, FirstRange),
+	FirstPartHead = cow_multipart:first_part(Boundary, [
+		{<<"content-type">>, ContentType},
+		{<<"content-range">>, FirstContentRange}
+	]),
+	cowboy_req:stream_body(FirstPartHead, nofin, Req3),
+	cowboy_req:stream_body(FirstPartBody, nofin, Req3),
+	_ = [begin
+		{NextContentRange, NextPartBody} = prepare_range(Req, NextRange),
+		NextPartHead = cow_multipart:part(Boundary, [
+			{<<"content-type">>, ContentType},
+			{<<"content-range">>, NextContentRange}
+		]),
+		cowboy_req:stream_body(NextPartHead, nofin, Req3),
+		cowboy_req:stream_body(NextPartBody, nofin, Req3),
+		[NextPartHead, NextPartBody]
+	end || NextRange <- MoreRanges],
+	cowboy_req:stream_body(cow_multipart:close(Boundary), fin, Req3),
+	terminate(Req3, State).
+
 prepare_range(#{range := {RangeUnit, _}}, {{From, To, Total0}, Body}) ->
 	Total = case Total0 of
 		'*' -> <<"*">>;
@@ -1292,6 +1435,14 @@ prepare_range(#{range := {RangeUnit, _}}, {{From, To, Total0}, Body}) ->
 	{ContentRange, Body};
 prepare_range(#{range := {RangeUnit, _}}, {RangeData, Body}) ->
 	{[RangeUnit, $\s, RangeData], Body}.
+
+%% We send the content-range header when we can on error.
+range_not_satisfiable(Req, State, undefined) ->
+	respond(Req, State, 416);
+range_not_satisfiable(Req0=#{range := {RangeUnit, _}}, State, RangeData) ->
+	Req = cowboy_req:set_resp_header(<<"content-range">>,
+		[RangeUnit, $\s, RangeData], Req0),
+	respond(Req, State, 416).
 
 %% Set the response headers and call the callback found using
 %% content_types_provided/2 to obtain the request body and add

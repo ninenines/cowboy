@@ -52,6 +52,7 @@ init_dispatch(_) ->
 		{"/provide_range_callback", provide_range_callback_h, []},
 		{"/range_satisfiable", range_satisfiable_h, []},
 		{"/ranges_provided", ranges_provided_h, []},
+		{"/ranges_provided_auto", ranges_provided_auto_h, []},
 		{"/rate_limited", rate_limited_h, []},
 		{"/stop_handler", stop_handler_h, []},
 		{"/switch_handler", switch_handler_h, run},
@@ -431,7 +432,15 @@ provide_range_callback_multipart(Config) ->
 		= lists:keyfind(<<"content-type">>, 1, Headers),
 	{ok, Body0} = gun:await_body(ConnPid, Ref),
 	Body = do_decode(Headers, Body0),
-	do_provide_range_callback_multipart_body(Body, Boundary, [], <<>>).
+	{ContentRanges, BodyAcc} = do_provide_range_callback_multipart_body(Body, Boundary, [], <<>>),
+	[
+		{bytes, 0, 3, 20},
+		{bytes, 5, 6, 20},
+		{bytes, 8, 13, 20},
+		{bytes, 15, 19, 20}
+	] = ContentRanges,
+	<<"ThisisrangedREST!">> = BodyAcc,
+	ok.
 
 do_provide_range_callback_multipart_body(Rest, Boundary, ContentRangesAcc, BodyAcc) ->
 	case cow_multipart:parse_headers(Rest, Boundary) of
@@ -450,14 +459,7 @@ do_provide_range_callback_multipart_body(Rest, Boundary, ContentRangesAcc, BodyA
 						<<BodyAcc/binary, Body/binary>>)
 			end;
 		{done, <<>>} ->
-			[
-				{bytes, 0, 3, 20},
-				{bytes, 5, 6, 20},
-				{bytes, 8, 13, 20},
-				{bytes, 15, 19, 20}
-			] = lists:reverse(ContentRangesAcc),
-			<<"ThisisrangedREST!">> = BodyAcc,
-			ok
+			{lists:reverse(ContentRangesAcc), BodyAcc}
 	end.
 
 provide_range_callback_metadata(Config) ->
@@ -596,6 +598,159 @@ ranges_provided_accept_ranges(Config) ->
 	Ref = gun:get(ConnPid, "/ranges_provided?list", [{<<"accept-encoding">>, <<"gzip">>}]),
 	{response, _, 200, Headers} = gun:await(ConnPid, Ref),
 	{_, <<"bytes, pages, chapters">>} = lists:keyfind(<<"accept-ranges">>, 1, Headers),
+	ok.
+
+%% @todo Probably should have options to do this automatically for auto at least.
+%%
+%%   A server that supports range requests MAY ignore or reject a Range
+%%   header field that consists of more than two overlapping ranges, or a
+%%   set of many small ranges that are not listed in ascending order,
+%%   since both are indications of either a broken client or a deliberate
+%%   denial-of-service attack (Section 6.1).
+
+%% @todo Probably should have options for auto as well to join ranges that
+%% are very close from each other.
+
+ranges_provided_auto_data(Config) ->
+	doc("When the unit range is bytes and the callback is 'auto' "
+		"Cowboy will call the normal ProvideCallback and perform "
+		"the range calculations automatically."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/ranges_provided_auto?data", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"range">>, <<"bytes=8-">>}
+	]),
+	{response, nofin, 206, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"bytes">>} = lists:keyfind(<<"accept-ranges">>, 1, Headers),
+	{_, <<"bytes 8-19/20">>} = lists:keyfind(<<"content-range">>, 1, Headers),
+	{_, <<"text/plain">>} = lists:keyfind(<<"content-type">>, 1, Headers),
+	{ok, <<"ranged REST!">>} = gun:await_body(ConnPid, Ref),
+	ok.
+
+ranges_provided_auto_sendfile(Config) ->
+	doc("When the unit range is bytes and the callback is 'auto' "
+		"Cowboy will call the normal ProvideCallback and perform "
+		"the range calculations automatically."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/ranges_provided_auto?sendfile", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"range">>, <<"bytes=8-">>}
+	]),
+	Path = code:lib_dir(cowboy) ++ "/ebin/cowboy.app",
+	Size = filelib:file_size(Path),
+	{ok, <<_:8/binary, Body/bits>>} = file:read_file(Path),
+	{response, nofin, 206, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"bytes">>} = lists:keyfind(<<"accept-ranges">>, 1, Headers),
+	{_, ContentRange} = lists:keyfind(<<"content-range">>, 1, Headers),
+	ContentRange = iolist_to_binary([
+		<<"bytes 8-">>,
+		integer_to_binary(Size - 1),
+		<<"/">>,
+		integer_to_binary(Size)
+	]),
+	{_, <<"text/plain">>} = lists:keyfind(<<"content-type">>, 1, Headers),
+	{ok, Body} = gun:await_body(ConnPid, Ref),
+	ok.
+
+ranges_provided_auto_multipart_data(Config) ->
+	doc("When the unit range is bytes and the callback is 'auto' "
+		"Cowboy will call the normal ProvideCallback and perform "
+		"the range calculations automatically."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/ranges_provided_auto?data", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		%% This range selects everything except the space characters.
+		{<<"range">>, <<"bytes=0-3, 5-6, 8-13, 15-">>}
+	]),
+	{response, nofin, 206, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"bytes">>} = lists:keyfind(<<"accept-ranges">>, 1, Headers),
+	false = lists:keyfind(<<"content-range">>, 1, Headers),
+	{_, <<"multipart/byteranges; boundary=", Boundary/bits>>}
+		= lists:keyfind(<<"content-type">>, 1, Headers),
+	{ok, Body0} = gun:await_body(ConnPid, Ref),
+	Body = do_decode(Headers, Body0),
+	%% We will receive the ranges in the same order as requested.
+	{ContentRanges, BodyAcc} = do_provide_range_callback_multipart_body(Body, Boundary, [], <<>>),
+	[
+		{bytes, 0, 3, 20},
+		{bytes, 5, 6, 20},
+		{bytes, 8, 13, 20},
+		{bytes, 15, 19, 20}
+	] = ContentRanges,
+	<<"ThisisrangedREST!">> = BodyAcc,
+	ok.
+
+ranges_provided_auto_multipart_sendfile(Config) ->
+	doc("When the unit range is bytes and the callback is 'auto' "
+		"Cowboy will call the normal ProvideCallback and perform "
+		"the range calculations automatically."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/ranges_provided_auto?sendfile", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		%% This range selects a few random chunks of the file.
+		{<<"range">>, <<"bytes=50-99, 150-199, 250-299, -99">>}
+	]),
+	Path = code:lib_dir(cowboy) ++ "/ebin/cowboy.app",
+	Size = filelib:file_size(Path),
+	Skip = Size - 399,
+	{ok, <<
+		_:50/binary, Body1:50/binary,
+		_:50/binary, Body2:50/binary,
+		_:50/binary, Body3:50/binary,
+		_:Skip/binary, Body4/bits>>} = file:read_file(Path),
+	{response, nofin, 206, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"bytes">>} = lists:keyfind(<<"accept-ranges">>, 1, Headers),
+	false = lists:keyfind(<<"content-range">>, 1, Headers),
+	{_, <<"multipart/byteranges; boundary=", Boundary/bits>>}
+		= lists:keyfind(<<"content-type">>, 1, Headers),
+	{ok, Body0} = gun:await_body(ConnPid, Ref),
+	Body = do_decode(Headers, Body0),
+	%% We will receive the ranges in the same order as requested.
+	{ContentRanges, BodyAcc} = do_provide_range_callback_multipart_body(Body, Boundary, [], <<>>),
+	LastFrom = 300 + Skip,
+	LastTo = Size - 1,
+	[
+		{bytes, 50, 99, Size},
+		{bytes, 150, 199, Size},
+		{bytes, 250, 299, Size},
+		{bytes, LastFrom, LastTo, Size}
+	] = ContentRanges,
+	BodyAcc = <<Body1/binary, Body2/binary, Body3/binary, Body4/binary>>,
+	ok.
+
+ranges_provided_auto_not_satisfiable_data(Config) ->
+	doc("When the unit range is bytes and the callback is 'auto' "
+		"Cowboy will call the normal ProvideCallback and perform "
+		"the range calculations automatically. When the requested "
+		"range is not satisfiable a 416 range not satisfiable response "
+		"is expected. The content-range header will be set. (RFC7233 4.4)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/ranges_provided_auto?data", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"range">>, <<"bytes=1000-">>}
+	]),
+	{response, fin, 416, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"bytes">>} = lists:keyfind(<<"accept-ranges">>, 1, Headers),
+	{_, <<"bytes */20">>} = lists:keyfind(<<"content-range">>, 1, Headers),
+	ok.
+
+ranges_provided_auto_not_satisfiable_sendfile(Config) ->
+	doc("When the unit range is bytes and the callback is 'auto' "
+		"Cowboy will call the normal ProvideCallback and perform "
+		"the range calculations automatically. When the requested "
+		"range is not satisfiable a 416 range not satisfiable response "
+		"is expected. The content-range header will be set. (RFC7233 4.4)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/ranges_provided_auto?sendfile", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"range">>, <<"bytes=1000-">>}
+	]),
+	{response, fin, 416, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"bytes">>} = lists:keyfind(<<"accept-ranges">>, 1, Headers),
+	Path = code:lib_dir(cowboy) ++ "/ebin/cowboy.app",
+	Size = filelib:file_size(Path),
+	ContentRange = iolist_to_binary([<<"bytes */">>, integer_to_binary(Size)]),
+	{_, ContentRange} = lists:keyfind(<<"content-range">>, 1, Headers),
 	ok.
 
 ranges_provided_empty_accept_ranges_none(Config) ->

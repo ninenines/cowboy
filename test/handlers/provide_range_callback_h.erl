@@ -1,4 +1,4 @@
-%% This module defines the range_satisfiable callback
+%% This module defines many callbacks relevant to range requests
 %% and return something different depending on query string.
 
 -module(provide_range_callback_h).
@@ -41,7 +41,7 @@ get_text_plain(Req, State) ->
 
 %% Simulate the callback being missing, otherwise expect true/false.
 get_text_plain_bytes(#{qs := <<"missing">>}, _) ->
-	ct_helper_error_h:ignore(cowboy_rest, set_ranged_body, 3),
+	ct_helper_error_h:ignore(cowboy_rest, set_ranged_body_callback, 3),
 	no_call;
 get_text_plain_bytes(Req=#{range := {_, [{From=0, infinity}]}}, State) ->
 	%% We send everything in one part.
