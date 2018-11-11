@@ -838,6 +838,15 @@ priv_file_in_ez_archive(Config) ->
 	{_, <<"text/html">>} = lists:keyfind(<<"content-type">>, 1, Headers),
 	ok.
 
+range_request(Config) ->
+	doc("Confirm that range requests are enabled."),
+	{206, Headers, <<"less space.\n">>} = do_get("/dir/plain.txt",
+		[{<<"range">>, <<"bytes=4-">>}], Config),
+	{_, <<"bytes">>} = lists:keyfind(<<"accept-ranges">>, 1, Headers),
+	{_, <<"bytes 4-15/16">>} = lists:keyfind(<<"content-range">>, 1, Headers),
+	{_, <<"application/octet-stream">>} = lists:keyfind(<<"content-type">>, 1, Headers),
+	ok.
+
 unicode_basic_latin(Config) ->
 	doc("Get a file with non-urlencoded characters from Unicode Basic Latin block."),
 	_ = [case do_get("/char/" ++ [C], Config) of

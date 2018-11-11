@@ -20,6 +20,7 @@
 -export([forbidden/2]).
 -export([content_types_provided/2]).
 -export([charsets_provided/2]).
+-export([ranges_provided/2]).
 -export([resource_exists/2]).
 -export([last_modified/2]).
 -export([generate_etag/2]).
@@ -339,6 +340,14 @@ charsets_provided(Req, State={Path, _, Extra}) ->
 		{charset, Charset} ->
 			{[Charset], Req, State}
 	end.
+
+%% Enable support for range requests.
+
+-spec ranges_provided(Req, State)
+	-> {[{binary(), auto}], Req, State}
+	when State::state().
+ranges_provided(Req, State) ->
+	{[{<<"bytes">>, auto}], Req, State}.
 
 %% Assume the resource doesn't exist if it's not a regular file.
 
