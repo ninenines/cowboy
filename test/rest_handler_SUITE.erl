@@ -413,6 +413,30 @@ provide_range_callback(Config) ->
 	{ok, <<"This is ranged REST!">>} = gun:await_body(ConnPid, Ref),
 	ok.
 
+provide_range_callback_sendfile(Config) ->
+	doc("A successful request for a single range results in a "
+		"206 partial content response with content-range set. (RFC7233 4.1, RFC7233 4.2)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/provide_range_callback?sendfile", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"range">>, <<"bytes=0-">>}
+	]),
+	Path = code:lib_dir(cowboy) ++ "/ebin/cowboy.app",
+	Size = filelib:file_size(Path),
+	{ok, Body} = file:read_file(Path),
+	{response, nofin, 206, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"bytes">>} = lists:keyfind(<<"accept-ranges">>, 1, Headers),
+	{_, ContentRange} = lists:keyfind(<<"content-range">>, 1, Headers),
+	ContentRange = iolist_to_binary([
+		<<"bytes 0-">>,
+		integer_to_binary(Size - 1),
+		<<"/">>,
+		integer_to_binary(Size)
+	]),
+	{_, <<"text/plain">>} = lists:keyfind(<<"content-type">>, 1, Headers),
+	{ok, Body} = gun:await_body(ConnPid, Ref),
+	ok.
+
 provide_range_callback_multipart(Config) ->
 	doc("A successful request for multiple ranges results in a "
 		"206 partial content response using the multipart/byteranges "
@@ -440,6 +464,46 @@ provide_range_callback_multipart(Config) ->
 		{bytes, 15, 19, 20}
 	] = ContentRanges,
 	<<"ThisisrangedREST!">> = BodyAcc,
+	ok.
+
+provide_range_callback_multipart_sendfile(Config) ->
+	doc("A successful request for multiple ranges results in a "
+		"206 partial content response using the multipart/byteranges "
+		"content-type and the content-range not being set. The real "
+		"content-type and content-range of the parts can be found in "
+		"the multipart headers. (RFC7233 4.1, RFC7233 A)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/provide_range_callback?sendfile", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		%% This range selects a few random chunks of the file.
+		{<<"range">>, <<"bytes=50-99, 150-199, 250-299, -99">>}
+	]),
+	Path = code:lib_dir(cowboy) ++ "/ebin/cowboy.app",
+	Size = filelib:file_size(Path),
+	Skip = Size - 399,
+	{ok, <<
+		_:50/binary, Body1:50/binary,
+		_:50/binary, Body2:50/binary,
+		_:50/binary, Body3:50/binary,
+		_:Skip/binary, Body4/bits>>} = file:read_file(Path),
+	{response, nofin, 206, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"bytes">>} = lists:keyfind(<<"accept-ranges">>, 1, Headers),
+	false = lists:keyfind(<<"content-range">>, 1, Headers),
+	{_, <<"multipart/byteranges; boundary=", Boundary/bits>>}
+		= lists:keyfind(<<"content-type">>, 1, Headers),
+	{ok, Body0} = gun:await_body(ConnPid, Ref),
+	Body = do_decode(Headers, Body0),
+	%% We will receive the ranges in the same order as requested.
+	{ContentRanges, BodyAcc} = do_provide_range_callback_multipart_body(Body, Boundary, [], <<>>),
+	LastFrom = 300 + Skip,
+	LastTo = Size - 1,
+	[
+		{bytes, 50, 99, Size},
+		{bytes, 150, 199, Size},
+		{bytes, 250, 299, Size},
+		{bytes, LastFrom, LastTo, Size}
+	] = ContentRanges,
+	BodyAcc = <<Body1/binary, Body2/binary, Body3/binary, Body4/binary>>,
 	ok.
 
 do_provide_range_callback_multipart_body(Rest, Boundary, ContentRangesAcc, BodyAcc) ->

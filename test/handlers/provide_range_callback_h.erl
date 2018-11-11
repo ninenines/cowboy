@@ -43,11 +43,31 @@ get_text_plain(Req, State) ->
 get_text_plain_bytes(#{qs := <<"missing">>}, _) ->
 	ct_helper_error_h:ignore(cowboy_rest, set_ranged_body_callback, 3),
 	no_call;
+get_text_plain_bytes(Req=#{qs := <<"sendfile">>, range := {_, [{From=0, infinity}]}}, State) ->
+	Path = code:lib_dir(cowboy) ++ "/ebin/cowboy.app",
+	Size = filelib:file_size(Path),
+	{[{{From, Size - 1, Size}, {sendfile, From, Size, Path}}], Req, State};
 get_text_plain_bytes(Req=#{range := {_, [{From=0, infinity}]}}, State) ->
 	%% We send everything in one part.
 	Body = <<"This is ranged REST!">>,
 	Total = byte_size(Body),
 	{[{{From, Total - 1, Total}, Body}], Req, State};
+get_text_plain_bytes(Req=#{qs := <<"sendfile">>, range := {_, Range}}, State) ->
+	%% We check the range header we get and send everything hardcoded.
+	[
+		{50, 99},
+		{150, 199},
+		{250, 299},
+		-99
+	] = Range,
+	Path = code:lib_dir(cowboy) ++ "/ebin/cowboy.app",
+	Size = filelib:file_size(Path),
+	{[
+		{{50, 99, Size}, {sendfile, 50, 50, Path}},
+		{{150, 199, Size}, {sendfile, 150, 50, Path}},
+		{{250, 299, Size}, {sendfile, 250, 50, Path}},
+		{{Size - 99, Size - 1, Size}, {sendfile, Size - 99, 99, Path}}
+	], Req, State};
 get_text_plain_bytes(Req=#{range := {_, Range}}, State) ->
 	%% We check the range header we get and send everything hardcoded.
 	[

@@ -1363,7 +1363,13 @@ set_ranged_body_callback(Req, State=#state{handler=Handler}, Callback) ->
 		%% this for non-bytes units they can always return a single range with a binary
 		%% content-range information.
 		{Ranges, Req2, State2} when length(Ranges) > 1 ->
-			set_multipart_ranged_body(Req2, State2, Ranges)
+			%% We have to check whether there are sendfile tuples in the
+			%% ranges to be sent. If there are we must use stream_reply.
+			HasSendfile = [] =/= [true || {_, {sendfile, _, _, _}} <- Ranges],
+			case HasSendfile of
+				true -> send_multipart_ranged_body(Req2, State2, Ranges);
+				false -> set_multipart_ranged_body(Req2, State2, Ranges)
+			end
 	end catch Class:{case_clause, no_call} ->
 		error_terminate(Req, State, Class, {error, {missing_callback, {Handler, Callback, 2}},
 			'A callback specified in ranges_provided/2 is not exported.'})
