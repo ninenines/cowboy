@@ -152,6 +152,7 @@ Cowboy does it automatically for you.
 ----
 opts() :: #{
     compress => boolean(),
+    deflate_opts => cow_ws:deflate_opts()
     idle_timeout => timeout(),
     max_frame_size => non_neg_integer() | infinity,
     req_filter => fun((cowboy_req:req()) -> map())
@@ -173,31 +174,44 @@ init(Req, State) ->
 The default value is given next to the option name:
 
 compress (false)::
-    Whether to enable the Websocket frame compression
-    extension. Frames will only be compressed for the
-    clients that support this extension.
+
+Whether to enable the Websocket frame compression
+extension. Frames will only be compressed for the
+clients that support this extension.
+
+deflate_opts (#{})::
+
+Configuration for the permessage-deflate Websocket
+extension. Allows configuring both the negotiated
+options and the zlib compression options. The
+defaults optimize the compression at the expense
+of some memory and CPU.
 
 idle_timeout (60000)::
-    Time in milliseconds that Cowboy will keep the
-    connection open without receiving anything from
-    the client.
+
+Time in milliseconds that Cowboy will keep the
+connection open without receiving anything from
+the client.
 
 max_frame_size (infinity)::
-    Maximum frame size allowed by this Websocket
-    handler. Cowboy will close the connection when
-    a client attempts to send a frame that goes over
-    this limit. For fragmented frames this applies
-    to the size of the reconstituted frame.
+
+Maximum frame size allowed by this Websocket
+handler. Cowboy will close the connection when
+a client attempts to send a frame that goes over
+this limit. For fragmented frames this applies
+to the size of the reconstituted frame.
 
 req_filter::
-    A function applied to the Req to compact it and
-    only keep required information. The Req is only
-    given back in the `terminate/3` callback. By default
-    it keeps the method, version, URI components and peer
-    information.
+
+A function applied to the Req to compact it and
+only keep required information. The Req is only
+given back in the `terminate/3` callback. By default
+it keeps the method, version, URI components and peer
+information.
 
 == Changelog
 
+* *2.6*: Deflate options can now be configured via `deflate_opts`.
 * *2.0*: The Req object is no longer passed to Websocket callbacks.
 * *2.0*: The callback `websocket_terminate/3` was removed in favor of `terminate/3`.
 * *1.0*: Protocol introduced.
