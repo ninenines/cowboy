@@ -1,5 +1,5 @@
-%% This module takes commands from the x-commands header
-%% and returns them in the websocket_init/1 callback.
+%% This module starts with active mode disabled
+%% and enables it again once a timeout is triggered.
 
 -module(ws_active_commands_h).
 -behavior(cowboy_websocket).

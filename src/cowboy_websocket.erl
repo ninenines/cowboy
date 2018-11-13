@@ -31,7 +31,10 @@
 -export([system_terminate/4]).
 -export([system_code_change/4]).
 
--type commands() :: [cow_ws:frame() | {active, boolean()}].
+-type commands() :: [cow_ws:frame()
+	| {active, boolean()}
+	| {deflate, boolean()}
+].
 -export_type([commands/0]).
 
 -type call_result(State) :: {commands(), State} | {commands(), State, hibernate}.
@@ -88,6 +91,7 @@
 	frag_state = undefined :: cow_ws:frag_state(),
 	frag_buffer = <<>> :: binary(),
 	utf8_state = 0 :: cow_ws:utf8_state(),
+	deflate = true :: boolean(),
 	extensions = #{} :: map(),
 	req = #{} :: map()
 }).
@@ -424,10 +428,8 @@ parse_payload(State=#state{frag_state=FragState, utf8_state=Incomplete, extensio
 			websocket_close(State, HandlerState, Error)
 	end.
 
-dispatch_frame(State=#state{opts=Opts, frag_state=FragState,
-		frag_buffer=SoFar, extensions=Extensions}, HandlerState,
-		#ps_payload{type=Type0, unmasked=Payload0, close_code=CloseCode0},
-		RemainingData) ->
+dispatch_frame(State=#state{opts=Opts, frag_state=FragState, frag_buffer=SoFar}, HandlerState,
+		#ps_payload{type=Type0, unmasked=Payload0, close_code=CloseCode0}, RemainingData) ->
 	MaxFrameSize = maps:get(max_frame_size, Opts, infinity),
 	case cow_ws:make_frame(Type0, Payload0, CloseCode0, FragState) of
 		%% @todo Allow receiving fragments.
@@ -446,12 +448,12 @@ dispatch_frame(State=#state{opts=Opts, frag_state=FragState,
 		{close, CloseCode, Payload} ->
 			websocket_close(State, HandlerState, {remote, CloseCode, Payload});
 		Frame = ping ->
-			transport_send(State, nofin, cow_ws:frame(pong, Extensions)),
+			transport_send(State, nofin, frame(pong, State)),
 			handler_call(State, HandlerState,
 				#ps_header{buffer=RemainingData},
 				websocket_handle, Frame, fun parse_header/3);
 		Frame = {ping, Payload} ->
-			transport_send(State, nofin, cow_ws:frame({pong, Payload}, Extensions)),
+			transport_send(State, nofin, frame({pong, Payload}, State)),
 			handler_call(State, HandlerState,
 				#ps_header{buffer=RemainingData},
 				websocket_handle, Frame, fun parse_header/3);
@@ -523,8 +525,10 @@ commands([], State, Data) ->
 	{Result, State};
 commands([{active, Active}|Tail], State, Data) when is_boolean(Active) ->
 	commands(Tail, State#state{active=Active}, Data);
-commands([Frame|Tail], State=#state{extensions=Extensions}, Data0) ->
-	Data = [cow_ws:frame(Frame, Extensions)|Data0],
+commands([{deflate, Deflate}|Tail], State, Data) when is_boolean(Deflate) ->
+	commands(Tail, State#state{deflate=Deflate}, Data);
+commands([Frame|Tail], State, Data0) ->
+	Data = [frame(Frame, State)|Data0],
 	case is_close_frame(Frame) of
 		true ->
 			_ = transport_send(State, fin, lists:reverse(Data)),
@@ -542,8 +546,8 @@ transport_send(#state{socket=Socket, transport=Transport}, _, Data) ->
 -spec websocket_send(cow_ws:frame(), #state{}) -> ok | stop | {error, atom()}.
 websocket_send(Frames, State) when is_list(Frames) ->
 	websocket_send_many(Frames, State, []);
-websocket_send(Frame, State=#state{extensions=Extensions}) ->
-	Data = cow_ws:frame(Frame, Extensions),
+websocket_send(Frame, State) ->
+	Data = frame(Frame, State),
 	case is_close_frame(Frame) of
 		true ->
 			_ = transport_send(State, fin, Data),
@@ -554,8 +558,8 @@ websocket_send(Frame, State=#state{extensions=Extensions}) ->
 
 websocket_send_many([], State, Acc) ->
 	transport_send(State, nofin, lists:reverse(Acc));
-websocket_send_many([Frame|Tail], State=#state{extensions=Extensions}, Acc0) ->
-	Acc = [cow_ws:frame(Frame, Extensions)|Acc0],
+websocket_send_many([Frame|Tail], State, Acc0) ->
+	Acc = [frame(Frame, State)|Acc0],
 	case is_close_frame(Frame) of
 		true ->
 			_ = transport_send(State, fin, lists:reverse(Acc)),
@@ -574,24 +578,30 @@ websocket_close(State, HandlerState, Reason) ->
 	websocket_send_close(State, Reason),
 	terminate(State, HandlerState, Reason).
 
-websocket_send_close(State=#state{extensions=Extensions}, Reason) ->
+websocket_send_close(State, Reason) ->
 	_ = case Reason of
 		Normal when Normal =:= stop; Normal =:= timeout ->
-			transport_send(State, fin, cow_ws:frame({close, 1000, <<>>}, Extensions));
+			transport_send(State, fin, frame({close, 1000, <<>>}, State));
 		{error, badframe} ->
-			transport_send(State, fin, cow_ws:frame({close, 1002, <<>>}, Extensions));
+			transport_send(State, fin, frame({close, 1002, <<>>}, State));
 		{error, badencoding} ->
-			transport_send(State, fin, cow_ws:frame({close, 1007, <<>>}, Extensions));
+			transport_send(State, fin, frame({close, 1007, <<>>}, State));
 		{error, badsize} ->
-			transport_send(State, fin, cow_ws:frame({close, 1009, <<>>}, Extensions));
+			transport_send(State, fin, frame({close, 1009, <<>>}, State));
 		{crash, _, _} ->
-			transport_send(State, fin, cow_ws:frame({close, 1011, <<>>}, Extensions));
+			transport_send(State, fin, frame({close, 1011, <<>>}, State));
 		remote ->
-			transport_send(State, fin, cow_ws:frame(close, Extensions));
+			transport_send(State, fin, frame(close, State));
 		{remote, Code, _} ->
-			transport_send(State, fin, cow_ws:frame({close, Code, <<>>}, Extensions))
+			transport_send(State, fin, frame({close, Code, <<>>}, State))
 	end,
 	ok.
+
+%% Don't compress frames while deflate is disabled.
+frame(Frame, #state{deflate=false, extensions=Extensions}) ->
+	cow_ws:frame(Frame, Extensions#{deflate => false});
+frame(Frame, #state{extensions=Extensions}) ->
+	cow_ws:frame(Frame, Extensions).
 
 -spec terminate(#state{}, any(), terminate_reason()) -> no_return().
 terminate(State, HandlerState, Reason) ->
