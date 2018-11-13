@@ -126,7 +126,6 @@ gzip_stream_reply_sendfile(Config) ->
 	{200, Headers, GzBody} = do_get("/stream_reply/sendfile",
 		[{<<"accept-encoding">>, <<"gzip">>}], Config),
 	{_, <<"gzip">>} = lists:keyfind(<<"content-encoding">>, 1, Headers),
-	file:write_file("/tmp/test.gz", GzBody),
 	_ = zlib:gunzip(GzBody),
 	ok.
 
@@ -135,7 +134,6 @@ gzip_stream_reply_sendfile_fin(Config) ->
 	{200, Headers, GzBody} = do_get("/stream_reply/sendfile_fin",
 		[{<<"accept-encoding">>, <<"gzip">>}], Config),
 	{_, <<"gzip">>} = lists:keyfind(<<"content-encoding">>, 1, Headers),
-	file:write_file("/tmp/test.gz", GzBody),
 	_ = zlib:gunzip(GzBody),
 	ok.
 
