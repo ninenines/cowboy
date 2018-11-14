@@ -186,6 +186,9 @@ do(<<"stream_reply2">>, Req0, Opts) ->
 		<<"204">> ->
 			Req = cowboy_req:stream_reply(204, Req0),
 			{ok, Req, Opts};
+		<<"304">> ->
+			Req = cowboy_req:stream_reply(304, Req0),
+			{ok, Req, Opts};
 		Status ->
 			Req = cowboy_req:stream_reply(binary_to_integer(Status), Req0),
 			stream_body(Req),

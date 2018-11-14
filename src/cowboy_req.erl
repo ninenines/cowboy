@@ -771,10 +771,14 @@ reply(Status, Headers, SendFile = {sendfile, _, Len, _}, Req)
 	do_reply(Status, Headers#{
 		<<"content-length">> => integer_to_binary(Len)
 	}, SendFile, Req);
-%% 204 responses must not include content-length. (RFC7230 3.3.1, RFC7230 3.3.2)
-reply(Status=204, Headers, Body, Req) ->
+%% 204 responses must not include content-length. 304 responses may
+%% but only when set explicitly. (RFC7230 3.3.1, RFC7230 3.3.2)
+reply(Status, Headers, Body, Req)
+		when Status =:= 204; Status =:= 304 ->
 	do_reply(Status, Headers, Body, Req);
 reply(Status= <<"204",_/bits>>, Headers, Body, Req) ->
+	do_reply(Status, Headers, Body, Req);
+reply(Status= <<"304",_/bits>>, Headers, Body, Req) ->
 	do_reply(Status, Headers, Body, Req);
 reply(Status, Headers, Body, Req)
 		when is_integer(Status); is_binary(Status) ->

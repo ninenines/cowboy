@@ -963,6 +963,8 @@ commands(State0=#state{socket=Socket, transport=Transport, streams=Streams0, out
 	{State1, Headers1} = case {Status, ContentLength, Version} of
 		{204, _, 'HTTP/1.1'} ->
 			{State0#state{out_state=done}, Headers0};
+		{304, _, 'HTTP/1.1'} ->
+			{State0#state{out_state=done}, Headers0};
 		{_, undefined, 'HTTP/1.1'} ->
 			{State0#state{out_state=chunked}, Headers0#{<<"transfer-encoding">> => <<"chunked">>}};
 		%% Close the connection after streaming without content-length to HTTP/1.0 client.
