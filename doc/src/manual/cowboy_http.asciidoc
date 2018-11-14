@@ -31,6 +31,7 @@ opts() :: #{
     max_request_line_length => non_neg_integer(),
     max_skip_body_length    => non_neg_integer(),
     middlewares             => [module()],
+    proxy_header            => boolean(),
     request_timeout         => timeout(),
     sendfile                => boolean(),
     shutdown_timeout        => timeout(),
@@ -50,63 +51,87 @@ Ranch functions `ranch:get_protocol_options/1` and
 The default value is given next to the option name:
 
 connection_type (supervisor)::
-    Whether the connection process also acts as a supervisor.
+
+Whether the connection process also acts as a supervisor.
 
 env (#{})::
-    Middleware environment.
+
+Middleware environment.
 
 idle_timeout (60000)::
-    Time in ms with no data received before Cowboy closes the connection.
+
+Time in ms with no data received before Cowboy closes the connection.
 
 inactivity_timeout (300000)::
-    Time in ms with nothing received at all before Cowboy closes the connection.
+
+Time in ms with nothing received at all before Cowboy closes the connection.
 
 linger_timeout (1000)::
-    Time in ms that Cowboy will wait when closing the connection. This is
-    necessary to avoid the TCP reset problem as described in the
-    https://tools.ietf.org/html/rfc7230#section-6.6[section 6.6 of RFC7230].
+
+Time in ms that Cowboy will wait when closing the connection. This is
+necessary to avoid the TCP reset problem as described in the
+https://tools.ietf.org/html/rfc7230#section-6.6[section 6.6 of RFC7230].
 
 max_empty_lines (5)::
-    Maximum number of empty lines before a request.
+
+Maximum number of empty lines before a request.
 
 max_header_name_length (64)::
-    Maximum length of header names.
+
+Maximum length of header names.
 
 max_header_value_length (4096)::
-    Maximum length of header values.
+
+Maximum length of header values.
 
 max_headers (100)::
-    Maximum number of headers allowed per request.
+
+Maximum number of headers allowed per request.
 
 max_keepalive (100)::
-    Maximum number of requests allowed per connection.
+
+Maximum number of requests allowed per connection.
 
 max_method_length (32)::
-    Maximum length of the method.
+
+Maximum length of the method.
 
 max_request_line_length (8000)::
-    Maximum length of the request line.
+
+Maximum length of the request line.
 
 max_skip_body_length (1000000)::
-    Maximum length Cowboy is willing to skip when the user code did not read the body fully.
-    When the remaining length is too large or unknown Cowboy will close the connection.
+
+Maximum length Cowboy is willing to skip when the user code did not read the body fully.
+When the remaining length is too large or unknown Cowboy will close the connection.
 
 middlewares ([cowboy_router, cowboy_handler])::
-    Middlewares to run for every request.
+
+Middlewares to run for every request.
+
+proxy_header (false)::
+
+Whether incoming connections have a PROXY protocol header. The
+proxy information will be passed forward via the `proxy_header`
+key of the Req object.
 
 request_timeout (5000)::
-    Time in ms with no requests before Cowboy closes the connection.
+
+Time in ms with no requests before Cowboy closes the connection.
 
 sendfile (true)::
-    Whether the sendfile syscall may be used. It can be useful to disable
-    it on systems where the syscall has a buggy implementation, for example
-    under VirtualBox when using shared folders.
+
+Whether the sendfile syscall may be used. It can be useful to disable
+it on systems where the syscall has a buggy implementation, for example
+under VirtualBox when using shared folders.
 
 shutdown_timeout (5000)::
-    Time in ms Cowboy will wait for child processes to shut down before killing them.
+
+Time in ms Cowboy will wait for child processes to shut down before killing them.
 
 stream_handlers ([cowboy_stream_h])::
-    Ordered list of stream handlers that will handle all stream events.
+
+Ordered list of stream handlers that will handle all stream events.
 
 == Changelog
 
