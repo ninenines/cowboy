@@ -1060,6 +1060,10 @@ accept_resource(Req, State) ->
 		{CTA, Req2, State2} ->
 			CTA2 = [normalize_content_types(P) || P <- CTA],
 			try cowboy_req:parse_header(<<"content-type">>, Req2) of
+				%% We do not match against the boundary parameter for multipart.
+				{Type = <<"multipart">>, SubType, Params} ->
+					ContentType = {Type, SubType, lists:keydelete(<<"boundary">>, 1, Params)},
+					choose_content_type(Req2, State2, ContentType, CTA2);
 				ContentType ->
 					choose_content_type(Req2, State2, ContentType, CTA2)
 			catch _:_ ->

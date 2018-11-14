@@ -47,6 +47,7 @@ init_dispatch(_) ->
 			charset_in_content_types_provided_implicit_h, []},
 		{"/charset_in_content_types_provided_implicit_no_callback",
 			charset_in_content_types_provided_implicit_no_callback_h, []},
+		{"/content_types_accepted", content_types_accepted_h, []},
 		{"/if_range", if_range_h, []},
 		{"/provide_callback_missing", provide_callback_missing_h, []},
 		{"/provide_range_callback", provide_range_callback_h, []},
@@ -68,26 +69,6 @@ do_decode(Headers, Body) ->
 	end.
 
 %% Tests.
-
-error_on_malformed_if_match(Config) ->
-	doc("A malformed If-Match header must result in a 400 response."),
-	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, "/", [
-		{<<"accept-encoding">>, <<"gzip">>},
-		{<<"if-match">>, <<"bad">>}
-	]),
-	{response, _, 400, _} = gun:await(ConnPid, Ref),
-	ok.
-
-error_on_malformed_if_none_match(Config) ->
-	doc("A malformed If-None-Match header must result in a 400 response."),
-	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, "/", [
-		{<<"accept-encoding">>, <<"gzip">>},
-		{<<"if-none-match">>, <<"bad">>}
-	]),
-	{response, _, 400, _} = gun:await(ConnPid, Ref),
-	ok.
 
 charset_in_content_types_provided(Config) ->
 	doc("When a charset is matched explictly in content_types_provided, "
@@ -285,6 +266,39 @@ charsets_provided_empty_noheader(Config) ->
 		{<<"accept-encoding">>, <<"gzip">>}
 	]),
 	{response, _, 406, _} = gun:await(ConnPid, Ref),
+	ok.
+
+content_types_accepted_ignore_multipart_boundary(Config) ->
+	doc("When a multipart content-type is provided for the request "
+		"body, the boundary parameter is not expected to be returned "
+		"from the content_types_accepted callback and will be "
+		"automatically ignored."),
+	ConnPid = gun_open(Config),
+	Ref = gun:put(ConnPid, "/content_types_accepted?multipart", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"content-type">>, <<"multipart/mixed; boundary=abcdef; v=1">>}
+	], <<"Not really multipart!">>),
+	{response, _, 204, _} = gun:await(ConnPid, Ref),
+	ok.
+
+error_on_malformed_if_match(Config) ->
+	doc("A malformed If-Match header must result in a 400 response."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"if-match">>, <<"bad">>}
+	]),
+	{response, _, 400, _} = gun:await(ConnPid, Ref),
+	ok.
+
+error_on_malformed_if_none_match(Config) ->
+	doc("A malformed If-None-Match header must result in a 400 response."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"if-none-match">>, <<"bad">>}
+	]),
+	{response, _, 400, _} = gun:await(ConnPid, Ref),
 	ok.
 
 if_range_etag_equal(Config) ->
