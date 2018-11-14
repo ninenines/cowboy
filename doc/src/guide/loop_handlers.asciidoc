@@ -14,7 +14,8 @@ most known example of such practice is known as long polling.
 Loop handlers can also be used for requests where a response is
 partially available and you need to stream the response body
 while the connection is open. The most known example of such
-practice is server-sent events.
+practice is server-sent events, but it also applies to any
+response that takes a long time to send.
 
 While the same can be accomplished using plain HTTP handlers,
 it is recommended to use loop handlers because they are well-tested
