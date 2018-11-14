@@ -28,6 +28,7 @@
 	compress_threshold => non_neg_integer(),
 	connection_type => worker | supervisor,
 	env => cowboy_middleware:env(),
+	http10_keepalive => boolean(),
 	idle_timeout => timeout(),
 	inactivity_timeout => timeout(),
 	linger_timeout => timeout(),
@@ -1233,7 +1234,8 @@ stream_call_terminate(StreamID, Reason, StreamState, #state{opts=Opts}) ->
 			Class, Exception, erlang:get_stacktrace()), Opts)
 	end.
 
-%% @todo max_reqs also
+maybe_req_close(#state{opts=#{http10_keepalive := false}}, _, 'HTTP/1.0') ->
+	close;
 maybe_req_close(_, #{<<"connection">> := Conn}, 'HTTP/1.0') ->
 	Conns = cow_http_hd:parse_connection(Conn),
 	case lists:member(<<"keep-alive">>, Conns) of
@@ -1247,7 +1249,7 @@ maybe_req_close(_, #{<<"connection">> := Conn}, 'HTTP/1.1') ->
 		true -> close;
 		false -> keepalive
 	end;
-maybe_req_close(_State, _, _) ->
+maybe_req_close(_, _, _) ->
 	keepalive.
 
 connection(State=#state{last_streamid=StreamID}, Headers=#{<<"connection">> := Conn}, StreamID, _) ->

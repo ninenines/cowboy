@@ -19,6 +19,7 @@ as a Ranch protocol.
 opts() :: #{
     connection_type         => worker | supervisor,
     env                     => cowboy_middleware:env(),
+    http10_keepalive        => boolean(),
     idle_timeout            => timeout(),
     inactivity_timeout      => timeout(),
     linger_timeout          => timeout(),
@@ -57,6 +58,10 @@ Whether the connection process also acts as a supervisor.
 env (#{})::
 
 Middleware environment.
+
+http10_keepalive (true)::
+
+Whether keep-alive is enabled for HTTP/1.0 connections.
 
 idle_timeout (60000)::
 

@@ -21,6 +21,9 @@
 -import(ct_helper, [get_remote_pid_tcp/1]).
 -import(ct_helper, [name/0]).
 -import(cowboy_test, [gun_open/1]).
+-import(cowboy_test, [raw_open/1]).
+-import(cowboy_test, [raw_send/2]).
+-import(cowboy_test, [raw_recv_head/1]).
 
 all() -> [{group, clear}].
 
@@ -32,6 +35,31 @@ init_routes(_) -> [
 		{"/echo/:key", echo_h, []}
 	]}
 ].
+
+http10_keepalive_false(Config) ->
+	doc("Confirm the option {http10_keepalive, false} disables keep-alive "
+		"completely for HTTP/1.0 connections."),
+	{ok, _} = cowboy:start_clear(name(), [{port, 0}], #{
+		env => #{dispatch => cowboy_router:compile(init_routes(Config))},
+		http10_keepalive => false
+	}),
+	Port = ranch:get_port(name()),
+	Keepalive = "GET / HTTP/1.0\r\nhost: localhost\r\nConnection: keep-alive\r\n\r\n",
+	Client = raw_open([{type, tcp}, {port, Port}, {opts, []}|Config]),
+	ok = raw_send(Client, Keepalive),
+	_ = case catch raw_recv_head(Client) of
+		{'EXIT', _} -> error(closed);
+		Data ->
+			%% Cowboy always advertises itself as HTTP/1.1.
+			{'HTTP/1.1', 200, _, Rest} = cow_http:parse_status_line(Data),
+			{Headers, _} = cow_http:parse_headers(Rest),
+			{_, <<"close">>} = lists:keyfind(<<"connection">>, 1, Headers)
+	end,
+	ok = raw_send(Client, Keepalive),
+	case catch raw_recv_head(Client) of
+		{'EXIT', _} -> closed;
+		_ -> error(not_closed)
+	end.
 
 idle_timeout_infinity(Config) ->
 	doc("Ensure the idle_timeout option accepts the infinity value."),
