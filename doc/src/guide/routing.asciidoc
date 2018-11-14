@@ -124,6 +124,14 @@ You can also have imbricated optional segments.
 [source,erlang]
 PathMatch = "/hats/[page/[:number]]".
 
+While Cowboy does not reject multiple brackets in a route,
+the behavior may be undefined if the route is under-specified.
+For example, this route requires constraints to determine what
+is a chapter and what is a page, since they are both optional:
+
+[source,erlang]
+PathMatch = "/book/[:chapter]/[:page]".
+
 You can retrieve the rest of the host or path using `[...]`.
 In the case of hosts it will match anything before, in the case
 of paths anything after the previously matched segments. It is

@@ -428,6 +428,8 @@ compile_test_() ->
 					{[<<"horses">>], [], h, o},
 					{[<<"hats">>], [], h, o},
 					{[<<"hats">>, <<"page">>, number], [], h, o}]}]},
+		{[{'_', [{"/hats/:page/:number", h, o}]}], [{'_', [], [
+			{[<<"hats">>, page, number], [], h, o}]}]},
 		{[{'_', [{"/hats/[page/[:number]]", h, o}]}], [{'_', [], [
 			{[<<"hats">>], [], h, o},
 			{[<<"hats">>, <<"page">>], [], h, o},
