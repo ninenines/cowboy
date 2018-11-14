@@ -140,7 +140,7 @@ Ordered list of stream handlers that will handle all stream events.
 
 == Changelog
 
-* *2.6*: The `sendfile` option was added.
+* *2.6*: The `http10_keepalive`, `proxy_header` and `sendfile` options were added.
 * *2.5*: The `linger_timeout` option was added.
 * *2.2*: The `max_skip_body_length` option was added.
 * *2.0*: The `timeout` option was renamed `request_timeout`.

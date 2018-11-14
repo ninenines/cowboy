@@ -147,7 +147,7 @@ Ordered list of stream handlers that will handle all stream events.
 
 == Changelog
 
-* *2.6*: The `sendfile` option was added.
+* *2.6*: The `proxy_header` and `sendfile` options were added.
 * *2.4*: Add the options `initial_connection_window_size`,
          `initial_stream_window_size`, `max_concurrent_streams`,
          `max_decode_table_size`, `max_encode_table_size`,
