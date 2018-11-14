@@ -1595,7 +1595,15 @@ next(Req, State, Next) when is_function(Next) ->
 next(Req, State, StatusCode) when is_integer(StatusCode) ->
 	respond(Req, State, StatusCode).
 
-respond(Req, State, StatusCode) ->
+respond(Req0, State, StatusCode) ->
+	%% We remove the content-type header when there is no body,
+	%% except when the status code is 200 because it might have
+	%% been intended (for example sending an empty file).
+	Req = case cowboy_req:has_resp_body(Req0) of
+		true when StatusCode =:= 200 -> Req0;
+		true -> Req0;
+		false -> cowboy_req:delete_resp_header(<<"content-type">>, Req0)
+	end,
 	terminate(cowboy_req:reply(StatusCode, Req), State).
 
 switch_handler({switch_handler, Mod}, Req, #state{handler_state=HandlerState}) ->

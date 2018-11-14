@@ -392,9 +392,8 @@ dir_error_directory_slash(Config) ->
 
 dir_error_doesnt_exist(Config) ->
 	doc("Try to get a file that does not exist."),
-	%% @todo Check that the content-type header is removed.
-	{404, _Headers, _} = do_get(config(prefix, Config) ++ "/not.found", Config),
-%	false = lists:keyfind(<<"content-type">>, 1, Headers),
+	{404, Headers, _} = do_get(config(prefix, Config) ++ "/not.found", Config),
+	false = lists:keyfind(<<"content-type">>, 1, Headers),
 	ok.
 
 dir_error_dot(Config) ->
