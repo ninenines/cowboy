@@ -136,7 +136,10 @@ are provided? What languages do I provide?
 
 Implement the mandatory `content_types_provided`. Prefix
 the callbacks with `to_` for clarity. For example, `to_html`
-or `to_text`.
+or `to_text`. For resources that don't implement methods
+GET or HEAD, you must still accept at least one media type,
+but you can leave the callback as `undefined` since it will
+never be called.
 
 Implement the `languages_provided` or `charsets_provided`
 callbacks if applicable.
