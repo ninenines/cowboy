@@ -27,6 +27,7 @@
 -export([system_code_change/4]).
 
 -type opts() :: #{
+	compress_buffering => boolean(),
 	compress_threshold => non_neg_integer(),
 	connection_type => worker | supervisor,
 	enable_connect_protocol => boolean(),

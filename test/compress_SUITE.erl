@@ -18,6 +18,7 @@
 
 -import(ct_helper, [config/2]).
 -import(ct_helper, [doc/1]).
+-import(ct_helper, [name/0]).
 -import(cowboy_test, [gun_open/1]).
 
 %% ct.
@@ -144,3 +145,57 @@ gzip_stream_reply_content_encoding(Config) ->
 	{_, <<"compress">>} = lists:keyfind(<<"content-encoding">>, 1, Headers),
 	100000 = iolist_size(Body),
 	ok.
+
+opts_compress_buffering_false(Config0) ->
+	doc("Confirm that the compress_buffering option can be set to false, "
+		"which is the default."),
+	Fun = case config(ref, Config0) of
+		https_compress -> init_https;
+		h2_compress -> init_http2;
+		_ -> init_http
+	end,
+	Config = cowboy_test:Fun(name(), #{
+		env => #{dispatch => init_dispatch(Config0)},
+		stream_handlers => [cowboy_compress_h, cowboy_stream_h],
+		compress_buffering => false
+	}, Config0),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/stream_reply/delayed",
+		[{<<"accept-encoding">>, <<"gzip">>}]),
+	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"gzip">>} = lists:keyfind(<<"content-encoding">>, 1, Headers),
+	Z = zlib:open(),
+	zlib:inflateInit(Z, 31),
+	{data, nofin, Data1} = gun:await(ConnPid, Ref, 100),
+	<<"data: Hello!\r\n\r\n">> = iolist_to_binary(zlib:inflate(Z, Data1)),
+	timer:sleep(1000),
+	{data, nofin, Data2} = gun:await(ConnPid, Ref, 100),
+	<<"data: World!\r\n\r\n">> = iolist_to_binary(zlib:inflate(Z, Data2)),
+	gun:close(ConnPid),
+	cowboy:stop_listener(name()).
+
+opts_compress_buffering_true(Config0) ->
+	doc("Confirm that the compress_buffering option can be set to true, "
+		"and that the data received is buffered."),
+	Fun = case config(ref, Config0) of
+		https_compress -> init_https;
+		h2_compress -> init_http2;
+		_ -> init_http
+	end,
+	Config = cowboy_test:Fun(name(), #{
+		env => #{dispatch => init_dispatch(Config0)},
+		stream_handlers => [cowboy_compress_h, cowboy_stream_h],
+		compress_buffering => true
+	}, Config0),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/stream_reply/delayed",
+		[{<<"accept-encoding">>, <<"gzip">>}]),
+	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"gzip">>} = lists:keyfind(<<"content-encoding">>, 1, Headers),
+	Z = zlib:open(),
+	zlib:inflateInit(Z, 31),
+	%% The data gets buffered because it is too small.
+	{data, nofin, Data1} = gun:await(ConnPid, Ref, 100),
+	<<>> = iolist_to_binary(zlib:inflate(Z, Data1)),
+	gun:close(ConnPid),
+	cowboy:stop_listener(name()).

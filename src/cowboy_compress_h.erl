@@ -25,7 +25,8 @@
 	next :: any(),
 	threshold :: non_neg_integer() | undefined,
 	compress = undefined :: undefined | gzip,
-	deflate = undefined :: undefined | zlib:zstream()
+	deflate = undefined :: undefined | zlib:zstream(),
+	deflate_flush = sync :: none | sync
 }).
 
 -spec init(cowboy_stream:streamid(), cowboy_req:req(), cowboy:opts())
@@ -33,8 +34,14 @@
 init(StreamID, Req, Opts) ->
 	State0 = check_req(Req),
 	CompressThreshold = maps:get(compress_threshold, Opts, 300),
+	DeflateFlush = case maps:get(compress_buffering, Opts, false) of
+		false -> sync;
+		true -> none
+	end,
 	{Commands0, Next} = cowboy_stream:init(StreamID, Req, Opts),
-	fold(Commands0, State0#state{next=Next, threshold=CompressThreshold}).
+	fold(Commands0, State0#state{next=Next,
+		threshold=CompressThreshold,
+		deflate_flush=DeflateFlush}).
 
 -spec data(cowboy_stream:streamid(), cowboy_stream:fin(), cowboy_req:resp_body(), State)
 	-> {cowboy_stream:commands(), State} when State::#state{}.
@@ -176,9 +183,10 @@ gzip_headers({headers, Status, Headers0}, State) ->
 %% includes a checksum at the end of the stream. We have
 %% to read the file in memory, making this not suitable for
 %% large files.
-gzip_data({data, nofin, Sendfile={sendfile, _, _, _}}, State=#state{deflate=Z}) ->
+gzip_data({data, nofin, Sendfile={sendfile, _, _, _}},
+		State=#state{deflate=Z, deflate_flush=Flush}) ->
 	{ok, Data0} = read_file(Sendfile),
-	Data = zlib:deflate(Z, Data0),
+	Data = zlib:deflate(Z, Data0, Flush),
 	{{data, nofin, Data}, State};
 gzip_data({data, fin, Sendfile={sendfile, _, _, _}}, State=#state{deflate=Z}) ->
 	{ok, Data0} = read_file(Sendfile),
@@ -186,8 +194,8 @@ gzip_data({data, fin, Sendfile={sendfile, _, _, _}}, State=#state{deflate=Z}) ->
 	zlib:deflateEnd(Z),
 	zlib:close(Z),
 	{{data, fin, Data}, State#state{deflate=undefined}};
-gzip_data({data, nofin, Data0}, State=#state{deflate=Z}) ->
-	Data = zlib:deflate(Z, Data0),
+gzip_data({data, nofin, Data0}, State=#state{deflate=Z, deflate_flush=Flush}) ->
+	Data = zlib:deflate(Z, Data0, Flush),
 	{{data, nofin, Data}, State};
 gzip_data({data, fin, Data0}, State=#state{deflate=Z}) ->
 	Data = zlib:deflate(Z, Data0, finish),

@@ -50,6 +50,14 @@ init(Req0, State=stream_reply) ->
 			cowboy_req:stream_body({sendfile, 0, Size, AppFile}, nofin, Req1),
 			cowboy_req:stream_body(Data, nofin, Req1),
 			cowboy_req:stream_body({sendfile, 0, Size, AppFile}, fin, Req1),
+			Req1;
+		<<"delayed">> ->
+			Req1 = cowboy_req:stream_reply(200, Req0),
+			cowboy_req:stream_body(<<"data: Hello!\r\n\r\n">>, nofin, Req1),
+			timer:sleep(1000),
+			cowboy_req:stream_body(<<"data: World!\r\n\r\n">>, nofin, Req1),
+			timer:sleep(1000),
+			cowboy_req:stream_body(<<"data: Closing!\r\n\r\n">>, fin, Req1),
 			Req1
 	end,
 	{ok, Req, State}.
