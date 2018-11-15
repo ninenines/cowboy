@@ -149,53 +149,132 @@ gzip_stream_reply_content_encoding(Config) ->
 opts_compress_buffering_false(Config0) ->
 	doc("Confirm that the compress_buffering option can be set to false, "
 		"which is the default."),
+	Name = name(),
 	Fun = case config(ref, Config0) of
 		https_compress -> init_https;
 		h2_compress -> init_http2;
 		_ -> init_http
 	end,
-	Config = cowboy_test:Fun(name(), #{
+	Config = cowboy_test:Fun(Name, #{
 		env => #{dispatch => init_dispatch(Config0)},
 		stream_handlers => [cowboy_compress_h, cowboy_stream_h],
 		compress_buffering => false
 	}, Config0),
-	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, "/stream_reply/delayed",
-		[{<<"accept-encoding">>, <<"gzip">>}]),
-	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
-	{_, <<"gzip">>} = lists:keyfind(<<"content-encoding">>, 1, Headers),
-	Z = zlib:open(),
-	zlib:inflateInit(Z, 31),
-	{data, nofin, Data1} = gun:await(ConnPid, Ref, 100),
-	<<"data: Hello!\r\n\r\n">> = iolist_to_binary(zlib:inflate(Z, Data1)),
-	timer:sleep(1000),
-	{data, nofin, Data2} = gun:await(ConnPid, Ref, 100),
-	<<"data: World!\r\n\r\n">> = iolist_to_binary(zlib:inflate(Z, Data2)),
-	gun:close(ConnPid),
-	cowboy:stop_listener(name()).
+	try
+		ConnPid = gun_open(Config),
+		Ref = gun:get(ConnPid, "/stream_reply/delayed",
+			[{<<"accept-encoding">>, <<"gzip">>}]),
+		{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
+		{_, <<"gzip">>} = lists:keyfind(<<"content-encoding">>, 1, Headers),
+		Z = zlib:open(),
+		zlib:inflateInit(Z, 31),
+		{data, nofin, Data1} = gun:await(ConnPid, Ref, 100),
+		<<"data: Hello!\r\n\r\n">> = iolist_to_binary(zlib:inflate(Z, Data1)),
+		timer:sleep(1000),
+		{data, nofin, Data2} = gun:await(ConnPid, Ref, 100),
+		<<"data: World!\r\n\r\n">> = iolist_to_binary(zlib:inflate(Z, Data2)),
+		gun:close(ConnPid)
+	after
+		cowboy:stop_listener(Name)
+	end.
 
 opts_compress_buffering_true(Config0) ->
 	doc("Confirm that the compress_buffering option can be set to true, "
 		"and that the data received is buffered."),
+	Name = name(),
 	Fun = case config(ref, Config0) of
 		https_compress -> init_https;
 		h2_compress -> init_http2;
 		_ -> init_http
 	end,
-	Config = cowboy_test:Fun(name(), #{
+	Config = cowboy_test:Fun(Name, #{
 		env => #{dispatch => init_dispatch(Config0)},
 		stream_handlers => [cowboy_compress_h, cowboy_stream_h],
 		compress_buffering => true
 	}, Config0),
-	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, "/stream_reply/delayed",
-		[{<<"accept-encoding">>, <<"gzip">>}]),
-	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
+	try
+		ConnPid = gun_open(Config),
+		Ref = gun:get(ConnPid, "/stream_reply/delayed",
+			[{<<"accept-encoding">>, <<"gzip">>}]),
+		{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
+		{_, <<"gzip">>} = lists:keyfind(<<"content-encoding">>, 1, Headers),
+		Z = zlib:open(),
+		zlib:inflateInit(Z, 31),
+		%% The data gets buffered because it is too small.
+		{data, nofin, Data1} = gun:await(ConnPid, Ref, 100),
+		<<>> = iolist_to_binary(zlib:inflate(Z, Data1)),
+		gun:close(ConnPid)
+	after
+		cowboy:stop_listener(Name)
+	end.
+
+set_options_compress_buffering_false(Config0) ->
+	doc("Confirm that the compress_buffering option can be dynamically "
+		"set to false by a handler and that the data received is not buffered."),
+	Name = name(),
+	Fun = case config(ref, Config0) of
+		https_compress -> init_https;
+		h2_compress -> init_http2;
+		_ -> init_http
+	end,
+	Config = cowboy_test:Fun(Name, #{
+		env => #{dispatch => init_dispatch(Config0)},
+		stream_handlers => [cowboy_compress_h, cowboy_stream_h],
+		compress_buffering => true
+	}, Config0),
+	try
+		ConnPid = gun_open(Config),
+		Ref = gun:get(ConnPid, "/stream_reply/set_options_buffering_false",
+			[{<<"accept-encoding">>, <<"gzip">>}]),
+		{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
+		{_, <<"gzip">>} = lists:keyfind(<<"content-encoding">>, 1, Headers),
+		Z = zlib:open(),
+		zlib:inflateInit(Z, 31),
+		{data, nofin, Data1} = gun:await(ConnPid, Ref, 100),
+		<<"data: Hello!\r\n\r\n">> = iolist_to_binary(zlib:inflate(Z, Data1)),
+		timer:sleep(1000),
+		{data, nofin, Data2} = gun:await(ConnPid, Ref, 100),
+		<<"data: World!\r\n\r\n">> = iolist_to_binary(zlib:inflate(Z, Data2)),
+		gun:close(ConnPid)
+	after
+		cowboy:stop_listener(Name)
+	end.
+
+set_options_compress_buffering_true(Config0) ->
+	doc("Confirm that the compress_buffering option can be dynamically "
+		"set to true by a handler and that the data received is buffered."),
+	Name = name(),
+	Fun = case config(ref, Config0) of
+		https_compress -> init_https;
+		h2_compress -> init_http2;
+		_ -> init_http
+	end,
+	Config = cowboy_test:Fun(Name, #{
+		env => #{dispatch => init_dispatch(Config0)},
+		stream_handlers => [cowboy_compress_h, cowboy_stream_h],
+		compress_buffering => false
+	}, Config0),
+	try
+		ConnPid = gun_open(Config),
+		Ref = gun:get(ConnPid, "/stream_reply/set_options_buffering_true",
+			[{<<"accept-encoding">>, <<"gzip">>}]),
+		{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
+		{_, <<"gzip">>} = lists:keyfind(<<"content-encoding">>, 1, Headers),
+		Z = zlib:open(),
+		zlib:inflateInit(Z, 31),
+		%% The data gets buffered because it is too small.
+		{data, nofin, Data1} = gun:await(ConnPid, Ref, 100),
+		<<>> = iolist_to_binary(zlib:inflate(Z, Data1)),
+		gun:close(ConnPid)
+	after
+		cowboy:stop_listener(Name)
+	end.
+
+set_options_compress_threshold_0(Config) ->
+	doc("Confirm that the compress_threshold option can be dynamically "
+		"set to change how large response bodies must be to be compressed."),
+	{200, Headers, GzBody} = do_get("/reply/set_options_threshold0",
+		[{<<"accept-encoding">>, <<"gzip">>}], Config),
 	{_, <<"gzip">>} = lists:keyfind(<<"content-encoding">>, 1, Headers),
-	Z = zlib:open(),
-	zlib:inflateInit(Z, 31),
-	%% The data gets buffered because it is too small.
-	{data, nofin, Data1} = gun:await(ConnPid, Ref, 100),
-	<<>> = iolist_to_binary(zlib:inflate(Z, Data1)),
-	gun:close(ConnPid),
-	cowboy:stop_listener(name()).
+	_ = zlib:gunzip(GzBody),
+	ok.

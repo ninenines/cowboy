@@ -227,6 +227,9 @@ info(StreamID, Push={push, _, _, _, _, _, _, _}, State) ->
 	do_info(StreamID, Push, [Push], State);
 info(StreamID, SwitchProtocol={switch_protocol, _, _, _}, State) ->
 	do_info(StreamID, SwitchProtocol, [SwitchProtocol], State#state{expect=undefined});
+%% Convert the set_options message to a command.
+info(StreamID, SetOptions={set_options, _}, State) ->
+	do_info(StreamID, SetOptions, [SetOptions], State);
 %% Unknown message, either stray or meant for a handler down the line.
 info(StreamID, Info, State) ->
 	do_info(StreamID, Info, [], State).
