@@ -51,7 +51,8 @@ init_dispatch(Name) ->
 		{"/handle", ws_handle_commands_h, RunOrHibernate},
 		{"/info", ws_info_commands_h, RunOrHibernate},
 		{"/active", ws_active_commands_h, RunOrHibernate},
-		{"/deflate", ws_deflate_commands_h, RunOrHibernate}
+		{"/deflate", ws_deflate_commands_h, RunOrHibernate},
+		{"/set_options", ws_set_options_commands_h, RunOrHibernate}
 	]}]).
 
 %% Support functions for testing using Gun.
@@ -257,3 +258,31 @@ websocket_deflate_ignore_if_not_negotiated(Config) ->
 		{ok, {text, <<"Hello.">>}} = receive_ws(ConnPid, StreamRef)
 	end || _ <- lists:seq(1, 10)],
 	ok.
+
+websocket_set_options_idle_timeout(Config) ->
+	doc("The idle_timeout option can be modified using the "
+		"command {set_options, Opts} at runtime."),
+	ConnPid = gun_open(Config),
+	StreamRef = gun:ws_upgrade(ConnPid, "/set_options"),
+	receive
+		{gun_upgrade, ConnPid, StreamRef, [<<"websocket">>], _} ->
+			ok;
+		{gun_response, ConnPid, _, _, Status, Headers} ->
+			exit({ws_upgrade_failed, Status, Headers});
+		{gun_error, ConnPid, StreamRef, Reason} ->
+			exit({ws_upgrade_failed, Reason})
+	after 1000 ->
+		error(timeout)
+	end,
+	%% We don't send anything for a short while and confirm
+	%% that idle_timeout does not trigger.
+	{error, timeout} = gun:await(ConnPid, StreamRef, 2000),
+	%% Trigger the change in idle_timeout and confirm that
+	%% the connection gets closed soon after.
+	gun:ws_send(ConnPid, {text, <<"idle_timeout_short">>}),
+	receive
+		{gun_down, ConnPid, _, _, _, _} ->
+			ok
+	after 2000 ->
+		error(timeout)
+	end.

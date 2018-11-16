@@ -34,6 +34,7 @@
 -type commands() :: [cow_ws:frame()
 	| {active, boolean()}
 	| {deflate, boolean()}
+	| {set_options, map()}
 ].
 -export_type([commands/0]).
 
@@ -527,6 +528,14 @@ commands([{active, Active}|Tail], State, Data) when is_boolean(Active) ->
 	commands(Tail, State#state{active=Active}, Data);
 commands([{deflate, Deflate}|Tail], State, Data) when is_boolean(Deflate) ->
 	commands(Tail, State#state{deflate=Deflate}, Data);
+commands([{set_options, SetOpts}|Tail], State0=#state{opts=Opts}, Data) ->
+	State = case SetOpts of
+		#{idle_timeout := IdleTimeout} ->
+			loop_timeout(State0#state{opts=Opts#{idle_timeout => IdleTimeout}});
+		_ ->
+			State0
+	end,
+	commands(Tail, State, Data);
 commands([Frame|Tail], State, Data0) ->
 	Data = [frame(Frame, State)|Data0],
 	case is_close_frame(Frame) of
