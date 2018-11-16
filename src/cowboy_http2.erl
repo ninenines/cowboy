@@ -576,6 +576,9 @@ commands(State=#state{socket=Socket, transport=Transport, http2_init=upgrade},
 commands(State0, StreamID, [{switch_protocol, Headers, _Mod, _ModState}|Tail]) ->
 	State = info(State0, StreamID, {headers, 200, Headers}),
 	commands(State, StreamID, Tail);
+%% Set options dynamically.
+commands(State, StreamID, [{set_options, _Opts}|Tail]) ->
+	commands(State, StreamID, Tail);
 commands(State, StreamID, [stop|_Tail]) ->
 	%% @todo Do we want to run the commands after a stop?
 	%% @todo Do we even allow commands after?

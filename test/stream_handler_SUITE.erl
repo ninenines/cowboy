@@ -224,6 +224,24 @@ do_crash_in_early_error_fatal(Config) ->
 	%% Confirm the connection gets closed.
 	gun_down(ConnPid).
 
+set_options_ignore_unknown(Config) ->
+	doc("Confirm that unknown options are ignored when using the set_options commands."),
+	Self = self(),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/long_polling", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"x-test-case">>, <<"set_options_ignore_unknown">>},
+		{<<"x-test-pid">>, pid_to_list(Self)}
+	]),
+	%% Confirm init/3 is called.
+	Pid = receive {Self, P, init, _, _, _} -> P after 1000 -> error(timeout) end,
+	%% Confirm terminate/3 is called, indicating the stream ended.
+	receive {Self, Pid, terminate, _, _, _} -> ok after 1000 -> error(timeout) end,
+	%% Confirm the response is sent.
+	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
+	{ok, _} = gun:await_body(ConnPid, Ref),
+	ok.
+
 shutdown_on_stream_stop(Config) ->
 	doc("Confirm supervised processes are shutdown when stopping the stream."),
 	Self = self(),

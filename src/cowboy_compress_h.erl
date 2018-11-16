@@ -141,7 +141,8 @@ fold([Trailers={trailers, _}|Tail], State0=#state{compress=gzip}, Acc) ->
 	{{data, fin, Data}, State} = gzip_data({data, fin, <<>>}, State0),
 	fold(Tail, State, [Trailers, {data, nofin, Data}|Acc]);
 %% All the options from this handler can be updated for the current stream.
-fold([{set_options, Opts}|Tail], State=#state{
+%% The set_options command must be propagated as-is regardless.
+fold([SetOptions={set_options, Opts}|Tail], State=#state{
 		threshold=CompressThreshold0, deflate_flush=DeflateFlush0}, Acc) ->
 	CompressThreshold = maps:get(compress_threshold, Opts, CompressThreshold0),
 	DeflateFlush = case Opts of
@@ -150,7 +151,8 @@ fold([{set_options, Opts}|Tail], State=#state{
 		_ ->
 			DeflateFlush0
 	end,
-	fold(Tail, State#state{threshold=CompressThreshold, deflate_flush=DeflateFlush}, Acc);
+	fold(Tail, State#state{threshold=CompressThreshold, deflate_flush=DeflateFlush},
+		[SetOptions|Acc]);
 %% Otherwise, we have an unrelated command or compression is disabled.
 fold([Command|Tail], State, Acc) ->
 	fold(Tail, State, [Command|Acc]).
