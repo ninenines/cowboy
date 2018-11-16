@@ -111,6 +111,9 @@
 	proxy_header :: undefined | ranch_proxy_header:proxy_info(),
 	opts = #{} :: cowboy:opts(),
 
+	%% Some options may be overriden for the current stream.
+	overriden_opts = #{} :: cowboy:opts(),
+
 	%% Remote address and port for the connection.
 	peer = undefined :: {inet:ip_address(), inet:port_number()},
 
@@ -244,13 +247,18 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport, opts=Opts,
 
 %% We set request_timeout when there are no active streams,
 %% and idle_timeout otherwise.
-set_timeout(State0=#state{opts=Opts, streams=Streams}) ->
+set_timeout(State0=#state{opts=Opts, overriden_opts=Override, streams=Streams}) ->
 	State = cancel_timeout(State0),
 	{Name, Default} = case Streams of
 		[] -> {request_timeout, 5000};
 		_ -> {idle_timeout, 60000}
 	end,
-	TimerRef = case maps:get(Name, Opts, Default) of
+	Timeout = case Override of
+		%% The timeout may have been overriden for the current stream.
+		#{Name := Timeout0} -> Timeout0;
+		_ -> maps:get(Name, Opts, Default)
+	end,
+	TimerRef = case Timeout of
 		infinity -> undefined;
 		Timeout -> erlang:start_timer(Timeout, self(), Name)
 	end,
@@ -1088,6 +1096,16 @@ commands(State0=#state{ref=Ref, parent=Parent, socket=Socket, transport=Transpor
 	%% we need to let this module go entirely. Perhaps it should be handled directly in
 	%% cowboy_clear/cowboy_tls?
 	Protocol:takeover(Parent, Ref, Socket, Transport, Opts, <<>>, InitialState);
+%% Set options dynamically.
+commands(State0=#state{overriden_opts=Opts},
+		StreamID, [{set_options, SetOpts}|Tail]) ->
+	State = case SetOpts of
+		#{idle_timeout := IdleTimeout} ->
+			set_timeout(State0#state{overriden_opts=Opts#{idle_timeout => IdleTimeout}});
+		_ ->
+			State0
+	end,
+	commands(State, StreamID, Tail);
 %% Stream shutdown.
 commands(State, StreamID, [stop|Tail]) ->
 	%% @todo Do we want to run the commands after a stop?
@@ -1188,10 +1206,10 @@ stream_terminate(State0=#state{opts=Opts, in_streamid=InStreamID, in_state=InSta
 		_ -> %% done or Version =:= 'HTTP/1.0'
 			State0
 	end,
-	%% Remove the stream from the state.
+	%% Remove the stream from the state and reset the overriden options.
 	{value, #stream{state=StreamState}, Streams}
 		= lists:keytake(StreamID, #stream.id, Streams1),
-	State2 = State1#state{streams=Streams},
+	State2 = State1#state{streams=Streams, overriden_opts=#{}},
 	%% Stop the stream.
 	stream_call_terminate(StreamID, Reason, StreamState, State2),
 	Children = cowboy_children:shutdown(Children0, StreamID),

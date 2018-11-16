@@ -32,7 +32,8 @@ groups() -> [{clear, [parallel], ct_helper:all(?MODULE)}].
 init_routes(_) -> [
 	{"localhost", [
 		{"/", hello_h, []},
-		{"/echo/:key", echo_h, []}
+		{"/echo/:key", echo_h, []},
+		{"/set_options/:key", set_options_h, []}
 	]}
 ].
 
@@ -65,11 +66,13 @@ idle_timeout_infinity(Config) ->
 	doc("Ensure the idle_timeout option accepts the infinity value."),
 	{ok, _} = cowboy:start_clear(name(), [{port, 0}], #{
 		env => #{dispatch => cowboy_router:compile(init_routes(Config))},
-		request_timeout => infinity
+		request_timeout => 500,
+		idle_timeout => infinity
 	}),
 	Port = ranch:get_port(name()),
 	ConnPid = gun_open([{type, tcp}, {protocol, http}, {port, Port}|Config]),
-	_ = gun:post(ConnPid, "/echo/read_body", [], <<"TEST">>),
+	_ = gun:post(ConnPid, "/echo/read_body",
+		[{<<"content-type">>, <<"text/plain">>}]),
 	#{socket := Socket} = gun:info(ConnPid),
 	Pid = get_remote_pid_tcp(Socket),
 	Ref = erlang:monitor(process, Pid),
@@ -96,6 +99,62 @@ request_timeout_infinity(Config) ->
 			error(Reason)
 	after 1000 ->
 		ok
+	end.
+
+set_options_idle_timeout(Config) ->
+	doc("Confirm that the idle_timeout option can be dynamically "
+		"set to change how long Cowboy will wait before it closes the connection."),
+	%% We start with a long timeout and then cut it short.
+	{ok, _} = cowboy:start_clear(name(), [{port, 0}], #{
+		env => #{dispatch => cowboy_router:compile(init_routes(Config))},
+		idle_timeout => 60000
+	}),
+	Port = ranch:get_port(name()),
+	ConnPid = gun_open([{type, tcp}, {protocol, http}, {port, Port}|Config]),
+	_ = gun:post(ConnPid, "/set_options/idle_timeout_short",
+		[{<<"content-type">>, <<"text/plain">>}]),
+	#{socket := Socket} = gun:info(ConnPid),
+	Pid = get_remote_pid_tcp(Socket),
+	Ref = erlang:monitor(process, Pid),
+	receive
+		{'DOWN', Ref, process, Pid, _} ->
+			ok
+	after 2000 ->
+		error(timeout)
+	end.
+
+set_options_idle_timeout_only_applies_to_current_request(Config) ->
+	doc("Confirm that changes to the idle_timeout option only apply to the current stream."),
+	%% We start with a long timeout and then cut it short.
+	{ok, _} = cowboy:start_clear(name(), [{port, 0}], #{
+		env => #{dispatch => cowboy_router:compile(init_routes(Config))},
+		idle_timeout => 500
+	}),
+	Port = ranch:get_port(name()),
+	ConnPid = gun_open([{type, tcp}, {protocol, http}, {port, Port}|Config]),
+	StreamRef = gun:post(ConnPid, "/set_options/idle_timeout_long",
+		[{<<"content-type">>, <<"text/plain">>}]),
+	#{socket := Socket} = gun:info(ConnPid),
+	Pid = get_remote_pid_tcp(Socket),
+	Ref = erlang:monitor(process, Pid),
+	receive
+		{'DOWN', Ref, process, Pid, Reason} ->
+			error(Reason)
+	after 2000 ->
+		ok
+	end,
+	%% Finish the first request and start a second one to confirm
+	%% the idle_timeout option is back to normal.
+	gun:data(ConnPid, StreamRef, fin, <<"Hello!">>),
+	{response, nofin, 200, _} = gun:await(ConnPid, StreamRef),
+	{ok, <<"Hello!">>} = gun:await_body(ConnPid, StreamRef),
+	_ = gun:post(ConnPid, "/echo/read_body",
+		[{<<"content-type">>, <<"text/plain">>}]),
+	receive
+		{'DOWN', Ref, process, Pid, _} ->
+			ok
+	after 2000 ->
+		error(timeout)
 	end.
 
 switch_protocol_flush(Config) ->
