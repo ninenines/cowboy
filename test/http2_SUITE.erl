@@ -51,6 +51,60 @@ do_handshake(Settings, Config) ->
 	{ok, << 0:24, 4:8, 1:8, 0:32 >>} = gen_tcp:recv(Socket, 9, 1000),
 	{ok, Socket}.
 
+idle_timeout(Config) ->
+	doc("Terminate when the idle timeout is reached."),
+	ProtoOpts = #{
+		env => #{dispatch => cowboy_router:compile(init_routes(Config))},
+		idle_timeout => 1000
+	},
+	{ok, _} = cowboy:start_clear(name(), [{port, 0}], ProtoOpts),
+	Port = ranch:get_port(name()),
+	{ok, Socket} = do_handshake([{port, Port}|Config]),
+	timer:sleep(1000),
+	%% Receive a GOAWAY frame back with NO_ERROR.
+	{ok, << _:24, 7:8, _:72, 0:32 >>} = gen_tcp:recv(Socket, 17, 1000),
+	ok.
+
+idle_timeout_infinity(Config) ->
+	doc("Ensure the idle_timeout option accepts the infinity value."),
+	ProtoOpts = #{
+		env => #{dispatch => cowboy_router:compile(init_routes(Config))},
+		idle_timeout => infinity
+	},
+	{ok, _} = cowboy:start_clear(name(), [{port, 0}], ProtoOpts),
+	Port = ranch:get_port(name()),
+	{ok, Socket} = do_handshake([{port, Port}|Config]),
+	timer:sleep(1000),
+	%% Don't receive a GOAWAY frame.
+	{error, timeout} = gen_tcp:recv(Socket, 17, 1000),
+	ok.
+
+idle_timeout_reset_on_data(Config) ->
+	doc("Terminate when the idle timeout is reached."),
+	ProtoOpts = #{
+		env => #{dispatch => cowboy_router:compile(init_routes(Config))},
+		idle_timeout => 1000
+	},
+	{ok, _} = cowboy:start_clear(name(), [{port, 0}], ProtoOpts),
+	Port = ranch:get_port(name()),
+	{ok, Socket} = do_handshake([{port, Port}|Config]),
+	%% We wait a little, send a PING, receive a PING ack.
+	{error, timeout} = gen_tcp:recv(Socket, 17, 500),
+	ok = gen_tcp:send(Socket, cow_http2:ping(0)),
+	{ok, <<8:24, 6:8, 0:7, 1:1, 0:96>>} = gen_tcp:recv(Socket, 17, 1000),
+	%% Again.
+	{error, timeout} = gen_tcp:recv(Socket, 17, 500),
+	ok = gen_tcp:send(Socket, cow_http2:ping(0)),
+	{ok, <<8:24, 6:8, 0:7, 1:1, 0:96>>} = gen_tcp:recv(Socket, 17, 1000),
+	%% And one more time.
+	{error, timeout} = gen_tcp:recv(Socket, 17, 500),
+	ok = gen_tcp:send(Socket, cow_http2:ping(0)),
+	{ok, <<8:24, 6:8, 0:7, 1:1, 0:96>>} = gen_tcp:recv(Socket, 17, 1000),
+	%% The connection goes away soon after we stop sending data.
+	timer:sleep(1000),
+	{ok, << _:24, 7:8, _:72, 0:32 >>} = gen_tcp:recv(Socket, 17, 1000),
+	ok.
+
 inactivity_timeout(Config) ->
 	doc("Terminate when the inactivity timeout is reached."),
 	ProtoOpts = #{

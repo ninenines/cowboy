@@ -32,6 +32,7 @@
 	connection_type => worker | supervisor,
 	enable_connect_protocol => boolean(),
 	env => cowboy_middleware:env(),
+	idle_timeout => timeout(),
 	inactivity_timeout => timeout(),
 	initial_connection_window_size => 65535..16#7fffffff,
 	initial_stream_window_size => 0..16#7fffffff,
@@ -63,6 +64,9 @@
 	transport :: module(),
 	proxy_header :: undefined | ranch_proxy_header:proxy_info(),
 	opts = #{} :: opts(),
+
+	%% Timer for idle_timeout.
+	timer = undefined :: undefined | reference(),
 
 	%% Remote address and port for the connection.
 	peer = undefined :: {inet:ip_address(), inet:port_number()},
@@ -122,13 +126,13 @@ init(Parent, Ref, Socket, Transport, ProxyHeader, Opts) ->
 	binary() | undefined, binary()) -> ok.
 init(Parent, Ref, Socket, Transport, ProxyHeader, Opts, Peer, Sock, Cert, Buffer) ->
 	{ok, Preface, HTTP2Machine} = cow_http2_machine:init(server, Opts),
-	State = #state{parent=Parent, ref=Ref, socket=Socket,
+	State = set_timeout(#state{parent=Parent, ref=Ref, socket=Socket,
 		transport=Transport, proxy_header=ProxyHeader,
 		opts=Opts, peer=Peer, sock=Sock, cert=Cert,
-		http2_init=sequence, http2_machine=HTTP2Machine},
+		http2_init=sequence, http2_machine=HTTP2Machine}),
 	Transport:send(Socket, Preface),
 	case Buffer of
-		<<>> -> before_loop(State, Buffer);
+		<<>> -> loop(State, Buffer);
 		_ -> parse(State, Buffer)
 	end.
 
@@ -154,26 +158,23 @@ init(Parent, Ref, Socket, Transport, ProxyHeader, Opts, Peer, Sock, Cert, Buffer
 		<<"connection">> => <<"Upgrade">>,
 		<<"upgrade">> => <<"h2c">>
 	}, ?MODULE, undefined}), %% @todo undefined or #{}?
-	State = State2#state{http2_init=sequence},
+	State = set_timeout(State2#state{http2_init=sequence}),
 	Transport:send(Socket, Preface),
 	case Buffer of
-		<<>> -> before_loop(State, Buffer);
+		<<>> -> loop(State, Buffer);
 		_ -> parse(State, Buffer)
 	end.
 
-%% @todo Add the timeout for last time since we heard of connection.
-before_loop(State, Buffer) ->
-	loop(State, Buffer).
-
 loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
-		opts=Opts, children=Children}, Buffer) ->
+		opts=Opts, timer=TimerRef, children=Children}, Buffer) ->
+	%% @todo This should only be called when data was read.
 	Transport:setopts(Socket, [{active, once}]),
 	{OK, Closed, Error} = Transport:messages(),
 	InactivityTimeout = maps:get(inactivity_timeout, Opts, 300000),
 	receive
 		%% Socket messages.
 		{OK, Socket, Data} ->
-			parse(State, << Buffer/binary, Data/binary >>);
+			parse(set_timeout(State), << Buffer/binary, Data/binary >>);
 		{Closed, Socket} ->
 			terminate(State, {socket_error, closed, 'The socket has been closed.'});
 		{Error, Socket, Reason} ->
@@ -184,6 +185,9 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 		{system, From, Request} ->
 			sys:handle_system_msg(Request, From, Parent, ?MODULE, [], {State, Buffer});
 		%% Timeouts.
+		{timeout, TimerRef, idle_timeout} ->
+			terminate(State, {stop, timeout,
+				'Connection idle longer than configuration allows.'});
 		{timeout, Ref, {shutdown, Pid}} ->
 			cowboy_children:shutdown_timeout(Children, Ref, Pid),
 			loop(State, Buffer);
@@ -206,6 +210,17 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 		terminate(State, {internal_error, timeout, 'No message or data received before timeout.'})
 	end.
 
+set_timeout(State=#state{opts=Opts, timer=TimerRef0}) ->
+	ok = case TimerRef0 of
+		undefined -> ok;
+		_ -> erlang:cancel_timer(TimerRef0, [{async, true}, {info, false}])
+	end,
+	TimerRef = case maps:get(idle_timeout, Opts, 60000) of
+		infinity -> undefined;
+		Timeout -> erlang:start_timer(Timeout, self(), idle_timeout)
+	end,
+	State#state{timer=TimerRef}.
+
 %% HTTP/2 protocol parsing.
 
 parse(State=#state{http2_init=sequence}, Data) ->
@@ -213,7 +228,7 @@ parse(State=#state{http2_init=sequence}, Data) ->
 		{ok, Rest} ->
 			parse(State#state{http2_init=settings}, Rest);
 		more ->
-			before_loop(State, Data);
+			loop(State, Data);
 		Error = {connection_error, _, _} ->
 			terminate(State, Error)
 	end;
@@ -229,7 +244,7 @@ parse(State=#state{http2_machine=HTTP2Machine}, Data) ->
 		Error = {connection_error, _, _} ->
 			terminate(State, Error);
 		more ->
-			before_loop(State, Data)
+			loop(State, Data)
 	end.
 
 %% Frames received.
