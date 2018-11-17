@@ -1,0 +1,141 @@
+[appendix]
+== Migrating from Cowboy 2.5 to 2.6
+
+Cowboy 2.6 greatly refactored the HTTP/2 code, a large
+part of which was moved to Cowlib and is now used by
+both the Cowboy server and the Gun client.
+
+A large number of tickets were also closed which
+resulted in many bugs fixed and many features and
+options added, although some of them are still
+experimental.
+
+=== Features added
+
+* Add support for the PROXY protocol header.
+  It can be enabled via the `proxy_header` option.
+  The proxy information can then be found under
+  the `proxy_info` key in the Req object.
+
+* Allow using sendfile tuples in `cowboy_req:stream_body/3`
+  and in the data command in stream handlers. The only
+  caveat is that when using `cowboy_compress_h` the
+  sendfile tuples may have to be converted to in-memory
+  data in order to compress them. This is the case for
+  gzip compression.
+
+* Add an `http10_keepalive` option to allow disabling
+  keep-alive for HTTP/1.0 connections.
+
+* Add an `idle_timeout` option for HTTP/2.
+
+* Add a `sendfile` option to both HTTP/1.1 and HTTP/2.
+  It allows disabling the sendfile syscall entirely for
+  all connections. It is recommended to disable sendfile
+  when using VirtualBox shared folders.
+
+* Add the `rate_limited/2` callback to REST handlers.
+
+* Add a `deflate_opts` option to Websocket handlers that
+  allows configuring deflate options for the
+  permessage-deflate extension.
+
+* Add a `charset` option to `cowboy_static`.
+
+* Add support for the SameSite cookie attribute.
+
+* Update Ranch to 1.7.0
+
+* Update Cowlib to 2.7.0
+
+=== Experimental features added
+
+* Add support for range requests (RFC7233) in REST handlers.
+  This adds two new callbacks: `ranges_accepted/2` and
+  `range_satisfiable/2` along with the user-specified
+  `ProvideRangeCallback/2`.
+
+* Add automatic handling of range requests to REST handlers
+  that return the callback `auto` from `ranges_accepted/2`.
+  Cowboy will call the configured `ProvideCallback` and
+  then split the ouput automatically for the ranged response.
+
+* Enable range requests support in `cowboy_static`.
+
+* Add the `{deflate, boolean()}` Websocket handler
+  command to disable permessage-deflate compression
+  temporarily.
+
+* Add the `compress_threshold` option which allows
+  configuring how much data must be present in a
+  response body to compress it. This only applies
+  to non-streamed bodies at this time.
+
+* Add the `compress_buffering` option which allows
+  controlling whether some buffering may be done
+  when streaming a response body. Change the default
+  behavior to not buffer to make sure it works by
+  default in all scenarios.
+
+* Add the `{set_options, map()}` command to stream
+  handlers and Websocket handlers. This can be used
+  to update options on a per-request basis. Allow
+  overriding the `idle_timeout` option for both
+  HTTP/1.1 and Websocket, and the `cowboy_compress_h`
+  options for HTTP/1.1 and HTTP/2.
+
+=== Bugs fixed
+
+* Do not send a content-length automatically with
+  304 responses. This status code allows a content-length
+  that corresponds to what would have been sent for a 200
+  response, but is never followed by a body.
+
+* HTTP/2 streams are now terminated once the body
+  has been sent fully, instead of immediately once
+  the stop command is returned (by default when the
+  request process exits). Metrics will therefore
+  more accurately represent when a stream ended.
+
+* Terminate connection processes gracefully when the
+  parent process exists or when sys:terminate/2,3
+  is called.
+
+* Automatically ignore the boundary parameter of multipart
+  media types when using REST handlers. This is a special
+  parameter that may change with all requests and cannot
+  be predicted.
+
+* Fix parsing of the accept header when it contains charset
+  parameters. They are case insensitive and will now be
+  lowercased, like for accept-charset and content-type.
+
+* Handle the charset parameter using `charsets_provided`
+  when it is present in the accept header when using
+  REST handlers.
+
+* Don't select charsets when the q-value is 0 in REST
+  handlers.
+
+* Handle accept-charset headers that include a wildcard
+  in REST handlers.
+
+* Only send a charset header when the content-type
+  negotiated is of type text in REST handlers.
+
+* Remove the default charset iso-8859-1 from REST
+  handlers when no other is provided. This has been
+  removed from the HTTP specifications for a long time.
+
+* Many cases where a content-type header was sent
+  unnecessarily in the REST handlers response have
+  been fixed.
+
+* Handle error_response commands in `cowboy_metrics_h`.
+
+* A number of types and function specifications were
+  fixed or improved. Dialyzer is now run against both
+  the code and tests to help uncover issues.
+
+* An undefined `cowboy_router` behavior has been
+  documented.
