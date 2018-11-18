@@ -32,6 +32,11 @@ Handlers:
 
 * link:man:cowboy_static(3)[cowboy_static(3)] - Static file handler
 
+Stream handlers:
+
+* link:man:cowboy_stream_h(3)[cowboy_stream_h(3)] - Default stream handler
+* link:man:cowboy_compress_h(3)[cowboy_compress_h(3)] - Compress stream handler
+
 Behaviors:
 
 * link:man:cowboy_handler(3)[cowboy_handler(3)] - Plain HTTP handlers

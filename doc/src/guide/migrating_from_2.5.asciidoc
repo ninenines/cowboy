@@ -24,6 +24,9 @@ experimental.
   data in order to compress them. This is the case for
   gzip compression.
 
+* The stream handlers `cowboy_stream_h` and
+  `cowboy_compress_h` are now documented.
+
 * Add the `chunked` option to allow disabling chunked
   transfer-encoding for HTTP/1.1 connections.
 

@@ -11,7 +11,7 @@ as a Ranch protocol.
 
 == Options
 
-// @todo Might be worth moving cowboy_clear/tls/stream_h options
+// @todo Might be worth moving cowboy_clear/tls options
 // to their respective manual, when they are added.
 
 [source,erlang]
@@ -19,7 +19,6 @@ as a Ranch protocol.
 opts() :: #{
     chunked                 => boolean(),
     connection_type         => worker | supervisor,
-    env                     => cowboy_middleware:env(),
     http10_keepalive        => boolean(),
     idle_timeout            => timeout(),
     inactivity_timeout      => timeout(),
@@ -32,11 +31,9 @@ opts() :: #{
     max_method_length       => non_neg_integer(),
     max_request_line_length => non_neg_integer(),
     max_skip_body_length    => non_neg_integer(),
-    middlewares             => [module()],
     proxy_header            => boolean(),
     request_timeout         => timeout(),
     sendfile                => boolean(),
-    shutdown_timeout        => timeout(),
     stream_handlers         => [module()]
 }
 ----
@@ -62,10 +59,6 @@ in the connection being closed at the end of the response body.
 connection_type (supervisor)::
 
 Whether the connection process also acts as a supervisor.
-
-env (#{})::
-
-Middleware environment.
 
 http10_keepalive (true)::
 
@@ -118,10 +111,6 @@ max_skip_body_length (1000000)::
 Maximum length Cowboy is willing to skip when the user code did not read the body fully.
 When the remaining length is too large or unknown Cowboy will close the connection.
 
-middlewares ([cowboy_router, cowboy_handler])::
-
-Middlewares to run for every request.
-
 proxy_header (false)::
 
 Whether incoming connections have a PROXY protocol header. The
@@ -137,10 +126,6 @@ sendfile (true)::
 Whether the sendfile syscall may be used. It can be useful to disable
 it on systems where the syscall has a buggy implementation, for example
 under VirtualBox when using shared folders.
-
-shutdown_timeout (5000)::
-
-Time in ms Cowboy will wait for child processes to shut down before killing them.
 
 stream_handlers ([cowboy_stream_h])::
 

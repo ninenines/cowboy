@@ -1,0 +1,71 @@
+= cowboy_stream_h(3)
+
+== Name
+
+cowboy_stream_h - Default stream handler
+
+== Description
+
+The module `cowboy_stream_h` is Cowboy's default stream
+handler and defines much of its behavior. It is responsible
+for managing the request process, sending it the request
+body and translating its messages into commands that
+Cowboy understands.
+
+== Options
+
+[source,erlang]
+----
+opts() :: #{
+    env              => cowboy_middleware:env(),
+    middlewares      => [module()],
+    shutdown_timeout => timeout()
+}
+----
+
+Configuration for the default stream handler.
+
+The default value is given next to the option name:
+
+env (#{})::
+
+Middleware environment.
+
+middlewares ([cowboy_router, cowboy_handler])::
+
+Middlewares to run for every request.
+
+shutdown_timeout (5000)::
+
+Time in ms Cowboy will wait for child processes to shut down before killing them.
+
+== Events
+
+The default stream handler spawns the request process
+and receives its exit signal when it terminates. It
+will stop the stream once its receives it.
+
+// @todo It also implements the read_body mechanism.
+// Note that cowboy_stream_h sends the 100-continue automatically.
+
+In addition it returns a command for any event message
+looking like one of the following commands: `inform`,
+`response`, `headers`, `data`, `trailers`, `push`,
+`switch_protocol`. This is what allows the request
+process to send a response.
+
+// @todo Add set_options, which updates options dynamically.
+
+Because this stream handler converts events from the
+request process into commands, other stream handlers
+may not work properly if they are executed
+
+== Changelog
+
+* *2.0*: Module introduced.
+
+== See also
+
+link:man:cowboy(7)[cowboy(7)],
+link:man:cowboy_stream(3)[cowboy_stream(3)],
+link:man:cowboy_compress_h(3)[cowboy_compress_h(3)]

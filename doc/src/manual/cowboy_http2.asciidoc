@@ -19,7 +19,6 @@ as a Ranch protocol.
 opts() :: #{
     connection_type                => worker | supervisor,
     enable_connect_protocol        => boolean(),
-    env                            => cowboy_middleware:env(),
     idle_timeout                   => timeout(),
     inactivity_timeout             => timeout(),
     initial_connection_window_size => 65535..16#7fffffff,
@@ -29,12 +28,10 @@ opts() :: #{
     max_encode_table_size          => non_neg_integer(),
     max_frame_size_received        => 16384..16777215,
     max_frame_size_sent            => 16384..16777215 | infinity,
-    middlewares                    => [module()],
     preface_timeout                => timeout(),
     proxy_header                   => boolean(),
     sendfile                       => boolean(),
     settings_timeout               => timeout(),
-    shutdown_timeout               => timeout(),
     stream_handlers                => [module()]
 }
 ----
@@ -59,10 +56,6 @@ enable_connect_protocol (false)::
 Whether to enable the extended CONNECT method to allow
 protocols like Websocket to be used over an HTTP/2 stream.
 This option is experimental and disabled by default.
-
-env (#{})::
-
-Middleware environment.
 
 idle_timeout (60000)::
 
@@ -118,10 +111,6 @@ following the client's advertised maximum.
 Note that actual frame sizes may be lower than the limit when
 there is not enough space left in the flow control window.
 
-middlewares ([cowboy_router, cowboy_handler])::
-
-Middlewares to run for every request.
-
 preface_timeout (5000)::
 
 Time in ms Cowboy is willing to wait for the connection preface.
@@ -141,10 +130,6 @@ under VirtualBox when using shared folders.
 settings_timeout (5000)::
 
 Time in ms Cowboy is willing to wait for a SETTINGS ack.
-
-shutdown_timeout (5000)::
-
-Time in ms Cowboy will wait for child processes to shut down before killing them.
 
 stream_handlers ([cowboy_stream_h])::
 

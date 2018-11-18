@@ -1,0 +1,60 @@
+= cowboy_compress_h(3)
+
+== Name
+
+cowboy_compress_h - Compress stream handler
+
+== Description
+
+The module `cowboy_compress_h` compresses response bodies
+automatically when the client supports it. It will not
+try to compress responses that already have a content
+encoding.
+
+Normal responses will only be compressed when their
+size is lower than the configured threshold. Streamed
+responses are always compressed, including when the
+sendfile command is used. Because the file must be
+read in memory to be compressed, this module is *not*
+suitable for automatically compressing large files.
+
+== Options
+
+[source,erlang]
+----
+opts() :: #{
+    compress_buffering => boolean(),
+    compress_threshold => non_neg_integer()
+}
+----
+
+Configuration for the default stream handler.
+
+The default value is given next to the option name:
+
+compress_buffering (false)::
+
+Whether the output will be buffered. By default no
+buffering is done to provide maximum compatibility
+at the cost of a lower compression rate.
+
+compress_threshold (300)::
+
+How large the response body must be to be compressed
+when the response isn't streamed.
+
+== Events
+
+The compress stream handler does not produce any event.
+
+== Changelog
+
+* *2.6*: The options `compress_buffering` and
+  `compress_threshold` were added.
+* *2.0*: Module introduced.
+
+== See also
+
+link:man:cowboy(7)[cowboy(7)],
+link:man:cowboy_stream(3)[cowboy_stream(3)],
+link:man:cowboy_stream_h(3)[cowboy_stream_h(3)]

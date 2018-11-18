@@ -21,7 +21,7 @@ protocol.
 Extra care must be taken when implementing stream handlers
 to ensure compatibility. While some modification of the
 events and commands is allowed, it is generally not a good
-idea to completely omit them.
+idea to completely discard them.
 
 == Callbacks
 
@@ -256,74 +256,19 @@ then forward `Msg` to the stream handlers.
 Cowboy will also forward the exit signals for the
 processes that the stream spawned.
 
-=== EXIT
+When Cowboy needs to send a response it will trigger
+an event that looks exactly like the corresponding
+command. This event must be returned to be processed
+by Cowboy (which is done automatically when using
+link:man:cowboy_stream_h(3)[cowboy_stream_h(3)]).
 
-//info(_StreamID, {'EXIT', Pid, normal}, State=#state{pid=Pid}) ->
-//info(_StreamID, {'EXIT', Pid, {_Reason, [_, {cow_http_hd, _, _, _}|_]}}, State=#state{pid=Pid}) ->
-//info(StreamID, Exit = {'EXIT', Pid, {Reason, Stacktrace}}, State=#state{ref=Ref, pid=Pid}) ->
-
-A process spawned by this stream has exited.
-
-[source,erlang]
-----
-{'EXIT', pid(), any()}
-----
-
-This is the raw exit message without any modification.
-
-// === read_body
-// 
-// //info(_StreamID, {read_body, Ref, Length, _},
-// //info(StreamID, {read_body, Ref, Length, Period}, State) ->
-// 
-// TODO yeah I am not actually sure this one should be public just yet
-
-=== inform
-
-Same as the xref:inform_command[inform command].
-
-Sent when the request process reads the body and an
-expect: 100-continue header was present in the request,
-or when the request process sends an informational
-response on its own.
-
-=== response
-
-Same as the xref:response_command[response command].
-
-Usually sent when the request process replies to the client.
-May also be sent by Cowboy internally.
-
-=== headers
-
-Same as the xref:headers_command[headers command].
-
-Sent when the request process starts replying to the client.
-
-=== data
-
-Same as the xref:data_command[data command].
-
-Sent when the request process streams data to the client.
-
-=== trailers
-
-Same as the xref:trailers_command[trailers command].
-
-Sent when the request process sends the trailer field values
-to the client.
-
-=== push
-
-Same as the xref:push_command[push command].
-
-Sent when the request process pushes a resource to the client.
-
-=== switch_protocol
-
-Same as the xref:switch_protocol_command[switch_protocol command].
-
-Sent when switching to the HTTP/2 or Websocket protocol.
+Cowboy may trigger the following events on its own,
+regardless of the stream handlers configured:
+xref:inform_command[inform] (to send a 101
+informational response when upgrading to HTTP/2 or
+Websocket), xref:response_command[response],
+xref:headers_command[headers], xref:data_command[data]
+and xref:switch_protocol_command[switch_protocol].
 
 == Exports
 
