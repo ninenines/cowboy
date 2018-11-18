@@ -25,6 +25,7 @@
 -export([system_code_change/4]).
 
 -type opts() :: #{
+	chunked => boolean(),
 	compress_buffering => boolean(),
 	compress_threshold => non_neg_integer(),
 	connection_type => worker | supervisor,
@@ -963,21 +964,28 @@ commands(State0=#state{socket=Socket, transport=Transport, out_state=wait, strea
 	end,
 	commands(State, StreamID, Tail);
 %% Send response headers and initiate chunked encoding or streaming.
-commands(State0=#state{socket=Socket, transport=Transport, streams=Streams0, out_state=OutState},
+commands(State0=#state{socket=Socket, transport=Transport,
+		opts=Opts, overriden_opts=Override, streams=Streams0, out_state=OutState},
 		StreamID, [{headers, StatusCode, Headers0}|Tail]) ->
 	%% @todo Same as above (about the last stream in the list).
 	Stream = #stream{version=Version} = lists:keyfind(StreamID, #stream.id, Streams0),
 	Status = cow_http:status_to_integer(StatusCode),
 	ContentLength = maps:get(<<"content-length">>, Headers0, undefined),
+	%% Chunked transfer-encoding can be disabled on a per-request basis.
+	Chunked = case Override of
+		#{chunked := Chunked0} -> Chunked0;
+		_ -> maps:get(chunked, Opts, true)
+	end,
 	{State1, Headers1} = case {Status, ContentLength, Version} of
 		{204, _, 'HTTP/1.1'} ->
 			{State0#state{out_state=done}, Headers0};
 		{304, _, 'HTTP/1.1'} ->
 			{State0#state{out_state=done}, Headers0};
-		{_, undefined, 'HTTP/1.1'} ->
+		{_, undefined, 'HTTP/1.1'} when Chunked ->
 			{State0#state{out_state=chunked}, Headers0#{<<"transfer-encoding">> => <<"chunked">>}};
-		%% Close the connection after streaming without content-length to HTTP/1.0 client.
-		{_, undefined, 'HTTP/1.0'} ->
+		%% Close the connection after streaming without content-length
+		%% to all HTTP/1.0 clients and to HTTP/1.1 clients when chunked is disabled.
+		{_, undefined, _} ->
 			{State0#state{out_state=streaming, last_streamid=StreamID}, Headers0};
 		%% Stream the response body without chunked transfer-encoding.
 		_ ->
@@ -1099,11 +1107,17 @@ commands(State0=#state{ref=Ref, parent=Parent, socket=Socket, transport=Transpor
 %% Set options dynamically.
 commands(State0=#state{overriden_opts=Opts},
 		StreamID, [{set_options, SetOpts}|Tail]) ->
-	State = case SetOpts of
+	State1 = case SetOpts of
 		#{idle_timeout := IdleTimeout} ->
 			set_timeout(State0#state{overriden_opts=Opts#{idle_timeout => IdleTimeout}});
 		_ ->
 			State0
+	end,
+	State = case SetOpts of
+		#{chunked := Chunked} ->
+			State1#state{overriden_opts=Opts#{chunked => Chunked}};
+		_ ->
+			State1
 	end,
 	commands(State, StreamID, Tail);
 %% Stream shutdown.

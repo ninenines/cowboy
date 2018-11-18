@@ -24,23 +24,26 @@ experimental.
   data in order to compress them. This is the case for
   gzip compression.
 
-* Add an `http10_keepalive` option to allow disabling
+* Add the `chunked` option to allow disabling chunked
+  transfer-encoding for HTTP/1.1 connections.
+
+* Add the `http10_keepalive` option to allow disabling
   keep-alive for HTTP/1.0 connections.
 
-* Add an `idle_timeout` option for HTTP/2.
+* Add the `idle_timeout` option for HTTP/2.
 
-* Add a `sendfile` option to both HTTP/1.1 and HTTP/2.
+* Add the `sendfile` option to both HTTP/1.1 and HTTP/2.
   It allows disabling the sendfile syscall entirely for
   all connections. It is recommended to disable sendfile
   when using VirtualBox shared folders.
 
 * Add the `rate_limited/2` callback to REST handlers.
 
-* Add a `deflate_opts` option to Websocket handlers that
+* Add the `deflate_opts` option to Websocket handlers that
   allows configuring deflate options for the
   permessage-deflate extension.
 
-* Add a `charset` option to `cowboy_static`.
+* Add the `charset` option to `cowboy_static`.
 
 * Add support for the SameSite cookie attribute.
 
@@ -81,8 +84,9 @@ experimental.
   handlers and Websocket handlers. This can be used
   to update options on a per-request basis. Allow
   overriding the `idle_timeout` option for both
-  HTTP/1.1 and Websocket, and the `cowboy_compress_h`
-  options for HTTP/1.1 and HTTP/2.
+  HTTP/1.1 and Websocket, the `cowboy_compress_h`
+  options for HTTP/1.1 and HTTP/2 and the `chunked`
+  option for HTTP/1.1.
 
 === Bugs fixed
 

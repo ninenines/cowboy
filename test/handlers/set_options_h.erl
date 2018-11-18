@@ -8,6 +8,19 @@
 init(Req, State) ->
 	set_options(cowboy_req:binding(key, Req), Req, State).
 
+set_options(<<"chunked_false">>, Req0, State) ->
+	%% @todo This should be replaced by a cowboy_req:cast/cowboy_stream:cast.
+	#{pid := Pid, streamid := StreamID} = Req0,
+	Pid ! {{Pid, StreamID}, {set_options, #{chunked => false}}},
+	Req = cowboy_req:stream_reply(200, Req0),
+	cowboy_req:stream_body(<<0:8000000>>, fin, Req),
+	{ok, Req, State};
+set_options(<<"chunked_false_ignored">>, Req0, State) ->
+	%% @todo This should be replaced by a cowboy_req:cast/cowboy_stream:cast.
+	#{pid := Pid, streamid := StreamID} = Req0,
+	Pid ! {{Pid, StreamID}, {set_options, #{chunked => false}}},
+	Req = cowboy_req:reply(200, #{}, <<"Hello world!">>, Req0),
+	{ok, Req, State};
 set_options(<<"idle_timeout_short">>, Req0, State) ->
 	%% @todo This should be replaced by a cowboy_req:cast/cowboy_stream:cast.
 	#{pid := Pid, streamid := StreamID} = Req0,

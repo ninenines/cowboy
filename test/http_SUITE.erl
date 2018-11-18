@@ -24,6 +24,8 @@
 -import(cowboy_test, [raw_open/1]).
 -import(cowboy_test, [raw_send/2]).
 -import(cowboy_test, [raw_recv_head/1]).
+-import(cowboy_test, [raw_recv/3]).
+-import(cowboy_test, [raw_expect_recv/2]).
 
 all() -> [{group, clear}].
 
@@ -33,12 +35,39 @@ init_routes(_) -> [
 	{"localhost", [
 		{"/", hello_h, []},
 		{"/echo/:key", echo_h, []},
+		{"/resp/:key[/:arg]", resp_h, []},
 		{"/set_options/:key", set_options_h, []}
 	]}
 ].
 
+chunked_false(Config) ->
+	doc("Confirm the option chunked => false disables chunked "
+		"transfer-encoding for HTTP/1.1 connections."),
+	{ok, _} = cowboy:start_clear(name(), [{port, 0}], #{
+		env => #{dispatch => cowboy_router:compile(init_routes(Config))},
+		chunked => false
+	}),
+	Port = ranch:get_port(name()),
+	Request = "GET /resp/stream_reply2/200 HTTP/1.1\r\nhost: localhost\r\n\r\n",
+	Client = raw_open([{type, tcp}, {port, Port}, {opts, []}|Config]),
+	ok = raw_send(Client, Request),
+	Rest = case catch raw_recv_head(Client) of
+		{'EXIT', _} -> error(closed);
+		Data ->
+			%% Cowboy always advertises itself as HTTP/1.1.
+			{'HTTP/1.1', 200, _, Rest0} = cow_http:parse_status_line(Data),
+			{Headers, Rest1} = cow_http:parse_headers(Rest0),
+			false = lists:keyfind(<<"content-length">>, 1, Headers),
+			false = lists:keyfind(<<"transfer-encoding">>, 1, Headers),
+			Rest1
+	end,
+	Bits = 8000000 - bit_size(Rest),
+	raw_expect_recv(Client, <<0:Bits>>),
+	{error, closed} = raw_recv(Client, 1, 1000),
+	ok.
+
 http10_keepalive_false(Config) ->
-	doc("Confirm the option {http10_keepalive, false} disables keep-alive "
+	doc("Confirm the option http10_keepalive => false disables keep-alive "
 		"completely for HTTP/1.0 connections."),
 	{ok, _} = cowboy:start_clear(name(), [{port, 0}], #{
 		env => #{dispatch => cowboy_router:compile(init_routes(Config))},
@@ -100,6 +129,53 @@ request_timeout_infinity(Config) ->
 	after 1000 ->
 		ok
 	end.
+
+set_options_chunked_false(Config) ->
+	doc("Confirm the option chunked can be dynamically set to disable "
+		"chunked transfer-encoding. This results in the closing of the "
+		"connection after the current request."),
+	{ok, _} = cowboy:start_clear(name(), [{port, 0}], #{
+		env => #{dispatch => cowboy_router:compile(init_routes(Config))},
+		chunked => true
+	}),
+	Port = ranch:get_port(name()),
+	Request = "GET /set_options/chunked_false HTTP/1.1\r\nhost: localhost\r\n\r\n",
+	Client = raw_open([{type, tcp}, {port, Port}, {opts, []}|Config]),
+	ok = raw_send(Client, Request),
+	_ = case catch raw_recv_head(Client) of
+		{'EXIT', _} -> error(closed);
+		Data ->
+			%% Cowboy always advertises itself as HTTP/1.1.
+			{'HTTP/1.1', 200, _, Rest} = cow_http:parse_status_line(Data),
+			{Headers, <<>>} = cow_http:parse_headers(Rest),
+			false = lists:keyfind(<<"content-length">>, 1, Headers),
+			false = lists:keyfind(<<"transfer-encoding">>, 1, Headers)
+	end,
+	raw_expect_recv(Client, <<0:8000000>>),
+	{error, closed} = raw_recv(Client, 1, 1000),
+	ok.
+
+set_options_chunked_false_ignored(Config) ->
+	doc("Confirm the option chunked can be dynamically set to disable "
+		"chunked transfer-encoding, and that it is ignored if the "
+		"response is not streamed."),
+	{ok, _} = cowboy:start_clear(name(), [{port, 0}], #{
+		env => #{dispatch => cowboy_router:compile(init_routes(Config))},
+		chunked => true
+	}),
+	Port = ranch:get_port(name()),
+	ConnPid = gun_open([{type, tcp}, {protocol, http}, {port, Port}|Config]),
+	%% We do a first request setting the option but not
+	%% using chunked transfer-encoding in the response.
+	StreamRef1 = gun:get(ConnPid, "/set_options/chunked_false_ignored"),
+	{response, nofin, 200, _} = gun:await(ConnPid, StreamRef1),
+	{ok, <<"Hello world!">>} = gun:await_body(ConnPid, StreamRef1),
+	%% We then do a second request to confirm that chunked
+	%% is not disabled for that second request.
+	StreamRef2 = gun:get(ConnPid, "/resp/stream_reply2/200"),
+	{response, nofin, 200, Headers} = gun:await(ConnPid, StreamRef2),
+	{_, <<"chunked">>} = lists:keyfind(<<"transfer-encoding">>, 1, Headers),
+	ok.
 
 set_options_idle_timeout(Config) ->
 	doc("Confirm that the idle_timeout option can be dynamically "
