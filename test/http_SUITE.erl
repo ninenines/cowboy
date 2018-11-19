@@ -47,23 +47,26 @@ chunked_false(Config) ->
 		chunked => false
 	}),
 	Port = ranch:get_port(?FUNCTION_NAME),
-	Request = "GET /resp/stream_reply2/200 HTTP/1.1\r\nhost: localhost\r\n\r\n",
-	Client = raw_open([{type, tcp}, {port, Port}, {opts, []}|Config]),
-	ok = raw_send(Client, Request),
-	Rest = case catch raw_recv_head(Client) of
-		{'EXIT', _} -> error(closed);
-		Data ->
-			%% Cowboy always advertises itself as HTTP/1.1.
-			{'HTTP/1.1', 200, _, Rest0} = cow_http:parse_status_line(Data),
-			{Headers, Rest1} = cow_http:parse_headers(Rest0),
-			false = lists:keyfind(<<"content-length">>, 1, Headers),
-			false = lists:keyfind(<<"transfer-encoding">>, 1, Headers),
-			Rest1
-	end,
-	Bits = 8000000 - bit_size(Rest),
-	raw_expect_recv(Client, <<0:Bits>>),
-	{error, closed} = raw_recv(Client, 1, 1000),
-	ok.
+	try
+		Request = "GET /resp/stream_reply2/200 HTTP/1.1\r\nhost: localhost\r\n\r\n",
+		Client = raw_open([{type, tcp}, {port, Port}, {opts, []}|Config]),
+		ok = raw_send(Client, Request),
+		Rest = case catch raw_recv_head(Client) of
+			{'EXIT', _} -> error(closed);
+			Data ->
+				%% Cowboy always advertises itself as HTTP/1.1.
+				{'HTTP/1.1', 200, _, Rest0} = cow_http:parse_status_line(Data),
+				{Headers, Rest1} = cow_http:parse_headers(Rest0),
+				false = lists:keyfind(<<"content-length">>, 1, Headers),
+				false = lists:keyfind(<<"transfer-encoding">>, 1, Headers),
+				Rest1
+		end,
+		Bits = 8000000 - bit_size(Rest),
+		raw_expect_recv(Client, <<0:Bits>>),
+		{error, closed} = raw_recv(Client, 1, 1000)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
 
 http10_keepalive_false(Config) ->
 	doc("Confirm the option http10_keepalive => false disables keep-alive "
@@ -73,21 +76,25 @@ http10_keepalive_false(Config) ->
 		http10_keepalive => false
 	}),
 	Port = ranch:get_port(?FUNCTION_NAME),
-	Keepalive = "GET / HTTP/1.0\r\nhost: localhost\r\nConnection: keep-alive\r\n\r\n",
-	Client = raw_open([{type, tcp}, {port, Port}, {opts, []}|Config]),
-	ok = raw_send(Client, Keepalive),
-	_ = case catch raw_recv_head(Client) of
-		{'EXIT', _} -> error(closed);
-		Data ->
-			%% Cowboy always advertises itself as HTTP/1.1.
-			{'HTTP/1.1', 200, _, Rest} = cow_http:parse_status_line(Data),
-			{Headers, _} = cow_http:parse_headers(Rest),
-			{_, <<"close">>} = lists:keyfind(<<"connection">>, 1, Headers)
-	end,
-	ok = raw_send(Client, Keepalive),
-	case catch raw_recv_head(Client) of
-		{'EXIT', _} -> closed;
-		_ -> error(not_closed)
+	try
+		Keepalive = "GET / HTTP/1.0\r\nhost: localhost\r\nConnection: keep-alive\r\n\r\n",
+		Client = raw_open([{type, tcp}, {port, Port}, {opts, []}|Config]),
+		ok = raw_send(Client, Keepalive),
+		_ = case catch raw_recv_head(Client) of
+			{'EXIT', _} -> error(closed);
+			Data ->
+				%% Cowboy always advertises itself as HTTP/1.1.
+				{'HTTP/1.1', 200, _, Rest} = cow_http:parse_status_line(Data),
+				{Headers, _} = cow_http:parse_headers(Rest),
+				{_, <<"close">>} = lists:keyfind(<<"connection">>, 1, Headers)
+		end,
+		ok = raw_send(Client, Keepalive),
+		case catch raw_recv_head(Client) of
+			{'EXIT', _} -> closed;
+			_ -> error(not_closed)
+		end
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
 
 idle_timeout_infinity(Config) ->
@@ -98,17 +105,21 @@ idle_timeout_infinity(Config) ->
 		idle_timeout => infinity
 	}),
 	Port = ranch:get_port(?FUNCTION_NAME),
-	ConnPid = gun_open([{type, tcp}, {protocol, http}, {port, Port}|Config]),
-	_ = gun:post(ConnPid, "/echo/read_body",
-		[{<<"content-type">>, <<"text/plain">>}]),
-	#{socket := Socket} = gun:info(ConnPid),
-	Pid = get_remote_pid_tcp(Socket),
-	Ref = erlang:monitor(process, Pid),
-	receive
-		{'DOWN', Ref, process, Pid, Reason} ->
-			error(Reason)
-	after 1000 ->
-		ok
+	try
+		ConnPid = gun_open([{type, tcp}, {protocol, http}, {port, Port}|Config]),
+		_ = gun:post(ConnPid, "/echo/read_body",
+			[{<<"content-type">>, <<"text/plain">>}]),
+		#{socket := Socket} = gun:info(ConnPid),
+		Pid = get_remote_pid_tcp(Socket),
+		Ref = erlang:monitor(process, Pid),
+		receive
+			{'DOWN', Ref, process, Pid, Reason} ->
+				error(Reason)
+		after 1000 ->
+			ok
+		end
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
 
 request_timeout_infinity(Config) ->
@@ -118,15 +129,19 @@ request_timeout_infinity(Config) ->
 		idle_timeout => infinity
 	}),
 	Port = ranch:get_port(?FUNCTION_NAME),
-	ConnPid = gun_open([{type, tcp}, {protocol, http}, {port, Port}|Config]),
-	#{socket := Socket} = gun:info(ConnPid),
-	Pid = get_remote_pid_tcp(Socket),
-	Ref = erlang:monitor(process, Pid),
-	receive
-		{'DOWN', Ref, process, Pid, Reason} ->
-			error(Reason)
-	after 1000 ->
-		ok
+	try
+		ConnPid = gun_open([{type, tcp}, {protocol, http}, {port, Port}|Config]),
+		#{socket := Socket} = gun:info(ConnPid),
+		Pid = get_remote_pid_tcp(Socket),
+		Ref = erlang:monitor(process, Pid),
+		receive
+			{'DOWN', Ref, process, Pid, Reason} ->
+				error(Reason)
+		after 1000 ->
+			ok
+		end
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
 
 set_options_chunked_false(Config) ->
@@ -138,21 +153,24 @@ set_options_chunked_false(Config) ->
 		chunked => true
 	}),
 	Port = ranch:get_port(?FUNCTION_NAME),
-	Request = "GET /set_options/chunked_false HTTP/1.1\r\nhost: localhost\r\n\r\n",
-	Client = raw_open([{type, tcp}, {port, Port}, {opts, []}|Config]),
-	ok = raw_send(Client, Request),
-	_ = case catch raw_recv_head(Client) of
-		{'EXIT', _} -> error(closed);
-		Data ->
-			%% Cowboy always advertises itself as HTTP/1.1.
-			{'HTTP/1.1', 200, _, Rest} = cow_http:parse_status_line(Data),
-			{Headers, <<>>} = cow_http:parse_headers(Rest),
-			false = lists:keyfind(<<"content-length">>, 1, Headers),
-			false = lists:keyfind(<<"transfer-encoding">>, 1, Headers)
-	end,
-	raw_expect_recv(Client, <<0:8000000>>),
-	{error, closed} = raw_recv(Client, 1, 1000),
-	ok.
+	try
+		Request = "GET /set_options/chunked_false HTTP/1.1\r\nhost: localhost\r\n\r\n",
+		Client = raw_open([{type, tcp}, {port, Port}, {opts, []}|Config]),
+		ok = raw_send(Client, Request),
+		_ = case catch raw_recv_head(Client) of
+			{'EXIT', _} -> error(closed);
+			Data ->
+				%% Cowboy always advertises itself as HTTP/1.1.
+				{'HTTP/1.1', 200, _, Rest} = cow_http:parse_status_line(Data),
+				{Headers, <<>>} = cow_http:parse_headers(Rest),
+				false = lists:keyfind(<<"content-length">>, 1, Headers),
+				false = lists:keyfind(<<"transfer-encoding">>, 1, Headers)
+		end,
+		raw_expect_recv(Client, <<0:8000000>>),
+		{error, closed} = raw_recv(Client, 1, 1000)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
 
 set_options_chunked_false_ignored(Config) ->
 	doc("Confirm the option chunked can be dynamically set to disable "
@@ -163,18 +181,21 @@ set_options_chunked_false_ignored(Config) ->
 		chunked => true
 	}),
 	Port = ranch:get_port(?FUNCTION_NAME),
-	ConnPid = gun_open([{type, tcp}, {protocol, http}, {port, Port}|Config]),
-	%% We do a first request setting the option but not
-	%% using chunked transfer-encoding in the response.
-	StreamRef1 = gun:get(ConnPid, "/set_options/chunked_false_ignored"),
-	{response, nofin, 200, _} = gun:await(ConnPid, StreamRef1),
-	{ok, <<"Hello world!">>} = gun:await_body(ConnPid, StreamRef1),
-	%% We then do a second request to confirm that chunked
-	%% is not disabled for that second request.
-	StreamRef2 = gun:get(ConnPid, "/resp/stream_reply2/200"),
-	{response, nofin, 200, Headers} = gun:await(ConnPid, StreamRef2),
-	{_, <<"chunked">>} = lists:keyfind(<<"transfer-encoding">>, 1, Headers),
-	ok.
+	try
+		ConnPid = gun_open([{type, tcp}, {protocol, http}, {port, Port}|Config]),
+		%% We do a first request setting the option but not
+		%% using chunked transfer-encoding in the response.
+		StreamRef1 = gun:get(ConnPid, "/set_options/chunked_false_ignored"),
+		{response, nofin, 200, _} = gun:await(ConnPid, StreamRef1),
+		{ok, <<"Hello world!">>} = gun:await_body(ConnPid, StreamRef1),
+		%% We then do a second request to confirm that chunked
+		%% is not disabled for that second request.
+		StreamRef2 = gun:get(ConnPid, "/resp/stream_reply2/200"),
+		{response, nofin, 200, Headers} = gun:await(ConnPid, StreamRef2),
+		{_, <<"chunked">>} = lists:keyfind(<<"transfer-encoding">>, 1, Headers)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
 
 set_options_idle_timeout(Config) ->
 	doc("Confirm that the idle_timeout option can be dynamically "
@@ -185,17 +206,21 @@ set_options_idle_timeout(Config) ->
 		idle_timeout => 60000
 	}),
 	Port = ranch:get_port(?FUNCTION_NAME),
-	ConnPid = gun_open([{type, tcp}, {protocol, http}, {port, Port}|Config]),
-	_ = gun:post(ConnPid, "/set_options/idle_timeout_short",
-		[{<<"content-type">>, <<"text/plain">>}]),
-	#{socket := Socket} = gun:info(ConnPid),
-	Pid = get_remote_pid_tcp(Socket),
-	Ref = erlang:monitor(process, Pid),
-	receive
-		{'DOWN', Ref, process, Pid, _} ->
-			ok
-	after 2000 ->
-		error(timeout)
+	try
+		ConnPid = gun_open([{type, tcp}, {protocol, http}, {port, Port}|Config]),
+		_ = gun:post(ConnPid, "/set_options/idle_timeout_short",
+			[{<<"content-type">>, <<"text/plain">>}]),
+		#{socket := Socket} = gun:info(ConnPid),
+		Pid = get_remote_pid_tcp(Socket),
+		Ref = erlang:monitor(process, Pid),
+		receive
+			{'DOWN', Ref, process, Pid, _} ->
+				ok
+		after 2000 ->
+			error(timeout)
+		end
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
 
 set_options_idle_timeout_only_applies_to_current_request(Config) ->
@@ -206,30 +231,34 @@ set_options_idle_timeout_only_applies_to_current_request(Config) ->
 		idle_timeout => 500
 	}),
 	Port = ranch:get_port(?FUNCTION_NAME),
-	ConnPid = gun_open([{type, tcp}, {protocol, http}, {port, Port}|Config]),
-	StreamRef = gun:post(ConnPid, "/set_options/idle_timeout_long",
-		[{<<"content-type">>, <<"text/plain">>}]),
-	#{socket := Socket} = gun:info(ConnPid),
-	Pid = get_remote_pid_tcp(Socket),
-	Ref = erlang:monitor(process, Pid),
-	receive
-		{'DOWN', Ref, process, Pid, Reason} ->
-			error(Reason)
-	after 2000 ->
-		ok
-	end,
-	%% Finish the first request and start a second one to confirm
-	%% the idle_timeout option is back to normal.
-	gun:data(ConnPid, StreamRef, fin, <<"Hello!">>),
-	{response, nofin, 200, _} = gun:await(ConnPid, StreamRef),
-	{ok, <<"Hello!">>} = gun:await_body(ConnPid, StreamRef),
-	_ = gun:post(ConnPid, "/echo/read_body",
-		[{<<"content-type">>, <<"text/plain">>}]),
-	receive
-		{'DOWN', Ref, process, Pid, _} ->
+	try
+		ConnPid = gun_open([{type, tcp}, {protocol, http}, {port, Port}|Config]),
+		StreamRef = gun:post(ConnPid, "/set_options/idle_timeout_long",
+			[{<<"content-type">>, <<"text/plain">>}]),
+		#{socket := Socket} = gun:info(ConnPid),
+		Pid = get_remote_pid_tcp(Socket),
+		Ref = erlang:monitor(process, Pid),
+		receive
+			{'DOWN', Ref, process, Pid, Reason} ->
+				error(Reason)
+		after 2000 ->
 			ok
-	after 2000 ->
-		error(timeout)
+		end,
+		%% Finish the first request and start a second one to confirm
+		%% the idle_timeout option is back to normal.
+		gun:data(ConnPid, StreamRef, fin, <<"Hello!">>),
+		{response, nofin, 200, _} = gun:await(ConnPid, StreamRef),
+		{ok, <<"Hello!">>} = gun:await_body(ConnPid, StreamRef),
+		_ = gun:post(ConnPid, "/echo/read_body",
+			[{<<"content-type">>, <<"text/plain">>}]),
+		receive
+			{'DOWN', Ref, process, Pid, _} ->
+				ok
+		after 2000 ->
+			error(timeout)
+		end
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
 
 switch_protocol_flush(Config) ->
@@ -240,12 +269,18 @@ switch_protocol_flush(Config) ->
 	},
 	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], ProtoOpts),
 	Port = ranch:get_port(?FUNCTION_NAME),
-	Self = self(),
-	ConnPid = gun_open([{port, Port}, {type, tcp}, {protocol, http}|Config]),
-	_ = gun:get(ConnPid, "/", [
-		{<<"x-test-pid">>, pid_to_list(Self)}
-	]),
-	receive
-		{Self, Events} ->
-			switch_protocol_flush_h:validate(Events)
+	try
+		Self = self(),
+		ConnPid = gun_open([{port, Port}, {type, tcp}, {protocol, http}|Config]),
+		_ = gun:get(ConnPid, "/", [
+			{<<"x-test-pid">>, pid_to_list(Self)}
+		]),
+		receive
+			{Self, Events} ->
+				switch_protocol_flush_h:validate(Events)
+		after 5000 ->
+			error(timeout)
+		end
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
 	end.

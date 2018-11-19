@@ -1593,15 +1593,18 @@ empty_host(Config0) ->
 	Config = cowboy_test:init_http(?FUNCTION_NAME, #{
 		env => #{dispatch => cowboy_router:compile(Routes)}
 	}, Config0),
-	#{code := 200, body := <<>>} = do_raw(Config, [
-		"GET /echo/host HTTP/1.1\r\n"
-		"Host:\r\n"
-		"\r\n"]),
-	#{code := 200, body := <<>>} = do_raw(Config, [
-		"GET /echo/host HTTP/1.1\r\n"
-		"Host: \r\n"
-		"\r\n"]),
-	cowboy:stop_listener(?FUNCTION_NAME).
+	try
+		#{code := 200, body := <<>>} = do_raw(Config, [
+			"GET /echo/host HTTP/1.1\r\n"
+			"Host:\r\n"
+			"\r\n"]),
+		#{code := 200, body := <<>>} = do_raw(Config, [
+			"GET /echo/host HTTP/1.1\r\n"
+			"Host: \r\n"
+			"\r\n"])
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
 
 %% The effective request URI can be rebuilt by concatenating scheme,
 %% "://", authority, path and query components. (RFC7230 5.5)

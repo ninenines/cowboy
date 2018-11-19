@@ -82,25 +82,31 @@ set_env(Config0) ->
 	Config = cowboy_test:init_http(?FUNCTION_NAME, #{
 		env => #{dispatch => []}
 	}, Config0),
-	ConnPid1 = gun_open(Config),
-	Ref1 = gun:get(ConnPid1, "/"),
-	{response, _, 400, _} = gun:await(ConnPid1, Ref1),
-	cowboy:set_env(?FUNCTION_NAME, dispatch, init_dispatch(Config)),
-	%% Only new connections get the updated environment.
-	ConnPid2 = gun_open(Config),
-	Ref2 = gun:get(ConnPid2, "/"),
-	{response, _, 200, _} = gun:await(ConnPid2, Ref2),
-	ok.
+	try
+		ConnPid1 = gun_open(Config),
+		Ref1 = gun:get(ConnPid1, "/"),
+		{response, _, 400, _} = gun:await(ConnPid1, Ref1),
+		cowboy:set_env(?FUNCTION_NAME, dispatch, init_dispatch(Config)),
+		%% Only new connections get the updated environment.
+		ConnPid2 = gun_open(Config),
+		Ref2 = gun:get(ConnPid2, "/"),
+		{response, _, 200, _} = gun:await(ConnPid2, Ref2)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
 
 set_env_missing(Config0) ->
 	doc("Live replace a middleware environment value when env was not provided."),
 	Config = cowboy_test:init_http(?FUNCTION_NAME, #{}, Config0),
-	ConnPid1 = gun_open(Config),
-	Ref1 = gun:get(ConnPid1, "/"),
-	{response, _, 500, _} = gun:await(ConnPid1, Ref1),
-	cowboy:set_env(?FUNCTION_NAME, dispatch, []),
-	%% Only new connections get the updated environment.
-	ConnPid2 = gun_open(Config),
-	Ref2 = gun:get(ConnPid2, "/"),
-	{response, _, 400, _} = gun:await(ConnPid2, Ref2),
-	ok.
+	try
+		ConnPid1 = gun_open(Config),
+		Ref1 = gun:get(ConnPid1, "/"),
+		{response, _, 500, _} = gun:await(ConnPid1, Ref1),
+		cowboy:set_env(?FUNCTION_NAME, dispatch, []),
+		%% Only new connections get the updated environment.
+		ConnPid2 = gun_open(Config),
+		Ref2 = gun:get(ConnPid2, "/"),
+		{response, _, 400, _} = gun:await(ConnPid2, Ref2)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
