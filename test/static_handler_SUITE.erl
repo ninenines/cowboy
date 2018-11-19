@@ -70,11 +70,19 @@ init_per_suite(Config) ->
 	%% A special folder contains files of 1 character from 0 to 127.
 	CharDir = config(priv_dir, Config) ++ "/char",
 	ok = filelib:ensure_dir(CharDir ++ "/file"),
-	Chars = lists:flatten([case file:write_file(CharDir ++ [$/, C], [C]) of
+	Chars0 = lists:flatten([case file:write_file(CharDir ++ [$/, C], [C]) of
 		ok -> C;
 		{error, _} -> []
 	end || C <- lists:seq(0, 127)]),
-	[{static_dir, StaticDir}, {char_dir, CharDir}, {chars, Chars}|Config].
+	%% Determine whether we are on a case insensitive filesystem and
+	%% remove uppercase characters in that case. On case insensitive
+	%% filesystems we end up overwriting the "A" file with the "a" contents.
+	{CaseSensitive, Chars} = case file:read_file(CharDir ++ "/A") of
+		{ok, <<"A">>} -> {true, Chars0};
+		{ok, <<"a">>} -> {false, Chars0 -- "ABCDEFGHIJKLMNOPQRSTUVWXYZ"}
+	end,
+	[{static_dir, StaticDir}, {char_dir, CharDir},
+		{chars, Chars}, {case_sensitive, CaseSensitive}|Config].
 
 end_per_suite(Config) ->
 	%% Special directory.
@@ -871,18 +879,22 @@ range_request(Config) ->
 
 unicode_basic_latin(Config) ->
 	doc("Get a file with non-urlencoded characters from Unicode Basic Latin block."),
-	_ = [case do_get("/char/" ++ [C], Config) of
-		{200, _, << C >>} -> ok;
-		Error -> exit({error, C, Error})
-	end || C <-
-		%% Excluding the dot which has a special meaning in URLs
-		%% when they are the only content in a path segment,
-		%% and is tested as part of filenames in other test cases.
+	%% Excluding the dot which has a special meaning in URLs
+	%% when they are the only content in a path segment,
+	%% and is tested as part of filenames in other test cases.
+	Chars0 =
 		"abcdefghijklmnopqrstuvwxyz"
 		"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 		"0123456789"
-		":@-_~!$&'()*+,;="
-	],
+		":@-_~!$&'()*+,;=",
+	Chars = case config(case_sensitive, Config) of
+		false -> Chars0 -- "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+		true -> Chars0
+	end,
+	_ = [case do_get("/char/" ++ [C], Config) of
+		{200, _, << C >>} -> ok;
+		Error -> exit({error, C, Error})
+	end || C <- Chars],
 	ok.
 
 unicode_basic_error(Config) ->
