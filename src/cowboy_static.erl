@@ -120,7 +120,7 @@ init_dir(Req, Path, HowToAccess, Extra) when is_list(Path) ->
 init_dir(Req, Path, HowToAccess, Extra) ->
 	Dir = fullpath(filename:absname(Path)),
 	PathInfo = cowboy_req:path_info(Req),
-	Filepath = filename:join([Dir|[escape_reserved(P, <<>>) || P <- PathInfo]]),
+	Filepath = filename:join([Dir|escape_reserved(PathInfo)]),
 	Len = byte_size(Dir),
 	case fullpath(Filepath) of
 		<< Dir:Len/binary, $/, _/binary >> ->
@@ -130,6 +130,9 @@ init_dir(Req, Path, HowToAccess, Extra) ->
 		_ ->
 			{cowboy_rest, Req, error}
 	end.
+
+escape_reserved([]) -> [];
+escape_reserved([P|Tail]) -> [escape_reserved(P, <<>>)|escape_reserved(Tail)].
 
 %% We escape the slash found in path segments because
 %% a segment corresponds to a directory entry, and
@@ -315,7 +318,7 @@ forbidden(Req, State) ->
 -spec content_types_provided(Req, State)
 	-> {[{binary(), get_file}], Req, State}
 	when State::state().
-content_types_provided(Req, State={Path, _, Extra}) ->
+content_types_provided(Req, State={Path, _, Extra}) when is_list(Extra) ->
 	case lists:keyfind(mimetypes, 1, Extra) of
 		false ->
 			{[{cow_mimetypes:web(Path), get_file}], Req, State};

@@ -54,10 +54,6 @@ groups() ->
 	].
 
 init_per_suite(Config) ->
-	%% @todo When we can chain stream handlers, write one
-	%% to hide these expected errors.
-	ct:print("This test suite will produce error reports. "
-		"The path for these expected errors begins with '/bad' or '/char'."),
 	%% Two static folders are created: one in ct_helper's private directory,
 	%% and one in the test run private directory.
 	PrivDir = code:priv_dir(ct_helper) ++ "/static",
@@ -81,8 +77,6 @@ init_per_suite(Config) ->
 	[{static_dir, StaticDir}, {char_dir, CharDir}, {chars, Chars}|Config].
 
 end_per_suite(Config) ->
-	ct:print("This test suite produced error reports. "
-		"The path for these expected errors begins with '/bad' or '/char'."),
 	%% Special directory.
 	CharDir = config(char_dir, Config),
 	_ = [file:delete(CharDir ++ [$/, C]) || C <- lists:seq(0, 127)],
@@ -103,16 +97,23 @@ init_per_group(priv_dir, Config) ->
 init_per_group(Name=http_no_sendfile, Config) ->
 	cowboy_test:init_http(Name, #{
 		env => #{dispatch => init_dispatch(Config)},
+		middlewares => [?MODULE, cowboy_router, cowboy_handler],
 		sendfile => false
 	}, [{flavor, vanilla}|Config]);
 init_per_group(Name=h2c_no_sendfile, Config) ->
 	Config1 = cowboy_test:init_http(Name, #{
 		env => #{dispatch => init_dispatch(Config)},
+		middlewares => [?MODULE, cowboy_router, cowboy_handler],
 		sendfile => false
 	}, [{flavor, vanilla}|Config]),
 	lists:keyreplace(protocol, 1, Config1, {protocol, http2});
 init_per_group(Name, Config) ->
-	cowboy_test:init_common_groups(Name, Config, ?MODULE).
+	Config1 = cowboy_test:init_common_groups(Name, Config, ?MODULE),
+	Opts = ranch:get_protocol_options(Name),
+	ok = ranch:set_protocol_options(Name, Opts#{
+		middlewares => [?MODULE, cowboy_router, cowboy_handler]
+	}),
+	Config1.
 
 end_per_group(Name, _) ->
 	cowboy:stop_listener(Name).
@@ -181,6 +182,22 @@ init_dispatch(Config) ->
 		{"/ez_priv_dir/[...]", cowboy_static, {priv_dir, static_files_app, "www"}},
 		{"/bad/ez_priv_dir/[...]", cowboy_static, {priv_dir, static_files_app, "cgi-bin"}}
 	]}]).
+
+%% Middleware interface to silence expected errors.
+
+execute(Req=#{path := Path}, Env) ->
+	case Path of
+		<<"/bad/priv_dir/app/", _/bits>> -> ct_helper:ignore(cowboy_static, priv_path, 2);
+		<<"/bad/priv_file/app">> -> ct_helper:ignore(cowboy_static, priv_path, 2);
+		<<"/bad/priv_dir/route">> -> ct_helper:ignore(cowboy_static, escape_reserved, 1);
+		<<"/bad/dir/route">> -> ct_helper:ignore(cowboy_static, escape_reserved, 1);
+		<<"/bad">> -> ct_helper:ignore(cowboy_static, init_opts, 2);
+		<<"/bad/options">> -> ct_helper:ignore(cowboy_static, content_types_provided, 2);
+		<<"/bad/options/mime">> -> ct_helper:ignore(cowboy_rest, set_content_type, 2);
+		<<"/bad/options/etag">> -> ct_helper:ignore(cowboy_static, generate_etag, 2);
+		_ -> ok
+	end,
+	{ok, Req, Env}.
 
 %% Internal functions.
 
