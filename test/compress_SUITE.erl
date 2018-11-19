@@ -18,7 +18,6 @@
 
 -import(ct_helper, [config/2]).
 -import(ct_helper, [doc/1]).
--import(ct_helper, [name/0]).
 -import(cowboy_test, [gun_open/1]).
 
 %% ct.
@@ -149,13 +148,12 @@ gzip_stream_reply_content_encoding(Config) ->
 opts_compress_buffering_false(Config0) ->
 	doc("Confirm that the compress_buffering option can be set to false, "
 		"which is the default."),
-	Name = name(),
 	Fun = case config(ref, Config0) of
 		https_compress -> init_https;
 		h2_compress -> init_http2;
 		_ -> init_http
 	end,
-	Config = cowboy_test:Fun(Name, #{
+	Config = cowboy_test:Fun(?FUNCTION_NAME, #{
 		env => #{dispatch => init_dispatch(Config0)},
 		stream_handlers => [cowboy_compress_h, cowboy_stream_h],
 		compress_buffering => false
@@ -175,19 +173,18 @@ opts_compress_buffering_false(Config0) ->
 		<<"data: World!\r\n\r\n">> = iolist_to_binary(zlib:inflate(Z, Data2)),
 		gun:close(ConnPid)
 	after
-		cowboy:stop_listener(Name)
+		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
 
 opts_compress_buffering_true(Config0) ->
 	doc("Confirm that the compress_buffering option can be set to true, "
 		"and that the data received is buffered."),
-	Name = name(),
 	Fun = case config(ref, Config0) of
 		https_compress -> init_https;
 		h2_compress -> init_http2;
 		_ -> init_http
 	end,
-	Config = cowboy_test:Fun(Name, #{
+	Config = cowboy_test:Fun(?FUNCTION_NAME, #{
 		env => #{dispatch => init_dispatch(Config0)},
 		stream_handlers => [cowboy_compress_h, cowboy_stream_h],
 		compress_buffering => true
@@ -205,19 +202,18 @@ opts_compress_buffering_true(Config0) ->
 		<<>> = iolist_to_binary(zlib:inflate(Z, Data1)),
 		gun:close(ConnPid)
 	after
-		cowboy:stop_listener(Name)
+		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
 
 set_options_compress_buffering_false(Config0) ->
 	doc("Confirm that the compress_buffering option can be dynamically "
 		"set to false by a handler and that the data received is not buffered."),
-	Name = name(),
 	Fun = case config(ref, Config0) of
 		https_compress -> init_https;
 		h2_compress -> init_http2;
 		_ -> init_http
 	end,
-	Config = cowboy_test:Fun(Name, #{
+	Config = cowboy_test:Fun(?FUNCTION_NAME, #{
 		env => #{dispatch => init_dispatch(Config0)},
 		stream_handlers => [cowboy_compress_h, cowboy_stream_h],
 		compress_buffering => true
@@ -237,19 +233,18 @@ set_options_compress_buffering_false(Config0) ->
 		<<"data: World!\r\n\r\n">> = iolist_to_binary(zlib:inflate(Z, Data2)),
 		gun:close(ConnPid)
 	after
-		cowboy:stop_listener(Name)
+		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
 
 set_options_compress_buffering_true(Config0) ->
 	doc("Confirm that the compress_buffering option can be dynamically "
 		"set to true by a handler and that the data received is buffered."),
-	Name = name(),
 	Fun = case config(ref, Config0) of
 		https_compress -> init_https;
 		h2_compress -> init_http2;
 		_ -> init_http
 	end,
-	Config = cowboy_test:Fun(Name, #{
+	Config = cowboy_test:Fun(?FUNCTION_NAME, #{
 		env => #{dispatch => init_dispatch(Config0)},
 		stream_handlers => [cowboy_compress_h, cowboy_stream_h],
 		compress_buffering => false
@@ -267,7 +262,7 @@ set_options_compress_buffering_true(Config0) ->
 		<<>> = iolist_to_binary(zlib:inflate(Z, Data1)),
 		gun:close(ConnPid)
 	after
-		cowboy:stop_listener(Name)
+		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
 
 set_options_compress_threshold_0(Config) ->
