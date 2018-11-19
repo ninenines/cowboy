@@ -29,35 +29,59 @@ all() ->
 groups() ->
 	cowboy_test:common_groups(ct_helper:all(?MODULE)).
 
+%% We set this module as a logger in order to silence expected errors.
 init_per_group(Name = http, Config) ->
-	cowboy_test:init_http(Name, #{stream_handlers => [stream_handler_h]}, Config);
+	cowboy_test:init_http(Name, #{
+		logger => ?MODULE,
+		stream_handlers => [stream_handler_h]
+	}, Config);
 init_per_group(Name = https, Config) ->
-	cowboy_test:init_https(Name, #{stream_handlers => [stream_handler_h]}, Config);
+	cowboy_test:init_https(Name, #{
+		logger => ?MODULE,
+		stream_handlers => [stream_handler_h]
+	}, Config);
 init_per_group(Name = h2, Config) ->
-	cowboy_test:init_http2(Name, #{stream_handlers => [stream_handler_h]}, Config);
+	cowboy_test:init_http2(Name, #{
+		logger => ?MODULE,
+		stream_handlers => [stream_handler_h]
+	}, Config);
 init_per_group(Name = h2c, Config) ->
-	Config1 = cowboy_test:init_http(Name, #{stream_handlers => [stream_handler_h]}, Config),
+	Config1 = cowboy_test:init_http(Name, #{
+		logger => ?MODULE,
+		stream_handlers => [stream_handler_h]
+	}, Config),
 	lists:keyreplace(protocol, 1, Config1, {protocol, http2});
 init_per_group(Name = http_compress, Config) ->
 	cowboy_test:init_http(Name, #{
+		logger => ?MODULE,
 		stream_handlers => [cowboy_compress_h, stream_handler_h]
 	}, Config);
 init_per_group(Name = https_compress, Config) ->
 	cowboy_test:init_https(Name, #{
+		logger => ?MODULE,
 		stream_handlers => [cowboy_compress_h, stream_handler_h]
 	}, Config);
 init_per_group(Name = h2_compress, Config) ->
 	cowboy_test:init_http2(Name, #{
+		logger => ?MODULE,
 		stream_handlers => [cowboy_compress_h, stream_handler_h]
 	}, Config);
 init_per_group(Name = h2c_compress, Config) ->
 	Config1 = cowboy_test:init_http(Name, #{
+		logger => ?MODULE,
 		stream_handlers => [cowboy_compress_h, stream_handler_h]
 	}, Config),
 	lists:keyreplace(protocol, 1, Config1, {protocol, http2}).
 
 end_per_group(Name, _) ->
 	cowboy:stop_listener(Name).
+
+%% Logger function silencing the expected crashes.
+
+error("Unhandled exception " ++ _, [error, crash|_]) ->
+	ok;
+error(Format, Args) ->
+	error_logger:error_msg(Format, Args).
 
 %% Tests.
 
