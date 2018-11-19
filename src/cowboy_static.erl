@@ -340,7 +340,7 @@ charsets_provided(Req, State={Path, _, Extra}) ->
 			no_call;
 		{charset, Module, Function} ->
 			{[Module:Function(Path)], Req, State};
-		{charset, Charset} ->
+		{charset, Charset} when is_binary(Charset) ->
 			{[Charset], Req, State}
 	end.
 

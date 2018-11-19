@@ -195,6 +195,7 @@ execute(Req=#{path := Path}, Env) ->
 		<<"/bad/options">> -> ct_helper:ignore(cowboy_static, content_types_provided, 2);
 		<<"/bad/options/mime">> -> ct_helper:ignore(cowboy_rest, set_content_type, 2);
 		<<"/bad/options/etag">> -> ct_helper:ignore(cowboy_static, generate_etag, 2);
+		<<"/bad/options/charset">> -> ct_helper:ignore(cowboy_static, charsets_provided, 2);
 		_ -> ok
 	end,
 	{ok, Req, Env}.
@@ -277,6 +278,11 @@ bad_file_path(Config) ->
 bad_options(Config) ->
 	doc("Bad cowboy_static extra options: not a list."),
 	{500, _, _} = do_get("/bad/options", Config),
+	ok.
+
+bad_options_charset(Config) ->
+	doc("Bad cowboy_static extra options: invalid charset option."),
+	{500, _, _} = do_get("/bad/options/charset", Config),
 	ok.
 
 bad_options_etag(Config) ->
