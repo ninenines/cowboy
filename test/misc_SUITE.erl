@@ -50,6 +50,13 @@ init_dispatch(_) ->
 		{"/", hello_h, []}
 	]}]).
 
+%% Logger function silencing the expected crash.
+
+error("Ranch listener " ++ _, [set_env_missing|_]) ->
+	ok;
+error(Format, Args) ->
+	error_logger:error_msg(Format, Args).
+
 %% Tests.
 
 restart_gracefully(Config) ->
@@ -97,7 +104,9 @@ set_env(Config0) ->
 
 set_env_missing(Config0) ->
 	doc("Live replace a middleware environment value when env was not provided."),
-	Config = cowboy_test:init_http(?FUNCTION_NAME, #{}, Config0),
+	Config = cowboy_test:init_http(?FUNCTION_NAME, #{
+		logger => ?MODULE
+	}, Config0),
 	try
 		ConnPid1 = gun_open(Config),
 		Ref1 = gun:get(ConnPid1, "/"),
