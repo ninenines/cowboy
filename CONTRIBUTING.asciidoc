@@ -228,6 +228,14 @@ $ make tests
 
 You can then open Common Test logs in 'logs/all_runs.html'.
 
+By default Cowboy excludes a few test suites that take too
+long to complete. For example all the examples are built and
+tested, and one Websocket test suite is very extensive. In
+order to run everything, do:
+
+[source,bash]
+$ make tests FULL=1
+
 Once all tests pass (or at least, no new tests are failing),
 you can commit your changes.
 
