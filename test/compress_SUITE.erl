@@ -166,10 +166,10 @@ opts_compress_buffering_false(Config0) ->
 		{_, <<"gzip">>} = lists:keyfind(<<"content-encoding">>, 1, Headers),
 		Z = zlib:open(),
 		zlib:inflateInit(Z, 31),
-		{data, nofin, Data1} = gun:await(ConnPid, Ref, 100),
+		{data, nofin, Data1} = gun:await(ConnPid, Ref, 500),
 		<<"data: Hello!\r\n\r\n">> = iolist_to_binary(zlib:inflate(Z, Data1)),
 		timer:sleep(1000),
-		{data, nofin, Data2} = gun:await(ConnPid, Ref, 100),
+		{data, nofin, Data2} = gun:await(ConnPid, Ref, 500),
 		<<"data: World!\r\n\r\n">> = iolist_to_binary(zlib:inflate(Z, Data2)),
 		gun:close(ConnPid)
 	after
@@ -198,7 +198,7 @@ opts_compress_buffering_true(Config0) ->
 		Z = zlib:open(),
 		zlib:inflateInit(Z, 31),
 		%% The data gets buffered because it is too small.
-		{data, nofin, Data1} = gun:await(ConnPid, Ref, 100),
+		{data, nofin, Data1} = gun:await(ConnPid, Ref, 500),
 		<<>> = iolist_to_binary(zlib:inflate(Z, Data1)),
 		gun:close(ConnPid)
 	after
@@ -226,10 +226,10 @@ set_options_compress_buffering_false(Config0) ->
 		{_, <<"gzip">>} = lists:keyfind(<<"content-encoding">>, 1, Headers),
 		Z = zlib:open(),
 		zlib:inflateInit(Z, 31),
-		{data, nofin, Data1} = gun:await(ConnPid, Ref, 100),
+		{data, nofin, Data1} = gun:await(ConnPid, Ref, 500),
 		<<"data: Hello!\r\n\r\n">> = iolist_to_binary(zlib:inflate(Z, Data1)),
 		timer:sleep(1000),
-		{data, nofin, Data2} = gun:await(ConnPid, Ref, 100),
+		{data, nofin, Data2} = gun:await(ConnPid, Ref, 500),
 		<<"data: World!\r\n\r\n">> = iolist_to_binary(zlib:inflate(Z, Data2)),
 		gun:close(ConnPid)
 	after
@@ -258,7 +258,7 @@ set_options_compress_buffering_true(Config0) ->
 		Z = zlib:open(),
 		zlib:inflateInit(Z, 31),
 		%% The data gets buffered because it is too small.
-		{data, nofin, Data1} = gun:await(ConnPid, Ref, 100),
+		{data, nofin, Data1} = gun:await(ConnPid, Ref, 500),
 		<<>> = iolist_to_binary(zlib:inflate(Z, Data1)),
 		gun:close(ConnPid)
 	after
