@@ -173,11 +173,6 @@ timeout_after_request_line_host_crlfcr(Config) ->
 	#{code := 408, client := Client4} = do_raw(Config, "GET / HTTP/1.1\r\nHost: localhost\r\n\r"),
 	{error, closed} = raw_recv(Client4, 0, 6000).
 
-%% @todo Add an HTTP/1.0 test suite.
-%An HTTP/1.1 server must understand any valid HTTP/1.0 request,
-%and respond to those with an HTTP/1.1 message that only use
-%features understood or safely ignored by HTTP/1.0 clients. (RFC7230 A)
-
 %% Request line.
 
 limit_request_line_8000(Config) ->
@@ -703,7 +698,8 @@ reject_invalid_version_http2(Config) ->
 
 reject_empty_version(Config) ->
 	doc("Any version number other than HTTP/1.0 or HTTP/1.1 must be "
-		"rejected by a server or intermediary with a 505 status code. (RFC7230 2.6, RFC7230 A.2)"),
+		"rejected by a server or intermediary with a 505 status code. "
+		"(RFC7230 2.6, RFC7230 A, RFC7230 A.2)"),
 	#{code := 505} = do_raw(Config,
 		"GET / \r\n"
 		"Host: localhost\r\n"
@@ -1390,28 +1386,51 @@ remove_transfer_encoding_chunked_after_body_read(Config) ->
 %HTTP version. (RFC7230 6.3)
 
 no_connection_header_keepalive(Config) ->
-	doc("HTTP/1.1 requests with no \"close\" option and HTTP/1.0 with the "
-		"\"keep-alive\" option indicate the connection will persist. (RFC7230 6.1, RFC7230 6.3)"),
-	#{code := 200, client := Client} = do_raw(Config, [
+	doc("HTTP/1.1 requests with no \"close\" option "
+		"indicate the connection will persist. (RFC7230 6.1, RFC7230 6.3)"),
+	#{code := 200, headers := RespHeaders, client := Client} = do_raw(Config, [
 		"GET / HTTP/1.1\r\n"
 		"Host: localhost\r\n"
 		"\r\n"]),
+	false = lists:keyfind(<<"connection">>, 1, RespHeaders),
 	{error, timeout} = raw_recv(Client, 0, 1000).
 
-%% @todo http/1.0 suite? connection_keepalive(Config) ->
+http10_connection_keepalive(Config) ->
+	doc("HTTP/1.0 requests with the \"keep-alive\" option "
+		"indicate the connection will persist. "
+		"(RFC7230 6.1, RFC7230 6.3, RFC7230 A.1.2)"),
+	#{code := 200, headers := RespHeaders, client := Client} = do_raw(Config, [
+		"GET / HTTP/1.0\r\n"
+		"Host: localhost\r\n"
+		"Connection: keep-alive\r\n"
+		"\r\n"]),
+	{_, <<"keep-alive">>} = lists:keyfind(<<"connection">>, 1, RespHeaders),
+	{error, timeout} = raw_recv(Client, 0, 1000).
 
 connection_close(Config) ->
 	doc("HTTP/1.1 requests with the \"close\" option and HTTP/1.0 with no "
 		"\"keep-alive\" option indicate the connection will be closed "
 		"upon reception of the response by the client. (RFC7230 6.1, RFC7230 6.3)"),
-	#{code := 200, client := Client} = do_raw(Config, [
+	#{code := 200, headers := RespHeaders, client := Client} = do_raw(Config, [
 		"GET / HTTP/1.1\r\n"
 		"Host: localhost\r\n"
 		"Connection: close\r\n"
 		"\r\n"]),
+	{_, <<"close">>} = lists:keyfind(<<"connection">>, 1, RespHeaders),
 	{error, closed} = raw_recv(Client, 0, 1000).
 
-%% @todo http/1.0 suite? no_connection_close(Config) ->
+http10_no_connection_header_close(Config) ->
+	doc("HTTP/1.0 with no \"keep-alive\" option indicate "
+		"the connection will be closed upon reception of "
+		"the response by the client. (RFC7230 6.1, RFC7230 6.3, RFC7230 A.1.2)"),
+	#{code := 200, headers := RespHeaders, client := Client} = do_raw(Config, [
+		"GET / HTTP/1.0\r\n"
+		"Host: localhost\r\n"
+		"\r\n"]),
+	%% Cowboy always sends a close header back to HTTP/1.0 clients
+	%% that support keep-alive, even though it is not required.
+	{_, <<"close">>} = lists:keyfind(<<"connection">>, 1, RespHeaders),
+	{error, closed} = raw_recv(Client, 0, 1000).
 
 limit_requests_keepalive(Config) ->
 	doc("The maximum number of requests sent using a persistent connection "
@@ -1549,9 +1568,20 @@ reject_missing_host(Config) ->
 		"\r\n"]),
 	{error, closed} = raw_recv(Client, 0, 1000).
 
-%% @todo http/1.0 missing_host(Config) ->
-%An HTTP/1.0 request that lack a host header is valid. Behavior
-%for these requests is configuration dependent. (RFC7230 5.5)
+http10_allow_missing_host(Config0) ->
+	doc("An HTTP/1.0 request that lacks a host header may be accepted. "
+		"(RFC7230 5.4, RFC7230 5.5, RFC7230 A.1.1)"),
+	Routes = [{'_', [{"/echo/:key[/:arg]", echo_h, []}]}],
+	Config = cowboy_test:init_http(?FUNCTION_NAME, #{
+		env => #{dispatch => cowboy_router:compile(Routes)}
+	}, Config0),
+	try
+		#{code := 200, body := <<>>} = do_raw(Config, [
+			"GET /echo/host HTTP/1.0\r\n"
+			"\r\n"])
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
 
 reject_invalid_host(Config) ->
 	doc("A request with an invalid host header must be rejected with a "
@@ -1953,7 +1983,8 @@ no_content_length_if_transfer_encoding(Config) ->
 http10_request_no_transfer_encoding_in_response(Config) ->
 	doc("The transfer-encoding header must not be sent in responses to "
 		"HTTP/1.0 requests, or in responses that use the HTTP/1.0 version. "
-		"No transfer codings must be applied in these cases. (RFC7230 3.3.1)"),
+		"No transfer codings must be applied in these cases. "
+		"(RFC7230 3.3.1, RFC7230 A.1.3)"),
 	Client = raw_open(Config),
 	ok = raw_send(Client, [
 		"GET /resp/stream_reply2/200 HTTP/1.0\r\n"

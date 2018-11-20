@@ -166,69 +166,6 @@ headers_dupe(Config) ->
 	[<<"close">>] = [V || {Name, V} <- Headers, Name =:= <<"connection">>],
 	gun_down(ConnPid).
 
-http10_chunkless(Config) ->
-	ConnPid = gun_open(Config, #{http_opts => #{version => 'HTTP/1.0'}}),
-	Ref = gun:get(ConnPid, "/chunked_response"),
-	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
-	false = lists:keyfind(<<"transfer-encoding">>, 1, Headers),
-	{ok, <<"chunked_handler\r\nworks fine!">>} = gun:await_body(ConnPid, Ref),
-	gun_down(ConnPid).
-
-http10_hostless(Config) ->
-	Name = http10_hostless,
-	Port10 = config(port, Config) + 10,
-	{Transport, Protocol} = case config(type, Config) of
-		tcp -> {ranch_tcp, cowboy_clear};
-		ssl -> {ranch_ssl, cowboy_tls}
-	end,
-	{ok, _} = ranch:start_listener(Name, 5, Transport,
-		config(opts, Config) ++ [{port, Port10}],
-		Protocol, #{
-			env =>#{dispatch => cowboy_router:compile([
-				{'_', [{"/http1.0/hostless", http_handler, []}]}])},
-			max_keepalive => 50,
-			timeout => 500
-	}),
-	200 = do_raw("GET /http1.0/hostless HTTP/1.0\r\n\r\n",
-		[{port, Port10}|Config]),
-	cowboy:stop_listener(http10_hostless).
-
-http10_keepalive_default(Config) ->
-	Normal = "GET / HTTP/1.0\r\nhost: localhost\r\n\r\n",
-	Client = raw_open(Config),
-	ok = raw_send(Client, Normal),
-	_ = case catch raw_recv_head(Client) of
-		{'EXIT', _} -> error(closed);
-		Data ->
-			%% Cowboy always advertises itself as HTTP/1.1.
-			{'HTTP/1.1', 200, _, Rest} = cow_http:parse_status_line(Data),
-			{Headers, _} = cow_http:parse_headers(Rest),
-			{_, <<"close">>} = lists:keyfind(<<"connection">>, 1, Headers)
-	end,
-	ok = raw_send(Client, Normal),
-	case catch raw_recv_head(Client) of
-		{'EXIT', _} -> closed;
-		_ -> error(not_closed)
-	end.
-
-http10_keepalive_forced(Config) ->
-	Keepalive = "GET / HTTP/1.0\r\nhost: localhost\r\nConnection: keep-alive\r\n\r\n",
-	Client = raw_open(Config),
-	ok = raw_send(Client, Keepalive),
-	_ = case catch raw_recv_head(Client) of
-		{'EXIT', _} -> error(closed);
-		Data ->
-			%% Cowboy always advertises itself as HTTP/1.1.
-			{'HTTP/1.1', 200, _, Rest} = cow_http:parse_status_line(Data),
-			{Headers, _} = cow_http:parse_headers(Rest),
-			{_, <<"keep-alive">>} = lists:keyfind(<<"connection">>, 1, Headers)
-	end,
-	ok = raw_send(Client, Keepalive),
-	case catch raw_recv_head(Client) of
-		{'EXIT', Err} -> error({closed, Err});
-		_ -> ok
-	end.
-
 keepalive_nl(Config) ->
 	ConnPid = gun_open(Config),
 	Refs = [begin
