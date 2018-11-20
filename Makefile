@@ -38,6 +38,12 @@ AUTO_CI_WINDOWS ?= OTP-19+
 
 include erlang.mk
 
+# Don't run the examples test suite by default.
+
+ifndef FULL
+CT_SUITES := $(filter-out examples ws_autobahn,$(CT_SUITES))
+endif
+
 # Compile options.
 
 ERLC_OPTS += +warn_missing_spec +warn_untyped_record
