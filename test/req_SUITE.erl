@@ -552,7 +552,7 @@ do_read_urlencoded_body_too_long(Path, Body, Config) ->
 		{<<"content-length">>, integer_to_binary(byte_size(Body) * 2)}
 	]),
 	gun:data(ConnPid, Ref, nofin, Body),
-	timer:sleep(1100),
+	timer:sleep(2000),
 	gun:data(ConnPid, Ref, fin, Body),
 	{response, _, 408, RespHeaders} = gun:await(ConnPid, Ref),
 	_ = case config(protocol, Config) of
