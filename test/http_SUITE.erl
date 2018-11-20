@@ -127,7 +127,7 @@ request_timeout_infinity(Config) ->
 	doc("Ensure the request_timeout option accepts the infinity value."),
 	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
 		env => #{dispatch => cowboy_router:compile(init_routes(Config))},
-		idle_timeout => infinity
+		request_timeout => infinity
 	}),
 	Port = ranch:get_port(?FUNCTION_NAME),
 	try
