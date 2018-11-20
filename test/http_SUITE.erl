@@ -159,16 +159,18 @@ set_options_chunked_false(Config) ->
 		Request = "GET /set_options/chunked_false HTTP/1.1\r\nhost: localhost\r\n\r\n",
 		Client = raw_open([{type, tcp}, {port, Port}, {opts, []}|Config]),
 		ok = raw_send(Client, Request),
-		_ = case catch raw_recv_head(Client) of
+		Rest = case catch raw_recv_head(Client) of
 			{'EXIT', _} -> error(closed);
 			Data ->
 				%% Cowboy always advertises itself as HTTP/1.1.
-				{'HTTP/1.1', 200, _, Rest} = cow_http:parse_status_line(Data),
-				{Headers, <<>>} = cow_http:parse_headers(Rest),
+				{'HTTP/1.1', 200, _, Rest0} = cow_http:parse_status_line(Data),
+				{Headers, Rest1} = cow_http:parse_headers(Rest0),
 				false = lists:keyfind(<<"content-length">>, 1, Headers),
-				false = lists:keyfind(<<"transfer-encoding">>, 1, Headers)
+				false = lists:keyfind(<<"transfer-encoding">>, 1, Headers),
+				Rest1
 		end,
-		raw_expect_recv(Client, <<0:8000000>>),
+		Bits = 8000000 - bit_size(Rest),
+		raw_expect_recv(Client, <<0:Bits>>),
 		{error, closed} = raw_recv(Client, 1, 1000)
 	after
 		cowboy:stop_listener(?FUNCTION_NAME)
