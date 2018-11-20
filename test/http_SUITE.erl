@@ -107,6 +107,7 @@ idle_timeout_infinity(Config) ->
 	Port = ranch:get_port(?FUNCTION_NAME),
 	try
 		ConnPid = gun_open([{type, tcp}, {protocol, http}, {port, Port}|Config]),
+		{ok, http} = gun:await_up(ConnPid),
 		_ = gun:post(ConnPid, "/echo/read_body",
 			[{<<"content-type">>, <<"text/plain">>}]),
 		#{socket := Socket} = gun:info(ConnPid),
@@ -131,6 +132,7 @@ request_timeout_infinity(Config) ->
 	Port = ranch:get_port(?FUNCTION_NAME),
 	try
 		ConnPid = gun_open([{type, tcp}, {protocol, http}, {port, Port}|Config]),
+		{ok, http} = gun:await_up(ConnPid),
 		#{socket := Socket} = gun:info(ConnPid),
 		Pid = get_remote_pid_tcp(Socket),
 		Ref = erlang:monitor(process, Pid),
@@ -208,6 +210,7 @@ set_options_idle_timeout(Config) ->
 	Port = ranch:get_port(?FUNCTION_NAME),
 	try
 		ConnPid = gun_open([{type, tcp}, {protocol, http}, {port, Port}|Config]),
+		{ok, http} = gun:await_up(ConnPid),
 		_ = gun:post(ConnPid, "/set_options/idle_timeout_short",
 			[{<<"content-type">>, <<"text/plain">>}]),
 		#{socket := Socket} = gun:info(ConnPid),
@@ -233,6 +236,7 @@ set_options_idle_timeout_only_applies_to_current_request(Config) ->
 	Port = ranch:get_port(?FUNCTION_NAME),
 	try
 		ConnPid = gun_open([{type, tcp}, {protocol, http}, {port, Port}|Config]),
+		{ok, http} = gun:await_up(ConnPid),
 		StreamRef = gun:post(ConnPid, "/set_options/idle_timeout_long",
 			[{<<"content-type">>, <<"text/plain">>}]),
 		#{socket := Socket} = gun:info(ConnPid),
