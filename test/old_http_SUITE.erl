@@ -113,19 +113,12 @@ do_get(Path, Config) ->
 
 check_status(Config) ->
 	Tests = [
-		{200, "/simple"},
-		{500, "/handler_errors?case=init_before_reply"}
+		{200, "/simple"}
 	],
 	_ = [{Status, URL} = begin
 		Ret = do_get(URL, Config),
 		{Ret, URL}
 	end || {Status, URL} <- Tests].
-
-error_init_after_reply(Config) ->
-	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, "/handler_errors?case=init_after_reply"),
-	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
-	ok.
 
 rest_param_all(Config) ->
 	ConnPid = gun_open(Config),
