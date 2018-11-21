@@ -119,32 +119,9 @@ do_get(Path, Config) ->
 
 %% Tests.
 
-check_raw_status(Config) ->
-	Huge = [$0 || _ <- lists:seq(1, 5000)],
-	HugeCookie = lists:flatten(["whatever_man_biiiiiiiiiiiig_cookie_me_want_77="
-		"Wed Apr 06 2011 10:38:52 GMT-0500 (CDT)" || _ <- lists:seq(1, 40)]),
-	Tests = [
-		{200, ["GET / HTTP/1.0\r\nHost: localhost\r\n"
-			"Set-Cookie: ", HugeCookie, "\r\n\r\n"]},
-		{200, "\r\n\r\n\r\n\r\n\r\nGET / HTTP/1.1\r\nHost: localhost\r\n\r\n"},
-		{400, "\n"},
-		{400, "Garbage\r\n\r\n"},
-		{400, "\r\n\r\n\r\n\r\n\r\n\r\n"},
-		{400, "GET  HTTP/1.1\r\nHost: localhost\r\n\r\n"},
-		{400, "GET / HTTP/1.1\r\nHost: ninenines.eu\r\n\r\n"},
-		{400, "GET / HTTP/1.1\r\nHost: localhost:bad_port\r\n\r\n"},
-		{closed, Huge}
-	],
-	_ = [{Status, Packet} = begin
-		Ret = do_raw(Packet, Config),
-		{Ret, Packet}
-	end || {Status, Packet} <- Tests],
-	ok.
-
 check_status(Config) ->
 	Tests = [
 		{200, "/simple"},
-		{404, "/not/found"},
 		{500, "/handler_errors?case=init_before_reply"}
 	],
 	_ = [{Status, URL} = begin
@@ -157,14 +134,6 @@ error_init_after_reply(Config) ->
 	Ref = gun:get(ConnPid, "/handler_errors?case=init_after_reply"),
 	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
 	ok.
-
-headers_dupe(Config) ->
-	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, "/headers/dupe"),
-	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
-	%% Ensure that only one connection header was received.
-	[<<"close">>] = [V || {Name, V} <- Headers, Name =:= <<"connection">>],
-	gun_down(ConnPid).
 
 keepalive_nl(Config) ->
 	ConnPid = gun_open(Config),

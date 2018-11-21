@@ -611,6 +611,16 @@ status_code_404(Config) ->
 	{response, _, 404, _} = gun:await(ConnPid, Ref),
 	ok.
 
+status_code_404_not_found(Config) ->
+	doc("The 404 Not Found status code is sent when the target "
+		"resource does not exist. (RFC7231 6.5.4)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/not/found", [
+		{<<"accept-encoding">>, <<"gzip">>}
+	]),
+	{response, _, 404, _} = gun:await(ConnPid, Ref),
+	ok.
+
 status_code_405(Config) ->
 	doc("The 405 Method Not Allowed status code can be sent. (RFC7231 6.5.5)"),
 	ConnPid = gun_open(Config),

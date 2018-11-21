@@ -640,6 +640,15 @@ invalid_request_target(Config) ->
 		"\r\n"),
 	{error, closed} = raw_recv(Client, 0, 1000).
 
+missing_request_target(Config) ->
+	doc("The lack of request target must be rejected with a 400 status code "
+		"and the closing of the connection."),
+	#{code := 400, client := Client} = do_raw(Config,
+		"GET  HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"\r\n"),
+	{error, closed} = raw_recv(Client, 0, 1000).
+
 %% Between request-target and version.
 
 reject_tab_between_request_target_and_version(Config) ->
@@ -1640,6 +1649,16 @@ empty_host(Config0) ->
 %% "://", authority, path and query components. (RFC7230 5.5)
 %%
 %% This is covered in req_SUITE in the tests for cowboy_req:uri/1,2.
+
+reject_non_authoritative_host(Config) ->
+	doc("A request with a host header for which the origin server is "
+		"not authoritative must be rejected with a 400 status code. "
+		"(RFC7230 5.5, RFC7230 9.1)"),
+	#{code := 400} = do_raw(Config, [
+		"GET / HTTP/1.1\r\n"
+		"Host: ninenines.eu\r\n"
+		"\r\n"]),
+	ok.
 
 %@todo
 %Resources with identical URI except for the scheme component
