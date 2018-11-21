@@ -479,7 +479,12 @@ content_types_provided(Req, State) ->
 			State3 = State2#state{content_types_p=CTP2},
 			try cowboy_req:parse_header(<<"accept">>, Req2) of
 				undefined ->
-					{PMT, _Fun} = HeadCTP = hd(CTP2),
+					{PMT0, _Fun} = HeadCTP = hd(CTP2),
+					%% We replace the wildcard by an empty list of parameters.
+					PMT = case PMT0 of
+						{Type, SubType, '*'} -> {Type, SubType, []};
+						_ -> PMT0
+					end,
 					languages_provided(
 						Req2#{media_type => PMT},
 						State3#state{content_type_a=HeadCTP});

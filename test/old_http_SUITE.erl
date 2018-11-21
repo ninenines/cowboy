@@ -100,69 +100,7 @@ init_dispatch(_) ->
 		]}
 	]).
 
-%% Convenience functions.
-
-do_get(Path, Config) ->
-	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, Path),
-	{response, _, Status, _} = gun:await(ConnPid, Ref),
-	gun:close(ConnPid),
-	Status.
-
 %% Tests.
-
-check_status(Config) ->
-	Tests = [
-		{200, "/simple"}
-	],
-	_ = [{Status, URL} = begin
-		Ret = do_get(URL, Config),
-		{Ret, URL}
-	end || {Status, URL} <- Tests].
-
-rest_param_all(Config) ->
-	ConnPid = gun_open(Config),
-	%% Accept without param.
-	Ref1 = gun:get(ConnPid, "/param_all",
-		[{<<"accept">>, <<"text/plain">>}]),
-	{response, nofin, 200, _} = gun:await(ConnPid, Ref1),
-	{ok, <<"[]">>} = gun:await_body(ConnPid, Ref1),
-	%% Accept with param.
-	Ref2 = gun:get(ConnPid, "/param_all",
-		[{<<"accept">>, <<"text/plain;level=1">>}]),
-	{response, nofin, 200, _} = gun:await(ConnPid, Ref2),
-	{ok, <<"level=1">>} = gun:await_body(ConnPid, Ref2),
-	%% Accept with param and quality.
-	Ref3 = gun:get(ConnPid, "/param_all",
-		[{<<"accept">>, <<"text/plain;level=1;q=0.8, text/plain;level=2;q=0.5">>}]),
-	{response, nofin, 200, _} = gun:await(ConnPid, Ref3),
-	{ok, <<"level=1">>} = gun:await_body(ConnPid, Ref3),
-	Ref4 = gun:get(ConnPid, "/param_all",
-		[{<<"accept">>, <<"text/plain;level=1;q=0.5, text/plain;level=2;q=0.8">>}]),
-	{response, nofin, 200, _} = gun:await(ConnPid, Ref4),
-	{ok, <<"level=2">>} = gun:await_body(ConnPid, Ref4),
-	%% Without Accept.
-	Ref5 = gun:get(ConnPid, "/param_all"),
-	{response, nofin, 200, _} = gun:await(ConnPid, Ref5),
-	{ok, <<"'*'">>} = gun:await_body(ConnPid, Ref5),
-	%% Content-Type without param.
-	Ref6 = gun:put(ConnPid, "/param_all",
-		[{<<"content-type">>, <<"text/plain">>}]),
-	gun:data(ConnPid, Ref6, fin, "Hello world!"),
-	{response, fin, 204, _} = gun:await(ConnPid, Ref6),
-	%% Content-Type with param.
-	Ref7 = gun:put(ConnPid, "/param_all",
-		[{<<"content-type">>, <<"text/plain; charset=utf-8">>}]),
-	gun:data(ConnPid, Ref7, fin, "Hello world!"),
-	{response, fin, 204, _} = gun:await(ConnPid, Ref7),
-	ok.
-
-rest_bad_accept(Config) ->
-	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, "/bad_accept",
-		[{<<"accept">>, <<"1">>}]),
-	{response, fin, 400, _} = gun:await(ConnPid, Ref),
-	ok.
 
 rest_bad_content_type(Config) ->
 	ConnPid = gun_open(Config),
@@ -171,85 +109,10 @@ rest_bad_content_type(Config) ->
 	{response, fin, 415, _} = gun:await(ConnPid, Ref),
 	ok.
 
-rest_expires(Config) ->
-	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, "/rest_expires"),
-	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
-	{_, Expires} = lists:keyfind(<<"expires">>, 1, Headers),
-	{_, LastModified} = lists:keyfind(<<"last-modified">>, 1, Headers),
-	Expires = LastModified = <<"Fri, 21 Sep 2012 22:36:14 GMT">>,
-	ok.
-
-rest_expires_binary(Config) ->
-	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, "/rest_expires_binary"),
-	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
-	{_, <<"0">>} = lists:keyfind(<<"expires">>, 1, Headers),
-	ok.
-
-rest_last_modified_undefined(Config) ->
-	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, "/simple",
-		[{<<"if-modified-since">>, <<"Fri, 21 Sep 2012 22:36:14 GMT">>}]),
-	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
-	ok.
-
-rest_keepalive(Config) ->
-	ConnPid = gun_open(Config),
-	Refs = [gun:get(ConnPid, "/simple") || _ <- lists:seq(1, 10)],
-	_ = [begin
-		{response, nofin, 200, Headers} =  gun:await(ConnPid, Ref),
-		false = lists:keymember(<<"connection">>, 1, Headers)
-	end || Ref <- Refs],
-	ok.
-
-rest_keepalive_post(Config) ->
-	ConnPid = gun_open(Config),
-	Refs = [begin
-		Ref1 = gun:post(ConnPid, "/forbidden_post", [
-			{<<"content-type">>, <<"text/plain">>},
-			{<<"content-length">>, <<"12">>}
-		]),
-		gun:data(ConnPid, Ref1, fin, "Hello world!"),
-		Ref2 = gun:post(ConnPid, "/simple_post", [
-			{<<"content-type">>, <<"text/plain">>},
-			{<<"content-length">>, <<"12">>}
-		]),
-		gun:data(ConnPid, Ref2, fin, "Hello world!"),
-		{Ref1, Ref2}
-	end || _ <- lists:seq(1, 5)],
-	_ = [begin
-		{response, fin, 403, Headers1} = gun:await(ConnPid, Ref1),
-		false = lists:keymember(<<"connection">>, 1, Headers1),
-		{response, fin, 303, Headers2} = gun:await(ConnPid, Ref2),
-		false = lists:keymember(<<"connection">>, 1, Headers2)
-	end || {Ref1, Ref2} <- Refs],
-	ok.
-
-rest_missing_get_callbacks(Config) ->
-	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, "/missing_get_callbacks"),
-	{response, fin, 500, _} = gun:await(ConnPid, Ref),
-	ok.
-
-rest_missing_put_callbacks(Config) ->
-	ConnPid = gun_open(Config),
-	Ref = gun:put(ConnPid, "/missing_put_callbacks",
-		[{<<"content-type">>, <<"application/json">>}], <<"{}">>),
-	{response, fin, 500, _} = gun:await(ConnPid, Ref),
-	ok.
-
 rest_nodelete(Config) ->
 	ConnPid = gun_open(Config),
 	Ref = gun:delete(ConnPid, "/nodelete"),
 	{response, fin, 500, _} = gun:await(ConnPid, Ref),
-	ok.
-
-rest_options_default(Config) ->
-	ConnPid = gun_open(Config),
-	Ref = gun:options(ConnPid, "/rest_empty_resource"),
-	{response, fin, 200, Headers} = gun:await(ConnPid, Ref),
-	{_, <<"HEAD, GET, OPTIONS">>} = lists:keyfind(<<"allow">>, 1, Headers),
 	ok.
 
 rest_patch(Config) ->

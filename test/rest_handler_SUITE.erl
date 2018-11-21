@@ -39,6 +39,7 @@ end_per_group(Name, _) ->
 init_dispatch(_) ->
 	cowboy_router:compile([{'_', [
 		{"/", rest_hello_h, []},
+		{"/accept_callback_missing", accept_callback_missing_h, []},
 		{"/charsets_provided", charsets_provided_h, []},
 		{"/charsets_provided_empty", charsets_provided_empty_h, []},
 		{"/charset_in_content_types_provided",
@@ -48,7 +49,10 @@ init_dispatch(_) ->
 		{"/charset_in_content_types_provided_implicit_no_callback",
 			charset_in_content_types_provided_implicit_no_callback_h, []},
 		{"/content_types_accepted", content_types_accepted_h, []},
+		{"/content_types_provided", content_types_provided_h, []},
+		{"/expires", expires_h, []},
 		{"/if_range", if_range_h, []},
+		{"/last_modified", last_modified_h, []},
 		{"/provide_callback_missing", provide_callback_missing_h, []},
 		{"/provide_range_callback", provide_range_callback_h, []},
 		{"/range_satisfiable", range_satisfiable_h, []},
@@ -69,6 +73,16 @@ do_decode(Headers, Body) ->
 	end.
 
 %% Tests.
+
+accept_callback_missing(Config) ->
+	doc("A 500 response must be sent when the AcceptCallback can't be called."),
+	ConnPid = gun_open(Config),
+	Ref = gun:put(ConnPid, "/accept_callback_missing", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"content-type">>, <<"text/plain">>}
+	], <<"Missing!">>),
+	{response, fin, 500, _} = gun:await(ConnPid, Ref),
+	ok.
 
 charset_in_content_types_provided(Config) ->
 	doc("When a charset is matched explictly in content_types_provided, "
@@ -281,24 +295,152 @@ content_types_accepted_ignore_multipart_boundary(Config) ->
 	{response, _, 204, _} = gun:await(ConnPid, Ref),
 	ok.
 
+content_types_accepted_wildcard_param_no_content_type_param(Config) ->
+	doc("When a wildcard is returned for parameters from the "
+		"content_types_accepted callback, a content-type header "
+		"with no parameters must be accepted."),
+	ConnPid = gun_open(Config),
+	Ref = gun:put(ConnPid, "/content_types_accepted?wildcard-param", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"content-type">>, <<"text/plain">>}
+	]),
+	gun:data(ConnPid, Ref, fin, "Hello world!"),
+	{response, fin, 204, _} = gun:await(ConnPid, Ref),
+	ok.
+
+content_types_accepted_wildcard_param_content_type_with_param(Config) ->
+	doc("When a wildcard is returned for parameters from the "
+		"content_types_accepted callback, a content-type header "
+		"with a parameter must be accepted."),
+	ConnPid = gun_open(Config),
+	Ref = gun:put(ConnPid, "/content_types_accepted?wildcard-param", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"content-type">>, <<"text/plain; charset=utf-8">>}
+	]),
+	gun:data(ConnPid, Ref, fin, "Hello world!"),
+	{response, fin, 204, _} = gun:await(ConnPid, Ref),
+	ok.
+
+content_types_provided_wildcard_param_no_accept_param(Config) ->
+	doc("When a wildcard is returned for parameters from the "
+		"content_types_provided callback, an accept header "
+		"with no parameters must be accepted."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/content_types_provided?wildcard-param", [
+		{<<"accept">>, <<"text/plain">>},
+		{<<"accept-encoding">>, <<"gzip">>}
+	]),
+	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
+	{ok, <<"[]">>} = gun:await_body(ConnPid, Ref),
+	ok.
+
+content_types_provided_wildcard_param_accept_with_param(Config) ->
+	doc("When a wildcard is returned for parameters from the "
+		"content_types_provided callback, an accept header "
+		"with a parameter must be accepted."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/content_types_provided?wildcard-param", [
+		{<<"accept">>, <<"text/plain;level=1">>},
+		{<<"accept-encoding">>, <<"gzip">>}
+	]),
+	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
+	{ok, <<"level=1">>} = gun:await_body(ConnPid, Ref),
+	ok.
+
+content_types_provided_wildcard_param_accept_with_param_and_qvalue(Config) ->
+	doc("When a wildcard is returned for parameters from the "
+		"content_types_provided callback, an accept header "
+		"with two media types containing parameters including a "
+		"q-value must be accepted. The q-value determines which."),
+	ConnPid = gun_open(Config),
+	Ref1 = gun:get(ConnPid, "/content_types_provided?wildcard-param", [
+		{<<"accept">>, <<"text/plain;level=1;q=0.8, text/plain;level=2;q=0.5">>},
+		{<<"accept-encoding">>, <<"gzip">>}
+	]),
+	{response, nofin, 200, _} = gun:await(ConnPid, Ref1),
+	{ok, <<"level=1">>} = gun:await_body(ConnPid, Ref1),
+	Ref2 = gun:get(ConnPid, "/content_types_provided?wildcard-param", [
+		{<<"accept">>, <<"text/plain;level=1;q=0.5, text/plain;level=2;q=0.8">>},
+		{<<"accept-encoding">>, <<"gzip">>}
+	]),
+	{response, nofin, 200, _} = gun:await(ConnPid, Ref2),
+	{ok, <<"level=2">>} = gun:await_body(ConnPid, Ref2),
+	ok.
+
+content_types_provided_wildcard_param_no_accept_header(Config) ->
+	doc("When a wildcard is returned for parameters from the "
+		"content_types_provided callback, the lack of accept header "
+		"results in the first media type returned being accepted. "
+		"The wildcard must however not be present in the media_type "
+		"value added to the Req object."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/content_types_provided?wildcard-param", [
+		{<<"accept-encoding">>, <<"gzip">>}
+	]),
+	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
+	{ok, <<"[]">>} = gun:await_body(ConnPid, Ref),
+	ok.
+
+error_on_malformed_accept(Config) ->
+	doc("A malformed Accept header must result in a 400 response."),
+	do_error_on_malformed_header(Config, <<"accept">>).
+
 error_on_malformed_if_match(Config) ->
 	doc("A malformed If-Match header must result in a 400 response."),
+	do_error_on_malformed_header(Config, <<"if-match">>).
+
+error_on_malformed_if_none_match(Config) ->
+	doc("A malformed If-None-Match header must result in a 400 response."),
+	do_error_on_malformed_header(Config, <<"if-none-match">>).
+
+do_error_on_malformed_header(Config, Name) ->
 	ConnPid = gun_open(Config),
 	Ref = gun:get(ConnPid, "/", [
 		{<<"accept-encoding">>, <<"gzip">>},
-		{<<"if-match">>, <<"bad">>}
+		{Name, <<"bad">>}
 	]),
 	{response, _, 400, _} = gun:await(ConnPid, Ref),
 	ok.
 
-error_on_malformed_if_none_match(Config) ->
-	doc("A malformed If-None-Match header must result in a 400 response."),
+expires_binary(Config) ->
+	doc("The expires header can also be given as a binary "
+		"to indicate a date in the past. (RFC7234 5.3)"),
 	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, "/", [
-		{<<"accept-encoding">>, <<"gzip">>},
-		{<<"if-none-match">>, <<"bad">>}
+	Ref = gun:get(ConnPid, "/expires?binary", [
+		{<<"accept-encoding">>, <<"gzip">>}
 	]),
-	{response, _, 400, _} = gun:await(ConnPid, Ref),
+	{response, _, 200, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"0">>} = lists:keyfind(<<"expires">>, 1, Headers),
+	ok.
+
+expires_missing(Config) ->
+	doc("The expires header must not be sent when the callback is not exported."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/expires?missing", [
+		{<<"accept-encoding">>, <<"gzip">>}
+	]),
+	{response, _, 200, Headers} = gun:await(ConnPid, Ref),
+	false = lists:keyfind(<<"expires">>, 1, Headers),
+	ok.
+
+expires_tuple(Config) ->
+	doc("The expires header can be given as a date tuple. (RFC7234 5.3)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/expires?tuple", [
+		{<<"accept-encoding">>, <<"gzip">>}
+	]),
+	{response, _, 200, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"Fri, 21 Sep 2012 22:36:14 GMT">>} = lists:keyfind(<<"expires">>, 1, Headers),
+	ok.
+
+expires_undefined(Config) ->
+	doc("The expires header must not be sent when undefined is returned."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/expires?undefined", [
+		{<<"accept-encoding">>, <<"gzip">>}
+	]),
+	{response, _, 200, Headers} = gun:await(ConnPid, Ref),
+	false = lists:keyfind(<<"expires">>, 1, Headers),
 	ok.
 
 if_range_etag_equal(Config) ->
@@ -403,6 +545,50 @@ if_range_date_not_equal(Config) ->
 	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
 	{_, <<"bytes">>} = lists:keyfind(<<"accept-ranges">>, 1, Headers),
 	false = lists:keyfind(<<"content-range">>, 1, Headers),
+	ok.
+
+last_modified(Config) ->
+	doc("The last-modified header can be given as a date tuple. (RFC7232 2.2)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/last_modified?tuple", [
+		{<<"accept-encoding">>, <<"gzip">>}
+	]),
+	{response, _, 200, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"Fri, 21 Sep 2012 22:36:14 GMT">>} = lists:keyfind(<<"last-modified">>, 1, Headers),
+	ok.
+
+last_modified_missing(Config) ->
+	doc("The last-modified header must not be sent when the callback is not exported."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/last_modified?missing", [
+		{<<"accept-encoding">>, <<"gzip">>}
+	]),
+	{response, _, 200, Headers} = gun:await(ConnPid, Ref),
+	false = lists:keyfind(<<"last-modified">>, 1, Headers),
+	ok.
+
+options_missing(Config) ->
+	doc("A successful OPTIONS request to a simple handler results in "
+		"a 200 OK response with the allow header set. (RFC7231 4.3.7)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:options(ConnPid, "/", [
+		{<<"accept-encoding">>, <<"gzip">>}
+	]),
+	{response, fin, 200, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"HEAD, GET, OPTIONS">>} = lists:keyfind(<<"allow">>, 1, Headers),
+	ok.
+
+provide_callback(Config) ->
+	doc("A successful GET request to a simple handler results in "
+		"a 200 OK response with the content-type set. (RFC7231 4.3.1, RFC7231 6.3.1)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/", [
+		{<<"accept">>, <<"*/*">>},
+		{<<"accept-encoding">>, <<"gzip">>}
+	]),
+	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"text/plain">>} = lists:keyfind(<<"content-type">>, 1, Headers),
+	{ok, <<"This is REST!">>} = gun:await_body(ConnPid, Ref),
 	ok.
 
 provide_callback_missing(Config) ->
