@@ -415,13 +415,6 @@ rest_resource_etags_if_none_match(Config) ->
 		{Ret, Type}
 	end || {Status, ETag, Type} <- Tests].
 
-set_resp_overwrite(Config) ->
-	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, "/set_resp/overwrite"),
-	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
-	{_, <<"DesireDrive/1.0">>} = lists:keyfind(<<"server">>, 1, Headers),
-	ok.
-
 slowloris(Config) ->
 	Client = raw_open(Config),
 	try

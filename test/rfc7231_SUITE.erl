@@ -898,5 +898,23 @@ date_5xx(Config) ->
 	{_, _} = lists:keyfind(<<"date">>, 1, Headers),
 	ok.
 
+server_header(Config) ->
+	doc("An origin server may generate a server header field. "
+		"Cowboy generates a small one by default. (RFC7231 7.4.2)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/"),
+	{response, _, 200, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"Cowboy">>} = lists:keyfind(<<"server">>, 1, Headers),
+	ok.
+
+server_header_override(Config) ->
+	doc("An origin server may generate a server header field. "
+		"Cowboy allows the user to override the default. (RFC7231 7.4.2)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/resp/set_resp_header_server"),
+	{response, _, 200, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"nginx">>} = lists:keyfind(<<"server">>, 1, Headers),
+	ok.
+
 %% @todo It's worth revisiting this RFC in the context of cowboy_rest
 %% to ensure the state machine is doing what's expected by the RFC.

@@ -30,6 +30,9 @@ do(<<"set_resp_cookie4">>, Req0, Opts) ->
 do(<<"set_resp_header">>, Req0, Opts) ->
 	Req = cowboy_req:set_resp_header(<<"content-type">>, <<"text/plain">>, Req0),
 	{ok, cowboy_req:reply(200, #{}, "OK", Req), Opts};
+do(<<"set_resp_header_server">>, Req0, Opts) ->
+	Req = cowboy_req:set_resp_header(<<"server">>, <<"nginx">>, Req0),
+	{ok, cowboy_req:reply(200, #{}, "OK", Req), Opts};
 do(<<"set_resp_headers">>, Req0, Opts) ->
 	Req = cowboy_req:set_resp_headers(#{
 		<<"content-type">> => <<"text/plain">>,
