@@ -194,28 +194,6 @@ keepalive_stream_loop(Config) ->
 	end || Ref <- Refs],
 	ok.
 
-do_nc(Config, Input) ->
-	Cat = os:find_executable("cat"),
-	Nc = os:find_executable("nc"),
-	case {Cat, Nc} of
-		{false, _} ->
-			{skip, {notfound, cat}};
-		{_, false} ->
-			{skip, {notfound, nc}};
-		_Good ->
-			%% Throw garbage at the server then check if it's still up.
-			StrPort = integer_to_list(config(port, Config)),
-			_ = [os:cmd("cat " ++ Input ++ " | nc localhost " ++ StrPort)
-				|| _ <- lists:seq(1, 100)],
-			200 = do_get("/", Config)
-	end.
-
-nc_rand(Config) ->
-	do_nc(Config, "/dev/urandom").
-
-nc_zero(Config) ->
-	do_nc(Config, "/dev/zero").
-
 rest_param_all(Config) ->
 	ConnPid = gun_open(Config),
 	%% Accept without param.
@@ -414,30 +392,6 @@ rest_resource_etags_if_none_match(Config) ->
 			[{<<"if-none-match">>, ETag}]),
 		{Ret, Type}
 	end || {Status, ETag, Type} <- Tests].
-
-slowloris(Config) ->
-	Client = raw_open(Config),
-	try
-		[begin
-			ok = raw_send(Client, [C]),
-			receive after 250 -> ok end
-		end || C <- "GET / HTTP/1.1\r\nHost: localhost\r\n"
-			"User-Agent: Mozilla/5.0 (Windows; U; Windows NT 6.0; en-US)\r\n"
-			"Cookie: name=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\r\n\r\n"],
-		error(failure)
-	catch error:{badmatch, _} ->
-		ok
-	end.
-
-slowloris2(Config) ->
-	Client = raw_open(Config),
-	ok = raw_send(Client, "GET / HTTP/1.1\r\n"),
-	receive after 300 -> ok end,
-	ok = raw_send(Client, "Host: localhost\r\n"),
-	receive after 300 -> ok end,
-	Data = raw_recv_head(Client),
-	{_, 408, _, _} = cow_http:parse_status_line(Data),
-	ok.
 
 dbg_send_raw(ConnPid, Data) ->
 	#{
