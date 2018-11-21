@@ -1459,6 +1459,22 @@ limit_requests_keepalive(Config) ->
 	{_, <<"close">>} = lists:keyfind(<<"connection">>, 1, RespHeaders),
 	gun_down(ConnPid).
 
+accept_at_least_1_empty_line_keepalive(Config) ->
+	doc("A configurable number of empty lines (CRLF) preceding the request "
+		"must be ignored. At least 1 empty line must be ignored. (RFC7230 3.5)"),
+	#{code := 200, client := Client} = do_raw(Config,
+		"GET / HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"\r\n"
+		%% We send an extra CRLF that must be ignored.
+		"\r\n"),
+	ok = raw_send(Client,
+		"GET / HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"\r\n"),
+	{'HTTP/1.1', 200, _, _} = cow_http:parse_status_line(raw_recv_head(Client)),
+	ok.
+
 %skip_request_body_by_closing_connection(Config) ->
 %%A server that doesn't want to read the entire body of a message
 %%must close the connection, if possible after sending the "close"

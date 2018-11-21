@@ -102,14 +102,6 @@ init_dispatch(_) ->
 
 %% Convenience functions.
 
-do_raw(Data, Config) ->
-	Client = raw_open(Config),
-	ok = raw_send(Client, Data),
-	case catch raw_recv_head(Client) of
-		{'EXIT', _} -> closed;
-		Resp -> element(2, cow_http:parse_status_line(Resp))
-	end.
-
 do_get(Path, Config) ->
 	ConnPid = gun_open(Config),
 	Ref = gun:get(ConnPid, Path),
@@ -133,34 +125,6 @@ error_init_after_reply(Config) ->
 	ConnPid = gun_open(Config),
 	Ref = gun:get(ConnPid, "/handler_errors?case=init_after_reply"),
 	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
-	ok.
-
-keepalive_nl(Config) ->
-	ConnPid = gun_open(Config),
-	Refs = [begin
-		Ref = gun:get(ConnPid, "/", [{<<"connection">>, <<"keep-alive">>}]),
-		dbg_send_raw(ConnPid, <<"\r\n">>),
-		Ref
-	end || _ <- lists:seq(1, 10)],
-	_ = [begin
-		{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
-		false = lists:keymember(<<"connection">>, 1, Headers)
-	end || Ref <- Refs],
-	ok.
-
-keepalive_stream_loop(Config) ->
-	ConnPid = gun_open(Config),
-	Refs = [begin
-		Ref = gun:post(ConnPid, "/loop_stream_recv",
-			[{<<"content-type">>, <<"application/octet-stream">>}]),
-		_ = [gun:data(ConnPid, Ref, nofin, << ID:32 >>)
-			|| ID <- lists:seq(1, 250)],
-		gun:data(ConnPid, Ref, fin, <<>>),
-		Ref
-	end || _ <- lists:seq(1, 10)],
-	_ = [begin
-		{response, fin, 200, _} = gun:await(ConnPid, Ref)
-	end || Ref <- Refs],
 	ok.
 
 rest_param_all(Config) ->
@@ -361,14 +325,3 @@ rest_resource_etags_if_none_match(Config) ->
 			[{<<"if-none-match">>, ETag}]),
 		{Ret, Type}
 	end || {Status, ETag, Type} <- Tests].
-
-dbg_send_raw(ConnPid, Data) ->
-	#{
-		socket := Socket,
-		transport := Transport
-	} = gun:info(ConnPid),
-	_ = case Transport of
-		tcp -> gen_tcp:send(Socket, Data);
-		tls -> ssl:send(Socket, Data)
-	end,
-	ok.
