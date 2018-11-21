@@ -39,6 +39,7 @@ end_per_group(Name, _) ->
 init_dispatch(_) ->
 	cowboy_router:compile([{'_', [
 		{"/", rest_hello_h, []},
+		{"/accept_callback", accept_callback_h, []},
 		{"/accept_callback_missing", accept_callback_missing_h, []},
 		{"/charsets_provided", charsets_provided_h, []},
 		{"/charsets_provided_empty", charsets_provided_empty_h, []},
@@ -50,7 +51,9 @@ init_dispatch(_) ->
 			charset_in_content_types_provided_implicit_no_callback_h, []},
 		{"/content_types_accepted", content_types_accepted_h, []},
 		{"/content_types_provided", content_types_provided_h, []},
+		{"/delete_resource", delete_resource_h, []},
 		{"/expires", expires_h, []},
+		{"/generate_etag", generate_etag_h, []},
 		{"/if_range", if_range_h, []},
 		{"/last_modified", last_modified_h, []},
 		{"/provide_callback_missing", provide_callback_missing_h, []},
@@ -82,6 +85,44 @@ accept_callback_missing(Config) ->
 		{<<"content-type">>, <<"text/plain">>}
 	], <<"Missing!">>),
 	{response, fin, 500, _} = gun:await(ConnPid, Ref),
+	ok.
+
+accept_callback_patch_false(Config) ->
+	do_accept_callback_false(Config, patch).
+
+accept_callback_patch_true(Config) ->
+	do_accept_callback_true(Config, patch).
+
+accept_callback_post_false(Config) ->
+	do_accept_callback_false(Config, post).
+
+accept_callback_post_true(Config) ->
+	do_accept_callback_true(Config, post).
+
+accept_callback_put_false(Config) ->
+	do_accept_callback_false(Config, put).
+
+accept_callback_put_true(Config) ->
+	do_accept_callback_true(Config, put).
+
+do_accept_callback_false(Config, Fun) ->
+	doc("When AcceptCallback returns false a 400 response must be returned."),
+	ConnPid = gun_open(Config),
+	Ref = gun:Fun(ConnPid, "/accept_callback?false", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"content-type">>, <<"text/plain">>}
+	], <<"Request body.">>),
+	{response, _, 400, _} = gun:await(ConnPid, Ref),
+	ok.
+
+do_accept_callback_true(Config, Fun) ->
+	doc("When AcceptCallback returns true a 204 response must be returned."),
+	ConnPid = gun_open(Config),
+	Ref = gun:Fun(ConnPid, "/accept_callback?true", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"content-type">>, <<"text/plain">>}
+	], <<"Request body.">>),
+	{response, _, 204, _} = gun:await(ConnPid, Ref),
 	ok.
 
 charset_in_content_types_provided(Config) ->
@@ -282,6 +323,17 @@ charsets_provided_empty_noheader(Config) ->
 	{response, _, 406, _} = gun:await(ConnPid, Ref),
 	ok.
 
+content_type_invalid(Config) ->
+	doc("An invalid content-type in a POST/PATCH/PUT request "
+		"must be rejected with a 415 unsupported media type response. (RFC7231 6.5.13)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:put(ConnPid, "/content_types_accepted?wildcard-param", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"content-type">>, <<"text/plain, text/html">>}
+	]),
+	{response, fin, 415, _} = gun:await(ConnPid, Ref),
+	ok.
+
 content_types_accepted_ignore_multipart_boundary(Config) ->
 	doc("When a multipart content-type is provided for the request "
 		"body, the boundary parameter is not expected to be returned "
@@ -293,6 +345,18 @@ content_types_accepted_ignore_multipart_boundary(Config) ->
 		{<<"content-type">>, <<"multipart/mixed; boundary=abcdef; v=1">>}
 	], <<"Not really multipart!">>),
 	{response, _, 204, _} = gun:await(ConnPid, Ref),
+	ok.
+
+content_types_accepted_param(Config) ->
+	doc("When a parameter is returned from the content_types_accepted "
+		"callback, and the same parameter is found in the content-type "
+		"header, the negotiation succeeds and the request is processed."),
+	ConnPid = gun_open(Config),
+	Ref = gun:put(ConnPid, "/content_types_accepted?param", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"content-type">>, <<"text/plain;charset=UTF-8">>}
+	], "12345"),
+	{response, fin, 204, _} = gun:await(ConnPid, Ref),
 	ok.
 
 content_types_accepted_wildcard_param_no_content_type_param(Config) ->
@@ -381,6 +445,17 @@ content_types_provided_wildcard_param_no_accept_header(Config) ->
 	{ok, <<"[]">>} = gun:await_body(ConnPid, Ref),
 	ok.
 
+delete_resource_missing(Config) ->
+	doc("When a resource accepts the DELETE method and the "
+		"delete_resource callback is not exported, the "
+		"resource is incorrect and a 500 response is expected."),
+	ConnPid = gun_open(Config),
+	Ref = gun:delete(ConnPid, "/delete_resource?missing", [
+		{<<"accept-encoding">>, <<"gzip">>}
+	]),
+	{response, _, 500, _} = gun:await(ConnPid, Ref),
+	ok.
+
 error_on_malformed_accept(Config) ->
 	doc("A malformed Accept header must result in a 400 response."),
 	do_error_on_malformed_header(Config, <<"accept">>).
@@ -441,6 +516,89 @@ expires_undefined(Config) ->
 	]),
 	{response, _, 200, Headers} = gun:await(ConnPid, Ref),
 	false = lists:keyfind(<<"expires">>, 1, Headers),
+	ok.
+
+generate_etag_missing(Config) ->
+	doc("The etag header must not be sent when "
+		"the generate_etag callback is not exported."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/generate_etag?missing", [
+		{<<"accept-encoding">>, <<"gzip">>}
+	]),
+	{response, _, 200, Headers} = gun:await(ConnPid, Ref),
+	false = lists:keyfind(<<"etag">>, 1, Headers),
+	ok.
+
+generate_etag_binary_strong(Config) ->
+	doc("The etag header must be sent when the generate_etag "
+		"callback returns a strong binary. (RFC7232 2.3)"),
+	do_generate_etag(Config, "binary-strong-quoted",
+		[], 200, {<<"etag">>, <<"\"etag-header-value\"">>}).
+
+generate_etag_binary_weak(Config) ->
+	doc("The etag header must be sent when the generate_etag "
+		"callback returns a weak binary. (RFC7232 2.3)"),
+	do_generate_etag(Config, "binary-weak-quoted",
+		[], 200, {<<"etag">>, <<"W/\"etag-header-value\"">>}).
+
+generate_etag_invalid_binary_strong_unquoted(Config) ->
+	doc("When Cowboy cannot parse the generate_etag callback's "
+		"return value, a 500 response is returned without the etag header."),
+	do_generate_etag(Config, "binary-strong-unquoted", [], 500, false).
+
+generate_etag_invalid_binary_weak_unquoted(Config) ->
+	doc("When Cowboy cannot parse the generate_etag callback's "
+		"return value, a 500 response is returned without the etag header."),
+	do_generate_etag(Config, "binary-weak-unquoted", [], 500, false).
+
+generate_etag_tuple_strong(Config) ->
+	doc("The etag header must be sent when the generate_etag "
+		"callback returns a strong tuple. (RFC7232 2.3)"),
+	do_generate_etag(Config, "tuple-strong",
+		[], 200, {<<"etag">>, <<"\"etag-header-value\"">>}).
+
+generate_etag_tuple_weak(Config) ->
+	doc("The etag header must be sent when the generate_etag "
+		"callback returns a weak tuple. (RFC7232 2.3)"),
+	do_generate_etag(Config, "tuple-weak",
+		[], 200, {<<"etag">>, <<"W/\"etag-header-value\"">>}).
+
+if_none_match_binary_strong(Config) ->
+	doc("When the if-none-match header matches a strong etag, "
+		"a 304 not modified response is returned. (RFC7232 3.2)"),
+	do_generate_etag(Config, "binary-strong-quoted",
+		[{<<"if-none-match">>, <<"\"etag-header-value\"">>}],
+		304, {<<"etag">>, <<"\"etag-header-value\"">>}).
+
+if_none_match_binary_weak(Config) ->
+	doc("When the if-none-match header matches a weak etag, "
+		"a 304 not modified response is returned. (RFC7232 3.2)"),
+	do_generate_etag(Config, "binary-weak-quoted",
+		[{<<"if-none-match">>, <<"W/\"etag-header-value\"">>}],
+		304, {<<"etag">>, <<"W/\"etag-header-value\"">>}).
+
+if_none_match_tuple_strong(Config) ->
+	doc("When the if-none-match header matches a strong etag, "
+		"a 304 not modified response is returned. (RFC7232 3.2)"),
+	do_generate_etag(Config, "tuple-strong",
+		[{<<"if-none-match">>, <<"\"etag-header-value\"">>}],
+		304, {<<"etag">>, <<"\"etag-header-value\"">>}).
+
+if_none_match_tuple_weak(Config) ->
+	doc("When the if-none-match header matches a weak etag, "
+		"a 304 not modified response is returned. (RFC7232 3.2)"),
+	do_generate_etag(Config, "tuple-weak",
+		[{<<"if-none-match">>, <<"W/\"etag-header-value\"">>}],
+		304, {<<"etag">>, <<"W/\"etag-header-value\"">>}).
+
+do_generate_etag(Config, Qs, ReqHeaders, Status, Etag) ->
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/generate_etag?" ++ Qs, [
+		{<<"accept-encoding">>, <<"gzip">>}
+		|ReqHeaders
+	]),
+	{response, _, Status, RespHeaders} = gun:await(ConnPid, Ref),
+	Etag = lists:keyfind(<<"etag">>, 1, RespHeaders),
 	ok.
 
 if_range_etag_equal(Config) ->

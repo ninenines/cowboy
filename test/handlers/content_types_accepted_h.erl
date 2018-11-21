@@ -1,5 +1,5 @@
-%% This module accepts a multipart media type with parameters
-%% that do not include boundary.
+%% This module returns something different in
+%% content_types_accepted depending on the query string.
 
 -module(content_types_accepted_h).
 
@@ -19,6 +19,8 @@ content_types_accepted(Req=#{qs := <<"multipart">>}, State) ->
 	{[
 		{{<<"multipart">>, <<"mixed">>, [{<<"v">>, <<"1">>}]}, put_multipart_mixed}
 	], Req, State};
+content_types_accepted(Req=#{qs := <<"param">>}, State) ->
+	{[{{<<"text">>, <<"plain">>, [{<<"charset">>, <<"utf-8">>}]}, put_text_plain}], Req, State};
 content_types_accepted(Req=#{qs := <<"wildcard-param">>}, State) ->
 	{[{{<<"text">>, <<"plain">>, '*'}, put_text_plain}], Req, State}.
 
