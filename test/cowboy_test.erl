@@ -152,6 +152,8 @@ raw_recv_head(Socket, Transport, Buffer) ->
 raw_recv({raw_client, Socket, Transport}, Length, Timeout) ->
 	Transport:recv(Socket, Length, Timeout).
 
+raw_expect_recv({raw_client, _, _}, <<>>) ->
+	ok;
 raw_expect_recv({raw_client, Socket, Transport}, Expect) ->
 	{ok, Expect} = Transport:recv(Socket, iolist_size(Expect), 10000),
 	ok.

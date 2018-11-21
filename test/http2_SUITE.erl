@@ -25,13 +25,12 @@ all() -> [{group, clear}].
 
 groups() -> [{clear, [parallel], ct_helper:all(?MODULE)}].
 
-init_routes(_) -> [
-	{"localhost", [
+init_dispatch(_) ->
+	cowboy_router:compile([{"localhost", [
 		{"/", hello_h, []},
 		{"/echo/:key", echo_h, []},
 		{"/resp_iolist_body", resp_iolist_body_h, []}
-	]}
-].
+	]}]).
 
 %% Do a prior knowledge handshake (function originally copied from rfc7540_SUITE).
 do_handshake(Config) ->
@@ -53,7 +52,7 @@ do_handshake(Settings, Config) ->
 idle_timeout(Config) ->
 	doc("Terminate when the idle timeout is reached."),
 	ProtoOpts = #{
-		env => #{dispatch => cowboy_router:compile(init_routes(Config))},
+		env => #{dispatch => init_dispatch(Config)},
 		idle_timeout => 1000
 	},
 	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], ProtoOpts),
@@ -70,7 +69,7 @@ idle_timeout(Config) ->
 idle_timeout_infinity(Config) ->
 	doc("Ensure the idle_timeout option accepts the infinity value."),
 	ProtoOpts = #{
-		env => #{dispatch => cowboy_router:compile(init_routes(Config))},
+		env => #{dispatch => init_dispatch(Config)},
 		idle_timeout => infinity
 	},
 	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], ProtoOpts),
@@ -87,7 +86,7 @@ idle_timeout_infinity(Config) ->
 idle_timeout_reset_on_data(Config) ->
 	doc("Terminate when the idle timeout is reached."),
 	ProtoOpts = #{
-		env => #{dispatch => cowboy_router:compile(init_routes(Config))},
+		env => #{dispatch => init_dispatch(Config)},
 		idle_timeout => 1000
 	},
 	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], ProtoOpts),
@@ -116,7 +115,7 @@ idle_timeout_reset_on_data(Config) ->
 inactivity_timeout(Config) ->
 	doc("Terminate when the inactivity timeout is reached."),
 	ProtoOpts = #{
-		env => #{dispatch => cowboy_router:compile(init_routes(Config))},
+		env => #{dispatch => init_dispatch(Config)},
 		inactivity_timeout => 1000
 	},
 	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], ProtoOpts),
@@ -135,7 +134,7 @@ initial_connection_window_size(Config) ->
 		"connection window is larger than the default."),
 	ConfiguredSize = 100000,
 	ProtoOpts = #{
-		env => #{dispatch => cowboy_router:compile(init_routes(Config))},
+		env => #{dispatch => init_dispatch(Config)},
 		initial_connection_window_size => ConfiguredSize
 	},
 	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], ProtoOpts),
@@ -159,7 +158,7 @@ max_frame_size_sent(Config) ->
 		"by the max_frame_size_sent configuration value."),
 	MaxFrameSize = 20000,
 	ProtoOpts = #{
-		env => #{dispatch => cowboy_router:compile(init_routes(Config))},
+		env => #{dispatch => init_dispatch(Config)},
 		max_frame_size_sent => MaxFrameSize
 	},
 	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], ProtoOpts),
@@ -200,7 +199,7 @@ max_frame_size_sent(Config) ->
 preface_timeout_infinity(Config) ->
 	doc("Ensure infinity for preface_timeout is accepted."),
 	ProtoOpts = #{
-		env => #{dispatch => cowboy_router:compile(init_routes(Config))},
+		env => #{dispatch => init_dispatch(Config)},
 		preface_timeout => infinity
 	},
 	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], ProtoOpts),
@@ -224,7 +223,7 @@ resp_iolist_body(Config) ->
 		"include improper lists, empty lists and empty binaries. "
 		"The original issue failed to split the body into frames properly."),
 	ProtoOpts = #{
-		env => #{dispatch => cowboy_router:compile(init_routes(Config))}
+		env => #{dispatch => init_dispatch(Config)}
 	},
 	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], ProtoOpts),
 	Port = ranch:get_port(?FUNCTION_NAME),
@@ -244,7 +243,7 @@ resp_iolist_body(Config) ->
 settings_timeout_infinity(Config) ->
 	doc("Ensure infinity for settings_timeout is accepted."),
 	ProtoOpts = #{
-		env => #{dispatch => cowboy_router:compile(init_routes(Config))},
+		env => #{dispatch => init_dispatch(Config)},
 		settings_timeout => infinity
 	},
 	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], ProtoOpts),

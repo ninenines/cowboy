@@ -30,20 +30,27 @@ all() -> [{group, clear}].
 
 groups() -> [{clear, [parallel], ct_helper:all(?MODULE)}].
 
-init_routes(_) -> [
-	{"localhost", [
+init_per_group(Name, Config) ->
+	cowboy_test:init_http(Name, #{
+		env => #{dispatch => init_dispatch(Config)}
+	}, Config).
+
+end_per_group(Name, _) ->
+	cowboy:stop_listener(Name).
+
+init_dispatch(_) ->
+	cowboy_router:compile([{"localhost", [
 		{"/", hello_h, []},
 		{"/echo/:key", echo_h, []},
 		{"/resp/:key[/:arg]", resp_h, []},
 		{"/set_options/:key", set_options_h, []}
-	]}
-].
+	]}]).
 
 chunked_false(Config) ->
 	doc("Confirm the option chunked => false disables chunked "
 		"transfer-encoding for HTTP/1.1 connections."),
 	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
-		env => #{dispatch => cowboy_router:compile(init_routes(Config))},
+		env => #{dispatch => init_dispatch(Config)},
 		chunked => false
 	}),
 	Port = ranch:get_port(?FUNCTION_NAME),
@@ -68,11 +75,131 @@ chunked_false(Config) ->
 		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
 
+chunked_one_byte_at_a_time(Config) ->
+	doc("Confirm that chunked transfer-encoding works when "
+		"the body is received one byte at a time."),
+	Body = list_to_binary(io_lib:format("~p", [lists:seq(1, 100)])),
+	ChunkedBody = iolist_to_binary(do_chunked_body(50, Body, [])),
+	Client = raw_open(Config),
+	ok = raw_send(Client,
+		"POST /echo/read_body HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Transfer-encoding: chunked\r\n\r\n"),
+	_ = [begin
+		raw_send(Client, <<C>>),
+		timer:sleep(10)
+	end || <<C>> <= ChunkedBody],
+	Rest = case catch raw_recv_head(Client) of
+		{'EXIT', _} -> error(closed);
+		Data ->
+			{'HTTP/1.1', 200, _, Rest0} = cow_http:parse_status_line(Data),
+			{_, Rest1} = cow_http:parse_headers(Rest0),
+			Rest1
+	end,
+	RestSize = byte_size(Rest),
+	<<Rest:RestSize/binary, Expect/bits>> = Body,
+	raw_expect_recv(Client, Expect).
+
+chunked_one_chunk_at_a_time(Config) ->
+	doc("Confirm that chunked transfer-encoding works when "
+		"the body is received one chunk at a time."),
+	Body = list_to_binary(io_lib:format("~p", [lists:seq(1, 100)])),
+	Chunks = do_chunked_body(50, Body, []),
+	Client = raw_open(Config),
+	ok = raw_send(Client,
+		"POST /echo/read_body HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Transfer-encoding: chunked\r\n\r\n"),
+	_ = [begin
+		raw_send(Client, Chunk),
+		timer:sleep(10)
+	end || Chunk <- Chunks],
+	Rest = case catch raw_recv_head(Client) of
+		{'EXIT', _} -> error(closed);
+		Data ->
+			{'HTTP/1.1', 200, _, Rest0} = cow_http:parse_status_line(Data),
+			{_, Rest1} = cow_http:parse_headers(Rest0),
+			Rest1
+	end,
+	RestSize = byte_size(Rest),
+	<<Rest:RestSize/binary, Expect/bits>> = Body,
+	raw_expect_recv(Client, Expect).
+
+chunked_split_delay_in_chunk_body(Config) ->
+	doc("Confirm that chunked transfer-encoding works when "
+		"the body is received with a delay inside the chunks."),
+	Body = list_to_binary(io_lib:format("~p", [lists:seq(1, 100)])),
+	Chunks = do_chunked_body(50, Body, []),
+	Client = raw_open(Config),
+	ok = raw_send(Client,
+		"POST /echo/read_body HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Transfer-encoding: chunked\r\n\r\n"),
+	_ = [begin
+		case Chunk of
+			<<"0\r\n\r\n">> ->
+				raw_send(Client, Chunk);
+			_ ->
+				[Size, ChunkBody, <<>>] = binary:split(Chunk, <<"\r\n">>, [global]),
+				PartASize = rand:uniform(byte_size(ChunkBody)),
+				<<PartA:PartASize/binary, PartB/binary>> = ChunkBody,
+				raw_send(Client, [Size, <<"\r\n">>, PartA]),
+				timer:sleep(10),
+				raw_send(Client, [PartB, <<"\r\n">>])
+		end
+	end || Chunk <- Chunks],
+	Rest = case catch raw_recv_head(Client) of
+		{'EXIT', _} -> error(closed);
+		Data ->
+			{'HTTP/1.1', 200, _, Rest0} = cow_http:parse_status_line(Data),
+			{_, Rest1} = cow_http:parse_headers(Rest0),
+			Rest1
+	end,
+	RestSize = byte_size(Rest),
+	<<Rest:RestSize/binary, Expect/bits>> = Body,
+	raw_expect_recv(Client, Expect).
+
+chunked_split_delay_in_chunk_crlf(Config) ->
+	doc("Confirm that chunked transfer-encoding works when "
+		"the body is received with a delay inside the chunks end CRLF."),
+	Body = list_to_binary(io_lib:format("~p", [lists:seq(1, 100)])),
+	Chunks = do_chunked_body(50, Body, []),
+	Client = raw_open(Config),
+	ok = raw_send(Client,
+		"POST /echo/read_body HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Transfer-encoding: chunked\r\n\r\n"),
+	_ = [begin
+		Len = byte_size(Chunk) - (rand:uniform(2) - 1),
+		<<Begin:Len/binary, End/binary>> = Chunk,
+		raw_send(Client, Begin),
+		timer:sleep(10),
+		raw_send(Client, End)
+	end || Chunk <- Chunks],
+	Rest = case catch raw_recv_head(Client) of
+		{'EXIT', _} -> error(closed);
+		Data ->
+			{'HTTP/1.1', 200, _, Rest0} = cow_http:parse_status_line(Data),
+			{_, Rest1} = cow_http:parse_headers(Rest0),
+			Rest1
+	end,
+	RestSize = byte_size(Rest),
+	<<Rest:RestSize/binary, Expect/bits>> = Body,
+	raw_expect_recv(Client, Expect).
+
+do_chunked_body(_, <<>>, Acc) ->
+	lists:reverse([cow_http_te:last_chunk()|Acc]);
+do_chunked_body(ChunkSize0, Data, Acc) ->
+	ChunkSize = min(byte_size(Data), ChunkSize0),
+	<<Chunk:ChunkSize/binary, Rest/binary>> = Data,
+	do_chunked_body(ChunkSize, Rest,
+		[iolist_to_binary(cow_http_te:chunk(Chunk))|Acc]).
+
 http10_keepalive_false(Config) ->
 	doc("Confirm the option http10_keepalive => false disables keep-alive "
 		"completely for HTTP/1.0 connections."),
 	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
-		env => #{dispatch => cowboy_router:compile(init_routes(Config))},
+		env => #{dispatch => init_dispatch(Config)},
 		http10_keepalive => false
 	}),
 	Port = ranch:get_port(?FUNCTION_NAME),
@@ -100,7 +227,7 @@ http10_keepalive_false(Config) ->
 idle_timeout_infinity(Config) ->
 	doc("Ensure the idle_timeout option accepts the infinity value."),
 	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
-		env => #{dispatch => cowboy_router:compile(init_routes(Config))},
+		env => #{dispatch => init_dispatch(Config)},
 		request_timeout => 500,
 		idle_timeout => infinity
 	}),
@@ -126,7 +253,7 @@ idle_timeout_infinity(Config) ->
 request_timeout_infinity(Config) ->
 	doc("Ensure the request_timeout option accepts the infinity value."),
 	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
-		env => #{dispatch => cowboy_router:compile(init_routes(Config))},
+		env => #{dispatch => init_dispatch(Config)},
 		request_timeout => infinity
 	}),
 	Port = ranch:get_port(?FUNCTION_NAME),
@@ -151,7 +278,7 @@ set_options_chunked_false(Config) ->
 		"chunked transfer-encoding. This results in the closing of the "
 		"connection after the current request."),
 	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
-		env => #{dispatch => cowboy_router:compile(init_routes(Config))},
+		env => #{dispatch => init_dispatch(Config)},
 		chunked => true
 	}),
 	Port = ranch:get_port(?FUNCTION_NAME),
@@ -181,7 +308,7 @@ set_options_chunked_false_ignored(Config) ->
 		"chunked transfer-encoding, and that it is ignored if the "
 		"response is not streamed."),
 	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
-		env => #{dispatch => cowboy_router:compile(init_routes(Config))},
+		env => #{dispatch => init_dispatch(Config)},
 		chunked => true
 	}),
 	Port = ranch:get_port(?FUNCTION_NAME),
@@ -206,7 +333,7 @@ set_options_idle_timeout(Config) ->
 		"set to change how long Cowboy will wait before it closes the connection."),
 	%% We start with a long timeout and then cut it short.
 	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
-		env => #{dispatch => cowboy_router:compile(init_routes(Config))},
+		env => #{dispatch => init_dispatch(Config)},
 		idle_timeout => 60000
 	}),
 	Port = ranch:get_port(?FUNCTION_NAME),
@@ -232,7 +359,7 @@ set_options_idle_timeout_only_applies_to_current_request(Config) ->
 	doc("Confirm that changes to the idle_timeout option only apply to the current stream."),
 	%% We start with a long timeout and then cut it short.
 	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
-		env => #{dispatch => cowboy_router:compile(init_routes(Config))},
+		env => #{dispatch => init_dispatch(Config)},
 		idle_timeout => 500
 	}),
 	Port = ranch:get_port(?FUNCTION_NAME),
@@ -270,7 +397,7 @@ set_options_idle_timeout_only_applies_to_current_request(Config) ->
 switch_protocol_flush(Config) ->
 	doc("Confirm that switch_protocol does not flush unrelated messages."),
 	ProtoOpts = #{
-		env => #{dispatch => cowboy_router:compile(init_routes(Config))},
+		env => #{dispatch => init_dispatch(Config)},
 		stream_handlers => [switch_protocol_flush_h]
 	},
 	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], ProtoOpts),
