@@ -12,19 +12,17 @@
 %% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
--module(sec_SUITE).
+-module(security_SUITE).
 -compile(export_all).
 -compile(nowarn_export_all).
 
 -import(ct_helper, [config/2]).
 -import(ct_helper, [doc/1]).
--import(ct_helper, [get_remote_pid_tcp/1]).
 -import(cowboy_test, [gun_open/1]).
 -import(cowboy_test, [raw_open/1]).
 -import(cowboy_test, [raw_send/2]).
 -import(cowboy_test, [raw_recv_head/1]).
 -import(cowboy_test, [raw_recv/3]).
--import(cowboy_test, [raw_expect_recv/2]).
 
 %% ct.
 
