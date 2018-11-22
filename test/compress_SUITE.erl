@@ -198,8 +198,13 @@ opts_compress_buffering_true(Config0) ->
 		Z = zlib:open(),
 		zlib:inflateInit(Z, 31),
 		%% The data gets buffered because it is too small.
-		{data, nofin, Data1} = gun:await(ConnPid, Ref, 500),
-		<<>> = iolist_to_binary(zlib:inflate(Z, Data1)),
+		%% In zlib versions before OTP 20.1 the gzip header was also buffered.
+		<<>> = case gun:await(ConnPid, Ref, 500) of
+			{data, nofin, Data1} ->
+				iolist_to_binary(zlib:inflate(Z, Data1));
+			{error, timeout} ->
+				<<>>
+		end,
 		gun:close(ConnPid)
 	after
 		cowboy:stop_listener(?FUNCTION_NAME)
@@ -258,8 +263,13 @@ set_options_compress_buffering_true(Config0) ->
 		Z = zlib:open(),
 		zlib:inflateInit(Z, 31),
 		%% The data gets buffered because it is too small.
-		{data, nofin, Data1} = gun:await(ConnPid, Ref, 500),
-		<<>> = iolist_to_binary(zlib:inflate(Z, Data1)),
+		%% In zlib versions before OTP 20.1 the gzip header was also buffered.
+		<<>> = case gun:await(ConnPid, Ref, 500) of
+			{data, nofin, Data1} ->
+				iolist_to_binary(zlib:inflate(Z, Data1));
+			{error, timeout} ->
+				<<>>
+		end,
 		gun:close(ConnPid)
 	after
 		cowboy:stop_listener(?FUNCTION_NAME)
