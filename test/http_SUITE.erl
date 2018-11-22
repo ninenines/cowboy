@@ -228,17 +228,17 @@ idle_timeout_infinity(Config) ->
 	doc("Ensure the idle_timeout option accepts the infinity value."),
 	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
 		env => #{dispatch => init_dispatch(Config)},
-		request_timeout => 500,
 		idle_timeout => infinity
 	}),
 	Port = ranch:get_port(?FUNCTION_NAME),
 	try
 		ConnPid = gun_open([{type, tcp}, {protocol, http}, {port, Port}|Config]),
 		{ok, http} = gun:await_up(ConnPid),
-		_ = gun:post(ConnPid, "/echo/read_body",
-			[{<<"content-type">>, <<"text/plain">>}]),
+		timer:sleep(500),
 		#{socket := Socket} = gun:info(ConnPid),
 		Pid = get_remote_pid_tcp(Socket),
+		_ = gun:post(ConnPid, "/echo/read_body",
+			[{<<"content-type">>, <<"text/plain">>}]),
 		Ref = erlang:monitor(process, Pid),
 		receive
 			{'DOWN', Ref, process, Pid, Reason} ->
@@ -260,6 +260,7 @@ request_timeout_infinity(Config) ->
 	try
 		ConnPid = gun_open([{type, tcp}, {protocol, http}, {port, Port}|Config]),
 		{ok, http} = gun:await_up(ConnPid),
+		timer:sleep(500),
 		#{socket := Socket} = gun:info(ConnPid),
 		Pid = get_remote_pid_tcp(Socket),
 		Ref = erlang:monitor(process, Pid),
@@ -340,10 +341,11 @@ set_options_idle_timeout(Config) ->
 	try
 		ConnPid = gun_open([{type, tcp}, {protocol, http}, {port, Port}|Config]),
 		{ok, http} = gun:await_up(ConnPid),
-		_ = gun:post(ConnPid, "/set_options/idle_timeout_short",
-			[{<<"content-type">>, <<"text/plain">>}]),
+		timer:sleep(500),
 		#{socket := Socket} = gun:info(ConnPid),
 		Pid = get_remote_pid_tcp(Socket),
+		_ = gun:post(ConnPid, "/set_options/idle_timeout_short",
+			[{<<"content-type">>, <<"text/plain">>}]),
 		Ref = erlang:monitor(process, Pid),
 		receive
 			{'DOWN', Ref, process, Pid, _} ->
@@ -366,10 +368,11 @@ set_options_idle_timeout_only_applies_to_current_request(Config) ->
 	try
 		ConnPid = gun_open([{type, tcp}, {protocol, http}, {port, Port}|Config]),
 		{ok, http} = gun:await_up(ConnPid),
-		StreamRef = gun:post(ConnPid, "/set_options/idle_timeout_long",
-			[{<<"content-type">>, <<"text/plain">>}]),
+		timer:sleep(500),
 		#{socket := Socket} = gun:info(ConnPid),
 		Pid = get_remote_pid_tcp(Socket),
+		StreamRef = gun:post(ConnPid, "/set_options/idle_timeout_long",
+			[{<<"content-type">>, <<"text/plain">>}]),
 		Ref = erlang:monitor(process, Pid),
 		receive
 			{'DOWN', Ref, process, Pid, Reason} ->
