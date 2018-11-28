@@ -1,0 +1,12 @@
+[appendix]
+== Changes since Cowboy 2.6
+
+The following patch versions were released since Cowboy 2.6:
+
+=== Cowboy 2.6.1
+
+This release updates Ranch to 1.7.1.
+
+It fixes an issue with the PROXY protocol where the wrong
+CRC32 algorithm was used and would cause checksum
+verification to fail.
