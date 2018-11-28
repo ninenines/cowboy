@@ -16,7 +16,7 @@ LOCAL_DEPS = crypto
 
 DEPS = cowlib ranch
 dep_cowlib = git https://github.com/ninenines/cowlib 2.7.0
-dep_ranch = git https://github.com/ninenines/ranch 1.7.0
+dep_ranch = git https://github.com/ninenines/ranch 1.7.1
 
 DOC_DEPS = asciideck
 
