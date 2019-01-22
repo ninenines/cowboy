@@ -317,7 +317,14 @@ headers_frame(State, StreamID, IsFin, Headers,
 		'The TRACE method is currently not implemented. (RFC7231 4.3.8)');
 headers_frame(State=#state{ref=Ref, peer=Peer, sock=Sock, cert=Cert, proxy_header=ProxyHeader},
 		StreamID, IsFin, Headers, PseudoHeaders=#{method := Method, scheme := Scheme,
-			authority := Authority, path := PathWithQs}, BodyLen) ->
+			path := PathWithQs}, BodyLen) ->
+	Authority = case PseudoHeaders of
+		#{authority := Authority0} -> Authority0;
+		_ ->  case lists:keyfind(<<"host">>, 1, Headers) of
+			{<<"host">>, Host0} -> Host0;
+			_ -> undefined
+		end
+	end,
 	try cow_http_hd:parse_host(Authority) of
 		{Host, Port0} ->
 			Port = ensure_port(Scheme, Port0),

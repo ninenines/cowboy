@@ -3746,7 +3746,7 @@ reject_many_pseudo_header_scheme(Config) ->
 	ok.
 
 reject_missing_pseudo_header_authority(Config) ->
-	doc("A request without an authority component must be rejected "
+	doc("A request without an authority or host component must be rejected "
 		"with a PROTOCOL_ERROR stream error. (RFC7540 8.1.2.3, RFC7540 8.1.2.6)"),
 	{ok, Socket} = do_handshake(Config),
 	%% Send a HEADERS frame without an :authority pseudo-header.
@@ -3758,6 +3758,25 @@ reject_missing_pseudo_header_authority(Config) ->
 	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
 	%% Receive a PROTOCOL_ERROR stream error.
 	{ok, << _:24, 3:8, _:8, 1:32, 1:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+	ok.
+
+fallback_to_host_on_missing_pseudo_header_authority(Config) ->
+	doc("Fallback to use the host header if pseudo header :authority is missing"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame with host header and without an :authority pseudo-header.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":path">>, <<"/">>},
+		{<<"host">>, <<"localhost">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+	%% Receive an informational HEADERS frame
+	{ok, << Len:24, 1:8, _:8, _:32 >>} = gen_tcp:recv(Socket, 9, 6000),
+	{ok, RespHeadersBlock} = gen_tcp:recv(Socket, Len, 6000),
+	%% Confirm it has a 200 status code.
+	{RespHeaders, _} = cow_hpack:decode(RespHeadersBlock),
+	{_, <<"200">>} = lists:keyfind(<<":status">>, 1, RespHeaders),
 	ok.
 
 reject_many_pseudo_header_authority(Config) ->
