@@ -315,9 +315,20 @@ headers_frame(State, StreamID, IsFin, Headers,
 		PseudoHeaders=#{method := <<"TRACE">>}, _) ->
 	early_error(State, StreamID, IsFin, Headers, PseudoHeaders, 501,
 		'The TRACE method is currently not implemented. (RFC7231 4.3.8)');
-headers_frame(State=#state{ref=Ref, peer=Peer, sock=Sock, cert=Cert, proxy_header=ProxyHeader},
-		StreamID, IsFin, Headers, PseudoHeaders=#{method := Method, scheme := Scheme,
-			authority := Authority, path := PathWithQs}, BodyLen) ->
+headers_frame(State, StreamID, IsFin, Headers, PseudoHeaders=#{authority := Authority}, BodyLen) ->
+	headers_frame_parse_host(State, StreamID, IsFin, Headers, PseudoHeaders, BodyLen, Authority);
+headers_frame(State, StreamID, IsFin, Headers, PseudoHeaders, BodyLen) ->
+	case lists:keyfind(<<"host">>, 1, Headers) of
+		{_, Authority} ->
+			headers_frame_parse_host(State, StreamID, IsFin, Headers, PseudoHeaders, BodyLen, Authority);
+		_ ->
+			reset_stream(State, StreamID, {stream_error, protocol_error,
+				'Requests translated from HTTP/1.1 must include a host header. (RFC7540 8.1.2.3, RFC7230 5.4)'})
+	end.
+
+headers_frame_parse_host(State=#state{ref=Ref, peer=Peer, sock=Sock, cert=Cert, proxy_header=ProxyHeader},
+		StreamID, IsFin, Headers, PseudoHeaders=#{method := Method, scheme := Scheme, path := PathWithQs},
+		BodyLen, Authority) ->
 	try cow_http_hd:parse_host(Authority) of
 		{Host, Port0} ->
 			Port = ensure_port(Scheme, Port0),
