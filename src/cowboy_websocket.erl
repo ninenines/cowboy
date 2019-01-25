@@ -115,7 +115,7 @@ upgrade(Req, Env, Handler, HandlerState) ->
 	when Req::cowboy_req:req(), Env::cowboy_middleware:env().
 %% @todo Immediately crash if a response has already been sent.
 upgrade(Req0=#{version := Version}, Env, Handler, HandlerState, Opts) ->
-	Timeout = maps:get(idle_timeout, Opts, 60000),
+	Timeout = maps:get(idle_timeout, Opts, 3600000),
 	MaxFrameSize = maps:get(max_frame_size, Opts, infinity),
 	Compress = maps:get(compress, Opts, false),
 	FilteredReq = case maps:get(req_filter, Opts, undefined) of

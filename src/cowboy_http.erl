@@ -220,7 +220,7 @@ set_timeout(State0=#state{opts=Opts, streams=Streams}) ->
 	State = cancel_timeout(State0),
 	{Name, Default} = case Streams of
 		[] -> {request_timeout, 5000};
-		_ -> {idle_timeout, 60000}
+		_ -> {idle_timeout, 3600000}
 	end,
 	TimerRef = case maps:get(Name, Opts, Default) of
 		infinity -> undefined;
