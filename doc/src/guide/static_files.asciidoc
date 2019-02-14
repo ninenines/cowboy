@@ -43,12 +43,12 @@ which means that your route must end with a `[...]` pattern
 for it to work. All files are served, including the ones that
 may be found in subfolders.
 
-You can specify the directory relative to an application's
-private directory.
+You can specify the directory relative to the application's
+private directory (e.g. `my_app/priv`).
 
-The following rule will serve any file found in the application
-`my_app`'s priv directory inside the `static/assets` folder
-whenever the requested path begins with `/assets/`:
+The following rule will serve any file found in the `my_app`
+application's private directory in the `my_app/priv/static/assets`
+folder whenever the requested path begins with `/assets/`:
 
 [source,erlang]
 {"/assets/[...]", cowboy_static, {priv_dir, my_app, "static/assets"}}
