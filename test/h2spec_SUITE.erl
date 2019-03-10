@@ -28,11 +28,16 @@ init_per_suite(Config) ->
 	case os:getenv("H2SPEC") of
 		false ->
 			skip;
-		_ ->
-			cowboy_test:init_http(h2spec, #{
-				env => #{dispatch => init_dispatch()},
-				max_concurrent_streams => 100
-			}, Config)
+		H2spec ->
+			case filelib:is_file(H2spec) of
+				false ->
+					skip;
+				true ->
+					cowboy_test:init_http(h2spec, #{
+						env => #{dispatch => init_dispatch()},
+						max_concurrent_streams => 100
+					}, Config)
+			end
 	end.
 
 end_per_suite(_Config) ->

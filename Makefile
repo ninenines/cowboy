@@ -71,8 +71,8 @@ test-build:: $(H2SPEC)
 
 $(H2SPEC):
 	$(gen_verbose) mkdir -p $(GOPATH)/src/github.com/summerwind
-	$(verbose) git clone --depth 1 https://github.com/summerwind/h2spec $(dir $(H2SPEC))
-	$(verbose) $(MAKE) -C $(dir $(H2SPEC)) build MAKEFLAGS=
+	$(verbose) git clone --depth 1 https://github.com/summerwind/h2spec $(dir $(H2SPEC)) || true
+	$(verbose) $(MAKE) -C $(dir $(H2SPEC)) build MAKEFLAGS= || true
 
 # Use erl_make_certs from the tested release during CI
 # and ensure that ct_helper is always recompiled.
