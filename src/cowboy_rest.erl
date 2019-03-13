@@ -1622,8 +1622,9 @@ switch_handler({switch_handler, Mod, Opts}, Req, #state{handler_state=HandlerSta
 
 -spec error_terminate(cowboy_req:req(), #state{}, atom(), any()) -> no_return().
 error_terminate(Req, #state{handler=Handler, handler_state=HandlerState}, Class, Reason) ->
+	StackTrace = erlang:get_stacktrace(),
 	cowboy_handler:terminate({crash, Class, Reason}, Req, HandlerState, Handler),
-	erlang:raise(Class, Reason, erlang:get_stacktrace()).
+	erlang:raise(Class, Reason, StackTrace).
 
 terminate(Req, #state{handler=Handler, handler_state=HandlerState}) ->
 	Result = cowboy_handler:terminate(normal, Req, HandlerState, Handler),
