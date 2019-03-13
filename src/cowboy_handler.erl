@@ -47,8 +47,9 @@ execute(Req, Env=#{handler := Handler, handler_opts := HandlerOpts}) ->
 		{Mod, Req2, State, Opts} ->
 			Mod:upgrade(Req2, Env, Handler, State, Opts)
 	catch Class:Reason ->
+		StackTrace = erlang:get_stacktrace(),
 		terminate({crash, Class, Reason}, Req, HandlerOpts, Handler),
-		erlang:raise(Class, Reason, erlang:get_stacktrace())
+		erlang:raise(Class, Reason, StackTrace)
 	end.
 
 -spec terminate(any(), Req | undefined, any(), module()) -> ok when Req::cowboy_req:req().

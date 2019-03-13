@@ -503,9 +503,10 @@ handler_call(State=#state{handler=Handler}, HandlerState,
 		{stop, HandlerState2} ->
 			websocket_close(State, HandlerState2, stop)
 	catch Class:Reason ->
+		StackTrace = erlang:get_stacktrace(),
 		websocket_send_close(State, {crash, Class, Reason}),
 		handler_terminate(State, HandlerState, {crash, Class, Reason}),
-		erlang:raise(Class, Reason, erlang:get_stacktrace())
+		erlang:raise(Class, Reason, StackTrace)
 	end.
 
 -spec handler_call_result(#state{}, any(), parse_state(), fun(), commands()) -> no_return().
