@@ -786,6 +786,12 @@ mime_all_txt(Config) ->
 	{_, <<"text/plain">>} = lists:keyfind(<<"content-type">>, 1, Headers),
 	ok.
 
+mime_all_uppercase(Config) ->
+	doc("Get an uppercase .TXT file."),
+	{200, Headers, _} = do_get("/mime/all/UPPER.TXT", Config),
+	{_, <<"text/plain">>} = lists:keyfind(<<"content-type">>, 1, Headers),
+	ok.
+
 mime_crash(Config) ->
 	doc("Get a file with a crashing mimetype function."),
 	{500, _, _} = do_get("/mime/crash/style.css", Config),
