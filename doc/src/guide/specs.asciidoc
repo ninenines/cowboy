@@ -149,6 +149,7 @@ for or related to HTTP.
 * https://tools.ietf.org/html/rfc2965[RFC 2965]: HTTP State Management Mechanism (Cookie2)
 * https://tools.ietf.org/html/rfc3229[RFC 3229]: Delta encoding in HTTP
 * https://tools.ietf.org/html/rfc7168[RFC 7168]: The Hyper Text Coffee Pot Control Protocol for Tea Efflux Appliances (HTCPCP-TEA)
+* https://tools.ietf.org/html/rfc8565[RFC 8565]: Hypertext Jeopardy Protocol (HTJP/1.0)
 * http://dev.chromium.org/spdy/spdy-protocol[SPDY]: SPDY Protocol
 * https://tools.ietf.org/html/draft-tyoshino-hybi-websocket-perframe-deflate-06[x-webkit-deflate-frame]: Deprecated Websocket compression
 
