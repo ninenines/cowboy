@@ -9,7 +9,7 @@ cowboy_req:set_resp_cookie - Set a cookie
 [source,erlang]
 ----
 set_resp_cookie(Name, Value, Req :: cowboy_req:req())
-    -> set_resp_cookie(Name, Value, [], Req)
+    -> set_resp_cookie(Name, Value, Req, #{})
 
 set_resp_cookie(Name, Value, Req :: cowboy_req:req(), Opts)
     -> Req
