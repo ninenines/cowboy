@@ -16,7 +16,8 @@ exists.
 The red squares refer to another diagram. The light green squares
 indicate a response. Other squares may be either a callback or a
 question answered by Cowboy itself. Green arrows tend to indicate
-the default behavior if the callback is undefined.
+the default behavior if the callback is undefined. The star next
+to values indicate that the value is descriptive rather than exact.
 
 === Start
 
