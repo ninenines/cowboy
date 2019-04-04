@@ -3,6 +3,29 @@
 
 The following patch versions were released since Cowboy 2.6:
 
+=== Cowboy 2.6.2
+
+This release updates Cowlib to 2.7.2.
+
+A bug in the HTTP/2 code that resulted in the failure to
+fully send iolist response bodies has been fixed. Cowboy
+would just wait indefinitely in those cases.
+
+Cowboy will now use the host header when the HTTP/2
+:authority pseudo header is missing. A common scenario
+where this occurs is when proxies translate incoming
+HTTP/1.1 requests to HTTP/2.
+
+The `cowboy_static` handler will now properly detect
+the type of files that have an uppercase or mixed
+extension component.
+
+A bug where the stacktrace was incorrect in error messages
+has been fixed. The problem occurred when an exception
+occurred in the handler's terminate callback.
+
+Minor documentation fixes.
+
 === Cowboy 2.6.1
 
 This release updates Ranch to 1.7.1.

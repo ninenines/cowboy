@@ -69,7 +69,7 @@ fetch and compile Cowboy:
 PROJECT = hello_erlang
 
 DEPS = cowboy
-dep_cowboy_commit = 2.6.1
+dep_cowboy_commit = 2.6.2
 
 DEP_PLUGINS = cowboy
 
