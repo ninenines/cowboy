@@ -3,6 +3,12 @@
 
 The following patch versions were released since Cowboy 2.6:
 
+=== Cowboy 2.6.3
+
+This release updates Cowlib to 2.7.3 to fix the `vsn`
+value in the 'cowlib.app' file that was causing issues
+to Elixir users.
+
 === Cowboy 2.6.2
 
 This release updates Cowlib to 2.7.2.
