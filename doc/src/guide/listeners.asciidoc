@@ -67,7 +67,7 @@ options given are following the HTTP/2 RFC with regards
 to security. For example some TLS extensions or ciphers
 may be disabled. This also applies to HTTP/1.1 connections
 on this listener. If this is not desirable, Ranch can be
-used directly to setup a custom listener.
+used directly to set up a custom listener.
 
 [source,erlang]
 ----
