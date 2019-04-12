@@ -574,12 +574,18 @@ commands(State0=#state{socket=Socket, transport=Transport, http2_machine=HTTP2Ma
 	commands(State, StreamID, Tail);
 commands(State=#state{socket=Socket, transport=Transport, http2_machine=HTTP2Machine0},
 		StreamID, [{flow, Size}|Tail]) ->
-	Transport:send(Socket, [
-		cow_http2:window_update(Size),
-		cow_http2:window_update(StreamID, Size)
-	]),
-	HTTP2Machine1 = cow_http2_machine:update_window(Size, HTTP2Machine0),
-	HTTP2Machine = cow_http2_machine:update_window(StreamID, Size, HTTP2Machine1),
+	RemoteWindow = cow_http2_machine:get_window(HTTP2Machine0),
+	HTTP2Machine = case Size - RemoteWindow of
+		Diff when Diff > 0 ->
+			Transport:send(Socket, [
+				cow_http2:window_update(Diff),
+				cow_http2:window_update(StreamID, Diff)
+			]),
+			HTTP2Machine1 = cow_http2_machine:update_window(Diff, HTTP2Machine0),
+			cow_http2_machine:update_window(StreamID, Diff, HTTP2Machine1);
+		_ ->
+			HTTP2Machine0
+	end,
 	commands(State#state{http2_machine=HTTP2Machine}, StreamID, Tail);
 %% Supervise a child process.
 commands(State=#state{children=Children}, StreamID, [{spawn, Pid, Shutdown}|Tail]) ->
