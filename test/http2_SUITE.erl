@@ -261,3 +261,45 @@ settings_timeout_infinity(Config) ->
 	after
 		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
+
+flow_window_over_limit(Config) ->
+	doc("Keep using the same connection to let "
+		"flow window is greater than 2^31-1."),
+	ProtoOpts = #{
+		env => #{dispatch => init_dispatch(Config)},
+		initial_connection_window_size => 16#7fffffff
+	},
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], ProtoOpts),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		ConnPid = gun_open([{type, tcp}, {protocol, http2}, {port, Port}|Config]),
+		Shot = fun(Conn) ->
+			Ref = gun:post(Conn, "/echo/read_body", [
+				{<<"content-type">>, <<"text/plain">>}
+			], <<"hello world">>),
+			case gun:await(Conn, Ref) of
+				{response, nofin, 200, _} ->
+					{ok, <<"hello world">>} = gun:await_body(Conn, Ref),
+					ok;
+				Error ->
+					Error
+			end
+		end,
+		Loop = fun
+			(_Loop, _ShotF, _Conn, 0) ->
+				ok;
+			(Loop, ShotF, Conn, Count) ->
+				case ShotF(Conn) of
+					ok ->
+						Loop(Loop, ShotF, Conn, Count - 1);
+					Error ->
+						Error
+				end
+		end,
+		FlowControlError = Loop(Loop, Shot, ConnPid, 1000),
+		{error, {connection_error, flow_control_error,
+		'The flow control window must not be greater than 2^31-1. (RFC7540 6.9.1)'}} = FlowControlError,
+		gun:close(ConnPid)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
