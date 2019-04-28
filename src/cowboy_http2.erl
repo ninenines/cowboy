@@ -255,6 +255,8 @@ frame(State=#state{http2_machine=HTTP2Machine0}, Frame) ->
 			maybe_ack(State#state{http2_machine=HTTP2Machine}, Frame);
 		{ok, {data, StreamID, IsFin, Data}, HTTP2Machine} ->
 			data_frame(State#state{http2_machine=HTTP2Machine}, StreamID, IsFin, Data);
+		{ok, {lingering_data, StreamID, DataLen}, HTTP2Machine} ->
+			lingering_data_frame(State#state{http2_machine=HTTP2Machine}, StreamID, DataLen);
 		{ok, {headers, StreamID, IsFin, Headers, PseudoHeaders, BodyLen}, HTTP2Machine} ->
 			headers_frame(State#state{http2_machine=HTTP2Machine},
 				StreamID, IsFin, Headers, PseudoHeaders, BodyLen);
@@ -286,6 +288,13 @@ maybe_ack(State=#state{socket=Socket, transport=Transport}, Frame) ->
 		_ -> ok
 	end,
 	State.
+
+lingering_data_frame(State=#state{socket=Socket, transport=Transport, http2_machine=HTTP2Machine0}, _StreamID, DataLen) ->
+	Transport:send(Socket, [
+		cow_http2:window_update(DataLen)
+	]),
+	HTTP2Machine1 = cow_http2_machine:update_window(DataLen, HTTP2Machine0),
+	State#state{http2_machine=HTTP2Machine1}.
 
 data_frame(State=#state{opts=Opts, streams=Streams}, StreamID, IsFin, Data) ->
 	case Streams of
