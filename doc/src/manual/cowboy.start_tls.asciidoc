@@ -83,7 +83,7 @@ Dispatch = cowboy_router:compile([
 
 {ok, _} = cowboy:start_tls(example, [
     {port, 8443},
-    {cert, "path/to/cert.pem"}
+    {certfile, "path/to/cert.pem"}
 ], #{
     env => #{dispatch => Dispatch}
 }).
@@ -95,7 +95,7 @@ Dispatch = cowboy_router:compile([
 Name = example,
 
 {ok, _} = cowboy:start_tls(Name, [
-    {cert, "path/to/cert.pem"}
+    {certfile, "path/to/cert.pem"}
 ], #{
     env => #{dispatch => Dispatch}
 }),

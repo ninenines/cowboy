@@ -22,7 +22,7 @@ transport option to `verify_peer`:
 ----
 {ok, _} = cowboy:start_tls(example, [
     {port, 8443},
-    {cert, "path/to/cert.pem"},
+    {certfile, "path/to/cert.pem"},
     {verify, verify_peer}
 ], #{
     env => #{dispatch => Dispatch}
