@@ -92,6 +92,7 @@ for or related to HTTP.
 * https://tools.ietf.org/html/rfc8470[RFC 8470]: Using Early Data in HTTP
 * https://tools.ietf.org/html/rfc8473[RFC 8473]: Token Binding over HTTP
 * https://tools.ietf.org/html/rfc8586[RFC 8586]: Loop Detection in Content Delivery Networks (CDNs)
+* https://tools.ietf.org/html/rfc8594[RFC 8594]: The Sunset HTTP Header Field
 * https://www.w3.org/TR/webmention/[Webmention]: Webmention
 
 ==== Upcoming
@@ -160,6 +161,7 @@ for or related to HTTP.
 * https://tools.ietf.org/html/rfc6570[RFC 6570]: URI Template
 * https://tools.ietf.org/html/rfc6874[RFC 6874]: Representing IPv6 Zone Identifiers in Address Literals and URIs
 * https://tools.ietf.org/html/rfc7320[RFC 7320]: URI Design and Ownership
+* https://tools.ietf.org/html/rfc8615[RFC 8615]: Well-Known URIs
 * http://www.w3.org/TR/url-1/[URL]
 * https://url.spec.whatwg.org/[URL Living Standard]
 
