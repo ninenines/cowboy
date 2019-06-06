@@ -15,11 +15,18 @@
 -module(cowboy_clear).
 -behavior(ranch_protocol).
 
+-export([start_link/3]).
 -export([start_link/4]).
 -export([connection_process/4]).
 
+%% Ranch 1
 -spec start_link(ranch:ref(), inet:socket(), module(), cowboy:opts()) -> {ok, pid()}.
 start_link(Ref, _Socket, Transport, Opts) ->
+	start_link(Ref, Transport, Opts).
+
+%% Ranch 2
+-spec start_link(ranch:ref(), module(), cowboy:opts()) -> {ok, pid()}.
+start_link(Ref, Transport, Opts) ->
 	Pid = proc_lib:spawn_link(?MODULE, connection_process,
 		[self(), Ref, Transport, Opts]),
 	{ok, Pid}.
