@@ -169,15 +169,15 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 		opts=Opts, timer=TimerRef, children=Children}, Buffer) ->
 	%% @todo This should only be called when data was read.
 	Transport:setopts(Socket, [{active, once}]),
-	{OK, Closed, Error} = Transport:messages(),
+	Messages = Transport:messages(),
 	InactivityTimeout = maps:get(inactivity_timeout, Opts, 300000),
 	receive
 		%% Socket messages.
-		{OK, Socket, Data} ->
+		{OK, Socket, Data} when OK =:= element(1, Messages) ->
 			parse(set_timeout(State), << Buffer/binary, Data/binary >>);
-		{Closed, Socket} ->
+		{Closed, Socket} when Closed =:= element(2, Messages) ->
 			terminate(State, {socket_error, closed, 'The socket has been closed.'});
-		{Error, Socket, Reason} ->
+		{Error, Socket, Reason} when Error =:= element(3, Messages) ->
 			terminate(State, {socket_error, Reason, 'An error has occurred on the socket.'});
 		%% System messages.
 		{'EXIT', Parent, Reason} ->

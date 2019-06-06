@@ -15,17 +15,24 @@
 -module(cowboy_tls).
 -behavior(ranch_protocol).
 
+-export([start_link/3]).
 -export([start_link/4]).
--export([connection_process/5]).
+-export([connection_process/4]).
 
+%% Ranch 1.
 -spec start_link(ranch:ref(), ssl:sslsocket(), module(), cowboy:opts()) -> {ok, pid()}.
-start_link(Ref, Socket, Transport, Opts) ->
+start_link(Ref, _Socket, Transport, Opts) ->
+	start_link(Ref, Transport, Opts).
+
+%% Ranch 2.
+-spec start_link(ranch:ref(), module(), cowboy:opts()) -> {ok, pid()}.
+start_link(Ref, Transport, Opts) ->
 	Pid = proc_lib:spawn_link(?MODULE, connection_process,
-		[self(), Ref, Socket, Transport, Opts]),
+		[self(), Ref, Transport, Opts]),
 	{ok, Pid}.
 
--spec connection_process(pid(), ranch:ref(), ssl:sslsocket(), module(), cowboy:opts()) -> ok.
-connection_process(Parent, Ref, Socket, Transport, Opts) ->
+-spec connection_process(pid(), ranch:ref(), module(), cowboy:opts()) -> ok.
+connection_process(Parent, Ref, Transport, Opts) ->
 	ProxyInfo = case maps:get(proxy_header, Opts, false) of
 		true ->
 			{ok, ProxyInfo0} = ranch:recv_proxy_header(Ref, 1000),
