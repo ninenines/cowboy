@@ -49,6 +49,7 @@ init_routes(_) -> [
 		{"/", hello_h, []},
 		{"/echo/:key", echo_h, []},
 		{"/long_polling", long_polling_h, []},
+		{"/loop_handler_abort", loop_handler_abort_h, []},
 		{"/resp/:key[/:arg]", resp_h, []}
 	]}
 ].
@@ -3112,6 +3113,59 @@ data_reject_overflow_stream(Config0) ->
 		]),
 		%% Receive a FLOW_CONTROL_ERROR stream error.
 		{ok, << _:24, 3:8, _:8, 1:32, 3:32 >>} = gen_tcp:recv(Socket, 13, 6000)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+lingering_data_account_for_connection_window_when(Config0) ->
+	doc("A receiver that receives a flow-controlled frame MUST "
+		"always account for its contribution against the connection "
+		"flow-control window"),
+	%% Create a new listener that allows only a single concurrent stream.
+	Config = cowboy_test:init_http(?FUNCTION_NAME, #{
+		env => #{dispatch => cowboy_router:compile(init_routes(Config0))},
+		initial_connection_window_size => 100000
+	}, Config0),
+	try
+		%% We need to do the handshake manually because a WINDOW_UPDATE
+		%% frame will be sent to update the connection window.
+		{ok, Socket} = gen_tcp:connect("localhost", config(port, Config), [binary, {active, false}]),
+		%% Send a valid preface.
+		ok = gen_tcp:send(Socket, ["PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n", cow_http2:settings(#{})]),
+		%% Receive the server preface.
+		{ok, << Len1:24 >>} = gen_tcp:recv(Socket, 3, 1000),
+		{ok, << 4:8, 0:40, _:Len1/binary >>} = gen_tcp:recv(Socket, 6 + Len1, 1000),
+		%% Send the SETTINGS ack.
+		ok = gen_tcp:send(Socket, cow_http2:settings_ack()),
+		%% Receive the WINDOW_UPDATE for the connection.
+		{ok, << 4:24, 8:8, 0:40, _:32 >>} = gen_tcp:recv(Socket, 13, 1000),
+		%% Receive the SETTINGS ack.
+		{ok, << 0:24, 4:8, 1:8, 0:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+		Headers = [
+			{<<":method">>, <<"POST">>},
+			{<<":scheme">>, <<"http">>},
+			{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+			{<<":path">>, <<"/loop_handler_abort">>}
+		],
+		{HeadersBlock, _} = cow_hpack:encode(Headers),
+		ok = gen_tcp:send(Socket, [
+			cow_http2:headers(1, nofin, HeadersBlock),
+			cow_http2:data(1, nofin, <<0:1000/unit:8>>)
+		]),
+		% Make sure server send RST_STREAM
+		timer:sleep(100),
+		ok = gen_tcp:send(Socket, [
+			cow_http2:data(1, fin, <<0:1000/unit:8>>)
+		]),
+		{ok, << SkipLen:24, 1:8, _:8, 1:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+		% Skip the header
+		{ok, _} = gen_tcp:recv(Socket, SkipLen, 1000),
+		% @todo: A WINDOW_UPDATE frame is expected to be received, but cowboy_stream_h
+		% 	doesn't send it when only first 1000 bytes of body is read
+		% Skip RST_STREAM
+		{ok, << 4:24, 3:8, 1:40, _:32 >>} = gen_tcp:recv(Socket, 13, 1000),
+		% Received a WINDOW_UPDATE frame after got RST_STREAM
+		{ok, << 4:24, 8:8, 0:40, 1000:32 >>} = gen_tcp:recv(Socket, 13, 1000)
 	after
 		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
