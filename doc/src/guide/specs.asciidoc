@@ -188,6 +188,7 @@ for or related to HTTP.
 * https://tools.ietf.org/html/rfc7809[RFC 7809]: Calendaring Extensions to WebDAV (CalDAV): Time Zones by Reference
 * https://tools.ietf.org/html/rfc7953[RFC 7953]: Calendar Availability
 * https://tools.ietf.org/html/rfc8144[RFC 8144]: Use of the Prefer Header Field in WebDAV
+* https://tools.ietf.org/html/rfc8607[RFC 8607]: Calendaring Extensions to WebDAV (CalDAV): Managed Attachments
 
 === CoAP
 
@@ -201,3 +202,4 @@ for or related to HTTP.
 * https://tools.ietf.org/html/rfc8132[RFC 8132]: PATCH and FETCH Methods for CoAP
 * https://tools.ietf.org/html/rfc8323[RFC 8323]: CoAP over TCP, TLS, and WebSockets
 * https://tools.ietf.org/html/rfc8516[RFC 8516]: "Too Many Requests" Response Code for CoAP
+* https://tools.ietf.org/html/rfc8613[RFC 8613]: Object Security for Constrained RESTful Environments
