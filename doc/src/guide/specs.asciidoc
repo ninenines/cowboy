@@ -129,10 +129,12 @@ for or related to HTTP.
 * http://www.w3.org/TR/html51/[HTML5.1]
 * https://www.w3.org/TR/html52/[HTML5.2]
 * http://www.w3.org/TR/media-frags/[Media Fragments URI 1.0]
+* https://tools.ietf.org/html/rfc5829[RFC 5829]: Link Relation Types for Simple Version Navigation between Web Resources
 * https://tools.ietf.org/html/rfc6657[RFC 6657]: Update to MIME regarding "charset" Parameter Handling in Textual Media Types
 * https://tools.ietf.org/html/rfc6690[RFC 6690]: Constrained RESTful Environments (CoRE) Link Format
 * https://tools.ietf.org/html/rfc7807[RFC 7807]: Problem Details for HTTP APIs
 * https://tools.ietf.org/html/rfc6906[RFC 6906]: The 'profile' Link Relation Type
+* https://tools.ietf.org/html/rfc8631[RFC 8631]: Link Relation Types for Web Services
 * http://www.w3.org/TR/SRI/[Subresource Integrity]
 * http://www.w3.org/TR/tracking-compliance/[Tracking Compliance and Scope]
 * http://www.w3.org/TR/media-frags-reqs/[Use cases and requirements for Media Fragments]
