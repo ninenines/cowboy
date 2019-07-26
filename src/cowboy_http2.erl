@@ -309,10 +309,12 @@ data_frame(State=#state{opts=Opts, streams=Streams}, StreamID, IsFin, Data) ->
 	end.
 
 lingering_data_frame(State=#state{socket=Socket, transport=Transport,
-		http2_machine=HTTP2Machine0}, DataLen) ->
+		http2_machine=HTTP2Machine0}, DataLen) when DataLen > 0 ->
 	Transport:send(Socket, cow_http2:window_update(DataLen)),
 	HTTP2Machine1 = cow_http2_machine:update_window(DataLen, HTTP2Machine0),
-	State#state{http2_machine=HTTP2Machine1}.
+	State#state{http2_machine=HTTP2Machine1};
+lingering_data_frame(State, _) ->
+	State.
 
 headers_frame(State, StreamID, IsFin, Headers,
 		PseudoHeaders=#{method := <<"CONNECT">>}, _)

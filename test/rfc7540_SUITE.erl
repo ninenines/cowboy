@@ -3153,6 +3153,7 @@ lingering_data_counts_toward_connection_window(Config0) ->
 		% Make sure server send RST_STREAM.
 		timer:sleep(100),
 		ok = gen_tcp:send(Socket, [
+			cow_http2:data(1, nofin, <<0:0/unit:8>>),
 			cow_http2:data(1, fin, <<0:1000/unit:8>>)
 		]),
 		{ok, << SkipLen:24, 1:8, _:8, 1:32 >>} = gen_tcp:recv(Socket, 9, 1000),
