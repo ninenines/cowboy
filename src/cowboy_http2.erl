@@ -309,7 +309,7 @@ data_frame(State=#state{opts=Opts, streams=Streams}, StreamID, IsFin, Data) ->
 	end.
 
 lingering_data_frame(State=#state{socket=Socket, transport=Transport,
-		http2_machine=HTTP2Machine0}, DataLen) ->
+		http2_machine=HTTP2Machine0}, _DataLen) ->
 	HTTP2Machine1 = cal_and_update_window(Transport, Socket, HTTP2Machine0),
 	State#state{http2_machine=HTTP2Machine1}.
 
