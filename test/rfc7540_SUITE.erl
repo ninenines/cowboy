@@ -3121,8 +3121,7 @@ lingering_data_counts_toward_connection_window(Config0) ->
 	doc("DATA frames received after sending RST_STREAM must be counted "
 		"toward the connection flow-control window. (RFC7540 5.1)"),
 	Config = cowboy_test:init_http(?FUNCTION_NAME, #{
-		env => #{dispatch => cowboy_router:compile(init_routes(Config0))},
-		initial_connection_window_size => 100000
+		env => #{dispatch => cowboy_router:compile(init_routes(Config0))}
 	}, Config0),
 	try
 		%% We need to do the handshake manually because a WINDOW_UPDATE
@@ -3135,8 +3134,6 @@ lingering_data_counts_toward_connection_window(Config0) ->
 		{ok, << 4:8, 0:40, _:Len1/binary >>} = gen_tcp:recv(Socket, 6 + Len1, 1000),
 		%% Send the SETTINGS ack.
 		ok = gen_tcp:send(Socket, cow_http2:settings_ack()),
-		%% Receive the WINDOW_UPDATE for the connection.
-		{ok, << 4:24, 8:8, 0:40, _:32 >>} = gen_tcp:recv(Socket, 13, 1000),
 		%% Receive the SETTINGS ack.
 		{ok, << 0:24, 4:8, 1:8, 0:32 >>} = gen_tcp:recv(Socket, 9, 1000),
 		Headers = [
@@ -3153,7 +3150,11 @@ lingering_data_counts_toward_connection_window(Config0) ->
 		% Make sure server send RST_STREAM.
 		timer:sleep(100),
 		ok = gen_tcp:send(Socket, [
-			cow_http2:data(1, fin, <<0:1000/unit:8>>)
+			%% WINDOW_UPDATE is sent only if remote_windows passes half of max
+			cow_http2:data(1, fin, <<0:10000/unit:8>>),
+			cow_http2:data(1, fin, <<0:10000/unit:8>>),
+			cow_http2:data(1, fin, <<0:10000/unit:8>>),
+			cow_http2:data(1, fin, <<0:10000/unit:8>>)
 		]),
 		{ok, << SkipLen:24, 1:8, _:8, 1:32 >>} = gen_tcp:recv(Socket, 9, 1000),
 		% Skip the header.
@@ -3161,7 +3162,7 @@ lingering_data_counts_toward_connection_window(Config0) ->
 		% Skip RST_STREAM.
 		{ok, << 4:24, 3:8, 1:40, _:32 >>} = gen_tcp:recv(Socket, 13, 1000),
 		% Received a WINDOW_UPDATE frame after we got RST_STREAM.
-		{ok, << 4:24, 8:8, 0:40, 1000:32 >>} = gen_tcp:recv(Socket, 13, 1000)
+		{ok, << 4:24, 8:8, 0:40, 41000:32 >>} = gen_tcp:recv(Socket, 13, 1000)
 	after
 		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
