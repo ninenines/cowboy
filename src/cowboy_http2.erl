@@ -311,7 +311,7 @@ data_frame(State=#state{opts=Opts, streams=Streams}, StreamID, IsFin, Data) ->
 lingering_data_frame(State=#state{socket=Socket, transport=Transport,
 		http2_machine=HTTP2Machine0}, DataLen) ->
 	Transport:send(Socket, cow_http2:window_update(DataLen)),
-	HTTP2Machine1 = cow_http2_machine:update_window(DataLen, HTTP2Machine0),
+	HTTP2Machine1 = cal_and_update_window(DataLen, HTTP2Machine0),
 	State#state{http2_machine=HTTP2Machine1}.
 
 headers_frame(State, StreamID, IsFin, Headers,
@@ -586,8 +586,8 @@ commands(State=#state{socket=Socket, transport=Transport, http2_machine=HTTP2Mac
 		cow_http2:window_update(Size),
 		cow_http2:window_update(StreamID, Size)
 	]),
-	HTTP2Machine1 = cow_http2_machine:update_window(Size, HTTP2Machine0),
-	HTTP2Machine = cow_http2_machine:update_window(StreamID, Size, HTTP2Machine1),
+	HTTP2Machine1 = cal_and_update_window(Size, HTTP2Machine0),
+	HTTP2Machine = cal_and_update_window(StreamID, Size, HTTP2Machine1),
 	commands(State#state{http2_machine=HTTP2Machine}, StreamID, Tail);
 %% Supervise a child process.
 commands(State=#state{children=Children}, StreamID, [{spawn, Pid, Shutdown}|Tail]) ->
@@ -664,6 +664,22 @@ maybe_send_data(State=#state{http2_machine=HTTP2Machine0}, StreamID, IsFin, Data
 			State#state{http2_machine=HTTP2Machine};
 		{send, SendData, HTTP2Machine} ->
 			send_data(State#state{http2_machine=HTTP2Machine}, SendData)
+	end.
+
+cal_and_update_window(DataLen, HTTP2Machine) ->
+	case cow_http2_machine:cal_increasing_window(DataLen, HTTP2Machine) of
+		0 ->
+			HTTP2Machine;
+		NewSize ->
+			cow_http2_machine:update_window(NewSize, HTTP2Machine)
+	end.
+
+cal_and_update_window(StreamID, _DataLen, HTTP2Machine) ->
+	case cow_http2_machine:cal_increasing_window(StreamID, HTTP2Machine) of
+		0 ->
+			HTTP2Machine;
+		NewSize ->
+			cow_http2_machine:update_window(StreamID, NewSize, HTTP2Machine)
 	end.
 
 send_data(State, []) ->
