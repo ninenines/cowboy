@@ -18,21 +18,27 @@ as a Ranch protocol.
 ----
 opts() :: #{
     connection_type                => worker | supervisor,
+    connection_window_margin_size  => 0..16#7fffffff,
+    connection_window_update_threshold => 0..16#7fffffff,
     enable_connect_protocol        => boolean(),
     idle_timeout                   => timeout(),
     inactivity_timeout             => timeout(),
     initial_connection_window_size => 65535..16#7fffffff,
     initial_stream_window_size     => 0..16#7fffffff,
     max_concurrent_streams         => non_neg_integer() | infinity,
+    max_connection_window_size     => 0..16#7fffffff,
     max_decode_table_size          => non_neg_integer(),
     max_encode_table_size          => non_neg_integer(),
     max_frame_size_received        => 16384..16777215,
     max_frame_size_sent            => 16384..16777215 | infinity,
+    max_stream_window_size         => 0..16#7fffffff,
     preface_timeout                => timeout(),
     proxy_header                   => boolean(),
     sendfile                       => boolean(),
     settings_timeout               => timeout(),
-    stream_handlers                => [module()]
+    stream_handlers                => [module()],
+    stream_window_margin_size      => 0..16#7fffffff,
+    stream_window_update_threshold => 0..16#7fffffff
 }
 ----
 
@@ -50,6 +56,19 @@ The default value is given next to the option name:
 connection_type (supervisor)::
 
 Whether the connection process also acts as a supervisor.
+
+connection_window_margin_size (65535)::
+
+Extra amount to be added to the window size when
+updating the connection window. This is used to
+ensure that there is always some space available in
+the window.
+
+connection_window_update_threshold (163840)::
+
+The connection window will only get updated when its size
+becomes lower than this threshold. This is to avoid sending
+too many `WINDOW_UPDATE` frames.
 
 enable_connect_protocol (false)::
 
@@ -84,6 +103,12 @@ max_concurrent_streams (infinity)::
 
 Maximum number of concurrent streams allowed on the connection.
 
+max_connection_window_size (16#7fffffff)::
+
+Maximum connection window size. This is used as an upper bound
+when calculating the window size, either when reading the request
+body or receiving said body.
+
 max_decode_table_size (4096)::
 
 Maximum header table size used by the decoder. This is the value advertised
@@ -111,6 +136,12 @@ following the client's advertised maximum.
 Note that actual frame sizes may be lower than the limit when
 there is not enough space left in the flow control window.
 
+max_stream_window_size (16#7fffffff)::
+
+Maximum stream window size. This is used as an upper bound
+when calculating the window size, either when reading the request
+body or receiving said body.
+
 preface_timeout (5000)::
 
 Time in ms Cowboy is willing to wait for the connection preface.
@@ -135,8 +166,27 @@ stream_handlers ([cowboy_stream_h])::
 
 Ordered list of stream handlers that will handle all stream events.
 
+stream_window_margin_size (65535)::
+
+Extra amount to be added to the window size when
+updating a stream's window. This is used to
+ensure that there is always some space available in
+the window.
+
+stream_window_update_threshold (163840)::
+
+A stream's window will only get updated when its size
+becomes lower than this threshold. This is to avoid sending
+too many `WINDOW_UPDATE` frames.
+
 == Changelog
 
+* *2.7*: Add the options `connection_window_margin_size`,
+         `connection_window_update_threshold`,
+         `max_connection_window_size`, `max_stream_window_size`,
+         `stream_window_margin_size` and
+         `stream_window_update_threshold` to configure
+         behavior on sending WINDOW_UPDATE frames.
 * *2.6*: The `proxy_header` and `sendfile` options were added.
 * *2.4*: Add the options `initial_connection_window_size`,
          `initial_stream_window_size`, `max_concurrent_streams`,
