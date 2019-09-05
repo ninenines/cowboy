@@ -56,16 +56,24 @@ create_paste(Req, State) ->
 paste_html(Req, index) ->
 	{read_file("index.html"), Req, index};
 paste_html(Req, Paste) ->
-	#{lang := Lang} = cowboy_req:match_qs([{lang, [], plain}], Req),
+	#{lang := Lang} = cowboy_req:match_qs([{lang, [fun lang_constraint/2], plain}], Req),
 	{format_html(Paste, Lang), Req, Paste}.
 
 paste_text(Req, index) ->
 	{read_file("index.txt"), Req, index};
 paste_text(Req, Paste) ->
-	#{lang := Lang} = cowboy_req:match_qs([{lang, [], plain}], Req),
+	#{lang := Lang} = cowboy_req:match_qs([{lang, [fun lang_constraint/2], plain}], Req),
 	{format_text(Paste, Lang), Req, Paste}.
 
 % Private
+
+lang_constraint(forward, Bin) ->
+	case re:run(Bin, "^[a-z0-9_]+$", [{capture, none}]) of
+		match -> {ok, Bin};
+		nomatch -> {error, bad_lang}
+	end;
+lang_constraint(format_error, {bad_lang, _}) ->
+	"Invalid lang parameter.".
 
 read_file(Name) ->
 	{ok, Binary} = file:read_file(full_path(Name)),
