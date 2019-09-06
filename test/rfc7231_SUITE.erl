@@ -157,7 +157,7 @@ method_delete(Config) ->
 %	ConnPid = gun_open(Config),
 %	Ref = gun:request(ConnPid, <<"CONNECT">>, "localhost:8080", [
 %		{<<"accept-encoding">>, <<"gzip">>}
-%	]),
+%	], <<>>),
 %	{response, fin, 501, _} = gun:await(ConnPid, Ref),
 %	ok.
 
@@ -212,7 +212,7 @@ method_trace(Config) ->
 	ConnPid = gun_open(Config),
 	Ref = gun:request(ConnPid, <<"TRACE">>, "/", [
 		{<<"accept-encoding">>, <<"gzip">>}
-	]),
+	], <<>>),
 	{response, fin, 501, _} = gun:await(ConnPid, Ref),
 	ok.
 

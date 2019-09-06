@@ -73,10 +73,7 @@ do_body(Method, Path, Headers, Config) ->
 do_body(Method, Path, Headers0, Body, Config) ->
 	ConnPid = gun_open(Config),
 	Headers = [{<<"accept-encoding">>, <<"gzip">>}|Headers0],
-	Ref = case Body of
-		<<>> -> gun:request(ConnPid, Method, Path, Headers);
-		_ -> gun:request(ConnPid, Method, Path, Headers, Body)
-	end,
+	Ref = gun:request(ConnPid, Method, Path, Headers, Body),
 	{response, IsFin, 200, RespHeaders} = gun:await(ConnPid, Ref, 10000),
 	{ok, RespBody} = case IsFin of
 		nofin -> gun:await_body(ConnPid, Ref);
@@ -88,10 +85,7 @@ do_body(Method, Path, Headers0, Body, Config) ->
 do_body_error(Method, Path, Headers0, Body, Config) ->
 	ConnPid = gun_open(Config),
 	Headers = [{<<"accept-encoding">>, <<"gzip">>}|Headers0],
-	Ref = case Body of
-		<<>> -> gun:request(ConnPid, Method, Path, Headers);
-		_ -> gun:request(ConnPid, Method, Path, Headers, Body)
-	end,
+	Ref = gun:request(ConnPid, Method, Path, Headers, Body),
 	{response, _, Status, RespHeaders} = gun:await(ConnPid, Ref),
 	gun:close(ConnPid),
 	{Status, RespHeaders}.
@@ -215,7 +209,9 @@ headers(Config) ->
 
 do_headers(Path, Config) ->
 	%% We always send accept-encoding with this test suite's requests.
-	<<"#{<<\"accept-encoding\">> => <<\"gzip\">>,<<\"header\">> => <<\"value\">>", _/bits>>
+	<<"#{<<\"accept-encoding\">> => <<\"gzip\">>,"
+		"<<\"content-length\">> => <<\"0\">>,"
+		"<<\"header\">> => <<\"value\">>", _/bits>>
 		= do_get_body(Path, [{<<"header">>, "value"}], Config),
 	ok.
 
@@ -468,7 +464,7 @@ read_body_period(Config) ->
 	doc("Read the request body for at most 1 second."),
 	ConnPid = gun_open(Config),
 	Body = <<0:8000000>>,
-	Ref = gun:request(ConnPid, "POST", "/opts/read_body/period", [
+	Ref = gun:headers(ConnPid, "POST", "/opts/read_body/period", [
 		{<<"content-length">>, integer_to_binary(byte_size(Body) * 2)}
 	]),
 	%% The body is sent twice, first with nofin, then wait 2 seconds, then again with fin.
@@ -482,7 +478,7 @@ read_body_period(Config) ->
 %% We expect a crash.
 do_read_body_timeout(Path, Body, Config) ->
 	ConnPid = gun_open(Config),
-	Ref = gun:request(ConnPid, "POST", Path, [
+	Ref = gun:headers(ConnPid, "POST", Path, [
 		{<<"content-length">>, integer_to_binary(byte_size(Body))}
 	]),
 	{response, _, 500, _} = gun:await(ConnPid, Ref),
@@ -538,7 +534,7 @@ read_urlencoded_body(Config) ->
 %% We expect a crash.
 do_read_urlencoded_body_too_large(Path, Body, Config) ->
 	ConnPid = gun_open(Config),
-	Ref = gun:request(ConnPid, "POST", Path, [
+	Ref = gun:headers(ConnPid, "POST", Path, [
 		{<<"content-length">>, integer_to_binary(iolist_size(Body))}
 	]),
 	gun:data(ConnPid, Ref, fin, Body),
@@ -548,7 +544,7 @@ do_read_urlencoded_body_too_large(Path, Body, Config) ->
 %% We expect a crash.
 do_read_urlencoded_body_too_long(Path, Body, Config) ->
 	ConnPid = gun_open(Config),
-	Ref = gun:request(ConnPid, "POST", Path, [
+	Ref = gun:headers(ConnPid, "POST", Path, [
 		{<<"content-length">>, integer_to_binary(byte_size(Body) * 2)}
 	]),
 	gun:data(ConnPid, Ref, nofin, Body),
@@ -945,7 +941,7 @@ stream_body_content_length_nofin_error(Config) ->
 			case do_get_error("/resp/stream_body_content_length/nofin-error", Config) of
 				{200, Headers, <<"Hello">>} ->
 					{_, <<"gzip">>} = lists:keyfind(<<"content-encoding">>, 1, Headers);
-				{error, {closed, "The connection was lost."}} ->
+				{error, {stream_error, closed}} ->
 					ok;
 				{error, timeout} ->
 					ok

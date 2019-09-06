@@ -101,7 +101,7 @@ crash_in_init(Config) ->
 	%% Receive a 500 error response.
 	case gun:await(ConnPid, Ref) of
 		{response, fin, 500, _} -> ok;
-		{error, {stream_error, internal_error, _}} -> ok
+		{error, {stream_error, {stream_error, internal_error, _}}} -> ok
 	end.
 
 crash_in_data(Config) ->
@@ -123,7 +123,7 @@ crash_in_data(Config) ->
 	%% Receive a 500 error response.
 	case gun:await(ConnPid, Ref) of
 		{response, fin, 500, _} -> ok;
-		{error, {stream_error, internal_error, _}} -> ok
+		{error, {stream_error, {stream_error, internal_error, _}}} -> ok
 	end.
 
 crash_in_info(Config) ->
@@ -144,7 +144,7 @@ crash_in_info(Config) ->
 	%% Receive a 500 error response.
 	case gun:await(ConnPid, Ref) of
 		{response, fin, 500, _} -> ok;
-		{error, {stream_error, internal_error, _}} -> ok
+		{error, {stream_error, {stream_error, internal_error, _}}} -> ok
 	end.
 
 crash_in_terminate(Config) ->
