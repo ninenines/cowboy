@@ -59,7 +59,7 @@ Whether the connection process also acts as a supervisor.
 
 connection_window_margin_size (65535)::
 
-Extra amount to be added to the window size when
+Extra amount in bytes to be added to the window size when
 updating the connection window. This is used to
 ensure that there is always some space available in
 the window.
@@ -67,8 +67,8 @@ the window.
 connection_window_update_threshold (163840)::
 
 The connection window will only get updated when its size
-becomes lower than this threshold. This is to avoid sending
-too many `WINDOW_UPDATE` frames.
+becomes lower than this threshold, in bytes. This is to
+avoid sending too many `WINDOW_UPDATE` frames.
 
 enable_connect_protocol (false)::
 
@@ -86,7 +86,7 @@ Time in ms with nothing received at all before Cowboy closes the connection.
 
 initial_connection_window_size (65535)::
 
-Initial window size for the connection. This is the total amount
+Initial window size in bytes for the connection. This is the total amount
 of data (from request bodies for example) that may be buffered
 by the connection across all streams before the user code
 explicitly requests it.
@@ -95,7 +95,7 @@ Note that this value cannot be lower than the default.
 
 initial_stream_window_size (65535)::
 
-Initial window size for new streams. This is the total amount
+Initial window size in bytes for new streams. This is the total amount
 of data (from request bodies for example) that may be buffered
 by a single stream before the user code explicitly requests it.
 
@@ -105,31 +105,31 @@ Maximum number of concurrent streams allowed on the connection.
 
 max_connection_window_size (16#7fffffff)::
 
-Maximum connection window size. This is used as an upper bound
+Maximum connection window size in bytes. This is used as an upper bound
 when calculating the window size, either when reading the request
 body or receiving said body.
 
 max_decode_table_size (4096)::
 
-Maximum header table size used by the decoder. This is the value advertised
-to the client. The client can then choose a header table size equal or lower
-to the advertised value.
+Maximum header table size in bytes used by the decoder. This is the value
+advertised to the client. The client can then choose a header table size
+equal or lower to the advertised value.
 
 max_encode_table_size (4096)::
 
-Maximum header table size used by the encoder. The server will compare this
-value to what the client advertises and choose the smallest one as the
-encoder's header table size.
+Maximum header table size in bytes used by the encoder. The server will
+compare this value to what the client advertises and choose the smallest
+one as the encoder's header table size.
 
 max_frame_size_received (16384)::
 
-Maximum size of the frames received by the server. This value is
+Maximum size in bytes of the frames received by the server. This value is
 advertised to the remote endpoint which can then decide to use
 any value lower or equal for its frame sizes.
 
 max_frame_size_sent (infinity)::
 
-Maximum size of the frames sent by the server. This option allows
+Maximum size in bytes of the frames sent by the server. This option allows
 setting an upper limit to the frame sizes instead of blindly
 following the client's advertised maximum.
 +
@@ -138,7 +138,7 @@ there is not enough space left in the flow control window.
 
 max_stream_window_size (16#7fffffff)::
 
-Maximum stream window size. This is used as an upper bound
+Maximum stream window size in bytes. This is used as an upper bound
 when calculating the window size, either when reading the request
 body or receiving said body.
 
@@ -168,7 +168,7 @@ Ordered list of stream handlers that will handle all stream events.
 
 stream_window_margin_size (65535)::
 
-Extra amount to be added to the window size when
+Extra amount in bytes to be added to the window size when
 updating a stream's window. This is used to
 ensure that there is always some space available in
 the window.
@@ -176,7 +176,7 @@ the window.
 stream_window_update_threshold (163840)::
 
 A stream's window will only get updated when its size
-becomes lower than this threshold. This is to avoid sending
+becomes lower than this threshold, in bytes. This is to avoid sending
 too many `WINDOW_UPDATE` frames.
 
 == Changelog

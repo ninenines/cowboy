@@ -195,7 +195,7 @@ the client.
 
 max_frame_size (infinity)::
 
-Maximum frame size allowed by this Websocket
+Maximum frame size in bytes allowed by this Websocket
 handler. Cowboy will close the connection when
 a client attempts to send a frame that goes over
 this limit. For fragmented frames this applies
