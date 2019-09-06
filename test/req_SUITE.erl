@@ -186,7 +186,7 @@ cert(Config) ->
 do_cert(Config0) ->
 	doc("A client TLS certificate was provided."),
 	{CaCert, Cert, Key} = ct_helper:make_certs(),
-	Config = [{transport_opts, [
+	Config = [{tls_opts, [
 		{cert, Cert},
 		{key, Key},
 		{cacerts, [CaCert]}

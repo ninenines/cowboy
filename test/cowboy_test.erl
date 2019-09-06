@@ -111,7 +111,7 @@ gun_open(Config, Opts) ->
 	{ok, ConnPid} = gun:open("localhost", config(port, Config), Opts#{
 		retry => 0,
 		transport => config(type, Config),
-		transport_opts => proplists:get_value(transport_opts, Config, []),
+		tls_opts => proplists:get_value(tls_opts, Config, []),
 		protocols => [config(protocol, Config)]
 	}),
 	ConnPid.
