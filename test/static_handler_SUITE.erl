@@ -541,10 +541,13 @@ etag_default(Config) ->
 
 etag_default_change(Config) ->
 	doc("Get a file, modify it, get it again and make sure the Etag doesn't match."),
+	%% We set the file to the current time first, then to a time in the past.
+	ok = file:change_time(config(static_dir, Config) ++ "/index.html",
+		calendar:universal_time()),
 	{200, Headers1, _} = do_get("/dir/index.html", Config),
 	{_, Etag1} = lists:keyfind(<<"etag">>, 1, Headers1),
 	ok = file:change_time(config(static_dir, Config) ++ "/index.html",
-		{{config(port, Config), 1, 1}, {1, 1, 1}}),
+		{{2019, 1, 1}, {1, 1, 1}}),
 	{200, Headers2, _} = do_get("/dir/index.html", Config),
 	{_, Etag2} = lists:keyfind(<<"etag">>, 1, Headers2),
 	true = Etag1 =/= Etag2,
@@ -759,10 +762,13 @@ index_file_slash(Config) ->
 
 last_modified(Config) ->
 	doc("Get a file, modify it, get it again and make sure Last-Modified changes."),
+	%% We set the file to the current time first, then to a time in the past.
+	ok = file:change_time(config(static_dir, Config) ++ "/file.cowboy",
+		calendar:universal_time()),
 	{200, Headers1, _} = do_get("/dir/file.cowboy", Config),
 	{_, LastModified1} = lists:keyfind(<<"last-modified">>, 1, Headers1),
 	ok = file:change_time(config(static_dir, Config) ++ "/file.cowboy",
-		{{config(port, Config), 1, 1}, {1, 1, 1}}),
+		{{2019, 1, 1}, {1, 1, 1}}),
 	{200, Headers2, _} = do_get("/dir/file.cowboy", Config),
 	{_, LastModified2} = lists:keyfind(<<"last-modified">>, 1, Headers2),
 	true = LastModified1 =/= LastModified2,
