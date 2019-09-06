@@ -160,7 +160,11 @@
 	charset => binary() | undefined,
 	range => {binary(), binary()
 		| [{non_neg_integer(), non_neg_integer() | infinity} | neg_integer()]},
-	websocket_version => 7 | 8 | 13
+	websocket_version => 7 | 8 | 13,
+
+	%% The user is encouraged to use the Req to store information
+	%% when no better solution is available.
+	_ => _
 }.
 -export_type([req/0]).
 

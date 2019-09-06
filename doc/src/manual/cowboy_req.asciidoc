@@ -156,7 +156,7 @@ them by prepending an underscore and the name of your application:
 .Setting a custom field
 [source,erlang]
 ----
-Req#{_myapp_auth_method => pubkey}.
+Req#{'_myapp_auth_method' => pubkey}.
 ----
 
 === resp_body()
