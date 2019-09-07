@@ -67,13 +67,14 @@ init_per_suite(Config) ->
 	true = code:add_pathz(filename:join(
 		[config(data_dir, Config), "static_files_app", "ebin"])),
 	ok = application:load(static_files_app),
-	%% A special folder contains files of 1 character from 0 to 127.
+	%% A special folder contains files of 1 character from 1 to 127
+	%% excluding / and \ as they are always rejected.
 	CharDir = config(priv_dir, Config) ++ "/char",
 	ok = filelib:ensure_dir(CharDir ++ "/file"),
 	Chars0 = lists:flatten([case file:write_file(CharDir ++ [$/, C], [C]) of
 		ok -> C;
 		{error, _} -> []
-	end || C <- lists:seq(0, 127)]),
+	end || C <- (lists:seq(1, 127) -- "/\\")]),
 	%% Determine whether we are on a case insensitive filesystem and
 	%% remove uppercase characters in that case. On case insensitive
 	%% filesystems we end up overwriting the "A" file with the "a" contents.
@@ -134,7 +135,8 @@ init_large_file(Filename) ->
 			"" = os:cmd("truncate -s 32M " ++ Filename),
 			ok;
 		{win32, _} ->
-			ok
+			Size = 32*1024*1024,
+			ok = file:write_file(Filename, <<0:Size/unit:8>>)
 	end.
 
 %% Routes.
@@ -458,21 +460,28 @@ dir_error_slash(Config) ->
 	{403, _, _} = do_get(config(prefix, Config) ++ "//", Config),
 	ok.
 
-dir_error_slash_urlencoded(Config) ->
-	doc("Try to get a file named '/' percent encoded."),
-	{404, _, _} = do_get(config(prefix, Config) ++ "/%2f", Config),
+dir_error_reserved_urlencoded(Config) ->
+	doc("Try to get a file named '/' or '\\' or 'NUL' percent encoded."),
+	{400, _, _} = do_get(config(prefix, Config) ++ "/%2f", Config),
+	{400, _, _} = do_get(config(prefix, Config) ++ "/%5c", Config),
+	{400, _, _} = do_get(config(prefix, Config) ++ "/%00", Config),
 	ok.
 
 dir_error_slash_urlencoded_dotdot_file(Config) ->
 	doc("Try to use a percent encoded slash to access an existing file."),
 	{200, _, _} = do_get(config(prefix, Config) ++ "/directory/../style.css", Config),
-	{404, _, _} = do_get(config(prefix, Config) ++ "/directory%2f../style.css", Config),
+	{400, _, _} = do_get(config(prefix, Config) ++ "/directory%2f../style.css", Config),
 	ok.
 
 dir_error_unreadable(Config) ->
-	doc("Try to get a file that can't be read."),
-	{403, _, _} = do_get(config(prefix, Config) ++ "/unreadable", Config),
-	ok.
+	case os:type() of
+		{win32, _} ->
+			{skip, "ACL not enabled by default under MSYS2."};
+		{unix, _} ->
+			doc("Try to get a file that can't be read."),
+			{403, _, _} = do_get(config(prefix, Config) ++ "/unreadable", Config),
+			ok
+	end.
 
 dir_html(Config) ->
 	doc("Get a .html file."),
@@ -899,10 +908,12 @@ unicode_basic_latin(Config) ->
 		"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 		"0123456789"
 		":@-_~!$&'()*+,;=",
-	Chars = case config(case_sensitive, Config) of
+	Chars1 = case config(case_sensitive, Config) of
 		false -> Chars0 -- "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 		true -> Chars0
 	end,
+	%% Remove the characters for which we have no corresponding file.
+	Chars = Chars1 -- (Chars1 -- config(chars, Config)),
 	_ = [case do_get("/char/" ++ [C], Config) of
 		{200, _, << C >>} -> ok;
 		Error -> exit({error, C, Error})
