@@ -45,6 +45,7 @@
 	max_encode_table_size => non_neg_integer(),
 	max_frame_size_received => 16384..16777215,
 	max_frame_size_sent => 16384..16777215 | infinity,
+	max_stream_buffer_size => non_neg_integer(),
 	max_stream_window_size => 0..16#7fffffff,
 	metrics_callback => cowboy_metrics_h:metrics_callback(),
 	middlewares => [module()],
@@ -292,7 +293,11 @@ frame(State=#state{http2_machine=HTTP2Machine0}, Frame) ->
 		{ok, GoAway={goaway, _, _, _}, HTTP2Machine} ->
 			goaway(State#state{http2_machine=HTTP2Machine}, GoAway);
 		{send, SendData, HTTP2Machine} ->
-			send_data(maybe_ack(State#state{http2_machine=HTTP2Machine}, Frame), SendData);
+			%% We may need to send an alarm for each of the streams sending data.
+			lists:foldl(
+				fun({StreamID, _, _}, S) -> maybe_send_data_alarm(S, HTTP2Machine0, StreamID) end,
+				send_data(maybe_ack(State#state{http2_machine=HTTP2Machine}, Frame), SendData),
+				SendData);
 		{error, {stream_error, StreamID, Reason, Human}, HTTP2Machine} ->
 			reset_stream(State#state{http2_machine=HTTP2Machine},
 				StreamID, {stream_error, Reason, Human});
@@ -712,7 +717,7 @@ maybe_send_data(State0=#state{http2_machine=HTTP2Machine0}, StreamID, IsFin, Dat
 	end,
 	case cow_http2_machine:send_or_queue_data(StreamID, HTTP2Machine0, IsFin, Data) of
 		{ok, HTTP2Machine} ->
-			State0#state{http2_machine=HTTP2Machine};
+			maybe_send_data_alarm(State0#state{http2_machine=HTTP2Machine}, HTTP2Machine0, StreamID);
 		{send, SendData, HTTP2Machine} ->
 			State = #state{http2_status=Status, streams=Streams}
 				= send_data(State0#state{http2_machine=HTTP2Machine}, SendData),
@@ -721,7 +726,7 @@ maybe_send_data(State0=#state{http2_machine=HTTP2Machine0}, StreamID, IsFin, Dat
 				Status =:= closing, Streams =:= #{} ->
 					terminate(State, {stop, normal, 'The connection is going away.'});
 				true ->
-					State
+					maybe_send_data_alarm(State, HTTP2Machine0, StreamID)
 			end
 	end.
 
@@ -758,6 +763,31 @@ send_data_frame(State=#state{socket=Socket, transport=Transport,
 		= cow_http2_machine:prepare_trailers(StreamID, HTTP2Machine0, Trailers),
 	Transport:send(Socket, cow_http2:headers(StreamID, fin, HeaderBlock)),
 	State#state{http2_machine=HTTP2Machine}.
+
+%% After we have sent or queued data we may need to set or clear an alarm.
+%% We do this by comparing the HTTP2Machine buffer state before/after for
+%% the relevant streams.
+maybe_send_data_alarm(State=#state{opts=Opts, http2_machine=HTTP2Machine}, HTTP2Machine0, StreamID) ->
+	{ok, BufferSizeBefore} = cow_http2_machine:get_stream_local_buffer_size(StreamID, HTTP2Machine0),
+	%% When the stream ends up closed after it finished sending data,
+	%% we do not want to trigger an alarm. We act as if the buffer
+	%% size did not change.
+	BufferSizeAfter = case cow_http2_machine:get_stream_local_buffer_size(StreamID, HTTP2Machine) of
+		{ok, BSA} -> BSA;
+		{error, closed} -> BufferSizeBefore
+	end,
+	MaxBufferSize = maps:get(max_stream_buffer_size, Opts, 8000000),
+	%% I do not want to document these internal_events yet. I am not yet
+	%% convinced it should be {alarm, Name, on|off} and not {internal_event, E}
+	%% or something else entirely.
+	if
+		BufferSizeBefore >= MaxBufferSize, BufferSizeAfter < MaxBufferSize ->
+			info(State, StreamID, {alarm, stream_buffer_full, off});
+		BufferSizeBefore < MaxBufferSize, BufferSizeAfter >= MaxBufferSize ->
+			info(State, StreamID, {alarm, stream_buffer_full, on});
+		true ->
+			State
+	end.
 
 %% Terminate a stream or the connection.
 

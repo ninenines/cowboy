@@ -39,7 +39,8 @@
 	read_body_length = 0 :: non_neg_integer() | infinity | auto,
 	read_body_is_fin = nofin :: nofin | {fin, non_neg_integer()},
 	read_body_buffer = <<>> :: binary(),
-	body_length = 0 :: non_neg_integer()
+	body_length = 0 :: non_neg_integer(),
+	stream_body_status = normal :: normal | blocking | blocked
 }).
 
 %% @todo For shutting down children we need to have a timeout before we terminate
@@ -219,8 +220,27 @@ info(StreamID, Response={response, _, _, _}, State) ->
 	do_info(StreamID, Response, [Response], State#state{expect=undefined});
 info(StreamID, Headers={headers, _, _}, State) ->
 	do_info(StreamID, Headers, [Headers], State#state{expect=undefined});
-info(StreamID, Data={data, _, _}, State) ->
+%% Sending data involves the data message and the stream_buffer_full alarm.
+%% We stop sending acks when the alarm is on.
+info(StreamID, Data={data, _, _}, State0=#state{pid=Pid, stream_body_status=Status}) ->
+	State = case Status of
+		normal ->
+			Pid ! {data_ack, self()},
+			State0;
+		blocking ->
+			State0#state{stream_body_status=blocked};
+		blocked ->
+			State0
+	end,
 	do_info(StreamID, Data, [Data], State);
+info(StreamID, Alarm={alarm, stream_buffer_full, on}, State) ->
+	do_info(StreamID, Alarm, [], State#state{stream_body_status=blocking});
+info(StreamID, Alarm={alarm, stream_buffer_full, off}, State=#state{pid=Pid, stream_body_status=Status}) ->
+	_ = case Status of
+		blocking -> ok;
+		blocked -> Pid ! {data_ack, self()}
+	end,
+	do_info(StreamID, Alarm, [], State#state{stream_body_status=normal});
 info(StreamID, Trailers={trailers, _}, State) ->
 	do_info(StreamID, Trailers, [Trailers], State);
 info(StreamID, Push={push, _, _, _, _, _, _, _}, State) ->

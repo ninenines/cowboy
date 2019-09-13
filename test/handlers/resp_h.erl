@@ -221,6 +221,11 @@ do(<<"stream_body">>, Req0, Opts) ->
 			cowboy_req:stream_body(<<"world">>, nofin, Req),
 			cowboy_req:stream_body(<<"!">>, fin, Req),
 			{ok, Req, Opts};
+		<<"loop">> ->
+			Req = cowboy_req:stream_reply(200, Req0),
+			_ = [cowboy_req:stream_body(<<0:1000000/unit:8>>, nofin, Req)
+				|| _ <- lists:seq(1, 32)],
+			{ok, Req, Opts};
 		<<"nofin">> ->
 			Req = cowboy_req:stream_reply(200, Req0),
 			cowboy_req:stream_body(<<"Hello world!">>, nofin, Req),

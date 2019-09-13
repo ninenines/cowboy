@@ -826,34 +826,31 @@ stream_body(_, _, #{method := <<"HEAD">>, has_sent_resp := headers}) ->
 %% is converted to a data tuple, however.
 stream_body({sendfile, _, 0, _}, nofin, _) ->
 	ok;
-stream_body({sendfile, _, 0, _}, IsFin=fin,
-		#{pid := Pid, streamid := StreamID, has_sent_resp := headers}) ->
-	Pid ! {{Pid, StreamID}, {data, IsFin, <<>>}},
-	ok;
-stream_body({sendfile, O, B, P}, IsFin,
-		#{pid := Pid, streamid := StreamID, has_sent_resp := headers})
+stream_body({sendfile, _, 0, _}, IsFin=fin, Req=#{has_sent_resp := headers}) ->
+	stream_body({data, IsFin, <<>>}, Req);
+stream_body({sendfile, O, B, P}, IsFin, Req=#{has_sent_resp := headers})
 		when is_integer(O), O >= 0, is_integer(B), B > 0 ->
-	Pid ! {{Pid, StreamID}, {data, IsFin, {sendfile, O, B, P}}},
-	ok;
-stream_body(Data, IsFin=nofin, #{pid := Pid, streamid := StreamID, has_sent_resp := headers})
+	stream_body({data, IsFin, {sendfile, O, B, P}}, Req);
+stream_body(Data, IsFin=nofin, Req=#{has_sent_resp := headers})
 		when not is_tuple(Data) ->
 	case iolist_size(Data) of
 		0 -> ok;
-		_ ->
-			Pid ! {{Pid, StreamID}, {data, IsFin, Data}},
-			ok
+		_ -> stream_body({data, IsFin, Data}, Req)
 	end;
-stream_body(Data, IsFin, #{pid := Pid, streamid := StreamID, has_sent_resp := headers})
+stream_body(Data, IsFin, Req=#{has_sent_resp := headers})
 		when not is_tuple(Data) ->
-	Pid ! {{Pid, StreamID}, {data, IsFin, Data}},
-	ok.
+	stream_body({data, IsFin, Data}, Req).
+
+%% @todo Do we need a timeout?
+stream_body(Msg, #{pid := Pid, streamid := StreamID}) ->
+	Pid ! {{Pid, StreamID}, Msg},
+	receive {data_ack, Pid} -> ok end.
 
 -spec stream_events(cow_sse:event() | [cow_sse:event()], fin | nofin, req()) -> ok.
 stream_events(Event, IsFin, Req) when is_map(Event) ->
 	stream_events([Event], IsFin, Req);
-stream_events(Events, IsFin, #{pid := Pid, streamid := StreamID, has_sent_resp := headers}) ->
-	Pid ! {{Pid, StreamID}, {data, IsFin, cow_sse:events(Events)}},
-	ok.
+stream_events(Events, IsFin, Req=#{has_sent_resp := headers}) ->
+	stream_body({data, IsFin, cow_sse:events(Events)}, Req).
 
 -spec stream_trailers(cowboy:http_headers(), req()) -> ok.
 stream_trailers(Trailers, #{pid := Pid, streamid := StreamID, has_sent_resp := headers}) ->

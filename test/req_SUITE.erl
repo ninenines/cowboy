@@ -98,7 +98,7 @@ do_get(Path, Headers, Config) ->
 	Ref = gun:get(ConnPid, Path, [{<<"accept-encoding">>, <<"gzip">>}|Headers]),
 	{response, IsFin, Status, RespHeaders} = gun:await(ConnPid, Ref),
 	{ok, RespBody} = case IsFin of
-		nofin -> gun:await_body(ConnPid, Ref);
+		nofin -> gun:await_body(ConnPid, Ref, 30000);
 		fin -> {ok, <<>>}
 	end,
 	gun:close(ConnPid),
@@ -889,6 +889,11 @@ stream_body_fin0(Config) ->
 stream_body_multiple(Config) ->
 	doc("Streamed body via multiple calls."),
 	{200, _, <<"Hello world!">>} = do_get("/resp/stream_body/multiple", Config),
+	ok.
+
+stream_body_loop(Config) ->
+	doc("Streamed body via a fast loop."),
+	{200, _, <<0:32000000/unit:8>>} = do_get("/resp/stream_body/loop", Config),
 	ok.
 
 stream_body_nofin(Config) ->
