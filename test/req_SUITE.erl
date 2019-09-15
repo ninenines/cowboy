@@ -53,7 +53,7 @@ init_dispatch(Config) ->
 		{"/crash/:key/period", echo_h, #{length => 999999999, period => 1000, crash => true}},
 		{"/no-opts/:key", echo_h, #{crash => true}},
 		{"/opts/:key/length", echo_h, #{length => 1000}},
-		{"/opts/:key/period", echo_h, #{length => 999999999, period => 1000}},
+		{"/opts/:key/period", echo_h, #{length => 999999999, period => 2000}},
 		{"/opts/:key/timeout", echo_h, #{timeout => 1000, crash => true}},
 		{"/100-continue/:key", echo_h, []},
 		{"/full/:key", echo_h, []},
@@ -461,15 +461,15 @@ read_body_mtu(Config) ->
 	ok.
 
 read_body_period(Config) ->
-	doc("Read the request body for at most 1 second."),
+	doc("Read the request body for at most 2 seconds."),
 	ConnPid = gun_open(Config),
 	Body = <<0:8000000>>,
 	Ref = gun:headers(ConnPid, "POST", "/opts/read_body/period", [
 		{<<"content-length">>, integer_to_binary(byte_size(Body) * 2)}
 	]),
-	%% The body is sent twice, first with nofin, then wait 2 seconds, then again with fin.
+	%% The body is sent twice, first with nofin, then wait 3 seconds, then again with fin.
 	gun:data(ConnPid, Ref, nofin, Body),
-	timer:sleep(2000),
+	timer:sleep(3000),
 	gun:data(ConnPid, Ref, fin, Body),
 	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
 	{ok, Body} = gun:await_body(ConnPid, Ref),
