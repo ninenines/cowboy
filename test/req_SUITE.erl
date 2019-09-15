@@ -452,13 +452,18 @@ read_body(Config) ->
 	ok.
 
 read_body_mtu(Config) ->
-	doc("Request body whose sizes are around the MTU."),
-	MTU = ct_helper:get_loopback_mtu(),
-	_ = [begin
-		Body = <<0:Size/unit:8>>,
-		Body = do_body("POST", "/full/read_body", [], Body, Config)
-	end || Size <- lists:seq(MTU - 10, MTU + 10)],
-	ok.
+	case os:type() of
+		{win32, _} ->
+			{skip, "Loopback MTU size is 0xFFFFFFFF on Windows."};
+		{unix, _} ->
+			doc("Request body whose sizes are around the MTU."),
+			MTU = ct_helper:get_loopback_mtu(),
+			_ = [begin
+				Body = <<0:Size/unit:8>>,
+				Body = do_body("POST", "/full/read_body", [], Body, Config)
+			end || Size <- lists:seq(MTU - 10, MTU + 10)],
+			ok
+	end.
 
 read_body_period(Config) ->
 	doc("Read the request body for at most 2 seconds."),
