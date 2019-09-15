@@ -27,11 +27,11 @@ all() ->
 init_per_suite(Config) ->
 	case os:getenv("H2SPEC") of
 		false ->
-			skip;
+			{skip, "H2SPEC environment variable undefined."};
 		H2spec ->
 			case filelib:is_file(H2spec) of
 				false ->
-					skip;
+					{skip, "H2SPEC executable not found."};
 				true ->
 					cowboy_test:init_http(h2spec, #{
 						env => #{dispatch => init_dispatch()},
