@@ -151,7 +151,6 @@ do_get_error(Path, Headers, Config) ->
 		nofin -> gun:await_body(ConnPid, Ref);
 		fin -> {ok, <<>>}
 	end,
-	gun:close(ConnPid),
 	case Result of
 		{ok, RespBody} -> {Status, RespHeaders, do_decode(RespHeaders, RespBody)};
 		_ -> Result
@@ -953,16 +952,21 @@ stream_body_content_length_nofin(Config) ->
 	ok.
 
 stream_body_content_length_nofin_error(Config) ->
-	doc("Not all of body sent."),
+	doc("Not all of the response body sent."),
 	case config(protocol, Config) of
 		http ->
 			case do_get_error("/resp/stream_body_content_length/nofin-error", Config) of
+				%% When compression is used content-length is not sent.
 				{200, Headers, <<"Hello">>} ->
 					{_, <<"gzip">>} = lists:keyfind(<<"content-encoding">>, 1, Headers);
+				%% The server closes the connection when the body couldn't be sent fully.
 				{error, {stream_error, closed}} ->
-					ok;
-				{error, timeout} ->
-					ok
+					receive
+						{gun_down, ConnPid, _, _, _, _} ->
+							gun:close(ConnPid)
+					after 1000 ->
+						error(timeout)
+					end
 			end;
 		http2 ->
 			%% @todo HTTP2 should have the same content-length checks

@@ -1215,7 +1215,7 @@ stream_terminate(State0=#state{opts=Opts, in_streamid=InStreamID, in_state=InSta
 			info(State0, StreamID, {response, 204, #{}, <<>>});
 		chunked when Version =:= 'HTTP/1.1' ->
 			info(State0, StreamID, {data, fin, <<>>});
-		streaming when ExpectedSize < SentSize ->
+		streaming when SentSize < ExpectedSize ->
 			terminate(State0, response_body_too_small);
 		_ -> %% done or Version =:= 'HTTP/1.0'
 			State0
