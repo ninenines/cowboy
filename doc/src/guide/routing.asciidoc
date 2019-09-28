@@ -210,10 +210,31 @@ Dispatch = cowboy_router:compile([
     %% {HostMatch, list({PathMatch, Handler, InitialState})}
     {'_', [{'_', my_handler, #{}}]}
 ]),
-%% Name, NbAcceptors, TransOpts, ProtoOpts
+%% Name, TransOpts, ProtoOpts
 cowboy:start_clear(my_http_listener,
     [{port, 8080}],
     #{env => #{dispatch => Dispatch}}
+).
+----
+
+=== Using persistent_term
+
+The routes can be stored in `persistent_term` starting from
+Erlang/OTP 21.2. This may give a performance improvement when
+there are a large number of routes.
+
+To use this functionality you need to compile the routes,
+store them in `persistent_term` and then inform Cowboy:
+
+[source,erlang]
+----
+Dispatch = cowboy_router:compile([
+    {'_', [{'_', my_handler, #{}}]}
+]),
+persistent_term:put(my_app_dispatch, Dispatch),
+cowboy:start_clear(my_http_listener,
+    [{port, 8080}],
+    #{env => #{dispatch => {persistent_term, my_app_dispatch}}}
 ).
 ----
 
@@ -228,3 +249,6 @@ Dispatch = cowboy_router:compile(Routes),
 cowboy:set_env(my_http_listener, dispatch, Dispatch).
 
 Note that you need to compile the routes again before updating.
+
+When using `persistent_term` there is no need to call this function,
+you can simply put the new routes in the storage.

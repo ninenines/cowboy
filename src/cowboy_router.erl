@@ -160,7 +160,11 @@ compile_brackets_split(<< C, Rest/bits >>, Acc, N) ->
 -spec execute(Req, Env)
 	-> {ok, Req, Env} | {stop, Req}
 	when Req::cowboy_req:req(), Env::cowboy_middleware:env().
-execute(Req=#{host := Host, path := Path}, Env=#{dispatch := Dispatch}) ->
+execute(Req=#{host := Host, path := Path}, Env=#{dispatch := Dispatch0}) ->
+	Dispatch = case Dispatch0 of
+		{persistent_term, Key} -> persistent_term:get(Key);
+		_ -> Dispatch0
+	end,
 	case match(Dispatch, Host, Path) of
 		{ok, Handler, HandlerOpts, Bindings, HostInfo, PathInfo} ->
 			{ok, Req#{

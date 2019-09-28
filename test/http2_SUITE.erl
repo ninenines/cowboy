@@ -196,6 +196,29 @@ max_frame_size_sent(Config) ->
 		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
 
+persistent_term_router(Config) ->
+	doc("The router can retrieve the routes from persistent_term storage."),
+	case erlang:function_exported(persistent_term, get, 1) of
+		true -> do_persistent_term_router(Config);
+		false -> {skip, "This test uses the persistent_term functionality added in Erlang/OTP 21.2."}
+	end.
+
+do_persistent_term_router(Config) ->
+	persistent_term:put(?FUNCTION_NAME, init_dispatch(Config)),
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
+		env => #{dispatch => {persistent_term, ?FUNCTION_NAME}}
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		ConnPid = gun_open([{type, tcp}, {protocol, http2}, {port, Port}|Config]),
+		{ok, http2} = gun:await_up(ConnPid),
+		StreamRef = gun:get(ConnPid, "/"),
+		{response, nofin, 200, _} = gun:await(ConnPid, StreamRef),
+		gun:close(ConnPid)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
 preface_timeout_infinity(Config) ->
 	doc("Ensure infinity for preface_timeout is accepted."),
 	ProtoOpts = #{
