@@ -32,4 +32,9 @@ set_options(<<"idle_timeout_long">>, Req0, State) ->
 	#{pid := Pid, streamid := StreamID} = Req0,
 	Pid ! {{Pid, StreamID}, {set_options, #{idle_timeout => 60000}}},
 	{_, Body, Req} = cowboy_req:read_body(Req0),
-	{ok, cowboy_req:reply(200, #{}, Body, Req), State}.
+	{ok, cowboy_req:reply(200, #{}, Body, Req), State};
+set_options(<<"metrics_user_data">>, Req, State) ->
+	%% @todo This should be replaced by a cowboy_req:cast/cowboy_stream:cast.
+	#{pid := Pid, streamid := StreamID} = Req,
+	Pid ! {{Pid, StreamID}, {set_options, #{metrics_user_data => #{handler => ?MODULE}}}},
+	{ok, cowboy_req:reply(200, #{}, <<"Hello world!">>, Req), State}.

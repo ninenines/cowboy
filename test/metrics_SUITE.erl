@@ -76,6 +76,7 @@ init_routes(_) -> [
 		{"/default", default_h, []},
 		{"/full/:key", echo_h, []},
 		{"/resp/:key[/:arg]", resp_h, []},
+		{"/set_options/:key", set_options_h, []},
 		{"/ws_echo", ws_echo, []}
 	]}
 ].
@@ -98,9 +99,13 @@ do_metrics_callback() ->
 
 hello_world(Config) ->
 	doc("Confirm metrics are correct for a normal GET request."),
-	do_get("/", Config).
+	do_get("/", #{}, Config).
 
-do_get(Path, Config) ->
+user_data(Config) ->
+	doc("Confirm user data can be attached to metrics."),
+	do_get("/set_options/metrics_user_data", #{handler => set_options_h}, Config).
+
+do_get(Path, UserData, Config) ->
 	%% Perform a GET request.
 	ConnPid = gun_open(Config),
 	Ref = gun:get(ConnPid, Path, [
@@ -153,7 +158,8 @@ do_get(Path, Config) ->
 				streamid := 1,
 				reason := normal,
 				req := #{},
-				informational := []
+				informational := [],
+				user_data := UserData
 			} = Metrics,
 			%% All good!
 			ok
@@ -216,7 +222,8 @@ post_body(Config) ->
 				streamid := 1,
 				reason := normal,
 				req := #{},
-				informational := []
+				informational := [],
+				user_data := #{}
 			} = Metrics,
 			%% All good!
 			ok
@@ -273,7 +280,8 @@ no_resp_body(Config) ->
 				streamid := 1,
 				reason := normal,
 				req := #{},
-				informational := []
+				informational := [],
+				user_data := #{}
 			} = Metrics,
 			%% All good!
 			ok
@@ -361,7 +369,7 @@ do_early_error_request_line(Config) ->
 %% This test is identical to normal GET except for the handler.
 stream_reply(Config) ->
 	doc("Confirm metrics are correct for long polling."),
-	do_get("/resp/stream_reply2/200", Config).
+	do_get("/resp/stream_reply2/200", #{}, Config).
 
 ws(Config) ->
 	case config(protocol, Config) of
@@ -421,7 +429,8 @@ do_ws(Config) ->
 						<<"sec-websocket-accept">> := _
 					},
 					time := _
-				}]
+				}],
+				user_data := #{}
 			} = Metrics,
 			%% All good!
 			ok
@@ -487,7 +496,8 @@ error_response(Config) ->
 				streamid := 1,
 				reason := {internal_error, {'EXIT', _Pid, {crash, _StackTrace}}, 'Stream process crashed.'},
 				req := #{},
-				informational := []
+				informational := [],
+				user_data := #{}
 			} = Metrics,
 			%% All good!
 			ok
@@ -546,7 +556,8 @@ error_response_after_reply(Config) ->
 				streamid := 1,
 				reason := {internal_error, {'EXIT', _Pid, {crash, _StackTrace}}, 'Stream process crashed.'},
 				req := #{},
-				informational := []
+				informational := [],
+				user_data := #{}
 			} = Metrics,
 			%% All good!
 			ok
