@@ -272,7 +272,7 @@ cancel_timeout(State=#state{timer=TimerRef}) ->
 		_ ->
 			%% Do a synchronous cancel and remove the message if any
 			%% to avoid receiving stray messages.
-			erlang:cancel_timer(TimerRef),
+			_ = erlang:cancel_timer(TimerRef),
 			receive
 				{timeout, TimerRef, _} -> ok
 			after 0 ->
