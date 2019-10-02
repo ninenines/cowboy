@@ -117,7 +117,7 @@ gun_open(Config, Opts) ->
 	ConnPid.
 
 gun_down(ConnPid) ->
-	receive {gun_down, ConnPid, _, _, _, _} -> ok
+	receive {gun_down, ConnPid, _, _, _} -> ok
 	after 500 -> error(timeout) end.
 
 %% Support functions for testing using a raw socket.

@@ -962,7 +962,7 @@ stream_body_content_length_nofin_error(Config) ->
 				%% The server closes the connection when the body couldn't be sent fully.
 				{error, {stream_error, closed}} ->
 					receive
-						{gun_down, ConnPid, _, _, _, _} ->
+						{gun_down, ConnPid, _, _, _} ->
 							gun:close(ConnPid)
 					after 1000 ->
 						error(timeout)

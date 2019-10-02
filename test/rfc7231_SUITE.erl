@@ -325,7 +325,7 @@ do_expect_discard_body_close(Config) ->
 	{ok, <<"POST">>} = gun:await_body(ConnPid, Ref1),
 	%% The connection is gone.
 	receive
-		{gun_down, ConnPid, _, closed, _, _} ->
+		{gun_down, ConnPid, _, closed, _} ->
 			ok
 	after 1000 ->
 		error(timeout)

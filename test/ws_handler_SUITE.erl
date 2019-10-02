@@ -281,7 +281,7 @@ websocket_set_options_idle_timeout(Config) ->
 	%% the connection gets closed soon after.
 	gun:ws_send(ConnPid, {text, <<"idle_timeout_short">>}),
 	receive
-		{gun_down, ConnPid, _, _, _, _} ->
+		{gun_down, ConnPid, _, _, _} ->
 			ok
 	after 2000 ->
 		error(timeout)
