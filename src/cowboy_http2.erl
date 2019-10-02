@@ -274,14 +274,16 @@ parse(State=#state{http2_status=Status, http2_machine=HTTP2Machine, streams=Stre
 
 %% Frames received.
 
+%% We do nothing when receiving a lingering DATA frame.
+%% We already removed the stream flow from the connection
+%% flow and are therefore already accounting for the window
+%% being reduced by these frames.
 frame(State=#state{http2_machine=HTTP2Machine0}, Frame) ->
 	case cow_http2_machine:frame(Frame, HTTP2Machine0) of
 		{ok, HTTP2Machine} ->
 			maybe_ack(State#state{http2_machine=HTTP2Machine}, Frame);
 		{ok, {data, StreamID, IsFin, Data}, HTTP2Machine} ->
 			data_frame(State#state{http2_machine=HTTP2Machine}, StreamID, IsFin, Data);
-		{ok, {lingering_data, StreamID, DataLen}, HTTP2Machine} ->
-			lingering_data_frame(State#state{http2_machine=HTTP2Machine}, StreamID, DataLen);
 		{ok, {headers, StreamID, IsFin, Headers, PseudoHeaders, BodyLen}, HTTP2Machine} ->
 			headers_frame(State#state{http2_machine=HTTP2Machine},
 				StreamID, IsFin, Headers, PseudoHeaders, BodyLen);
@@ -342,13 +344,6 @@ data_frame(State0=#state{opts=Opts, flow=Flow, streams=Streams}, StreamID, IsFin
 		#{} ->
 			State0
 	end.
-
-lingering_data_frame(State, _StreamID, _DataLen) ->
-	%% We do nothing when receiving a lingering DATA frame.
-	%% We already removed the stream flow from the connection
-	%% flow and are therefore already accounting for the window
-	%% being reduced by these frames.
-	State.
 
 headers_frame(State, StreamID, IsFin, Headers,
 		PseudoHeaders=#{method := <<"CONNECT">>}, _)
