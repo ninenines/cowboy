@@ -104,12 +104,12 @@
 	http2_machine :: cow_http2_machine:http2_machine(),
 
 	%% HTTP/2 frame rate flood protection.
-	frame_rate_num :: non_neg_integer(),
-	frame_rate_time :: integer(),
+	frame_rate_num :: undefined | pos_integer(),
+	frame_rate_time :: undefined | integer(),
 
 	%% HTTP/2 reset stream flood protection.
-	reset_rate_num :: non_neg_integer(),
-	reset_rate_time :: integer(),
+	reset_rate_num :: undefined | pos_integer(),
+	reset_rate_time :: undefined | integer(),
 
 	%% Flow requested for all streams.
 	flow = 0 :: non_neg_integer(),
