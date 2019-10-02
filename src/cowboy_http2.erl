@@ -40,11 +40,14 @@
 	initial_stream_window_size => 0..16#7fffffff,
 	logger => module(),
 	max_concurrent_streams => non_neg_integer() | infinity,
+	max_connection_buffer_size => non_neg_integer(),
 	max_connection_window_size => 0..16#7fffffff,
 	max_decode_table_size => non_neg_integer(),
 	max_encode_table_size => non_neg_integer(),
 	max_frame_size_received => 16384..16777215,
 	max_frame_size_sent => 16384..16777215 | infinity,
+	max_received_frame_rate => {pos_integer(), timeout()},
+	max_reset_stream_rate => {pos_integer(), timeout()},
 	max_stream_buffer_size => non_neg_integer(),
 	max_stream_window_size => 0..16#7fffffff,
 	metrics_callback => cowboy_metrics_h:metrics_callback(),
@@ -55,6 +58,7 @@
 	settings_timeout => timeout(),
 	shutdown_timeout => timeout(),
 	stream_handlers => [module()],
+	stream_window_data_threshold => 0..16#7fffffff,
 	stream_window_margin_size => 0..16#7fffffff,
 	stream_window_update_threshold => 0..16#7fffffff,
 	tracer_callback => cowboy_tracer_h:tracer_callback(),
@@ -98,6 +102,14 @@
 	%% HTTP/2 state machine.
 	http2_status :: sequence | settings | upgrade | connected | closing,
 	http2_machine :: cow_http2_machine:http2_machine(),
+
+	%% HTTP/2 frame rate flood protection.
+	frame_rate_num :: non_neg_integer(),
+	frame_rate_time :: integer(),
+
+	%% HTTP/2 reset stream flood protection.
+	reset_rate_num :: non_neg_integer(),
+	reset_rate_time :: integer(),
 
 	%% Flow requested for all streams.
 	flow = 0 :: non_neg_integer(),
@@ -147,15 +159,27 @@ init(Parent, Ref, Socket, Transport, ProxyHeader, Opts) ->
 	binary() | undefined, binary()) -> ok.
 init(Parent, Ref, Socket, Transport, ProxyHeader, Opts, Peer, Sock, Cert, Buffer) ->
 	{ok, Preface, HTTP2Machine} = cow_http2_machine:init(server, Opts),
-	State = set_timeout(#state{parent=Parent, ref=Ref, socket=Socket,
+	State = set_timeout(init_rate_limiting(#state{parent=Parent, ref=Ref, socket=Socket,
 		transport=Transport, proxy_header=ProxyHeader,
 		opts=Opts, peer=Peer, sock=Sock, cert=Cert,
-		http2_status=sequence, http2_machine=HTTP2Machine}),
+		http2_status=sequence, http2_machine=HTTP2Machine})),
 	Transport:send(Socket, Preface),
 	case Buffer of
 		<<>> -> loop(State, Buffer);
 		_ -> parse(State, Buffer)
 	end.
+
+init_rate_limiting(State=#state{opts=Opts}) ->
+	{FrameRateNum, FrameRatePeriod} = maps:get(max_received_frame_rate, Opts, {1000, 10000}),
+	{ResetRateNum, ResetRatePeriod} = maps:get(max_reset_stream_rate, Opts, {10, 10000}),
+	CurrentTime = erlang:monotonic_time(millisecond),
+	State#state{
+		frame_rate_num=FrameRateNum, frame_rate_time=add_period(CurrentTime, FrameRatePeriod),
+		reset_rate_num=ResetRateNum, reset_rate_time=add_period(CurrentTime, ResetRatePeriod)
+	}.
+
+add_period(_, infinity) -> infinity;
+add_period(Time, Period) -> Time + Period.
 
 %% @todo Add an argument for the request body.
 -spec init(pid(), ranch:ref(), inet:socket(), module(),
@@ -179,7 +203,7 @@ init(Parent, Ref, Socket, Transport, ProxyHeader, Opts, Peer, Sock, Cert, Buffer
 		<<"connection">> => <<"Upgrade">>,
 		<<"upgrade">> => <<"h2c">>
 	}, ?MODULE, undefined}), %% @todo undefined or #{}?
-	State = set_timeout(State2#state{http2_status=sequence}),
+	State = set_timeout(init_rate_limiting(State2#state{http2_status=sequence})),
 	Transport:send(Socket, Preface),
 	case Buffer of
 		<<>> -> loop(State, Buffer);
@@ -258,9 +282,9 @@ parse(State=#state{http2_status=Status, http2_machine=HTTP2Machine, streams=Stre
 	MaxFrameSize = cow_http2_machine:get_local_setting(max_frame_size, HTTP2Machine),
 	case cow_http2:parse(Data, MaxFrameSize) of
 		{ok, Frame, Rest} ->
-			parse(frame(State, Frame), Rest);
+			parse(frame_rate(State, Frame), Rest);
 		{ignore, Rest} ->
-			parse(ignored_frame(State), Rest);
+			parse(frame_rate(State, ignore), Rest);
 		{stream_error, StreamID, Reason, Human, Rest} ->
 			parse(reset_stream(State, StreamID, {stream_error, Reason, Human}), Rest);
 		Error = {connection_error, _, _} ->
@@ -270,6 +294,30 @@ parse(State=#state{http2_status=Status, http2_machine=HTTP2Machine, streams=Stre
 			terminate(State, {stop, normal, 'The connection is going away.'});
 		more ->
 			loop(State, Data)
+	end.
+
+%% Frame rate flood protection.
+
+frame_rate(State0=#state{opts=Opts, frame_rate_num=Num0, frame_rate_time=Time}, Frame) ->
+	{Result, State} = case Num0 - 1 of
+		0 ->
+			CurrentTime = erlang:monotonic_time(millisecond),
+			if
+				CurrentTime < Time ->
+					{error, State0};
+				true ->
+					%% When the option has a period of infinity we cannot reach this clause.
+					{Num, Period} = maps:get(max_received_frame_rate, Opts, {1000, 10000}),
+					{ok, State0#state{frame_rate_num=Num, frame_rate_time=CurrentTime + Period}}
+			end;
+		Num ->
+			{ok, State0#state{frame_rate_num=Num}}
+	end,
+	case {Result, Frame} of
+		{ok, ignore} -> ignored_frame(State);
+		{ok, _} -> frame(State, Frame);
+		{error, _} -> terminate(State, {connection_error, enhance_your_calm,
+			'Frame rate larger than configuration allows. Flood? (CVE-2019-9512, CVE-2019-9515, CVE-2019-9518)'})
 	end.
 
 %% Frames received.
@@ -763,26 +811,41 @@ send_data_frame(State=#state{socket=Socket, transport=Transport,
 %% We do this by comparing the HTTP2Machine buffer state before/after for
 %% the relevant streams.
 maybe_send_data_alarm(State=#state{opts=Opts, http2_machine=HTTP2Machine}, HTTP2Machine0, StreamID) ->
-	{ok, BufferSizeBefore} = cow_http2_machine:get_stream_local_buffer_size(StreamID, HTTP2Machine0),
+	ConnBufferSizeBefore = cow_http2_machine:get_connection_local_buffer_size(HTTP2Machine0),
+	ConnBufferSizeAfter = cow_http2_machine:get_connection_local_buffer_size(HTTP2Machine),
+	{ok, StreamBufferSizeBefore} = cow_http2_machine:get_stream_local_buffer_size(StreamID, HTTP2Machine0),
 	%% When the stream ends up closed after it finished sending data,
 	%% we do not want to trigger an alarm. We act as if the buffer
 	%% size did not change.
-	BufferSizeAfter = case cow_http2_machine:get_stream_local_buffer_size(StreamID, HTTP2Machine) of
+	StreamBufferSizeAfter = case cow_http2_machine:get_stream_local_buffer_size(StreamID, HTTP2Machine) of
 		{ok, BSA} -> BSA;
-		{error, closed} -> BufferSizeBefore
+		{error, closed} -> StreamBufferSizeBefore
 	end,
-	MaxBufferSize = maps:get(max_stream_buffer_size, Opts, 8000000),
-	%% I do not want to document these internal_events yet. I am not yet
+	MaxConnBufferSize = maps:get(max_connection_buffer_size, Opts, 16000000),
+	MaxStreamBufferSize = maps:get(max_stream_buffer_size, Opts, 8000000),
+	%% I do not want to document these internal events yet. I am not yet
 	%% convinced it should be {alarm, Name, on|off} and not {internal_event, E}
-	%% or something else entirely.
+	%% or something else entirely. Though alarms are probably right.
 	if
-		BufferSizeBefore >= MaxBufferSize, BufferSizeAfter < MaxBufferSize ->
-			info(State, StreamID, {alarm, stream_buffer_full, off});
-		BufferSizeBefore < MaxBufferSize, BufferSizeAfter >= MaxBufferSize ->
-			info(State, StreamID, {alarm, stream_buffer_full, on});
+		ConnBufferSizeBefore >= MaxConnBufferSize, ConnBufferSizeAfter < MaxConnBufferSize ->
+			connection_alarm(State, connection_buffer_full, off);
+		ConnBufferSizeBefore < MaxConnBufferSize, ConnBufferSizeAfter >= MaxConnBufferSize ->
+			connection_alarm(State, connection_buffer_full, on);
+		StreamBufferSizeBefore >= MaxStreamBufferSize, StreamBufferSizeAfter < MaxStreamBufferSize ->
+			stream_alarm(State, StreamID, stream_buffer_full, off);
+		StreamBufferSizeBefore < MaxStreamBufferSize, StreamBufferSizeAfter >= MaxStreamBufferSize ->
+			stream_alarm(State, StreamID, stream_buffer_full, on);
 		true ->
 			State
 	end.
+
+connection_alarm(State0=#state{streams=Streams}, Name, Value) ->
+	lists:foldl(fun(StreamID, State) ->
+		stream_alarm(State, StreamID, Name, Value)
+	end, State0, maps:keys(Streams)).
+
+stream_alarm(State, StreamID, Name, Value) ->
+	info(State, StreamID, {alarm, Name, Value}).
 
 %% Terminate a stream or the connection.
 
@@ -855,18 +918,41 @@ terminate_all_streams(State, [{StreamID, #stream{state=StreamState}}|Tail], Reas
 	terminate_all_streams(State, Tail, Reason).
 
 %% @todo Don't send an RST_STREAM if one was already sent.
-reset_stream(State=#state{socket=Socket, transport=Transport,
+reset_stream(State0=#state{socket=Socket, transport=Transport,
 		http2_machine=HTTP2Machine0}, StreamID, Error) ->
 	Reason = case Error of
 		{internal_error, _, _} -> internal_error;
 		{stream_error, Reason0, _} -> Reason0
 	end,
 	Transport:send(Socket, cow_http2:rst_stream(StreamID, Reason)),
-	case cow_http2_machine:reset_stream(StreamID, HTTP2Machine0) of
+	State1 = case cow_http2_machine:reset_stream(StreamID, HTTP2Machine0) of
 		{ok, HTTP2Machine} ->
-			terminate_stream(State#state{http2_machine=HTTP2Machine}, StreamID, Error);
+			terminate_stream(State0#state{http2_machine=HTTP2Machine}, StreamID, Error);
 		{error, not_found} ->
-			terminate_stream(State, StreamID, Error)
+			terminate_stream(State0, StreamID, Error)
+	end,
+	case reset_rate(State1) of
+		{ok, State} ->
+			State;
+		error ->
+			terminate(State1, {connection_error, enhance_your_calm,
+				'Stream reset rate larger than configuration allows. Flood? (CVE-2019-9514)'})
+	end.
+
+reset_rate(State0=#state{opts=Opts, reset_rate_num=Num0, reset_rate_time=Time}) ->
+	case Num0 - 1 of
+		0 ->
+			CurrentTime = erlang:monotonic_time(millisecond),
+			if
+				CurrentTime < Time ->
+					error;
+				true ->
+					%% When the option has a period of infinity we cannot reach this clause.
+					{Num, Period} = maps:get(max_reset_stream_rate, Opts, {10, 10000}),
+					{ok, State0#state{reset_rate_num=Num, reset_rate_time=CurrentTime + Period}}
+			end;
+		Num ->
+			{ok, State0#state{reset_rate_num=Num}}
 	end.
 
 stop_stream(State=#state{http2_machine=HTTP2Machine}, StreamID) ->

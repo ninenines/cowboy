@@ -26,11 +26,14 @@ opts() :: #{
     initial_connection_window_size => 65535..16#7fffffff,
     initial_stream_window_size     => 0..16#7fffffff,
     max_concurrent_streams         => non_neg_integer() | infinity,
+    max_connection_buffer_size     => non_neg_integer(),
     max_connection_window_size     => 0..16#7fffffff,
     max_decode_table_size          => non_neg_integer(),
     max_encode_table_size          => non_neg_integer(),
     max_frame_size_received        => 16384..16777215,
     max_frame_size_sent            => 16384..16777215 | infinity,
+    max_received_frame_rate        => {pos_integer(), timeout()},
+    max_reset_stream_rate          => {pos_integer(), timeout()},
     max_stream_buffer_size         => non_neg_integer(),
     max_stream_window_size         => 0..16#7fffffff,
     preface_timeout                => timeout(),
@@ -38,6 +41,7 @@ opts() :: #{
     sendfile                       => boolean(),
     settings_timeout               => timeout(),
     stream_handlers                => [module()],
+    stream_window_data_threshold   => 0..16#7fffffff,
     stream_window_margin_size      => 0..16#7fffffff,
     stream_window_update_threshold => 0..16#7fffffff
 }
@@ -104,6 +108,12 @@ max_concurrent_streams (infinity)::
 
 Maximum number of concurrent streams allowed on the connection.
 
+max_connection_buffer_size (16000000)::
+
+Maximum size of all stream buffers for this connection, in bytes.
+This is a soft limit used to apply backpressure to handlers that
+send data faster than the HTTP/2 connection allows.
+
 max_connection_window_size (16#7fffffff)::
 
 Maximum connection window size in bytes. This is used as an upper bound
@@ -136,6 +146,22 @@ following the client's advertised maximum.
 +
 Note that actual frame sizes may be lower than the limit when
 there is not enough space left in the flow control window.
+
+max_received_frame_rate ({1000, 10000})::
+
+Maximum frame rate allowed per connection. The rate is expressed
+as a tuple `{NumFrames, TimeMs}` indicating how many frames are
+allowed over the given time period. This is similar to a supervisor
+restart intensity/period.
+
+max_reset_stream_rate ({10, 10000})::
+
+Maximum reset stream rate per connection. This can be used to
+protect against misbehaving or malicious peers that do not follow
+the protocol, leading to the server resetting streams, by limiting
+the number of streams that can be reset over a certain time period.
+The rate is expressed as a tuple `{NumResets, TimeMs}`. This is
+similar to a supervisor restart intensity/period.
 
 max_stream_buffer_size (8000000)::
 
@@ -173,6 +199,13 @@ stream_handlers ([cowboy_stream_h])::
 
 Ordered list of stream handlers that will handle all stream events.
 
+stream_window_data_threshold (16384)::
+
+Window threshold in bytes below which Cowboy will not attempt
+to send data, with one exception. When Cowboy has data to send
+and the window is high enough, Cowboy will always send the data,
+regardless of this option.
+
 stream_window_margin_size (65535)::
 
 Extra amount in bytes to be added to the window size when
@@ -193,9 +226,14 @@ too many `WINDOW_UPDATE` frames.
          `max_connection_window_size`, `max_stream_window_size`,
          `stream_window_margin_size` and
          `stream_window_update_threshold` to configure
-         behavior on sending WINDOW_UPDATE frames, and
+         behavior on sending WINDOW_UPDATE frames;
+         `max_connection_buffer_size` and
          `max_stream_buffer_size` to apply backpressure
-         when sending data too fast.
+         when sending data too fast;
+         `max_received_frame_rate` and `max_reset_stream_rate`
+         to protect against various flood scenarios; and
+         `stream_window_data_threshold` to control how small
+         the DATA frames that Cowboy sends can get.
 * *2.6*: The `proxy_header` and `sendfile` options were added.
 * *2.4*: Add the options `initial_connection_window_size`,
          `initial_stream_window_size`, `max_concurrent_streams`,

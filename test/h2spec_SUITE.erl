@@ -35,7 +35,9 @@ init_per_suite(Config) ->
 				true ->
 					cowboy_test:init_http(h2spec, #{
 						env => #{dispatch => init_dispatch()},
-						max_concurrent_streams => 100
+						max_concurrent_streams => 100,
+						%% Disable the DATA threshold for this test suite.
+						stream_window_data_threshold => 0
 					}, Config)
 			end
 	end.

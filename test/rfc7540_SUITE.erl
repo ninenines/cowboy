@@ -34,11 +34,15 @@ groups() ->
 
 init_per_group(Name = clear, Config) ->
 	cowboy_test:init_http(Name, #{
-		env => #{dispatch => cowboy_router:compile(init_routes(Config))}
+		env => #{dispatch => cowboy_router:compile(init_routes(Config))},
+		%% Disable the DATA threshold for this test suite.
+		stream_window_data_threshold => 0
 	}, Config);
 init_per_group(Name = tls, Config) ->
 	cowboy_test:init_http2(Name, #{
-		env => #{dispatch => cowboy_router:compile(init_routes(Config))}
+		env => #{dispatch => cowboy_router:compile(init_routes(Config))},
+		%% Disable the DATA threshold for this test suite.
+		stream_window_data_threshold => 0
 	}, Config).
 
 end_per_group(Name, _) ->

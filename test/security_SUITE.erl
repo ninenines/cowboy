@@ -30,7 +30,28 @@ all() ->
 	cowboy_test:common_all().
 
 groups() ->
-	cowboy_test:common_groups(ct_helper:all(?MODULE)).
+	Tests = [nc_rand, nc_zero],
+	H1Tests = [slowloris, slowloris_chunks],
+	H2CTests = [
+		http2_data_dribble,
+		http2_empty_frame_flooding_data,
+		http2_empty_frame_flooding_headers_continuation,
+		http2_empty_frame_flooding_push_promise,
+		http2_ping_flood,
+		http2_reset_flood,
+		http2_settings_flood,
+		http2_zero_length_header_leak
+	],
+	[
+		{http, [parallel], Tests ++ H1Tests},
+		{https, [parallel], Tests ++ H1Tests},
+		{h2, [parallel], Tests},
+		{h2c, [parallel], Tests ++ H2CTests},
+		{http_compress, [parallel], Tests ++ H1Tests},
+		{https_compress, [parallel], Tests ++ H1Tests},
+		{h2_compress, [parallel], Tests},
+		{h2c_compress, [parallel], Tests ++ H2CTests}
+	].
 
 init_per_suite(Config) ->
 	ct_helper:create_static_dir(config(priv_dir, Config) ++ "/static"),
@@ -49,10 +70,199 @@ end_per_group(Name, _) ->
 
 init_dispatch(_) ->
 	cowboy_router:compile([{"localhost", [
-		{"/", hello_h, []}
+		{"/", hello_h, []},
+		{"/echo/:key", echo_h, []},
+		{"/resp/:key[/:arg]", resp_h, []}
 	]}]).
 
 %% Tests.
+
+http2_data_dribble(Config) ->
+	doc("Request a very large response then update the window 1 byte at a time. (CVE-2019-9511)"),
+	{ok, Socket} = rfc7540_SUITE:do_handshake(Config),
+	%% Send a GET request for a very large response.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/resp/stream_body/loop">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+	%% Receive a response with a few DATA frames draining the window.
+	{ok, <<SkipLen:24, 1:8, _:8, 1:32>>} = gen_tcp:recv(Socket, 9, 1000),
+	{ok, _} = gen_tcp:recv(Socket, SkipLen, 1000),
+	{ok, <<16384:24, 0:8, 0:8, 1:32, _:16384/unit:8>>} = gen_tcp:recv(Socket, 9 + 16384, 1000),
+	{ok, <<16384:24, 0:8, 0:8, 1:32, _:16384/unit:8>>} = gen_tcp:recv(Socket, 9 + 16384, 1000),
+	{ok, <<16384:24, 0:8, 0:8, 1:32, _:16384/unit:8>>} = gen_tcp:recv(Socket, 9 + 16384, 1000),
+	{ok, <<16383:24, 0:8, 0:8, 1:32, _:16383/unit:8>>} = gen_tcp:recv(Socket, 9 + 16383, 1000),
+	%% Send WINDOW_UPDATE frames with a value of 1. The server should
+	%% not attempt to send data until the window is over a configurable threshold.
+	ok = gen_tcp:send(Socket, [
+		cow_http2:window_update(1),
+		cow_http2:window_update(1, 1)
+	]),
+	{error, timeout} = gen_tcp:recv(Socket, 0, 1000),
+	ok.
+
+http2_empty_frame_flooding_data(Config) ->
+	doc("Confirm that Cowboy detects empty DATA frame flooding. (CVE-2019-9518)"),
+	{ok, Socket} = rfc7540_SUITE:do_handshake(Config),
+	%% Send a POST request followed by many empty DATA frames.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"POST">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/echo/read_body">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, nofin, HeadersBlock)),
+	_ = [gen_tcp:send(Socket, cow_http2:data(1, nofin, <<>>)) || _ <- lists:seq(1, 2000)],
+	%% When Cowboy detects a flood it must close the connection.
+	%% We skip WINDOW_UPDATE frames sent when Cowboy starts to read the body.
+	case gen_tcp:recv(Socket, 43, 6000) of
+		{ok, <<_:26/unit:8, _:24, 7:8, _:72, 11:32>>} ->
+			ok;
+		%% We also accept the connection being closed immediately,
+		%% which may happen because we send the GOAWAY right before closing.
+		{error, closed} ->
+			ok
+	end.
+
+http2_empty_frame_flooding_headers_continuation(Config) ->
+	doc("Confirm that Cowboy detects empty HEADERS/CONTINUATION frame flooding. (CVE-2019-9518)"),
+	{ok, Socket} = rfc7540_SUITE:do_handshake(Config),
+	%% Send many empty HEADERS/CONTINUATION frames before the headers.
+	ok = gen_tcp:send(Socket, <<0:24, 1:8, 0:9, 1:31>>),
+	_ = [gen_tcp:send(Socket, <<0:24, 9:8, 0:9, 1:31>>) || _ <- lists:seq(1, 2000)],
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"POST">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>}
+	]),
+	Len = iolist_size(HeadersBlock),
+	_ = gen_tcp:send(Socket, [<<Len:24, 9:8, 0:5, 1:1, 0:1, 1:1, 0:1, 1:31>>, HeadersBlock]),
+	%% When Cowboy detects a flood it must close the connection.
+	case gen_tcp:recv(Socket, 17, 6000) of
+		{ok, <<_:24, 7:8, _:72, 11:32>>} ->
+			ok;
+		%% We also accept the connection being closed immediately,
+		%% which may happen because we send the GOAWAY right before closing.
+		{error, closed} ->
+			ok
+	end.
+
+http2_empty_frame_flooding_push_promise(Config) ->
+	doc("Confirm that Cowboy detects empty PUSH_PROMISE frame flooding. (CVE-2019-9518)"),
+	{ok, Socket} = rfc7540_SUITE:do_handshake(Config),
+	%% Send a HEADERS frame to which we will attach a PUSH_PROMISE.
+	%% We use nofin in order to keep the stream alive.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, nofin, HeadersBlock)),
+	%% Send nofin PUSH_PROMISE frame without any data.
+	ok = gen_tcp:send(Socket, <<4:24, 5:8, 0:8, 0:1, 1:31, 0:1, 3:31>>),
+	%% Receive a PROTOCOL_ERROR connection error.
+	%%
+	%% Cowboy rejects all PUSH_PROMISE frames therefore no flooding
+	%% can take place.
+	{ok, <<_:24, 7:8, _:72, 1:32>>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+%% @todo http2_internal_data_buffering(Config) -> I do not know how to test this.
+%	doc("Request many very large responses, with a larger than necessary window size, "
+%		"but do not attempt to read from the socket. (CVE-2019-9517)"),
+
+http2_ping_flood(Config) ->
+	doc("Confirm that Cowboy detects PING floods. (CVE-2019-9512)"),
+	{ok, Socket} = rfc7540_SUITE:do_handshake(Config),
+	%% Flood the server with PING frames.
+	_ = [gen_tcp:send(Socket, cow_http2:ping(0)) || _ <- lists:seq(1, 2000)],
+	%% Receive a number of PING ACK frames in return, following by the closing of the connection.
+	try
+		[case gen_tcp:recv(Socket, 17, 6000) of
+			{ok, <<8:24, 6:8, _:7, 1:1, _:32, 0:64>>} -> ok;
+			{ok, <<_:24, 7:8, _:72, 11:32>>} -> throw(goaway);
+			%% We also accept the connection being closed immediately,
+			%% which may happen because we send the GOAWAY right before closing.
+			{error, closed} -> throw(goaway)
+		end || _ <- lists:seq(1, 2000)],
+		error(flood_successful)
+	catch throw:goaway ->
+		ok
+	end.
+
+http2_reset_flood(Config) ->
+	doc("Confirm that Cowboy detects reset floods. (CVE-2019-9514)"),
+	{ok, Socket} = rfc7540_SUITE:do_handshake(Config),
+	%% Flood the server with HEADERS frames without a :method pseudo-header.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>}
+	]),
+	_ = [gen_tcp:send(Socket, cow_http2:headers(ID, fin, HeadersBlock)) || ID <- lists:seq(1, 100, 2)],
+	%% Receive a number of RST_STREAM frames in return, following by the closing of the connection.
+	try
+		[case gen_tcp:recv(Socket, 13, 6000) of
+			{ok, <<_:24, 3:8, _:8, ID:32, 1:32>>} -> ok;
+			{ok, <<_:24, 7:8, _:72>>} ->
+				{ok, <<11:32>>} = gen_tcp:recv(Socket, 4, 1000),
+				throw(goaway);
+			%% We also accept the connection being closed immediately,
+			%% which may happen because we send the GOAWAY right before closing.
+			{error, closed} ->
+				throw(goaway)
+		end || ID <- lists:seq(1, 100, 2)],
+		error(flood_successful)
+	catch throw:goaway ->
+		ok
+	end.
+
+%% @todo If we ever implement the PRIORITY mechanism, this test should
+%% be implemented as well. CVE-2019-9513 https://www.kb.cert.org/vuls/id/605641/
+%% http2_resource_loop
+
+http2_settings_flood(Config) ->
+	doc("Confirm that Cowboy detects SETTINGS floods. (CVE-2019-9515)"),
+	{ok, Socket} = rfc7540_SUITE:do_handshake(Config),
+	%% Flood the server with empty SETTINGS frames.
+	_ = [gen_tcp:send(Socket, cow_http2:settings(#{})) || _ <- lists:seq(1, 2000)],
+	%% Receive a number of SETTINGS ACK frames in return, following by the closing of the connection.
+	try
+		[case gen_tcp:recv(Socket, 9, 6000) of
+			{ok, <<0:24, 4:8, 0:7, 1:1, 0:32>>} -> ok;
+			{ok, <<_:24, 7:8, _:40>>} ->
+				{ok, <<_:32, 11:32>>} = gen_tcp:recv(Socket, 8, 1000),
+				throw(goaway);
+			%% We also accept the connection being closed immediately,
+			%% which may happen because we send the GOAWAY right before closing.
+			{error, closed} ->
+				throw(goaway)
+		end || _ <- lists:seq(1, 2000)],
+		error(flood_successful)
+	catch throw:goaway ->
+		ok
+	end.
+
+http2_zero_length_header_leak(Config) ->
+	doc("Confirm that Cowboy rejects HEADERS frame with a 0-length header name. (CVE-2019-9516)"),
+	{ok, Socket} = rfc7540_SUITE:do_handshake(Config),
+	%% Send a GET request with a 0-length header name.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>},
+		{<<>>, <<"CVE-2019-9516">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+	%% Receive a PROTOCOL_ERROR stream error.
+	{ok, <<_:24, 3:8, _:8, 1:32, 1:32>>} = gen_tcp:recv(Socket, 13, 6000),
+	ok.
 
 nc_rand(Config) ->
 	doc("Throw random garbage at the server, then check if it's still up."),
@@ -67,9 +277,9 @@ do_nc(Config, Input) ->
 	Nc = os:find_executable("nc"),
 	case {Cat, Nc} of
 		{false, _} ->
-			{skip, {not_found, cat}};
+			{skip, "The cat executable was not found."};
 		{_, false} ->
-			{skip, {not_found, nc}};
+			{skip, "The nc executable was not found."};
 		_ ->
 			StrPort = integer_to_list(config(port, Config)),
 			_ = [
@@ -84,15 +294,6 @@ do_nc(Config, Input) ->
 slowloris(Config) ->
 	doc("Send request headers one byte at a time. "
 		"Confirm that the connection gets closed."),
-	_ = case config(protocol, Config) of
-		http ->
-			do_http_slowloris(Config);
-		http2 ->
-			%% @todo Write an equivalent test for HTTP2.
-			ok
-	end.
-
-do_http_slowloris(Config) ->
 	Client = raw_open(Config),
 	try
 		[begin
@@ -107,15 +308,6 @@ do_http_slowloris(Config) ->
 	end.
 
 slowloris_chunks(Config) ->
-	_ = case config(protocol, Config) of
-		http ->
-			do_http_slowloris_chunks(Config);
-		http2 ->
-			%% @todo Write an equivalent test for HTTP2.
-			ok
-	end.
-
-do_http_slowloris_chunks(Config) ->
 	doc("Send request headers one line at a time. "
 		"Confirm that the connection gets closed."),
 	Client = raw_open(Config),

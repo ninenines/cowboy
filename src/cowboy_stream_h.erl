@@ -220,8 +220,8 @@ info(StreamID, Response={response, _, _, _}, State) ->
 	do_info(StreamID, Response, [Response], State#state{expect=undefined});
 info(StreamID, Headers={headers, _, _}, State) ->
 	do_info(StreamID, Headers, [Headers], State#state{expect=undefined});
-%% Sending data involves the data message and the stream_buffer_full alarm.
-%% We stop sending acks when the alarm is on.
+%% Sending data involves the data message, the stream_buffer_full alarm
+%% and the connection_buffer_full alarm. We stop sending acks when an alarm is on.
 info(StreamID, Data={data, _, _}, State0=#state{pid=Pid, stream_body_status=Status}) ->
 	State = case Status of
 		normal ->
@@ -233,10 +233,13 @@ info(StreamID, Data={data, _, _}, State0=#state{pid=Pid, stream_body_status=Stat
 			State0
 	end,
 	do_info(StreamID, Data, [Data], State);
-info(StreamID, Alarm={alarm, stream_buffer_full, on}, State) ->
+info(StreamID, Alarm={alarm, Name, on}, State)
+		when Name =:= connection_buffer_full; Name =:= stream_buffer_full ->
 	do_info(StreamID, Alarm, [], State#state{stream_body_status=blocking});
-info(StreamID, Alarm={alarm, stream_buffer_full, off}, State=#state{pid=Pid, stream_body_status=Status}) ->
+info(StreamID, Alarm={alarm, Name, off}, State=#state{pid=Pid, stream_body_status=Status})
+		when Name =:= connection_buffer_full; Name =:= stream_buffer_full ->
 	_ = case Status of
+		normal -> ok;
 		blocking -> ok;
 		blocked -> Pid ! {data_ack, self()}
 	end,
