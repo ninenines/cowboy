@@ -30,6 +30,16 @@ echo(<<"read_body">>, Req0, Opts) ->
 			Length = cowboy_req:body_length(Req1),
 			{ok, integer_to_binary(Length), Req1};
 		<<"/opts", _/bits>> -> cowboy_req:read_body(Req0, Opts);
+		<<"/spawn", _/bits>> ->
+			Parent = self(),
+			Pid = spawn_link(fun() ->
+				Parent ! {self(), cowboy_req:read_body(Req0)}
+			end),
+			receive
+				{Pid, Msg} -> Msg
+			after 5000 ->
+				error(timeout)
+			end;
 		_ -> cowboy_req:read_body(Req0)
 	end,
 	{ok, cowboy_req:reply(200, #{}, Body, Req), Opts};

@@ -305,7 +305,7 @@ before_loop(State=#state{socket=Stream={Pid, _}, transport=undefined},
 		HandlerState, ParseState) ->
 	%% @todo Keep Ref around.
 	ReadBodyRef = make_ref(),
-	Pid ! {Stream, {read_body, ReadBodyRef, auto, infinity}},
+	Pid ! {Stream, {read_body, self(), ReadBodyRef, auto, infinity}},
 	loop(State, HandlerState, ParseState);
 before_loop(State=#state{socket=Socket, transport=Transport, hibernate=true},
 		HandlerState, ParseState) ->

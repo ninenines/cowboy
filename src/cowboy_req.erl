@@ -491,7 +491,7 @@ read_body(Req=#{pid := Pid, streamid := StreamID}, Opts) ->
 	Period = maps:get(period, Opts, 15000),
 	Timeout = maps:get(timeout, Opts, Period + 1000),
 	Ref = make_ref(),
-	Pid ! {{Pid, StreamID}, {read_body, Ref, Length, Period}},
+	Pid ! {{Pid, StreamID}, {read_body, self(), Ref, Length, Period}},
 	receive
 		{request_body, Ref, nofin, Body} ->
 			{more, Body, Req};

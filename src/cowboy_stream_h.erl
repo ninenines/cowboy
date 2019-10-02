@@ -34,6 +34,7 @@
 	ref = undefined :: ranch:ref(),
 	pid = undefined :: pid(),
 	expect = undefined :: undefined | continue,
+	read_body_pid = undefined :: pid() | undefined,
 	read_body_ref = undefined :: reference() | undefined,
 	read_body_timer_ref = undefined :: reference() | undefined,
 	read_body_length = 0 :: non_neg_integer() | infinity | auto,
@@ -94,7 +95,7 @@ data(StreamID, IsFin, Data, State=#state{
 %% Stream is waiting for data using auto mode.
 %%
 %% There is no buffering done in auto mode.
-data(StreamID, IsFin, Data, State=#state{pid=Pid, read_body_ref=Ref,
+data(StreamID, IsFin, Data, State=#state{read_body_pid=Pid, read_body_ref=Ref,
 		read_body_length=auto, body_length=BodyLen}) ->
 	send_request_body(Pid, Ref, IsFin, BodyLen, Data),
 	do_data(StreamID, IsFin, Data, [{flow, byte_size(Data)}], State#state{
@@ -111,7 +112,7 @@ data(StreamID, IsFin=nofin, Data, State=#state{
 		body_length=BodyLen + byte_size(Data)
 	});
 %% Stream is waiting for data and we received enough to send.
-data(StreamID, IsFin, Data, State=#state{pid=Pid, read_body_ref=Ref,
+data(StreamID, IsFin, Data, State=#state{read_body_pid=Pid, read_body_ref=Ref,
 		read_body_timer_ref=TRef, read_body_buffer=Buffer, body_length=BodyLen0}) ->
 	BodyLen = BodyLen0 + byte_size(Data),
 	%% @todo Handle the infinity case where no TRef was defined.
@@ -162,13 +163,14 @@ info(StreamID, Exit={'EXIT', Pid, {Reason, Stacktrace}}, State=#state{ref=Ref, p
 		{error_response, 500, #{<<"content-length">> => <<"0">>}, <<>>}
 	|Commands], State);
 %% Request body, auto mode, no body buffered.
-info(StreamID, Info={read_body, Ref, auto, infinity}, State=#state{read_body_buffer= <<>>}) ->
+info(StreamID, Info={read_body, Pid, Ref, auto, infinity}, State=#state{read_body_buffer= <<>>}) ->
 	do_info(StreamID, Info, [], State#state{
+		read_body_pid=Pid,
 		read_body_ref=Ref,
 		read_body_length=auto
 	});
 %% Request body, auto mode, body buffered or complete.
-info(StreamID, Info={read_body, Ref, auto, infinity}, State=#state{pid=Pid,
+info(StreamID, Info={read_body, Pid, Ref, auto, infinity}, State=#state{
 		read_body_is_fin=IsFin, read_body_buffer=Buffer, body_length=BodyLen}) ->
 	send_request_body(Pid, Ref, IsFin, BodyLen, Buffer),
 	do_info(StreamID, Info, [{flow, byte_size(Buffer)}],
@@ -177,13 +179,13 @@ info(StreamID, Info={read_body, Ref, auto, infinity}, State=#state{pid=Pid,
 %%
 %% We do not send a 100 continue response if the client
 %% already started sending the body.
-info(StreamID, Info={read_body, Ref, Length, _}, State=#state{pid=Pid,
+info(StreamID, Info={read_body, Pid, Ref, Length, _}, State=#state{
 		read_body_is_fin=IsFin, read_body_buffer=Buffer, body_length=BodyLen})
 		when IsFin =:= fin; byte_size(Buffer) >= Length ->
 	send_request_body(Pid, Ref, IsFin, BodyLen, Buffer),
 	do_info(StreamID, Info, [], State#state{read_body_buffer= <<>>});
 %% Request body, not enough to send yet.
-info(StreamID, Info={read_body, Ref, Length, Period}, State=#state{expect=Expect}) ->
+info(StreamID, Info={read_body, Pid, Ref, Length, Period}, State=#state{expect=Expect}) ->
 	Commands = case Expect of
 		continue -> [{inform, 100, #{}}, {flow, Length}];
 		undefined -> [{flow, Length}]
@@ -191,12 +193,13 @@ info(StreamID, Info={read_body, Ref, Length, Period}, State=#state{expect=Expect
 	%% @todo Handle the case where Period =:= infinity.
 	TRef = erlang:send_after(Period, self(), {{self(), StreamID}, {read_body_timeout, Ref}}),
 	do_info(StreamID, Info, Commands, State#state{
+		read_body_pid=Pid,
 		read_body_ref=Ref,
 		read_body_timer_ref=TRef,
 		read_body_length=Length
 	});
 %% Request body reading timeout; send what we got.
-info(StreamID, Info={read_body_timeout, Ref}, State=#state{pid=Pid, read_body_ref=Ref,
+info(StreamID, Info={read_body_timeout, Ref}, State=#state{read_body_pid=Pid, read_body_ref=Ref,
 		read_body_is_fin=IsFin, read_body_buffer=Buffer, body_length=BodyLen}) ->
 	send_request_body(Pid, Ref, IsFin, BodyLen, Buffer),
 	do_info(StreamID, Info, [], State#state{

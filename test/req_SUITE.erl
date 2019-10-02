@@ -57,6 +57,7 @@ init_dispatch(Config) ->
 		{"/opts/:key/timeout", echo_h, #{timeout => 1000, crash => true}},
 		{"/100-continue/:key", echo_h, []},
 		{"/full/:key", echo_h, []},
+		{"/spawn/:key", echo_h, []},
 		{"/no/:key", echo_h, []},
 		{"/direct/:key/[...]", echo_h, []},
 		{"/:key/[...]", echo_h, []}
@@ -487,6 +488,11 @@ do_read_body_timeout(Path, Body, Config) ->
 	]),
 	{response, _, 500, _} = gun:await(ConnPid, Ref),
 	gun:close(ConnPid).
+
+read_body_spawn(Config) ->
+	doc("Confirm we can use cowboy_req:read_body/1,2 from another process."),
+	<<"hello world!">> = do_body("POST", "/spawn/read_body", [], "hello world!", Config),
+	ok.
 
 read_body_expect_100_continue(Config) ->
 	doc("Request body with a 100-continue expect header."),
