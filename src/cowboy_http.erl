@@ -267,8 +267,17 @@ set_timeout(State0=#state{opts=Opts, overriden_opts=Override, streams=Streams}) 
 
 cancel_timeout(State=#state{timer=TimerRef}) ->
 	ok = case TimerRef of
-		undefined -> ok;
-		_ -> erlang:cancel_timer(TimerRef, [{async, true}, {info, false}])
+		undefined ->
+			ok;
+		_ ->
+			%% Do a synchronous cancel and remove the message if any
+			%% to avoid receiving stray messages.
+			erlang:cancel_timer(TimerRef),
+			receive
+				{timeout, TimerRef, _} -> ok
+			after 0 ->
+				ok
+			end
 	end,
 	State#state{timer=undefined}.
 
