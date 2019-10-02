@@ -541,7 +541,16 @@ parse_header_colon(Buffer, State=#state{opts=Opts, in_state=PS}, Headers) ->
 				{connection_error, limit_reached,
 					'A header name is larger than configuration allows. (RFC7230 3.2.5, RFC6585 5)'});
 		nomatch ->
-			{more, State#state{in_state=PS#ps_header{headers=Headers}}, Buffer};
+			%% We don't have a colon but we might have an invalid header line,
+			%% so check if we have an LF and abort with an error if we do.
+			case match_eol(Buffer, 0) of
+				nomatch ->
+					{more, State#state{in_state=PS#ps_header{headers=Headers}}, Buffer};
+				_ ->
+					error_terminate(400, State#state{in_state=PS#ps_header{headers=Headers}},
+						{connection_error, protocol_error,
+							'A header line is missing a colon separator. (RFC7230 3.2.4)'})
+			end;
 		_ ->
 			parse_hd_name(Buffer, State, Headers, <<>>)
 	end.
