@@ -827,19 +827,19 @@ stream_body(_, _, #{method := <<"HEAD">>, has_sent_resp := headers}) ->
 stream_body({sendfile, _, 0, _}, nofin, _) ->
 	ok;
 stream_body({sendfile, _, 0, _}, IsFin=fin, Req=#{has_sent_resp := headers}) ->
-	stream_body({data, IsFin, <<>>}, Req);
+	stream_body({data, self(), IsFin, <<>>}, Req);
 stream_body({sendfile, O, B, P}, IsFin, Req=#{has_sent_resp := headers})
 		when is_integer(O), O >= 0, is_integer(B), B > 0 ->
-	stream_body({data, IsFin, {sendfile, O, B, P}}, Req);
+	stream_body({data, self(), IsFin, {sendfile, O, B, P}}, Req);
 stream_body(Data, IsFin=nofin, Req=#{has_sent_resp := headers})
 		when not is_tuple(Data) ->
 	case iolist_size(Data) of
 		0 -> ok;
-		_ -> stream_body({data, IsFin, Data}, Req)
+		_ -> stream_body({data, self(), IsFin, Data}, Req)
 	end;
 stream_body(Data, IsFin, Req=#{has_sent_resp := headers})
 		when not is_tuple(Data) ->
-	stream_body({data, IsFin, Data}, Req).
+	stream_body({data, self(), IsFin, Data}, Req).
 
 %% @todo Do we need a timeout?
 stream_body(Msg, #{pid := Pid, streamid := StreamID}) ->
@@ -850,7 +850,7 @@ stream_body(Msg, #{pid := Pid, streamid := StreamID}) ->
 stream_events(Event, IsFin, Req) when is_map(Event) ->
 	stream_events([Event], IsFin, Req);
 stream_events(Events, IsFin, Req=#{has_sent_resp := headers}) ->
-	stream_body({data, IsFin, cow_sse:events(Events)}, Req).
+	stream_body({data, self(), IsFin, cow_sse:events(Events)}, Req).
 
 -spec stream_trailers(cowboy:http_headers(), req()) -> ok.
 stream_trailers(Trailers, #{pid := Pid, streamid := StreamID, has_sent_resp := headers}) ->

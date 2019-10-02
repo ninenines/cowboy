@@ -247,6 +247,21 @@ do(<<"stream_body">>, Req0, Opts) ->
 			cowboy_req:stream_body(<<"Hello! ">>, nofin, Req),
 			cowboy_req:stream_body({sendfile, 0, AppSize, AppFile}, fin, Req),
 			{ok, Req, Opts};
+		<<"spawn">> ->
+			Req = cowboy_req:stream_reply(200, Req0),
+			Parent = self(),
+			Pid = spawn(fun() ->
+				cowboy_req:stream_body(<<"Hello ">>, nofin, Req),
+				cowboy_req:stream_body(<<"world">>, nofin, Req),
+				cowboy_req:stream_body(<<"!">>, fin, Req),
+				Parent ! {self(), ok}
+			end),
+			receive
+				{Pid, ok} -> ok
+			after 5000 ->
+				error(timeout)
+			end,
+			{ok, Req, Opts};
 		_ ->
 			%% Call stream_body without initiating streaming.
 			cowboy_req:stream_body(<<0:800000>>, fin, Req0),

@@ -942,6 +942,11 @@ stream_body_sendfile_fin(Config) ->
 	{200, _, ExpectedBody} = do_get("/resp/stream_body/sendfile_fin", Config),
 	ok.
 
+stream_body_spawn(Config) ->
+	doc("Confirm we can use cowboy_req:stream_body/3 from another process."),
+	{200, _, <<"Hello world!">>} = do_get("/resp/stream_body/spawn", Config),
+	ok.
+
 stream_body_content_length_multiple(Config) ->
 	doc("Streamed body via multiple calls."),
 	{200, _, <<"Hello world!">>} = do_get("/resp/stream_body_content_length/multiple", Config),
