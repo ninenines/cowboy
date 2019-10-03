@@ -21,6 +21,8 @@ content_types_accepted(Req=#{qs := <<"multipart">>}, State) ->
 	], Req, State};
 content_types_accepted(Req=#{qs := <<"param">>}, State) ->
 	{[{{<<"text">>, <<"plain">>, [{<<"charset">>, <<"utf-8">>}]}, put_text_plain}], Req, State};
+content_types_accepted(Req=#{qs := <<"wildcard">>}, State) ->
+	{[{'*', put_text_plain}], Req, State};
 content_types_accepted(Req=#{qs := <<"wildcard-param">>}, State) ->
 	{[{{<<"text">>, <<"plain">>, '*'}, put_text_plain}], Req, State}.
 

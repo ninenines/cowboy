@@ -184,7 +184,7 @@ content-type header of the response if the media type is text.
 ----
 content_types_accepted(Req, State) -> {Result, Req, State}
 
-Result     :: [{binary() | ParsedMime, AcceptCallback :: atom()}]
+Result     :: [{'*' | binary() | ParsedMime, AcceptCallback :: atom()}]
 ParsedMime :: {Type :: binary(), SubType :: binary(), '*' | Params}
 Params     :: [{Key :: binary(), Value :: binary()}]
 
@@ -199,6 +199,8 @@ order of preference.
 A media type is made of different parts. The media type
 `text/html;charset=utf-8` is of type `text`, subtype `html`
 and has a single parameter `charset` with value `utf-8`.
+
+The special value `'*'` can be used to accept any media type.
 
 // @todo Cowboy needs to ignore the boundary parameter for
 // multipart, as we never want to match against it. Or allow
@@ -724,6 +726,8 @@ listed here, like the authorization header.
 
 == Changelog
 
+* *2.7*: The media type wildcard in `content_types_accepted`
+         is now documented.
 * *2.6*: The callback `rate_limited` was added.
 * *2.1*: The `switch_handler` return value was added.
 * *1.0*: Behavior introduced.

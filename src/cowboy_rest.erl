@@ -61,7 +61,7 @@
 -optional_callbacks([charsets_provided/2]).
 
 -callback content_types_accepted(Req, State)
-	-> {[{binary() | {binary(), binary(), '*' | [{binary(), binary()}]}, atom()}], Req, State}
+	-> {[{'*' | binary() | {binary(), binary(), '*' | [{binary(), binary()}]}, atom()}], Req, State}
 	| {stop, Req, State}
 	| {switch_handler(), Req, State}
 	when Req::cowboy_req:req(), State::any().

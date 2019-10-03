@@ -359,6 +359,24 @@ content_types_accepted_param(Config) ->
 	{response, fin, 204, _} = gun:await(ConnPid, Ref),
 	ok.
 
+content_types_accepted_wildcard(Config) ->
+	doc("When a wildcard is returned from the content_types_accepted "
+		"callback, any content-type must be accepted."),
+	ConnPid = gun_open(Config),
+	Ref1 = gun:put(ConnPid, "/content_types_accepted?wildcard", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"content-type">>, <<"text/plain">>}
+	]),
+	gun:data(ConnPid, Ref1, fin, "Hello world!"),
+	{response, fin, 204, _} = gun:await(ConnPid, Ref1),
+	Ref2 = gun:put(ConnPid, "/content_types_accepted?wildcard", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"content-type">>, <<"application/vnd.plain;charset=UTF-8">>}
+	]),
+	gun:data(ConnPid, Ref2, fin, "Hello world!"),
+	{response, fin, 204, _} = gun:await(ConnPid, Ref2),
+	ok.
+
 content_types_accepted_wildcard_param_no_content_type_param(Config) ->
 	doc("When a wildcard is returned for parameters from the "
 		"content_types_accepted callback, a content-type header "
