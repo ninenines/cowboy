@@ -248,6 +248,34 @@ do_crash_in_early_error_fatal(Config) ->
 	%% Confirm the connection gets closed.
 	gun_down(ConnPid).
 
+early_error_stream_error_reason(Config) ->
+	doc("Confirm that the stream_error given to early_error/5 is consistent between protocols."),
+	Self = self(),
+	ConnPid = gun_open(Config),
+	%% We must use different solutions to hit early_error with a stream_error
+	%% reason in both protocols.
+	{Method, Headers, Status, Error} = case config(protocol, Config) of
+		http -> {<<"GET">>, [{<<"host">>, <<"host:port">>}], 400, protocol_error};
+		http2 -> {<<"TRACE">>, [], 501, no_error}
+	end,
+	Ref = gun:request(ConnPid, Method, "/long_polling", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"x-test-case">>, <<"early_error_stream_error_reason">>},
+		{<<"x-test-pid">>, pid_to_list(Self)}
+	|Headers], <<>>),
+	%% Confirm init/3 is NOT called. The error occurs before we reach this step.
+	receive {Self, _, init, _, _, _} -> error(init) after 1000 -> ok end,
+	%% Confirm terminate/3 is NOT called. We have no state to give to it.
+	receive {Self, _, terminate, _, _, _} -> error(terminate) after 1000 -> ok end,
+	%% Confirm early_error/5 is called.
+	Reason = receive {Self, _, early_error, _, R, _, _, _} -> R after 1000 -> error(timeout) end,
+	%% Confirm that the Reason is a {stream_error, Reason, Human}.
+	{stream_error, Error, HumanReadable} = Reason,
+	true = is_atom(HumanReadable),
+	%% Receive a 400 or 501 error response.
+	{response, fin, Status, _} = gun:await(ConnPid, Ref),
+	ok.
+
 set_options_ignore_unknown(Config) ->
 	doc("Confirm that unknown options are ignored when using the set_options commands."),
 	Self = self(),

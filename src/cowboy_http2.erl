@@ -497,7 +497,7 @@ headers_frame(State=#state{opts=Opts, streams=Streams}, StreamID, Req) ->
 	end.
 
 early_error(State0=#state{ref=Ref, opts=Opts, peer=Peer},
-		StreamID, _IsFin, _Headers, #{method := Method},
+		StreamID, _IsFin, Headers, #{method := Method},
 		StatusCode0, HumanReadable) ->
 	%% We automatically terminate the stream but it is not an error
 	%% per se (at least not in the first implementation).
@@ -508,7 +508,8 @@ early_error(State0=#state{ref=Ref, opts=Opts, peer=Peer},
 	PartialReq = #{
 		ref => Ref,
 		peer => Peer,
-		method => Method
+		method => Method,
+		headers => headers_to_map(Headers, #{})
 	},
 	Resp = {response, StatusCode0, RespHeaders0=#{<<"content-length">> => <<"0">>}, <<>>},
 	try cowboy_stream:early_error(StreamID, Reason, PartialReq, Resp, Opts) of

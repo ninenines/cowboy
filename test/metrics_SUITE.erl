@@ -314,7 +314,7 @@ do_early_error(Config) ->
 				ref := _,
 				pid := From,
 				streamid := 1,
-				reason := {stream_error, 1, protocol_error, _},
+				reason := {stream_error, protocol_error, _},
 				partial_req := #{},
 				resp_status := 400,
 				resp_headers := ExpectedRespHeaders,

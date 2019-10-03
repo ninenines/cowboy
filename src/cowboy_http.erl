@@ -647,13 +647,13 @@ horse_clean_value_ws_end() ->
 	).
 -endif.
 
-request(Buffer, State=#state{transport=Transport, in_streamid=StreamID,
+request(Buffer, State=#state{transport=Transport,
 		in_state=PS=#ps_header{authority=Authority, version=Version}}, Headers) ->
 	case maps:get(<<"host">>, Headers, undefined) of
 		undefined when Version =:= 'HTTP/1.1' ->
 			%% @todo Might want to not close the connection on this and next one.
 			error_terminate(400, State#state{in_state=PS#ps_header{headers=Headers}},
-				{stream_error, StreamID, protocol_error,
+				{stream_error, protocol_error,
 					'HTTP/1.1 requests must include a host header. (RFC7230 5.4)'});
 		undefined ->
 			request(Buffer, State, Headers, <<>>, default_port(Transport:secure()));
@@ -667,23 +667,22 @@ request(Buffer, State=#state{transport=Transport, in_streamid=StreamID,
 		%% so we enforce that.
 		_ ->
 			error_terminate(400, State#state{in_state=PS#ps_header{headers=Headers}},
-				{stream_error, StreamID, protocol_error,
+				{stream_error, protocol_error,
 					'The host header is different than the absolute-form authority component. (RFC7230 5.4)'})
 	end.
 
-request_parse_host(Buffer, State=#state{transport=Transport,
-		in_streamid=StreamID, in_state=PS}, Headers, RawHost) ->
+request_parse_host(Buffer, State=#state{transport=Transport, in_state=PS}, Headers, RawHost) ->
 	try cow_http_hd:parse_host(RawHost) of
 		{Host, undefined} ->
 			request(Buffer, State, Headers, Host, default_port(Transport:secure()));
 		{Host, Port} when Port > 0, Port =< 65535 ->
 			request(Buffer, State, Headers, Host, Port);
 		_ ->
-			error_terminate(400, State, {stream_error, StreamID, protocol_error,
+			error_terminate(400, State, {stream_error, protocol_error,
 				'The port component of the absolute-form is not in the range 0..65535. (RFC7230 2.7.1)'})
 	catch _:_ ->
 		error_terminate(400, State#state{in_state=PS#ps_header{headers=Headers}},
-			{stream_error, StreamID, protocol_error,
+			{stream_error, protocol_error,
 				'The host header is invalid. (RFC7230 5.4)'})
 	end.
 
@@ -709,11 +708,11 @@ request(Buffer, State0=#state{ref=Ref, transport=Transport, peer=Peer, sock=Sock
 						true, undefined, fun cow_http_te:stream_chunked/2, {0, 0}};
 				_ ->
 					error_terminate(400, State0#state{in_state=PS#ps_header{headers=Headers0}},
-						{stream_error, StreamID, protocol_error,
+						{stream_error, protocol_error,
 							'Cowboy only supports transfer-encoding: chunked. (RFC7230 3.3.1)'})
 			catch _:_ ->
 				error_terminate(400, State0#state{in_state=PS#ps_header{headers=Headers0}},
-					{stream_error, StreamID, protocol_error,
+					{stream_error, protocol_error,
 						'The transfer-encoding header is invalid. (RFC7230 3.3.1)'})
 			end;
 		#{<<"content-length">> := <<"0">>} ->
@@ -723,7 +722,7 @@ request(Buffer, State0=#state{ref=Ref, transport=Transport, peer=Peer, sock=Sock
 				cow_http_hd:parse_content_length(BinLength)
 			catch _:_ ->
 				error_terminate(400, State0#state{in_state=PS#ps_header{headers=Headers0}},
-					{stream_error, StreamID, protocol_error,
+					{stream_error, protocol_error,
 						'The content-length header is invalid. (RFC7230 3.3.2)'})
 			end,
 			{Headers0, true, Length, fun cow_http_te:stream_identity/2, {0, Length}};
