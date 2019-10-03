@@ -33,11 +33,11 @@ groups() ->
 	[{clear, [parallel], Clear}, {tls, [parallel], TLS}].
 
 init_per_group(Name = clear, Config) ->
-	cowboy_test:init_http(Name, #{
+	[{protocol, http2}|cowboy_test:init_http(Name, #{
 		env => #{dispatch => cowboy_router:compile(init_routes(Config))},
 		%% Disable the DATA threshold for this test suite.
 		stream_window_data_threshold => 0
-	}, Config);
+	}, Config)];
 init_per_group(Name = tls, Config) ->
 	cowboy_test:init_http2(Name, #{
 		env => #{dispatch => cowboy_router:compile(init_routes(Config))},
@@ -3642,6 +3642,54 @@ reject_te_header_other_values(Config) ->
 %   specific header fields, such as Keep-Alive, Proxy-Connection,
 %   Transfer-Encoding, and Upgrade, even if they are not nominated by the
 %   Connection header field.
+
+response_dont_send_header_in_connection(Config) ->
+	doc("Intermediaries must remove HTTP/1.1 connection headers when "
+		"transforming an HTTP/1.1 messages to HTTP/2. The server must "
+		"not send them either. All headers listed in the connection "
+		"header must be removed. (RFC7540 8.1.2.2)"),
+	do_response_dont_send_http11_header(Config, <<"custom-header">>).
+
+response_dont_send_connection_header(Config) ->
+	doc("Intermediaries must remove HTTP/1.1 connection headers when "
+		"transforming an HTTP/1.1 messages to HTTP/2. The server must "
+		"not send them either. The connection header must be removed. (RFC7540 8.1.2.2)"),
+	do_response_dont_send_http11_header(Config, <<"connection">>).
+
+response_dont_send_keep_alive_header(Config) ->
+	doc("Intermediaries must remove HTTP/1.1 connection headers when "
+		"transforming an HTTP/1.1 messages to HTTP/2. The server must "
+		"not send them either. The keep-alive header must be removed "
+		"even if not listed in the connection header. (RFC7540 8.1.2.2)"),
+	do_response_dont_send_http11_header(Config, <<"keep-alive">>).
+
+response_dont_send_proxy_connection_header(Config) ->
+	doc("Intermediaries must remove HTTP/1.1 connection headers when "
+		"transforming an HTTP/1.1 messages to HTTP/2. The server must "
+		"not send them either. The proxy-connection header must be removed "
+		"even if not listed in the connection header. (RFC7540 8.1.2.2)"),
+	do_response_dont_send_http11_header(Config, <<"proxy-connection">>).
+
+response_dont_send_transfer_encoding_header(Config) ->
+	doc("Intermediaries must remove HTTP/1.1 connection headers when "
+		"transforming an HTTP/1.1 messages to HTTP/2. The server must "
+		"not send them either. The transfer-encoding header must be removed "
+		"even if not listed in the connection header. (RFC7540 8.1.2.2)"),
+	do_response_dont_send_http11_header(Config, <<"transfer-encoding">>).
+
+response_dont_send_upgrade_header(Config) ->
+	doc("Intermediaries must remove HTTP/1.1 connection headers when "
+		"transforming an HTTP/1.1 messages to HTTP/2. The server must "
+		"not send them either. The upgrade header must be removed "
+		"even if not listed in the connection header. (RFC7540 8.1.2.2)"),
+	do_response_dont_send_http11_header(Config, <<"upgrade">>).
+
+do_response_dont_send_http11_header(Config, Name) ->
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/resp/set_resp_headers_http11"),
+	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
+	false = lists:keyfind(Name, 1, Headers),
+	ok.
 
 reject_userinfo(Config) ->
 	doc("An authority containing a userinfo component must be rejected "

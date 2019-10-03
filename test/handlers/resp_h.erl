@@ -39,6 +39,16 @@ do(<<"set_resp_headers">>, Req0, Opts) ->
 		<<"content-encoding">> => <<"compress">>
 	}, Req0),
 	{ok, cowboy_req:reply(200, #{}, "OK", Req), Opts};
+do(<<"set_resp_headers_http11">>, Req0, Opts) ->
+	Req = cowboy_req:set_resp_headers(#{
+		<<"connection">> => <<"custom-header, close">>,
+		<<"custom-header">> => <<"value">>,
+		<<"keep-alive">> => <<"timeout=5, max=1000">>,
+		<<"proxy-connection">> => <<"close">>,
+		<<"transfer-encoding">> => <<"chunked">>,
+		<<"upgrade">> => <<"HTTP/1.1">>
+	}, Req0),
+	{ok, cowboy_req:reply(200, #{}, "OK", Req), Opts};
 do(<<"resp_header_defined">>, Req0, Opts) ->
 	Req1 = cowboy_req:set_resp_header(<<"content-type">>, <<"text/plain">>, Req0),
 	<<"text/plain">> = cowboy_req:resp_header(<<"content-type">>, Req1),
