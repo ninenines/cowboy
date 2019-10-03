@@ -23,4 +23,4 @@ start(_Type, _Args) ->
 	compress_response_sup:start_link().
 
 stop(_State) ->
-	ok.
+	ok = cowboy:stop_listener(http).

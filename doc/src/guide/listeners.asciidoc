@@ -75,7 +75,7 @@ start(_Type, _Args) ->
     Dispatch = cowboy_router:compile([
         {'_', [{"/", hello_handler, []}]}
     ]),
-    {ok, _} = cowboy:start_tls(my_http_listener,
+    {ok, _} = cowboy:start_tls(my_https_listener,
         [
             {port, 8443},
             {certfile, "/path/to/certfile"},
@@ -100,6 +100,19 @@ Cowboy 2.0 gets released.
 
 Compatibility with HTTP/1.0 is provided by Cowboy's HTTP/1.1
 implementation.
+
+=== Stopping the listener
+
+When starting listeners along with the application it is
+a good idea to also stop the listener when the application
+stops. This can be done by calling `cowboy:stop_listener/1`
+in the application's stop function:
+
+[source,erlang]
+----
+stop(_State) ->
+    ok = cowboy:stop_listener(my_http_listener).
+----
 
 === Protocol configuration
 

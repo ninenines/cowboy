@@ -22,4 +22,4 @@ start(_Type, _Args) ->
 	rest_basic_auth_sup:start_link().
 
 stop(_State) ->
-	ok.
+	ok = cowboy:stop_listener(http).
