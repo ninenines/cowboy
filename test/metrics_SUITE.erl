@@ -290,21 +290,20 @@ no_resp_body(Config) ->
 	end.
 
 early_error(Config) ->
-	case config(protocol, Config) of
-		http -> do_early_error(Config);
-		http2 -> doc("The callback early_error/5 is not currently used for HTTP/2.")
-	end.
-
-do_early_error(Config) ->
 	doc("Confirm metrics are correct for an early_error response."),
 	%% Perform a malformed GET request.
 	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, "/", [
+	%% We must use different solutions to hit early_error with a stream_error
+	%% reason in both protocols.
+	{Method, Headers, Status, Error} = case config(protocol, Config) of
+		http -> {<<"GET">>, [{<<"host">>, <<"host:port">>}], 400, protocol_error};
+		http2 -> {<<"TRACE">>, [], 501, no_error}
+	end,
+	Ref = gun:request(ConnPid, Method, "/", [
 		{<<"accept-encoding">>, <<"gzip">>},
-		{<<"host">>, <<"host:port">>},
 		{<<"x-test-pid">>, pid_to_list(self())}
-	]),
-	{response, fin, 400, RespHeaders} = gun:await(ConnPid, Ref),
+	|Headers], <<>>),
+	{response, fin, Status, RespHeaders} = gun:await(ConnPid, Ref),
 	gun:close(ConnPid),
 	%% Receive the metrics and validate them.
 	receive
@@ -314,9 +313,9 @@ do_early_error(Config) ->
 				ref := _,
 				pid := From,
 				streamid := 1,
-				reason := {stream_error, protocol_error, _},
+				reason := {stream_error, Error, _},
 				partial_req := #{},
-				resp_status := 400,
+				resp_status := Status,
 				resp_headers := ExpectedRespHeaders,
 				early_error_time := _,
 				resp_body_length := 0
@@ -331,7 +330,7 @@ do_early_error(Config) ->
 early_error_request_line(Config) ->
 	case config(protocol, Config) of
 		http -> do_early_error_request_line(Config);
-		http2 -> doc("The callback early_error/5 is not currently used for HTTP/2.")
+		http2 -> doc("There are no request lines in HTTP/2.")
 	end.
 
 do_early_error_request_line(Config) ->

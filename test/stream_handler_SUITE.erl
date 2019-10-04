@@ -98,6 +98,12 @@ crash_in_init(Config) ->
 	Pid = receive {Self, P, init, _, _, _} -> P after 1000 -> error(timeout) end,
 	%% Confirm terminate/3 is NOT called. We have no state to give to it.
 	receive {Self, Pid, terminate, _, _, _} -> error(terminate) after 1000 -> ok end,
+	%% Confirm early_error/5 is called in HTTP/1.1's case.
+	%% HTTP/2 does not send a response back so there is no early_error call.
+	case config(protocol, Config) of
+		http -> receive {Self, Pid, early_error, _, _, _, _, _} -> ok after 1000 -> error(timeout) end;
+		http2 -> ok
+	end,
 	%% Receive a 500 error response.
 	case gun:await(ConnPid, Ref) of
 		{response, fin, 500, _} -> ok;
