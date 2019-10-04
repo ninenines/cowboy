@@ -11,6 +11,9 @@ init(Req0, State=reply) ->
 			cowboy_req:reply(200, #{}, lists:duplicate(100, $a), Req0);
 		<<"large">> ->
 			cowboy_req:reply(200, #{}, lists:duplicate(100000, $a), Req0);
+		<<"vary">> ->
+			Vary = cowboy_req:header(<<"x-test-vary">>, Req0),
+			cowboy_req:reply(200, #{<<"vary">> => Vary}, lists:duplicate(100000, $a), Req0);
 		<<"over-threshold">> ->
 			cowboy_req:reply(200, #{}, lists:duplicate(200, $a), Req0);
 		<<"content-encoding">> ->
