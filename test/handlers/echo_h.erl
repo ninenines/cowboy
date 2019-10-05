@@ -92,6 +92,10 @@ echo(<<"match">>, Req, Opts) ->
 			Match
 	end,
 	{ok, cowboy_req:reply(200, #{}, value_to_iodata(Value), Req), Opts};
+echo(<<"filter_then_parse_cookies">>, Req0, Opts) ->
+	Req = cowboy_req:filter_cookies([cake, color], Req0),
+	Value = cowboy_req:parse_cookies(Req),
+	{ok, cowboy_req:reply(200, #{}, value_to_iodata(Value), Req), Opts};
 echo(What, Req, Opts) ->
 	Key = binary_to_atom(What, latin1),
 	Value = case cowboy_req:path(Req) of

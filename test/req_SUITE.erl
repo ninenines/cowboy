@@ -286,6 +286,27 @@ parse_cookies(Config) ->
 		[{<<"cookie">>, "goodname=strawberry\tmilkshake"}], Config),
 	ok.
 
+filter_then_parse_cookies(Config) ->
+	doc("Filter cookies then parse them."),
+	<<"[]">> = do_get_body("/filter_then_parse_cookies", Config),
+	<<"[{<<\"cake\">>,<<\"strawberry\">>}]">>
+		= do_get_body("/filter_then_parse_cookies", [{<<"cookie">>, "cake=strawberry"}], Config),
+	<<"[{<<\"cake\">>,<<\"strawberry\">>},{<<\"color\">>,<<\"blue\">>}]">>
+		= do_get_body("/filter_then_parse_cookies", [{<<"cookie">>, "cake=strawberry; color=blue"}], Config),
+	<<"[{<<\"cake\">>,<<\"strawberry\">>},{<<\"color\">>,<<\"blue\">>}]">>
+		= do_get_body("/filter_then_parse_cookies",
+			[{<<"cookie">>, "cake=strawberry"}, {<<"cookie">>, "color=blue"}], Config),
+	<<"[]">>
+		= do_get_body("/filter_then_parse_cookies",
+			[{<<"cookie">>, "bad name=strawberry"}], Config),
+	<<"[{<<\"cake\">>,<<\"strawberry\">>}]">>
+		= do_get_body("/filter_then_parse_cookies",
+			[{<<"cookie">>, "bad name=strawberry; cake=strawberry"}], Config),
+	<<"[]">>
+		= do_get_body("/filter_then_parse_cookies",
+			[{<<"cookie">>, "Blocked by http://www.example.com/upgrade-to-remove"}], Config),
+	ok.
+
 parse_header(Config) ->
 	doc("Parsed request header with/without default."),
 	<<"[{{<<\"text\">>,<<\"html\">>,[]},1000,[]}]">>

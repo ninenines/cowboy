@@ -1,0 +1,70 @@
+= cowboy_req:filter_cookies(3)
+
+== Name
+
+cowboy_req:filter_cookies - Filter cookie headers
+
+== Description
+
+[source,erlang]
+----
+filter_cookies(Names, Req) -> Req
+
+Names :: [atom() | binary()]
+----
+
+Filter cookie headers.
+
+This function is meant to be used before attempting to parse
+or match cookies in order to remove cookies that are not
+relevant and are potentially malformed. Because Cowboy by
+default crashes on malformed cookies, this function allows
+processing requests that would otherwise result in a 400
+error.
+
+Malformed cookies are unfortunately fairly common due to
+the string-based interface provided by browsers and this
+function provides a middle ground between Cowboy's strict
+behavior and chaotic real world use cases.
+
+Note that there may still be crashes even after filtering
+cookies because this function does not correct malformed
+values. Cookies that have malformed values should probably
+be unset in an error response or in a redirect.
+
+This function can be called even if there are no cookies
+in the request.
+
+== Arguments
+
+Names::
+
+The cookies that should be kept.
+
+Req::
+
+The Req object.
+
+== Return value
+
+The Req object is returned with its cookie header value
+filtered.
+
+== Changelog
+
+* *2.7*: Function introduced.
+
+== Examples
+
+.Filter then parse cookies
+[source,erlang]
+----
+Req = cowboy_req:filter_cookies([session_id, token], Req0),
+Cookies = cowboy_req:parse_cookies(Req).
+----
+
+== See also
+
+link:man:cowboy_req(3)[cowboy_req(3)],
+link:man:cowboy_req:parse_cookies(3)[cowboy_req:parse_cookies(3)],
+link:man:cowboy_req:match_cookies(3)[cowboy_req:match_cookies(3)]

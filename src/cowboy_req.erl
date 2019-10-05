@@ -44,6 +44,7 @@
 -export([headers/1]).
 -export([parse_header/2]).
 -export([parse_header/3]).
+-export([filter_cookies/2]).
 -export([parse_cookies/1]).
 -export([match_cookies/2]).
 
@@ -449,6 +450,35 @@ parse_header(Name, Req, Default, ParseFun) ->
 		undefined -> Default;
 		Value -> ParseFun(Value)
 	end.
+
+-spec filter_cookies([atom() | binary()], Req) -> Req when Req::req().
+filter_cookies(Names0, Req=#{headers := Headers}) ->
+	Names = [if
+		is_atom(N) -> atom_to_binary(N, utf8);
+		true -> N
+	end || N <- Names0],
+	case header(<<"cookie">>, Req) of
+		undefined -> Req;
+		Value0 ->
+			Cookies0 = binary:split(Value0, <<$;>>),
+			Cookies = lists:filter(fun(Cookie) ->
+				lists:member(cookie_name(Cookie), Names)
+			end, Cookies0),
+			Value = iolist_to_binary(lists:join($;, Cookies)),
+			Req#{headers => Headers#{<<"cookie">> => Value}}
+	end.
+
+%% This is a specialized function to extract a cookie name
+%% regardless of whether the name is valid or not. We skip
+%% whitespace at the beginning and take whatever's left to
+%% be the cookie name, up to the = sign.
+cookie_name(<<$\s, Rest/binary>>) -> cookie_name(Rest);
+cookie_name(<<$\t, Rest/binary>>) -> cookie_name(Rest);
+cookie_name(Name) -> cookie_name(Name, <<>>).
+
+cookie_name(<<>>, Name) -> Name;
+cookie_name(<<$=, _/bits>>, Name) -> Name;
+cookie_name(<<C, Rest/bits>>, Acc) -> cookie_name(Rest, <<Acc/binary, C>>).
 
 -spec parse_cookies(req()) -> [{binary(), binary()}].
 parse_cookies(Req) ->
