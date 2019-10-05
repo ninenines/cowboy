@@ -602,9 +602,8 @@ sys_get_state_h1(Config) ->
 	{ok, Socket} = gen_tcp:connect("localhost", config(clear_port, Config), []),
 	timer:sleep(100),
 	Pid = get_remote_pid_tcp(Socket),
-	{State, Buffer} = sys:get_state(Pid),
+	State = sys:get_state(Pid),
 	state = element(1, State),
-	true = is_binary(Buffer),
 	ok.
 
 sys_get_state_h2(Config) ->
@@ -726,9 +725,8 @@ sys_replace_state_h1(Config) ->
 	{ok, Socket} = gen_tcp:connect("localhost", config(clear_port, Config), []),
 	timer:sleep(100),
 	Pid = get_remote_pid_tcp(Socket),
-	{State, Buffer} = sys:replace_state(Pid, fun(S) -> S end),
+	State = sys:replace_state(Pid, fun(S) -> S end),
 	state = element(1, State),
-	true = is_binary(Buffer),
 	ok.
 
 sys_replace_state_h2(Config) ->

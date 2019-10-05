@@ -291,10 +291,14 @@ takeover(Parent, Ref, Socket, Transport, _Opts, Buffer,
 	State = loop_timeout(State0#state{parent=Parent,
 		ref=Ref, socket=Socket, transport=Transport,
 		key=undefined, messages=Messages}),
+	%% We call parse_header/3 immediately because there might be
+	%% some data in the buffer that was sent along with the handshake.
+	%% While it is not allowed by the protocol to send frames immediately,
+	%% we still want to process that data if any.
 	case erlang:function_exported(Handler, websocket_init, 1) of
 		true -> handler_call(State, HandlerState, #ps_header{buffer=Buffer},
-			websocket_init, undefined, fun before_loop/3);
-		false -> before_loop(State, HandlerState, #ps_header{buffer=Buffer})
+			websocket_init, undefined, fun parse_header/3);
+		false -> parse_header(State, HandlerState, #ps_header{buffer=Buffer})
 	end.
 
 before_loop(State=#state{active=false}, HandlerState, ParseState) ->
