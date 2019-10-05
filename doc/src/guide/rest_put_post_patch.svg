@@ -15,7 +15,7 @@
    height="1052.3622"
    id="svg2"
    version="1.1"
-   inkscape:version="0.92.1 r"
+   inkscape:version="0.92.4 5da689c313, 2019-01-14"
    sodipodi:docname="rest_put_post_patch.svg"
    inkscape:export-filename="/home/essen/Dropbox/Public/drawing.png"
    inkscape:export-xdpi="90"
@@ -65,13 +65,13 @@
      inkscape:pageopacity="1"
      inkscape:pageshadow="2"
      inkscape:zoom="0.70710678"
-     inkscape:cx="201.51415"
-     inkscape:cy="-214.71801"
+     inkscape:cx="1029.1677"
+     inkscape:cy="180.32072"
      inkscape:document-units="px"
      inkscape:current-layer="layer1"
      showgrid="false"
-     inkscape:window-width="1920"
-     inkscape:window-height="1043"
+     inkscape:window-width="3840"
+     inkscape:window-height="2086"
      inkscape:window-x="0"
      inkscape:window-y="0"
      inkscape:window-maximized="1"
@@ -102,6 +102,92 @@
      inkscape:groupmode="layer"
      id="layer1"
      transform="translate(0,1.5472441e-4)">
+    <g
+       id="g4198"
+       transform="rotate(-45,318.17351,1431.5178)"
+       inkscape:export-xdpi="89"
+       inkscape:export-ydpi="89">
+      <path
+         inkscape:connector-curvature="0"
+         id="path5570-2-1-6-3-8-5-9-2"
+         d="m 245.18127,1438.4423 h 98.55875"
+         style="opacity:0.8;fill:none;stroke:#9b3b1c;stroke-width:2.44948983;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+      <path
+         transform="matrix(0,0.58787746,0.58787746,0,103.93746,1569.3854)"
+         inkscape:transform-center-y="2.1823437"
+         d="m -222.73865,430.10821 -12.85982,-22.27386 25.71964,0 z"
+         inkscape:randomized="0"
+         inkscape:rounded="0"
+         inkscape:flatsided="true"
+         sodipodi:arg2="2.6179939"
+         sodipodi:arg1="1.5707963"
+         sodipodi:r2="7.4246211"
+         sodipodi:r1="14.849242"
+         sodipodi:cy="415.25897"
+         sodipodi:cx="-222.73865"
+         sodipodi:sides="3"
+         id="path5576-12-5-1-1-7-6-3-6"
+         style="opacity:0.8;fill:#9b3b1c;fill-opacity:1;fill-rule:nonzero;stroke:#9b3b1c;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+         sodipodi:type="star" />
+    </g>
+    <g
+       transform="translate(233.45629,1041.7893)"
+       id="g5650-6-4-8-7-5"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643">
+      <path
+         inkscape:connector-curvature="0"
+         id="path5570-78-5-5-2-3"
+         d="m -57.78256,351.41962 v 52.3259"
+         style="opacity:0.8;fill:none;stroke:#6d8e41;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+      <path
+         transform="matrix(0.58787746,0,0,0.58787746,73.160466,163.35774)"
+         inkscape:transform-center-y="2.1823437"
+         d="m -222.73865,430.10821 -12.85982,-22.27386 25.71964,0 z"
+         inkscape:randomized="0"
+         inkscape:rounded="0"
+         inkscape:flatsided="true"
+         sodipodi:arg2="2.6179939"
+         sodipodi:arg1="1.5707963"
+         sodipodi:r2="7.4246211"
+         sodipodi:r1="14.849242"
+         sodipodi:cy="415.25897"
+         sodipodi:cx="-222.73865"
+         sodipodi:sides="3"
+         id="path5576-9-6-6-6-5"
+         style="opacity:0.8;fill:#6d8e41;fill-opacity:1;fill-rule:nonzero;stroke:#6d8e41;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+         sodipodi:type="star" />
+    </g>
+    <g
+       transform="translate(233.45629,1121.9351)"
+       id="g5650-6-4-8-7-6"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643">
+      <path
+         inkscape:connector-curvature="0"
+         id="path5570-78-5-5-2-2"
+         d="m -57.78256,351.41962 v 52.3259"
+         style="opacity:0.8;fill:none;stroke:#6d8e41;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+      <path
+         transform="matrix(0.58787746,0,0,0.58787746,73.160466,163.35774)"
+         inkscape:transform-center-y="2.1823437"
+         d="m -222.73865,430.10821 -12.85982,-22.27386 25.71964,0 z"
+         inkscape:randomized="0"
+         inkscape:rounded="0"
+         inkscape:flatsided="true"
+         sodipodi:arg2="2.6179939"
+         sodipodi:arg1="1.5707963"
+         sodipodi:r2="7.4246211"
+         sodipodi:r1="14.849242"
+         sodipodi:cy="415.25897"
+         sodipodi:cx="-222.73865"
+         sodipodi:sides="3"
+         id="path5576-9-6-6-6-9"
+         style="opacity:0.8;fill:#6d8e41;fill-opacity:1;fill-rule:nonzero;stroke:#6d8e41;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+         sodipodi:type="star" />
+    </g>
     <path
        inkscape:export-ydpi="89.926643"
        inkscape:export-xdpi="89.926643"
@@ -141,7 +227,9 @@
     </g>
     <g
        transform="matrix(0.70710678,-0.70710678,0.70710678,0.70710678,215.76354,-143.71473)"
-       id="g5650-2-2-8">
+       id="g5650-2-2-8"
+       inkscape:export-xdpi="89"
+       inkscape:export-ydpi="89">
       <path
          inkscape:connector-curvature="0"
          id="path5570-2-1-4"
@@ -178,7 +266,9 @@
        inkscape:export-ydpi="89.926643" />
     <g
        id="g5650"
-       transform="translate(229.41793,93.569228)">
+       transform="translate(229.41793,93.569228)"
+       inkscape:export-xdpi="89"
+       inkscape:export-ydpi="89">
       <path
          inkscape:connector-curvature="0"
          id="path5570"
@@ -378,7 +468,9 @@
          style="font-size:16px;line-height:1.25;font-family:sans-serif">false</tspan></text>
     <g
        transform="translate(517.41793,-144.94975)"
-       id="g5650-2-2">
+       id="g5650-2-2"
+       inkscape:export-xdpi="89"
+       inkscape:export-ydpi="89">
       <path
          inkscape:connector-curvature="0"
          id="path5570-2-1"
@@ -509,7 +601,9 @@
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643" />
     <g
-       id="g6634">
+       id="g6634"
+       inkscape:export-xdpi="89"
+       inkscape:export-ydpi="89">
       <path
          inkscape:connector-curvature="0"
          id="path20172-9-8-9-3-7"
@@ -788,7 +882,9 @@
     </g>
     <g
        transform="translate(517.41793,570.7504)"
-       id="g5650-2-2-2-7-5">
+       id="g5650-2-2-2-7-5"
+       inkscape:export-xdpi="89"
+       inkscape:export-ydpi="89">
       <path
          inkscape:connector-curvature="0"
          id="path5570-2-1-62-7-7"
@@ -825,7 +921,9 @@
        inkscape:export-ydpi="89.926643" />
     <g
        transform="matrix(0,1,-1,0,694.44282,904.44724)"
-       id="g5650-2-2-6-6">
+       id="g5650-2-2-6-6"
+       inkscape:export-xdpi="89"
+       inkscape:export-ydpi="89">
       <path
          inkscape:connector-curvature="0"
          id="path5570-2-1-6-3"
@@ -956,7 +1054,9 @@
     </g>
     <g
        transform="translate(517.41793,93.25206)"
-       id="g5650-2-2-2">
+       id="g5650-2-2-2"
+       inkscape:export-xdpi="89"
+       inkscape:export-ydpi="89">
       <path
          inkscape:connector-curvature="0"
          id="path5570-2-1-62"
@@ -1018,7 +1118,9 @@
        inkscape:export-ydpi="89.926643" />
     <g
        transform="translate(229.41793,173.2314)"
-       id="g5650-2-2-2-7">
+       id="g5650-2-2-2-7"
+       inkscape:export-xdpi="89"
+       inkscape:export-ydpi="89">
       <path
          inkscape:connector-curvature="0"
          id="path5570-2-1-62-7"
@@ -1072,7 +1174,9 @@
          style="font-size:16px;line-height:1.25;font-family:sans-serif">false</tspan></text>
     <g
        transform="translate(516.00372,173.10383)"
-       id="g5650-2-2-17-8">
+       id="g5650-2-2-17-8"
+       inkscape:export-xdpi="89"
+       inkscape:export-ydpi="89">
       <path
          inkscape:connector-curvature="0"
          id="path5570-2-1-0-3"
@@ -1182,7 +1286,9 @@
          style="font-size:16px;line-height:1.25;font-family:sans-serif">301 moved permanently</tspan></text>
     <g
        transform="translate(517.41793,332.05687)"
-       id="g5650-2-2-65-2">
+       id="g5650-2-2-65-2"
+       inkscape:export-xdpi="89"
+       inkscape:export-ydpi="89">
       <path
          inkscape:connector-curvature="0"
          id="path5570-2-1-5-9"
@@ -1535,7 +1641,9 @@
          style="font-size:16px;line-height:1.25;font-family:sans-serif">method is PUT?</tspan></text>
     <g
        transform="translate(229.41793,571.07045)"
-       id="g5650-2-2-65-9">
+       id="g5650-2-2-65-9"
+       inkscape:export-xdpi="89"
+       inkscape:export-ydpi="89">
       <path
          inkscape:connector-curvature="0"
          id="path5570-2-1-5-1"
@@ -1953,7 +2061,9 @@
          style="font-size:16px;line-height:1.25;font-family:sans-serif">303 see other</tspan></text>
     <g
        transform="matrix(0,1,1,0,-67.245042,1455.155)"
-       id="g5650-2-2-6-6-7-9-1">
+       id="g5650-2-2-6-6-7-9-1"
+       inkscape:export-xdpi="89"
+       inkscape:export-ydpi="89">
       <path
          inkscape:connector-curvature="0"
          id="path5570-2-1-6-3-8-5-9"
@@ -1977,37 +2087,8 @@
          style="opacity:0.8;fill:#9b3b1c;fill-opacity:1;fill-rule:nonzero;stroke:#9b3b1c;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
          sodipodi:type="star" />
     </g>
-    <g
-       transform="translate(233.45629,1121.5376)"
-       id="g5650-6-4-8-7-7"
-       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
-       inkscape:export-xdpi="89.926643"
-       inkscape:export-ydpi="89.926643">
-      <path
-         inkscape:connector-curvature="0"
-         id="path5570-78-5-5-2-8"
-         d="m -57.78256,294.4515 0,109.76214"
-         style="opacity:0.8;fill:none;stroke:#6d8e41;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none" />
-      <path
-         transform="matrix(0.58787746,0,0,0.58787746,73.160466,163.35774)"
-         inkscape:transform-center-y="2.1823437"
-         d="m -222.73865,430.10821 -12.85982,-22.27386 25.71964,0 z"
-         inkscape:randomized="0"
-         inkscape:rounded="0"
-         inkscape:flatsided="true"
-         sodipodi:arg2="2.6179939"
-         sodipodi:arg1="1.5707963"
-         sodipodi:r2="7.4246211"
-         sodipodi:r1="14.849242"
-         sodipodi:cy="415.25897"
-         sodipodi:cx="-222.73865"
-         sodipodi:sides="3"
-         id="path5576-9-6-6-6-7"
-         style="opacity:0.8;fill:#6d8e41;fill-opacity:1;fill-rule:nonzero;stroke:#6d8e41;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
-         sodipodi:type="star" />
-    </g>
     <rect
-       style="fill:#d1f2a5;fill-opacity:1;fill-rule:nonzero;stroke:#a9ca7d;stroke-width:3;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
+       style="fill:#d1f2a5;fill-opacity:1;fill-rule:nonzero;stroke:#a9ca7d;stroke-width:3;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
        id="rect5273-1-8-9-19-2-2"
        width="210.17955"
        height="35.209244"
@@ -2027,10 +2108,10 @@
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
-         id="tspan5373-6-18-2-7-4-9"
          x="175.50966"
          y="1401.7865"
-         style="font-size:16px;line-height:1.25;font-family:sans-serif">has resp location?</tspan></text>
+         style="font-size:16px;line-height:1.25;font-family:sans-serif"
+         id="tspan4047">method is PUT?</tspan></text>
     <rect
        style="fill:#effab4;fill-opacity:1;fill-rule:nonzero;stroke:#c7d28c;stroke-width:2.73499846;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
        id="rect5273-7-3-1-8-7-4-7"
@@ -2073,7 +2154,9 @@
     </g>
     <g
        transform="matrix(0,1,1,0,-63.162935,1614.665)"
-       id="g5650-2-2-6-6-7-9">
+       id="g5650-2-2-6-6-7-9"
+       inkscape:export-xdpi="89"
+       inkscape:export-ydpi="89">
       <path
          inkscape:connector-curvature="0"
          id="path5570-2-1-6-3-8-5"
@@ -2098,7 +2181,7 @@
          sodipodi:type="star" />
     </g>
     <rect
-       style="fill:#d1f2a5;fill-opacity:1;fill-rule:nonzero;stroke:#a9ca7d;stroke-width:3;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
+       style="fill:#d1f2a5;fill-opacity:1;fill-rule:nonzero;stroke:#a9ca7d;stroke-width:3;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
        id="rect5273-1-8-9-19-2-2-4"
        width="210.17955"
        height="35.209244"
@@ -2475,7 +2558,9 @@
          style="font-size:16px;line-height:1.25;font-family:sans-serif">false</tspan></text>
     <g
        transform="matrix(0,1,1,0,77.85132,1295.6715)"
-       id="g5650-2-2-6-6-7">
+       id="g5650-2-2-6-6-7"
+       inkscape:export-xdpi="89"
+       inkscape:export-ydpi="89">
       <path
          inkscape:connector-curvature="0"
          id="path5570-2-1-6-3-8"
@@ -2701,7 +2786,7 @@
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#6d8e41;fill-opacity:1;stroke:none"
        x="190.83659"
-       y="1482.6313"
+       y="1522.9698"
        id="text5371-2-8-4-3-8-7"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
@@ -2709,7 +2794,7 @@
          sodipodi:role="line"
          id="tspan5373-6-3-7-5-0-8"
          x="190.83659"
-         y="1482.6313"
+         y="1522.9698"
          style="font-size:16px;line-height:1.25;font-family:sans-serif">false</tspan></text>
     <text
        xml:space="preserve"
@@ -2746,7 +2831,9 @@
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643" />
     <g
-       id="g6614">
+       id="g6614"
+       inkscape:export-xdpi="89"
+       inkscape:export-ydpi="89">
       <g
          inkscape:export-ydpi="89.926643"
          inkscape:export-xdpi="89.926643"
@@ -2851,6 +2938,59 @@
          id="tspan5373-6-3-4-55-3"
          x="66.001251"
          y="574.40112"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">true</tspan></text>
+    <rect
+       style="fill:#d1f2a5;fill-opacity:1;fill-rule:nonzero;stroke:#a9ca7d;stroke-width:3;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       id="rect5273-1-8-9-19-2-2-3"
+       width="210.17955"
+       height="35.209244"
+       x="71.333359"
+       y="1459.5228"
+       rx="15"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none"
+       x="176.25908"
+       y="1481.5415"
+       id="text5371-2-74-0-1-3-7-6"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643"><tspan
+         sodipodi:role="line"
+         x="176.25908"
+         y="1481.5415"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif"
+         id="tspan4047-7">has resp location?</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#6d8e41;fill-opacity:1;stroke:none"
+       x="190.83659"
+       y="1443.2148"
+       id="text5371-2-8-4-3-8-7-1"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643"><tspan
+         sodipodi:role="line"
+         id="tspan5373-6-3-7-5-0-8-2"
+         x="190.83659"
+         y="1443.2148"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">false</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#9b3b1c;fill-opacity:1;stroke:none"
+       x="290.12473"
+       y="1442.293"
+       id="text5371-4-4-9-1-1-9-1-2-2-1"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643"><tspan
+         sodipodi:role="line"
+         id="tspan5373-9-2-6-8-0-1-2-1-5-8"
+         x="290.12473"
+         y="1442.293"
          style="font-size:16px;line-height:1.25;font-family:sans-serif">true</tspan></text>
   </g>
 </svg>
