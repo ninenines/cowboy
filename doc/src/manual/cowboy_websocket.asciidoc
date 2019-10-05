@@ -151,11 +151,12 @@ Cowboy does it automatically for you.
 [source,erlang]
 ----
 opts() :: #{
-    compress => boolean(),
-    deflate_opts => cow_ws:deflate_opts()
-    idle_timeout => timeout(),
+    compress       => boolean(),
+    deflate_opts   => cow_ws:deflate_opts()
+    idle_timeout   => timeout(),
     max_frame_size => non_neg_integer() | infinity,
-    req_filter => fun((cowboy_req:req()) -> map())
+    req_filter     => fun((cowboy_req:req()) -> map()),
+    validate_utf8  => boolean()
 }
 ----
 
@@ -209,8 +210,21 @@ given back in the `terminate/3` callback. By default
 it keeps the method, version, URI components and peer
 information.
 
+validate_utf8 (true)::
+
+Whether Cowboy should verify that the payload of
+`text` and `close` frames is valid UTF-8. This is
+required by the protocol specification but in some
+cases it may be more interesting to disable it in
+order to save resources.
++
+Note that `binary` frames do not have this UTF-8
+requirement and are what should be used under
+normal circumstances if necessary.
+
 == Changelog
 
+* *2.7*: The option `validate_utf8` has been added.
 * *2.6*: Deflate options can now be configured via `deflate_opts`.
 * *2.0*: The Req object is no longer passed to Websocket callbacks.
 * *2.0*: The callback `websocket_terminate/3` was removed in favor of `terminate/3`.

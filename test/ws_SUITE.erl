@@ -67,7 +67,8 @@ init_dispatch() ->
 			{"/ws_timeout_hibernate", ws_timeout_hibernate, []},
 			{"/ws_timeout_cancel", ws_timeout_cancel, []},
 			{"/ws_max_frame_size", ws_max_frame_size, []},
-			{"/ws_deflate_opts", ws_deflate_opts_h, []}
+			{"/ws_deflate_opts", ws_deflate_opts_h, []},
+			{"/ws_dont_validate_utf8", ws_dont_validate_utf8_h, []}
 		]}
 	]).
 
@@ -302,6 +303,16 @@ do_ws_deflate_opts_z(Path, Config) ->
 	ok = gen_tcp:send(Socket, << 1:1, 0:3, 8:4, 1:1, 0:7, 0:32 >>),
 	{ok, << 1:1, 0:3, 8:4, 0:8 >>} = gen_tcp:recv(Socket, 0, 6000),
 	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
+	ok.
+
+ws_dont_validate_utf8(Config) ->
+	doc("Handler is configured with UTF-8 validation disabled."),
+	{ok, Socket, _} = do_handshake("/ws_dont_validate_utf8", Config),
+	%% Send an invalid UTF-8 text frame and receive it back.
+	Mask = 16#37fa213d,
+	MaskedInvalid = do_mask(<<255, 255, 255, 255>>, Mask, <<>>),
+	ok = gen_tcp:send(Socket, <<1:1, 0:3, 1:4, 1:1, 4:7, Mask:32, MaskedInvalid/binary>>),
+	{ok, <<1:1, 0:3, 1:4, 0:1, 4:7, 255, 255, 255, 255>>} = gen_tcp:recv(Socket, 0, 6000),
 	ok.
 
 ws_first_frame_with_handshake(Config) ->

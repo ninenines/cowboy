@@ -73,7 +73,8 @@
 	deflate_opts => cow_ws:deflate_opts(),
 	idle_timeout => timeout(),
 	max_frame_size => non_neg_integer() | infinity,
-	req_filter => fun((cowboy_req:req()) -> map())
+	req_filter => fun((cowboy_req:req()) -> map()),
+	validate_utf8 => boolean()
 }.
 -export_type([opts/0]).
 
@@ -91,7 +92,7 @@
 	hibernate = false :: boolean(),
 	frag_state = undefined :: cow_ws:frag_state(),
 	frag_buffer = <<>> :: binary(),
-	utf8_state = 0 :: cow_ws:utf8_state(),
+	utf8_state :: cow_ws:utf8_state(),
 	deflate = true :: boolean(),
 	extensions = #{} :: map(),
 	req = #{} :: map()
@@ -133,7 +134,11 @@ upgrade(Req0=#{version := Version}, Env, Handler, HandlerState, Opts) ->
 		undefined -> maps:with([method, version, scheme, host, port, path, qs, peer], Req0);
 		FilterFun -> FilterFun(Req0)
 	end,
-	State0 = #state{opts=Opts, handler=Handler, req=FilteredReq},
+	Utf8State = case maps:get(validate_utf8, Opts, true) of
+		true -> 0;
+		false -> undefined
+	end,
+	State0 = #state{opts=Opts, handler=Handler, utf8_state=Utf8State, req=FilteredReq},
 	try websocket_upgrade(State0, Req0) of
 		{ok, State, Req} ->
 			websocket_handshake(State, Req, HandlerState, Env);
