@@ -31,6 +31,10 @@ be converted through the use of constraints, making this
 function able to extract, validate and convert values all
 in one step.
 
+This function will crash on invalid cookie data. How to
+handle this is explained in details in the manual page for
+link:man:cowboy_req:parse_cookies(3)[cowboy_req:parse_cookies(3)].
+
 == Arguments
 
 Fields::
@@ -85,4 +89,5 @@ An exception is triggered when the match fails.
 == See also
 
 link:man:cowboy_req(3)[cowboy_req(3)],
+link:man:cowboy_req:filter_cookies(3)[cowboy_req:filter_cookies(3)],
 link:man:cowboy_req:parse_cookies(3)[cowboy_req:parse_cookies(3)]

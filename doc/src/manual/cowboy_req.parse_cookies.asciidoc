@@ -18,10 +18,35 @@ Parse cookie headers.
 
 Alias for link:man:cowboy_req:parse_header(3)[cowboy_req:parse_header(<<"cookie">>, Req)].
 
-When the cookie header is missing, `[]` is returned.
+When the cookie header is missing or empty, `[]` is returned.
 
-While an empty cookie header is not valid, some clients do
-send it. Cowboy will in this case also return `[]`.
+This function will crash on invalid cookie data. Because
+invalid cookies are fairly common when dealing with browsers
+(because of the string interface that the Javascript API provides),
+it is recommended to filter the cookie header value before
+attempting to parse it. This can be accomplished by calling
+the function link:man:cowboy_req:filter_cookies(3)[cowboy_req:filter_cookies(3)]
+first. This does not guarantee that parsing succeeds. If it
+still fails it is recommended to send an error response or
+redirect with instructions to delete the relevant cookies:
+
+.Recover from cookie parsing errors
+[source,erlang]
+----
+Req1 = cowboy_req:filter_cookies([session_id, token], Req0),
+try cowboy_req:parse_cookies(Req1) of
+    Cookies ->
+        do_something(Req1, Cookies)
+catch _:_ ->
+    %% We can't parse the cookies we need, unset them
+    %% otherwise the browser will continue sending them.
+    Req2 = cowboy_req:set_resp_cookie(<<"session_id">>,
+        <<>>, Req1, #{max_age => 0}),
+    Req = cowboy_req:set_resp_cookie(<<"token">>,
+        <<>>, Req2, #{max_age => 0}),
+    cowboy_req:reply(500, Req)
+end.
+----
 
 == Arguments
 
@@ -52,4 +77,5 @@ Cookies = cowboy_req:parse_cookies(Req),
 
 link:man:cowboy_req(3)[cowboy_req(3)],
 link:man:cowboy_req:parse_header(3)[cowboy_req:parse_header(3)],
+link:man:cowboy_req:filter_cookies(3)[cowboy_req:filter_cookies(3)],
 link:man:cowboy_req:match_cookies(3)[cowboy_req:match_cookies(3)]
