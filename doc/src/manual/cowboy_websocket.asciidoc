@@ -32,14 +32,18 @@ PartialReq :: map()
 State      :: any()
 Opts       :: cowboy_websocket:opts()
 InFrame    :: ping | pong | {text | binary | ping | pong, binary()}
-OutFrame   :: cow_ws:frame()                    %% see types below
 Info       :: any()
 
-CallResult :: {ok, State}
+CallResult :: {commands(), State}
+            | {commands(), State, hibernate}
+            | Deprecated
+
+Deprecated :: {ok, State}
             | {ok, State, hibernate}
             | {reply, OutFrame | [OutFrame], State}
             | {reply, OutFrame | [OutFrame], State, hibernate}
             | {stop, State}
+OutFrame   :: cow_ws:frame()                    %% see types below
 
 Reason     :: normal | stop | timeout
             | remote | {remote, cow_ws:close_code(), binary()}
@@ -69,9 +73,9 @@ frame received. The `websocket_info/2` callback will be
 called for every Erlang message received.
 
 All three Websocket callbacks may send one or more frames
-back to the client (by returning a `reply` tuple) or terminate
-the connection (by sending a `close` frame or returning a `stop`
-tuple).
+back to the client, including close frames to terminate
+the connection; enable/disable active mode; enable/disable
+compression for subsequent frames; or change Websocket options.
 
 The optional `terminate/3` callback will ultimately be called
 with the reason for the termination of the connection. This
@@ -127,6 +131,41 @@ timeout::
     A socket error ocurred.
 
 == Types
+
+=== commands()
+
+[source,erlang]
+----
+commands() :: [Command]
+
+Command :: {active, boolean()}
+         | {deflate, boolean()}
+         | {set_options, #{idle_timeout => timeout()}}
+         | Frame :: cow_ws:frame()
+----
+
+Commands that may be returned from Websocket callbacks.
+
+The following commands are defined:
+
+active::
+
+Whether to disable or enable reading from the socket. This
+can be used to apply flow control to a Websocket connection.
+
+deflate::
+
+Whether the subsequent frames should be compressed. Has no
+effect on connections that did not negotiate compression.
+
+set_options::
+
+Set Websocket options. Currently only the option `idle_timeout`
+may be updated from a Websocket handler.
+
+Frame::
+
+Send the corresponding Websocket frame.
 
 === cow_ws:frame()
 
@@ -224,6 +263,8 @@ normal circumstances if necessary.
 
 == Changelog
 
+* *2.7*: The commands based interface has been added. The old
+         interface is now deprecated.
 * *2.7*: The option `validate_utf8` has been added.
 * *2.6*: Deflate options can now be configured via `deflate_opts`.
 * *2.0*: The Req object is no longer passed to Websocket callbacks.

@@ -18,30 +18,28 @@ websocket_init(State) ->
 	do_websocket_init(State).
 
 do_websocket_init(State=ok) ->
-	{ok, State};
+	{[], State};
 do_websocket_init(State=ok_hibernate) ->
-	{ok, State, hibernate};
+	{[], State, hibernate};
 do_websocket_init(State=reply) ->
-	{reply, {text, "Hello"}, State};
+	{[{text, "Hello"}], State};
 do_websocket_init(State=reply_hibernate) ->
-	{reply, {text, "Hello"}, State, hibernate};
+	{[{text, "Hello"}], State, hibernate};
 do_websocket_init(State=reply_close) ->
-	{reply, close, State};
+	{[close], State};
 do_websocket_init(State=reply_close_hibernate) ->
-	{reply, close, State, hibernate};
+	{[close], State, hibernate};
 do_websocket_init(State=reply_many) ->
-	{reply, [{text, "Hello"}, {binary, "World"}], State};
+	{[{text, "Hello"}, {binary, "World"}], State};
 do_websocket_init(State=reply_many_hibernate) ->
-	{reply, [{text, "Hello"}, {binary, "World"}], State, hibernate};
+	{[{text, "Hello"}, {binary, "World"}], State, hibernate};
 do_websocket_init(State=reply_many_close) ->
-	{reply, [{text, "Hello"}, close], State};
+	{[{text, "Hello"}, close], State};
 do_websocket_init(State=reply_many_close_hibernate) ->
-	{reply, [{text, "Hello"}, close], State, hibernate};
-do_websocket_init(State=stop) ->
-	{stop, State}.
+	{[{text, "Hello"}, close], State, hibernate}.
 
 websocket_handle(_, State) ->
-	{ok, State}.
+	{[], State}.
 
 websocket_info(_, State) ->
-	{ok, State}.
+	{[], State}.

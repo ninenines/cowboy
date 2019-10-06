@@ -12,17 +12,17 @@ init(Req, _) ->
 
 websocket_init(State) ->
 	erlang:start_timer(1000, self(), <<"websocket_init">>),
-	{ok, State}.
+	{[], State}.
 
 websocket_handle({text, Data}, State) ->
-	{reply, {text, Data}, State};
+	{[{text, Data}], State};
 websocket_handle({binary, Data}, State) ->
-	{reply, {binary, Data}, State};
+	{[{binary, Data}], State};
 websocket_handle(_Frame, State) ->
-	{ok, State}.
+	{[], State}.
 
 websocket_info({timeout, _Ref, Msg}, State) ->
 	erlang:start_timer(1000, self(), <<"websocket_handle">>),
-	{reply, {text, Msg}, State};
+	{[{text, Msg}], State};
 websocket_info(_Info, State) ->
-	{ok, State}.
+	{[], State}.

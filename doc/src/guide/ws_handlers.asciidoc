@@ -105,7 +105,7 @@ the upgrade:
 [source,erlang]
 ----
 websocket_init(State) ->
-    {reply, {text, <<"Hello!">>}, State}.
+    {[{text, <<"Hello!">>}], State}.
 ----
 
 === Receiving frames
@@ -122,7 +122,7 @@ ignores all others:
 [source,erlang]
 ----
 websocket_handle(Frame = {text, _}, State) ->
-    {reply, Frame, State};
+    {[Frame], State};
 websocket_handle(_Frame, State) ->
     {ok, State}.
 ----
@@ -145,7 +145,7 @@ and ignores all others:
 [source,erlang]
 ----
 websocket_info({log, Text}, State) ->
-    {reply, {text, Text}, State};
+    {[{text, Text}], State};
 websocket_info(_Info, State) ->
     {ok, State}.
 ----
@@ -167,24 +167,23 @@ websocket_info(_Info, State) ->
     {ok, State}.
 ----
 
-To send one frame, return a reply tuple with the frame to send:
+To send one frame, return the frame to be sent:
 
 [source,erlang]
 ----
 websocket_info(_Info, State) ->
-    {reply, {text, <<"Hello!">>}, State}.
+    {[{text, <<"Hello!">>}], State}.
 ----
 
 You can send frames of any type: text, binary, ping, pong
 or close frames.
 
-To send many frames at once, return a reply tuple with the
-list of frames to send:
+You can send many frames at the same time:
 
 [source,erlang]
 ----
 websocket_info(_Info, State) ->
-    {reply, [
+    {[
         {text, "Hello"},
         {text, <<"world!">>},
         {binary, <<0:8000>>}
@@ -246,18 +245,18 @@ Cowboy will have a more reasonable default.
 The Websocket connection process can be set to hibernate
 after the callback returns.
 
-Simply add an `hibernate` field to the ok or reply tuples:
+Simply add an `hibernate` field to the returned tuple:
 
 [source,erlang]
 ----
 websocket_init(State) ->
-    {ok, State, hibernate}.
+    {[], State, hibernate}.
 
 websocket_handle(_Frame, State) ->
-    {ok, State, hibernate}.
+    {[], State, hibernate}.
 
 websocket_info(_Info, State) ->
-    {reply, {text, <<"Hello!">>}, State, hibernate}.
+    {[{text, <<"Hello!">>}], State, hibernate}.
 ----
 
 It is highly recommended to write your handlers with
@@ -289,5 +288,5 @@ The following example sends a close frame with a reason message:
 [source,erlang]
 ----
 websocket_info(_Info, State) ->
-    {reply, {close, 1000, <<"some-reason">>}, State}.
+    {[{close, 1000, <<"some-reason">>}], State}.
 ----

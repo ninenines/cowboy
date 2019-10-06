@@ -403,13 +403,6 @@ ws_init_return_reply_many_close_hibernate(Config) ->
 		1:1, 0:3, 8:4, 0:8 >>} = gen_tcp:recv(Socket, 9, 6000),
 	ok.
 
-ws_init_return_stop(Config) ->
-	doc("Handler closes immediately after the handshake."),
-	{ok, Socket, _} = do_handshake("/ws_init?stop", Config),
-	{ok, << 1:1, 0:3, 8:4, 0:1, 2:7, 1000:16 >>} = gen_tcp:recv(Socket, 0, 6000),
-	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
-	ok.
-
 ws_init_shutdown_before_handshake(Config) ->
 	doc("Handler stops before Websocket handshake."),
 	{ok, Socket} = gen_tcp:connect("localhost", config(port, Config), [binary, {active, false}]),

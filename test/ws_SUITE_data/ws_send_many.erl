@@ -12,10 +12,10 @@ init(Req, Opts) ->
 
 websocket_init(State) ->
 	erlang:send_after(10, self(), send_many),
-	{ok, State}.
+	{[], State}.
 
 websocket_handle(_Frame, State) ->
-	{ok, State}.
+	{[], State}.
 
 websocket_info(send_many, State = [{sequence, Sequence}]) ->
-	{reply, Sequence, State}.
+	{Sequence, State}.

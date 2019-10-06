@@ -12,11 +12,11 @@ init(Req, _) ->
 	}}.
 
 websocket_handle({text, Data}, State) ->
-	{reply, {text, Data}, State};
+	{[{text, Data}], State};
 websocket_handle({binary, Data}, State) ->
-	{reply, {binary, Data}, State};
+	{[{binary, Data}], State};
 websocket_handle(_Frame, State) ->
-	{ok, State}.
+	{[], State}.
 
 websocket_info(_Info, State) ->
-	{ok, State}.
+	{[], State}.
