@@ -112,6 +112,10 @@ Send a response to the client.
 
 No more data can be sent after this command.
 
+Note that in Cowboy it is the `cowboy_req` module that
+sets the date and server headers. When using the command
+directly those headers will not be added.
+
 [[headers_command]]
 === headers
 
@@ -125,6 +129,10 @@ Initiate a response to the client.
 This initiates a response to the client. The stream
 will end when a data command with the `fin` flag or
 a trailer command is returned.
+
+Note that in Cowboy it is the `cowboy_req` module that
+sets the date and server headers. When using the command
+directly those headers will not be added.
 
 [[data_command]]
 === data
