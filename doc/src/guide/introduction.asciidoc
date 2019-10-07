@@ -35,14 +35,14 @@ guarantee that the experience will be safe and smooth. You are advised
 to perform the necessary testing and security audits prior to deploying
 on other platforms.
 
-Cowboy is developed for Erlang/OTP 19.0 and newer.
+Cowboy is developed for Erlang/OTP 20.0 and newer.
 
 === License
 
 Cowboy uses the ISC License.
 
 ----
-Copyright (c) 2011-2017, Loïc Hoguin <essen@ninenines.eu>
+Copyright (c) 2011-2019, Loïc Hoguin <essen@ninenines.eu>
 
 Permission to use, copy, modify, and/or distribute this software for any
 purpose with or without fee is hereby granted, provided that the above

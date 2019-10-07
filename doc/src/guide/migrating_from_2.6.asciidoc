@@ -1,41 +1,209 @@
 [appendix]
-== Changes since Cowboy 2.6
+== Migrating from Cowboy 2.6 to 2.7
 
-The following patch versions were released since Cowboy 2.6:
+Cowboy 2.7 improves the HTTP/2 code with optimizations
+around the sending of DATA and WINDOW_UPDATE frames;
+graceful shutdown of the connection when the client is
+going away; and rate limiting mechanisms. New options
+and mechanisms have also been added to control the
+amount of memory Cowboy ends up using with both HTTP/1.1
+and HTTP/2. Much, but not all, of this work was done
+to address HTTP/2 CVEs about potential denial of service.
 
-=== Cowboy 2.6.3
+In addition, many of the experimental features introduced
+in previous releases have been marked stable and are now
+documented.
 
-This release updates Cowlib to 2.7.3 to fix the `vsn`
-value in the 'cowlib.app' file that was causing issues
-to Elixir users.
+Cowboy 2.7 requires Erlang/OTP 20.0 or greater.
 
-=== Cowboy 2.6.2
+=== Features added
 
-This release updates Cowlib to 2.7.2.
+* Cowboy is now compatible with both Ranch 1.7 and the
+  upcoming Ranch 2.0.
 
-A bug in the HTTP/2 code that resulted in the failure to
-fully send iolist response bodies has been fixed. Cowboy
-would just wait indefinitely in those cases.
+* The number of HTTP/2 WINDOW_UPDATE frames Cowboy sends
+  has been greatly reduced. Cowboy now applies heuristics
+  to determine whether it is necessary to update the window,
+  based on the current window size and the amount of data
+  requested by streams (the `cowboy_req:read_body/2` length
+  for example). Six new options have been added to control
+  this behavior: `connection_window_margin_size`,
+  `connection_window_update_threshold`,
+  `max_connection_window_size`, `max_stream_window_size`,
+  `stream_window_margin_size` and
+  `stream_window_update_threshold`.
 
-Cowboy will now use the host header when the HTTP/2
-:authority pseudo header is missing. A common scenario
-where this occurs is when proxies translate incoming
-HTTP/1.1 requests to HTTP/2.
+* HTTP/2 connections will now be shut down gracefully
+  when receiving a GOAWAY frame. Cowboy will simply
+  wait for existing streams to finish before closing
+  the connection.
 
-The `cowboy_static` handler will now properly detect
-the type of files that have an uppercase or mixed
-extension component.
+* Functions that stream the response body now have
+  backpressure applied. They now wait for a message
+  to be sent back. The message will be held off when
+  using HTTP/2 and the buffer sizes exceed either
+  `max_connection_buffer_size` or `max_stream_buffer_size`.
+  For HTTP/1.1 the data is sent synchronously and we
+  rely instead on the TCP backpressure.
 
-A bug where the stacktrace was incorrect in error messages
-has been fixed. The problem occurred when an exception
-occurred in the handler's terminate callback.
+* A new HTTP/2 option `stream_window_data_threshold`
+  can be used to control how little the DATA frames that
+  Cowboy sends can get. By default Cowboy will wait for
+  the window to be large enough to send either everything
+  queued or to reach the default maximum frame size of
+  16384 bytes.
 
-Minor documentation fixes.
+* A new HTTP/2 option `max_receive_frame_rate` can be
+  used to control how fast the server is willing to receive
+  frames. By default it will accept 1000 frames every 10
+  seconds.
 
-=== Cowboy 2.6.1
+* A new HTTP/2 option `max_reset_stream_rate` can be
+  used to control the rate of errors the server is
+  willing to accept. By default it will accept 10
+  stream resets every 10 seconds.
 
-This release updates Ranch to 1.7.1.
+* The HTTP/1.1 and HTTP/2 option `logger` is now
+  documented.
 
-It fixes an issue with the PROXY protocol where the wrong
-CRC32 algorithm was used and would cause checksum
-verification to fail.
+* The Websocket option `validate_utf8` has been
+  added. It can be used to disable the expensive UTF-8
+  validation for incoming text and close frames.
+
+* The experimental commands based Websocket interface
+  is now considered stable and has been documented.
+  The old interface is now deprecated.
+
+* The experimental stream handlers `cowboy_metrics_h`
+  and `cowboy_tracer_h` are now considered stable and
+  have been documented.
+
+* The stream handler commands `set_options` and `log`
+  are now considered stable and have been documented.
+
+* The router is now capable of retrieving dispatch
+  rules directly from the `persistent_term` storage
+  (available starting from Erlang/OTP 21.2).
+
+* Support for the status codes 208 and 508 has been
+  added.
+
+* Update Ranch to 1.7.1.
+
+* Update Cowlib to 2.8.0.
+
+=== Experimental features added
+
+* It is now possible to read the response body from any
+  process, as well as doing any other `cowboy_req`
+  operations. Since this is not recommended due to
+  race condition concerns this feature will always
+  remain experimental.
+
+=== New functions
+
+* The function `cowboy_req:filter_cookies/2` has been
+  added. It can be called before parsing/matching
+  cookies in order to filter out undesirables. The
+  main reason for doing this is to avoid most parse
+  errors that may occur when dealing with Web browsers
+  (which have a string-based Javascript interface to
+  cookies that is very permissive of invalid content)
+  and to be able to recover in other cases.
+
+* The function `cowboy_req:cast/2` has been added.
+  It can be used to send events to stream handlers.
+
+=== Bugs fixed
+
+* A number of fixes and additions were made to address the
+  HTTP/2 CVEs CVE-2019-9511 through CVE-2019-9518, except
+  for CVE-2019-9513 which required no intervention as the
+  relevant protocol feature is not implemented by Cowboy.
+
+* The HTTP/2 connection window could become larger than the
+  protocol allows, leading to errors. This has been corrected.
+
+* The presence of empty header names in HTTP/2 requests now
+  results in the request to be rejected.
+
+* Cowboy will now remove headers specific to HTTP/1.1
+  (the hop by hop headers such as connection or upgrade)
+  when building an HTTP/2 response.
+
+* A bug in the HTTP/2 code that resulted in the failure to
+  fully send iolist response bodies has been fixed. Cowboy
+  would just wait indefinitely in those cases.
+
+* It was possible for a final empty HTTP/2 DATA frame to get
+  stuck and never sent when the window reached 0 and the remote
+  end did not increase the window anymore. This has been
+  corrected.
+
+* Cowboy now uses the host header when the HTTP/2
+  :authority pseudo header is missing. A common scenario
+  where this occurs is when proxies translate incoming
+  HTTP/1.1 requests to HTTP/2.
+
+* HTTP/1.1 connections are now properly closed when the
+  user code sends less data than advertised in the response
+  headers.
+
+* Cowboy will now close HTTP/1.1 connections immediately when
+  a header line is missing a colon separator. Previously it
+  was waiting for more data.
+
+* It was possible for Cowboy to receive stray timeout messages
+  for HTTP/1.1 connections. This has been addressed.
+
+* The type for the Req object has been updated to accept
+  custom fields as was already documented.
+
+* The authentication scheme returned when parsing the
+  authorization header is now case insensitive, which
+  means it will be returned as lowercase.
+
+* Cowboy no longer discards data that follows a Websocket
+  upgrade request. Note that the protocol does not allow
+  sending data before receiving a successful Websocket
+  upgrade response, so this fix is more out of principle
+  rather than to fix a real world issue.
+
+* The `cowboy_static` handler will now properly detect
+  the type of files that have an uppercase or mixed
+  extension component.
+
+* The `cowboy_static` handler is now consistent across all
+  supported platforms. It now explicitly rejects `path_info`
+  components that include a forward slash, backward slash
+  or NUL character.
+
+* The update to Ranch 1.7.1 fixes an issue with the PROXY
+  protocol that would cause checksum verification to fail.
+
+* The HTTP/1.1 error reason for `stream_error` mistakenly
+  contained an extra element. It has now been removed.
+
+* The `PartialReq` given to the `early_error` stream handler
+  callback now includes headers when the protocol is HTTP/2.
+
+* A bug where the stacktrace was incorrect in error messages
+  has been fixed. The problem occurred when an exception
+  occurred in the handler's terminate callback.
+
+* The REST flowchart for POST, PATCH and PUT has received
+  a number of fixes and had to be greatly reworked as a
+  result. When the method is PUT, we do not check for
+  the location header in the response. When the resource
+  doesn't exist and the method was PUT the flowchart was
+  largely incorrect. A 415 response may occur after the
+  `content_types_accepted` callback and was missing from
+  the flowchart.
+
+* The documentation for `content_types_accepted` now
+  includes the media type wildcard that was previously
+  missing.
+
+* The documentation for a type found in `cow_cookie`
+  was missing. A manual page for `cow_cookie` was added
+  and can be found in the Cowlib documentation.
