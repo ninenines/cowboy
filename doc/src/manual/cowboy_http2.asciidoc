@@ -25,6 +25,7 @@ opts() :: #{
     inactivity_timeout             => timeout(),
     initial_connection_window_size => 65535..16#7fffffff,
     initial_stream_window_size     => 0..16#7fffffff,
+    logger                         => module(),
     max_concurrent_streams         => non_neg_integer() | infinity,
     max_connection_buffer_size     => non_neg_integer(),
     max_connection_window_size     => 0..16#7fffffff,
@@ -103,6 +104,10 @@ initial_stream_window_size (65535)::
 Initial window size in bytes for new streams. This is the total amount
 of data (from request bodies for example) that may be buffered
 by a single stream before the user code explicitly requests it.
+
+logger (error_logger)::
+
+The module that will be used to write log messages.
 
 max_concurrent_streams (infinity)::
 
@@ -234,6 +239,7 @@ too many `WINDOW_UPDATE` frames.
          to protect against various flood scenarios; and
          `stream_window_data_threshold` to control how small
          the DATA frames that Cowboy sends can get.
+* *2.7*: The `logger` option was added.
 * *2.6*: The `proxy_header` and `sendfile` options were added.
 * *2.4*: Add the options `initial_connection_window_size`,
          `initial_stream_window_size`, `max_concurrent_streams`,

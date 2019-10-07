@@ -23,6 +23,7 @@ opts() :: #{
     idle_timeout            => timeout(),
     inactivity_timeout      => timeout(),
     linger_timeout          => timeout(),
+    logger                  => module(),
     max_empty_lines         => non_neg_integer(),
     max_header_name_length  => non_neg_integer(),
     max_header_value_length => non_neg_integer(),
@@ -77,6 +78,10 @@ linger_timeout (1000)::
 Time in ms that Cowboy will wait when closing the connection. This is
 necessary to avoid the TCP reset problem as described in the
 https://tools.ietf.org/html/rfc7230#section-6.6[section 6.6 of RFC7230].
+
+logger (error_logger)::
+
+The module that will be used to write log messages.
 
 max_empty_lines (5)::
 
@@ -133,6 +138,7 @@ Ordered list of stream handlers that will handle all stream events.
 
 == Changelog
 
+* *2.7*: The `logger` option was added.
 * *2.6*: The `chunked`, `http10_keepalive`, `proxy_header` and `sendfile` options were added.
 * *2.5*: The `linger_timeout` option was added.
 * *2.2*: The `max_skip_body_length` option was added.
