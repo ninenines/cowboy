@@ -72,6 +72,7 @@ init_dispatch(_) ->
 	cowboy_router:compile([{"localhost", [
 		{"/", hello_h, []},
 		{"/echo/:key", echo_h, []},
+		{"/long_polling", long_polling_h, []},
 		{"/resp/:key[/:arg]", resp_h, []}
 	]}]).
 
@@ -160,7 +161,7 @@ http2_empty_frame_flooding_push_promise(Config) ->
 		{<<":method">>, <<"GET">>},
 		{<<":scheme">>, <<"http">>},
 		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
-		{<<":path">>, <<"/">>}
+		{<<":path">>, <<"/long_polling">>}
 	]),
 	ok = gen_tcp:send(Socket, cow_http2:headers(1, nofin, HeadersBlock)),
 	%% Send nofin PUSH_PROMISE frame without any data.
