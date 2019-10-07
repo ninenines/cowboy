@@ -90,6 +90,10 @@ Response:
 * link:man:cowboy_req:stream_trailers(3)[cowboy_req:stream_trailers(3)] - Send the response trailers
 * link:man:cowboy_req:push(3)[cowboy_req:push(3)] - Push a resource to the client
 
+Stream handlers:
+
+* link:man:cowboy_req:cast(3)[cowboy_req:cast(3)] - Cast a stream handler event
+
 == Types
 
 === push_opts()

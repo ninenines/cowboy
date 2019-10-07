@@ -1,0 +1,64 @@
+= cowboy_req:cast(3)
+
+== Name
+
+cowboy_req:cast - Cast a stream handler event
+
+== Description
+
+[source,erlang]
+----
+cast(Event :: any(), Req :: cowboy_req:req()) -> ok
+----
+
+Cast a stream handler event.
+
+The event will be passed to stream handlers through the
+`info/3` callback.
+
+== Arguments
+
+Event::
+
+The event to be sent to stream handlers.
+
+Req::
+
+The Req object.
+
+== Return value
+
+The atom `ok` is always returned. It can be safely ignored.
+
+== Changelog
+
+* *2.7*: Function introduced.
+
+== Examples
+
+.Increase the HTTP/1.1 idle timeout
+[source,erlang]
+----
+cowboy_req:cast({set_options, #{
+    idle_timeout => 3600000
+}}, Req).
+----
+
+.Add user data to metrics
+----
+cowboy_req:cast({set_options, #{
+    metrics_user_data => #{handler => ?MODULE}
+}}, Req).
+----
+
+.Enable compression buffering
+----
+cowboy_req:cast({set_options, #{
+    compress_buffering => true
+}}, Req).
+----
+
+== See also
+
+link:man:cowboy_req(3)[cowboy_req(3)],
+link:man:cowboy_stream(3)[cowboy_stream(3)]

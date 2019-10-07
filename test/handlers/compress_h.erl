@@ -24,9 +24,7 @@ init(Req0, State=reply) ->
 			Size = filelib:file_size(AppFile),
 			cowboy_req:reply(200, #{}, {sendfile, 0, Size, AppFile}, Req0);
 		<<"set_options_threshold0">> ->
-			%% @todo This should be replaced by a cowboy_req:cast/cowboy_stream:cast.
-			#{pid := Pid, streamid := StreamID} = Req0,
-			Pid ! {{Pid, StreamID}, {set_options, #{compress_threshold => 0}}},
+			cowboy_req:cast({set_options, #{compress_threshold => 0}}, Req0),
 			cowboy_req:reply(200, #{}, lists:duplicate(100, $a), Req0)
 	end,
 	{ok, Req, State};
@@ -62,14 +60,10 @@ init(Req0, State=stream_reply) ->
 		<<"delayed">> ->
 			stream_delayed(Req0);
 		<<"set_options_buffering_false">> ->
-			%% @todo This should be replaced by a cowboy_req:cast/cowboy_stream:cast.
-			#{pid := Pid, streamid := StreamID} = Req0,
-			Pid ! {{Pid, StreamID}, {set_options, #{compress_buffering => false}}},
+			cowboy_req:cast({set_options, #{compress_buffering => false}}, Req0),
 			stream_delayed(Req0);
 		<<"set_options_buffering_true">> ->
-			%% @todo This should be replaced by a cowboy_req:cast/cowboy_stream:cast.
-			#{pid := Pid, streamid := StreamID} = Req0,
-			Pid ! {{Pid, StreamID}, {set_options, #{compress_buffering => true}}},
+			cowboy_req:cast({set_options, #{compress_buffering => true}}, Req0),
 			stream_delayed(Req0)
 	end,
 	{ok, Req, State}.

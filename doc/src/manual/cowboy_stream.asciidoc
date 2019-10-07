@@ -277,9 +277,8 @@ relevant option's documentation for details.
 
 Cowboy will forward all messages sent to the stream to
 the `info/3` callback. To send a message to a stream,
-send a message to the connection process with the form
-`{{Pid, StreamID}, Msg}`. The connection process will
-then forward `Msg` to the stream handlers.
+the function link:man:cowboy_req:cast(3)[cowboy_req:cast(3)]
+can be used.
 
 Cowboy will also forward the exit signals for the
 processes that the stream spawned.
@@ -403,4 +402,5 @@ tuple.
 
 link:man:cowboy(7)[cowboy(7)],
 link:man:cowboy_http(3)[cowboy_http(3)],
-link:man:cowboy_http2(3)[cowboy_http2(3)]
+link:man:cowboy_http2(3)[cowboy_http2(3)],
+link:man:cowboy_req:cast(3)[cowboy_req:cast(3)]
