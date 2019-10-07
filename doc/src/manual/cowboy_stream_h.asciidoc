@@ -69,4 +69,5 @@ may not work properly if they are executed
 link:man:cowboy(7)[cowboy(7)],
 link:man:cowboy_stream(3)[cowboy_stream(3)],
 link:man:cowboy_compress_h(3)[cowboy_compress_h(3)],
-link:man:cowboy_metrics_h(3)[cowboy_metrics_h(3)]
+link:man:cowboy_metrics_h(3)[cowboy_metrics_h(3)],
+link:man:cowboy_tracer_h(3)[cowboy_tracer_h(3)]

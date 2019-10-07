@@ -64,6 +64,7 @@
 	stream_window_margin_size => 0..16#7fffffff,
 	stream_window_update_threshold => 0..16#7fffffff,
 	tracer_callback => cowboy_tracer_h:tracer_callback(),
+	tracer_flags => [atom()],
 	tracer_match_specs => cowboy_tracer_h:tracer_match_specs(),
 	%% Open ended because configured stream handlers might add options.
 	_ => _

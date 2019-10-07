@@ -1,0 +1,88 @@
+= cowboy_tracer_h(3)
+
+== Name
+
+cowboy_tracer_h - Tracer stream handler
+
+== Description
+
+The module `cowboy_tracer_h` can be used to conditionally
+trace streams based on information found in the request.
+Trace messages are given to the configured callback.
+
+== Options
+
+[source,erlang]
+----
+opts() :: #{
+    tracer_callback    => Callback,
+    tracer_flags       => [atom()],
+    tracer_match_specs => [MatchSpec]
+}
+
+Callback :: fun((init | terminate | tuple(), State) -> State)
+
+MatchSpec :: MatchPredicate
+           | {method, binary()}
+           | {host, binary()}
+           | {path, binary()}
+           | {path_start, binary()}
+           | {header, binary()}
+           | {header, binary(), binary()}
+           | {peer_ip, inet:ip_address()}
+
+MatchPredicate :: fun((cowboy_stream:streamid(),
+                       cowboy_req:req(),
+                       cowboy:opts()) -> boolean())
+}
+----
+
+Configuration for the tracer stream handler.
+
+This module will not set trace patterns. Those must be
+set by the user directly, either from the callback's
+`init` or, preferably, in advance.
+
+tracer_callback::
+
+The function that will be called for each trace
+events. It will also be called before any trace
+event with an argument `init`, and when the
+stream is terminated with an argument `terminate`.
++
+This option is required for tracing to be enabled.
+The tracer stream handler does nothing otherwise.
+
+tracer_flags::
+
+Trace flags to enable. See the documentation
+of `erlang:trace/3` for details. Note that all
+trace flags are allowed except for the `tracer`
+flag.
+
+tracer_match_specs::
+
+A list of match conditions that must all be
+fulfilled for the stream to be traced. Cowboy
+will compare these with the information found
+in the request and only enable tracing if all
+matches succeed.
++
+This option is required for tracing to be enabled.
+The tracer stream handler does nothing otherwise.
+
+== Events
+
+The tracer stream handler does not produce any event.
+
+== Changelog
+
+* *2.7*: Module introduced.
+
+== See also
+
+link:man:cowboy(7)[cowboy(7)],
+link:man:cowboy_stream(3)[cowboy_stream(3)],
+link:man:cowboy_compress_h(3)[cowboy_compress_h(3)],
+link:man:cowboy_metrics_h(3)[cowboy_metrics_h(3)],
+link:man:cowboy_stream_h(3)[cowboy_stream_h(3)]

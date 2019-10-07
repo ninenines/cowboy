@@ -53,6 +53,7 @@
 	shutdown_timeout => timeout(),
 	stream_handlers => [module()],
 	tracer_callback => cowboy_tracer_h:tracer_callback(),
+	tracer_flags => [atom()],
 	tracer_match_specs => cowboy_tracer_h:tracer_match_specs(),
 	%% Open ended because configured stream handlers might add options.
 	_ => _
