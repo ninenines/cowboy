@@ -245,6 +245,18 @@ because of an internal error. An `error_response` command
 may be sent before that to advertise to the client why the
 stream is dropped.
 
+=== log
+
+Log a message.
+
+[source,erlang]
+----
+{log, logger:level(), io:format(), list()}
+----
+
+This command can be used to log a message using the
+configured `logger` module.
+
 == Predefined events
 
 Cowboy will forward all messages sent to the stream to
@@ -365,9 +377,10 @@ tuple.
 
 == Changelog
 
-* *2.6*: The data command can now contain a sendfile tuple.
+* *2.7*: The `log` command was introduced.
+* *2.6*: The `data` command can now contain a sendfile tuple.
 * *2.6*: The `{stop, {exit, any()}, HumanReadable}` terminate reason was added.
-* *2.2*: The trailers command was introduced.
+* *2.2*: The `trailers` command was introduced.
 * *2.0*: Module introduced.
 
 == See also
