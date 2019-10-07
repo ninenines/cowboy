@@ -44,6 +44,8 @@
 	max_method_length => non_neg_integer(),
 	max_request_line_length => non_neg_integer(),
 	metrics_callback => cowboy_metrics_h:metrics_callback(),
+	metrics_req_filter => fun((cowboy_req:req()) -> map()),
+	metrics_resp_headers_filter => fun((cowboy:http_headers()) -> cowboy:http_headers()),
 	middlewares => [module()],
 	proxy_header => boolean(),
 	request_timeout => timeout(),

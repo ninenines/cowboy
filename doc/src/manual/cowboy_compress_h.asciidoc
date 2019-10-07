@@ -28,7 +28,7 @@ opts() :: #{
 }
 ----
 
-Configuration for the default stream handler.
+Configuration for the compress stream handler.
 
 The default value is given next to the option name:
 
@@ -57,4 +57,5 @@ The compress stream handler does not produce any event.
 
 link:man:cowboy(7)[cowboy(7)],
 link:man:cowboy_stream(3)[cowboy_stream(3)],
+link:man:cowboy_metrics_h(3)[cowboy_metrics_h(3)],
 link:man:cowboy_stream_h(3)[cowboy_stream_h(3)]

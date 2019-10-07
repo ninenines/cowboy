@@ -1,0 +1,163 @@
+= cowboy_metrics_h(3)
+
+== Name
+
+cowboy_metrics_h - Metrics stream handler
+
+== Description
+
+The module `cowboy_metrics_h` gathers metrics and
+other information about a stream. It then calls
+the configured callback with this data.
+
+== Types
+
+=== metrics()
+
+[source,erlang]
+----
+metrics() :: #{
+    %% The identifier for this listener.
+    ref := ranch:ref(),
+
+    %% The pid for this connection.
+    pid := pid(),
+
+    %% The streamid also indicates the total number of requests on
+    %% this connection (StreamID div 2 + 1).
+    streamid := cowboy_stream:streamid(),
+
+    %% The terminate reason is always useful.
+    reason := cowboy_stream:reason(),
+
+    %% A filtered Req object or a partial Req object
+    %% depending on how far the request got to.
+    req => cowboy_req:req(),
+    partial_req => cowboy_stream:partial_req(),
+
+    %% Response status.
+    resp_status := cowboy:http_status(),
+
+    %% Filtered response headers.
+    resp_headers := cowboy:http_headers(),
+
+    %% Start/end of the processing of the request.
+    %%
+    %% This represents the time from this stream handler's init
+    %% to terminate.
+    req_start => integer(),
+    req_end => integer(),
+
+    %% Start/end of the receiving of the request body.
+    %% Begins when the first packet has been received.
+    req_body_start => integer(),
+    req_body_end => integer(),
+
+    %% Start/end of the sending of the response.
+    %% Begins when we send the headers and ends on the final
+    %% packet of the response body. If everything is sent at
+    %% once these values are identical.
+    resp_start => integer(),
+    resp_end => integer(),
+
+    %% For early errors all we get is the time we received it.
+    early_error_time => integer(),
+
+    %% Start/end of spawned processes. This is where most of
+    %% the user code lies, excluding stream handlers. On a
+    %% default Cowboy configuration there should be only one
+    %% process: the request process.
+    procs => ProcMetrics,
+
+    %% Informational responses sent before the final response.
+    informational => [InformationalMetrics],
+
+    %% Length of the request and response bodies. This does
+    %% not include the framing.
+    req_body_length => non_neg_integer(),
+    resp_body_length => non_neg_integer(),
+
+    %% Additional metadata set by the user.
+    user_data => map()
+}
+
+InformationalMetrics :: #{
+    %% Informational response status.
+    status := cowboy:http_status(),
+
+    %% Headers sent with the informational response.
+    headers := cowboy:http_headers(),
+
+    %% Time when the informational response was sent.
+    time := integer()
+}
+
+ProcMetrics :: #{pid() => #{
+    %% Time at which the process spawned.
+    spawn := integer(),
+
+    %% Time at which the process exited.
+    exit => integer(),
+
+    %% Reason for the process exit.
+    reason => any()
+}}
+----
+
+Metrics given to the callback function.
+
+Depending on the life of the stream the metrics may include
+more or less information.
+
+The `set_options` command can be used to add additional
+metadata in the `user_data` metric. This can be used for
+example to add the handler module which was selected by
+the router. The option to be set is `metrics_user_data`.
+It takes a map which will be merged in the existing
+`user_data` map.
+
+== Options
+
+[source,erlang]
+----
+opts() :: #{
+    metrics_callback => fun((metrics()) -> any()),
+    metrics_req_filter => fun((cowboy_req:req()) -> map()),
+    metrics_resp_headers_filter => fun((cowboy:http_headers()) -> cowboy:http_headers())
+}
+----
+
+Configuration for the metrics stream handler.
+
+metrics_callback - mandatory::
+
+The function that will be called upon completion
+of the stream. It only takes a single argument,
+the `metrics()`.
+
+metrics_req_filter::
+
+A function applied to the Req to compact it and
+only keep required information. By default no
+filtering is done.
+
+metrics_resp_headers_filter::
+
+A function applied to the response headers to
+filter them and only keep required information.
+By default no filtering is done.
+
+== Events
+
+The metrics stream handler does not produce any event.
+
+== Changelog
+
+* *2.7*: Module introduced.
+
+== See also
+
+link:man:cowboy(7)[cowboy(7)],
+link:man:cowboy_stream(3)[cowboy_stream(3)],
+link:man:cowboy_compress_h(3)[cowboy_compress_h(3)],
+link:man:cowboy_stream_h(3)[cowboy_stream_h(3)]

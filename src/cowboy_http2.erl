@@ -51,6 +51,8 @@
 	max_stream_buffer_size => non_neg_integer(),
 	max_stream_window_size => 0..16#7fffffff,
 	metrics_callback => cowboy_metrics_h:metrics_callback(),
+	metrics_req_filter => fun((cowboy_req:req()) -> map()),
+	metrics_resp_headers_filter => fun((cowboy:http_headers()) -> cowboy:http_headers()),
 	middlewares => [module()],
 	preface_timeout => timeout(),
 	proxy_header => boolean(),
