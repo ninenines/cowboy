@@ -37,11 +37,17 @@ compress_buffering (false)::
 Whether the output will be buffered. By default no
 buffering is done to provide maximum compatibility
 at the cost of a lower compression rate.
++
+This option can be updated at any time using the
+`set_options` stream handler command.
 
 compress_threshold (300)::
 
 How large the response body must be to be compressed
 when the response isn't streamed.
++
+This option can be updated at any time using the
+`set_options` stream handler command.
 
 == Events
 

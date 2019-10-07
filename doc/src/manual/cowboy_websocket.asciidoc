@@ -232,6 +232,9 @@ idle_timeout (60000)::
 Time in milliseconds that Cowboy will keep the
 connection open without receiving anything from
 the client.
++
+This option can be updated at any time using the
+`set_options` command.
 
 max_frame_size (infinity)::
 

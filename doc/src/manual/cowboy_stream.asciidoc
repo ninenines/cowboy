@@ -257,6 +257,22 @@ Log a message.
 This command can be used to log a message using the
 configured `logger` module.
 
+=== set_options
+
+Set protocol options.
+
+[source,erlang]
+----
+{set_options, map()}
+----
+
+This can also be used to override stream handler
+options. For example this is supported by
+link:man:cowboy_compress_h(3)[cowboy_compress_h(3)].
+
+Not all options can be overriden. Please consult the
+relevant option's documentation for details.
+
 == Predefined events
 
 Cowboy will forward all messages sent to the stream to
@@ -377,7 +393,7 @@ tuple.
 
 == Changelog
 
-* *2.7*: The `log` command was introduced.
+* *2.7*: The `log` and `set_options` commands were introduced.
 * *2.6*: The `data` command can now contain a sendfile tuple.
 * *2.6*: The `{stop, {exit, any()}, HumanReadable}` terminate reason was added.
 * *2.2*: The `trailers` command was introduced.

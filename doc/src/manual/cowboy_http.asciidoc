@@ -56,6 +56,9 @@ Whether chunked transfer-encoding is enabled for HTTP/1.1 connections.
 Note that a response streamed to the client without the chunked
 transfer-encoding and without a content-length header will result
 in the connection being closed at the end of the response body.
++
+This option can be updated at any time using the
+`set_options` stream handler command.
 
 connection_type (supervisor)::
 
@@ -68,6 +71,9 @@ Whether keep-alive is enabled for HTTP/1.0 connections.
 idle_timeout (60000)::
 
 Time in ms with no data received before Cowboy closes the connection.
++
+This option can be updated at any time using the
+`set_options` stream handler command.
 
 inactivity_timeout (300000)::
 
