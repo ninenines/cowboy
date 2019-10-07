@@ -17,7 +17,8 @@ in Cowboy.
 
 === Stream handlers
 
-Stream handlers must implement five different callbacks.
+link:man:cowboy_stream(3)[Stream handlers]
+must implement five different callbacks.
 Four of them are directly related; one is special.
 
 All callbacks receives the stream ID as first argument.
@@ -55,11 +56,20 @@ modified.
 
 Cowboy comes with two handlers.
 
-`cowboy_stream_h` is the default stream handler.
-It is the core of much of the functionality of Cowboy.
-All chains of stream handlers should call it last.
+link:man:cowboy_stream_h(3)[cowboy_stream_h] is the default
+stream handler. It is the core of much of the functionality
+of Cowboy. All chains of stream handlers should call it last.
 
-`cowboy_compress_h` will automatically compress
-responses when possible. It is not enabled by default.
-It is a good example for writing your own handlers
-that will modify responses.
+link:man:cowboy_compress_h(3)[cowboy_compress_h] will
+automatically compress responses when possible. It is not
+enabled by default. It is a good example for writing your
+own handlers that will modify responses.
+
+link:man:cowboy_metrics_h(3)[cowboy_metrics_h] gathers
+metrics about a stream then passes them to a configurable
+function. It is not enabled by default.
+
+link:man:cowboy_tracer_h(3)[cowboy_tracer_h] can be used to
+conditionally trace streams based on the contents of the
+request or its origin. Trace events are passed to a
+configurable function. It is not enabled by default.
