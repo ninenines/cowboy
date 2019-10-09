@@ -17,25 +17,26 @@ as a Ranch protocol.
 [source,erlang]
 ----
 opts() :: #{
-    chunked                 => boolean(),
-    connection_type         => worker | supervisor,
-    http10_keepalive        => boolean(),
-    idle_timeout            => timeout(),
-    inactivity_timeout      => timeout(),
-    linger_timeout          => timeout(),
-    logger                  => module(),
-    max_empty_lines         => non_neg_integer(),
-    max_header_name_length  => non_neg_integer(),
-    max_header_value_length => non_neg_integer(),
-    max_headers             => non_neg_integer(),
-    max_keepalive           => non_neg_integer(),
-    max_method_length       => non_neg_integer(),
-    max_request_line_length => non_neg_integer(),
-    max_skip_body_length    => non_neg_integer(),
-    proxy_header            => boolean(),
-    request_timeout         => timeout(),
-    sendfile                => boolean(),
-    stream_handlers         => [module()]
+    chunked                  => boolean(),
+    connection_type          => worker | supervisor,
+    http10_keepalive         => boolean(),
+    idle_timeout             => timeout(),
+    inactivity_timeout       => timeout(),
+    initial_stream_flow_size => non_neg_integer(),
+    linger_timeout           => timeout(),
+    logger                   => module(),
+    max_empty_lines          => non_neg_integer(),
+    max_header_name_length   => non_neg_integer(),
+    max_header_value_length  => non_neg_integer(),
+    max_headers              => non_neg_integer(),
+    max_keepalive            => non_neg_integer(),
+    max_method_length        => non_neg_integer(),
+    max_request_line_length  => non_neg_integer(),
+    max_skip_body_length     => non_neg_integer(),
+    proxy_header             => boolean(),
+    request_timeout          => timeout(),
+    sendfile                 => boolean(),
+    stream_handlers          => [module()]
 }
 ----
 
@@ -78,6 +79,12 @@ This option can be updated at any time using the
 inactivity_timeout (300000)::
 
 Time in ms with nothing received at all before Cowboy closes the connection.
+
+initial_stream_flow_size (65535)::
+
+Amount of data in bytes Cowboy will read from the socket
+right after a request was fully received. This is a soft
+limit.
 
 linger_timeout (1000)::
 
@@ -144,7 +151,7 @@ Ordered list of stream handlers that will handle all stream events.
 
 == Changelog
 
-* *2.7*: The `logger` option was added.
+* *2.7*: The `initial_stream_flow_size` and `logger` options were added.
 * *2.6*: The `chunked`, `http10_keepalive`, `proxy_header` and `sendfile` options were added.
 * *2.5*: The `linger_timeout` option was added.
 * *2.2*: The `max_skip_body_length` option was added.

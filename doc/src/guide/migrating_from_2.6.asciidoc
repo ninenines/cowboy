@@ -63,6 +63,13 @@ Cowboy 2.7 requires Erlang/OTP 20.0 or greater.
   willing to accept. By default it will accept 10
   stream resets every 10 seconds.
 
+* Flow control for incoming data has been implemented
+  for HTTP/1.1. Cowboy will now wait for the user code
+  to ask for the request body before reading it from
+  the socket. The option `initial_stream_flow_size`
+  controls how much data Cowboy will read without
+  being asked.
+
 * The HTTP/1.1 and HTTP/2 option `logger` is now
   documented.
 
@@ -154,7 +161,9 @@ Cowboy 2.7 requires Erlang/OTP 20.0 or greater.
   was waiting for more data.
 
 * It was possible for Cowboy to receive stray timeout messages
-  for HTTP/1.1 connections. This has been addressed.
+  for HTTP/1.1 connections, resulting in crashes. The timeout
+  handling in HTTP/1.1 has been reworked and the issue should
+  no longer occur.
 
 * The type for the Req object has been updated to accept
   custom fields as was already documented.
