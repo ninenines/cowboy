@@ -26,7 +26,6 @@
 -export([early_error/5]).
 
 -export([request_process/3]).
--export([execute/3]).
 -export([resume/5]).
 
 -record(state, {
@@ -44,10 +43,6 @@
 	stream_body_pid = undefined :: pid() | undefined,
 	stream_body_status = normal :: normal | blocking | blocked
 }).
-
-%% @todo For shutting down children we need to have a timeout before we terminate
-%% the stream like supervisors do. So here just send a message to yourself first,
-%% and then decide what to do when receiving this message.
 
 -spec init(cowboy_stream:streamid(), cowboy_req:req(), cowboy:opts())
 	-> {[{spawn, pid(), timeout()}], #state{}}.
@@ -116,7 +111,6 @@ data(StreamID, IsFin=nofin, Data, State=#state{
 data(StreamID, IsFin, Data, State=#state{read_body_pid=Pid, read_body_ref=Ref,
 		read_body_timer_ref=TRef, read_body_buffer=Buffer, body_length=BodyLen0}) ->
 	BodyLen = BodyLen0 + byte_size(Data),
-	%% @todo Handle the infinity case where no TRef was defined.
 	ok = erlang:cancel_timer(TRef, [{async, true}, {info, false}]),
 	send_request_body(Pid, Ref, IsFin, BodyLen, <<Buffer/binary, Data/binary>>),
 	do_data(StreamID, IsFin, Data, [], State#state{
@@ -191,7 +185,6 @@ info(StreamID, Info={read_body, Pid, Ref, Length, Period}, State=#state{expect=E
 		continue -> [{inform, 100, #{}}, {flow, Length}];
 		undefined -> [{flow, Length}]
 	end,
-	%% @todo Handle the case where Period =:= infinity.
 	TRef = erlang:send_after(Period, self(), {{self(), StreamID}, {read_body_timeout, Ref}}),
 	do_info(StreamID, Info, Commands, State#state{
 		read_body_pid=Pid,
@@ -302,7 +295,7 @@ send_request_body(Pid, Ref, fin, BodyLen, Data) ->
 %% just for errors and throws.
 %%
 %% @todo Better spec.
--spec request_process(_, _, _) -> _.
+-spec request_process(cowboy_req:req(), cowboy_middleware:env(), [module()]) -> ok.
 request_process(Req, Env, Middlewares) ->
 	OTP = erlang:system_info(otp_release),
 	try
@@ -321,12 +314,8 @@ request_process(Req, Env, Middlewares) ->
 			erlang:raise(Class, Reason, erlang:get_stacktrace())
 	end.
 
-%% @todo
-%-spec execute(cowboy_req:req(), #state{}, cowboy_middleware:env(), [module()])
-%	-> ok.
--spec execute(_, _, _) -> _.
 execute(_, _, []) ->
-	ok; %% @todo Maybe error reason should differ here and there.
+	ok;
 execute(Req, Env, [Middleware|Tail]) ->
 	case Middleware:execute(Req, Env) of
 		{ok, Req2, Env2} ->
@@ -334,11 +323,10 @@ execute(Req, Env, [Middleware|Tail]) ->
 		{suspend, Module, Function, Args} ->
 			proc_lib:hibernate(?MODULE, resume, [Env, Tail, Module, Function, Args]);
 		{stop, _Req2} ->
-			ok %% @todo Maybe error reason should differ here and there.
+			ok
 	end.
 
--spec resume(cowboy_middleware:env(), [module()],
-	module(), module(), [any()]) -> ok.
+-spec resume(cowboy_middleware:env(), [module()], module(), atom(), [any()]) -> ok.
 resume(Env, Tail, Module, Function, Args) ->
 	case apply(Module, Function, Args) of
 		{ok, Req2, Env2} ->
@@ -346,5 +334,5 @@ resume(Env, Tail, Module, Function, Args) ->
 		{suspend, Module2, Function2, Args2} ->
 			proc_lib:hibernate(?MODULE, resume, [Env, Tail, Module2, Function2, Args2]);
 		{stop, _Req2} ->
-			ok %% @todo Maybe error reason should differ here and there.
+			ok
 	end.

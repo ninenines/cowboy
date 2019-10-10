@@ -107,7 +107,6 @@
 
 %% While sendfile allows a Len of 0 that means "everything past Offset",
 %% Cowboy expects the real length as it is used as metadata.
-%% @todo We should probably explicitly reject it.
 -type resp_body() :: iodata()
 	| {sendfile, non_neg_integer(), non_neg_integer(), file:name_all()}.
 -export_type([resp_body/0]).

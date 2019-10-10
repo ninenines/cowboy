@@ -78,8 +78,8 @@
 -record(ps_body, {
 	length :: non_neg_integer() | undefined,
 	received = 0 :: non_neg_integer(),
-	transfer_decode_fun :: fun(), %% @todo better type
-	transfer_decode_state :: any() %% @todo better type
+	transfer_decode_fun :: fun((binary(), cow_http_te:state()) -> cow_http_te:decode_ret()),
+	transfer_decode_state :: cow_http_te:state()
 }).
 
 -record(stream, {
@@ -1275,8 +1275,6 @@ stream_terminate(State0=#state{opts=Opts, in_streamid=InStreamID, in_state=InSta
 			NextOutStreamID = OutStreamID + 1,
 			case lists:keyfind(NextOutStreamID, #stream.id, Streams) of
 				false ->
-					%% @todo This is clearly wrong, if the stream is gone we need to check if
-					%% there used to be such a stream, and if there was to send an error.
 					State#state{out_streamid=NextOutStreamID, out_state=wait};
 				#stream{queue=Commands} ->
 					%% @todo Remove queue from the stream.

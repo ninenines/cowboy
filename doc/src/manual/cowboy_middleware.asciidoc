@@ -47,6 +47,8 @@ Cowboy will stop middleware execution. No other middleware
 will be executed. This effectively ends the processing of
 the request.
 
+// @todo No need to return the Req when stopping. Fix in 3.0.
+
 == Types
 
 === env()
