@@ -572,7 +572,7 @@ down(State=#state{opts=Opts, children=Children0}, Pid, Msg) ->
 			State
 	end.
 
-info(State=#state{opts=Opts, streams=Streams}, StreamID, Msg) ->
+info(State=#state{opts=Opts, http2_machine=HTTP2Machine, streams=Streams}, StreamID, Msg) ->
 	case Streams of
 		#{StreamID := Stream=#stream{state=StreamState0}} ->
 			try cowboy_stream:info(StreamID, Msg, StreamState0) of
@@ -587,8 +587,13 @@ info(State=#state{opts=Opts, streams=Streams}, StreamID, Msg) ->
 					'Unhandled exception in cowboy_stream:info/3.'})
 			end;
 		_ ->
-			cowboy:log(warning, "Received message ~p for unknown or terminated stream ~p.",
-				[Msg, StreamID], Opts),
+			case cow_http2_machine:is_lingering_stream(StreamID, HTTP2Machine) of
+				true ->
+					ok;
+				false ->
+					cowboy:log(warning, "Received message ~p for unknown stream ~p.",
+						[Msg, StreamID], Opts)
+			end,
 			State
 	end.
 
