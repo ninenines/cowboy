@@ -1517,7 +1517,7 @@ rst_stream_reject_frame_size_too_small(Config) ->
 		{<<":method">>, <<"GET">>},
 		{<<":scheme">>, <<"http">>},
 		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
-		{<<":path">>, <<"/">>}
+		{<<":path">>, <<"/long_polling">>}
 	]),
 	ok = gen_tcp:send(Socket, [
 		cow_http2:headers(1, fin, HeadersBlock),
@@ -1536,7 +1536,7 @@ rst_stream_reject_frame_size_too_large(Config) ->
 		{<<":method">>, <<"GET">>},
 		{<<":scheme">>, <<"http">>},
 		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
-		{<<":path">>, <<"/">>}
+		{<<":path">>, <<"/long_polling">>}
 	]),
 	ok = gen_tcp:send(Socket, [
 		cow_http2:headers(1, fin, HeadersBlock),
@@ -1606,7 +1606,7 @@ push_promise_reject_frame_size_too_small_padded_flag(Config) ->
 		{<<":method">>, <<"GET">>},
 		{<<":scheme">>, <<"http">>},
 		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
-		{<<":path">>, <<"/">>}
+		{<<":path">>, <<"/long_polling">>}
 	]),
 	Len = 14 + iolist_size(HeadersBlock),
 	ok = gen_tcp:send(Socket, [
@@ -1799,7 +1799,7 @@ idle_stream_reject_push_promise(Config) ->
 		{<<":method">>, <<"GET">>},
 		{<<":scheme">>, <<"http">>},
 		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
-		{<<":path">>, <<"/">>}
+		{<<":path">>, <<"/long_polling">>}
 	]),
 	ok = gen_tcp:send(Socket, cow_http2:push_promise(1, 3, HeadersBlock)),
 	%% Receive a PROTOCOL_ERROR connection error.
@@ -3020,7 +3020,7 @@ window_update_reject_0_stream(Config) ->
 		{<<":method">>, <<"GET">>},
 		{<<":scheme">>, <<"http">>},
 		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
-		{<<":path">>, <<"/">>}
+		{<<":path">>, <<"/long_polling">>}
 	]),
 	ok = gen_tcp:send(Socket, [
 		cow_http2:headers(1, fin, HeadersBlock),
@@ -3150,7 +3150,7 @@ window_update_reject_overflow_stream(Config) ->
 		{<<":method">>, <<"GET">>},
 		{<<":scheme">>, <<"http">>},
 		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
-		{<<":path">>, <<"/">>}
+		{<<":path">>, <<"/long_polling">>}
 	]),
 	ok = gen_tcp:send(Socket, [
 		cow_http2:headers(1, fin, HeadersBlock),
