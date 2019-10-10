@@ -98,10 +98,6 @@
 %% Internal.
 -export([response_headers/2]).
 
-%% @todo Get rid of this type, use cow_cookie directly.
--type cookie_opts() :: map().
--export_type([cookie_opts/0]).
-
 -type read_body_opts() :: #{
 	length => non_neg_integer() | infinity,
 	period => non_neg_integer(),
@@ -704,11 +700,10 @@ set_resp_cookie(Name, Value, Req) ->
 %%
 %% The cookie value cannot contain any of the following characters:
 %%   ,; \t\r\n\013\014
-%% @todo Fix the cookie_opts() type.
--spec set_resp_cookie(binary(), iodata(), Req, cookie_opts())
+-spec set_resp_cookie(binary(), iodata(), Req, cow_cookie:cookie_opts())
 	-> Req when Req::req().
 set_resp_cookie(Name, Value, Req, Opts) ->
-	Cookie = cow_cookie:setcookie(Name, Value, maps:to_list(Opts)),
+	Cookie = cow_cookie:setcookie(Name, Value, Opts),
 	RespCookies = maps:get(resp_cookies, Req, #{}),
 	Req#{resp_cookies => RespCookies#{Name => Cookie}}.
 
