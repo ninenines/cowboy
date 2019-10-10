@@ -141,6 +141,7 @@ commands() :: [Command]
 Command :: {active, boolean()}
          | {deflate, boolean()}
          | {set_options, #{idle_timeout => timeout()}}
+         | {shutdown_reason, any()}
          | Frame :: cow_ws:frame()
 ----
 
@@ -162,6 +163,15 @@ set_options::
 
 Set Websocket options. Currently only the option `idle_timeout`
 may be updated from a Websocket handler.
+
+shutdown_reason::
+
+Change the shutdown reason. The Websocket process will exit
+with reason `normal` by default. This command can be used to
+exit with reason `{shutdown, ShutdownReason}` under normal
+conditions. This command has no effect when the Websocket
+process exits abnormally, for example following a crash in a
+handler callback.
 
 Frame::
 
@@ -266,8 +276,9 @@ normal circumstances if necessary.
 
 == Changelog
 
-* *2.7*: The commands based interface has been added. The old
-         interface is now deprecated.
+* *2.7*: The commands based interface has been documented.
+         The old interface is now deprecated.
+* *2.7*: The command `shutdown_reason` was introduced.
 * *2.7*: The option `validate_utf8` has been added.
 * *2.6*: Deflate options can now be configured via `deflate_opts`.
 * *2.0*: The Req object is no longer passed to Websocket callbacks.

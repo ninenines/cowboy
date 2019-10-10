@@ -52,7 +52,8 @@ init_dispatch(Name) ->
 		{"/info", ws_info_commands_h, RunOrHibernate},
 		{"/active", ws_active_commands_h, RunOrHibernate},
 		{"/deflate", ws_deflate_commands_h, RunOrHibernate},
-		{"/set_options", ws_set_options_commands_h, RunOrHibernate}
+		{"/set_options", ws_set_options_commands_h, RunOrHibernate},
+		{"/shutdown_reason", ws_shutdown_reason_commands_h, RunOrHibernate}
 	]}]).
 
 %% Support functions for testing using Gun.
@@ -284,5 +285,23 @@ websocket_set_options_idle_timeout(Config) ->
 		{gun_down, ConnPid, _, _, _} ->
 			ok
 	after 2000 ->
+		error(timeout)
+	end.
+
+websocket_shutdown_reason(Config) ->
+	doc("The command {shutdown_reason, any()} can be used to "
+		"change the shutdown reason of a Websocket connection."),
+	ConnPid = gun_open(Config),
+	StreamRef = gun:ws_upgrade(ConnPid, "/shutdown_reason", [
+		{<<"x-test-pid">>, pid_to_list(self())}
+	]),
+	{upgrade, [<<"websocket">>], _} = gun:await(ConnPid, StreamRef),
+	WsPid = receive {ws_pid, P} -> P after 1000 -> error(timeout) end,
+	MRef = monitor(process, WsPid),
+	WsPid ! {self(), {?MODULE, ?FUNCTION_NAME}},
+	receive
+		{'DOWN', MRef, process, WsPid, {shutdown, {?MODULE, ?FUNCTION_NAME}}} ->
+			ok
+	after 1000 ->
 		error(timeout)
 	end.

@@ -35,6 +35,7 @@
 	| {active, boolean()}
 	| {deflate, boolean()}
 	| {set_options, map()}
+	| {shutdown_reason, any()}
 ].
 -export_type([commands/0]).
 
@@ -95,7 +96,8 @@
 	utf8_state :: cow_ws:utf8_state(),
 	deflate = true :: boolean(),
 	extensions = #{} :: map(),
-	req = #{} :: map()
+	req = #{} :: map(),
+	shutdown_reason = normal :: any()
 }).
 
 %% Because the HTTP/1.1 and HTTP/2 handshakes are so different,
@@ -546,6 +548,8 @@ commands([{set_options, SetOpts}|Tail], State0=#state{opts=Opts}, Data) ->
 			State0
 	end,
 	commands(Tail, State, Data);
+commands([{shutdown_reason, ShutdownReason}|Tail], State, Data) ->
+	commands(Tail, State#state{shutdown_reason=ShutdownReason}, Data);
 commands([Frame|Tail], State, Data0) ->
 	Data = [frame(Frame, State)|Data0],
 	case is_close_frame(Frame) of
@@ -623,9 +627,12 @@ frame(Frame, #state{extensions=Extensions}) ->
 	cow_ws:frame(Frame, Extensions).
 
 -spec terminate(#state{}, any(), terminate_reason()) -> no_return().
-terminate(State, HandlerState, Reason) ->
+terminate(State=#state{shutdown_reason=Shutdown}, HandlerState, Reason) ->
 	handler_terminate(State, HandlerState, Reason),
-	exit(normal).
+	case Shutdown of
+		normal -> exit(normal);
+		_ -> exit({shutdown, Shutdown})
+	end.
 
 handler_terminate(#state{handler=Handler, req=Req}, HandlerState, Reason) ->
 	cowboy_handler:terminate(Reason, Req, HandlerState, Handler).

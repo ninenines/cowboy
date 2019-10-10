@@ -81,6 +81,12 @@ Cowboy 2.7 requires Erlang/OTP 20.0 or greater.
   is now considered stable and has been documented.
   The old interface is now deprecated.
 
+* A new Websocket handler command `shutdown_reason`
+  can be used to change the normal exit reason of
+  Websocket processes. By default `normal` is used;
+  with this command the exit reason can be changed
+  to `{shutdown, ShutdownReason}`.
+
 * The experimental stream handlers `cowboy_metrics_h`
   and `cowboy_tracer_h` are now considered stable and
   have been documented.
