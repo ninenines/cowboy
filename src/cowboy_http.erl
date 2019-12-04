@@ -1432,36 +1432,39 @@ terminate_linger(State=#state{socket=Socket, transport=Transport, opts=Opts}) ->
 				0 ->
 					ok;
 				infinity ->
-					terminate_linger_loop(State, undefined);
+					terminate_linger_before_loop(State, undefined, Transport:messages());
 				Timeout ->
 					TimerRef = erlang:start_timer(Timeout, self(), linger_timeout),
-					terminate_linger_loop(State, TimerRef)
+					terminate_linger_before_loop(State, TimerRef, Transport:messages())
 			end;
 		{error, _} ->
 			ok
 	end.
 
-terminate_linger_loop(State=#state{socket=Socket, transport=Transport}, TimerRef) ->
-	Messages = Transport:messages(),
+terminate_linger_before_loop(State=#state{socket=Socket, transport=Transport}, TimerRef, Messages) ->
 	%% We may already have a message in the mailbox when we do this
 	%% but it's OK because we are shutting down anyway.
-	%% @todo Use active,N here as well.
-	case Transport:setopts(Socket, [{active, once}]) of
+	case Transport:setopts(Socket, [{active, 100}]) of
 		ok ->
-			receive
-				{OK, Socket, _} when OK =:= element(1, Messages) ->
-					terminate_linger_loop(State, TimerRef);
-				{Closed, Socket} when Closed =:= element(2, Messages) ->
-					ok;
-				{Error, Socket, _} when Error =:= element(3, Messages) ->
-					ok;
-				{timeout, TimerRef, linger_timeout} ->
-					ok;
-				_ ->
-					terminate_linger_loop(State, TimerRef)
-			end;
+			terminate_linger_loop(State, TimerRef, Messages);
 		{error, _} ->
 			ok
+	end.
+
+terminate_linger_loop(State=#state{socket=Socket}, TimerRef, Messages) ->
+	receive
+		{OK, Socket, _} when OK =:= element(1, Messages) ->
+			terminate_linger_loop(State, TimerRef, Messages);
+		{Closed, Socket} when Closed =:= element(2, Messages) ->
+			ok;
+		{Error, Socket, _} when Error =:= element(3, Messages) ->
+			ok;
+		{Passive, Socket} when Passive =:= tcp_passive; Passive =:= ssl_passive ->
+			terminate_linger_before_loop(State, TimerRef, Messages);
+		{timeout, TimerRef, linger_timeout} ->
+			ok;
+		_ ->
+			terminate_linger_loop(State, TimerRef, Messages)
 	end.
 
 %% System callbacks.
