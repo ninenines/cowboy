@@ -17,6 +17,7 @@ as a Ranch protocol.
 [source,erlang]
 ----
 opts() :: #{
+    active_n                       => pos_integer(),
     connection_type                => worker | supervisor,
     connection_window_margin_size  => 0..16#7fffffff,
     connection_window_update_threshold => 0..16#7fffffff,
@@ -58,6 +59,14 @@ Ranch functions `ranch:get_protocol_options/1` and
 `ranch:set_protocol_options/2`.
 
 The default value is given next to the option name:
+
+active_n (100)::
+
+The number of packets Cowboy will request from the socket at once.
+This can be used to tweak the performance of the server. Higher
+values reduce the number of times Cowboy need to request more
+packets from the port driver at the expense of potentially
+higher memory being used.
 
 connection_type (supervisor)::
 
@@ -226,6 +235,7 @@ too many `WINDOW_UPDATE` frames.
 
 == Changelog
 
+* *2.8*: The `active_n` option was added.
 * *2.7*: Add the options `connection_window_margin_size`,
          `connection_window_update_threshold`,
          `max_connection_window_size`, `max_stream_window_size`,

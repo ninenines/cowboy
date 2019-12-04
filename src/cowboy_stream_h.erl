@@ -92,6 +92,7 @@ data(StreamID, IsFin, Data, State=#state{read_body_pid=Pid, read_body_ref=Ref,
 	send_request_body(Pid, Ref, IsFin, BodyLen, Data),
 	do_data(StreamID, IsFin, Data, [{flow, byte_size(Data)}], State#state{
 		read_body_ref=undefined,
+		%% @todo This is wrong, it's missing byte_size(Data).
 		body_length=BodyLen
 	});
 %% Stream is waiting for data but we didn't receive enough to send yet.

@@ -23,6 +23,7 @@
 -export([system_code_change/4]).
 
 -type opts() :: #{
+	active_n => pos_integer(),
 	compress_buffering => boolean(),
 	compress_threshold => non_neg_integer(),
 	connection_type => worker | supervisor,
@@ -163,6 +164,7 @@ init(Parent, Ref, Socket, Transport, ProxyHeader, Opts, Peer, Sock, Cert, Buffer
 		opts=Opts, peer=Peer, sock=Sock, cert=Cert,
 		http2_status=sequence, http2_machine=HTTP2Machine})),
 	Transport:send(Socket, Preface),
+	setopts_active(State),
 	case Buffer of
 		<<>> -> loop(State, Buffer);
 		_ -> parse(State, Buffer)
@@ -204,15 +206,21 @@ init(Parent, Ref, Socket, Transport, ProxyHeader, Opts, Peer, Sock, Cert, Buffer
 	}, ?MODULE, undefined}), %% @todo undefined or #{}?
 	State = set_timeout(init_rate_limiting(State2#state{http2_status=sequence})),
 	Transport:send(Socket, Preface),
+	setopts_active(State),
 	case Buffer of
 		<<>> -> loop(State, Buffer);
 		_ -> parse(State, Buffer)
 	end.
 
+%% Because HTTP/2 has flow control and Cowboy has other rate limiting
+%% mechanisms implemented, a very large active_n value should be fine,
+%% as long as the stream handlers do their work in a timely manner.
+setopts_active(#state{socket=Socket, transport=Transport, opts=Opts}) ->
+	N = maps:get(active_n, Opts, 100),
+	Transport:setopts(Socket, [{active, N}]).
+
 loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 		opts=Opts, timer=TimerRef, children=Children}, Buffer) ->
-	%% @todo This should only be called when data was read.
-	Transport:setopts(Socket, [{active, once}]),
 	Messages = Transport:messages(),
 	InactivityTimeout = maps:get(inactivity_timeout, Opts, 300000),
 	receive
@@ -223,6 +231,11 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 			terminate(State, {socket_error, closed, 'The socket has been closed.'});
 		{Error, Socket, Reason} when Error =:= element(3, Messages) ->
 			terminate(State, {socket_error, Reason, 'An error has occurred on the socket.'});
+		{Passive, Socket} when Passive =:= element(4, Messages);
+				%% Hardcoded for compatibility with Ranch 1.x.
+				Passive =:= tcp_passive; Passive =:= ssl_passive ->
+			setopts_active(State),
+			loop(State, Buffer);
 		%% System messages.
 		{'EXIT', Parent, Reason} ->
 			%% @todo Graceful shutdown here as well?
