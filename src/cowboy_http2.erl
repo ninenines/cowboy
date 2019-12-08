@@ -167,6 +167,7 @@ init(Parent, Ref, Socket, Transport, ProxyHeader, Opts, Peer, Sock, Cert, Buffer
 		opts=Opts, peer=Peer, sock=Sock, cert=Cert,
 		http2_status=sequence, http2_machine=HTTP2Machine})),
 	Transport:send(Socket, Preface),
+	Transport:setopts(Socket, [{active, 100}]),
 	case Buffer of
 		<<>> -> loop(State, Buffer);
 		_ -> parse(State, Buffer)
@@ -208,6 +209,7 @@ init(Parent, Ref, Socket, Transport, ProxyHeader, Opts, Peer, Sock, Cert, Buffer
 	}, ?MODULE, undefined}), %% @todo undefined or #{}?
 	State = set_timeout(init_rate_limiting(State2#state{http2_status=sequence})),
 	Transport:send(Socket, Preface),
+	Transport:setopts(Socket, [{active, 100}]),
 	case Buffer of
 		<<>> -> loop(State, Buffer);
 		_ -> parse(State, Buffer)
@@ -216,7 +218,7 @@ init(Parent, Ref, Socket, Transport, ProxyHeader, Opts, Peer, Sock, Cert, Buffer
 loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 		opts=Opts, timer=TimerRef, children=Children}, Buffer) ->
 	%% @todo This should only be called when data was read.
-	Transport:setopts(Socket, [{active, once}]),
+%	Transport:setopts(Socket, [{active, once}]),
 	Messages = Transport:messages(),
 	InactivityTimeout = maps:get(inactivity_timeout, Opts, 300000),
 	receive
@@ -227,6 +229,9 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 			terminate(State, {socket_error, closed, 'The socket has been closed.'});
 		{Error, Socket, Reason} when Error =:= element(3, Messages) ->
 			terminate(State, {socket_error, Reason, 'An error has occurred on the socket.'});
+		{Passive, Socket} when Passive =:= tcp_passive; Passive =:= ssl_passive ->
+			Transport:setopts(Socket, [{active, 100}]),
+			loop(State, Buffer);
 		%% System messages.
 		{'EXIT', Parent, Reason} ->
 			%% @todo Graceful shutdown here as well?
