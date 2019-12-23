@@ -361,7 +361,8 @@ do(<<"stream_trailers">>, Req0, Opts) ->
 			Req = cowboy_req:stream_reply(200, #{
 				<<"trailer">> => <<"grpc-status">>
 			}, Req0),
-			cowboy_req:stream_body(<<0:800000>>, nofin, Req),
+			%% The size should be larger than StreamSize and ConnSize
+			cowboy_req:stream_body(<<0:80000000>>, nofin, Req),
 			cowboy_req:stream_trailers(#{
 				<<"grpc-status">> => <<"0">>
 			}, Req),
