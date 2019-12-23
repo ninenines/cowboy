@@ -1068,7 +1068,7 @@ stream_trailers(Config) ->
 
 stream_trailers_large(Config) ->
 	doc("Stream large body followed by trailer headers."),
-	{200, RespHeaders, <<0:800000>>, [
+	{200, RespHeaders, <<0:80000000>>, [
 		{<<"grpc-status">>, <<"0">>}
 	]} = do_trailers("/resp/stream_trailers/large", Config),
 	{_, <<"grpc-status">>} = lists:keyfind(<<"trailer">>, 1, RespHeaders),
