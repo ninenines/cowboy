@@ -72,8 +72,7 @@ early_error(StreamID, Reason, PartialReq, Resp, Opts) ->
 
 %% Check if the client supports decoding of gzip responses.
 check_req(Req) ->
-	%% @todo Probably shouldn't unconditionally crash on failure.
-	case cowboy_req:parse_header(<<"accept-encoding">>, Req) of
+	try cowboy_req:parse_header(<<"accept-encoding">>, Req) of
 		%% Client doesn't support any compression algorithm.
 		undefined ->
 			#state{compress=undefined};
@@ -87,6 +86,10 @@ check_req(Req) ->
 				_ ->
 					#state{compress=gzip}
 			end
+  catch
+		%% Don't raise an error because of malformed or unsupported accept-encoding headers.
+		exit:{request_error, {header, <<"accept-encoding">>}, _Reason} ->
+			#state{compress=undefined}
 	end.
 
 %% Do not compress responses that contain the content-encoding header.
