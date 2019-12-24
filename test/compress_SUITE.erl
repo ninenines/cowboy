@@ -62,6 +62,15 @@ do_get(Path, ReqHeaders, Config) ->
 
 %% Tests.
 
+gzip_accept_encoding_malformed(Config) ->
+	doc("Send malformed accept-encoding; get an uncompressed response."),
+	{200, Headers, _} = do_get("/reply/large",
+		[{<<"accept-encoding">>, <<";">>}], Config),
+	false = lists:keyfind(<<"content-encoding">>, 1, Headers),
+	false = lists:keyfind(<<"vary">>, 1, Headers),
+	{_, <<"100000">>} = lists:keyfind(<<"content-length">>, 1, Headers),
+	ok.
+
 gzip_accept_encoding_missing(Config) ->
 	doc("Don't send accept-encoding; get an uncompressed response."),
 	{200, Headers, _} = do_get("/reply/large",
@@ -75,6 +84,15 @@ gzip_accept_encoding_no_gzip(Config) ->
 	doc("Send accept-encoding: compress (unsupported by Cowboy); get an uncompressed response."),
 	{200, Headers, _} = do_get("/reply/large",
 		[{<<"accept-encoding">>, <<"compress">>}], Config),
+	false = lists:keyfind(<<"content-encoding">>, 1, Headers),
+	false = lists:keyfind(<<"vary">>, 1, Headers),
+	{_, <<"100000">>} = lists:keyfind(<<"content-length">>, 1, Headers),
+	ok.
+
+gzip_accept_encoding_not_supported(Config) ->
+	doc("Send unsupported accept-encoding; get an uncompressed response."),
+	{200, Headers, _} = do_get("/reply/large",
+		[{<<"accept-encoding">>, <<"application/gzip">>}], Config),
 	false = lists:keyfind(<<"content-encoding">>, 1, Headers),
 	false = lists:keyfind(<<"vary">>, 1, Headers),
 	{_, <<"100000">>} = lists:keyfind(<<"content-length">>, 1, Headers),
