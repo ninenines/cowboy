@@ -46,7 +46,7 @@ endif
 
 # Compile options.
 
-ERLC_OPTS += +warn_missing_spec +warn_untyped_record
+ERLC_OPTS += +warn_missing_spec +warn_untyped_record # +bin_opt_info
 TEST_ERLC_OPTS += +'{parse_transform, eunit_autoexport}'
 
 # Generate rebar.config on build.
