@@ -45,7 +45,6 @@ for or related to HTTP.
 * https://tools.ietf.org/html/rfc5789[RFC 5789]: PATCH Method for HTTP
 * https://tools.ietf.org/html/rfc5843[RFC 5843]: Additional Hash Algorithms for HTTP Instance Digests
 * https://tools.ietf.org/html/rfc5861[RFC 5861]: HTTP Cache-Control Extensions for Stale Content
-* https://tools.ietf.org/html/rfc5988[RFC 5988]: Web Linking
 * https://tools.ietf.org/html/rfc6265[RFC 6265]: HTTP State Management Mechanism
 * https://tools.ietf.org/html/rfc6266[RFC 6266]: Use of the Content-Disposition Header Field
 * https://tools.ietf.org/html/rfc6454[RFC 6454]: The Web Origin Concept
@@ -86,6 +85,7 @@ for or related to HTTP.
 * https://tools.ietf.org/html/rfc8187[RFC 8187]: Indicating Character Encoding and Language for HTTP Header Field Parameters
 * https://tools.ietf.org/html/rfc8188[RFC 8188]: Encrypted Content-Encoding for HTTP
 * https://tools.ietf.org/html/rfc8246[RFC 8246]: HTTP Immutable Responses
+* https://tools.ietf.org/html/rfc8288[RFC 8288]: Web Linking
 * https://tools.ietf.org/html/rfc8297[RFC 8297]: An HTTP Status Code for Indicating Hints
 * https://tools.ietf.org/html/rfc8336[RFC 8336]: The ORIGIN HTTP/2 Frame
 * https://tools.ietf.org/html/rfc8441[RFC 8441]: Bootstrapping WebSockets with HTTP/2
@@ -93,6 +93,8 @@ for or related to HTTP.
 * https://tools.ietf.org/html/rfc8473[RFC 8473]: Token Binding over HTTP
 * https://tools.ietf.org/html/rfc8586[RFC 8586]: Loop Detection in Content Delivery Networks (CDNs)
 * https://tools.ietf.org/html/rfc8594[RFC 8594]: The Sunset HTTP Header Field
+* https://tools.ietf.org/html/rfc8673[RFC 8673]: HTTP Random Access and Live Content
+* https://tools.ietf.org/html/rfc8674[RFC 8674]: The "safe" HTTP Preference
 * https://www.w3.org/TR/webmention/[Webmention]: Webmention
 
 ==== Upcoming
