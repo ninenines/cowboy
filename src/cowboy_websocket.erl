@@ -17,10 +17,6 @@
 -module(cowboy_websocket).
 -behaviour(cowboy_sub_protocol).
 
--ifdef(OTP_RELEASE).
--compile({nowarn_deprecated_function, [{erlang, get_stacktrace, 0}]}).
--endif.
-
 -export([is_upgrade_request/1]).
 -export([upgrade/4]).
 -export([upgrade/5]).
@@ -513,11 +509,10 @@ handler_call(State=#state{handler=Handler}, HandlerState,
 			end;
 		{stop, HandlerState2} ->
 			websocket_close(State, HandlerState2, stop)
-	catch Class:Reason ->
-		StackTrace = erlang:get_stacktrace(),
+	catch Class:Reason:Stacktrace ->
 		websocket_send_close(State, {crash, Class, Reason}),
 		handler_terminate(State, HandlerState, {crash, Class, Reason}),
-		erlang:raise(Class, Reason, StackTrace)
+		erlang:raise(Class, Reason, Stacktrace)
 	end.
 
 -spec handler_call_result(#state{}, any(), parse_state(), fun(), commands()) -> no_return().

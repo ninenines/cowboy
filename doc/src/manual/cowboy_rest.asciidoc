@@ -76,9 +76,7 @@ normal::
 
 {crash, Class, Reason}::
     A crash occurred in the handler. `Class` and `Reason` can be
-    used to obtain more information about the crash. The function
-    `erlang:get_stacktrace/0` can also be called to obtain the
-    stacktrace of the process when the crash occurred.
+    used to obtain more information about the crash.
 
 == REST callbacks
 

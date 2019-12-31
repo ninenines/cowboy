@@ -112,9 +112,7 @@ timeout::
 
 {crash, Class, Reason}::
     A crash occurred in the handler. `Class` and `Reason` can be
-    used to obtain more information about the crash. The function
-    `erlang:get_stacktrace/0` can also be called to obtain the
-    stacktrace of the process when the crash occurred.
+    used to obtain more information about the crash.
 
 {error, badencoding}::
     A text frame was sent by the client with invalid encoding. All

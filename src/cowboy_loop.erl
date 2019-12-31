@@ -15,10 +15,6 @@
 -module(cowboy_loop).
 -behaviour(cowboy_sub_protocol).
 
--ifdef(OTP_RELEASE).
--compile({nowarn_deprecated_function, [{erlang, get_stacktrace, 0}]}).
--endif.
-
 -export([upgrade/4]).
 -export([upgrade/5]).
 -export([loop/4]).
@@ -81,10 +77,9 @@ call(Req0, Env, Handler, HandlerState0, Message) ->
 			suspend(Req, Env, Handler, HandlerState);
 		{stop, Req, HandlerState} ->
 			terminate(Req, Env, Handler, HandlerState, stop)
-	catch Class:Reason ->
-		StackTrace = erlang:get_stacktrace(),
+	catch Class:Reason:Stacktrace ->
 		cowboy_handler:terminate({crash, Class, Reason}, Req0, HandlerState0, Handler),
-		erlang:raise(Class, Reason, StackTrace)
+		erlang:raise(Class, Reason, Stacktrace)
 	end.
 
 suspend(Req, Env, Handler, HandlerState) ->

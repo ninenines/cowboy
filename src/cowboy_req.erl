@@ -15,10 +15,6 @@
 
 -module(cowboy_req).
 
--ifdef(OTP_RELEASE).
--compile({nowarn_deprecated_function, [{erlang, get_stacktrace, 0}]}).
--endif.
-
 %% Request.
 -export([method/1]).
 -export([version/1]).
@@ -224,10 +220,10 @@ qs(#{qs := Qs}) ->
 parse_qs(#{qs := Qs}) ->
 	try
 		cow_qs:parse_qs(Qs)
-	catch _:_ ->
+	catch _:_:Stacktrace ->
 		erlang:raise(exit, {request_error, qs,
 			'Malformed query string; application/x-www-form-urlencoded expected.'
-		}, erlang:get_stacktrace())
+		}, Stacktrace)
 	end.
 
 -spec match_qs(cowboy:fields(), req()) -> map().
@@ -415,10 +411,10 @@ parse_header(Name, Req) ->
 parse_header(Name, Req, Default) ->
 	try
 		parse_header(Name, Req, Default, parse_header_fun(Name))
-	catch _:_ ->
+	catch _:_:Stacktrace ->
 		erlang:raise(exit, {request_error, {header, Name},
 			'Malformed header. Please consult the relevant specification.'
-		}, erlang:get_stacktrace())
+		}, Stacktrace)
 	end.
 
 parse_header_fun(<<"accept">>) -> fun cow_http_hd:parse_accept/1;
@@ -546,10 +542,10 @@ read_urlencoded_body(Req0, Opts) ->
 		{ok, Body, Req} ->
 			try
 				{ok, cow_qs:parse_qs(Body), Req}
-			catch _:_ ->
+			catch _:_:Stacktrace ->
 				erlang:raise(exit, {request_error, urlencoded_body,
 					'Malformed body; application/x-www-form-urlencoded expected.'
-				}, erlang:get_stacktrace())
+				}, Stacktrace)
 			end;
 		{more, Body, _} ->
 			Length = maps:get(length, Opts, 64000),
@@ -616,10 +612,10 @@ read_part(Buffer, Opts, Req=#{multipart := {Boundary, _}}) ->
 		%% Ignore epilogue.
 		{done, _} ->
 			{done, Req#{multipart => done}}
-	catch _:_ ->
+	catch _:_:Stacktrace ->
 		erlang:raise(exit, {request_error, {multipart, headers},
 			'Malformed body; multipart expected.'
-		}, erlang:get_stacktrace())
+		}, Stacktrace)
 	end.
 
 -spec read_part_body(Req)
