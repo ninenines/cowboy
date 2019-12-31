@@ -35,3 +35,4 @@ Cowboy is *clean* and *well tested* Erlang code.
 * Official IRC Channel: #ninenines on irc.freenode.net
 * https://github.com/ninenines/cowboy/issues[Issues tracker]
 * https://ninenines.eu/services[Commercial Support]
+* https://github.com/sponsors/essen[Sponsor me!]
