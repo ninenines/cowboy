@@ -345,7 +345,7 @@ frame(State=#state{http2_machine=HTTP2Machine0}, Frame) ->
 			%% We may need to send an alarm for each of the streams sending data.
 			lists:foldl(
 				fun({StreamID, _, _}, S) -> maybe_send_data_alarm(S, HTTP2Machine0, StreamID) end,
-				send_data(maybe_ack(State#state{http2_machine=HTTP2Machine}, Frame), SendData),
+				send_data(maybe_ack(State#state{http2_machine=HTTP2Machine}, Frame), SendData, []),
 				SendData);
 		{error, {stream_error, StreamID, Reason, Human}, HTTP2Machine} ->
 			reset_stream(State#state{http2_machine=HTTP2Machine},
@@ -623,11 +623,11 @@ commands(State0, StreamID, [{headers, StatusCode, Headers}|Tail]) ->
 	commands(State, StreamID, Tail);
 %% Send a response body chunk.
 commands(State0, StreamID, [{data, IsFin, Data}|Tail]) ->
-	State = maybe_send_data(State0, StreamID, IsFin, Data),
+	State = maybe_send_data(State0, StreamID, IsFin, Data, []),
 	commands(State, StreamID, Tail);
 %% Send trailers.
 commands(State0, StreamID, [{trailers, Trailers}|Tail]) ->
-	State = maybe_send_data(State0, StreamID, fin, {trailers, maps:to_list(Trailers)}),
+	State = maybe_send_data(State0, StreamID, fin, {trailers, maps:to_list(Trailers)}, []),
 	commands(State, StreamID, Tail);
 %% Send a push promise.
 %%
@@ -728,7 +728,7 @@ update_window(State=#state{socket=Socket, transport=Transport,
 
 %% Send the response, trailers or data.
 
-send_response(State0, StreamID, StatusCode, Headers, Body) ->
+send_response(State0=#state{http2_machine=HTTP2Machine0}, StreamID, StatusCode, Headers, Body) ->
 	Size = case Body of
 		{sendfile, _, Bytes, _} -> Bytes;
 		_ -> iolist_size(Body)
@@ -738,8 +738,14 @@ send_response(State0, StreamID, StatusCode, Headers, Body) ->
 			State = send_headers(State0, StreamID, fin, StatusCode, Headers),
 			maybe_terminate_stream(State, StreamID, fin);
 		_ ->
-			State = send_headers(State0, StreamID, nofin, StatusCode, Headers),
-			maybe_send_data(State, StreamID, fin, Body)
+			%% @todo Add a test for HEAD to make sure we don't send the body when
+			%% returning {response...} from a stream handler (or {headers...} then {data...}).
+			{ok, _IsFin, HeaderBlock, HTTP2Machine}
+				= cow_http2_machine:prepare_headers(StreamID, HTTP2Machine0, nofin,
+					#{status => cow_http:status_to_integer(StatusCode)},
+					headers_to_list(Headers)),
+			maybe_send_data(State0#state{http2_machine=HTTP2Machine}, StreamID, fin, Body,
+				[cow_http2:headers(StreamID, nofin, HeaderBlock)])
 	end.
 
 send_headers(State=#state{socket=Socket, transport=Transport,
@@ -758,17 +764,24 @@ headers_to_list(Headers0=#{<<"set-cookie">> := SetCookies}) ->
 headers_to_list(Headers) ->
 	maps:to_list(Headers).
 
-maybe_send_data(State0=#state{http2_machine=HTTP2Machine0}, StreamID, IsFin, Data0) ->
+maybe_send_data(State0=#state{socket=Socket, transport=Transport,
+		http2_machine=HTTP2Machine0}, StreamID, IsFin, Data0, Prefix) ->
 	Data = case is_tuple(Data0) of
 		false -> {data, Data0};
 		true -> Data0
 	end,
 	case cow_http2_machine:send_or_queue_data(StreamID, HTTP2Machine0, IsFin, Data) of
 		{ok, HTTP2Machine} ->
+			%% If we have prefix data (like a HEADERS frame) we need to send it
+			%% even if we do not send any DATA frames.
+			case Prefix of
+				[] -> ok;
+				_ -> Transport:send(Socket, Prefix)
+			end,
 			maybe_send_data_alarm(State0#state{http2_machine=HTTP2Machine}, HTTP2Machine0, StreamID);
 		{send, SendData, HTTP2Machine} ->
 			State = #state{http2_status=Status, streams=Streams}
-				= send_data(State0#state{http2_machine=HTTP2Machine}, SendData),
+				= send_data(State0#state{http2_machine=HTTP2Machine}, SendData, Prefix),
 			%% Terminate the connection if we are closing and all streams have completed.
 			if
 				Status =:= closing, Streams =:= #{} ->
@@ -778,39 +791,64 @@ maybe_send_data(State0=#state{http2_machine=HTTP2Machine0}, StreamID, IsFin, Dat
 			end
 	end.
 
-send_data(State, []) ->
-	State;
-send_data(State0, [{StreamID, IsFin, SendData}|Tail]) ->
-	State = send_data(State0, StreamID, IsFin, SendData),
-	send_data(State, Tail).
+send_data(State0=#state{socket=Socket, transport=Transport, opts=Opts}, SendData, Prefix) ->
+	{Acc, State} = prepare_data(State0, SendData, [], Prefix),
+	_ = [case Data of
+		{sendfile, Offset, Bytes, Path} ->
+			%% When sendfile is disabled we explicitly use the fallback.
+			_ = case maps:get(sendfile, Opts, true) of
+				true -> Transport:sendfile(Socket, Path, Offset, Bytes);
+				false -> ranch_transport:sendfile(Transport, Socket, Path, Offset, Bytes, [])
+			end;
+		_ ->
+			Transport:send(Socket, Data)
+	end || Data <- Acc],
+	State.
 
-send_data(State0, StreamID, IsFin, [Data]) ->
-	State = send_data_frame(State0, StreamID, IsFin, Data),
-	maybe_terminate_stream(State, StreamID, IsFin);
-send_data(State0, StreamID, IsFin, [Data|Tail]) ->
-	State = send_data_frame(State0, StreamID, nofin, Data),
-	send_data(State, StreamID, IsFin, Tail).
+prepare_data(State, [], Acc, []) ->
+	{lists:reverse(Acc), State};
+prepare_data(State, [], Acc, Buffer) ->
+	{lists:reverse([lists:reverse(Buffer)|Acc]), State};
+prepare_data(State0, [{StreamID, IsFin, SendData}|Tail], Acc0, Buffer0) ->
+	{Acc, Buffer, State} = prepare_data(State0, StreamID, IsFin, SendData, Acc0, Buffer0),
+	prepare_data(State, Tail, Acc, Buffer).
 
-send_data_frame(State=#state{socket=Socket, transport=Transport},
-		StreamID, IsFin, {data, Data}) ->
-	Transport:send(Socket, cow_http2:data(StreamID, IsFin, Data)),
-	State;
-send_data_frame(State=#state{socket=Socket, transport=Transport, opts=Opts},
-		StreamID, IsFin, {sendfile, Offset, Bytes, Path}) ->
-	Transport:send(Socket, cow_http2:data_header(StreamID, IsFin, Bytes)),
-	%% When sendfile is disabled we explicitly use the fallback.
-	_ = case maps:get(sendfile, Opts, true) of
-		true -> Transport:sendfile(Socket, Path, Offset, Bytes);
-		false -> ranch_transport:sendfile(Transport, Socket, Path, Offset, Bytes, [])
+prepare_data(State0, StreamID, IsFin, [], Acc, Buffer) ->
+	State = maybe_terminate_stream(State0, StreamID, IsFin),
+	{Acc, Buffer, State};
+prepare_data(State0, StreamID, IsFin, [FrameData|Tail], Acc, Buffer) ->
+	FrameIsFin = case Tail of
+		[] -> IsFin;
+		_ -> nofin
 	end,
-	State;
+	case prepare_data_frame(State0, StreamID, FrameIsFin, FrameData) of
+		{{MoreData, Sendfile}, State} when is_tuple(Sendfile) ->
+			case Buffer of
+				[] ->
+					prepare_data(State, StreamID, IsFin, Tail,
+						[Sendfile, MoreData|Acc], []);
+				_ ->
+					prepare_data(State, StreamID, IsFin, Tail,
+						[Sendfile, lists:reverse([MoreData|Buffer])|Acc], [])
+			end;
+		{MoreData, State} ->
+			prepare_data(State, StreamID, IsFin, Tail,
+				Acc, [MoreData|Buffer])
+	end.
+
+prepare_data_frame(State, StreamID, IsFin, {data, Data}) ->
+	{cow_http2:data(StreamID, IsFin, Data),
+		State};
+prepare_data_frame(State, StreamID, IsFin, Sendfile={sendfile, _, Bytes, _}) ->
+	{{cow_http2:data_header(StreamID, IsFin, Bytes), Sendfile},
+		State};
 %% The stream is terminated in cow_http2_machine:prepare_trailers.
-send_data_frame(State=#state{socket=Socket, transport=Transport,
-		http2_machine=HTTP2Machine0}, StreamID, nofin, {trailers, Trailers}) ->
+prepare_data_frame(State=#state{http2_machine=HTTP2Machine0},
+		StreamID, nofin, {trailers, Trailers}) ->
 	{ok, HeaderBlock, HTTP2Machine}
 		= cow_http2_machine:prepare_trailers(StreamID, HTTP2Machine0, Trailers),
-	Transport:send(Socket, cow_http2:headers(StreamID, fin, HeaderBlock)),
-	State#state{http2_machine=HTTP2Machine}.
+	{cow_http2:headers(StreamID, fin, HeaderBlock),
+		State#state{http2_machine=HTTP2Machine}}.
 
 %% After we have sent or queued data we may need to set or clear an alarm.
 %% We do this by comparing the HTTP2Machine buffer state before/after for
