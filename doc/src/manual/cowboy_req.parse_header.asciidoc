@@ -192,11 +192,8 @@ parse_header(<<"x-forwarded-for">>, Req) -> [Token]
 Token :: binary()                   %% case sensitive
 ----
 
-.Unknown headers
-[source,erlang]
-----
-parse_header(_, Req) -> {undefined, RawValue}
-----
+This function will crash when attempting to parse a
+header Cowboy does not currently understand.
 
 == Changelog
 
