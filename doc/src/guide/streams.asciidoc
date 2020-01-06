@@ -54,7 +54,7 @@ modified.
 
 === Built-in handlers
 
-Cowboy comes with two handlers.
+Cowboy comes with four handlers.
 
 link:man:cowboy_stream_h(3)[cowboy_stream_h] is the default
 stream handler. It is the core of much of the functionality

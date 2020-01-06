@@ -71,6 +71,8 @@ include::streams.asciidoc[Streams]
 
 include::middlewares.asciidoc[Middlewares]
 
+include::performance.asciidoc[Performance]
+
 = Additional information
 
 include::migrating_from_2.6.asciidoc[Migrating from Cowboy 2.6 to 2.7]
