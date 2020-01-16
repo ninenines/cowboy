@@ -40,6 +40,7 @@ init_routes(_) -> [
 	{"localhost", [
 		{"/", hello_h, []},
 		{"/echo/:key[/:arg]", echo_h, []},
+		{"/full/:key[/:arg]", echo_h, []},
 		{"/length/echo/:key", echo_h, []},
 		{"/resp/:key[/:arg]", resp_h, []},
 		{"/send_message", send_message_h, []},
@@ -1553,13 +1554,13 @@ pipeline(Config) ->
 	ConnPid = gun_open(Config),
 	Refs = [{
 		gun:get(ConnPid, "/"),
-		gun:delete(ConnPid, "/echo/method")
+		gun:post(ConnPid, "/full/read_body", [], <<0:800000>>)
 	} || _ <- lists:seq(1, 25)],
 	_ = [begin
 		{response, nofin, 200, _} = gun:await(ConnPid, Ref1),
 		{ok, <<"Hello world!">>} = gun:await_body(ConnPid, Ref1),
 		{response, nofin, 200, _} = gun:await(ConnPid, Ref2),
-		{ok, <<"DELETE">>} = gun:await_body(ConnPid, Ref2)
+		{ok, <<0:800000>>} = gun:await_body(ConnPid, Ref2)
 	end || {Ref1, Ref2} <- Refs],
 	ok.
 
