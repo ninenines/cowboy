@@ -379,6 +379,8 @@ do(<<"stream_trailers">>, Req0, Opts) ->
 	end;
 do(<<"push">>, Req, Opts) ->
 	case cowboy_req:binding(arg, Req) of
+		<<"read_body">> ->
+			cowboy_req:push("/echo/read_body", #{}, Req, #{});
 		<<"method">> ->
 			cowboy_req:push("/static/style.css", #{<<"accept">> => <<"text/css">>}, Req,
 				#{method => <<"HEAD">>});

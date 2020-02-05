@@ -4044,6 +4044,18 @@ reject_duplicate_content_length_header(Config) ->
 %   PUSH_PROMISE frame as a connection error (Section 5.4.1) of type
 %   PROTOCOL_ERROR.
 
+push_has_no_request_body(Config) ->
+	doc("PUSH_PROMISE frames include the complete set of request headers "
+		"and the request can never include a body. (RFC7540 8.2.1)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/resp/push/read_body"),
+	{push, PushRef, <<"GET">>, _, _} = gun:await(ConnPid, Ref),
+	{response, fin, 200, _} = gun:await(ConnPid, Ref),
+	%% We should not get a body in the pushed resource
+	%% since there was no body in the request.
+	{response, fin, 200, _} = gun:await(ConnPid, PushRef),
+	ok.
+
 %% (RFC7540 8.2.1)
 %   The header fields in PUSH_PROMISE and any subsequent CONTINUATION
 %   frames MUST be a valid and complete set of request header fields
