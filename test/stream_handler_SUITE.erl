@@ -282,6 +282,19 @@ early_error_stream_error_reason(Config) ->
 	{response, fin, Status, _} = gun:await(ConnPid, Ref),
 	ok.
 
+flow_after_body_fully_read(Config) ->
+	doc("A flow command may be returned even after the body was read fully."),
+	Self = self(),
+	ConnPid = gun_open(Config),
+	Ref = gun:post(ConnPid, "/long_polling", [
+		{<<"x-test-case">>, <<"flow_after_body_fully_read">>},
+		{<<"x-test-pid">>, pid_to_list(Self)}
+	], <<"Hello world!">>),
+	%% Receive a 200 response, sent after the second flow command,
+	%% confirming that the flow command was accepted.
+	{response, _, 200, _} = gun:await(ConnPid, Ref),
+	ok.
+
 set_options_ignore_unknown(Config) ->
 	doc("Confirm that unknown options are ignored when using the set_options commands."),
 	Self = self(),

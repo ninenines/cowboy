@@ -34,6 +34,8 @@ init_commands(_, _, #state{test=crash_in_terminate}) ->
 	[{response, 200, #{<<"content-length">> => <<"12">>}, <<"Hello world!">>}, stop];
 init_commands(_, _, #state{test=crash_in_early_error}) ->
 	error(crash);
+init_commands(_, _, #state{test=flow_after_body_fully_read}) ->
+	[];
 init_commands(_, _, #state{test=set_options_ignore_unknown}) ->
 	[
 		{set_options, #{unknown_options => true}},
@@ -81,6 +83,8 @@ init_process(TrapExit, #state{pid=Pid}) ->
 
 data(_, _, _, #state{test=crash_in_data}) ->
 	error(crash);
+data(_, fin, <<"Hello world!">>, State=#state{test=flow_after_body_fully_read}) ->
+	{[{flow, 12}, {response, 200, #{}, <<"{}">>}], State};
 data(StreamID, IsFin, Data, State=#state{pid=Pid}) ->
 	Pid ! {Pid, self(), data, StreamID, IsFin, Data, State},
 	{[], State}.

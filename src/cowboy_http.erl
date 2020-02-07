@@ -970,6 +970,9 @@ commands(State=#state{out_streamid=Current, streams=Streams0}, StreamID, Command
 	Streams = lists:keyreplace(StreamID, #stream.id, Streams0,
 		Stream#stream{queue=Queue ++ Commands}),
 	State#state{streams=Streams};
+%% When we have finished reading the request body, do nothing.
+commands(State=#state{flow=infinity}, StreamID, [{flow, _}|Tail]) ->
+	commands(State, StreamID, Tail);
 %% Read the request body.
 commands(State0=#state{flow=Flow0}, StreamID, [{flow, Size}|Tail]) ->
 	%% We must read *at least* Size of data otherwise functions
