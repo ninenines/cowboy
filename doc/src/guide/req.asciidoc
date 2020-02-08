@@ -48,10 +48,12 @@ Any other field is internal and should not be accessed.
 They may change in future releases, including maintenance
 releases, without notice.
 
-Modifying the Req object, while allowed, is not recommended
-unless strictly necessary. If adding new fields, make sure
-to namespace the field names so that no conflict can occur
-with future Cowboy updates or third party projects.
+Modifying the Req object is allowed, but extra caution
+must be used when modifying existing fields. You can
+add as many new fields as necessary, however. Just make
+sure to namespace the field names so that no conflict
+can occur with future Cowboy updates or with third party
+projects.
 
 === Introduction to the cowboy_req interface
 
