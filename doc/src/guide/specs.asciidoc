@@ -95,6 +95,7 @@ for or related to HTTP.
 * https://tools.ietf.org/html/rfc8594[RFC 8594]: The Sunset HTTP Header Field
 * https://tools.ietf.org/html/rfc8673[RFC 8673]: HTTP Random Access and Live Content
 * https://tools.ietf.org/html/rfc8674[RFC 8674]: The "safe" HTTP Preference
+* https://www.w3.org/TR/trace-context/[Trace Context]: Trace Context
 * https://www.w3.org/TR/webmention/[Webmention]: Webmention
 
 ==== Upcoming
