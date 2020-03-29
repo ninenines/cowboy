@@ -171,7 +171,7 @@ init(Parent, Ref, Socket, Transport, ProxyHeader, Opts, Peer, Sock, Cert, Buffer
 	end.
 
 init_rate_limiting(State=#state{opts=Opts}) ->
-	{FrameRateNum, FrameRatePeriod} = maps:get(max_received_frame_rate, Opts, {1000, 10000}),
+	{FrameRateNum, FrameRatePeriod} = maps:get(max_received_frame_rate, Opts, {10000, 10000}),
 	{ResetRateNum, ResetRatePeriod} = maps:get(max_reset_stream_rate, Opts, {10, 10000}),
 	CurrentTime = erlang:monotonic_time(millisecond),
 	State#state{

@@ -161,7 +161,7 @@ following the client's advertised maximum.
 Note that actual frame sizes may be lower than the limit when
 there is not enough space left in the flow control window.
 
-max_received_frame_rate ({1000, 10000})::
+max_received_frame_rate ({10000, 10000})::
 
 Maximum frame rate allowed per connection. The rate is expressed
 as a tuple `{NumFrames, TimeMs}` indicating how many frames are
@@ -236,6 +236,8 @@ too many `WINDOW_UPDATE` frames.
 == Changelog
 
 * *2.8*: The `active_n` option was added.
+* *2.8*: The `max_received_frame_rate` default value has
+         been multiplied by 10 as the default was too low.
 * *2.7*: Add the options `connection_window_margin_size`,
          `connection_window_update_threshold`,
          `max_connection_window_size`, `max_stream_window_size`,

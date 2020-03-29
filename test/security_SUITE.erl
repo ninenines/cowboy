@@ -116,7 +116,7 @@ http2_empty_frame_flooding_data(Config) ->
 		{<<":path">>, <<"/echo/read_body">>}
 	]),
 	ok = gen_tcp:send(Socket, cow_http2:headers(1, nofin, HeadersBlock)),
-	_ = [gen_tcp:send(Socket, cow_http2:data(1, nofin, <<>>)) || _ <- lists:seq(1, 2000)],
+	_ = [gen_tcp:send(Socket, cow_http2:data(1, nofin, <<>>)) || _ <- lists:seq(1, 20000)],
 	%% When Cowboy detects a flood it must close the connection.
 	%% We skip WINDOW_UPDATE frames sent when Cowboy starts to read the body.
 	case gen_tcp:recv(Socket, 43, 6000) of
@@ -133,7 +133,7 @@ http2_empty_frame_flooding_headers_continuation(Config) ->
 	{ok, Socket} = rfc7540_SUITE:do_handshake(Config),
 	%% Send many empty HEADERS/CONTINUATION frames before the headers.
 	ok = gen_tcp:send(Socket, <<0:24, 1:8, 0:9, 1:31>>),
-	_ = [gen_tcp:send(Socket, <<0:24, 9:8, 0:9, 1:31>>) || _ <- lists:seq(1, 2000)],
+	_ = [gen_tcp:send(Socket, <<0:24, 9:8, 0:9, 1:31>>) || _ <- lists:seq(1, 20000)],
 	{HeadersBlock, _} = cow_hpack:encode([
 		{<<":method">>, <<"POST">>},
 		{<<":scheme">>, <<"http">>},
@@ -181,7 +181,7 @@ http2_ping_flood(Config) ->
 	doc("Confirm that Cowboy detects PING floods. (CVE-2019-9512)"),
 	{ok, Socket} = rfc7540_SUITE:do_handshake(Config),
 	%% Flood the server with PING frames.
-	_ = [gen_tcp:send(Socket, cow_http2:ping(0)) || _ <- lists:seq(1, 2000)],
+	_ = [gen_tcp:send(Socket, cow_http2:ping(0)) || _ <- lists:seq(1, 20000)],
 	%% Receive a number of PING ACK frames in return, following by the closing of the connection.
 	try
 		[case gen_tcp:recv(Socket, 17, 6000) of
@@ -190,7 +190,7 @@ http2_ping_flood(Config) ->
 			%% We also accept the connection being closed immediately,
 			%% which may happen because we send the GOAWAY right before closing.
 			{error, closed} -> throw(goaway)
-		end || _ <- lists:seq(1, 2000)],
+		end || _ <- lists:seq(1, 20000)],
 		error(flood_successful)
 	catch throw:goaway ->
 		ok
@@ -231,7 +231,7 @@ http2_settings_flood(Config) ->
 	doc("Confirm that Cowboy detects SETTINGS floods. (CVE-2019-9515)"),
 	{ok, Socket} = rfc7540_SUITE:do_handshake(Config),
 	%% Flood the server with empty SETTINGS frames.
-	_ = [gen_tcp:send(Socket, cow_http2:settings(#{})) || _ <- lists:seq(1, 2000)],
+	_ = [gen_tcp:send(Socket, cow_http2:settings(#{})) || _ <- lists:seq(1, 20000)],
 	%% Receive a number of SETTINGS ACK frames in return, following by the closing of the connection.
 	try
 		[case gen_tcp:recv(Socket, 9, 6000) of
@@ -243,7 +243,7 @@ http2_settings_flood(Config) ->
 			%% which may happen because we send the GOAWAY right before closing.
 			{error, closed} ->
 				throw(goaway)
-		end || _ <- lists:seq(1, 2000)],
+		end || _ <- lists:seq(1, 20000)],
 		error(flood_successful)
 	catch throw:goaway ->
 		ok
