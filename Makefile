@@ -20,7 +20,7 @@ dep_ranch = git https://github.com/ninenines/ranch 1.7.1
 
 DOC_DEPS = asciideck
 
-TEST_DEPS = $(if $(CI_ERLANG_MK),ci.erlang.mk) ct_helper gun proper
+TEST_DEPS = $(if $(CI_ERLANG_MK),ci.erlang.mk) ct_helper gun
 dep_ct_helper = git https://github.com/extend/ct_helper master
 dep_gun = git https://github.com/ninenines/gun master
 
