@@ -421,8 +421,12 @@ parse_header_fun(<<"accept">>) -> fun cow_http_hd:parse_accept/1;
 parse_header_fun(<<"accept-charset">>) -> fun cow_http_hd:parse_accept_charset/1;
 parse_header_fun(<<"accept-encoding">>) -> fun cow_http_hd:parse_accept_encoding/1;
 parse_header_fun(<<"accept-language">>) -> fun cow_http_hd:parse_accept_language/1;
+parse_header_fun(<<"access-control-request-headers">>) -> fun cow_http_hd:parse_access_control_request_headers/1;
+parse_header_fun(<<"access-control-request-method">>) -> fun cow_http_hd:parse_access_control_request_method/1;
 parse_header_fun(<<"authorization">>) -> fun cow_http_hd:parse_authorization/1;
 parse_header_fun(<<"connection">>) -> fun cow_http_hd:parse_connection/1;
+parse_header_fun(<<"content-encoding">>) -> fun cow_http_hd:parse_content_encoding/1;
+parse_header_fun(<<"content-language">>) -> fun cow_http_hd:parse_content_language/1;
 parse_header_fun(<<"content-length">>) -> fun cow_http_hd:parse_content_length/1;
 parse_header_fun(<<"content-type">>) -> fun cow_http_hd:parse_content_type/1;
 parse_header_fun(<<"cookie">>) -> fun cow_cookie:parse_cookie/1;
@@ -432,10 +436,14 @@ parse_header_fun(<<"if-modified-since">>) -> fun cow_http_hd:parse_if_modified_s
 parse_header_fun(<<"if-none-match">>) -> fun cow_http_hd:parse_if_none_match/1;
 parse_header_fun(<<"if-range">>) -> fun cow_http_hd:parse_if_range/1;
 parse_header_fun(<<"if-unmodified-since">>) -> fun cow_http_hd:parse_if_unmodified_since/1;
+parse_header_fun(<<"max-forwards">>) -> fun cow_http_hd:parse_max_forwards/1;
+parse_header_fun(<<"origin">>) -> fun cow_http_hd:parse_origin/1;
+parse_header_fun(<<"proxy-authorization">>) -> fun cow_http_hd:parse_proxy_authorization/1;
 parse_header_fun(<<"range">>) -> fun cow_http_hd:parse_range/1;
 parse_header_fun(<<"sec-websocket-extensions">>) -> fun cow_http_hd:parse_sec_websocket_extensions/1;
 parse_header_fun(<<"sec-websocket-protocol">>) -> fun cow_http_hd:parse_sec_websocket_protocol_req/1;
 parse_header_fun(<<"sec-websocket-version">>) -> fun cow_http_hd:parse_sec_websocket_version_req/1;
+parse_header_fun(<<"trailer">>) -> fun cow_http_hd:parse_trailer/1;
 parse_header_fun(<<"upgrade">>) -> fun cow_http_hd:parse_upgrade/1;
 parse_header_fun(<<"x-forwarded-for">>) -> fun cow_http_hd:parse_x_forwarded_for/1.
 

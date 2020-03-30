@@ -80,7 +80,25 @@ Value   :: binary()                 %% case insensitive
 Quality :: 0..1000
 ----
 
-.authorization
+.access-control-request-headers
+[source,erlang]
+----
+parse_header(<<"access-control-request-headers">>, Req)
+    -> [Header]
+
+Header :: binary()   %% case insensitive
+----
+
+.access-control-request-method
+[source,erlang]
+----
+parse_header(<<"access-control-request-method">>)
+    -> Method
+
+Method :: binary()   %% case sensitive
+----
+
+.authorization and proxy-authorization
 [source,erlang]
 ----
 parse_header(<<"authorization">>, Req)
@@ -90,6 +108,16 @@ parse_header(<<"authorization">>, Req)
 ----
 
 // @todo Currently also parses connection. Do we want this? Should it be documented? Use case?
+
+.content-encoding and content-language
+[source,erlang]
+----
+parse_header(Name, Req) -> [Value]
+
+Name  :: <<"content-encoding">>
+       | <<"content-language">>
+Value :: binary()                 %% case insensitive
+----
 
 .content-length
 [source,erlang]
@@ -152,7 +180,27 @@ OpaqueTag :: binary()               %% case sensitive
 parse_header(Name, Req) -> calendar:datetime()
 ----
 
-.range
+.max-forwards
+[source,erlang]
+----
+parse_header(<<"max-forwards">>, Req) -> non_neg_integer()
+----
+
+.origin
+[source,erlang]
+----
+parse_header(<<"origin">>, Req)
+    -> [{Scheme, Host, Port} | GUID]
+
+Scheme :: <<"http">> | <<"https">>
+Host   :: binary()                   %% case insensitive
+Port   :: 0..65535
+GUID   :: reference()
+----
+
+Cowboy generates a reference in place of a GUID when the URI
+uses an unsupported uri-scheme or is not an absolute URI.
+
 [source,erlang]
 ----
 parse_header(<<"range">>, Req) -> {From, To} | Final
@@ -184,6 +232,14 @@ Name  :: <<"sec-websocket-protocol">>
 Token :: binary()                   %% case insensitive
 ----
 
+.trailer
+[source,erlang]
+----
+parse_header(Name, Req) -> [Header]
+
+Header :: binary()   %% case insensitive
+----
+
 .x-forwarded-for
 [source,erlang]
 ----
@@ -197,6 +253,10 @@ header Cowboy does not currently understand.
 
 == Changelog
 
+* *2.8*: The function now parses `access-control-request-headers`,
+         `access-control-request-method`, `content-encoding`,
+         `content-language`, `max-forwards`, `origin`,
+         `proxy-authorization` and `trailer`.
 * *2.0*: Only the parsed header value is returned, it is no longer wrapped in a tuple.
 * *1.0*: Function introduced.
 
