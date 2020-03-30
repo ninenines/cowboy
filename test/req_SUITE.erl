@@ -281,7 +281,7 @@ parse_cookies(Config) ->
 			[{<<"cookie">>, "cake=strawberry"}, {<<"cookie">>, "color=blue"}], Config),
 	%% Ensure parse errors result in a 400 response.
 	{400, _, _} = do_get("/parse_cookies",
-		[{<<"cookie">>, "bad name=strawberry"}], Config),
+		[{<<"cookie">>, "bad\tname=strawberry"}], Config),
 	{400, _, _} = do_get("/parse_cookies",
 		[{<<"cookie">>, "goodname=strawberry\tmilkshake"}], Config),
 	ok.
