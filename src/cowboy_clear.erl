@@ -41,7 +41,16 @@ connection_process(Parent, Ref, Transport, Opts) ->
 			undefined
 	end,
 	{ok, Socket} = ranch:handshake(Ref),
-	init(Parent, Ref, Socket, Transport, ProxyInfo, Opts, cowboy_http).
+	%% Use cowboy_http2 directly only when 'http' is missing.
+	%% Otherwise switch to cowboy_http2 from cowboy_http.
+	%%
+	%% @todo Extend this option to cowboy_tls and allow disabling
+	%% the switch to cowboy_http2 in cowboy_http. Also document it.
+	Protocol = case maps:get(protocols, Opts, [http2, http]) of
+		[http2] -> cowboy_http2;
+		[_|_] -> cowboy_http
+	end,
+	init(Parent, Ref, Socket, Transport, ProxyInfo, Opts, Protocol).
 
 init(Parent, Ref, Socket, Transport, ProxyInfo, Opts, Protocol) ->
 	_ = case maps:get(connection_type, Opts, supervisor) of
