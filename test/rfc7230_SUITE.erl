@@ -24,6 +24,9 @@
 -import(cowboy_test, [raw_recv_head/1]).
 -import(cowboy_test, [raw_recv/3]).
 
+suite() ->
+	[{timetrap, 30000}].
+
 all() -> [{group, http}].
 
 groups() -> [{http, [parallel], ct_helper:all(?MODULE)}].
@@ -1557,10 +1560,10 @@ pipeline(Config) ->
 		gun:post(ConnPid, "/full/read_body", [], <<0:800000>>)
 	} || _ <- lists:seq(1, 25)],
 	_ = [begin
-		{response, nofin, 200, _} = gun:await(ConnPid, Ref1),
-		{ok, <<"Hello world!">>} = gun:await_body(ConnPid, Ref1),
-		{response, nofin, 200, _} = gun:await(ConnPid, Ref2),
-		{ok, <<0:800000>>} = gun:await_body(ConnPid, Ref2)
+		{response, nofin, 200, _} = gun:await(ConnPid, Ref1, infinity),
+		{ok, <<"Hello world!">>} = gun:await_body(ConnPid, Ref1, infinity),
+		{response, nofin, 200, _} = gun:await(ConnPid, Ref2, infinity),
+		{ok, <<0:800000>>} = gun:await_body(ConnPid, Ref2, infinity)
 	end || {Ref1, Ref2} <- Refs],
 	ok.
 

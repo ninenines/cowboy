@@ -22,6 +22,9 @@
 
 %% ct.
 
+suite() ->
+	[{timetrap, 30000}].
+
 all() ->
 	cowboy_test:common_all().
 
@@ -532,11 +535,11 @@ do_read_body_expect_100_continue(Path, Config) ->
 		{<<"content-length">>, integer_to_binary(byte_size(Body))}
 	],
 	Ref = gun:post(ConnPid, Path, Headers),
-	{inform, 100, []} = gun:await(ConnPid, Ref),
+	{inform, 100, []} = gun:await(ConnPid, Ref, infinity),
 	gun:data(ConnPid, Ref, fin, Body),
-	{response, IsFin, 200, RespHeaders} = gun:await(ConnPid, Ref),
+	{response, IsFin, 200, RespHeaders} = gun:await(ConnPid, Ref, infinity),
 	{ok, RespBody} = case IsFin of
-		nofin -> gun:await_body(ConnPid, Ref);
+		nofin -> gun:await_body(ConnPid, Ref, infinity);
 		fin -> {ok, <<>>}
 	end,
 	gun:close(ConnPid),
