@@ -577,7 +577,7 @@ do_read_urlencoded_body_too_large(Path, Body, Config) ->
 
 read_urlencoded_body_too_long(Config) ->
 	doc("application/x-www-form-urlencoded request body sent too slow. "
-		"The body is sent twice with 2s wait in-between. It is read by the handler "
+		"The body is simply not being sent fully. It is read by the handler "
 		"for at most 1 second. A crash occurs because we don't have the full body."),
 	do_read_urlencoded_body_too_long("/crash/read_urlencoded_body/period", <<"abc">>, Config).
 
@@ -588,8 +588,6 @@ do_read_urlencoded_body_too_long(Path, Body, Config) ->
 		{<<"content-length">>, integer_to_binary(byte_size(Body) * 2)}
 	]),
 	gun:data(ConnPid, Ref, nofin, Body),
-	timer:sleep(2000),
-	gun:data(ConnPid, Ref, fin, Body),
 	{response, _, 408, RespHeaders} = gun:await(ConnPid, Ref, infinity),
 	_ = case config(protocol, Config) of
 		http ->
@@ -626,7 +624,7 @@ read_and_match_urlencoded_body_too_large(Config) ->
 
 read_and_match_urlencoded_body_too_long(Config) ->
 	doc("Read and match an application/x-www-form-urlencoded request body sent too slow. "
-		"The body is sent twice with 2s wait in-between. It is read by the handler "
+		"The body is simply not being sent fully. It is read by the handler "
 		"for at most 1 second. A crash occurs because we don't have the full body."),
 	do_read_urlencoded_body_too_long(
 		"/crash/read_and_match_urlencoded_body/period", <<"abc">>, Config).
