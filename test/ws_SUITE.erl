@@ -77,11 +77,17 @@ init_dispatch() ->
 unlimited_connections(Config) ->
 	doc("Websocket connections are not limited. The connections "
 		"are removed from the count after the handshake completes."),
-	case list_to_integer(os:cmd("printf `ulimit -n`")) of
-		Limit when Limit > 6100 ->
-			do_unlimited_connections(Config);
-		_ ->
-			{skip, "`ulimit -n` reports a limit too low for this test."}
+	case os:type() of
+		{win32, _} ->
+			{skip, "Tests that use too many sockets are disabled on Windows "
+				"to prevent intermittent failures."};
+		{unix, _} ->
+			case list_to_integer(os:cmd("printf `ulimit -n`")) of
+				Limit when Limit > 6100 ->
+					do_unlimited_connections(Config);
+				_ ->
+					{skip, "`ulimit -n` reports a limit too low for this test."}
+			end
 	end.
 
 do_unlimited_connections(Config) ->
