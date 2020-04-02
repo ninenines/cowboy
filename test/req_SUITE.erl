@@ -496,12 +496,14 @@ read_body_period(Config) ->
 	Ref = gun:headers(ConnPid, "POST", "/opts/read_body/period", [
 		{<<"content-length">>, integer_to_binary(byte_size(Body) * 2)}
 	]),
-	%% The body is sent twice, first with nofin, then wait 3 seconds, then again with fin.
+	%% The body is sent without fin. The server will read what it can
+	%% for 2 seconds. The test succeeds if we get some of the data back
+	%% (meaning the function will have returned after the period ends).
 	gun:data(ConnPid, Ref, nofin, Body),
-	timer:sleep(3000),
-	gun:data(ConnPid, Ref, fin, Body),
 	{response, nofin, 200, _} = gun:await(ConnPid, Ref),
-	{ok, Body} = gun:await_body(ConnPid, Ref),
+	{data, _, Data} = gun:await(ConnPid, Ref),
+	%% We expect to read at least some data.
+	true = Data =/= <<>>,
 	gun:close(ConnPid).
 
 %% We expect a crash.
