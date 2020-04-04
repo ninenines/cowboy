@@ -1307,14 +1307,21 @@ stream_terminate(State0=#state{opts=Opts, in_streamid=InStreamID, in_state=InSta
 			stream_next(State)
 	end.
 
-stream_next(State=#state{out_streamid=OutStreamID, streams=Streams}) ->
+stream_next(State0=#state{opts=Opts, active=Active, out_streamid=OutStreamID, streams=Streams}) ->
 	NextOutStreamID = OutStreamID + 1,
 	case lists:keyfind(NextOutStreamID, #stream.id, Streams) of
 		false ->
-			State#state{out_streamid=NextOutStreamID, out_state=wait};
+			State0#state{out_streamid=NextOutStreamID, out_state=wait};
 		#stream{queue=Commands} ->
+			State = case Active of
+				true -> State0;
+				false -> active(State0)
+			end,
 			%% @todo Remove queue from the stream.
-			commands(State#state{out_streamid=NextOutStreamID, out_state=wait},
+			%% We set the flow to the initial flow size even though
+			%% we might have sent some data through already due to pipelining.
+			Flow = maps:get(initial_stream_flow_size, Opts, 65535),
+			commands(State#state{flow=Flow, out_streamid=NextOutStreamID, out_state=wait},
 				NextOutStreamID, Commands)
 	end.
 
