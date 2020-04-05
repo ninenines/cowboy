@@ -1557,13 +1557,13 @@ pipeline(Config) ->
 	ConnPid = gun_open(Config),
 	Refs = [{
 		gun:get(ConnPid, "/"),
-		gun:post(ConnPid, "/full/read_body", [], <<0:800000>>)
+		gun:post(ConnPid, "/full/read_body", [], <<0:80000>>)
 	} || _ <- lists:seq(1, 25)],
 	_ = [begin
 		{response, nofin, 200, _} = gun:await(ConnPid, Ref1, infinity),
 		{ok, <<"Hello world!">>} = gun:await_body(ConnPid, Ref1, infinity),
 		{response, nofin, 200, _} = gun:await(ConnPid, Ref2, infinity),
-		{ok, <<0:800000>>} = gun:await_body(ConnPid, Ref2, infinity)
+		{ok, <<0:80000>>} = gun:await_body(ConnPid, Ref2, infinity)
 	end || {Ref1, Ref2} <- Refs],
 	ok.
 
