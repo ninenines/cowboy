@@ -23,6 +23,9 @@
 
 %% ct.
 
+suite() ->
+	[{timetrap, 30000}].
+
 %% We initialize trace patterns here. Appropriate would be in
 %% init_per_suite/1, but this works just as well.
 all() ->
@@ -130,8 +133,6 @@ init(Config) ->
 	receive
 		init ->
 			ok
-	after 100 ->
-		error(timeout)
 	end.
 
 terminate(Config) ->
@@ -146,8 +147,6 @@ terminate(Config) ->
 	receive
 		terminate ->
 			ok
-	after 100 ->
-		error(timeout)
 	end.
 
 state(Config) ->
@@ -163,8 +162,6 @@ state(Config) ->
 		{state, St} ->
 			true = St > 0,
 			ok
-	after 100 ->
-		error(timeout)
 	end.
 
 empty(Config) ->
@@ -179,8 +176,6 @@ empty(Config) ->
 	receive
 		{trace_ts, _, call, {cowboy_req, reply, [200, _, _, _]}, _} ->
 			ok
-	after 100 ->
-		error(timeout)
 	end.
 
 predicate_true(Config) ->
@@ -195,8 +190,6 @@ predicate_true(Config) ->
 	receive
 		{trace_ts, _, call, {cowboy_req, reply, [200, _, _, _]}, _} ->
 			ok
-	after 100 ->
-		error(timeout)
 	end.
 
 predicate_false(Config) ->
@@ -227,8 +220,6 @@ method(Config) ->
 	receive
 		{trace_ts, _, call, {cowboy_req, reply, [200, _, _, _]}, _} ->
 			ok
-	after 100 ->
-		error(timeout)
 	end.
 
 method_no_match(Config) ->
@@ -259,8 +250,6 @@ host(Config) ->
 	receive
 		{trace_ts, _, call, {cowboy_req, reply, [200, _, _, _]}, _} ->
 			ok
-	after 100 ->
-		error(timeout)
 	end.
 
 host_no_match(Config) ->
@@ -291,8 +280,6 @@ path(Config) ->
 	receive
 		{trace_ts, _, call, {cowboy_req, reply, [200, _, _, _]}, _} ->
 			ok
-	after 100 ->
-		error(timeout)
 	end.
 
 path_no_match(Config) ->
@@ -323,8 +310,6 @@ path_start(Config) ->
 	receive
 		{trace_ts, _, call, {cowboy_req, reply, [200, _, _, _]}, _} ->
 			ok
-	after 100 ->
-		error(timeout)
 	end.
 
 path_start_no_match(Config) ->
@@ -355,8 +340,6 @@ header_defined(Config) ->
 	receive
 		{trace_ts, _, call, {cowboy_req, reply, [200, _, _, _]}, _} ->
 			ok
-	after 100 ->
-		error(timeout)
 	end.
 
 header_defined_no_match(Config) ->
@@ -387,8 +370,6 @@ header_value(Config) ->
 	receive
 		{trace_ts, _, call, {cowboy_req, reply, [200, _, _, _]}, _} ->
 			ok
-	after 100 ->
-		error(timeout)
 	end.
 
 header_value_no_match(Config) ->
@@ -419,8 +400,6 @@ peer_ip(Config) ->
 	receive
 		{trace_ts, _, call, {cowboy_req, reply, [200, _, _, _]}, _} ->
 			ok
-	after 100 ->
-		error(timeout)
 	end.
 
 peer_ip_no_match(Config) ->
@@ -487,8 +466,6 @@ two_matching_requests(Config) ->
 	receive
 		{trace_ts, _, call, {cowboy_req, reply, [200, _, _, _]}, _} ->
 			ok
-	after 100 ->
-		error(timeout)
 	end,
 	%% Perform a second GET request on the same connection.
 	Ref2 = gun:get(ConnPid, "/", []),
@@ -497,7 +474,5 @@ two_matching_requests(Config) ->
 	receive
 		{trace_ts, _, call, {cowboy_req, reply, [200, _, _, _]}, _} ->
 			ok
-	after 100 ->
-		error(timeout)
 	end,
 	gun:close(ConnPid).
