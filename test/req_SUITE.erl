@@ -23,7 +23,11 @@
 %% ct.
 
 suite() ->
-	[{timetrap, 30000}].
+	Timeout = case os:type() of
+		{win32, _} -> 60000;
+		_ -> 30000
+	end,
+	[{timetrap, Timeout}].
 
 all() ->
 	cowboy_test:common_all().
