@@ -52,15 +52,19 @@ common_all() ->
 	].
 
 common_groups(Tests) ->
+	Opts = case os:getenv("NO_PARALLEL") of
+		false -> [parallel];
+		_ -> []
+	end,
 	[
-		{http, [parallel], Tests},
-		{https, [parallel], Tests},
-		{h2, [parallel], Tests},
-		{h2c, [parallel], Tests},
-		{http_compress, [parallel], Tests},
-		{https_compress, [parallel], Tests},
-		{h2_compress, [parallel], Tests},
-		{h2c_compress, [parallel], Tests}
+		{http, Opts, Tests},
+		{https, Opts, Tests},
+		{h2, Opts, Tests},
+		{h2c, Opts, Tests},
+		{http_compress, Opts, Tests},
+		{https_compress, Opts, Tests},
+		{h2_compress, Opts, Tests},
+		{h2c_compress, Opts, Tests}
 	].
 
 init_common_groups(Name = http, Config, Mod) ->
