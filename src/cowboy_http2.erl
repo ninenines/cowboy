@@ -35,6 +35,7 @@
 	inactivity_timeout => timeout(),
 	initial_connection_window_size => 65535..16#7fffffff,
 	initial_stream_window_size => 0..16#7fffffff,
+	linger_timeout => timeout(),
 	logger => module(),
 	max_concurrent_streams => non_neg_integer() | infinity,
 	max_connection_buffer_size => non_neg_integer(),
@@ -956,7 +957,7 @@ terminate(State=#state{socket=Socket, transport=Transport, http2_status=Status,
 	end,
 	terminate_all_streams(State, maps:to_list(Streams), Reason),
 	cowboy_children:terminate(Children),
-	Transport:close(Socket),
+	terminate_linger(State),
 	exit({shutdown, Reason});
 terminate(#state{socket=Socket, transport=Transport}, Reason) ->
 	Transport:close(Socket),
@@ -972,6 +973,49 @@ terminate_all_streams(_, [], _) ->
 terminate_all_streams(State, [{StreamID, #stream{state=StreamState}}|Tail], Reason) ->
 	terminate_stream_handler(State, StreamID, Reason, StreamState),
 	terminate_all_streams(State, Tail, Reason).
+
+%% This code is copied from cowboy_http.
+terminate_linger(State=#state{socket=Socket, transport=Transport, opts=Opts}) ->
+	case Transport:shutdown(Socket, write) of
+		ok ->
+			case maps:get(linger_timeout, Opts, 1000) of
+				0 ->
+					ok;
+				infinity ->
+					terminate_linger_before_loop(State, undefined, Transport:messages());
+				Timeout ->
+					TimerRef = erlang:start_timer(Timeout, self(), linger_timeout),
+					terminate_linger_before_loop(State, TimerRef, Transport:messages())
+			end;
+		{error, _} ->
+			ok
+	end.
+
+terminate_linger_before_loop(State, TimerRef, Messages) ->
+	%% We may already be in active mode when we do this
+	%% but it's OK because we are shutting down anyway.
+	case setopts_active(State) of
+		ok ->
+			terminate_linger_loop(State, TimerRef, Messages);
+		{error, _} ->
+			ok
+	end.
+
+terminate_linger_loop(State=#state{socket=Socket}, TimerRef, Messages) ->
+	receive
+		{OK, Socket, _} when OK =:= element(1, Messages) ->
+			terminate_linger_loop(State, TimerRef, Messages);
+		{Closed, Socket} when Closed =:= element(2, Messages) ->
+			ok;
+		{Error, Socket, _} when Error =:= element(3, Messages) ->
+			ok;
+		{Passive, Socket} when Passive =:= tcp_passive; Passive =:= ssl_passive ->
+			terminate_linger_before_loop(State, TimerRef, Messages);
+		{timeout, TimerRef, linger_timeout} ->
+			ok;
+		_ ->
+			terminate_linger_loop(State, TimerRef, Messages)
+	end.
 
 %% @todo Don't send an RST_STREAM if one was already sent.
 reset_stream(State0=#state{socket=Socket, transport=Transport,
