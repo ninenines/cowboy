@@ -125,6 +125,9 @@ http2_empty_frame_flooding_data(Config) ->
 		%% We also accept the connection being closed immediately,
 		%% which may happen because we send the GOAWAY right before closing.
 		{error, closed} ->
+			ok;
+		%% At least on Windows this might also occur.
+		{error, enotconn} ->
 			ok
 	end.
 
@@ -149,6 +152,9 @@ http2_empty_frame_flooding_headers_continuation(Config) ->
 		%% We also accept the connection being closed immediately,
 		%% which may happen because we send the GOAWAY right before closing.
 		{error, closed} ->
+			ok;
+		%% At least on Windows this might also occur.
+		{error, enotconn} ->
 			ok
 	end.
 
