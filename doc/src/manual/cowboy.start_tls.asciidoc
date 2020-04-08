@@ -52,7 +52,9 @@ to the listener, including HTTP/1.1 and HTTP/2.
 The HTTP/1.1 options are documented in the
 link:man:cowboy_http(3)[cowboy_http(3)] manual;
 and the HTTP/2 options in
-link:man:cowboy_http2(3)[cowboy_http2(3)].
+link:man:cowboy_http2(3)[cowboy_http2(3)]. Stream handlers
+such as link:man:cowboy_stream_h(3)[cowboy_stream_h(3)]
+(which is enabled by default) may also define options.
 
 == Return value
 
