@@ -26,6 +26,9 @@
 
 %% ct.
 
+suite() ->
+	[{timetrap, 30000}].
+
 all() ->
 	cowboy_test:common_all().
 
@@ -112,9 +115,8 @@ do_get(Path, UserData, Config) ->
 		{<<"accept-encoding">>, <<"gzip">>},
 		{<<"x-test-pid">>, pid_to_list(self())}
 	]),
-	{response, nofin, 200, RespHeaders} = gun:await(ConnPid, Ref),
-	{ok, RespBody} = gun:await_body(ConnPid, Ref),
-	gun:close(ConnPid),
+	{response, nofin, 200, RespHeaders} = gun:await(ConnPid, Ref, infinity),
+	{ok, RespBody} = gun:await_body(ConnPid, Ref, infinity),
 	%% Receive the metrics and validate them.
 	receive
 		{metrics, From, Metrics} ->
@@ -162,9 +164,7 @@ do_get(Path, UserData, Config) ->
 				user_data := UserData
 			} = Metrics,
 			%% All good!
-			ok
-	after 1000 ->
-		error(timeout)
+			gun:close(ConnPid)
 	end.
 
 post_body(Config) ->
@@ -176,9 +176,8 @@ post_body(Config) ->
 		{<<"accept-encoding">>, <<"gzip">>},
 		{<<"x-test-pid">>, pid_to_list(self())}
 	], Body),
-	{response, nofin, 200, RespHeaders} = gun:await(ConnPid, Ref),
-	{ok, RespBody} = gun:await_body(ConnPid, Ref),
-	gun:close(ConnPid),
+	{response, nofin, 200, RespHeaders} = gun:await(ConnPid, Ref, infinity),
+	{ok, RespBody} = gun:await_body(ConnPid, Ref, infinity),
 	%% Receive the metrics and validate them.
 	receive
 		{metrics, From, Metrics} ->
@@ -226,9 +225,7 @@ post_body(Config) ->
 				user_data := #{}
 			} = Metrics,
 			%% All good!
-			ok
-	after 1000 ->
-		error(timeout)
+			gun:close(ConnPid)
 	end.
 
 no_resp_body(Config) ->
@@ -239,8 +236,7 @@ no_resp_body(Config) ->
 		{<<"accept-encoding">>, <<"gzip">>},
 		{<<"x-test-pid">>, pid_to_list(self())}
 	]),
-	{response, fin, 204, RespHeaders} = gun:await(ConnPid, Ref),
-	gun:close(ConnPid),
+	{response, fin, 204, RespHeaders} = gun:await(ConnPid, Ref, infinity),
 	%% Receive the metrics and validate them.
 	receive
 		{metrics, From, Metrics} ->
@@ -284,9 +280,7 @@ no_resp_body(Config) ->
 				user_data := #{}
 			} = Metrics,
 			%% All good!
-			ok
-	after 1000 ->
-		error(timeout)
+			gun:close(ConnPid)
 	end.
 
 early_error(Config) ->
@@ -303,8 +297,7 @@ early_error(Config) ->
 		{<<"accept-encoding">>, <<"gzip">>},
 		{<<"x-test-pid">>, pid_to_list(self())}
 	|Headers], <<>>),
-	{response, fin, Status, RespHeaders} = gun:await(ConnPid, Ref),
-	gun:close(ConnPid),
+	{response, fin, Status, RespHeaders} = gun:await(ConnPid, Ref, infinity),
 	%% Receive the metrics and validate them.
 	receive
 		{metrics, From, Metrics} ->
@@ -322,9 +315,7 @@ early_error(Config) ->
 			} = Metrics,
 			ExpectedRespHeaders = maps:from_list(RespHeaders),
 			%% All good!
-			ok
-	after 1000 ->
-		error(timeout)
+			gun:close(ConnPid)
 	end.
 
 early_error_request_line(Config) ->
@@ -361,8 +352,6 @@ do_early_error_request_line(Config) ->
 			ExpectedRespHeaders = maps:from_list(RespHeaders),
 			%% All good!
 			ok
-	after 1000 ->
-		error(timeout)
 	end.
 
 %% This test is identical to normal GET except for the handler.
@@ -379,7 +368,7 @@ ws(Config) ->
 do_ws(Config) ->
 	doc("Confirm metrics are correct when switching to Websocket."),
 	ConnPid = gun_open(Config),
-	{ok, http} = gun:await_up(ConnPid),
+	{ok, http} = gun:await_up(ConnPid, infinity),
 	StreamRef = gun:ws_upgrade(ConnPid, "/ws_echo", [
 		{<<"accept-encoding">>, <<"gzip">>},
 		{<<"x-test-pid">>, pid_to_list(self())}
@@ -433,15 +422,11 @@ do_ws(Config) ->
 			} = Metrics,
 			%% All good!
 			ok
-	after 1000 ->
-		error(timeout)
 	end,
 	%% And of course the upgrade completed successfully after that.
 	receive
 		{gun_upgrade, ConnPid, StreamRef, _, _} ->
 			ok
-	after 1000 ->
-		error(timeout)
 	end,
 	gun:close(ConnPid).
 
@@ -453,9 +438,8 @@ error_response(Config) ->
 		{<<"accept-encoding">>, <<"gzip">>},
 		{<<"x-test-pid">>, pid_to_list(self())}
 	]),
-	{response, fin, 500, RespHeaders} = gun:await(ConnPid, Ref),
+	{response, fin, 500, RespHeaders} = gun:await(ConnPid, Ref, infinity),
 	timer:sleep(100),
-	gun:close(ConnPid),
 	%% Receive the metrics and validate them.
 	receive
 		{metrics, From, Metrics} ->
@@ -499,9 +483,7 @@ error_response(Config) ->
 				user_data := #{}
 			} = Metrics,
 			%% All good!
-			ok
-	after 1000 ->
-		error(timeout)
+			gun:close(ConnPid)
 	end.
 
 error_response_after_reply(Config) ->
@@ -513,9 +495,8 @@ error_response_after_reply(Config) ->
 		{<<"accept-encoding">>, <<"gzip">>},
 		{<<"x-test-pid">>, pid_to_list(self())}
 	]),
-	{response, fin, 200, RespHeaders} = gun:await(ConnPid, Ref),
+	{response, fin, 200, RespHeaders} = gun:await(ConnPid, Ref, infinity),
 	timer:sleep(100),
-	gun:close(ConnPid),
 	%% Receive the metrics and validate them.
 	receive
 		{metrics, From, Metrics} ->
@@ -559,7 +540,5 @@ error_response_after_reply(Config) ->
 				user_data := #{}
 			} = Metrics,
 			%% All good!
-			ok
-	after 1000 ->
-		error(timeout)
+			gun:close(ConnPid)
 	end.
