@@ -26,6 +26,7 @@ opts() :: #{
     inactivity_timeout             => timeout(),
     initial_connection_window_size => 65535..16#7fffffff,
     initial_stream_window_size     => 0..16#7fffffff,
+    linger_timeout                 => timeout(),
     logger                         => module(),
     max_concurrent_streams         => non_neg_integer() | infinity,
     max_connection_buffer_size     => non_neg_integer(),
@@ -113,6 +114,14 @@ initial_stream_window_size (65535)::
 Initial window size in bytes for new streams. This is the total amount
 of data (from request bodies for example) that may be buffered
 by a single stream before the user code explicitly requests it.
+
+linger_timeout (1000)::
+
+Time in ms that Cowboy will wait when closing the connection. This is
+necessary to avoid the TCP reset problem as described in the
+https://tools.ietf.org/html/rfc7230#section-6.6[section 6.6 of RFC7230].
+In HTTP/2's case the GOAWAY message might also be lost when
+closing the connection immediately.
 
 logger (error_logger)::
 
@@ -236,6 +245,7 @@ too many `WINDOW_UPDATE` frames.
 == Changelog
 
 * *2.8*: The `active_n` option was added.
+* *2.8*: The `linger_timeout` option was added.
 * *2.8*: The `max_received_frame_rate` default value has
          been multiplied by 10 as the default was too low.
 * *2.7*: Add the options `connection_window_margin_size`,
