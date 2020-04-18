@@ -49,6 +49,11 @@ constraints.
 The match syntax is used to associate host names and paths with their
 respective handlers.
 
+The handler is chosen by following only the first matching host and for
+this host only the first matching path. Beware that this means: if two
+hosts match but only the second includes a matching path, the request will
+be denied.
+
 The match syntax is the same for host and path with a few subtleties.
 Indeed, the segments separator is different, and the host is matched
 starting from the last segment going to the first. All examples will
