@@ -121,7 +121,7 @@ max_headers (100)::
 
 Maximum number of headers allowed per request.
 
-max_keepalive (100)::
+max_keepalive (1000)::
 
 Maximum number of requests allowed per connection.
 

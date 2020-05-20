@@ -33,7 +33,8 @@ groups() -> [{http, [parallel], ct_helper:all(?MODULE)}].
 
 init_per_group(Name = http, Config) ->
 	cowboy_test:init_http(Name = http, #{
-		env => #{dispatch => cowboy_router:compile(init_routes(Config))}
+		env => #{dispatch => cowboy_router:compile(init_routes(Config))},
+		max_keepalive => 100
 	}, Config).
 
 end_per_group(Name, _) ->

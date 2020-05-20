@@ -176,7 +176,7 @@ init(Parent, Ref, Socket, Transport, ProxyHeader, Opts) ->
 				parent=Parent, ref=Ref, socket=Socket,
 				transport=Transport, proxy_header=ProxyHeader, opts=Opts,
 				peer=Peer, sock=Sock, cert=Cert,
-				last_streamid=maps:get(max_keepalive, Opts, 100)},
+				last_streamid=maps:get(max_keepalive, Opts, 1000)},
 			setopts_active(State),
 			loop(set_timeout(State, request_timeout));
 		{{error, Reason}, _, _} ->
