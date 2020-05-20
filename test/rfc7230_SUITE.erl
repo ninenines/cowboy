@@ -1886,22 +1886,22 @@ no_body_in_head_response(Config) ->
 %1xx responses never include a message body. (RFC7230 3.3)
 
 no_body_in_204_response(Config) ->
-	doc("204 responses never include a message body. (RFC7230 3.3)"),
+	doc("204 responses never include a message body. Cowboy produces "
+		"a 500 error response when attempting to do so. (RFC7230 3.3)"),
 	Client = raw_open(Config),
 	ok = raw_send(Client, [
-		"GET /resp/reply2/204 HTTP/1.1\r\n"
+		"GET /resp/reply4/204body HTTP/1.1\r\n"
 		"Host: localhost\r\n"
 		"\r\n"]),
-	{_, 204, _, Rest} = cow_http:parse_status_line(raw_recv_head(Client)),
-	{_, <<>>} = cow_http:parse_headers(Rest),
-	{error, timeout} = raw_recv(Client, 1, 1000),
+	{_, 500, _, _} = cow_http:parse_status_line(raw_recv_head(Client)),
 	ok.
 
 no_body_in_204_response_stream(Config) ->
-	doc("204 responses never include a message body. (RFC7230 3.3)"),
+	doc("204 responses never include a message body. Attempting to "
+		"stream the body produces a crash on the server-side. (RFC7230 3.3)"),
 	Client = raw_open(Config),
 	ok = raw_send(Client, [
-		"GET /resp/stream_reply2/204 HTTP/1.1\r\n"
+		"GET /resp/stream_reply2/204body HTTP/1.1\r\n"
 		"Host: localhost\r\n"
 		"\r\n"]),
 	{_, 204, _, Rest} = cow_http:parse_status_line(raw_recv_head(Client)),
@@ -1910,22 +1910,22 @@ no_body_in_204_response_stream(Config) ->
 	ok.
 
 no_body_in_304_response(Config) ->
-	doc("304 responses never include a message body. (RFC7230 3.3)"),
+	doc("304 responses never include a message body. Cowboy produces "
+		"a 500 error response when attempting to do so. (RFC7230 3.3)"),
 	Client = raw_open(Config),
 	ok = raw_send(Client, [
-		"GET /resp/reply2/304 HTTP/1.1\r\n"
+		"GET /resp/reply4/304body HTTP/1.1\r\n"
 		"Host: localhost\r\n"
 		"\r\n"]),
-	{_, 304, _, Rest} = cow_http:parse_status_line(raw_recv_head(Client)),
-	{_, <<>>} = cow_http:parse_headers(Rest),
-	{error, timeout} = raw_recv(Client, 1, 1000),
+	{_, 500, _, _} = cow_http:parse_status_line(raw_recv_head(Client)),
 	ok.
 
 no_body_in_304_response_stream(Config) ->
-	doc("304 responses never include a message body. (RFC7230 3.3)"),
+	doc("304 responses never include a message body. Attempting to "
+		"stream the body produces a crash on the server-side. (RFC7230 3.3)"),
 	Client = raw_open(Config),
 	ok = raw_send(Client, [
-		"GET /resp/stream_reply2/304 HTTP/1.1\r\n"
+		"GET /resp/stream_reply2/304body HTTP/1.1\r\n"
 		"Host: localhost\r\n"
 		"\r\n"]),
 	{_, 304, _, Rest} = cow_http:parse_status_line(raw_recv_head(Client)),

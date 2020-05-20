@@ -806,12 +806,16 @@ reply(Status, Headers, SendFile = {sendfile, _, Len, _}, Req)
 	}, SendFile, Req);
 %% 204 responses must not include content-length. 304 responses may
 %% but only when set explicitly. (RFC7230 3.3.1, RFC7230 3.3.2)
+%% Neither status code must include a response body. (RFC7230 3.3)
 reply(Status, Headers, Body, Req)
 		when Status =:= 204; Status =:= 304 ->
+	0 = iolist_size(Body),
 	do_reply(Status, Headers, Body, Req);
-reply(Status= <<"204",_/bits>>, Headers, Body, Req) ->
+reply(Status = <<"204",_/bits>>, Headers, Body, Req) ->
+	0 = iolist_size(Body),
 	do_reply(Status, Headers, Body, Req);
-reply(Status= <<"304",_/bits>>, Headers, Body, Req) ->
+reply(Status = <<"304",_/bits>>, Headers, Body, Req) ->
+	0 = iolist_size(Body),
 	do_reply(Status, Headers, Body, Req);
 reply(Status, Headers, Body, Req)
 		when is_integer(Status); is_binary(Status) ->
@@ -840,6 +844,17 @@ stream_reply(Status, Req) ->
 	-> Req when Req::req().
 stream_reply(_, _, #{has_sent_resp := _}) ->
 	error(function_clause);
+%% 204 and 304 responses must NOT send a body. We therefore
+%% transform the call to a full response and expect the user
+%% to NOT call stream_body/3 afterwards. (RFC7230 3.3)
+stream_reply(Status = 204, Headers=#{}, Req) ->
+	reply(Status, Headers, <<>>, Req);
+stream_reply(Status = <<"204",_/bits>>, Headers=#{}, Req) ->
+	reply(Status, Headers, <<>>, Req);
+stream_reply(Status = 304, Headers=#{}, Req) ->
+	reply(Status, Headers, <<>>, Req);
+stream_reply(Status = <<"304",_/bits>>, Headers=#{}, Req) ->
+	reply(Status, Headers, <<>>, Req);
 stream_reply(Status, Headers=#{}, Req) when is_integer(Status); is_binary(Status) ->
 	cast({headers, Status, response_headers(Headers, Req)}, Req),
 	done_replying(Req, headers).

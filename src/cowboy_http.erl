@@ -1029,8 +1029,9 @@ commands(State0=#state{socket=Socket, transport=Transport, out_state=wait, strea
 	#stream{version=Version} = lists:keyfind(StreamID, #stream.id, Streams),
 	{State1, Headers} = connection(State0, Headers0, StreamID, Version),
 	State = State1#state{out_state=done},
-	%% @todo Ensure content-length is set.
+	%% @todo Ensure content-length is set. 204 must never have content-length set.
 	Response = cow_http:response(StatusCode, 'HTTP/1.1', headers_to_list(Headers)),
+	%% @todo 204 and 304 responses must not include a response body. (RFC7230 3.3.1, RFC7230 3.3.2)
 	case Body of
 		{sendfile, _, _, _} ->
 			Transport:send(Socket, Response),

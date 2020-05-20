@@ -181,6 +181,12 @@ do(<<"reply4">>, Req0, Opts) ->
 		<<"error">> ->
 			ct_helper:ignore(erlang, iolist_size, 1),
 			cowboy_req:reply(200, #{}, ok, Req0);
+		<<"204body">> ->
+			ct_helper:ignore(cowboy_req, reply, 4),
+			cowboy_req:reply(204, #{}, <<"OK">>, Req0);
+		<<"304body">> ->
+			ct_helper:ignore(cowboy_req, reply, 4),
+			cowboy_req:reply(304, #{}, <<"OK">>, Req0);
 		Status ->
 			cowboy_req:reply(binary_to_integer(Status), #{}, <<"OK">>, Req0)
 	end,
@@ -199,8 +205,15 @@ do(<<"stream_reply2">>, Req0, Opts) ->
 		<<"204">> ->
 			Req = cowboy_req:stream_reply(204, Req0),
 			{ok, Req, Opts};
-		<<"304">> ->
+		<<"204body">> ->
+			ct_helper:ignore(cowboy_req, stream_body, 3),
+			Req = cowboy_req:stream_reply(204, Req0),
+			stream_body(Req),
+			{ok, Req, Opts};
+		<<"304body">> ->
+			ct_helper:ignore(cowboy_req, stream_body, 3),
 			Req = cowboy_req:stream_reply(304, Req0),
+			stream_body(Req),
 			{ok, Req, Opts};
 		Status ->
 			Req = cowboy_req:stream_reply(binary_to_integer(Status), Req0),
