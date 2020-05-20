@@ -6,9 +6,26 @@ Cowboy does nothing by default.
 To make Cowboy useful, you need to map URIs to Erlang modules that will
 handle the requests. This is called routing.
 
-When Cowboy receives a request, it tries to match the requested host and
-path to the configured routes. When there's a match, the route's
-associated handler is executed.
+Cowboy routes requests using the following algorithm:
+
+* If no configured host matches the request URI, a 400 response
+  is returned.
+
+* Otherwise, the first configured host that matches the request
+  URI will be used. Only the paths configured for this host will
+  be considered.
+
+* If none of the configured paths found in the previous step
+  match the request URI, a 404 response is returned.
+
+* Otherwise, the handler and its initial state are added to the
+  environment and the request continues to be processed.
+
+NOTE: It is possible to run into a situation where two hosts match a
+request URI, but only the paths on the second host match the
+request URI. In this case the expected result is a 404 response
+because the only paths used during routing are the paths from
+the first configured host that matches the request URI.
 
 Routes need to be compiled before they can be used by Cowboy.
 The result of the compilation is the dispatch rules.
