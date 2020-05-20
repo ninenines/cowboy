@@ -124,6 +124,10 @@ init_per_group(Name, Config) ->
 	}),
 	Config1.
 
+end_per_group(dir, _) ->
+	ok;
+end_per_group(priv_dir, _) ->
+	ok;
 end_per_group(Name, _) ->
 	cowboy:stop_listener(Name).
 
