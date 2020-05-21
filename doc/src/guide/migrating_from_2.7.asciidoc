@@ -1,0 +1,118 @@
+[appendix]
+== Migrating from Cowboy 2.7 to 2.8
+
+Cowboy 2.8 contains many optimizations for all
+protocols. HTTP/1.1 has received the largest
+improvements and Cowboy will now be able to
+handle noticeably more requests. Thanks to
+the folks at Stressgrid for helping identify that
+the performance was lower than it should have been
+and for benchmarking my many changes and experiments.
+
+Cowboy 2.8 also contains a small number of tweaks
+and bug fixes. Cowboy 2.8 is the first Cowboy release,
+ever, to be consistently green on all tested platforms.
+This is mostly due to the reworking of some test cases,
+but a few bugs were discovered and fixed in the process.
+
+Cowboy 2.8 requires Erlang/OTP 22.0 or greater. It may
+also work out of the box with Erlang/OTP 21.3 but this
+was not tested and is not supported.
+
+=== Features added
+
+* Cowboy will now use `active,N` instead of `active,once`
+  to receive data from the socket. This greatly improves
+  the performance and allows Cowboy to process more
+  requests, especially for HTTP/1.1. The `active_n`
+  protocol option can be configured to change the
+  `active,N` value. The default is 100 for all protocols.
+
+* Add a `linger_timeout` option for HTTP/2. The default
+  is 1000, or one second. This helps ensure that the
+  final GOAWAY frame will be properly received by clients.
+
+* The function `cowboy_req:parse_header/2,3` will now
+  parse the headers `access-control-request-headers`,
+  `access-control-request-method`, `content-encoding`,
+  `content-language`, `max-forwards`, `origin`,
+  `proxy-authorization` and `trailer`.
+
+* A Performance chapter has been added to the guide.
+  More content will be added in future releases.
+
+* Update Cowlib to 2.9.1.
+
+=== Experimental features added
+
+* A `protocols` protocol option allows configuring which
+  protocol will be used for clear listeners. Setting it
+  to `[http2]` will disable HTTP/1.1 entirely. This feature
+  will be extended in a future release.
+
+=== Features modified
+
+* The default value for HTTP/1.1's `max_keepalive` option
+  has been increased. It now allows 1000 requests before
+  gracefully closing the connection.
+
+* The default value for HTTP/2's `max_received_frame_rate`
+  option has been increased. It now allows 10000 frames every
+  10 seconds.
+
+* Cowboy will now accept whitespace in cookie names. This
+  is in line with the recommended parsing algorithm for the
+  upcoming cookie RFC update, and corresponds to what browsers
+  are doing.
+
+=== Bugs fixed
+
+* The number of Transport:send/2 calls has been optimized
+  for HTTP/2. Reducing the number of calls has a noticeable
+  impact on the number of requests that can be processed.
+
+* Trying to use `cowboy_req:reply/4` with a status code of
+  204 or 304 and a non-empty response body will now result
+  in a crash. Using `cowboy_req:stream_reply/2,3` with 204
+  or 304 and then attempting to send a body will also result
+  in a crash. These status codes disallow response bodies
+  and trying to send one will break HTTP/1.1 framing.
+
+* A crash has been fixed related to HTTP/1.1 pipelining.
+  The bug was most likely introduced in Cowboy 2.6 when
+  flow control was added for HTTP/1.1 request bodies.
+
+* The HTTP/1.1 protocol code could get stuck because of flow
+  control. This has been corrected.
+
+* A crash has been fixed for HTTP/1.1. It occurred when
+  a flow control update was requested (such as reading
+  the request body) after the body was fully read.
+
+* The timeout was incorrectly reset sometimes when a stream
+  (a pair of request/response) terminated. This has been
+  corrected.
+
+* Handling of hibernation for Websocket has been improved.
+  Websocket over HTTP/2 now supports hibernating. Stray
+  messages no longer cancel hibernation.
+
+* The `cowboy_compress_h` stream handler will now ignore
+  malformed accept-encoding headers instead of crashing.
+
+* The manual pages for `cowboy:start_clear(3)` and
+  `cowboy:start_tls(3)` now mentions that some protocol
+  options may be documented in the releevant stream
+  handler.
+
+* The manual page for `cowboy_req:parse_header(3)` was
+  corrected. When an unsupported header is given the
+  function crashes, it does not return an `undefined` tuple.
+
+* The routing algorithm description in the user guide has
+  been improved.
+
+* The test suites are now consistently green on all tested
+  platforms. Most of the test failures were caused by flaky
+  tests. Avoiding the use of timeouts fixed most of them.
+  A small number of tests had to be reworked.
