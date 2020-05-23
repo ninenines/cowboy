@@ -1,113 +1,110 @@
-<html>
-  <head>
-    <meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
-    <title>Websocket client</title>
-    <script src="/static/jquery.min.js"></script>
-    <script type="text/javascript">
-      
-      var websocket;
-      $(document).ready(init);
-      
-      function init() {
-          $('#server').val("ws://" + window.location.host + "/websocket");
-          if(!("WebSocket" in window)){  
-              $('#status').append('<p><span style="color: red;">websockets are not supported </span></p>');
-              $("#navigation").hide();  
-          } else {
-              $('#status').append('<p><span style="color: green;">websockets are supported </span></p>');
-              connect();
-          };
-              $("#connected").hide(); 	
-              $("#content").hide(); 	
-      };
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8"/>
+	<title>Websocket client</title>
+</head>
 
-      function connect()
-      {
-          wsHost = $("#server").val()
-          websocket = new WebSocket(wsHost);
-          showScreen('<b>Connecting to: ' +  wsHost + '</b>'); 
-          websocket.onopen = function(evt) { onOpen(evt) }; 
-          websocket.onclose = function(evt) { onClose(evt) }; 
-          websocket.onmessage = function(evt) { onMessage(evt) }; 
-          websocket.onerror = function(evt) { onError(evt) }; 
-      };  
-      
-      function disconnect() {
-          websocket.close();
-      }; 
+<body>
 
-      function toggle_connection(){
-          if(websocket.readyState == websocket.OPEN){
-              disconnect();
-          } else {
-              connect();
-          };
-      };
+<header>
+	<h1>Websocket client</h1>
+	<div id="status"></div>
+</header>
 
-      function sendTxt() {
-          if(websocket.readyState == websocket.OPEN){
-              txt = $("#send_txt").val();
-              websocket.send(txt);
-              showScreen('sending: ' + txt); 
-          } else {
-               showScreen('websocket is not connected'); 
-          };
-      };
+<nav>
+	<div id="connecting">
+		<input type='text' id="server" value=""></input>
+		<button type="button" onclick="toggle_connection()">connection</button>
+	</div>
 
-      function onOpen(evt) { 
-          showScreen('<span style="color: green;">CONNECTED </span>'); 
-          $("#connected").fadeIn('slow');
-          $("#content").fadeIn('slow');
-      };  
+	<div id="connected">
+		<input type='text' id="message" value=""></input>
+		<button type="button" onclick="sendTxt();">send</button>
+	</div>
+</nav>
 
-      function onClose(evt) { 
-          showScreen('<span style="color: red;">DISCONNECTED </span>');
-      };  
-
-      function onMessage(evt) { 
-          showScreen('<span style="color: blue;">RESPONSE: ' + evt.data+ '</span>'); 
-      };  
-
-      function onError(evt) {
-          showScreen('<span style="color: red;">ERROR: ' + evt.data+ '</span>');
-      };
-
-      function showScreen(txt) { 
-          $('#output').prepend('<p>' + txt + '</p>');
-      };
-
-      function clearScreen() 
-      { 
-          $('#output').html("");
-      };
-    </script>
-  </head>
-
-  <body>
-    <div id="header">
-      <h1>Websocket client</h1>
-      <div id="status"></div>
-    </div>
-
-
-    <div id="navigation">
-
-      <p id="connecting">
-	<input type='text' id="server" value=""></input>
-	<button type="button" onclick="toggle_connection()">connection</button>
-      </p>
-      <div id="connected">				
-	<p>
-	  <input type='text' id="send_txt" value=></input>
-	  <button type="button" onclick="sendTxt();">send</button>
-	</p>
-      </div>
-
-      <div id="content">						
+<main id="content">
 	<button id="clear" onclick="clearScreen()" >Clear text</button>
 	<div id="output"></div>
-      </div>
+</main>
 
-    </div>
-  </body>
+<script type="text/javascript">
+
+var websocket;
+var server = document.getElementById("server");
+var message = document.getElementById("message");
+var connecting = document.getElementById("connecting");
+var connected = document.getElementById("connected");
+var content = document.getElementById("content");
+var output = document.getElementById("output");
+
+server.value = "ws://" + window.location.host + "/websocket";
+connected.style.display = "none";
+content.style.display = "none";
+
+function connect()
+{
+	wsHost = server.value;
+	websocket = new WebSocket(wsHost);
+	showScreen('<b>Connecting to: ' +  wsHost + '</b>');
+	websocket.onopen = function(evt) { onOpen(evt) };
+	websocket.onclose = function(evt) { onClose(evt) };
+	websocket.onmessage = function(evt) { onMessage(evt) };
+	websocket.onerror = function(evt) { onError(evt) };
+};
+
+function disconnect() {
+	websocket.close();
+};
+
+function toggle_connection(){
+	if (websocket && websocket.readyState == websocket.OPEN) {
+		disconnect();
+	} else {
+		connect();
+	};
+};
+
+function sendTxt() {
+	if (websocket.readyState == websocket.OPEN) {
+		var msg = message.value;
+		websocket.send(msg);
+		showScreen('sending: ' + msg);
+	} else {
+		showScreen('websocket is not connected');
+	};
+};
+
+function onOpen(evt) {
+	showScreen('<span style="color: green;">CONNECTED </span>');
+	connecting.style.display = "none";
+	connected.style.display = "";
+	content.style.display = "";
+};
+
+function onClose(evt) {
+	showScreen('<span style="color: red;">DISCONNECTED</span>');
+};
+
+function onMessage(evt) {
+	showScreen('<span style="color: blue;">RESPONSE: ' + evt.data + '</span>');
+};
+
+function onError(evt) {
+	showScreen('<span style="color: red;">ERROR: ' + evt.data + '</span>');
+};
+
+function showScreen(html) {
+	var el = document.createElement("p");
+	el.innerHTML = html;
+	output.insertBefore(el, output.firstChild);
+};
+
+function clearScreen() {
+	output.innerHTML = "";
+};
+
+</script>
+</body>
 </html> 
