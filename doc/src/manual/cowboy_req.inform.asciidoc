@@ -70,8 +70,8 @@ Req = cowboy_req:inform(102, Req0).
 [source,erlang]
 ----
 Req = cowboy_req:inform(103, #{
-    <<"link">> => <<"</style.css>; rel=preload; as=style">>,
-    <<"link">> => <<"</script.js>; rel=preload; as=script">>
+    <<"link">> => <<"</style.css>; rel=preload; as=style, "
+        "</script.js>; rel=preload; as=script">>
 }, Req0).
 ----
 
