@@ -51,7 +51,7 @@ these solutions will break down in the next few years. Why?
 Firstly because servers don't get any more powerful, they
 instead get a lot more cores and memory. This is only useful
 if your application can use them properly, and Erlang is
-light-years away from anything else in that area. Secondly,
+light-years ahead of anything else in this respect. Secondly,
 today your computer and your phone are online, tomorrow your
 watch, goggles, bike, car, fridge and tons of other devices
 will also connect to various applications on the Internet.
