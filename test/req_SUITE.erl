@@ -1012,6 +1012,16 @@ stream_body_content_length_nofin_error(Config) ->
 			ok
 	end.
 
+stream_body_concurrent(Config) ->
+	ConnPid = gun_open(Config),
+	Ref1 = gun:get(ConnPid, "/resp/stream_body/loop", [{<<"accept-encoding">>, <<"gzip">>}]),
+	Ref2 = gun:get(ConnPid, "/resp/stream_body/loop", [{<<"accept-encoding">>, <<"gzip">>}]),
+	{response, nofin, 200, _} = gun:await(ConnPid, Ref1, infinity),
+	{ok, _} = gun:await_body(ConnPid, Ref1, infinity),
+	{response, nofin, 200, _} = gun:await(ConnPid, Ref2, infinity),
+	{ok, _} = gun:await_body(ConnPid, Ref2, infinity),
+	gun:close(ConnPid).
+
 %% @todo Crash when calling stream_body after the fin flag has been set.
 %% @todo Crash when calling stream_body after calling reply.
 %% @todo Crash when calling stream_body before calling stream_reply.
