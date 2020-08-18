@@ -31,14 +31,14 @@ configure Cowboy you may define one or more module that
 will receive all events associated with a stream, including
 the request, response, bodies, Erlang messages and more.
 
-By default Cowboy comes configured with a stream handler
+By default, Cowboy comes configured with a stream handler
 called `cowboy_stream_h`. This stream handler will create
 a new process for every request coming in, and then
 communicate with this process to read the body or send
-a response back. The request process executes middlewares
-which, by default, including the router and then the
-execution of handlers. Like stream handlers, middlewares
-may also be customized.
+a response back. The request process executes middlewares.
+By default, the request process executes the router and then
+the handlers. Like stream handlers, middlewares may also be
+customized.
 
 A response may be sent at almost any point in this
 diagram. If the response must be sent before the stream
