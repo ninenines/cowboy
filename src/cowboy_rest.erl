@@ -1104,6 +1104,14 @@ process_content_type(Req, State=#state{method=Method, exists=Exists}, Fun) ->
 			next(Req2, State2, fun maybe_created/2);
 		{false, Req2, State2} ->
 			respond(Req2, State2, 400);
+		{{created, ResURL}, Req2, State2} when Method =:= <<"POST">> ->
+			Req3 = cowboy_req:set_resp_header(
+				<<"location">>, ResURL, Req2),
+			respond(Req3, State2, 201);
+		{{see_other, ResURL}, Req2, State2} when Method =:= <<"POST">> ->
+			Req3 = cowboy_req:set_resp_header(
+				<<"location">>, ResURL, Req2),
+			respond(Req3, State2, 303);
 		{{true, ResURL}, Req2, State2} when Method =:= <<"POST">> ->
 			Req3 = cowboy_req:set_resp_header(
 				<<"location">>, ResURL, Req2),

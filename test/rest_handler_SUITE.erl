@@ -52,6 +52,7 @@ init_dispatch(_) ->
 		{"/content_types_accepted", content_types_accepted_h, []},
 		{"/content_types_provided", content_types_provided_h, []},
 		{"/delete_resource", delete_resource_h, []},
+		{"/create_resource", create_resource_h, []},
 		{"/expires", expires_h, []},
 		{"/generate_etag", generate_etag_h, []},
 		{"/if_range", if_range_h, []},
@@ -472,6 +473,39 @@ delete_resource_missing(Config) ->
 		{<<"accept-encoding">>, <<"gzip">>}
 	]),
 	{response, _, 500, _} = gun:await(ConnPid, Ref),
+	ok.
+
+create_resource_created(Config) ->
+	doc("POST to an existing resource to create a new resource. "
+		"When the accept callback returns {created, NewURI}, "
+		"the expected reply is 201 Created."),
+	ConnPid = gun_open(Config),
+	Ref = gun:post(ConnPid, "/create_resource?created", [
+		{<<"content-type">>, <<"application/text">>}
+	], <<"hello">>, #{}),
+	{response, _, 201, _} = gun:await(ConnPid, Ref),
+	ok.
+
+create_resource_see_other(Config) ->
+	doc("POST to an existing resource to create a new resource. "
+		"When the accept callback returns {see_other, NewURI}, "
+		"the expected reply is 303 See Other."),
+	ConnPid = gun_open(Config),
+	Ref = gun:post(ConnPid, "/create_resource?see_other", [
+		{<<"content-type">>, <<"application/text">>}
+	], <<"hello">>, #{}),
+	{response, _, 303, _} = gun:await(ConnPid, Ref),
+	ok.
+
+create_resource_legacy(Config) ->
+	doc("POST to an existing resource to create a new resource. "
+		"When the accept callback returns {true, NewURI}, the legacy "
+		"behavior is a 302 See Other reply."),
+	ConnPid = gun_open(Config),
+	Ref = gun:post(ConnPid, "/create_resource", [
+		{<<"content-type">>, <<"application/text">>}
+	], <<"hello">>, #{}),
+	{response, _, 303, _} = gun:await(ConnPid, Ref),
 	ok.
 
 error_on_malformed_accept(Config) ->
