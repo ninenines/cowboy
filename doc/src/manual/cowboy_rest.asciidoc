@@ -89,7 +89,6 @@ AcceptCallback(Req, State) -> {Result, Req, State}
 Result  :: true
          | {created, URI :: iodata()}
          | {see_other, URI :: iodata()}
-         | {true, URI :: iodata()}
          | false
 Default  - crash
 ----
@@ -105,8 +104,12 @@ that is being created or replaced.
 For POST requests, the body is typically application-specific
 instructions on how to process the request, but it may also be a
 representation of the resource. When creating a new resource with POST
-at a different location, return `{create, URI}` or `{see_other, URI`}
-with `URI` the new location. The return value `{true, URI}` is deprecated.
+at a different location, return `{created, URI}` or `{see_other, URI`}
+with `URI` the new location.
+
+Returning `{created, URI`} will result in a '201 Created' response.
+
+Returning `{see_other, URI`} will result in a '303 See Other' response.
 
 For PATCH requests, the body is a series of instructions on
 how to update the resource. Patch files or JSON Patch are
@@ -728,6 +731,9 @@ listed here, like the authorization header.
 
 == Changelog
 
+* *2.9*: An `AcceptCallback` can now return `{created, URI}` and
+         `{see_other, URI}`.  The old return value `{true, URI}` is
+         deprecated.
 * *2.7*: The media type wildcard in `content_types_accepted`
          is now documented.
 * *2.6*: The callback `rate_limited` was added.

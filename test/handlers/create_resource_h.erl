@@ -24,7 +24,5 @@ from_text(Req=#{qs := Qs}, State) ->
 		<<"created">> ->
 			{{created, NewURI}, Req, State};
 		<<"see_other">> ->
-			{{see_other, NewURI}, Req, State};
-		_ ->
-			{{true, NewURI}, Req, State}
+			{{see_other, NewURI}, Req, State}
 	end.

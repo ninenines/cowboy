@@ -497,17 +497,6 @@ create_resource_see_other(Config) ->
 	{response, _, 303, _} = gun:await(ConnPid, Ref),
 	ok.
 
-create_resource_legacy(Config) ->
-	doc("POST to an existing resource to create a new resource. "
-		"When the accept callback returns {true, NewURI}, the legacy "
-		"behavior is a 302 See Other reply."),
-	ConnPid = gun_open(Config),
-	Ref = gun:post(ConnPid, "/create_resource", [
-		{<<"content-type">>, <<"application/text">>}
-	], <<"hello">>, #{}),
-	{response, _, 303, _} = gun:await(ConnPid, Ref),
-	ok.
-
 error_on_malformed_accept(Config) ->
 	doc("A malformed Accept header must result in a 400 response."),
 	do_error_on_malformed_header(Config, <<"accept">>).
