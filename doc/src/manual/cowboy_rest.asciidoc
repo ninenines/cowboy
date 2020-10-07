@@ -107,9 +107,8 @@ representation of the resource. When creating a new resource with POST
 at a different location, return `{created, URI}` or `{see_other, URI`}
 with `URI` the new location.
 
-Returning `{created, URI`} will result in a '201 Created' response.
-
-Returning `{see_other, URI`} will result in a '303 See Other' response.
+The `see_other` tuple will redirect the client to the new location
+automatically.
 
 For PATCH requests, the body is a series of instructions on
 how to update the resource. Patch files or JSON Patch are
@@ -731,7 +730,7 @@ listed here, like the authorization header.
 
 == Changelog
 
-* *2.9*: An `AcceptCallback` can now return `{created, URI}` and
+* *2.9*: An `AcceptCallback` can now return `{created, URI}` or
          `{see_other, URI}`.  The old return value `{true, URI}` is
          deprecated.
 * *2.7*: The media type wildcard in `content_types_accepted`
