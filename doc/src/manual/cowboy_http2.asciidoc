@@ -22,6 +22,8 @@ opts() :: #{
     connection_window_margin_size  => 0..16#7fffffff,
     connection_window_update_threshold => 0..16#7fffffff,
     enable_connect_protocol        => boolean(),
+    goaway_initial_timeout         => timeout(),
+    goaway_complete_timeout        => timeout(),
     idle_timeout                   => timeout(),
     inactivity_timeout             => timeout(),
     initial_connection_window_size => 65535..16#7fffffff,
@@ -91,6 +93,16 @@ enable_connect_protocol (false)::
 Whether to enable the extended CONNECT method to allow
 protocols like Websocket to be used over an HTTP/2 stream.
 This option is experimental and disabled by default.
+
+goaway_initial_timeout (1000)::
+
+Time in ms to wait for any in-flight stream creations before stopping to accept
+new streams on an existing connection during a graceful shutdown.
+
+goaway_complete_timeout (3000)::
+
+Time in ms to wait for ongoing streams to complete before closing the connection
+during a graceful shutdown.
 
 idle_timeout (60000)::
 

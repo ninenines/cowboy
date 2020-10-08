@@ -18,6 +18,7 @@
 
 -import(ct_helper, [config/2]).
 -import(ct_helper, [doc/1]).
+-import(ct_helper, [get_remote_pid_tcp/1]).
 -import(cowboy_test, [gun_open/1]).
 -import(cowboy_test, [raw_open/1]).
 -import(cowboy_test, [raw_send/2]).
@@ -52,6 +53,7 @@ init_routes(_) -> [
 	{"localhost", [
 		{"/", hello_h, []},
 		{"/echo/:key", echo_h, []},
+		{"/delay_hello", delay_hello_h, 1200},
 		{"/long_polling", long_polling_h, []},
 		{"/loop_handler_abort", loop_handler_abort_h, []},
 		{"/resp/:key[/:arg]", resp_h, []}
@@ -2955,11 +2957,6 @@ client_settings_disable_push(Config) ->
 %% (RFC7540 6.8) GOAWAY
 % @todo GOAWAY frames have a reserved bit in the payload that must be ignored.
 %
-%% @todo We should eventually implement the mechanism for gracefully
-%% shutting down of the connection. (Send the GOAWAY, finish processing
-%% the current set of streams, give up after a certain timeout.)
-%
-%% @todo If we graceful shutdown and receive a GOAWAY, we give up too.
 %   A GOAWAY frame might not immediately precede closing of the
 %   connection; a receiver of a GOAWAY that has no more use for the
 %   connection SHOULD still send a GOAWAY frame before terminating the
@@ -2975,8 +2972,6 @@ client_settings_disable_push(Config) ->
 %   GOAWAY frame with an updated last stream identifier.  This ensures
 %   that a connection can be cleanly shut down without losing requests.
 %
-%% @todo And of course even if we shutdown we need to be careful about
-%% the connection state.
 %   After sending a GOAWAY frame, the sender can discard frames for
 %   streams initiated by the receiver with identifiers higher than the
 %   identified last stream.  However, any frames that alter connection
@@ -2988,6 +2983,60 @@ client_settings_disable_push(Config) ->
 %   cause flow control or header compression state to become
 %   unsynchronized.
 %
+
+graceful_shutdown_client_stays(Config) ->
+	doc("Successful graceful shutdown where the client doesn't directly go away. (RFC7540 6.8)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Server-side application logic decides to gracefully shutdown the
+	%% connection (for whatever reason).
+	ServerConnPid = get_remote_pid_tcp(Socket),
+	ok = sys:terminate(ServerConnPid, whatever),
+	%% Expect a GOAWAY with last stream id 0x7FFFFFF and NO_ERROR
+	{ok, << _:24, 7:8, 0:8, 0:1, 0:31, %% Length, type, flags, R, stream id
+		0:1, 16#7fffffff:31, 0:32  %% R, last stream id, error code
+		>>} = gen_tcp:recv(Socket, 17, 500),
+	%% The client doesn't respond. The server waits a bit before
+	%% sending a 2nd GOAWAY frame with an actual last stream id = 0
+	{ok, << _:24, 7:8, 0:8, 0:1, 0:31, %% Length, type, flags, R, stream id
+		0:1, 0:31, 0:32            %% R, last stream id, error code
+		>>} = gen_tcp:recv(Socket, 17, 1500),
+	{error, closed} = gen_tcp:recv(Socket, 3, 1000),
+	ok.
+
+graceful_shutdown_race_condition(Config) ->
+	doc("Graceful shutdown where the client sends requests while the server "
+		"sends GOAWAY. (RFC7540 6.8)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Server-side application logic decides to gracefully shutdown the
+	%% connection (for whatever reason).
+	ServerConnPid = get_remote_pid_tcp(Socket),
+	ok = sys:terminate(ServerConnPid, whatever),
+	%% Expect a GOAWAY with last stream id 0x7FFFFFF and NO_ERROR.
+	{ok, << _:24, 7:8, 0:8, 0:1, 0:31, %% Length, type, flags, R, stream id
+		0:1, 16#7fffffff:31, 0:32  %% R, last stream id, error code
+		>>} = gen_tcp:recv(Socket, 17, 500),
+	%% Here, we simulate an in-flight request, sent by the client before the
+	%% goaway frame arrived to the client.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/delay_hello">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+	%% The server sends the 2nd GOAWAY frame
+	{ok, << _:24, 7:8, 0:8, 0:1, 0:31, %% Length, type, flags, R, stream id
+		0:1, 1:31, 0:32            %% R, last stream id, error code
+		>>} = gen_tcp:recv(Socket, 17, 2000),
+	%% The client tries to send another request, ignoring the goaway.
+	ok = gen_tcp:send(Socket, cow_http2:headers(3, fin, HeadersBlock)),
+	%% The server responds to the first request (stream id 1) and closes.
+	{ok, << RespHeadersPayloadLength:24, 1, 4, 0:1, 1:31 >>} = gen_tcp:recv(Socket, 9, 1000),
+	{ok, _RespHeaders} = gen_tcp:recv(Socket, RespHeadersPayloadLength, 1000), % HEADERS
+	{ok, << 12:24, 0, 1, 0:1, 1:31, "Hello world!" >>} = gen_tcp:recv(Socket, 21, 1000), % DATA
+	{error, closed} = gen_tcp:recv(Socket, 3, 1000),
+	ok.
+
 %   The GOAWAY frame applies to the connection, not a specific stream.
 %   An endpoint MUST treat a GOAWAY frame with a stream identifier other
 %   than 0x0 as a connection error (Section 5.4.1) of type

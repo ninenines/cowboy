@@ -245,6 +245,9 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport, opts=Opts,
 		{timeout, _, _} ->
 			loop(State);
 		%% System messages.
+		{'EXIT', Parent, shutdown} ->
+			Reason = {stop, {exit, shutdown}, 'Parent process requested shutdown.'},
+			loop(initiate_closing(State, Reason));
 		{'EXIT', Parent, Reason} ->
 			terminate(State, {stop, {exit, Reason}, 'Parent process terminated.'});
 		{system, From, Request} ->
@@ -1440,6 +1443,13 @@ early_error(StatusCode0, #state{socket=Socket, transport=Transport,
 	end,
 	ok.
 
+initiate_closing(State=#state{streams=[]}, Reason) ->
+	terminate(State, Reason);
+initiate_closing(State=#state{streams=[_Stream|Streams],
+		out_streamid=OutStreamID}, Reason) ->
+	terminate_all_streams(State, Streams, Reason),
+	State#state{last_streamid = OutStreamID}.
+
 -spec terminate(_, _) -> no_return().
 terminate(undefined, Reason) ->
 	exit({shutdown, Reason});
@@ -1503,9 +1513,10 @@ terminate_linger_loop(State=#state{socket=Socket}, TimerRef, Messages) ->
 system_continue(_, _, State) ->
 	loop(State).
 
--spec system_terminate(any(), _, _, {#state{}, binary()}) -> no_return().
-system_terminate(Reason, _, _, State) ->
-	terminate(State, {stop, {exit, Reason}, 'sys:terminate/2,3 was called.'}).
+-spec system_terminate(any(), _, _, #state{}) -> no_return().
+system_terminate(Reason0, _, _, State) ->
+	Reason = {stop, {exit, Reason0}, 'sys:terminate/2,3 was called.'},
+	loop(initiate_closing(State, Reason)).
 
 -spec system_code_change(Misc, _, _, _) -> {ok, Misc} when Misc::{#state{}, binary()}.
 system_code_change(Misc, _, _, _) ->

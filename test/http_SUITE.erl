@@ -20,6 +20,7 @@
 -import(ct_helper, [doc/1]).
 -import(ct_helper, [get_remote_pid_tcp/1]).
 -import(cowboy_test, [gun_open/1]).
+-import(cowboy_test, [gun_down/1]).
 -import(cowboy_test, [raw_open/1]).
 -import(cowboy_test, [raw_send/2]).
 -import(cowboy_test, [raw_recv_head/1]).
@@ -41,6 +42,8 @@ end_per_group(Name, _) ->
 init_dispatch(_) ->
 	cowboy_router:compile([{"localhost", [
 		{"/", hello_h, []},
+		{"/delay_hello", delay_hello_h, 500},
+		{"/long_delay_hello", delay_hello_h, 10000},
 		{"/echo/:key", echo_h, []},
 		{"/resp/:key[/:arg]", resp_h, []},
 		{"/set_options/:key", set_options_h, []}
@@ -443,3 +446,73 @@ switch_protocol_flush(Config) ->
 	after
 		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
+
+graceful_shutdown_connection(Config) ->
+	doc("Check that the current request is handled before gracefully "
+	    "shutting down a connection."),
+	Dispatch = cowboy_router:compile([{"localhost", [
+		{"/delay_hello", delay_hello_h,
+			#{delay => 500, notify_received => self()}},
+		{"/long_delay_hello", delay_hello_h,
+			#{delay => 10000, notify_received => self()}}
+	]}]),
+	ProtoOpts = #{
+		env => #{dispatch => Dispatch}
+	},
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], ProtoOpts),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		ConnPid = gun_open([{type, tcp}, {protocol, http}, {port, Port}|Config]),
+		{ok, http} = gun:await_up(ConnPid),
+		#{socket := Socket} = gun:info(ConnPid),
+		CowboyConnPid = get_remote_pid_tcp(Socket),
+		CowboyConnRef = erlang:monitor(process, CowboyConnPid),
+		Ref1 = gun:get(ConnPid, "/delay_hello"),
+		Ref2 = gun:get(ConnPid, "/delay_hello"),
+		receive {request_received, <<"/delay_hello">>} -> ok end,
+		receive {request_received, <<"/delay_hello">>} -> ok end,
+		ok = sys:terminate(CowboyConnPid, system_is_going_down),
+		{response, nofin, 200, RespHeaders} = gun:await(ConnPid, Ref1),
+		<<"close">> = proplists:get_value(<<"connection">>, RespHeaders),
+		{ok, RespBody} = gun:await_body(ConnPid, Ref1),
+		<<"Hello world!">> = iolist_to_binary(RespBody),
+		{error, {stream_error, _}} = gun:await(ConnPid, Ref2),
+		ok = gun_down(ConnPid),
+		receive
+			{'DOWN', CowboyConnRef, process, CowboyConnPid, _Reason} ->
+				ok
+		end
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+graceful_shutdown_listener(Config) ->
+	doc("Check that connections are shut down gracefully when stopping a listener."),
+	Dispatch = cowboy_router:compile([{"localhost", [
+		{"/delay_hello", delay_hello_h,
+			#{delay => 500, notify_received => self()}},
+		{"/long_delay_hello", delay_hello_h,
+			#{delay => 10000, notify_received => self()}}
+	]}]),
+	ProtoOpts = #{
+		env => #{dispatch => Dispatch}
+	},
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], ProtoOpts),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	ConnPid1 = gun_open([{type, tcp}, {protocol, http}, {port, Port}|Config]),
+	Ref1 = gun:get(ConnPid1, "/delay_hello"),
+	ConnPid2 = gun_open([{type, tcp}, {protocol, http}, {port, Port}|Config]),
+	Ref2 = gun:get(ConnPid2, "/long_delay_hello"),
+	%% Shutdown listener while the handlers are working.
+	receive {request_received, <<"/delay_hello">>} -> ok end,
+	receive {request_received, <<"/long_delay_hello">>} -> ok end,
+	ok = cowboy:stop_listener(?FUNCTION_NAME),
+	%% Check that the 1st request is handled before shutting down.
+	{response, nofin, 200, RespHeaders} = gun:await(ConnPid1, Ref1),
+	<<"close">> = proplists:get_value(<<"connection">>, RespHeaders),
+	{ok, RespBody} = gun:await_body(ConnPid1, Ref1),
+	<<"Hello world!">> = iolist_to_binary(RespBody),
+	gun:close(ConnPid1),
+	%% Check that the 2nd (very slow) request is not handled.
+	{error, {stream_error, closed}} = gun:await(ConnPid2, Ref2),
+	gun:close(ConnPid2).
