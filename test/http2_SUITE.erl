@@ -284,3 +284,135 @@ settings_timeout_infinity(Config) ->
 	after
 		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
+
+graceful_shutdown_connection(Config) ->
+	doc("Check that ongoing requests are handled before gracefully shutting down a connection."),
+	Dispatch = cowboy_router:compile([{"localhost", [
+		{"/delay_hello", delay_hello_h,
+			#{delay => 500, notify_received => self()}}
+	]}]),
+	ProtoOpts = #{
+		env => #{dispatch => Dispatch}
+	},
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], ProtoOpts),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		ConnPid = gun_open([{type, tcp}, {protocol, http2}, {port, Port}|Config]),
+		Ref = gun:get(ConnPid, "/delay_hello"),
+		%% Make sure the request is received.
+		receive {request_received, <<"/delay_hello">>} -> ok end,
+		%% Tell the connection to shutdown while the handler is working.
+		[CowboyConnPid] = ranch:procs(?FUNCTION_NAME, connections),
+		monitor(process, CowboyConnPid),
+		ok = sys:terminate(CowboyConnPid, goaway),
+		%% Check that the response is sent to the client before the
+		%% connection goes down.
+		{response, nofin, 200, _RespHeaders} = gun:await(ConnPid, Ref),
+		{ok, RespBody} = gun:await_body(ConnPid, Ref),
+		<<"Hello world!">> = iolist_to_binary(RespBody),
+		%% Check that the connection is gone soon afterwards. (The exit
+		%% reason is supposed to be 'goaway' as passed to
+		%% sys:terminate/2, but it is {shutdown, closed}.)
+		receive
+			{'DOWN', _, process, CowboyConnPid, _Reason} ->
+				ok
+		end,
+		[] = ranch:procs(?FUNCTION_NAME, connections),
+		gun:close(ConnPid)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+graceful_shutdown_timeout(Config) ->
+	doc("Check that a connection is closed when gracefully shutting down times out."),
+	Dispatch = cowboy_router:compile([{"localhost", [
+		{"/long_delay_hello", delay_hello_h,
+			#{delay => 10000, notify_received => self()}}
+	]}]),
+	ProtoOpts = #{
+		env => #{dispatch => Dispatch},
+		goaway_initial_timeout => 200,
+		goaway_complete_timeout => 500
+	},
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], ProtoOpts),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		ConnPid = gun_open([{type, tcp}, {protocol, http2}, {port, Port}|Config]),
+		Ref = gun:get(ConnPid, "/long_delay_hello"),
+		%% Make sure the request is received.
+		receive {request_received, <<"/long_delay_hello">>} -> ok end,
+		%% Tell the connection to shutdown while the handler is working.
+		[CowboyConnPid] = ranch:procs(?FUNCTION_NAME, connections),
+		monitor(process, CowboyConnPid),
+		ok = sys:terminate(CowboyConnPid, goaway),
+		%% Check that connection didn't wait for the slow handler.
+		{error, {stream_error, closed}} = gun:await(ConnPid, Ref),
+		%% Check that the connection is gone. (The exit reason is
+		%% supposed to be 'goaway' as passed to sys:terminate/2, but it
+		%% is {shutdown, {stop, {exit, goaway}, 'Graceful shutdown timed
+		%% out.'}}.)
+		receive
+			{'DOWN', _, process, CowboyConnPid, _Reason} ->
+				ok
+		after 100 ->
+		       error(still_alive)
+		end,
+		[] = ranch:procs(?FUNCTION_NAME, connections),
+		gun:close(ConnPid)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+graceful_shutdown_listener(Config) ->
+	doc("Check that connections are shut down gracefully when stopping a listener."),
+	Dispatch = cowboy_router:compile([{"localhost", [
+		{"/delay_hello", delay_hello_h,
+			#{delay => 500, notify_received => self()}}
+	]}]),
+	ProtoOpts = #{
+		env => #{dispatch => Dispatch}
+	},
+	{ok, Listener} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], ProtoOpts),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	ConnPid = gun_open([{type, tcp}, {protocol, http2}, {port, Port}|Config]),
+	Ref = gun:get(ConnPid, "/delay_hello"),
+	%% Shutdown listener while the handlers are working.
+	receive {request_received, <<"/delay_hello">>} -> ok end,
+	ListenerMonitorRef = monitor(process, Listener),
+	ok = cowboy:stop_listener(?FUNCTION_NAME),
+	receive
+		{'DOWN', ListenerMonitorRef, process, Listener, _Reason} ->
+			ok
+	end,
+	%% Check that the request is handled before shutting down.
+	{response, nofin, 200, _RespHeaders} = gun:await(ConnPid, Ref),
+	{ok, RespBody} = gun:await_body(ConnPid, Ref),
+	<<"Hello world!">> = iolist_to_binary(RespBody),
+	gun:close(ConnPid).
+
+graceful_shutdown_listener_timeout(Config) ->
+	doc("Check that connections are shut down when gracefully stopping a listener times out."),
+	Dispatch = cowboy_router:compile([{"localhost", [
+		{"/long_delay_hello", delay_hello_h,
+			#{delay => 10000, notify_received => self()}}
+	]}]),
+	ProtoOpts = #{
+		env => #{dispatch => Dispatch},
+		goaway_initial_timeout => 200,
+		goaway_complete_timeout => 500
+	},
+	{ok, Listener} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], ProtoOpts),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	ConnPid = gun_open([{type, tcp}, {protocol, http2}, {port, Port}|Config]),
+	Ref = gun:get(ConnPid, "/long_delay_hello"),
+	%% Shutdown listener while the handlers are working.
+	receive {request_received, <<"/long_delay_hello">>} -> ok end,
+	ListenerMonitorRef = monitor(process, Listener),
+	ok = cowboy:stop_listener(?FUNCTION_NAME),
+	receive
+		{'DOWN', ListenerMonitorRef, process, Listener, _Reason} ->
+			ok
+	end,
+	%% Check that the slow request is aborted.
+	{error, {stream_error, closed}} = gun:await(ConnPid, Ref),
+	gun:close(ConnPid).
