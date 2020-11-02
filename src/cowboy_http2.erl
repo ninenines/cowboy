@@ -173,12 +173,19 @@ init(Parent, Ref, Socket, Transport, ProxyHeader, Opts, Peer, Sock, Cert, Buffer
 		_ -> parse(State, Buffer)
 	end.
 
-init_rate_limiting(State=#state{opts=Opts}) ->
-	{FrameRateNum, FrameRatePeriod} = maps:get(max_received_frame_rate, Opts, {10000, 10000}),
-	{ResetRateNum, ResetRatePeriod} = maps:get(max_reset_stream_rate, Opts, {10, 10000}),
+init_rate_limiting(State) ->
 	CurrentTime = erlang:monotonic_time(millisecond),
+	init_reset_rate_limiting(init_frame_rate_limiting(State, CurrentTime), CurrentTime).
+
+init_frame_rate_limiting(State=#state{opts=Opts}, CurrentTime) ->
+	{FrameRateNum, FrameRatePeriod} = maps:get(max_received_frame_rate, Opts, {10000, 10000}),
 	State#state{
-		frame_rate_num=FrameRateNum, frame_rate_time=add_period(CurrentTime, FrameRatePeriod),
+		frame_rate_num=FrameRateNum, frame_rate_time=add_period(CurrentTime, FrameRatePeriod)
+	}.
+
+init_reset_rate_limiting(State=#state{opts=Opts}, CurrentTime) ->
+	{ResetRateNum, ResetRatePeriod} = maps:get(max_reset_stream_rate, Opts, {10, 10000}),
+	State#state{
 		reset_rate_num=ResetRateNum, reset_rate_time=add_period(CurrentTime, ResetRatePeriod)
 	}.
 
@@ -331,7 +338,7 @@ parse(State=#state{http2_status=Status, http2_machine=HTTP2Machine, streams=Stre
 
 %% Frame rate flood protection.
 
-frame_rate(State0=#state{opts=Opts, frame_rate_num=Num0, frame_rate_time=Time}, Frame) ->
+frame_rate(State0=#state{frame_rate_num=Num0, frame_rate_time=Time}, Frame) ->
 	{Result, State} = case Num0 - 1 of
 		0 ->
 			CurrentTime = erlang:monotonic_time(millisecond),
@@ -340,8 +347,7 @@ frame_rate(State0=#state{opts=Opts, frame_rate_num=Num0, frame_rate_time=Time}, 
 					{error, State0};
 				true ->
 					%% When the option has a period of infinity we cannot reach this clause.
-					{Num, Period} = maps:get(max_received_frame_rate, Opts, {1000, 10000}),
-					{ok, State0#state{frame_rate_num=Num, frame_rate_time=CurrentTime + Period}}
+					{ok, init_frame_rate_limiting(State0, CurrentTime)}
 			end;
 		Num ->
 			{ok, State0#state{frame_rate_num=Num}}
@@ -1111,7 +1117,7 @@ reset_stream(State0=#state{socket=Socket, transport=Transport,
 				'Stream reset rate larger than configuration allows. Flood? (CVE-2019-9514)'})
 	end.
 
-reset_rate(State0=#state{opts=Opts, reset_rate_num=Num0, reset_rate_time=Time}) ->
+reset_rate(State0=#state{reset_rate_num=Num0, reset_rate_time=Time}) ->
 	case Num0 - 1 of
 		0 ->
 			CurrentTime = erlang:monotonic_time(millisecond),
@@ -1120,8 +1126,7 @@ reset_rate(State0=#state{opts=Opts, reset_rate_num=Num0, reset_rate_time=Time}) 
 					error;
 				true ->
 					%% When the option has a period of infinity we cannot reach this clause.
-					{Num, Period} = maps:get(max_reset_stream_rate, Opts, {10, 10000}),
-					{ok, State0#state{reset_rate_num=Num, reset_rate_time=CurrentTime + Period}}
+					{ok, init_reset_rate_limiting(State0, CurrentTime)}
 			end;
 		Num ->
 			{ok, State0#state{reset_rate_num=Num}}
