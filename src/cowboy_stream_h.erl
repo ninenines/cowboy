@@ -256,6 +256,8 @@ info(StreamID, Push={push, _, _, _, _, _, _, _}, State) ->
 	do_info(StreamID, Push, [Push], State);
 info(StreamID, SwitchProtocol={switch_protocol, _, _, _}, State) ->
 	do_info(StreamID, SwitchProtocol, [SwitchProtocol], State#state{expect=undefined});
+info(StreamID, SwitchProtocol={takeover, _, _}, State) ->
+	do_info(StreamID, SwitchProtocol, [SwitchProtocol], State#state{expect=undefined});
 %% Convert the set_options message to a command.
 info(StreamID, SetOptions={set_options, _}, State) ->
 	do_info(StreamID, SetOptions, [SetOptions], State);
