@@ -1022,6 +1022,40 @@ stream_body_concurrent(Config) ->
 	{ok, _} = gun:await_body(ConnPid, Ref2, infinity),
 	gun:close(ConnPid).
 
+stream_body_close(Config) ->
+	doc("Confirm server does not hang in cowboy_req:stream_body/3 if client closes the connection."),
+	Path = "/resp/stream_body/let_test_stream_body",
+	ConnPid = gun_open(Config),
+	%% After sending the first part, we close the connection. After the request
+	%% process has died, we send the second part. If the handler gets stuck
+	%% sending on the closed connection, the test will fail.
+	register(the_test_case, self()),
+	Ref = gun:get(ConnPid, Path, []),
+	spawn(fun() -> gun:await(ConnPid, Ref, infinity) end),
+	receive
+		{here_is_the_req, HandlerPid, Req} ->
+			cowboy_req:stream_body(<<"Hello ">>, nofin, Req),
+
+			#{pid := ReqPid} = Req,
+			ReqMRef = monitor(process, ReqPid),
+			gun:close(ConnPid),
+			receive
+				{'DOWN', ReqMRef, _, _, _} -> ok
+			end,
+
+			{_, StreamMRef} = spawn_monitor(fun () ->
+				exit(cowboy_req:stream_body(<<"world">>, nofin, Req))
+			end),
+			receive
+				{'DOWN', StreamMRef, _, _, _} -> ok
+			after 5000 ->
+				ct:fail("Hanging in stream_body/3 on closed connection")
+			end,
+
+			HandlerPid ! test_case_done
+	end,
+	ok.
+
 %% @todo Crash when calling stream_body after the fin flag has been set.
 %% @todo Crash when calling stream_body after calling reply.
 %% @todo Crash when calling stream_body before calling stream_reply.

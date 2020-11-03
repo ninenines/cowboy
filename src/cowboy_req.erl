@@ -887,7 +887,14 @@ stream_body(Data, IsFin, Req=#{has_sent_resp := headers})
 %% @todo Do we need a timeout?
 stream_body(Msg, Req=#{pid := Pid}) ->
 	cast(Msg, Req),
-	receive {data_ack, Pid} -> ok end.
+	MRef = monitor(process, Pid),
+	receive
+		{data_ack, Pid} ->
+			demonitor(MRef, [flush]),
+			ok;
+		{'DOWN', MRef, _, _, Reason} ->
+			{terminated, stream_body, Pid, Msg, Reason}
+	end.
 
 -spec stream_events(cow_sse:event() | [cow_sse:event()], fin | nofin, req()) -> ok.
 stream_events(Event, IsFin, Req) when is_map(Event) ->

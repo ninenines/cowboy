@@ -285,6 +285,11 @@ do(<<"stream_body">>, Req0, Opts) ->
 				error(timeout)
 			end,
 			{ok, Req, Opts};
+		<<"let_test_stream_body">> ->
+			Req = cowboy_req:stream_reply(200, Req0),
+			the_test_case ! {here_is_the_req, self(), Req},
+			receive test_case_done -> ok end,
+			{ok, Req, Opts};
 		_ ->
 			%% Call stream_body without initiating streaming.
 			cowboy_req:stream_body(<<0:800000>>, fin, Req0),
