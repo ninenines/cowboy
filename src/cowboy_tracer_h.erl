@@ -159,7 +159,7 @@ tracer_process(StreamID, Req=#{pid := Parent}, Opts=#{tracer_callback := Fun}) -
 
 tracer_loop(Parent, Opts=#{tracer_callback := Fun}, State0) ->
 	receive
-		Msg when element(1, Msg) =:= trace_ts ->
+		Msg when element(1, Msg) =:= trace; element(1, Msg) =:= trace_ts ->
 			State = Fun(Msg, State0),
 			tracer_loop(Parent, Opts, State);
 		{'EXIT', Parent, Reason} ->
