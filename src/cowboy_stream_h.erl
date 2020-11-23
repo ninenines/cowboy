@@ -294,7 +294,9 @@ request_process(Req, Env, Middlewares) ->
 	try
 		execute(Req, Env, Middlewares)
 	catch
-		exit:Reason:Stacktrace ->
+		exit:Reason={shutdown, _}:Stacktrace ->
+			erlang:raise(exit, Reason, Stacktrace);
+		exit:Reason:Stacktrace when Reason =/= normal, Reason =/= shutdown ->
 			erlang:raise(exit, {Reason, Stacktrace}, Stacktrace)
 	end.
 
