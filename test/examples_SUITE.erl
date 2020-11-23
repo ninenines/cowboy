@@ -458,14 +458,14 @@ websocket(Config) ->
 			exit(timeout)
 		end,
 		%% Check that we receive the echoed message.
-		gun:ws_send(Pid, {text, <<"hello">>}),
+		gun:ws_send(Pid, StreamRef, {text, <<"hello">>}),
 		receive
 			{gun_ws, Pid, StreamRef, {text, <<"That's what she said! hello">>}} ->
 				ok
 		after 500 ->
 			exit(timeout)
 		end,
-		gun:ws_send(Pid, close)
+		gun:ws_send(Pid, StreamRef, close)
 	after
 		do_stop(websocket)
 	end.
