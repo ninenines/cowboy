@@ -451,9 +451,9 @@ parse_request(Buffer, State=#state{opts=Opts, in_streamid=InStreamID}, EmptyLine
 				%% @todo * is only for server-wide OPTIONS request (RFC7230 5.3.4); tests
 				<< "OPTIONS * ", Rest/bits >> ->
 					parse_version(Rest, State, <<"OPTIONS">>, undefined, <<"*">>, <<>>);
-				<<"CONNECT ", _/bits>> ->
-					error_terminate(501, State, {connection_error, no_error,
-						'The CONNECT method is currently not implemented. (RFC7231 4.3.6)'});
+				%% <<"CONNECT ", _/bits>> ->
+				%% 	error_terminate(501, State, {connection_error, no_error,
+				%% 		'The CONNECT method is currently not implemented. (RFC7231 4.3.6)'});
 				<<"TRACE ", _/bits>> ->
 					error_terminate(501, State, {connection_error, no_error,
 						'The TRACE method is currently not implemented. (RFC7231 4.3.8)'});
@@ -497,6 +497,8 @@ parse_uri(<< H, T, T, P, S, "://", Rest/bits >>, State, Method)
 	parse_uri_authority(Rest, State, Method);
 parse_uri(<< $/, Rest/bits >>, State, Method) ->
 	parse_uri_path(Rest, State, Method, undefined, <<$/>>);
+parse_uri(Rest, State, Method = <<"CONNECT">>) ->
+	parse_uri_authority(Rest, State, Method);
 parse_uri(_, State, _) ->
 	error_terminate(400, State, {connection_error, protocol_error,
 		'Invalid request-line or request-target. (RFC7230 3.1.1, RFC7230 5.3)'}).
@@ -527,6 +529,8 @@ parse_uri_authority(<<C, Rest/bits>>, State, Method, SoFar, Remaining) ->
 			error_terminate(400, State, {connection_error, protocol_error,
 				'Absolute URIs must include a non-empty host component. (RFC7230 2.7.1)'});
 		$/ -> parse_uri_path(Rest, State, Method, SoFar, <<"/">>);
+		%% $\s when Method =:= <<"CONNECT">> ->
+		%% 	parse_version(Rest, State, Method, SoFar, <<>>, <<>>);
 		$\s -> parse_version(Rest, State, Method, SoFar, <<"/">>, <<>>);
 		$? -> parse_uri_query(Rest, State, Method, SoFar, <<"/">>, <<>>);
 		$# -> skip_uri_fragment(Rest, State, Method, SoFar, <<"/">>, <<>>);
@@ -574,6 +578,10 @@ parse_version(_, State, _, _, _, _) ->
 	error_terminate(505, State, {connection_error, protocol_error,
 		'Unsupported HTTP version. (RFC7230 2.6)'}).
 
+before_parse_headers(_Rest, State, <<"CONNECT">>, Authority, Path, Qs, _V)
+		when Authority =:= undefined; Path =/= <<"/">>; Qs =/= <<>> ->
+	error_terminate(400, State, {connection_error, protocol_error,
+		'The CONNECT method requires a request-target with only host and port. (RFC7231 4.3.6)'});
 before_parse_headers(Rest, State, M, A, P, Q, V) ->
 	parse_header(Rest, State#state{in_state=#ps_header{
 		method=M, authority=A, path=P, qs=Q, version=V}}, #{}).
@@ -703,17 +711,18 @@ horse_clean_value_ws_end() ->
 -endif.
 
 request(Buffer, State=#state{transport=Transport,
-		in_state=PS=#ps_header{authority=Authority, version=Version}}, Headers) ->
+		in_state=PS=#ps_header{authority=Authority, method=Method, version=Version}}, Headers) ->
 	case maps:get(<<"host">>, Headers, undefined) of
 		undefined when Version =:= 'HTTP/1.1' ->
 			%% @todo Might want to not close the connection on this and next one.
 			error_terminate(400, State#state{in_state=PS#ps_header{headers=Headers}},
 				{stream_error, protocol_error,
 					'HTTP/1.1 requests must include a host header. (RFC7230 5.4)'});
-		undefined ->
+		undefined when Method =/= <<"CONNECT">> ->
 			request(Buffer, State, Headers, <<>>, default_port(Transport:secure()));
-		%% @todo When CONNECT requests come in we need to ignore the RawHost
-		%% and instead use the Authority as the source of host.
+		undefined when Method =:= <<"CONNECT">> ->
+			%% Should we forbid CONNECT with HTTP/1.0?
+			request_parse_host(Buffer, State, Headers, Authority);
 		RawHost when Authority =:= undefined; Authority =:= RawHost ->
 			request_parse_host(Buffer, State, Headers, RawHost);
 		%% RFC7230 does not explicitly ask us to reject requests
@@ -728,7 +737,7 @@ request(Buffer, State=#state{transport=Transport,
 
 request_parse_host(Buffer, State=#state{transport=Transport, in_state=PS}, Headers, RawHost) ->
 	try cow_http_hd:parse_host(RawHost) of
-		{Host, undefined} ->
+		{Host, undefined} when PS#ps_header.method =/= <<"CONNECT">> ->
 			request(Buffer, State, Headers, Host, default_port(Transport:secure()));
 		{Host, Port} when Port > 0, Port =< 65535 ->
 			request(Buffer, State, Headers, Host, Port);
@@ -751,9 +760,13 @@ request(Buffer, State0=#state{ref=Ref, transport=Transport, peer=Peer, sock=Sock
 		proxy_header=ProxyHeader, in_streamid=StreamID, in_state=
 			PS=#ps_header{method=Method, path=Path, qs=Qs, version=Version}},
 		Headers0, Host, Port) ->
-	Scheme = case Transport:secure() of
-		true -> <<"https">>;
-		false -> <<"http">>
+	Scheme = case Method of
+		<<"CONNECT">> -> <<>>;
+		_ ->
+			case Transport:secure() of
+				true -> <<"https">>;
+				false -> <<"http">>
+			end
 	end,
 	{Headers, HasBody, BodyLength, TDecodeFun, TDecodeState} = case Headers0 of
 		#{<<"transfer-encoding">> := TransferEncoding0} ->
@@ -1177,6 +1190,18 @@ commands(State0=#state{ref=Ref, parent=Parent, socket=Socket, transport=Transpor
 	%% @todo We need to shutdown processes here first.
 	stream_call_terminate(StreamID, switch_protocol, StreamState, State),
 	%% Terminate children processes and flush any remaining messages from the mailbox.
+	cowboy_children:terminate(Children),
+	flush(Parent),
+	Protocol:takeover(Parent, Ref, Socket, Transport, Opts, Buffer, InitialState);
+commands(State0=#state{ref=Ref, parent=Parent, socket=Socket, transport=Transport,
+		out_state=_OutState, opts=Opts, buffer=Buffer, children=Children}, StreamID,
+		[{takeover, Protocol, InitialState}|_Tail]) ->
+	%% Takeover without sending any HTTP response.
+	%% @todo If there's streams opened after this one, fail instead of 101.
+	State1 = cancel_timeout(State0),
+	State = #state{streams=Streams} = passive(State1),
+	#stream{state=StreamState} = lists:keyfind(StreamID, #stream.id, Streams),
+	stream_call_terminate(StreamID, switch_protocol, StreamState, State),
 	cowboy_children:terminate(Children),
 	flush(Parent),
 	Protocol:takeover(Parent, Ref, Socket, Transport, Opts, Buffer, InitialState);

@@ -432,11 +432,11 @@ data_frame(State0=#state{opts=Opts, flow=Flow, streams=Streams}, StreamID, IsFin
 			State0
 	end.
 
-headers_frame(State, StreamID, IsFin, Headers,
-		PseudoHeaders=#{method := <<"CONNECT">>}, _)
-		when map_size(PseudoHeaders) =:= 2 ->
-	early_error(State, StreamID, IsFin, Headers, PseudoHeaders, 501,
-		'The CONNECT method is currently not implemented. (RFC7231 4.3.6)');
+%% headers_frame(State, StreamID, IsFin, Headers,
+%% 		PseudoHeaders=#{method := <<"CONNECT">>, authority := Authority}, _)
+%% 		when map_size(PseudoHeaders) =:= 2 ->
+%% 	early_error(State, StreamID, IsFin, Headers, PseudoHeaders, 501,
+%% 		'The CONNECT method is currently not implemented. (RFC7231 4.3.6)');
 headers_frame(State, StreamID, IsFin, Headers,
 		PseudoHeaders=#{method := <<"TRACE">>}, _) ->
 	early_error(State, StreamID, IsFin, Headers, PseudoHeaders, 501,
@@ -453,13 +453,18 @@ headers_frame(State, StreamID, IsFin, Headers, PseudoHeaders, BodyLen) ->
 	end.
 
 headers_frame_parse_host(State=#state{ref=Ref, peer=Peer, sock=Sock, cert=Cert, proxy_header=ProxyHeader},
-		StreamID, IsFin, Headers, PseudoHeaders=#{method := Method, scheme := Scheme, path := PathWithQs},
+		StreamID, IsFin, Headers, PseudoHeaders=#{method := Method},
 		BodyLen, Authority) ->
+	Scheme = maps:get(scheme, PseudoHeaders, <<>>),
+	PathWithQs = maps:get(path, PseudoHeaders, <<"/">>),
 	try cow_http_hd:parse_host(Authority) of
+		{_Host, undefined} when Method =:= <<"CONNECT">>, map_size(PseudoHeaders) =:= 2 ->
+			reset_stream(State, StreamID, {stream_error, protocol_error,
+				'The CONNECT method requires :authority with a port to connect to. (RFC7540 8.3)'});
 		{Host, Port0} ->
 			Port = ensure_port(Scheme, Port0),
 			try cow_http:parse_fullpath(PathWithQs) of
-				{<<>>, _} ->
+				{<<>>, _} when method =/= <<"CONNECT">>; map_size(PseudoHeaders) =/= 2 ->
 					reset_stream(State, StreamID, {stream_error, protocol_error,
 						'The path component must not be empty. (RFC7540 8.1.2.3)'});
 				{Path, Qs} ->
