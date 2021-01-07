@@ -125,7 +125,7 @@ HTTP handler.
 Generate a handler from a template:
 
 [source,bash]
-$ make new t=cowboy.http n=hello_handler
+$ make new t=cowboy_http n=hello_handler
 
 Then, open the 'src/hello_handler.erl' file and modify
 the `init/2` function like this to send a reply.
