@@ -29,6 +29,7 @@
 	env => cowboy_middleware:env(),
 	http10_keepalive => boolean(),
 	idle_timeout => timeout(),
+	reset_idle_on_send => boolean(),
 	inactivity_timeout => timeout(),
 	initial_stream_flow_size => non_neg_integer(),
 	linger_timeout => timeout(),
@@ -1083,7 +1084,7 @@ commands(State0=#state{socket=Socket, transport=Transport,
 	commands(State, StreamID, Tail);
 %% Send a response body chunk.
 %% @todo We need to kill the stream if it tries to send data before headers.
-commands(State0=#state{socket=Socket, transport=Transport, streams=Streams0, out_state=OutState},
+commands(State0=#state{socket=Socket, transport=Transport, streams=Streams0, out_state=OutState, opts=Opts},
 		StreamID, [{data, IsFin, Data}|Tail]) ->
 	%% Do not send anything when the user asks to send an empty
 	%% data frame, as that would break the protocol.
@@ -1134,9 +1135,15 @@ commands(State0=#state{socket=Socket, transport=Transport, streams=Streams0, out
 			end,
 			Stream0#stream{local_sent_size=SentSize}
 	end,
-	State = case IsFin of
+	State1 = case IsFin of
 		fin -> State0#state{out_state=done};
 		nofin -> State0
+	end,
+	State = case maps:get(reset_idle_on_send, Opts, false) of
+		true ->
+			set_timeout(State1, idle_timeout);
+		false ->
+			State1
 	end,
 	Streams = lists:keyreplace(StreamID, #stream.id, Streams0, Stream),
 	commands(State#state{streams=Streams}, StreamID, Tail);

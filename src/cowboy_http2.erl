@@ -56,6 +56,7 @@
 	middlewares => [module()],
 	preface_timeout => timeout(),
 	proxy_header => boolean(),
+	reset_idle_on_send => boolean(),
 	sendfile => boolean(),
 	settings_timeout => timeout(),
 	shutdown_timeout => timeout(),
@@ -668,8 +669,14 @@ commands(State0, StreamID, [{headers, StatusCode, Headers}|Tail]) ->
 	State = send_headers(State0, StreamID, nofin, StatusCode, Headers),
 	commands(State, StreamID, Tail);
 %% Send a response body chunk.
-commands(State0, StreamID, [{data, IsFin, Data}|Tail]) ->
-	State = maybe_send_data(State0, StreamID, IsFin, Data, []),
+commands(State0=#state{opts=Opts}, StreamID, [{data, IsFin, Data}|Tail]) ->
+	State1 = maybe_send_data(State0, StreamID, IsFin, Data, []),
+	State = case maps:get(reset_idle_on_send, Opts, false) of
+		true ->
+			set_idle_timeout(State1);
+		false ->
+			State1
+	end,
 	commands(State, StreamID, Tail);
 %% Send trailers.
 commands(State0, StreamID, [{trailers, Trailers}|Tail]) ->

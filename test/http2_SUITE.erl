@@ -29,7 +29,8 @@ init_dispatch(_) ->
 	cowboy_router:compile([{"localhost", [
 		{"/", hello_h, []},
 		{"/echo/:key", echo_h, []},
-		{"/resp_iolist_body", resp_iolist_body_h, []}
+		{"/resp_iolist_body", resp_iolist_body_h, []},
+		{"/streamed_result/:n/:interval", streamed_result_h, []}
 	]}]).
 
 %% Do a prior knowledge handshake (function originally copied from rfc7540_SUITE).
@@ -416,3 +417,68 @@ graceful_shutdown_listener_timeout(Config) ->
 	%% Check that the slow request is aborted.
 	{error, {stream_error, closed}} = gun:await(ConnPid, Ref),
 	gun:close(ConnPid).
+
+idle_timeout_on_send(Config) ->
+	doc("The idle timeout is not reset by default by sending."),
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
+		env => #{dispatch => init_dispatch(Config)},
+		idle_timeout => 1000
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		ConnPid = gun_open([{type, tcp}, {protocol, http2}, {port, Port}|Config]),
+		{ok, http2} = gun:await_up(ConnPid),
+		#{socket := Socket} = gun:info(ConnPid),
+		Pid = get_remote_pid_tcp(Socket),
+		StreamRef = gun:get(ConnPid, "/streamed_result/10/250"),
+		Ref = erlang:monitor(process, Pid),
+		receive
+			{gun_response, ConnPid, StreamRef, nofin, _Status, _Headers} ->
+				idle_timeout_recv_loop(Ref, Pid, ConnPid, StreamRef, false)
+		after 2000 ->
+		      error(timeout)
+		end
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+idle_timeout_reset_on_send(Config) ->
+	doc("The idle timeout can be made to reset by sending."),
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
+		env => #{dispatch => init_dispatch(Config)},
+		idle_timeout => 1000,
+		reset_idle_on_send => true
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		ConnPid = gun_open([{type, tcp}, {protocol, http2}, {port, Port}|Config]),
+		{ok, http2} = gun:await_up(ConnPid),
+		#{socket := Socket} = gun:info(ConnPid),
+		Pid = get_remote_pid_tcp(Socket),
+		StreamRef = gun:get(ConnPid, "/streamed_result/10/250"),
+		Ref = erlang:monitor(process, Pid),
+		receive
+			{gun_response, ConnPid, StreamRef, nofin, _Status, _Headers} ->
+				idle_timeout_recv_loop(Ref, Pid, ConnPid, StreamRef, true)
+		after 2000 ->
+		      error(timeout)
+		end
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+idle_timeout_recv_loop(Ref, Pid, ConnPid, StreamRef, ExpectCompletion) ->
+	receive
+		{gun_data, ConnPid, StreamRef, nofin, _Data} ->
+			idle_timeout_recv_loop(Ref, Pid, ConnPid, StreamRef, ExpectCompletion);
+		{gun_data, ConnPid, StreamRef, fin, _Data} when ExpectCompletion ->
+			ok;
+		{gun_data, ConnPid, StreamRef, fin, _Data} ->
+			error(completed);
+		{'DOWN', Ref, process, Pid, _} when ExpectCompletion ->
+			error(exited);
+		{'DOWN', Ref, process, Pid, _} ->
+			 ok
+	after 2000 ->
+	      error(timeout)
+	end.
