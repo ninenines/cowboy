@@ -29,7 +29,8 @@ init_dispatch(_) ->
 	cowboy_router:compile([{"localhost", [
 		{"/", hello_h, []},
 		{"/echo/:key", echo_h, []},
-		{"/resp_iolist_body", resp_iolist_body_h, []}
+		{"/resp_iolist_body", resp_iolist_body_h, []},
+		{"/streamed_result/:n/:interval", streamed_result_h, []}
 	]}]).
 
 %% Do a prior knowledge handshake (function originally copied from rfc7540_SUITE).
@@ -115,6 +116,15 @@ idle_timeout_reset_on_data(Config) ->
 	after
 		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
+
+idle_timeout_on_send(Config) ->
+	doc("Ensure the idle timeout is not reset when sending (by default)."),
+	http_SUITE:do_idle_timeout_on_send(Config, http2).
+
+idle_timeout_reset_on_send(Config) ->
+	doc("Ensure the reset_idle_timeout_on_send results in the "
+		"idle timeout resetting when sending ."),
+	http_SUITE:do_idle_timeout_reset_on_send(Config, http2).
 
 inactivity_timeout(Config) ->
 	doc("Terminate when the inactivity timeout is reached."),

@@ -47,6 +47,7 @@
 	middlewares => [module()],
 	proxy_header => boolean(),
 	request_timeout => timeout(),
+	reset_idle_timeout_on_send => boolean(),
 	sendfile => boolean(),
 	shutdown_timeout => timeout(),
 	stream_handlers => [module()],
@@ -294,6 +295,14 @@ set_timeout(State0=#state{opts=Opts, overriden_opts=Override}, Name) ->
 	end,
 	State#state{timer=TimerRef}.
 
+maybe_reset_idle_timeout(State=#state{opts=Opts}) ->
+	case maps:get(reset_idle_timeout_on_send, Opts, false) of
+		true ->
+			set_timeout(State, idle_timeout);
+		false ->
+			State
+	end.
+
 cancel_timeout(State=#state{timer=TimerRef}) ->
 	ok = case TimerRef of
 		undefined ->
@@ -366,6 +375,11 @@ after_parse({request, Req=#{streamid := StreamID, method := Method,
 		cowboy:log(cowboy_stream:make_error_log(init,
 			[StreamID, Req, Opts],
 			Class, Exception, Stacktrace), Opts),
+		%% We do not reset the idle timeout on send here
+		%% because an error occurred in the application. While we
+		%% are keeping the connection open for further requests we
+		%% do not want to keep the connection up too long if no
+		%% additional requests come in.
 		early_error(500, State0, {internal_error, {Class, Exception},
 			'Unhandled exception in cowboy_stream:init/3.'}, Req),
 		parse(Buffer, State0)
@@ -1012,19 +1026,20 @@ commands(State=#state{out_state=wait, out_streamid=StreamID}, StreamID,
 commands(State, StreamID, [{error_response, _, _, _}|Tail]) ->
 	commands(State, StreamID, Tail);
 %% Send an informational response.
-commands(State=#state{socket=Socket, transport=Transport, out_state=wait, streams=Streams},
+commands(State0=#state{socket=Socket, transport=Transport, out_state=wait, streams=Streams},
 		StreamID, [{inform, StatusCode, Headers}|Tail]) ->
 	%% @todo I'm pretty sure the last stream in the list is the one we want
 	%% considering all others are queued.
 	#stream{version=Version} = lists:keyfind(StreamID, #stream.id, Streams),
 	_ = case Version of
 		'HTTP/1.1' ->
-			ok = maybe_socket_error(State, Transport:send(Socket,
+			ok = maybe_socket_error(State0, Transport:send(Socket,
 				cow_http:response(StatusCode, 'HTTP/1.1', headers_to_list(Headers))));
 		%% Do not send informational responses to HTTP/1.0 clients. (RFC7231 6.2)
 		'HTTP/1.0' ->
 			ok
 	end,
+	State = maybe_reset_idle_timeout(State0),
 	commands(State, StreamID, Tail);
 %% Send a full response.
 %%
@@ -1037,17 +1052,18 @@ commands(State0=#state{socket=Socket, transport=Transport, out_state=wait, strea
 	%% considering all others are queued.
 	#stream{version=Version} = lists:keyfind(StreamID, #stream.id, Streams),
 	{State1, Headers} = connection(State0, Headers0, StreamID, Version),
-	State = State1#state{out_state=done},
+	State2 = State1#state{out_state=done},
 	%% @todo Ensure content-length is set. 204 must never have content-length set.
 	Response = cow_http:response(StatusCode, 'HTTP/1.1', headers_to_list(Headers)),
 	%% @todo 204 and 304 responses must not include a response body. (RFC7230 3.3.1, RFC7230 3.3.2)
 	case Body of
 		{sendfile, _, _, _} ->
-			ok = maybe_socket_error(State, Transport:send(Socket, Response)),
-			sendfile(State, Body);
+			ok = maybe_socket_error(State2, Transport:send(Socket, Response)),
+			sendfile(State2, Body);
 		_ ->
-			ok = maybe_socket_error(State, Transport:send(Socket, [Response, Body]))
+			ok = maybe_socket_error(State2, Transport:send(Socket, [Response, Body]))
 	end,
+	State = maybe_reset_idle_timeout(State2),
 	commands(State, StreamID, Tail);
 %% Send response headers and initiate chunked encoding or streaming.
 commands(State0=#state{socket=Socket, transport=Transport,
@@ -1084,9 +1100,10 @@ commands(State0=#state{socket=Socket, transport=Transport,
 		trailers -> Headers1;
 		_ -> maps:remove(<<"trailer">>, Headers1)
 	end,
-	{State, Headers} = connection(State1, Headers2, StreamID, Version),
-	ok = maybe_socket_error(State, Transport:send(Socket,
+	{State2, Headers} = connection(State1, Headers2, StreamID, Version),
+	ok = maybe_socket_error(State2, Transport:send(Socket,
 		cow_http:response(StatusCode, 'HTTP/1.1', headers_to_list(Headers)))),
+	State = maybe_reset_idle_timeout(State2),
 	commands(State, StreamID, Tail);
 %% Send a response body chunk.
 %% @todo We need to kill the stream if it tries to send data before headers.
@@ -1147,17 +1164,18 @@ commands(State0=#state{socket=Socket, transport=Transport, streams=Streams0, out
 			end,
 			Stream0#stream{local_sent_size=SentSize}
 	end,
-	State = case IsFin of
+	State1 = case IsFin of
 		fin -> State0#state{out_state=done};
 		nofin -> State0
 	end,
+	State = maybe_reset_idle_timeout(State1),
 	Streams = lists:keyreplace(StreamID, #stream.id, Streams0, Stream),
 	commands(State#state{streams=Streams}, StreamID, Tail);
-commands(State=#state{socket=Socket, transport=Transport, streams=Streams, out_state=OutState},
+commands(State0=#state{socket=Socket, transport=Transport, streams=Streams, out_state=OutState},
 		StreamID, [{trailers, Trailers}|Tail]) ->
 	case stream_te(OutState, lists:keyfind(StreamID, #stream.id, Streams)) of
 		trailers ->
-			ok = maybe_socket_error(State,
+			ok = maybe_socket_error(State0,
 				Transport:send(Socket, [
 					<<"0\r\n">>,
 					cow_http:headers(maps:to_list(Trailers)),
@@ -1165,12 +1183,13 @@ commands(State=#state{socket=Socket, transport=Transport, streams=Streams, out_s
 				])
 			);
 		no_trailers ->
-			ok = maybe_socket_error(State,
+			ok = maybe_socket_error(State0,
 				Transport:send(Socket, <<"0\r\n\r\n">>));
 		not_chunked ->
 			ok
 	end,
-	commands(State#state{out_state=done}, StreamID, Tail);
+	State = maybe_reset_idle_timeout(State0#state{out_state=done}),
+	commands(State, StreamID, Tail);
 %% Protocol takeover.
 commands(State0=#state{ref=Ref, parent=Parent, socket=Socket, transport=Transport,
 		out_state=OutState, opts=Opts, buffer=Buffer, children=Children}, StreamID,

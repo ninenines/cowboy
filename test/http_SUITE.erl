@@ -45,7 +45,8 @@ init_dispatch(_) ->
 		{"/", hello_h, []},
 		{"/echo/:key", echo_h, []},
 		{"/resp/:key[/:arg]", resp_h, []},
-		{"/set_options/:key", set_options_h, []}
+		{"/set_options/:key", set_options_h, []},
+		{"/streamed_result/:n/:interval", streamed_result_h, []}
 	]}]).
 
 chunked_false(Config) ->
@@ -250,6 +251,82 @@ idle_timeout_infinity(Config) ->
 		end
 	after
 		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+idle_timeout_on_send(Config) ->
+	doc("Ensure the idle timeout is not reset when sending (by default)."),
+	do_idle_timeout_on_send(Config, http).
+
+%% Also used by http2_SUITE.
+do_idle_timeout_on_send(Config, Protocol) ->
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
+		env => #{dispatch => init_dispatch(Config)},
+		idle_timeout => 1000
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		ConnPid = gun_open([{type, tcp}, {protocol, Protocol}, {port, Port}|Config]),
+		{ok, Protocol} = gun:await_up(ConnPid),
+		#{socket := Socket} = gun:info(ConnPid),
+		Pid = get_remote_pid_tcp(Socket),
+		StreamRef = gun:get(ConnPid, "/streamed_result/10/250"),
+		Ref = erlang:monitor(process, Pid),
+		receive
+			{gun_response, ConnPid, StreamRef, nofin, _Status, _Headers} ->
+				do_idle_timeout_recv_loop(Ref, Pid, ConnPid, StreamRef, false)
+		after 2000 ->
+		      error(timeout)
+		end
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+idle_timeout_reset_on_send(Config) ->
+	doc("Ensure the reset_idle_timeout_on_send results in the "
+		"idle timeout resetting when sending ."),
+	do_idle_timeout_reset_on_send(Config, http).
+
+%% Also used by http2_SUITE.
+do_idle_timeout_reset_on_send(Config, Protocol) ->
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
+		env => #{dispatch => init_dispatch(Config)},
+		idle_timeout => 1000,
+		reset_idle_timeout_on_send => true
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		ConnPid = gun_open([{type, tcp}, {protocol, Protocol}, {port, Port}|Config]),
+		{ok, Protocol} = gun:await_up(ConnPid),
+		#{socket := Socket} = gun:info(ConnPid),
+		Pid = get_remote_pid_tcp(Socket),
+		StreamRef = gun:get(ConnPid, "/streamed_result/10/250"),
+		Ref = erlang:monitor(process, Pid),
+		receive
+			{gun_response, ConnPid, StreamRef, nofin, _Status, _Headers} ->
+				do_idle_timeout_recv_loop(Ref, Pid, ConnPid, StreamRef, true)
+		after 2000 ->
+		      error(timeout)
+		end
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+do_idle_timeout_recv_loop(Ref, Pid, ConnPid, StreamRef, ExpectCompletion) ->
+	receive
+		{gun_data, ConnPid, StreamRef, nofin, _Data} ->
+			do_idle_timeout_recv_loop(Ref, Pid, ConnPid, StreamRef, ExpectCompletion);
+		{gun_data, ConnPid, StreamRef, fin, _Data} when ExpectCompletion ->
+			gun:close(ConnPid);
+		{gun_data, ConnPid, StreamRef, fin, _Data} ->
+			gun:close(ConnPid),
+			error(completed);
+		{'DOWN', Ref, process, Pid, _} when ExpectCompletion ->
+			gun:close(ConnPid),
+			error(exited);
+		{'DOWN', Ref, process, Pid, _} ->
+			 ok
+	after 2000 ->
+	      error(timeout)
 	end.
 
 persistent_term_router(Config) ->

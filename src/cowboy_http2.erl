@@ -57,6 +57,7 @@
 	middlewares => [module()],
 	preface_timeout => timeout(),
 	proxy_header => boolean(),
+	reset_idle_timeout_on_send => boolean(),
 	sendfile => boolean(),
 	settings_timeout => timeout(),
 	shutdown_timeout => timeout(),
@@ -318,6 +319,14 @@ set_timeout(State=#state{timer=TimerRef0}, Timeout, Message) ->
 	end,
 	State#state{timer=TimerRef}.
 
+maybe_reset_idle_timeout(State=#state{opts=Opts}) ->
+	case maps:get(reset_idle_timeout_on_send, Opts, false) of
+		true ->
+			set_idle_timeout(State);
+		false ->
+			State
+	end.
+
 %% HTTP/2 protocol parsing.
 
 parse(State=#state{http2_status=sequence}, Data) ->
@@ -394,10 +403,11 @@ frame(State=#state{http2_machine=HTTP2Machine0}, Frame) ->
 			goaway(State#state{http2_machine=HTTP2Machine}, GoAway);
 		{send, SendData, HTTP2Machine} ->
 			%% We may need to send an alarm for each of the streams sending data.
-			lists:foldl(
+			State1 = lists:foldl(
 				fun({StreamID, _, _}, S) -> maybe_send_data_alarm(S, HTTP2Machine0, StreamID) end,
 				send_data(maybe_ack(State#state{http2_machine=HTTP2Machine}, Frame), SendData, []),
-				SendData);
+				SendData),
+			maybe_reset_idle_timeout(State1);
 		{error, {stream_error, StreamID, Reason, Human}, HTTP2Machine} ->
 			reset_stream(State#state{http2_machine=HTTP2Machine},
 				StreamID, {stream_error, Reason, Human});
@@ -409,6 +419,9 @@ frame(State=#state{http2_machine=HTTP2Machine0}, Frame) ->
 %% if we were still waiting for a SETTINGS frame.
 maybe_ack(State=#state{http2_status=settings}, Frame) ->
 	maybe_ack(State#state{http2_status=connected}, Frame);
+%% We do not reset the idle timeout on send here because we are
+%% sending data as a consequence of receiving data, which means
+%% we already resetted the idle timeout.
 maybe_ack(State=#state{socket=Socket, transport=Transport}, Frame) ->
 	case Frame of
 		{settings, _} ->
@@ -419,7 +432,7 @@ maybe_ack(State=#state{socket=Socket, transport=Transport}, Frame) ->
 	end,
 	State.
 
-data_frame(State0=#state{opts=Opts, flow=Flow, streams=Streams}, StreamID, IsFin, Data) ->
+data_frame(State0=#state{opts=Opts, flow=Flow0, streams=Streams}, StreamID, IsFin, Data) ->
 	case Streams of
 		#{StreamID := Stream=#stream{status=running, flow=StreamFlow, state=StreamState0}} ->
 			try cowboy_stream:data(StreamID, IsFin, Data, StreamState0) of
@@ -428,11 +441,26 @@ data_frame(State0=#state{opts=Opts, flow=Flow, streams=Streams}, StreamID, IsFin
 					%% We may receive more data than we requested. We ensure
 					%% that the flow value doesn't go lower than 0.
 					Size = byte_size(Data),
-					State = update_window(State0#state{flow=max(0, Flow - Size),
+					Flow = max(0, Flow0 - Size),
+					%% We would normally update the window when changing the flow
+					%% value. But because we are running commands, which themselves
+					%% may update the window, and we want to avoid updating the
+					%% window twice in a row, we first run the commands and then
+					%% only update the window a flow command was executed. We know
+					%% that it was because the flow value changed in the state.
+					State1 = State0#state{flow=Flow,
 						streams=Streams#{StreamID => Stream#stream{
 							flow=max(0, StreamFlow - Size), state=StreamState}}},
-						StreamID),
-					commands(State, StreamID, Commands)
+					State = commands(State1, StreamID, Commands),
+					case State of
+						%% No flow command was executed. We must update the window
+						%% because we changed the flow value earlier.
+						#state{flow=Flow} ->
+							update_window(State, StreamID);
+						%% Otherwise the window was updated already.
+						_ ->
+							State
+					end
 			catch Class:Exception:Stacktrace ->
 				cowboy:log(cowboy_stream:make_error_log(data,
 					[StreamID, IsFin, Data, StreamState0],
@@ -686,23 +714,37 @@ commands(State=#state{http2_machine=HTTP2Machine}, StreamID,
 	end;
 %% Send an informational response.
 commands(State0, StreamID, [{inform, StatusCode, Headers}|Tail]) ->
-	State = send_headers(State0, StreamID, idle, StatusCode, Headers),
+	State1 = send_headers(State0, StreamID, idle, StatusCode, Headers),
+	State = maybe_reset_idle_timeout(State1),
 	commands(State, StreamID, Tail);
 %% Send response headers.
 commands(State0, StreamID, [{response, StatusCode, Headers, Body}|Tail]) ->
-	State = send_response(State0, StreamID, StatusCode, Headers, Body),
+	State1 = send_response(State0, StreamID, StatusCode, Headers, Body),
+	State = maybe_reset_idle_timeout(State1),
 	commands(State, StreamID, Tail);
 %% Send response headers.
 commands(State0, StreamID, [{headers, StatusCode, Headers}|Tail]) ->
-	State = send_headers(State0, StreamID, nofin, StatusCode, Headers),
+	State1 = send_headers(State0, StreamID, nofin, StatusCode, Headers),
+	State = maybe_reset_idle_timeout(State1),
 	commands(State, StreamID, Tail);
 %% Send a response body chunk.
 commands(State0, StreamID, [{data, IsFin, Data}|Tail]) ->
-	State = maybe_send_data(State0, StreamID, IsFin, Data, []),
+	State = case maybe_send_data(State0, StreamID, IsFin, Data, []) of
+		{data_sent, State1} ->
+			maybe_reset_idle_timeout(State1);
+		{no_data_sent, State1} ->
+			State1
+	end,
 	commands(State, StreamID, Tail);
 %% Send trailers.
 commands(State0, StreamID, [{trailers, Trailers}|Tail]) ->
-	State = maybe_send_data(State0, StreamID, fin, {trailers, maps:to_list(Trailers)}, []),
+	State = case maybe_send_data(State0, StreamID, fin,
+			{trailers, maps:to_list(Trailers)}, []) of
+		{data_sent, State1} ->
+			maybe_reset_idle_timeout(State1);
+		{no_data_sent, State1} ->
+			State1
+	end,
 	commands(State, StreamID, Tail);
 %% Send a push promise.
 %%
@@ -737,7 +779,8 @@ commands(State0=#state{socket=Socket, transport=Transport, http2_machine=HTTP2Ma
 			State1 = State0#state{http2_machine=HTTP2Machine},
 			ok = maybe_socket_error(State1, Transport:send(Socket,
 				cow_http2:push_promise(StreamID, PromisedStreamID, HeaderBlock))),
-			headers_frame(State1, PromisedStreamID, fin, Headers, PseudoHeaders, 0);
+			State2 = maybe_reset_idle_timeout(State1),
+			headers_frame(State2, PromisedStreamID, fin, Headers, PseudoHeaders, 0);
 		{error, no_push} ->
 			State0
 	end,
@@ -760,6 +803,9 @@ commands(State, StreamID, [Error = {internal_error, _, _}|_Tail]) ->
 	%% @todo Only reset when the stream still exists.
 	reset_stream(State, StreamID, Error);
 %% Upgrade to HTTP/2. This is triggered by cowboy_http2 itself.
+%%
+%% We do not need to reset the idle timeout on send because it
+%% hasn't been set yet. This is called from init/12.
 commands(State=#state{socket=Socket, transport=Transport, http2_status=upgrade},
 		StreamID, [{switch_protocol, Headers, ?MODULE, _}|Tail]) ->
 	%% @todo This 101 response needs to be passed through stream handlers.
@@ -798,10 +844,12 @@ update_window(State0=#state{socket=Socket, transport=Transport,
 	end,
 	State = State0#state{http2_machine=HTTP2Machine},
 	case {Data1, Data2} of
-		{<<>>, <<>>} -> ok;
-		_ -> ok = maybe_socket_error(State, Transport:send(Socket, [Data1, Data2]))
-	end,
-	State.
+		{<<>>, <<>>} ->
+			State;
+		_ ->
+			ok = maybe_socket_error(State, Transport:send(Socket, [Data1, Data2])),
+			maybe_reset_idle_timeout(State)
+	end.
 
 %% Send the response, trailers or data.
 
@@ -821,8 +869,9 @@ send_response(State0=#state{http2_machine=HTTP2Machine0}, StreamID, StatusCode, 
 				= cow_http2_machine:prepare_headers(StreamID, HTTP2Machine0, nofin,
 					#{status => cow_http:status_to_integer(StatusCode)},
 					headers_to_list(Headers)),
-			maybe_send_data(State0#state{http2_machine=HTTP2Machine}, StreamID, fin, Body,
-				[cow_http2:headers(StreamID, nofin, HeaderBlock)])
+			{_, State} = maybe_send_data(State0#state{http2_machine=HTTP2Machine},
+				StreamID, fin, Body, [cow_http2:headers(StreamID, nofin, HeaderBlock)]),
+			State
 	end.
 
 send_headers(State0=#state{socket=Socket, transport=Transport,
@@ -854,11 +903,15 @@ maybe_send_data(State0=#state{socket=Socket, transport=Transport,
 			State1 = State0#state{http2_machine=HTTP2Machine},
 			%% If we have prefix data (like a HEADERS frame) we need to send it
 			%% even if we do not send any DATA frames.
-			case Prefix of
-				[] -> ok;
-				_ -> ok = maybe_socket_error(State1, Transport:send(Socket, Prefix))
+			WasDataSent = case Prefix of
+				[] ->
+					no_data_sent;
+				_ ->
+					ok = maybe_socket_error(State1, Transport:send(Socket, Prefix)),
+					data_sent
 			end,
-			maybe_send_data_alarm(State1, HTTP2Machine0, StreamID);
+			State = maybe_send_data_alarm(State1, HTTP2Machine0, StreamID),
+			{WasDataSent, State};
 		{send, SendData, HTTP2Machine} ->
 			State = #state{http2_status=Status, streams=Streams}
 				= send_data(State0#state{http2_machine=HTTP2Machine}, SendData, Prefix),
@@ -867,7 +920,7 @@ maybe_send_data(State0=#state{socket=Socket, transport=Transport,
 				Status =:= closing, Streams =:= #{} ->
 					terminate(State, {stop, normal, 'The connection is going away.'});
 				true ->
-					maybe_send_data_alarm(State, HTTP2Machine0, StreamID)
+					{data_sent, maybe_send_data_alarm(State, HTTP2Machine0, StreamID)}
 			end
 	end.
 
@@ -983,6 +1036,10 @@ stream_alarm(State, StreamID, Name, Value) ->
 %% We may have to cancel streams even if we receive multiple
 %% GOAWAY frames as the LastStreamID value may be lower than
 %% the one previously received.
+%%
+%% We do not reset the idle timeout on send here. We already
+%% disabled it if we initiated shutdown; and we already reset
+%% it if the client sent a GOAWAY frame.
 goaway(State0=#state{socket=Socket, transport=Transport, http2_machine=HTTP2Machine0,
 		http2_status=Status, streams=Streams0}, {goaway, LastStreamID, Reason, _})
 		when Status =:= connected; Status =:= closing_initiated; Status =:= closing ->
@@ -1159,6 +1216,10 @@ terminate_linger_loop(State=#state{socket=Socket}, TimerRef, Messages) ->
 	end.
 
 %% @todo Don't send an RST_STREAM if one was already sent.
+%%
+%% When resetting the stream we are technically sending data
+%% on the socket. However due to implementation complexities
+%% we do not attempt to reset the idle timeout on send.
 reset_stream(State0=#state{socket=Socket, transport=Transport,
 		http2_machine=HTTP2Machine0}, StreamID, Error) ->
 	Reason = case Error of
