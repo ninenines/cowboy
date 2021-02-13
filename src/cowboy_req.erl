@@ -991,7 +991,12 @@ filter([], Map, Errors) ->
 		_ -> {error, Errors}
 	end;
 filter([{Key, Constraints}|Tail], Map, Errors) ->
-	filter_constraints(Tail, Map, Errors, Key, maps:get(Key, Map), Constraints);
+	case maps:find(Key, Map) of
+		{ok, Value} ->
+			filter_constraints(Tail, Map, Errors, Key, Value, Constraints);
+		error ->
+			filter(Tail, Map, Errors#{Key => required})
+	end;
 filter([{Key, Constraints, Default}|Tail], Map, Errors) ->
 	case maps:find(Key, Map) of
 		{ok, Value} ->
