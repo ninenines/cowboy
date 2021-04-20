@@ -33,12 +33,9 @@ start_link(Ref, Transport, Opts) ->
 
 -spec connection_process(pid(), ranch:ref(), module(), cowboy:opts()) -> ok.
 connection_process(Parent, Ref, Transport, Opts) ->
-	ProxyInfo = case maps:get(proxy_header, Opts, false) of
-		true ->
-			{ok, ProxyInfo0} = ranch:recv_proxy_header(Ref, 1000),
-			ProxyInfo0;
-		false ->
-			undefined
+	ProxyInfo = case maybe_proxy_info(Ref, Opts) of
+            {ok, ProxyInfo0} -> ProxyInfo0;
+            Error -> exit({shutdown, Error})
 	end,
 	{ok, Socket} = ranch:handshake(Ref),
 	%% Use cowboy_http2 directly only when 'http' is missing.
@@ -58,3 +55,11 @@ init(Parent, Ref, Socket, Transport, ProxyInfo, Opts, Protocol) ->
 		supervisor -> process_flag(trap_exit, true)
 	end,
 	Protocol:init(Parent, Ref, Socket, Transport, ProxyInfo, Opts).
+
+maybe_proxy_info(Ref, Opts) ->
+	case maps:get(proxy_header, Opts, false) of
+		true ->
+			ranch:recv_proxy_header(Ref, 1000);
+		false ->
+			undefined
+	end.
