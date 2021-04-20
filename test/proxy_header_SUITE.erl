@@ -71,6 +71,30 @@ init_dispatch() ->
 
 %% Tests.
 
+fail_gracefully_on_disconnect(Config) ->
+	doc("Probing a port must not generate a crash"),
+	{ok, Socket} = gen_tcp:connect("localhost", config(port, Config),
+		[binary, {active, false}, {packet, raw}]),
+	timer:sleep(50),
+	Pid = case config(type, Config) of
+		tcp -> ct_helper:get_remote_pid_tcp(Socket);
+		%% We connect to a TLS port using a TCP socket so we need
+		%% to first obtain the remote pid of the TCP socket, which
+		%% is a TLS socket on the server, and then get the real
+		%% remote pid from its state.
+		ssl -> ct_helper:get_remote_pid_tls_state(ct_helper:get_remote_pid_tcp(Socket))
+	end,
+	Ref = erlang:monitor(process, Pid),
+	gen_tcp:close(Socket),
+	receive
+		{'DOWN', Ref, process, Pid, {shutdown, closed}} ->
+			ok;
+		{'DOWN', Ref, process, Pid, Reason} ->
+			error(Reason)
+	after 500 ->
+		error(timeout)
+	end.
+
 v1_proxy_header(Config) ->
 	doc("Confirm we can read the proxy header at the start of the connection."),
 	ProxyInfo = #{
