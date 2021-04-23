@@ -154,6 +154,22 @@ info(StreamID, Exit={'EXIT', Pid, {Reason, Stacktrace}}, State=#state{ref=Ref, p
 	do_info(StreamID, Exit, [
 		{error_response, 500, #{<<"content-length">> => <<"0">>}, <<>>}
 	|Commands], State);
+info(StreamID, Exit={'EXIT', Pid, Reason}, State=#state{ref=Ref, pid=Pid}) ->
+	Commands0 = [{internal_error, Exit, 'Stream process crashed.'}],
+	Commands = case Reason of
+		normal -> Commands0;
+		shutdown -> Commands0;
+		{shutdown, _} -> Commands0;
+		_ -> [{log, error,
+				"Ranch listener ~p, connection process ~p, stream ~p "
+				"had its request process ~p exit with reason "
+				"~999999p~n",
+				[Ref, self(), StreamID, Pid, Reason]}
+			|Commands0]
+	end,
+	do_info(StreamID, Exit, [
+		{error_response, 500, #{<<"content-length">> => <<"0">>}, <<>>}
+	|Commands], State);
 %% Request body, auto mode, no body buffered.
 info(StreamID, Info={read_body, Pid, Ref, auto, infinity}, State=#state{read_body_buffer= <<>>}) ->
 	do_info(StreamID, Info, [], State#state{
