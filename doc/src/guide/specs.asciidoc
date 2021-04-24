@@ -96,6 +96,8 @@ for or related to HTTP.
 * https://tools.ietf.org/html/rfc8673[RFC 8673]: HTTP Random Access and Live Content
 * https://tools.ietf.org/html/rfc8674[RFC 8674]: The "safe" HTTP Preference
 * https://tools.ietf.org/html/rfc8740[RFC 8740]: Using TLS 1.3 with HTTP/2
+* https://tools.ietf.org/html/rfc8941[RFC 8941]: Structured Field Values for HTTP
+* https://tools.ietf.org/html/rfc8942[RFC 8942]: HTTP Client Hints
 * https://www.w3.org/TR/trace-context/[Trace Context]: Trace Context
 * https://www.w3.org/TR/webmention/[Webmention]: Webmention
 
