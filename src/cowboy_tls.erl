@@ -33,10 +33,7 @@ start_link(Ref, Transport, Opts) ->
 
 -spec connection_process(pid(), ranch:ref(), module(), cowboy:opts()) -> ok.
 connection_process(Parent, Ref, Transport, Opts) ->
-	ProxyInfo = case maybe_proxy_info(Ref, Opts) of
-            {ok, ProxyInfo0} -> ProxyInfo0;
-            Error -> exit({shutdown, Error})
-	end,
+	ProxyInfo = get_proxy_info(Ref, Opts),
 	{ok, Socket} = ranch:handshake(Ref),
 	case ssl:negotiated_protocol(Socket) of
 		{ok, <<"h2">>} ->
@@ -52,10 +49,10 @@ init(Parent, Ref, Socket, Transport, ProxyInfo, Opts, Protocol) ->
 	end,
 	Protocol:init(Parent, Ref, Socket, Transport, ProxyInfo, Opts).
 
-maybe_proxy_info(Ref, Opts) ->
-	case maps:get(proxy_header, Opts, false) of
-		true ->
-			ranch:recv_proxy_header(Ref, 1000);
-		false ->
-			undefined
-	end.
+get_proxy_info(Ref, #{proxy_header := true}) ->
+	case ranch:recv_proxy_header(Ref, 1000) of
+		{ok, ProxyInfo} -> ProxyInfo;
+		{error, closed} -> exit({shutdown, closed})
+	end;
+get_proxy_info(_, _) ->
+	undefined.
