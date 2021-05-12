@@ -256,6 +256,8 @@ too many `WINDOW_UPDATE` frames.
 
 == Changelog
 
+* *2.9*: The `goaway_initial_timeout` and `goaway_complete_timeout`
+         options were added.
 * *2.8*: The `active_n` option was added.
 * *2.8*: The `linger_timeout` option was added.
 * *2.8*: The `max_received_frame_rate` default value has

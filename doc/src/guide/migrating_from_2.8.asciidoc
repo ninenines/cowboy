@@ -1,0 +1,50 @@
+[appendix]
+== Migrating from Cowboy 2.8 to 2.9
+
+Cowboy 2.9 implements graceful shutdown of connection
+processes for both HTTP/1.1 and HTTP/2 connections.
+
+Cowboy 2.9 is the first release to support the much
+awaited Erlang/OTP 24 out of the box. While users that
+were using Ranch 2.0 already were ready for OTP 24,
+the Ranch version used by Cowboy out of the box was
+not compatible and had to be updated.
+
+Cowboy 2.9 also contains a small number of tweaks
+and bug fixes.
+
+Cowboy 2.9 requires Erlang/OTP 22.0 or greater.
+
+=== Features added
+
+* Cowboy will now gracefully shutdown HTTP/1.1 and HTTP/2
+  connections when the supervisor asks the connection
+  process to exit, or when `sys:terminate/2,3` is used.
+  Two new configuration options were added for HTTP/2
+  to determine the timeouts for the graceful shutdown
+  steps.
+
+* REST handler `AcceptCallback` can now return `{created, URI}`
+  or `{see_other, URI}` to determine what response status code
+  should be sent (typically to differentiate between a new
+  resource and an update). The return value `{true, URI}` is
+  now deprecated.
+
+* Update Ranch to 1.8.0.
+
+* Update Cowlib to 2.11.0.
+
+=== Bugs fixed
+
+* Fix concurrent body streaming getting stuck with HTTP/2.
+  The alarm could get into blocking state indefinitely
+  when two or more request processes were streaming bodies.
+
+* Fix HTTP/2 rate limiting using the wrong default values
+  in some cases.
+
+* Don't produce an error report when the request process
+  exited normally (`normal` or `shutdown` exit reasons).
+
+* Fix `cowboy_tracer_h` to support trace messages without
+  timestamps.
