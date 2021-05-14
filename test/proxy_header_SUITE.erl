@@ -75,8 +75,8 @@ fail_gracefully_on_disconnect(Config) ->
 	doc("Probing a port does not generate a crash"),
 	{ok, Socket} = gen_tcp:connect("localhost", config(port, Config),
 		[binary, {active, false}, {packet, raw}]),
-	timer:sleep(100),
-	Pid = ct_helper:get_remote_pid_tcp(Socket),
+	timer:sleep(50),
+	Pid = do_get_sockets_pid(Config, Socket, config(type, Config)),
 	Ref = erlang:monitor(process, Pid),
 	gen_tcp:close(Socket),
 	receive
@@ -255,3 +255,11 @@ do_recv_101(Client) ->
 		"\r\n"
 	>>} = raw_recv(Client, 71, 1000),
 	ok.
+
+do_get_sockets_pid(_Config, Socket, tcp) ->
+	ct_helper:get_remote_pid_tcp(Socket);
+do_get_sockets_pid(Config, _Socket, ssl) ->
+    Sup = config(supervisor, Config),
+    {_, RanchConns, _, _} = lists:keyfind(ranch_conns_sup, 1, supervisor:which_children(Sup)),
+    {_, CowboyTls, _, _} = lists:keyfind(cowboy_tls, 1, supervisor:which_children(RanchConns)),
+    CowboyTls.
