@@ -1216,7 +1216,7 @@ commands(State, StreamID, [{push, _, _, _, _, _, _, _}|Tail]) ->
 	commands(State, StreamID, Tail).
 
 %% The set-cookie header is special; we can only send one cookie per header.
-headers_to_list(Headers0=#{<<"set-cookie">> := SetCookies}) ->
+headers_to_list(Headers0=#{<<"set-cookie">> := SetCookies}) when not is_binary(SetCookies) ->
 	Headers1 = maps:to_list(maps:remove(<<"set-cookie">>, Headers0)),
 	Headers1 ++ [{<<"set-cookie">>, Value} || Value <- SetCookies];
 headers_to_list(Headers) ->
