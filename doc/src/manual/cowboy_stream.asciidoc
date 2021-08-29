@@ -52,11 +52,11 @@ HTTP/1.1 will initialize a stream only when the request-line
 and all headers have been received. When errors occur before
 that point Cowboy will call the callback `early_error/5`
 with a partial request, the error reason and the response
-Cowboy intends to send. All other events go throuh the
+Cowboy intends to send. All other events go through the
 stream handler using the normal callbacks.
 
 HTTP/2 will initialize the stream when the `HEADERS` block has
-been fully received and decoded. Any protocol error occuring
+been fully received and decoded. Any protocol error occurring
 before that will not result in a response being sent and
 will therefore not go through the stream handler. In addition
 Cowboy may terminate streams without sending an HTTP response
@@ -278,7 +278,7 @@ This can also be used to override stream handler
 options. For example this is supported by
 link:man:cowboy_compress_h(3)[cowboy_compress_h(3)].
 
-Not all options can be overriden. Please consult the
+Not all options can be overridden. Please consult the
 relevant option's documentation for details.
 
 == Predefined events

@@ -127,7 +127,7 @@ do_accept_callback_true(Config, Fun) ->
 	ok.
 
 charset_in_content_types_provided(Config) ->
-	doc("When a charset is matched explictly in content_types_provided, "
+	doc("When a charset is matched explicitly in content_types_provided, "
 		"that charset is used and the charsets_provided callback is ignored."),
 	ConnPid = gun_open(Config),
 	Ref = gun:get(ConnPid, "/charset_in_content_types_provided", [
