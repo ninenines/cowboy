@@ -317,7 +317,7 @@ parse_list(Type, [{{Type, P}, _} | T], R, I, A, Wrap) ->
     NewWrap2 =
         case T of
             []  ->
-                false; % doesnt matter
+                false; % doesn't matter
             [H2 | _T2] ->
                 case H2 of
                     {linefeed, _} ->
@@ -333,7 +333,7 @@ parse_list(_Type, List, _R, _I, A, _) ->
     {List, lists:reverse(A)}.
 
 %% grab grabs normals, double codeblocks, linefeeds and blanks
-%% BUT stop grabbing if a normal if preceeded by a linefeed or blank
+%% BUT stop grabbing if a normal if preceded by a linefeed or blank
 %% UNLESS the normal starts with white space :(
 %% the third return parameter is 'true' if the 'li' should be
 %% wrapped in '<p></p>' and false if it shouldn't
@@ -768,8 +768,8 @@ type_ol1(_List, _Acc) ->
 %% '### blah' is fine
 %% '### blah ###' is reduced to '### blah' because trailing #'s are
 %% just for show but...
-%% '##' is like appling '#' to '#' <-- applying 1 less styling to a single #
-%% and '###' is like appling '##' to '#' etc, etc
+%% '##' is like applying '#' to '#' <-- applying 1 less styling to a single #
+%% and '###' is like applying '##' to '#' etc, etc
 %% but after you hit 6#'s you just get this for a single hash
 %% ie '#############' is like applying '######' to a single '#'
 %% but/and '######## blah' is like apply '######' to '## blah'

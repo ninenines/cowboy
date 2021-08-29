@@ -399,11 +399,11 @@ accept_handshake_when_enabled(Config) ->
 
 %% Closing a Websocket stream.
 
-%    The HTTP/2 stream closure is also analagous to the TCP connection closure of
+%    The HTTP/2 stream closure is also analogous to the TCP connection closure of
 % 	 [RFC6455].  Orderly TCP level closures are represented as END_STREAM
 % 	 ([RFC7540] Section 6.1) flags and RST exceptions are represented with
 % 	 the RST_STREAM ([RFC7540] Section 6.4) frame with the CANCEL
-% 	 ([RFC7540] Secion 7) error code.
+% 	 ([RFC7540] Section 7) error code.
 
 %% @todo client close frame with END_STREAM
 %% @todo server close frame with END_STREAM

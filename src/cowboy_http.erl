@@ -108,7 +108,7 @@
 	opts = #{} :: cowboy:opts(),
 	buffer = <<>> :: binary(),
 
-	%% Some options may be overriden for the current stream.
+	%% Some options may be overridden for the current stream.
 	overriden_opts = #{} :: cowboy:opts(),
 
 	%% Remote address and port for the connection.
@@ -289,7 +289,7 @@ set_timeout(State0=#state{opts=Opts, overriden_opts=Override}, Name) ->
 		idle_timeout -> 60000
 	end,
 	Timeout = case Override of
-		%% The timeout may have been overriden for the current stream.
+		%% The timeout may have been overridden for the current stream.
 		#{Name := Timeout0} -> Timeout0;
 		_ -> maps:get(Name, Opts, Default)
 	end,
@@ -984,7 +984,7 @@ commands(State0=#state{flow=Flow0}, StreamID, [{flow, Size}|Tail]) ->
 		Flow0 < 0 -> Size;
 		true -> Flow0 + Size
 	end,
-	%% Reenable active mode if necessary.
+	%% Re-enable active mode if necessary.
 	State = if
 		Flow0 =< 0, Flow > 0 ->
 			active(State0);
@@ -1288,7 +1288,7 @@ stream_terminate(State0=#state{opts=Opts, in_streamid=InStreamID, in_state=InSta
 		_ -> %% done or Version =:= 'HTTP/1.0'
 			State0
 	end,
-	%% Stop the stream, shutdown children and reset overriden options.
+	%% Stop the stream, shutdown children and reset overridden options.
 	{value, #stream{state=StreamState}, Streams}
 		= lists:keytake(StreamID, #stream.id, Streams1),
 	stream_call_terminate(StreamID, Reason, StreamState, State1),

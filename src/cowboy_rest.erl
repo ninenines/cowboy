@@ -554,7 +554,7 @@ match_media_type_params(Req, State, Accept,
 			%% When we match against a wildcard, the media type is text
 			%% and has a charset parameter, we call charsets_provided
 			%% and check that the charset is provided. If the callback
-			%% is not exported, we accept inconditionally but ignore
+			%% is not exported, we accept unconditionally but ignore
 			%% the given charset so as to not send a wrong value back.
 			case call(Req, State, charsets_provided) of
 				no_call ->

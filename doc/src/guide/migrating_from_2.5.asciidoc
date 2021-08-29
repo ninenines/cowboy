@@ -64,7 +64,7 @@ experimental.
 * Add automatic handling of range requests to REST handlers
   that return the callback `auto` from `ranges_accepted/2`.
   Cowboy will call the configured `ProvideCallback` and
-  then split the ouput automatically for the ranged response.
+  then split the output automatically for the ranged response.
 
 * Enable range requests support in `cowboy_static`.
 

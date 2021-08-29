@@ -289,7 +289,7 @@ must_understand_origin_form(Config) ->
 		"Host: localhost\r\n"
 		"\r\n").
 
-%% @todo Reenable this test once support for CONNECT is added.
+%% @todo Re-enable this test once support for CONNECT is added.
 %origin_form_reject_if_connect(Config) ->
 %	doc("origin-form is used when the client does not connect to a proxy, "
 %		"does not use the CONNECT method and does not issue a site-wide "

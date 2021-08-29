@@ -159,7 +159,7 @@ do_default(Req=#{qs := <<"moved_permanently">>}, State, previously_existed) ->
 	{true, Req, State};
 do_default(Req=#{qs := <<"moved_temporarily">>}, State, previously_existed) ->
 	{true, Req, State};
-%% We need the DELETE to suceed to reach this callback.
+%% We need the DELETE to succeed to reach this callback.
 do_default(Req=#{qs := <<"delete_completed">>}, State, delete_resource) ->
 	{true, Req, State};
 %% We should never reach these callbacks.

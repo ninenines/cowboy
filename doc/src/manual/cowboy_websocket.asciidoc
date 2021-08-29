@@ -126,7 +126,7 @@ timeout::
     received first.
 
 {error, Reason}::
-    A socket error ocurred.
+    A socket error occurred.
 
 == Types
 
