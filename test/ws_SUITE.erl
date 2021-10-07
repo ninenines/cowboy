@@ -267,6 +267,21 @@ ws_deflate_opts_client_max_window_bits_override(Config) ->
 		= lists:keyfind("sec-websocket-extensions", 1, Headers2),
 	ok.
 
+%% @todo This might be better in an rfc7692_SUITE.
+%%
+%%   7.1.2.2
+%%   If a received extension negotiation offer doesn't have the
+%%   "client_max_window_bits" extension parameter, the corresponding
+%%   extension negotiation response to the offer MUST NOT include the
+%%   "client_max_window_bits" extension parameter.
+ws_deflate_opts_client_max_window_bits_only_in_server(Config) ->
+	doc("Handler is configured with non-default client max window bits but "
+		"client doesn't send the parameter; compression is disabled."),
+	{ok, _, Headers} = do_handshake("/ws_deflate_opts?client_max_window_bits",
+		"Sec-WebSocket-Extensions: permessage-deflate\r\n", Config),
+	false = lists:keyfind("sec-websocket-extensions", 1, Headers),
+	ok.
+
 ws_deflate_opts_server_context_takeover(Config) ->
 	doc("Handler is configured with server context takeover enabled."),
 	{ok, _, Headers1} = do_handshake("/ws_deflate_opts?server_context_takeover",
