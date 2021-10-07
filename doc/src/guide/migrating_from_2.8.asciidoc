@@ -32,7 +32,7 @@ Cowboy 2.9 requires Erlang/OTP 22.0 or greater.
 
 * Update Ranch to 1.8.0.
 
-* Update Cowlib to 2.11.0.
+* Update Cowlib to 2.11.1.
 
 === Bugs fixed
 
