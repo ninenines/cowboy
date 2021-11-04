@@ -82,6 +82,7 @@
 -export([stream_reply/3]).
 %% @todo stream_body/2 (nofin)
 -export([stream_body/3]).
+-export([stream_keepalive/1]).
 %% @todo stream_events/2 (nofin)
 -export([stream_events/3]).
 -export([stream_trailers/2]).
@@ -888,6 +889,10 @@ stream_body(Data, IsFin, Req=#{has_sent_resp := headers})
 stream_body(Msg, Req=#{pid := Pid}) ->
 	cast(Msg, Req),
 	receive {data_ack, Pid} -> ok end.
+
+-spec stream_keepalive(req()) -> ok.
+stream_keepalive(Req) ->
+	cast(keepalive, Req).
 
 -spec stream_events(cow_sse:event() | [cow_sse:event()], fin | nofin, req()) -> ok.
 stream_events(Event, IsFin, Req) when is_map(Event) ->

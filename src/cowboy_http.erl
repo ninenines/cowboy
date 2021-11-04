@@ -255,6 +255,8 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport, opts=Opts,
 		%% Messages pertaining to a stream.
 		{{Pid, StreamID}, Msg} when Pid =:= self() ->
 			loop(info(State, StreamID, Msg));
+		{{Pid, _StreamID}, keepalive} when Pid =:= self() ->
+			loop(State);
 		%% Exit signal from children.
 		Msg = {'EXIT', Pid, _} ->
 			loop(down(State, Pid, Msg));
