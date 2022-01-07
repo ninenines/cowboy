@@ -133,7 +133,7 @@ init(Parent, Ref, Socket, Transport, ProxyHeader, Opts) ->
 	Sock0 = Transport:sockname(Socket),
 	Cert1 = case Transport:name() of
 		ssl ->
-			case ssl:peercert(Socket) of
+			case Transport:peercert(Socket) of
 				{error, no_peercert} ->
 					{ok, undefined};
 				Cert0 ->
