@@ -1,38 +1,35 @@
 = Cowboy
 
-Cowboy is a small, fast and modern HTTP server for Erlang/OTP.
+Cowboy是一个基于Erlang/OTP的简易快速及现代的HTTP服务器.
 
-== Goals
+== 目标
 
-Cowboy aims to provide a *complete* HTTP stack in a *small* code base.
-It is optimized for *low latency* and *low memory usage*, in part
-because it uses *binary strings*.
+Cowboy致力于用少量代码提供一个完整的HTTP堆栈.
+使用二进制字符串针对“低延迟”和“低内存使用率”进行了优化.
 
-Cowboy provides *routing* capabilities, selectively dispatching requests
-to handlers written in Erlang.
+Cowboy提供“路由”功能，有选择地调度请求到用Erlang编写的处理程序.
 
-Because it uses Ranch for managing connections, Cowboy can easily be
-*embedded* in any other application.
+因为它使用Ranch来管理连接，所以Cowboy可以很容易地嵌入到任何其他应用程序中.
 
-Cowboy is *clean* and *well tested* Erlang code.
+Cowboy是简介以及经过测试的Erlang代码.
 
-== Online documentation
+== 在线文档
 
 * https://ninenines.eu/docs/en/cowboy/2.6/guide[User guide]
 * https://ninenines.eu/docs/en/cowboy/2.6/manual[Function reference]
 
-== Offline documentation
+== 离线文档
 
-* While still online, run `make docs`
-* User guide available in `doc/` in PDF and HTML formats
-* Function reference man pages available in `doc/man3/` and `doc/man7/`
-* Run `make install-docs` to install man pages on your system
-* Full documentation in Asciidoc available in `doc/src/`
-* Examples available in `examples/`
+* 在线时, 运行 `make docs`
+* PDF和HTML格式的用户指导在 `doc/`
+* Function参考手册页可在 `doc/man3/` and `doc/man7/`
+* 运行 `make install-docs` 以在你的系统上安装主页
+* Asciidoc中的完整文档可在 `doc/src/`
+* 示例在 `examples/`
 
-== Getting help
+== 获取帮助
 
-* Official IRC Channel: #ninenines on irc.freenode.net
+* 官方IRC频道: #ninenines on irc.freenode.net
 * https://github.com/ninenines/cowboy/issues[Issues tracker]
 * https://ninenines.eu/services[Commercial Support]
 * https://github.com/sponsors/essen[Sponsor me!]
