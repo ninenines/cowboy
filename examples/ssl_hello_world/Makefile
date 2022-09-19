@@ -6,4 +6,6 @@ DEPS = cowboy
 LOCAL_DEPS = ssl
 dep_cowboy_commit = master
 
+REL_DEPS = relx
+
 include ../../erlang.mk
