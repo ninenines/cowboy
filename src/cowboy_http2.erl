@@ -849,7 +849,13 @@ send_data(State0=#state{socket=Socket, transport=Transport, opts=Opts}, SendData
 		_ ->
 			Transport:send(Socket, Data)
 	end || Data <- Acc],
-	State.
+	send_data_terminate(State, SendData).
+
+send_data_terminate(State, []) ->
+	State;
+send_data_terminate(State0, [{StreamID, IsFin, _}|Tail]) ->
+	State = maybe_terminate_stream(State0, StreamID, IsFin),
+	send_data_terminate(State, Tail).
 
 prepare_data(State, [], Acc, []) ->
 	{lists:reverse(Acc), State};
@@ -859,8 +865,7 @@ prepare_data(State0, [{StreamID, IsFin, SendData}|Tail], Acc0, Buffer0) ->
 	{Acc, Buffer, State} = prepare_data(State0, StreamID, IsFin, SendData, Acc0, Buffer0),
 	prepare_data(State, Tail, Acc, Buffer).
 
-prepare_data(State0, StreamID, IsFin, [], Acc, Buffer) ->
-	State = maybe_terminate_stream(State0, StreamID, IsFin),
+prepare_data(State, _, _, [], Acc, Buffer) ->
 	{Acc, Buffer, State};
 prepare_data(State0, StreamID, IsFin, [FrameData|Tail], Acc, Buffer) ->
 	FrameIsFin = case Tail of
