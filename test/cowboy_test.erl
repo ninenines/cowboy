@@ -157,6 +157,12 @@ raw_recv_head(Socket, Transport, Buffer) ->
 			Buffer
 	end.
 
+raw_recv_rest({raw_client, _, _}, Length, Buffer) when Length =:= byte_size(Buffer) ->
+	Buffer;
+raw_recv_rest({raw_client, Socket, Transport}, Length, Buffer) when Length > byte_size(Buffer) ->
+	{ok, Data} = Transport:recv(Socket, Length - byte_size(Buffer), 10000),
+	<< Buffer/binary, Data/binary >>.
+
 raw_recv({raw_client, Socket, Transport}, Length, Timeout) ->
 	Transport:recv(Socket, Length, Timeout).
 

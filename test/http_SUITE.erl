@@ -24,6 +24,7 @@
 -import(cowboy_test, [raw_open/1]).
 -import(cowboy_test, [raw_send/2]).
 -import(cowboy_test, [raw_recv_head/1]).
+-import(cowboy_test, [raw_recv_rest/3]).
 -import(cowboy_test, [raw_recv/3]).
 -import(cowboy_test, [raw_expect_recv/2]).
 
@@ -449,10 +450,10 @@ graceful_shutdown_connection(Config) ->
 	doc("Check that the current request is handled before gracefully "
 	    "shutting down a connection."),
 	Dispatch = cowboy_router:compile([{"localhost", [
+		{"/hello", delay_hello_h,
+			#{delay => 0, notify_received => self()}},
 		{"/delay_hello", delay_hello_h,
-			#{delay => 500, notify_received => self()}},
-		{"/long_delay_hello", delay_hello_h,
-			#{delay => 10000, notify_received => self()}}
+			#{delay => 1000, notify_received => self()}}
 	]}]),
 	ProtoOpts = #{
 		env => #{dispatch => Dispatch}
@@ -460,22 +461,27 @@ graceful_shutdown_connection(Config) ->
 	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], ProtoOpts),
 	Port = ranch:get_port(?FUNCTION_NAME),
 	try
-		ConnPid = gun_open([{type, tcp}, {protocol, http}, {port, Port}|Config]),
-		{ok, http} = gun:await_up(ConnPid),
-		#{socket := Socket} = gun:info(ConnPid),
-		CowboyConnPid = get_remote_pid_tcp(Socket),
+		Client = raw_open([{type, tcp}, {port, Port}, {opts, []}|Config]),
+		ok = raw_send(Client,
+			"GET /delay_hello HTTP/1.1\r\n"
+			"Host: localhost\r\n\r\n"
+			"GET /hello HTTP/1.1\r\n"
+			"Host: localhost\r\n\r\n"),
+		receive {request_received, <<"/delay_hello">>} -> ok end,
+		receive {request_received, <<"/hello">>} -> ok end,
+		CowboyConnPid = get_remote_pid_tcp(element(2, Client)),
 		CowboyConnRef = erlang:monitor(process, CowboyConnPid),
-		Ref1 = gun:get(ConnPid, "/delay_hello"),
-		Ref2 = gun:get(ConnPid, "/delay_hello"),
-		receive {request_received, <<"/delay_hello">>} -> ok end,
-		receive {request_received, <<"/delay_hello">>} -> ok end,
 		ok = sys:terminate(CowboyConnPid, system_is_going_down),
-		{response, nofin, 200, RespHeaders} = gun:await(ConnPid, Ref1),
-		<<"close">> = proplists:get_value(<<"connection">>, RespHeaders),
-		{ok, RespBody} = gun:await_body(ConnPid, Ref1),
-		<<"Hello world!">> = iolist_to_binary(RespBody),
-		{error, {stream_error, _}} = gun:await(ConnPid, Ref2),
-		ok = gun_down(ConnPid),
+		Rest = case catch raw_recv_head(Client) of
+			{'EXIT', _} -> error(closed);
+			Data ->
+				{'HTTP/1.1', 200, _, Rest0} = cow_http:parse_status_line(Data),
+				{Headers, Rest1} = cow_http:parse_headers(Rest0),
+				<<"close">> = proplists:get_value(<<"connection">>, Headers),
+				Rest1
+		end,
+		<<"Hello world!">> = raw_recv_rest(Client, byte_size(<<"Hello world!">>), Rest),
+		{error, closed} = raw_recv(Client, 0, 1000),
 		receive
 			{'DOWN', CowboyConnRef, process, CowboyConnPid, _Reason} ->
 				ok

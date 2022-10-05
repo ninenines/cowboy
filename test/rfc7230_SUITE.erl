@@ -22,6 +22,7 @@
 -import(cowboy_test, [raw_open/1]).
 -import(cowboy_test, [raw_send/2]).
 -import(cowboy_test, [raw_recv_head/1]).
+-import(cowboy_test, [raw_recv_rest/3]).
 -import(cowboy_test, [raw_recv/3]).
 
 suite() ->
@@ -63,13 +64,7 @@ do_raw(Config, Data) ->
 	{Headers, Rest2} = cow_http:parse_headers(Rest),
 	case lists:keyfind(<<"content-length">>, 1, Headers) of
 		{_, LengthBin} when LengthBin =/= <<"0">> ->
-			Length = binary_to_integer(LengthBin),
-			Body = if
-				byte_size(Rest2) =:= Length -> Rest2;
-				true ->
-					{ok, Body0} = raw_recv(Client, Length - byte_size(Rest2), 5000),
-					<< Rest2/bits, Body0/bits >>
-			end,
+			Body = raw_recv_rest(Client, binary_to_integer(LengthBin), Rest2),
 			#{client => Client, version => Version, code => Code, reason => Reason, headers => Headers, body => Body};
 		_ ->
 			#{client => Client, version => Version, code => Code, reason => Reason, headers => Headers, body => <<>>}

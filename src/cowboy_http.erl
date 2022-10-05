@@ -1472,10 +1472,12 @@ early_error(StatusCode0, State=#state{socket=Socket, transport=Transport,
 
 initiate_closing(State=#state{streams=[]}, Reason) ->
 	terminate(State, Reason);
-initiate_closing(State=#state{streams=[_Stream|Streams],
+initiate_closing(State=#state{streams=Streams,
 		out_streamid=OutStreamID}, Reason) ->
-	terminate_all_streams(State, Streams, Reason),
-	State#state{last_streamid=OutStreamID}.
+	{value, LastStream, TerminatedStreams}
+		= lists:keytake(OutStreamID, #stream.id, Streams),
+	terminate_all_streams(State, TerminatedStreams, Reason),
+	State#state{streams=[LastStream], last_streamid=OutStreamID}.
 
 %% Function replicated in cowboy_http2.
 maybe_socket_error(State, {error, closed}) ->
