@@ -1445,10 +1445,12 @@ early_error(StatusCode0, #state{socket=Socket, transport=Transport,
 
 initiate_closing(State=#state{streams=[]}, Reason) ->
 	terminate(State, Reason);
-initiate_closing(State=#state{streams=[_Stream|Streams],
+initiate_closing(State=#state{streams=Streams,
 		out_streamid=OutStreamID}, Reason) ->
-	terminate_all_streams(State, Streams, Reason),
-	State#state{last_streamid=OutStreamID}.
+	{value, Stream, RestStreams}
+		= lists:keytake(OutStreamID, #stream.id, Streams),
+	terminate_all_streams(State, RestStreams, Reason),
+	State#state{streams=[Stream], last_streamid=OutStreamID}.
 
 -spec terminate(_, _) -> no_return().
 terminate(undefined, Reason) ->
