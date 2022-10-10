@@ -247,6 +247,14 @@ ws_deflate_opts_client_max_window_bits_override(Config) ->
 		= lists:keyfind("sec-websocket-extensions", 1, Headers2),
 	ok.
 
+ws_deflate_opts_client_max_window_bits_only_in_server(Config) ->
+	doc("Handler does not support compression if configured with client "
+		"max window bits less than 15 when client does not provide the option."),
+	{ok, _, Headers} = do_handshake("/ws_deflate_opts?client_max_window_bits",
+		"Sec-WebSocket-Extensions: permessage-deflate\r\n", Config),
+	false = lists:keyfind("sec-websocket-extensions", 1, Headers),
+	ok.
+
 ws_deflate_opts_server_context_takeover(Config) ->
 	doc("Handler is configured with server context takeover enabled."),
 	{ok, _, Headers1} = do_handshake("/ws_deflate_opts?server_context_takeover",
