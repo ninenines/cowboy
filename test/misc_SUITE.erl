@@ -21,14 +21,15 @@
 -import(cowboy_test, [gun_open/1]).
 
 all() ->
-	[{group, app}, {group, set_env}|cowboy_test:common_all()].
+	[{group, app}, {group, set_env}, {group, routes}|cowboy_test:common_all()].
 
 groups() ->
 	Common = ct_helper:all(?MODULE)
 		-- [restart_gracefully, set_env, set_env_missing],
 	[
 		{app, [], [restart_gracefully]},
-		{set_env, [parallel], [set_env, set_env_missing]}
+		{set_env, [parallel], [set_env, set_env_missing]},
+		{routes, [parallel], [add_route, remove_route]}
 	|cowboy_test:common_groups(Common)].
 
 init_per_group(Name=app, Config) ->
@@ -37,10 +38,14 @@ init_per_group(Name=app, Config) ->
 	}, Config);
 init_per_group(set_env, Config) ->
 	Config;
+init_per_group(routes, Config) ->
+	Config;
 init_per_group(Name, Config) ->
 	cowboy_test:init_common_groups(Name, Config, ?MODULE).
 
 end_per_group(set_env, _) ->
+	ok;
+end_per_group(routes, _) ->
 	ok;
 end_per_group(Name, _) ->
 	cowboy:stop_listener(Name).
@@ -116,6 +121,68 @@ set_env_missing(Config0) ->
 		ConnPid2 = gun_open(Config),
 		Ref2 = gun:get(ConnPid2, "/"),
 		{response, _, 400, _} = gun:await(ConnPid2, Ref2)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+add_route(Config0) ->
+	doc("Live add a route."),
+	Dispatch = 
+		cowboy_router:compile([{'_', [
+			{"/", hello_h, []}
+		]}]),
+	Config = cowboy_test:init_http(?FUNCTION_NAME, #{
+		env => #{
+			dispatch => Dispatch
+		}
+	}, Config0),
+	try
+		ConnPid1 = gun_open(Config),
+		Ref1 = gun:get(ConnPid1, "/"),
+		{response, _, 200, _} = gun:await(ConnPid1, Ref1),
+		ConnPid2 = gun_open(Config),
+		Ref2 = gun:get(ConnPid2, "/new"),
+		{response, _, 404, _} = gun:await(ConnPid2, Ref2),
+		cowboy:add_routes(?FUNCTION_NAME, cowboy_router:compile([{'_', [
+			{"/new", hello_h, []}
+		]}])),
+		%% Only new connections get the updated environment.
+		ConnPid3 = gun_open(Config),
+		Ref3 = gun:get(ConnPid3, "/new"),
+		{response, _, 200, _} = gun:await(ConnPid3, Ref3)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+remove_route(Config0) ->
+	doc("Live remove a route."),
+	Dispatch = 
+		cowboy_router:compile([{'_', [
+			{"/", hello_h, []},
+			{"/new", hello_h, []}
+		]}]),
+	Config = cowboy_test:init_http(?FUNCTION_NAME, #{
+		env => #{
+			dispatch => Dispatch
+		}
+	}, Config0),
+	try
+		ConnPid1 = gun_open(Config),
+		Ref1 = gun:get(ConnPid1, "/"),
+		{response, _, 200, _} = gun:await(ConnPid1, Ref1),
+		ConnPid2 = gun_open(Config),
+		Ref2 = gun:get(ConnPid2, "/new"),
+		{response, _, 200, _} = gun:await(ConnPid2, Ref2),
+		cowboy:remove_routes(?FUNCTION_NAME, cowboy_router:compile([{'_', [
+			{"/new", hello_h, []}
+		]}])),
+		%% Only new connections get the updated environment.
+		ConnPid3 = gun_open(Config),
+		Ref3 = gun:get(ConnPid3, "/"),
+		{response, _, 200, _} = gun:await(ConnPid3, Ref3),
+		ConnPid4 = gun_open(Config),
+		Ref4 = gun:get(ConnPid4, "/new"),
+		{response, _, 404, _} = gun:await(ConnPid4, Ref4)
 	after
 		cowboy:stop_listener(?FUNCTION_NAME)
 	end.

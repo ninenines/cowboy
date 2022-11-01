@@ -19,6 +19,9 @@
 -export([stop_listener/1]).
 -export([set_env/3]).
 
+-export([add_routes/2]).
+-export([remove_routes/2]).
+
 %% Internal.
 -export([log/2]).
 -export([log/4]).
@@ -70,6 +73,18 @@ ensure_connection_type(TransOpts) ->
 stop_listener(Ref) ->
 	ranch:stop_listener(Ref).
 
+-spec add_routes(ranch:ref(), cowboy_router:dispatch_rules()) -> ok.
+add_routes(Ref, NewDispatch) ->
+	Opts = #{env := Env0 = #{dispatch := Dispatch}} = ranch:get_protocol_options(Ref),
+	Env1 = Env0#{dispatch => add_routes_(NewDispatch, Dispatch)},
+	ok = ranch:set_protocol_options(Ref, Opts#{env => Env1}).
+
+-spec remove_routes(ranch:ref(), cowboy_router:dispatch_rules()) -> ok.
+remove_routes(Ref, NewDispatch) ->
+	Opts = #{env := Env0 = #{dispatch := Dispatch}} = ranch:get_protocol_options(Ref),
+	Env1 = Env0#{dispatch => remove_routes_(NewDispatch, Dispatch)},
+	ok = ranch:set_protocol_options(Ref, Opts#{env => Env1}).
+
 -spec set_env(ranch:ref(), atom(), any()) -> ok.
 set_env(Ref, Name, Value) ->
 	Opts = ranch:get_protocol_options(Ref),
@@ -103,3 +118,43 @@ log(Level, Format, Args, _) ->
 		debug -> info_msg
 	end,
 	error_logger:Function(Format, Args).
+
+add_routes_([], Dispatch) ->
+	Dispatch;
+add_routes_(Dispatch, []) ->
+	Dispatch;
+add_routes_([Route0 = {HostMatch, CowboyFields, Paths}|Tail], Dispatch0) ->
+	{Route1, Dispatch1} = 
+		case lists:keytake(HostMatch, 1, Dispatch0) of
+			{value, {HostMatch, ExistingCowboyFields, ExistingPaths}, Dispatch} ->
+				Route = {HostMatch, lists:flatten(CowboyFields, ExistingCowboyFields), lists:flatten(Paths, ExistingPaths)},
+				{Route, Dispatch};
+			false ->
+				{Route0, Dispatch0}
+		end,
+	[Route1 | add_routes_(Tail, Dispatch1)].
+
+remove_routes_([], Dispatch) ->
+	Dispatch;
+remove_routes_(_Dispatch, []) ->
+	[];
+remove_routes_([Route0 = {HostMatch, CowboyFields, Paths}|Tail], Dispatch0) ->
+	{Route1, Dispatch1} = 
+		case lists:keytake(HostMatch, 1, Dispatch0) of
+			{value, {HostMatch, ExistingCowboyFields, ExistingPaths}, Dispatch} ->
+				case ExistingPaths -- Paths of
+					[] ->
+						{undefined, Dispatch};
+					NewPaths ->
+						Route = {HostMatch, ExistingCowboyFields -- CowboyFields, NewPaths},
+						{Route, Dispatch}
+				end;
+			false ->
+				{Route0, Dispatch0}
+		end,
+	case Route1 of
+		undefined ->
+			add_routes_(Tail, Dispatch1);
+		_ ->
+			[Route1 | add_routes_(Tail, Dispatch1)]
+	end.
