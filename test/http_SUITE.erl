@@ -514,3 +514,70 @@ graceful_shutdown_listener(Config) ->
 	%% Check that the 2nd (very slow) request is not handled.
 	{error, {stream_error, closed}} = gun:await(ConnPid2, Ref2),
 	gun:close(ConnPid2).
+
+send_timeout_close(_Config) ->
+	doc("Check that connections are closed on send timeout."),
+	Path = "/endless_stream",
+	Dispatch = cowboy_router:compile([{"localhost", [
+		{Path, loop_handler_endless_h, #{delay => 100}}
+	]}]),
+	ProtoOpts = #{
+		env => #{dispatch => Dispatch},
+		idle_timeout => infinity
+	},
+	TransOpts = #{
+		port => 0,
+		socket_opts => [
+			{send_timeout, 100},
+			{send_timeout_close, true},
+			{sndbuf, 10}
+		]
+	},
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, TransOpts, ProtoOpts),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	ClientPid = do_hang_get(Port, Path),
+	StreamPid = receive {stream, Pid} -> Pid end,
+	{links, [HttpPid]} = erlang:process_info(StreamPid, links),
+	[Socket] = [
+			PidOrPort
+		|| {links, Links} <- [erlang:process_info(HttpPid, links)],
+			PidOrPort <- Links,
+			is_port(PidOrPort)
+	],
+	WaitClosed =
+		fun F(T, Status) when T =< 0 ->
+				erlang:error({status, Status});
+		    F(T, _) ->
+				case prim_inet:getstatus(Socket) of
+					{error, _} ->
+						ok;
+					{ok, Status} ->
+						Snooze = 100,
+						ct:sleep(Snooze),
+						F(T - Snooze, Status)
+				end
+		end,
+	ok = WaitClosed(2000, undefined),
+	false = erlang:is_process_alive(StreamPid),
+	false = erlang:is_process_alive(HttpPid),
+	ClientPid ! done.
+
+%% do_hang_get/2 issues a GET request but doesn't read response
+do_hang_get(Port, Path) ->
+	Parent = self(),
+	erlang:spawn_link(
+		fun() ->
+			Opts = [{recbuf, 10}, {buffer, 10}, {active, false}, {packet, 0}],
+			{ok, S} = gen_tcp:connect("localhost", Port, Opts),
+			Req = [
+				"GET ", Path, " HTTP/1.1\r\n",
+				"Host: localhost:", erlang:integer_to_list(Port), "\r\n",
+				"x-test-pid: ", erlang:pid_to_list(Parent), "\r\n\r\n"
+			],
+			ok = gen_tcp:send(S, Req),
+			receive
+				done -> ok
+			end,
+			gen_tcp:close(S)
+		end
+	).
