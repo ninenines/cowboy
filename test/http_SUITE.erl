@@ -514,3 +514,63 @@ graceful_shutdown_listener(Config) ->
 	%% Check that the 2nd (very slow) request is not handled.
 	{error, {stream_error, closed}} = gun:await(ConnPid2, Ref2),
 	gun:close(ConnPid2).
+
+send_timeout_close(_Config) ->
+	doc("Check that connections are closed on send timeout."),
+	TransOpts = #{
+		port => 0,
+		socket_opts => [
+			{send_timeout, 100},
+			{send_timeout_close, true},
+			{sndbuf, 10}
+		]
+	},
+	Dispatch = cowboy_router:compile([{"localhost", [
+		{"/endless", loop_handler_endless_h, #{delay => 100}}
+	]}]),
+	ProtoOpts = #{
+		env => #{dispatch => Dispatch},
+		idle_timeout => infinity
+	},
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, TransOpts, ProtoOpts),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		%% Connect a client that sends a request and waits indefinitely.
+		{ok, ClientSocket} = gen_tcp:connect("localhost", Port,
+			[{recbuf, 10}, {buffer, 10}, {active, false}, {packet, 0}]),
+		ok = gen_tcp:send(ClientSocket, [
+			"GET /endless HTTP/1.1\r\n",
+			"Host: localhost:", integer_to_list(Port), "\r\n",
+			"x-test-pid: ", pid_to_list(self()), "\r\n\r\n"
+		]),
+		%% Wait for the handler to start then get its pid,
+		%% the remote connection's pid and socket.
+		StreamPid = receive
+			{Self, StreamPid0, init} when Self =:= self() ->
+				StreamPid0
+		after 1000 ->
+			error(timeout)
+		end,
+		ServerPid = ct_helper:get_remote_pid_tcp(ClientSocket),
+		{links, ServerLinks} = process_info(ServerPid, links),
+		[ServerSocket] = [PidOrPort || PidOrPort <- ServerLinks, is_port(PidOrPort)],
+		%% Poll the socket repeatedly until it is closed by the server.
+		WaitClosedFun =
+			fun F(T, Status) when T =< 0 ->
+					error({status, Status});
+				F(T, _) ->
+					case prim_inet:getstatus(ServerSocket) of
+						{error, _} ->
+							ok;
+						{ok, Status} ->
+							Snooze = 100,
+							timer:sleep(Snooze),
+							F(T - Snooze, Status)
+					end
+			end,
+		ok = WaitClosedFun(2000, undefined),
+		false = erlang:is_process_alive(StreamPid),
+		false = erlang:is_process_alive(ServerPid)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.

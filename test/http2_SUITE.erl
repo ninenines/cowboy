@@ -37,7 +37,8 @@ do_handshake(Config) ->
 	do_handshake(#{}, Config).
 
 do_handshake(Settings, Config) ->
-	{ok, Socket} = gen_tcp:connect("localhost", config(port, Config), [binary, {active, false}]),
+	{ok, Socket} = gen_tcp:connect("localhost", config(port, Config),
+		[binary, {active, false}|proplists:get_value(tcp_opts, Config, [])]),
 	%% Send a valid preface.
 	ok = gen_tcp:send(Socket, ["PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n", cow_http2:settings(Settings)]),
 	%% Receive the server preface.
@@ -416,3 +417,66 @@ graceful_shutdown_listener_timeout(Config) ->
 	%% Check that the slow request is aborted.
 	{error, {stream_error, closed}} = gun:await(ConnPid, Ref),
 	gun:close(ConnPid).
+
+send_timeout_close(Config) ->
+	doc("Check that connections are closed on send timeout."),
+	TransOpts = #{
+		port => 0,
+		socket_opts => [
+			{send_timeout, 100},
+			{send_timeout_close, true},
+			{sndbuf, 10}
+		]
+	},
+	Dispatch = cowboy_router:compile([{"localhost", [
+		{"/endless", loop_handler_endless_h, #{delay => 100}}
+	]}]),
+	ProtoOpts = #{
+		env => #{dispatch => Dispatch},
+		idle_timeout => infinity
+	},
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, TransOpts, ProtoOpts),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		%% Connect a client that sends a request and waits indefinitely.
+		{ok, ClientSocket} = do_handshake([{port, Port},
+			{tcp_opts, [{recbuf, 10}, {buffer, 10}, {active, false}]}|Config]),
+		{HeadersBlock, _} = cow_hpack:encode([
+			{<<":method">>, <<"GET">>},
+			{<<":scheme">>, <<"http">>},
+			{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+			{<<":path">>, <<"/endless">>},
+			{<<"x-test-pid">>, pid_to_list(self())}
+		]),
+		ok = gen_tcp:send(ClientSocket, cow_http2:headers(1, fin, HeadersBlock)),
+		%% Wait for the handler to start then get its pid,
+		%% the remote connection's pid and socket.
+		StreamPid = receive
+			{Self, StreamPid0, init} when Self =:= self() ->
+				StreamPid0
+		after 1000 ->
+			error(timeout)
+		end,
+		ServerPid = ct_helper:get_remote_pid_tcp(ClientSocket),
+		{links, ServerLinks} = process_info(ServerPid, links),
+		[ServerSocket] = [PidOrPort || PidOrPort <- ServerLinks, is_port(PidOrPort)],
+		%% Poll the socket repeatedly until it is closed by the server.
+		WaitClosedFun =
+			fun F(T, Status) when T =< 0 ->
+					error({status, Status});
+				F(T, _) ->
+					case prim_inet:getstatus(ServerSocket) of
+						{error, _} ->
+							ok;
+						{ok, Status} ->
+							Snooze = 100,
+							timer:sleep(Snooze),
+							F(T - Snooze, Status)
+					end
+			end,
+		ok = WaitClosedFun(2000, undefined),
+		false = erlang:is_process_alive(StreamPid),
+		false = erlang:is_process_alive(ServerPid)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
