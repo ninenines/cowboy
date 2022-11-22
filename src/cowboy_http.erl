@@ -254,7 +254,12 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport, opts=Opts,
 			sys:handle_system_msg(Request, From, Parent, ?MODULE, [], State);
 		%% Messages pertaining to a stream.
 		{{Pid, StreamID}, Msg} when Pid =:= self() ->
-			loop(info(State, StreamID, Msg));
+			try info(State, StreamID, Msg) of
+				NewState ->
+					loop(NewState)
+			catch throw:{send, Error} ->
+				terminate(State, Error)
+			end;
 		%% Exit signal from children.
 		Msg = {'EXIT', Pid, _} ->
 			loop(down(State, Pid, Msg));
@@ -1037,10 +1042,10 @@ commands(State0=#state{socket=Socket, transport=Transport, out_state=wait, strea
 	%% @todo 204 and 304 responses must not include a response body. (RFC7230 3.3.1, RFC7230 3.3.2)
 	case Body of
 		{sendfile, _, _, _} ->
-			Transport:send(Socket, Response),
+			send(Transport, Socket, Response),
 			sendfile(State, Body);
 		_ ->
-			Transport:send(Socket, [Response, Body])
+			send(Transport, Socket, [Response, Body])
 	end,
 	commands(State, StreamID, Tail);
 %% Send response headers and initiate chunked encoding or streaming.
@@ -1098,21 +1103,21 @@ commands(State0=#state{socket=Socket, transport=Transport, streams=Streams0, out
 		Stream0=#stream{method= <<"HEAD">>} ->
 			Stream0;
 		Stream0 when Size =:= 0, IsFin =:= fin, OutState =:= chunked ->
-			Transport:send(Socket, <<"0\r\n\r\n">>),
+			send(Transport, Socket, <<"0\r\n\r\n">>),
 			Stream0;
 		Stream0 when Size =:= 0 ->
 			Stream0;
 		Stream0 when is_tuple(Data), OutState =:= chunked ->
-			Transport:send(Socket, [integer_to_binary(Size, 16), <<"\r\n">>]),
+			send(Transport, Socket, [integer_to_binary(Size, 16), <<"\r\n">>]),
 			sendfile(State0, Data),
-			Transport:send(Socket,
+			send(Transport, Socket,
 				case IsFin of
 					fin -> <<"\r\n0\r\n\r\n">>;
 					nofin -> <<"\r\n">>
 				end),
 			Stream0;
 		Stream0 when OutState =:= chunked ->
-			Transport:send(Socket, [
+			send(Transport, Socket, [
 				integer_to_binary(Size, 16), <<"\r\n">>, Data,
 				case IsFin of
 					fin -> <<"\r\n0\r\n\r\n">>;
@@ -1130,7 +1135,7 @@ commands(State0=#state{socket=Socket, transport=Transport, streams=Streams0, out
 				is_tuple(Data) ->
 					sendfile(State0, Data);
 				true ->
-					Transport:send(Socket, Data)
+					send(Transport, Socket, Data)
 			end,
 			Stream0#stream{local_sent_size=SentSize}
 	end,
@@ -1144,13 +1149,13 @@ commands(State=#state{socket=Socket, transport=Transport, streams=Streams, out_s
 		StreamID, [{trailers, Trailers}|Tail]) ->
 	case stream_te(OutState, lists:keyfind(StreamID, #stream.id, Streams)) of
 		trailers ->
-			Transport:send(Socket, [
+			send(Transport, Socket, [
 				<<"0\r\n">>,
 				cow_http:headers(maps:to_list(Trailers)),
 				<<"\r\n">>
 			]);
 		no_trailers ->
-			Transport:send(Socket, <<"0\r\n\r\n">>);
+			send(Transport, Socket, <<"0\r\n\r\n">>);
 		not_chunked ->
 			ok
 	end,
@@ -1221,6 +1226,14 @@ headers_to_list(Headers0=#{<<"set-cookie">> := SetCookies}) ->
 	Headers1 ++ [{<<"set-cookie">>, Value} || Value <- SetCookies];
 headers_to_list(Headers) ->
 	maps:to_list(Headers).
+
+send(Transport, Socket, Data) ->
+	case Transport:send(Socket, Data) of
+		ok ->
+			ok;
+		{error, _Reason} = Error -> % handle 'timeout' as unrecoverable error too
+			erlang:throw({send, Error})
+	end.
 
 %% We wrap the sendfile call into a try/catch because on OTP-20
 %% and earlier a few different crashes could occur for sockets
