@@ -43,7 +43,7 @@ init_per_group(Name, Config) ->
 end_per_group(env, _) ->
 	ok;
 end_per_group(Name, _) ->
-	cowboy:stop_listener(Name).
+	cowboy_test:stop_group(Name).
 
 init_dispatch(_) ->
 	cowboy_router:compile([{"localhost", [

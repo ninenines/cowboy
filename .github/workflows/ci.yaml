@@ -4,6 +4,8 @@ name: Check Cowboy
 
 on:
   push:
+    branches:
+      - master
   pull_request:
   schedule:
       ## Every Monday at 2am.

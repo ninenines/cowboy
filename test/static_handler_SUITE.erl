@@ -20,6 +20,12 @@
 -import(ct_helper, [doc/1]).
 -import(cowboy_test, [gun_open/1]).
 
+%% Import useful functions from req_SUITE.
+%% @todo Maybe move these functions to cowboy_test.
+-import(req_SUITE, [do_get/2]).
+-import(req_SUITE, [do_get/3]).
+-import(req_SUITE, [do_maybe_h3_error3/1]).
+
 %% ct.
 
 all() ->
@@ -39,16 +45,22 @@ groups() ->
 		{dir, [parallel], DirTests},
 		{priv_dir, [parallel], DirTests}
 	],
+	GroupTestsNoParallel = OtherTests ++ [
+		{dir, [], DirTests},
+		{priv_dir, [], DirTests}
+	],
 	[
 		{http, [parallel], GroupTests},
 		{https, [parallel], GroupTests},
 		{h2, [parallel], GroupTests},
 		{h2c, [parallel], GroupTests},
+		{h3, [], GroupTestsNoParallel}, %% @todo Enable parallel when it works better.
 		{http_compress, [parallel], GroupTests},
 		{https_compress, [parallel], GroupTests},
 		{h2_compress, [parallel], GroupTests},
 		{h2c_compress, [parallel], GroupTests},
-		%% No real need to test sendfile disabled against https or h2.
+		{h3_compress, [], GroupTestsNoParallel}, %% @todo Enable parallel when it works better.
+		%% No real need to test sendfile disabled against https, h2 or h3.
 		{http_no_sendfile, [parallel], GroupTests},
 		{h2c_no_sendfile, [parallel], GroupTests}
 	].
@@ -116,6 +128,17 @@ init_per_group(Name=h2c_no_sendfile, Config) ->
 		sendfile => false
 	}, [{flavor, vanilla}|Config]),
 	lists:keyreplace(protocol, 1, Config1, {protocol, http2});
+init_per_group(Name=h3, Config) ->
+	cowboy_test:init_http3(Name, #{
+		env => #{dispatch => init_dispatch(Config)},
+		middlewares => [?MODULE, cowboy_router, cowboy_handler]
+	}, [{flavor, vanilla}|Config]);
+init_per_group(Name=h3_compress, Config) ->
+	cowboy_test:init_http3(Name, #{
+		env => #{dispatch => init_dispatch(Config)},
+		middlewares => [?MODULE, cowboy_router, cowboy_handler],
+		stream_handlers => [cowboy_compress_h, cowboy_stream_h]
+	}, [{flavor, vanilla}|Config]);
 init_per_group(Name, Config) ->
 	Config1 = cowboy_test:init_common_groups(Name, Config, ?MODULE),
 	Opts = ranch:get_protocol_options(Name),
@@ -129,7 +152,7 @@ end_per_group(dir, _) ->
 end_per_group(priv_dir, _) ->
 	ok;
 end_per_group(Name, _) ->
-	cowboy:stop_listener(Name).
+	cowboy_test:stop_group(Name).
 
 %% Large file.
 
@@ -248,25 +271,11 @@ do_mime_custom(Path) ->
 		_ -> {<<"application">>, <<"octet-stream">>, []}
 	end.
 
-do_get(Path, Config) ->
-	do_get(Path, [], Config).
-
-do_get(Path, ReqHeaders, Config) ->
-	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, Path, [{<<"accept-encoding">>, <<"gzip">>}|ReqHeaders]),
-	{response, IsFin, Status, RespHeaders} = gun:await(ConnPid, Ref),
-	{ok, Body} = case IsFin of
-		nofin -> gun:await_body(ConnPid, Ref);
-		fin -> {ok, <<>>}
-	end,
-	gun:close(ConnPid),
-	{Status, RespHeaders, Body}.
-
 %% Tests.
 
 bad(Config) ->
 	doc("Bad cowboy_static options: not a tuple."),
-	{500, _, _} = do_get("/bad", Config),
+	{500, _, _} = do_maybe_h3_error3(do_get("/bad", Config)),
 	ok.
 
 bad_dir_path(Config) ->
@@ -276,7 +285,7 @@ bad_dir_path(Config) ->
 
 bad_dir_route(Config) ->
 	doc("Bad cowboy_static options: missing [...] in route."),
-	{500, _, _} = do_get("/bad/dir/route", Config),
+	{500, _, _} = do_maybe_h3_error3(do_get("/bad/dir/route", Config)),
 	ok.
 
 bad_file_in_priv_dir_in_ez_archive(Config) ->
@@ -291,27 +300,27 @@ bad_file_path(Config) ->
 
 bad_options(Config) ->
 	doc("Bad cowboy_static extra options: not a list."),
-	{500, _, _} = do_get("/bad/options", Config),
+	{500, _, _} = do_maybe_h3_error3(do_get("/bad/options", Config)),
 	ok.
 
 bad_options_charset(Config) ->
 	doc("Bad cowboy_static extra options: invalid charset option."),
-	{500, _, _} = do_get("/bad/options/charset", Config),
+	{500, _, _} = do_maybe_h3_error3(do_get("/bad/options/charset", Config)),
 	ok.
 
 bad_options_etag(Config) ->
 	doc("Bad cowboy_static extra options: invalid etag option."),
-	{500, _, _} = do_get("/bad/options/etag", Config),
+	{500, _, _} = do_maybe_h3_error3(do_get("/bad/options/etag", Config)),
 	ok.
 
 bad_options_mime(Config) ->
 	doc("Bad cowboy_static extra options: invalid mimetypes option."),
-	{500, _, _} = do_get("/bad/options/mime", Config),
+	{500, _, _} = do_maybe_h3_error3(do_get("/bad/options/mime", Config)),
 	ok.
 
 bad_priv_dir_app(Config) ->
 	doc("Bad cowboy_static options: wrong application name."),
-	{500, _, _} = do_get("/bad/priv_dir/app/style.css", Config),
+	{500, _, _} = do_maybe_h3_error3(do_get("/bad/priv_dir/app/style.css", Config)),
 	ok.
 
 bad_priv_dir_in_ez_archive(Config) ->
@@ -331,12 +340,12 @@ bad_priv_dir_path(Config) ->
 
 bad_priv_dir_route(Config) ->
 	doc("Bad cowboy_static options: missing [...] in route."),
-	{500, _, _} = do_get("/bad/priv_dir/route", Config),
+	{500, _, _} = do_maybe_h3_error3(do_get("/bad/priv_dir/route", Config)),
 	ok.
 
 bad_priv_file_app(Config) ->
 	doc("Bad cowboy_static options: wrong application name."),
-	{500, _, _} = do_get("/bad/priv_file/app", Config),
+	{500, _, _} = do_maybe_h3_error3(do_get("/bad/priv_file/app", Config)),
 	ok.
 
 bad_priv_file_in_ez_archive(Config) ->
@@ -535,7 +544,7 @@ dir_unknown(Config) ->
 
 etag_crash(Config) ->
 	doc("Get a file with a crashing etag function."),
-	{500, _, _} = do_get("/etag/crash", Config),
+	{500, _, _} = do_maybe_h3_error3(do_get("/etag/crash", Config)),
 	ok.
 
 etag_custom(Config) ->
@@ -813,7 +822,7 @@ mime_all_uppercase(Config) ->
 
 mime_crash(Config) ->
 	doc("Get a file with a crashing mimetype function."),
-	{500, _, _} = do_get("/mime/crash/style.css", Config),
+	{500, _, _} = do_maybe_h3_error3(do_get("/mime/crash/style.css", Config)),
 	ok.
 
 mime_custom_cowboy(Config) ->
@@ -848,7 +857,7 @@ mime_hardcode_tuple(Config) ->
 
 charset_crash(Config) ->
 	doc("Get a file with a crashing charset function."),
-	{500, _, _} = do_get("/charset/crash/style.css", Config),
+	{500, _, _} = do_maybe_h3_error3(do_get("/charset/crash/style.css", Config)),
 	ok.
 
 charset_custom_cowboy(Config) ->
@@ -933,7 +942,8 @@ unicode_basic_error(Config) ->
 		%% # and ? indicate fragment and query components
 		%% and are therefore not part of the path.
 		http -> "\r\s#?";
-		http2 -> "#?"
+		http2 -> "#?";
+		http3 -> "#?"
 	end,
 	_ = [case do_get("/char/" ++ [C], Config) of
 		{400, _, _} -> ok;

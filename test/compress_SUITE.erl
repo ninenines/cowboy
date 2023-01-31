@@ -23,12 +23,20 @@
 %% ct.
 
 all() ->
-	[
+	All = [
 		{group, http_compress},
 		{group, https_compress},
 		{group, h2_compress},
-		{group, h2c_compress}
-	].
+		{group, h2c_compress},
+		{group, h3_compress}
+	],
+	%% Don't run HTTP/3 tests on Windows for now.
+	case os:type() of
+		{win32, _} ->
+			All -- [{group, h3_compress}];
+		_ ->
+			All
+	end.
 
 groups() ->
 	cowboy_test:common_groups(ct_helper:all(?MODULE)).
@@ -37,7 +45,7 @@ init_per_group(Name, Config) ->
 	cowboy_test:init_common_groups(Name, Config, ?MODULE).
 
 end_per_group(Name, _) ->
-	cowboy:stop_listener(Name).
+	cowboy_test:stop_group(Name).
 
 %% Routes.
 

@@ -29,7 +29,8 @@ suite() ->
 %% We initialize trace patterns here. Appropriate would be in
 %% init_per_suite/1, but this works just as well.
 all() ->
-	cowboy_test:common_all().
+	%% @todo Implement these tests for HTTP/3.
+	cowboy_test:common_all() -- [{group, h3}, {group, h3_compress}].
 
 init_per_suite(Config) ->
 	cowboy_tracer_h:set_trace_patterns(),

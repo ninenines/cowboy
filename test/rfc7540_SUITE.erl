@@ -34,9 +34,9 @@
 all() -> [{group, clear}, {group, tls}].
 
 groups() ->
-	Modules = ct_helper:all(?MODULE),
-	Clear = [M || M <- Modules, lists:sublist(atom_to_list(M), 4) =/= "alpn"] -- [prior_knowledge_reject_tls],
-	TLS = [M || M <- Modules, lists:sublist(atom_to_list(M), 4) =:= "alpn"] ++ [prior_knowledge_reject_tls],
+	Tests = ct_helper:all(?MODULE),
+	Clear = [T || T <- Tests, lists:sublist(atom_to_list(T), 4) =/= "alpn"] -- [prior_knowledge_reject_tls],
+	TLS = [T || T <- Tests, lists:sublist(atom_to_list(T), 4) =:= "alpn"] ++ [prior_knowledge_reject_tls],
 	[{clear, [parallel], Clear}, {tls, [parallel], TLS}].
 
 init_per_group(Name = clear, Config) ->
@@ -3893,6 +3893,7 @@ accept_host_header_on_missing_pseudo_header_authority(Config) ->
 %% When both :authority and host headers are received, the current behavior
 %% is to favor :authority and ignore the host header. The specification does
 %% not describe the correct behavior to follow in that case.
+%% @todo The HTTP/3 spec says both values must be identical and non-empty.
 
 reject_many_pseudo_header_authority(Config) ->
 	doc("A request containing more than one authority component must be rejected "

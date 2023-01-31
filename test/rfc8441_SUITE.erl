@@ -126,6 +126,7 @@ reject_handshake_disabled_by_default(Config0) ->
 
 % The Extended CONNECT Method.
 
+%% @todo Refer to RFC9110 7.8 about the case insensitive comparison.
 accept_uppercase_pseudo_header_protocol(Config) ->
 	doc("The :protocol pseudo header is case insensitive. (draft-01 4)"),
 	%% Connect to server and confirm that SETTINGS_ENABLE_CONNECT_PROTOCOL = 1.
@@ -172,6 +173,7 @@ reject_many_pseudo_header_protocol(Config) ->
 	ok.
 
 reject_unknown_pseudo_header_protocol(Config) ->
+	%% @todo This probably shouldn't send 400 but 501 instead based on RFC 9220.
 	doc("An extended CONNECT request with an unknown protocol must be rejected "
 		"with a 400 error. (draft-01 4)"),
 	%% Connect to server and confirm that SETTINGS_ENABLE_CONNECT_PROTOCOL = 1.
@@ -192,10 +194,11 @@ reject_unknown_pseudo_header_protocol(Config) ->
 	{ok, << Len1:24, 1:8, _:8, 1:32 >>} = gen_tcp:recv(Socket, 9, 1000),
 	{ok, RespHeadersBlock} = gen_tcp:recv(Socket, Len1, 1000),
 	{RespHeaders, _} = cow_hpack:decode(RespHeadersBlock),
-	{_, <<"400">>} = lists:keyfind(<<":status">>, 1, RespHeaders),
+	{_, <<"501">>} = lists:keyfind(<<":status">>, 1, RespHeaders),
 	ok.
 
 reject_invalid_pseudo_header_protocol(Config) ->
+	%% @todo This probably shouldn't send 400 but 501 instead based on RFC 9220.
 	doc("An extended CONNECT request with an invalid protocol must be rejected "
 		"with a 400 error. (draft-01 4)"),
 	%% Connect to server and confirm that SETTINGS_ENABLE_CONNECT_PROTOCOL = 1.
@@ -216,7 +219,7 @@ reject_invalid_pseudo_header_protocol(Config) ->
 	{ok, << Len1:24, 1:8, _:8, 1:32 >>} = gen_tcp:recv(Socket, 9, 1000),
 	{ok, RespHeadersBlock} = gen_tcp:recv(Socket, Len1, 1000),
 	{RespHeaders, _} = cow_hpack:decode(RespHeadersBlock),
-	{_, <<"400">>} = lists:keyfind(<<":status">>, 1, RespHeaders),
+	{_, <<"501">>} = lists:keyfind(<<":status">>, 1, RespHeaders),
 	ok.
 
 reject_missing_pseudo_header_scheme(Config) ->
@@ -293,7 +296,7 @@ reject_missing_pseudo_header_protocol(Config) ->
 	%% Connect to server and confirm that SETTINGS_ENABLE_CONNECT_PROTOCOL = 1.
 	{ok, Socket, Settings} = do_handshake(Config),
 	#{enable_connect_protocol := true} = Settings,
-	%% Send an extended CONNECT request without a :scheme pseudo-header.
+	%% Send an extended CONNECT request without a :protocol pseudo-header.
 	{ReqHeadersBlock, _} = cow_hpack:encode([
 		{<<":method">>, <<"CONNECT">>},
 		{<<":scheme">>, <<"http">>},
@@ -317,7 +320,7 @@ reject_connection_header(Config) ->
 	%% Connect to server and confirm that SETTINGS_ENABLE_CONNECT_PROTOCOL = 1.
 	{ok, Socket, Settings} = do_handshake(Config),
 	#{enable_connect_protocol := true} = Settings,
-	%% Send an extended CONNECT request without a :scheme pseudo-header.
+	%% Send an extended CONNECT request with a connection header.
 	{ReqHeadersBlock, _} = cow_hpack:encode([
 		{<<":method">>, <<"CONNECT">>},
 		{<<":protocol">>, <<"websocket">>},
@@ -339,7 +342,7 @@ reject_upgrade_header(Config) ->
 	%% Connect to server and confirm that SETTINGS_ENABLE_CONNECT_PROTOCOL = 1.
 	{ok, Socket, Settings} = do_handshake(Config),
 	#{enable_connect_protocol := true} = Settings,
-	%% Send an extended CONNECT request without a :scheme pseudo-header.
+	%% Send an extended CONNECT request with a upgrade header.
 	{ReqHeadersBlock, _} = cow_hpack:encode([
 		{<<":method">>, <<"CONNECT">>},
 		{<<":protocol">>, <<"websocket">>},

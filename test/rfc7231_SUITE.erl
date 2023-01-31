@@ -35,7 +35,7 @@ init_per_group(Name, Config) ->
 	cowboy_test:init_common_groups(Name, Config, ?MODULE).
 
 end_per_group(Name, _) ->
-	cowboy:stop_listener(Name).
+	cowboy_test:stop_group(Name).
 
 init_dispatch(_) ->
 	cowboy_router:compile([{"[...]", [
@@ -237,6 +237,8 @@ http10_expect(Config) ->
 		http ->
 			do_http10_expect(Config);
 		http2 ->
+			expect(Config);
+		http3 ->
 			expect(Config)
 	end.
 
@@ -303,6 +305,9 @@ expect_discard_body_close(Config) ->
 			do_expect_discard_body_close(Config);
 		http2 ->
 			doc("There's no reason to close the connection when using HTTP/2, "
+				"even if a stream body is too large. We just cancel the stream.");
+		http3 ->
+			doc("There's no reason to close the connection when using HTTP/3, "
 				"even if a stream body is too large. We just cancel the stream.")
 	end.
 
@@ -424,8 +429,10 @@ http10_status_code_100(Config) ->
 		http ->
 			doc("The 100 Continue status code must not "
 				"be sent to HTTP/1.0 endpoints. (RFC7231 6.2)"),
-			do_http10_status_code_1xx(100, Config);
+			do_unsupported_status_code_1xx(100, Config);
 		http2 ->
+			status_code_100(Config);
+		http3 ->
 			status_code_100(Config)
 	end.
 
@@ -434,12 +441,16 @@ http10_status_code_101(Config) ->
 		http ->
 			doc("The 101 Switching Protocols status code must not "
 				"be sent to HTTP/1.0 endpoints. (RFC7231 6.2)"),
-			do_http10_status_code_1xx(101, Config);
+			do_unsupported_status_code_1xx(101, Config);
 		http2 ->
+			status_code_101(Config);
+		http3 ->
+			%% While 101 is not supported by HTTP/3, there is no
+			%% wording in RFC9114 that forbids sending it.
 			status_code_101(Config)
 	end.
 
-do_http10_status_code_1xx(StatusCode, Config) ->
+do_unsupported_status_code_1xx(StatusCode, Config) ->
 	ConnPid = gun_open(Config, #{http_opts => #{version => 'HTTP/1.0'}}),
 	Ref = gun:get(ConnPid, "/resp/inform2/" ++ integer_to_list(StatusCode), [
 		{<<"accept-encoding">>, <<"gzip">>}
@@ -653,7 +664,9 @@ status_code_408_connection_close(Config) ->
 		http ->
 			do_http11_status_code_408_connection_close(Config);
 		http2 ->
-			doc("HTTP/2 connections are not closed on 408 responses.")
+			doc("HTTP/2 connections are not closed on 408 responses.");
+		http3 ->
+			doc("HTTP/3 connections are not closed on 408 responses.")
 	end.
 
 do_http11_status_code_408_connection_close(Config) ->
@@ -744,7 +757,9 @@ status_code_426_upgrade_header(Config) ->
 		http ->
 			do_status_code_426_upgrade_header(Config);
 		http2 ->
-			doc("HTTP/2 does not support the HTTP/1.1 Upgrade mechanism.")
+			doc("HTTP/2 does not support the HTTP/1.1 Upgrade mechanism.");
+		http3 ->
+			doc("HTTP/3 does not support the HTTP/1.1 Upgrade mechanism.")
 	end.
 
 do_status_code_426_upgrade_header(Config) ->

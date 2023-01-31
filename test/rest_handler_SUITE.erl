@@ -32,7 +32,7 @@ init_per_group(Name, Config) ->
 	cowboy_test:init_common_groups(Name, Config, ?MODULE).
 
 end_per_group(Name, _) ->
-	cowboy:stop_listener(Name).
+	cowboy_test:stop_group(Name).
 
 %% Dispatch configuration.
 
@@ -85,7 +85,7 @@ accept_callback_missing(Config) ->
 		{<<"accept-encoding">>, <<"gzip">>},
 		{<<"content-type">>, <<"text/plain">>}
 	], <<"Missing!">>),
-	{response, fin, 500, _} = gun:await(ConnPid, Ref),
+	{response, fin, 500, _} = do_maybe_h3_error(gun:await(ConnPid, Ref)),
 	ok.
 
 accept_callback_patch_false(Config) ->
@@ -472,7 +472,7 @@ delete_resource_missing(Config) ->
 	Ref = gun:delete(ConnPid, "/delete_resource?missing", [
 		{<<"accept-encoding">>, <<"gzip">>}
 	]),
-	{response, _, 500, _} = gun:await(ConnPid, Ref),
+	{response, _, 500, _} = do_maybe_h3_error(gun:await(ConnPid, Ref)),
 	ok.
 
 create_resource_created(Config) ->
@@ -650,9 +650,15 @@ do_generate_etag(Config, Qs, ReqHeaders, Status, Etag) ->
 		{<<"accept-encoding">>, <<"gzip">>}
 		|ReqHeaders
 	]),
-	{response, _, Status, RespHeaders} = gun:await(ConnPid, Ref),
+	{response, _, Status, RespHeaders} = do_maybe_h3_error(gun:await(ConnPid, Ref)),
 	Etag = lists:keyfind(<<"etag">>, 1, RespHeaders),
 	ok.
+
+%% See do_maybe_h3_error2 comment.
+do_maybe_h3_error({error, {stream_error, {stream_error, h3_internal_error, _}}}) ->
+	{response, fin, 500, []};
+do_maybe_h3_error(Result) ->
+	Result.
 
 if_range_etag_equal(Config) ->
 	doc("When the if-range header matches, a 206 partial content "
@@ -806,7 +812,7 @@ provide_callback_missing(Config) ->
 	doc("A 500 response must be sent when the ProvideCallback can't be called."),
 	ConnPid = gun_open(Config),
 	Ref = gun:get(ConnPid, "/provide_callback_missing", [{<<"accept-encoding">>, <<"gzip">>}]),
-	{response, fin, 500, _} = gun:await(ConnPid, Ref),
+	{response, fin, 500, _} = do_maybe_h3_error(gun:await(ConnPid, Ref)),
 	ok.
 
 provide_range_callback(Config) ->
@@ -962,7 +968,7 @@ provide_range_callback_missing(Config) ->
 		{<<"accept-encoding">>, <<"gzip">>},
 		{<<"range">>, <<"bytes=0-">>}
 	]),
-	{response, fin, 500, _} = gun:await(ConnPid, Ref),
+	{response, fin, 500, _} = do_maybe_h3_error(gun:await(ConnPid, Ref)),
 	ok.
 
 range_ignore_unknown_unit(Config) ->

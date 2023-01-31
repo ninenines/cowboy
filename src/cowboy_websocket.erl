@@ -103,7 +103,8 @@
 %% is trying to upgrade to the Websocket protocol.
 
 -spec is_upgrade_request(cowboy_req:req()) -> boolean().
-is_upgrade_request(#{version := 'HTTP/2', method := <<"CONNECT">>, protocol := Protocol}) ->
+is_upgrade_request(#{version := Version, method := <<"CONNECT">>, protocol := Protocol})
+		when Version =:= 'HTTP/2'; Version =:= 'HTTP/3' ->
 	<<"websocket">> =:= cowboy_bstr:to_lower(Protocol);
 is_upgrade_request(Req=#{version := 'HTTP/1.1', method := <<"GET">>}) ->
 	ConnTokens = cowboy_req:parse_header(<<"connection">>, Req, []),
@@ -148,13 +149,13 @@ upgrade(Req0=#{version := Version}, Env, Handler, HandlerState, Opts) ->
 				<<"connection">> => <<"upgrade">>,
 				<<"upgrade">> => <<"websocket">>
 			}, Req0), Env};
-		%% Use a generic 400 error for HTTP/2.
+		%% Use 501 Not Implemented for HTTP/2 and HTTP/3 as recommended
+		%% by RFC9220 3 (WebSockets Upgrade over HTTP/3).
 		{error, upgrade_required} ->
-			{ok, cowboy_req:reply(400, Req0), Env}
+			{ok, cowboy_req:reply(501, Req0), Env}
 	catch _:_ ->
 		%% @todo Probably log something here?
 		%% @todo Test that we can have 2 /ws 400 status code in a row on the same connection.
-		%% @todo Does this even work?
 		{ok, cowboy_req:reply(400, Req0), Env}
 	end.
 
@@ -286,9 +287,12 @@ websocket_handshake(State, Req=#{ref := Ref, pid := Pid, streamid := StreamID},
 	module() | undefined, any(), binary(),
 	{#state{}, any()}) -> no_return().
 takeover(Parent, Ref, Socket, Transport, _Opts, Buffer,
-		{State0=#state{handler=Handler}, HandlerState}) ->
-	%% @todo We should have an option to disable this behavior.
-	ranch:remove_connection(Ref),
+		{State0=#state{handler=Handler, req=Req}, HandlerState}) ->
+	case Req of
+		#{version := 'HTTP/3'} -> ok;
+		%% @todo We should have an option to disable this behavior.
+		_ -> ranch:remove_connection(Ref)
+	end,
 	Messages = case Transport of
 		undefined -> undefined;
 		_ -> Transport:messages()

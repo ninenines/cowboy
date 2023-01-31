@@ -182,6 +182,7 @@ do(<<"reply2">>, Req0, Opts) ->
 		<<"twice">> ->
 			ct_helper:ignore(cowboy_req, reply, 4),
 			Req1 = cowboy_req:reply(200, Req0),
+			timer:sleep(100),
 			cowboy_req:reply(200, Req1);
 		Status ->
 			cowboy_req:reply(binary_to_integer(Status), Req0)
@@ -245,6 +246,7 @@ do(<<"stream_reply2">>, Req0, Opts) ->
 		<<"twice">> ->
 			ct_helper:ignore(cowboy_req, stream_reply, 3),
 			Req1 = cowboy_req:stream_reply(200, Req0),
+			timer:sleep(100),
 			%% We will crash here so the body shouldn't be sent.
 			Req = cowboy_req:stream_reply(200, Req1),
 			stream_body(Req),
