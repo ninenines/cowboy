@@ -15,7 +15,8 @@ start(_Type, _Args) ->
 		{'_', [
 			{"/[...]", cowboy_static, {priv_dir, file_server, "", [
 				{mimetypes, cow_mimetypes, all},
-				{dir_handler, directory_h}
+				{dir_handler, directory_h},
+				{charset, <<"utf-8">>}
 			]}}
 		]}
 	]),
