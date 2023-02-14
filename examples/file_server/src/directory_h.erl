@@ -32,12 +32,12 @@ content_types_provided(Req, State) ->
 	], Req, State}.
 
 list_json(Req, {Path, Fs}) ->
-	Files = [ <<(list_to_binary(F))/binary>> || F <- Fs ],
+	Files = [ <<(unicode_to_iolist(F))/binary>> || F <- Fs ],
 	{jsx:encode(Files), Req, Path}.
 
 list_html(Req, {Path, Fs}) ->
-	Body = [[ links(Path, F) || F <- [".."|Fs] ]],
-	HTML = [<<"<!DOCTYPE html><html><head><title>Index</title></head>",
+	Body = [[ links(Path, unicode_to_iolist(F)) || F <- [".."|Fs] ]],
+	HTML = [<<"<!DOCTYPE html><html><head><meta charset='utf-8'<title>Index</title></head>",
 		"<body>">>, Body, <<"</body></html>\n">>],
 	{HTML, Req, Path}.
 
@@ -51,3 +51,7 @@ links(<<>>, File) ->
 	["<a href='/", File, "'>", File, "</a><br>\n"];
 links(Prefix, File) ->
 	["<a href='/", Prefix, File, "'>", File, "</a><br>\n"].
+
+
+unicode_to_iolist(UniString) ->
+        binary_to_list(unicode:characters_to_binary(UniString)). 
