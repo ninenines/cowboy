@@ -754,6 +754,14 @@ invalid_header_value(Config) ->
 		"Host: localhost\0rm rf the world\r\n"
 		"\r\n"]).
 
+invalid_header_connection(Config) ->
+	doc("Header field Connection has invalid format. (RFC7230 3.2.6) (RFC7230 6.1)"),
+	#{code := 400} = do_raw(Config, [
+		"GET / HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Connection: jndi{ldap127\r\n"
+		"\r\n"]).
+
 lower_case_header(Config) ->
 	doc("The header field name is case insensitive. (RFC7230 3.2)"),
 	#{code := 200} = do_raw(Config, [

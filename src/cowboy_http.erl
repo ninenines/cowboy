@@ -357,7 +357,10 @@ after_parse({request, Req=#{streamid := StreamID, method := Method,
 				method=Method, version=Version, te=TE}|Streams0],
 			State1 = case maybe_req_close(State0, Headers, Version) of
 				close -> State0#state{streams=Streams, last_streamid=StreamID, flow=Flow};
-				keepalive -> State0#state{streams=Streams, flow=Flow}
+				keepalive -> State0#state{streams=Streams, flow=Flow};
+				invalid_connection_header ->
+					error_terminate(400, State0,
+					{stream_error, protocol_error, 'The Connection header is invalid. (RFC7230 3.2.6) (RFC7230 6.1)'})
 			end,
 			State = set_timeout(State1, idle_timeout),
 			parse(Buffer, commands(State, StreamID, Commands))
@@ -1341,17 +1344,25 @@ stream_call_terminate(StreamID, Reason, StreamState, #state{opts=Opts}) ->
 maybe_req_close(#state{opts=#{http10_keepalive := false}}, _, 'HTTP/1.0') ->
 	close;
 maybe_req_close(_, #{<<"connection">> := Conn}, 'HTTP/1.0') ->
-	Conns = cow_http_hd:parse_connection(Conn),
-	case lists:member(<<"keep-alive">>, Conns) of
-		true -> keepalive;
-		false -> close
+	try
+		Conns = cow_http_hd:parse_connection(Conn),
+		case lists:member(<<"keep-alive">>, Conns) of
+			true -> keepalive;
+			false -> close
+		end
+	catch _:_ ->
+		invalid_connection_header
 	end;
 maybe_req_close(_, _, 'HTTP/1.0') ->
 	close;
 maybe_req_close(_, #{<<"connection">> := Conn}, 'HTTP/1.1') ->
-	case connection_hd_is_close(Conn) of
-		true -> close;
-		false -> keepalive
+	try
+		case connection_hd_is_close(Conn) of
+			true -> close;
+			false -> keepalive
+		end
+	catch _:_ ->
+		invalid_connection_header
 	end;
 maybe_req_close(_, _, _) ->
 	keepalive.
