@@ -1512,6 +1512,28 @@ http10_no_connection_header_close(Config) ->
 	{_, <<"close">>} = lists:keyfind(<<"connection">>, 1, RespHeaders),
 	{error, closed} = raw_recv(Client, 0, 1000).
 
+connection_invalid(Config) ->
+	doc("HTTP/1.1 requests with an invalid Connection header "
+		"must be rejected with a 400 status code and the closing "
+		"of the connection. (RFC7230 6.1)"),
+	#{code := 400, client := Client} = do_raw(Config, [
+		"GET / HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Connection: jndi{ldap127\r\n"
+		"\r\n"]),
+	{error, closed} = raw_recv(Client, 0, 1000).
+
+http10_connection_invalid(Config) ->
+	doc("HTTP/1.0 requests with an invalid Connection header "
+		"must be rejected with a 400 status code and the closing "
+		"of the connection. (RFC7230 6.1)"),
+	#{code := 400, client := Client} = do_raw(Config, [
+		"GET / HTTP/1.0\r\n"
+		"Host: localhost\r\n"
+		"Connection: jndi{ldap127\r\n"
+		"\r\n"]),
+	{error, closed} = raw_recv(Client, 0, 1000).
+
 limit_requests_keepalive(Config) ->
 	doc("The maximum number of requests sent using a persistent connection "
 		"must be subject to configuration. The connection must be closed "
