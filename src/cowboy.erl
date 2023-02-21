@@ -17,7 +17,7 @@
 -export([start_clear/3]).
 -export([start_tls/3]).
 -export([stop_listener/1]).
--export([set_env/3]).
+-export([set_env/3, get_env/2]).
 
 %% Internal.
 -export([log/2]).
@@ -76,6 +76,12 @@ set_env(Ref, Name, Value) ->
 	Env = maps:get(env, Opts, #{}),
 	Opts2 = maps:put(env, maps:put(Name, Value, Env), Opts),
 	ok = ranch:set_protocol_options(Ref, Opts2).
+
+-spec get_env(Ref :: ranch:ref(), Name :: atom()) -> Value :: any().
+get_env(Ref, Name) ->
+	Opts = ranch:get_protocol_options(Ref),
+	Env = maps:get(env, Opts, #{}),
+	maps:get(Name, Env).
 
 %% Internal.
 
