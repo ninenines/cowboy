@@ -40,7 +40,10 @@ init_dispatch(_) ->
 	cowboy_router:compile([{'_', [
 		{"/long_polling", long_polling_h, []},
 		{"/loop_body", loop_handler_body_h, []},
-		{"/loop_timeout", loop_handler_timeout_h, []}
+		{"/loop_request_timeout", loop_handler_timeout_h, []},
+		{"/loop_timeout_init", loop_handler_timeout_init_h, []},
+		{"/loop_timeout_info", loop_handler_timeout_info_h, []},
+		{"/loop_timeout_hibernate", loop_handler_timeout_hibernate_h, []}
 	]}]).
 
 %% Tests.
@@ -79,6 +82,31 @@ long_polling_pipeline(Config) ->
 request_timeout(Config) ->
 	doc("Ensure that the request_timeout isn't applied when a request is ongoing."),
 	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, "/loop_timeout", [{<<"accept-encoding">>, <<"gzip">>}]),
+	Ref = gun:get(ConnPid, "/loop_request_timeout", [{<<"accept-encoding">>, <<"gzip">>}]),
 	{response, nofin, 200, _} = gun:await(ConnPid, Ref, 10000),
+	ok.
+
+timeout_hibernate(Config) ->
+	doc("Ensure that loop handler idle timeouts don't trigger after hibernate is returned."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/loop_timeout_hibernate", [{<<"accept-encoding">>, <<"gzip">>}]),
+	{response, fin, 200, _} = gun:await(ConnPid, Ref),
+	ok.
+
+timeout_info(Config) ->
+	doc("Ensure that loop handler idle timeouts trigger on time when set in info/3."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/loop_timeout_info", [{<<"accept-encoding">>, <<"gzip">>}]),
+	{response, fin, 299, _} = gun:await(ConnPid, Ref),
+	ok.
+
+timeout_init(Config) ->
+	doc("Ensure that loop handler idle timeouts trigger on time when set in init/2."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/loop_timeout_init?timeout=300",
+		[{<<"accept-encoding">>, <<"gzip">>}]),
+	{response, fin, 200, _} = gun:await(ConnPid, Ref),
+	Ref2 = gun:get(ConnPid, "/loop_timeout_init?timeout=100",
+		[{<<"accept-encoding">>, <<"gzip">>}]),
+	{response, fin, 299, _} = gun:await(ConnPid, Ref2),
 	ok.

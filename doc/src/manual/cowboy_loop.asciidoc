@@ -28,11 +28,11 @@ Loop handlers implement the following interface:
 ----
 init(Req, State)
     -> {cowboy_loop, Req, State}
-     | {cowboy_loop, Req, State, hibernate}
+     | {cowboy_loop, Req, State, hibernate | timeout()}
 
 info(Info, Req, State)
     -> {ok, Req, State}
-     | {ok, Req, State, hibernate}
+     | {ok, Req, State, hibernate | timeout()}
      | {stop, Req, State}
 
 terminate(Reason, Req, State) -> ok  %% optional
@@ -69,7 +69,9 @@ stop::
 
 == Changelog
 
-* *2.0*: Loop handlers no longer need to handle overflow/timeouts.
+* *2.11*: A timeout may be returned instead of `hibernate`.
+          It functions the same way as the `gen_server` timeout.
+* *2.0*: Loop handlers no longer need to handle socket events.
 * *1.0*: Behavior introduced.
 
 == See also

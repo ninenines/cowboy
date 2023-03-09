@@ -659,7 +659,7 @@ sys_get_state_loop(Config) ->
 	timer:sleep(100),
 	SupPid = get_remote_pid_tcp(Socket),
 	[{_, Pid, _, _}] = supervisor:which_children(SupPid),
-	{Req, Env, long_polling_sys_h, undefined} = sys:get_state(Pid),
+	{Req, Env, long_polling_sys_h, undefined, infinity} = sys:get_state(Pid),
 	#{pid := _, streamid := _} = Req,
 	#{dispatch := _} = Env,
 	ok.
@@ -784,7 +784,7 @@ sys_replace_state_loop(Config) ->
 	timer:sleep(100),
 	SupPid = get_remote_pid_tcp(Socket),
 	[{_, Pid, _, _}] = supervisor:which_children(SupPid),
-	{Req, Env, long_polling_sys_h, undefined} = sys:replace_state(Pid, fun(S) -> S end),
+	{Req, Env, long_polling_sys_h, undefined, infinity} = sys:replace_state(Pid, fun(S) -> S end),
 	#{pid := _, streamid := _} = Req,
 	#{dispatch := _} = Env,
 	ok.

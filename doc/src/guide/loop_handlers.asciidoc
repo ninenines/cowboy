@@ -31,7 +31,10 @@ for plain HTTP handlers.
 The `init/2` function must return a `cowboy_loop` tuple to enable
 loop handler behavior. This tuple may optionally contain
 the atom `hibernate` to make the process enter hibernation
-until a message is received.
+until a message is received. Alternatively, the tuple may
+optionally contain a positive integer to create a `timeout`
+message when the process has not received messages for too
+long.
 
 This snippet enables the loop handler:
 
@@ -47,6 +50,14 @@ This also makes the process hibernate:
 ----
 init(Req, State) ->
     {cowboy_loop, Req, State, hibernate}.
+----
+
+This makes the process time out after 1000ms of idle time.
+
+[source,erlang]
+----
+init(Req, State) ->
+    {cowboy_loop, Req, State, 1000}.
 ----
 
 === Receive loop
@@ -123,3 +134,17 @@ messages received. This is done by returning the atom
 `hibernate` as part of the `loop` tuple callbacks normally
 return. Just add the atom at the end and Cowboy will hibernate
 accordingly.
+
+=== Idle timeout
+
+You may activate timeout events by returning a positive integer
+`N` as part of the `loop` tuple callbacks return. The default
+value is `infinity`. The `info` callback will be called with the
+atom `timeout` unless a message is received within `N` milliseconds:
+
+[source,erlang]
+----
+info(timeout, Req, State) ->
+    %% Do something...
+    {ok, Req, State, 1000}.
+----
