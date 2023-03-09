@@ -40,7 +40,9 @@ init_dispatch(_) ->
 	cowboy_router:compile([{'_', [
 		{"/long_polling", long_polling_h, []},
 		{"/loop_body", loop_handler_body_h, []},
-		{"/loop_timeout", loop_handler_timeout_h, []}
+		{"/loop_timeout", loop_handler_timeout_h, []},
+		{"/loop_idle", loop_idle_timeout_h, []},
+		{"/loop_idle_new", loop_new_timeout_h, []}
 	]}]).
 
 %% Tests.
@@ -81,4 +83,23 @@ request_timeout(Config) ->
 	ConnPid = gun_open(Config),
 	Ref = gun:get(ConnPid, "/loop_timeout", [{<<"accept-encoding">>, <<"gzip">>}]),
 	{response, nofin, 200, _} = gun:await(ConnPid, Ref, 10000),
+	ok.
+
+idle_timeout(Config) ->
+	doc("Check idle timeout."),
+	ConnPid = gun_open(Config),
+
+	Ref = gun:get(ConnPid, "/loop_idle?timeout=2000", [{<<"accept-encoding">>, <<"gzip">>}]),
+	{response, fin, 200, _} = gun:await(ConnPid, Ref),
+
+	Ref2 = gun:get(ConnPid, "/loop_idle?timeout=500", [{<<"accept-encoding">>, <<"gzip">>}]),
+	{response, fin, 299, _} = gun:await(ConnPid, Ref2),
+
+	ok.
+
+new_timeout(Config) ->
+	doc("Check that the new timeout gets set."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/loop_idle_new", [{<<"accept-encoding">>, <<"gzip">>}]),
+	{response, fin, 299, _} = gun:await(ConnPid, Ref),
 	ok.
