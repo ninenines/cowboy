@@ -768,18 +768,18 @@ set_resp_cookie(Config) ->
 	doc("Response using set_resp_cookie."),
 	%% Single cookie, no options.
 	{200, Headers1, _} = do_get("/resp/set_resp_cookie3", Config),
-	{_, <<"mycookie=myvalue; Version=1">>}
+	{_, <<"mycookie=myvalue">>}
 		= lists:keyfind(<<"set-cookie">>, 1, Headers1),
 	%% Single cookie, with options.
 	{200, Headers2, _} = do_get("/resp/set_resp_cookie4", Config),
-	{_, <<"mycookie=myvalue; Version=1; Path=/resp/set_resp_cookie4">>}
+	{_, <<"mycookie=myvalue; Path=/resp/set_resp_cookie4">>}
 		= lists:keyfind(<<"set-cookie">>, 1, Headers2),
 	%% Multiple cookies.
 	{200, Headers3, _} = do_get("/resp/set_resp_cookie3/multiple", Config),
 	[_, _] = [H || H={<<"set-cookie">>, _} <- Headers3],
 	%% Overwrite previously set cookie.
 	{200, Headers4, _} = do_get("/resp/set_resp_cookie3/overwrite", Config),
-	{_, <<"mycookie=overwrite; Version=1">>}
+	{_, <<"mycookie=overwrite">>}
 		= lists:keyfind(<<"set-cookie">>, 1, Headers4),
 	ok.
 
