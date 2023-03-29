@@ -590,7 +590,8 @@ http_upgrade_response_half_closed(Config) ->
 alpn_ignore_h2c(Config) ->
 	doc("An h2c ALPN protocol identifier must be ignored. (RFC7540 3.3)"),
 	{ok, Socket} = ssl:connect("localhost", config(port, Config),
-		[{alpn_advertised_protocols, [<<"h2c">>, <<"http/1.1">>]}, binary, {active, false}]),
+		[{alpn_advertised_protocols, [<<"h2c">>, <<"http/1.1">>]},
+			binary, {active, false}, {versions, ['tlsv1.2']}]),
 	{ok, <<"http/1.1">>} = ssl:negotiated_protocol(Socket),
 	ok.
 
@@ -598,7 +599,8 @@ alpn_server_preface(Config) ->
 	doc("The first frame must be a SETTINGS frame "
 		"for the server connection preface. (RFC7540 3.3, RFC7540 3.5, RFC7540 6.5)"),
 	{ok, Socket} = ssl:connect("localhost", config(port, Config),
-		[{alpn_advertised_protocols, [<<"h2">>]}, binary, {active, false}]),
+		[{alpn_advertised_protocols, [<<"h2">>]},
+			binary, {active, false}, {versions, ['tlsv1.2']}]),
 	{ok, <<"h2">>} = ssl:negotiated_protocol(Socket),
 	%% Receive the server preface.
 	{ok, << _:24, 4:8, 0:40 >>} = ssl:recv(Socket, 9, 1000),
@@ -608,7 +610,8 @@ alpn_client_preface_timeout(Config) ->
 	doc("Clients negotiating HTTP/2 and not sending a preface in "
 		"a timely manner must be disconnected."),
 	{ok, Socket} = ssl:connect("localhost", config(port, Config),
-		[{alpn_advertised_protocols, [<<"h2">>]}, binary, {active, false}]),
+		[{alpn_advertised_protocols, [<<"h2">>]},
+			binary, {active, false}, {versions, ['tlsv1.2']}]),
 	{ok, <<"h2">>} = ssl:negotiated_protocol(Socket),
 	%% Receive the server preface.
 	{ok, << Len:24 >>} = ssl:recv(Socket, 3, 1000),
@@ -621,7 +624,8 @@ alpn_reject_missing_client_preface(Config) ->
 	doc("Servers must treat an invalid connection preface as a "
 		"connection error of type PROTOCOL_ERROR. (RFC7540 3.3, RFC7540 3.5)"),
 	{ok, Socket} = ssl:connect("localhost", config(port, Config),
-		[{alpn_advertised_protocols, [<<"h2">>]}, binary, {active, false}]),
+		[{alpn_advertised_protocols, [<<"h2">>]},
+			binary, {active, false}, {versions, ['tlsv1.2']}]),
 	{ok, <<"h2">>} = ssl:negotiated_protocol(Socket),
 	%% Send a SETTINGS frame directly instead of the proper preface.
 	ok = ssl:send(Socket, cow_http2:settings(#{})),
@@ -636,7 +640,8 @@ alpn_reject_invalid_client_preface(Config) ->
 	doc("Servers must treat an invalid connection preface as a "
 		"connection error of type PROTOCOL_ERROR. (RFC7540 3.3, RFC7540 3.5)"),
 	{ok, Socket} = ssl:connect("localhost", config(port, Config),
-		[{alpn_advertised_protocols, [<<"h2">>]}, binary, {active, false}]),
+		[{alpn_advertised_protocols, [<<"h2">>]},
+			binary, {active, false}, {versions, ['tlsv1.2']}]),
 	{ok, <<"h2">>} = ssl:negotiated_protocol(Socket),
 	%% Send a slightly incorrect preface.
 	ok = ssl:send(Socket, "PRI * HTTP/2.0\r\n\r\nSM: Value\r\n\r\n"),
@@ -651,7 +656,8 @@ alpn_reject_missing_client_preface_settings(Config) ->
 	doc("Servers must treat an invalid connection preface as a "
 		"connection error of type PROTOCOL_ERROR. (RFC7540 3.3, RFC7540 3.5)"),
 	{ok, Socket} = ssl:connect("localhost", config(port, Config),
-		[{alpn_advertised_protocols, [<<"h2">>]}, binary, {active, false}]),
+		[{alpn_advertised_protocols, [<<"h2">>]},
+			binary, {active, false}, {versions, ['tlsv1.2']}]),
 	{ok, <<"h2">>} = ssl:negotiated_protocol(Socket),
 	%% Send a valid preface sequence except followed by a PING instead of a SETTINGS frame.
 	ok = ssl:send(Socket, ["PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n", cow_http2:ping(0)]),
@@ -666,7 +672,8 @@ alpn_reject_invalid_client_preface_settings(Config) ->
 	doc("Servers must treat an invalid connection preface as a "
 		"connection error of type PROTOCOL_ERROR. (RFC7540 3.3, RFC7540 3.5)"),
 	{ok, Socket} = ssl:connect("localhost", config(port, Config),
-		[{alpn_advertised_protocols, [<<"h2">>]}, binary, {active, false}]),
+		[{alpn_advertised_protocols, [<<"h2">>]},
+			binary, {active, false}, {versions, ['tlsv1.2']}]),
 	{ok, <<"h2">>} = ssl:negotiated_protocol(Socket),
 	%% Send a valid preface sequence except followed by a badly formed SETTINGS frame.
 	ok = ssl:send(Socket, ["PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n", << 0:24, 4:8, 0:9, 1:31 >>]),
@@ -680,7 +687,8 @@ alpn_reject_invalid_client_preface_settings(Config) ->
 alpn_accept_client_preface_empty_settings(Config) ->
 	doc("The SETTINGS frame in the client preface may be empty. (RFC7540 3.3, RFC7540 3.5)"),
 	{ok, Socket} = ssl:connect("localhost", config(port, Config),
-		[{alpn_advertised_protocols, [<<"h2">>]}, binary, {active, false}]),
+		[{alpn_advertised_protocols, [<<"h2">>]},
+			binary, {active, false}, {versions, ['tlsv1.2']}]),
 	{ok, <<"h2">>} = ssl:negotiated_protocol(Socket),
 	%% Send a valid preface sequence except followed by an empty SETTINGS frame.
 	ok = ssl:send(Socket, ["PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n", cow_http2:settings(#{})]),
@@ -695,7 +703,8 @@ alpn_client_preface_settings_ack_timeout(Config) ->
 	doc("Failure to acknowledge the server's SETTINGS frame "
 		"results in a SETTINGS_TIMEOUT connection error. (RFC7540 3.5, RFC7540 6.5.3)"),
 	{ok, Socket} = ssl:connect("localhost", config(port, Config),
-		[{alpn_advertised_protocols, [<<"h2">>]}, binary, {active, false}]),
+		[{alpn_advertised_protocols, [<<"h2">>]},
+			binary, {active, false}, {versions, ['tlsv1.2']}]),
 	{ok, <<"h2">>} = ssl:negotiated_protocol(Socket),
 	%% Send a valid preface.
 	ok = ssl:send(Socket, ["PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n", cow_http2:settings(#{})]),
@@ -711,7 +720,8 @@ alpn_client_preface_settings_ack_timeout(Config) ->
 alpn(Config) ->
 	doc("Successful ALPN negotiation. (RFC7540 3.3)"),
 	{ok, Socket} = ssl:connect("localhost", config(port, Config),
-		[{alpn_advertised_protocols, [<<"h2">>]}, binary, {active, false}]),
+		[{alpn_advertised_protocols, [<<"h2">>]},
+			binary, {active, false}, {versions, ['tlsv1.2']}]),
 	{ok, <<"h2">>} = ssl:negotiated_protocol(Socket),
 	%% Send a valid preface.
 	%% @todo Use non-empty SETTINGS here. Just because.
@@ -735,7 +745,8 @@ alpn(Config) ->
 
 prior_knowledge_reject_tls(Config) ->
 	doc("Implementations that support HTTP/2 over TLS must use ALPN. (RFC7540 3.4)"),
-	{ok, Socket} = ssl:connect("localhost", config(port, Config), [binary, {active, false}]),
+	{ok, Socket} = ssl:connect("localhost", config(port, Config),
+		[binary, {active, false}, {versions, ['tlsv1.2']}]),
 	%% Send a valid preface.
 	ok = ssl:send(Socket, ["PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n", cow_http2:settings(#{})]),
 	%% We expect the server to send an HTTP 400 error
