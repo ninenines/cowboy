@@ -233,8 +233,10 @@ match_cookies(Config) ->
 	<<"#{}">> = do_get_body("/match/cookies", [{<<"cookie">>, "a=b; c=d"}], Config),
 	<<"#{a => <<\"b\">>}">> = do_get_body("/match/cookies/a", [{<<"cookie">>, "a=b; c=d"}], Config),
 	<<"#{c => <<\"d\">>}">> = do_get_body("/match/cookies/c", [{<<"cookie">>, "a=b; c=d"}], Config),
-	<<"#{a => <<\"b\">>,c => <<\"d\">>}">> = do_get_body("/match/cookies/a/c",
-		[{<<"cookie">>, "a=b; c=d"}], Config),
+	case do_get_body("/match/cookies/a/c", [{<<"cookie">>, "a=b; c=d"}], Config) of
+		<<"#{a => <<\"b\">>,c => <<\"d\">>}">> -> ok;
+		<<"#{c => <<\"d\">>,a => <<\"b\">>}">> -> ok
+	end,
 	%% Ensure match errors result in a 400 response.
 	{400, _, _} = do_get("/match/cookies/a/c",
 		[{<<"cookie">>, "a=b"}], Config),
@@ -247,9 +249,18 @@ match_qs(Config) ->
 	<<"#{}">> = do_get_body("/match/qs?a=b&c=d", Config),
 	<<"#{a => <<\"b\">>}">> = do_get_body("/match/qs/a?a=b&c=d", Config),
 	<<"#{c => <<\"d\">>}">> = do_get_body("/match/qs/c?a=b&c=d", Config),
-	<<"#{a => <<\"b\">>,c => <<\"d\">>}">> = do_get_body("/match/qs/a/c?a=b&c=d", Config),
-	<<"#{a => <<\"b\">>,c => true}">> = do_get_body("/match/qs/a/c?a=b&c", Config),
-	<<"#{a => true,c => <<\"d\">>}">> = do_get_body("/match/qs/a/c?a&c=d", Config),
+	case do_get_body("/match/qs/a/c?a=b&c=d", Config) of
+		<<"#{a => <<\"b\">>,c => <<\"d\">>}">> -> ok;
+		<<"#{c => <<\"d\">>,a => <<\"b\">>}">> -> ok
+	end,
+	case do_get_body("/match/qs/a/c?a=b&c", Config) of
+		<<"#{a => <<\"b\">>,c => true}">> -> ok;
+		<<"#{c => true,a => <<\"b\">>}">> -> ok
+	end,
+	case do_get_body("/match/qs/a/c?a&c=d", Config) of
+		<<"#{a => true,c => <<\"d\">>}">> -> ok;
+		<<"#{c => <<\"d\">>,a => true}">> -> ok
+	end,
 	%% Ensure match errors result in a 400 response.
 	{400, _, _} = do_get("/match/qs/a/c?a=b", [], Config),
 	%% This function is tested more extensively through unit tests.
@@ -601,10 +612,18 @@ read_and_match_urlencoded_body(Config) ->
 	<<"#{}">> = do_body("POST", "/match/body_qs", [], "a=b&c=d", Config),
 	<<"#{a => <<\"b\">>}">> = do_body("POST", "/match/body_qs/a", [], "a=b&c=d", Config),
 	<<"#{c => <<\"d\">>}">> = do_body("POST", "/match/body_qs/c", [], "a=b&c=d", Config),
-	<<"#{a => <<\"b\">>,c => <<\"d\">>}">>
-		= do_body("POST", "/match/body_qs/a/c", [], "a=b&c=d", Config),
-	<<"#{a => <<\"b\">>,c => true}">> = do_body("POST", "/match/body_qs/a/c", [], "a=b&c", Config),
-	<<"#{a => true,c => <<\"d\">>}">> = do_body("POST", "/match/body_qs/a/c", [], "a&c=d", Config),
+	case do_body("POST", "/match/body_qs/a/c", [], "a=b&c=d", Config) of
+		<<"#{a => <<\"b\">>,c => <<\"d\">>}">> -> ok;
+		<<"#{c => <<\"d\">>,a => <<\"b\">>}">> -> ok
+	end,
+	case do_body("POST", "/match/body_qs/a/c", [], "a=b&c", Config) of
+		<<"#{a => <<\"b\">>,c => true}">> -> ok;
+		<<"#{c => true,a => <<\"b\">>}">> -> ok
+	end,
+	case do_body("POST", "/match/body_qs/a/c", [], "a&c=d", Config) of
+		<<"#{a => true,c => <<\"d\">>}">> -> ok;
+		<<"#{c => <<\"d\">>,a => true}">> -> ok
+	end,
 	%% Ensure match errors result in a 400 response.
 	{400, _} = do_body_error("POST", "/match/body_qs/a/c", [], "a=b", Config),
 	%% Ensure parse errors result in a 400 response.
