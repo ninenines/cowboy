@@ -184,22 +184,16 @@ cert(Config) ->
 		ssl -> do_cert(Config)
 	end.
 
-do_cert(Config0) ->
+do_cert(Config) ->
 	doc("A client TLS certificate was provided."),
-	{CaCert, Cert, Key} = ct_helper:make_certs(),
-	Config = [{tls_opts, [
-		{cert, Cert},
-		{key, Key},
-		{cacerts, [CaCert]}
-	]}|Config0],
 	Cert = do_get_body("/cert", Config),
 	Cert = do_get_body("/direct/cert", Config),
 	ok.
 
 cert_undefined(Config) ->
 	doc("No client TLS certificate was provided."),
-	<<"undefined">> = do_get_body("/cert", Config),
-	<<"undefined">> = do_get_body("/direct/cert", Config),
+	<<"undefined">> = do_get_body("/cert", [{no_cert, true}|Config]),
+	<<"undefined">> = do_get_body("/direct/cert", [{no_cert, true}|Config]),
 	ok.
 
 header(Config) ->

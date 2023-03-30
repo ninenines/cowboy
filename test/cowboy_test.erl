@@ -112,10 +112,14 @@ gun_open(Config) ->
 	gun_open(Config, #{}).
 
 gun_open(Config, Opts) ->
+	TlsOpts = case proplists:get_value(no_cert, Config, false) of
+		true -> [{verify, verify_none}];
+		false -> ct_helper:get_certs_from_ets()
+	end,
 	{ok, ConnPid} = gun:open("localhost", config(port, Config), Opts#{
 		retry => 0,
 		transport => config(type, Config),
-		tls_opts => [{versions, ['tlsv1.2']}|proplists:get_value(tls_opts, Config, [])],
+		tls_opts => TlsOpts,
 		protocols => [config(protocol, Config)]
 	}),
 	ConnPid.

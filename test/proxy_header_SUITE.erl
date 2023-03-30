@@ -126,7 +126,8 @@ do_proxy_header_https(Config, ProxyInfo) ->
 	{ok, Socket0} = gen_tcp:connect("localhost", config(port, Config),
 		[binary, {active, false}, {packet, raw}]),
 	ok = gen_tcp:send(Socket0, ranch_proxy_header:header(ProxyInfo)),
-	{ok, Socket} = ssl:connect(Socket0, [{versions, ['tlsv1.2']}], 1000),
+	TlsOpts = ct_helper:get_certs_from_ets(),
+	{ok, Socket} = ssl:connect(Socket0, TlsOpts, 1000),
 	do_proxy_header_http_common({raw_client, Socket, ssl}, ProxyInfo).
 
 do_proxy_header_http_common(Client, ProxyInfo) ->
@@ -151,8 +152,9 @@ do_proxy_header_h2(Config, ProxyInfo) ->
 	{ok, Socket0} = gen_tcp:connect("localhost", config(port, Config),
 		[binary, {active, false}, {packet, raw}]),
 	ok = gen_tcp:send(Socket0, ranch_proxy_header:header(ProxyInfo)),
+	TlsOpts = ct_helper:get_certs_from_ets(),
 	{ok, Socket} = ssl:connect(Socket0,
-		[{alpn_advertised_protocols, [<<"h2">>]}, {versions, ['tlsv1.2']}], 1000),
+		[{alpn_advertised_protocols, [<<"h2">>]}|TlsOpts], 1000),
 	do_proxy_header_h2_common({raw_client, Socket, ssl}, ProxyInfo).
 
 do_proxy_header_h2c(Config, ProxyInfo) ->
