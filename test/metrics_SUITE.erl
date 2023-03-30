@@ -469,7 +469,7 @@ error_response(Config) ->
 			[{_, #{
 				spawn := ProcSpawn,
 				exit := ProcExit,
-				reason := {crash, _StackTrace}
+				reason := {crash, StackTrace}
 			}}] = maps:to_list(Procs),
 			true = ProcSpawn =< ProcExit,
 			%% Confirm other metadata are as expected.
@@ -477,7 +477,7 @@ error_response(Config) ->
 				ref := _,
 				pid := From,
 				streamid := 1,
-				reason := {internal_error, {'EXIT', _Pid, {crash, _StackTrace}}, 'Stream process crashed.'},
+				reason := {internal_error, {'EXIT', _Pid, {crash, StackTrace}}, 'Stream process crashed.'},
 				req := #{},
 				informational := [],
 				user_data := #{}
@@ -526,7 +526,7 @@ error_response_after_reply(Config) ->
 			[{_, #{
 				spawn := ProcSpawn,
 				exit := ProcExit,
-				reason := {crash, _StackTrace}
+				reason := {crash, StackTrace}
 			}}] = maps:to_list(Procs),
 			true = ProcSpawn =< ProcExit,
 			%% Confirm other metadata are as expected.
@@ -534,7 +534,7 @@ error_response_after_reply(Config) ->
 				ref := _,
 				pid := From,
 				streamid := 1,
-				reason := {internal_error, {'EXIT', _Pid, {crash, _StackTrace}}, 'Stream process crashed.'},
+				reason := {internal_error, {'EXIT', _Pid, {crash, StackTrace}}, 'Stream process crashed.'},
 				req := #{},
 				informational := [],
 				user_data := #{}

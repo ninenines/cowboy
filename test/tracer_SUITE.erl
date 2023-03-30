@@ -29,13 +29,8 @@ suite() ->
 %% We initialize trace patterns here. Appropriate would be in
 %% init_per_suite/1, but this works just as well.
 all() ->
-	case code:is_module_native(?MODULE) of
-		true ->
-			{skip, "The Cowboy tracer is not compatible with native code."};
-		false ->
-			cowboy_tracer_h:set_trace_patterns(),
-			cowboy_test:common_all()
-	end.
+	cowboy_tracer_h:set_trace_patterns(),
+	cowboy_test:common_all().
 
 %% We want tests for each group to execute sequentially
 %% because we need to modify the protocol options. Groups
