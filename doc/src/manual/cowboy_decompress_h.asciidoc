@@ -1,0 +1,58 @@
+= cowboy_decompress_h(3)
+
+== Name
+
+cowboy_decompress_h - Decompress stream handler
+
+== Description
+
+The module `cowboy_decompress_h` decompresses request bodies
+automatically when the server supports it. Requests will
+only be decompressed when their compression ratio is lower
+than the configured limit. Mismatch of the content and
+`content-encoding` is rejected with `400 Bad Request`.
+
+== Options
+
+[source,erlang]
+----
+opts() :: #{
+	decompress_ratio_limit => non_neg_integer(),
+	decompress_ignore => boolean()
+}
+----
+
+Configuration for the decompress stream handler.
+
+The default value is given next to the option name:
+
+decompress_ratio_limit (20)::
+The max ratio of the compressed and decompressed body
+before it is rejected with `413 Payload Too Large`.
++
+This option can be updated at any time using the
+`set_options` stream handler command.
+
+decompress_ignore (false)::
+
+Whether the handler will be ignored.
++
+This option can be updated at any time using the
+`set_options` stream handler command.
+
+== Events
+
+The decompress stream handler does not produce any event.
+
+== Changelog
+
+* *2.11*: Module introduced.
+
+== See also
+
+link:man:cowboy(7)[cowboy(7)],
+link:man:cowboy_stream(3)[cowboy_stream(3)],
+link:man:cowboy_compress_h(3)[cowboy_compress_h(3)],
+link:man:cowboy_metrics_h(3)[cowboy_metrics_h(3)],
+link:man:cowboy_stream_h(3)[cowboy_stream_h(3)],
+link:man:cowboy_tracer_h(3)[cowboy_tracer_h(3)]

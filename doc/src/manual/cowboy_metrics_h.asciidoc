@@ -160,5 +160,6 @@ The metrics stream handler does not produce any event.
 link:man:cowboy(7)[cowboy(7)],
 link:man:cowboy_stream(3)[cowboy_stream(3)],
 link:man:cowboy_compress_h(3)[cowboy_compress_h(3)],
+link:man:cowboy_decompress_h(3)[cowboy_decompress_h(3)],
 link:man:cowboy_stream_h(3)[cowboy_stream_h(3)],
 link:man:cowboy_tracer_h(3)[cowboy_tracer_h(3)]
