@@ -65,6 +65,11 @@ automatically compress responses when possible. It is not
 enabled by default. It is a good example for writing your
 own handlers that will modify responses.
 
+link:man:cowboy_decompress_h(3)[cowboy_decompress_h] will
+automatically decompress requests when possible. It is not
+enabled by default. It is a good example for writing your
+own handlers that will modify requests.
+
 link:man:cowboy_metrics_h(3)[cowboy_metrics_h] gathers
 metrics about a stream then passes them to a configurable
 function. It is not enabled by default.
