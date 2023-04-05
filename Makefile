@@ -2,7 +2,7 @@
 
 PROJECT = cowboy
 PROJECT_DESCRIPTION = Small, fast, modern HTTP server.
-PROJECT_VERSION = 2.9.0
+PROJECT_VERSION = 2.9.1
 PROJECT_REGISTERED = cowboy_clock
 
 # Options.
