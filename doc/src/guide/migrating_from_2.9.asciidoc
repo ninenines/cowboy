@@ -1,0 +1,42 @@
+[appendix]
+== Migrating from Cowboy 2.9 to 2.10
+
+Cowboy 2.10 is a maintenance release adding support
+for Erlang/OTP 26. The main change is a Cowlib update
+to fix a compilation error that only occurs starting
+from OTP 26.
+
+Cowboy 2.10 requires Erlang/OTP 22.0 or greater.
+
+=== Features added
+
+* Add support for `Default` value of SameSite
+  cookie attribute.
+
+* Add support for the `stale-*` cache-control directives
+  from RFC 5861.
+
+* Update Cowlib to 2.12.1.
+
+=== Bugs fixed
+
+* Fix a compilation error in Cowlib when using Erlang/OTP 26.
+
+* Fix data sent after RST_STREAM in HTTP/2 in rare cases.
+
+* Fix parsing of RST_STREAM frames to properly handle
+  frames that have a valid length but were not fully
+  received yet.
+
+* Remove the obsolete `Version` cookie attribute.
+
+* Handle more edge cases for cookie parsing based on updates
+  to the RFC 6265bis draft.
+
+* Make Basic auth parsing ignore unknown authentication
+  parameters and generally update the code to conform
+  to RFC 7617.
+
+* Fix URI template reserved expansion of %-encoded.
+
+* Update structured headers implementation to RFC 8941.
