@@ -39,6 +39,7 @@ opts() :: #{
     max_frame_size_sent            => 16384..16777215 | infinity,
     max_received_frame_rate        => {pos_integer(), timeout()},
     max_reset_stream_rate          => {pos_integer(), timeout()},
+    max_cancel_stream_rate         => {pos_integer(), timeout()},
     max_stream_buffer_size         => non_neg_integer(),
     max_stream_window_size         => 0..16#7fffffff,
     preface_timeout                => timeout(),
@@ -198,6 +199,14 @@ the number of streams that can be reset over a certain time period.
 The rate is expressed as a tuple `{NumResets, TimeMs}`. This is
 similar to a supervisor restart intensity/period.
 
+max_cancel_stream_rate ({500, 10000})::
+
+Maximum cancel stream rate per connection. This can be used to
+protect against misbehaving or malicious peers, by limiting the
+number of streams that the peer can reset over a certain time period.
+The rate is expressed as a tuple `{NumCancels, TimeMs}`. This is
+similar to a supervisor restart intensity/period.
+
 max_stream_buffer_size (8000000)::
 
 Maximum stream buffer size in bytes. This is a soft limit used
@@ -256,6 +265,8 @@ too many `WINDOW_UPDATE` frames.
 
 == Changelog
 
+* *2.11*: Add the option `max_cancel_stream_rate` to protect
+          against another flood scenario.
 * *2.9*: The `goaway_initial_timeout` and `goaway_complete_timeout`
          options were added.
 * *2.8*: The `active_n` option was added.

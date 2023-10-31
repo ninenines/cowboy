@@ -39,6 +39,7 @@ groups() ->
 		http2_empty_frame_flooding_push_promise,
 		http2_ping_flood,
 		http2_reset_flood,
+		http2_cancel_flood,
 		http2_settings_flood,
 		http2_zero_length_header_leak
 	],
@@ -72,11 +73,50 @@ init_dispatch(_) ->
 	cowboy_router:compile([{"localhost", [
 		{"/", hello_h, []},
 		{"/echo/:key", echo_h, []},
+		{"/delay_hello", delay_hello_h, 1000},
 		{"/long_polling", long_polling_h, []},
 		{"/resp/:key[/:arg]", resp_h, []}
 	]}]).
 
 %% Tests.
+
+http2_cancel_flood(Config) ->
+	doc("Confirm that Cowboy detects the rapid reset attack. (CVE-2023-44487)"),
+	do_http2_cancel_flood(Config, 1, 500),
+	do_http2_cancel_flood(Config, 10, 50),
+	do_http2_cancel_flood(Config, 500, 1),
+	ok.
+
+do_http2_cancel_flood(Config, NumStreamsPerBatch, NumBatches) ->
+	{ok, Socket} = rfc7540_SUITE:do_handshake(Config),
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/delay_hello">>}
+	]),
+	AllStreamIDs = lists:seq(1, NumBatches * NumStreamsPerBatch * 2, 2),
+	_ = lists:foldl(
+		fun (_BatchNumber, AvailableStreamIDs) ->
+			%% Take a bunch of IDs from the available stream IDs.
+			%% Send HEADERS for all these and then cancel them.
+			{IDs, RemainingStreamIDs} = lists:split(NumStreamsPerBatch, AvailableStreamIDs),
+			_ = gen_tcp:send(Socket, [cow_http2:headers(ID, fin, HeadersBlock) || ID <- IDs]),
+			_ = gen_tcp:send(Socket, [<<4:24, 3:8, 0:8, ID:32, 8:32>> || ID <- IDs]),
+			RemainingStreamIDs
+		end,
+		AllStreamIDs,
+		lists:seq(1, NumBatches, 1)),
+	%% When Cowboy detects a flood it must close the connection.
+	case gen_tcp:recv(Socket, 17, 6000) of
+		{ok, <<_:24, 7:8, 0:8, 0:32, _LastStreamId:32, 11:32>>} ->
+			%% GOAWAY with error code 11 = ENHANCE_YOUR_CALM.
+			ok;
+		%% We also accept the connection being closed immediately,
+		%% which may happen because we send the GOAWAY right before closing.
+		{error, closed} ->
+			ok
+	end.
 
 http2_data_dribble(Config) ->
 	doc("Request a very large response then update the window 1 byte at a time. (CVE-2019-9511)"),
