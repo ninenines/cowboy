@@ -197,7 +197,7 @@ init_reset_rate_limiting(State=#state{opts=Opts}, CurrentTime) ->
 	}.
 
 init_cancel_rate_limiting(State=#state{opts=Opts}, CurrentTime) ->
-	{CancelRateNum, CancelRatePeriod} = maps:get(max_cancel_stream_rate, Opts, {100, 10000}),
+	{CancelRateNum, CancelRatePeriod} = maps:get(max_cancel_stream_rate, Opts, {500, 10000}),
 	State#state{
 		cancel_rate_num=CancelRateNum, cancel_rate_time=add_period(CurrentTime, CancelRatePeriod)
 	}.
