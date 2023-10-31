@@ -48,6 +48,7 @@
 	max_frame_size_sent => 16384..16777215 | infinity,
 	max_received_frame_rate => {pos_integer(), timeout()},
 	max_reset_stream_rate => {pos_integer(), timeout()},
+	max_cancel_stream_rate => {pos_integer(), timeout()},
 	max_stream_buffer_size => non_neg_integer(),
 	max_stream_window_size => 0..16#7fffffff,
 	metrics_callback => cowboy_metrics_h:metrics_callback(),
@@ -114,6 +115,10 @@
 	reset_rate_num :: undefined | pos_integer(),
 	reset_rate_time :: undefined | integer(),
 
+	%% HTTP/2 rapid reset attack protection.
+	cancel_rate_num :: undefined | pos_integer(),
+	cancel_rate_time :: undefined | integer(),
+
 	%% Flow requested for all streams.
 	flow = 0 :: non_neg_integer(),
 
@@ -173,9 +178,11 @@ init(Parent, Ref, Socket, Transport, ProxyHeader, Opts, Peer, Sock, Cert, Buffer
 		_ -> parse(State, Buffer)
 	end.
 
-init_rate_limiting(State) ->
+init_rate_limiting(State0) ->
 	CurrentTime = erlang:monotonic_time(millisecond),
-	init_reset_rate_limiting(init_frame_rate_limiting(State, CurrentTime), CurrentTime).
+	State1 = init_frame_rate_limiting(State0, CurrentTime),
+	State2 = init_reset_rate_limiting(State1, CurrentTime),
+	init_cancel_rate_limiting(State2, CurrentTime).
 
 init_frame_rate_limiting(State=#state{opts=Opts}, CurrentTime) ->
 	{FrameRateNum, FrameRatePeriod} = maps:get(max_received_frame_rate, Opts, {10000, 10000}),
@@ -187,6 +194,12 @@ init_reset_rate_limiting(State=#state{opts=Opts}, CurrentTime) ->
 	{ResetRateNum, ResetRatePeriod} = maps:get(max_reset_stream_rate, Opts, {10, 10000}),
 	State#state{
 		reset_rate_num=ResetRateNum, reset_rate_time=add_period(CurrentTime, ResetRatePeriod)
+	}.
+
+init_cancel_rate_limiting(State=#state{opts=Opts}, CurrentTime) ->
+	{CancelRateNum, CancelRatePeriod} = maps:get(max_cancel_stream_rate, Opts, {100, 10000}),
+	State#state{
+		cancel_rate_num=CancelRateNum, cancel_rate_time=add_period(CurrentTime, CancelRatePeriod)
 	}.
 
 add_period(_, infinity) -> infinity;
@@ -563,14 +576,21 @@ early_error(State0=#state{ref=Ref, opts=Opts, peer=Peer},
 		send_headers(State0, StreamID, fin, StatusCode0, RespHeaders0)
 	end.
 
-rst_stream_frame(State=#state{streams=Streams0, children=Children0}, StreamID, Reason) ->
-	case maps:take(StreamID, Streams0) of
+rst_stream_frame(State0=#state{streams=Streams0, children=Children0}, StreamID, Reason) ->
+	State1 = case maps:take(StreamID, Streams0) of
 		{#stream{state=StreamState}, Streams} ->
-			terminate_stream_handler(State, StreamID, Reason, StreamState),
+			terminate_stream_handler(State0, StreamID, Reason, StreamState),
 			Children = cowboy_children:shutdown(Children0, StreamID),
-			State#state{streams=Streams, children=Children};
+			State0#state{streams=Streams, children=Children};
 		error ->
-			State
+			State0
+	end,
+	case cancel_rate(State1) of
+		{ok, State} ->
+			State;
+		error ->
+			terminate(State1, {connection_error, enhance_your_calm,
+				'Stream cancel rate larger than configuration allows. Flood? (CVE-2023-44487)'})
 	end.
 
 ignored_frame(State=#state{http2_machine=HTTP2Machine0}) ->
@@ -1135,6 +1155,21 @@ reset_rate(State0=#state{reset_rate_num=Num0, reset_rate_time=Time}) ->
 			end;
 		Num ->
 			{ok, State0#state{reset_rate_num=Num}}
+	end.
+
+cancel_rate(State0=#state{cancel_rate_num=Num0, cancel_rate_time=Time}) ->
+	case Num0 - 1 of
+		0 ->
+			CurrentTime = erlang:monotonic_time(millisecond),
+			if
+				CurrentTime < Time ->
+					error;
+				true ->
+					%% When the option has a period of infinity we cannot reach this clause.
+					{ok, init_cancel_rate_limiting(State0, CurrentTime)}
+			end;
+		Num ->
+			{ok, State0#state{cancel_rate_num=Num}}
 	end.
 
 stop_stream(State=#state{http2_machine=HTTP2Machine}, StreamID) ->
