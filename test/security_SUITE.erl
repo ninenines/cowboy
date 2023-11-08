@@ -247,7 +247,6 @@ http2_cancel_flood_helper(Config, NumStreamsPerBatch, NumBatches) ->
 		{<<":path">>, <<"/delay_hello">>}
 	]),
 	AllStreamIDs = lists:seq(1, NumBatches * NumStreamsPerBatch * 2, 2),
-	ct:pal("http2_cancel_flood_helper(..., ~p, ~p)", [NumStreamsPerBatch, NumBatches]),
 	_ = lists:foldl(
 		fun (_BatchNumber, AvailableStreamIDs) ->
 			%% Take a bunch of IDs from the available stream IDs.
