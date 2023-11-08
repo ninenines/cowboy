@@ -201,8 +201,8 @@ similar to a supervisor restart intensity/period.
 
 max_cancel_stream_rate ({500, 10000})::
 
-Maximum cancel stream rate per connection. This can be used to protect
-against the rapid reset attack (CVE-2023-44487), by limiting the
+Maximum cancel stream rate per connection. This can be used to
+protect against misbehaving or malicious peers, by limiting the
 number of streams that the peer can reset over a certain time period.
 The rate is expressed as a tuple `{NumCancels, TimeMs}`. This is
 similar to a supervisor restart intensity/period.

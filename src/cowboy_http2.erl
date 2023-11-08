@@ -576,21 +576,30 @@ early_error(State0=#state{ref=Ref, opts=Opts, peer=Peer},
 		send_headers(State0, StreamID, fin, StatusCode0, RespHeaders0)
 	end.
 
-rst_stream_frame(State0=#state{streams=Streams0, children=Children0}, StreamID, Reason) ->
-	State1 = case maps:take(StreamID, Streams0) of
+rst_stream_frame(State=#state{streams=Streams0, children=Children0}, StreamID, Reason) ->
+	case maps:take(StreamID, Streams0) of
 		{#stream{state=StreamState}, Streams} ->
-			terminate_stream_handler(State0, StreamID, Reason, StreamState),
+			terminate_stream_handler(State, StreamID, Reason, StreamState),
 			Children = cowboy_children:shutdown(Children0, StreamID),
-			State0#state{streams=Streams, children=Children};
+			cancel_rate_limit(State#state{streams=Streams, children=Children});
 		error ->
-			State0
-	end,
-	case cancel_rate(State1) of
-		{ok, State} ->
-			State;
-		error ->
-			terminate(State1, {connection_error, enhance_your_calm,
-				'Stream cancel rate larger than configuration allows. Flood? (CVE-2023-44487)'})
+			State
+	end.
+
+cancel_rate_limit(State0=#state{cancel_rate_num=Num0, cancel_rate_time=Time}) ->
+	case Num0 - 1 of
+		0 ->
+			CurrentTime = erlang:monotonic_time(millisecond),
+			if
+				CurrentTime < Time ->
+					terminate(State0, {connection_error, enhance_your_calm,
+						'Stream cancel rate larger than configuration allows. Flood? (CVE-2023-44487)'});
+				true ->
+					%% When the option has a period of infinity we cannot reach this clause.
+					init_cancel_rate_limiting(State0, CurrentTime)
+			end;
+		Num ->
+			State0#state{cancel_rate_num=Num}
 	end.
 
 ignored_frame(State=#state{http2_machine=HTTP2Machine0}) ->
@@ -1155,21 +1164,6 @@ reset_rate(State0=#state{reset_rate_num=Num0, reset_rate_time=Time}) ->
 			end;
 		Num ->
 			{ok, State0#state{reset_rate_num=Num}}
-	end.
-
-cancel_rate(State0=#state{cancel_rate_num=Num0, cancel_rate_time=Time}) ->
-	case Num0 - 1 of
-		0 ->
-			CurrentTime = erlang:monotonic_time(millisecond),
-			if
-				CurrentTime < Time ->
-					error;
-				true ->
-					%% When the option has a period of infinity we cannot reach this clause.
-					{ok, init_cancel_rate_limiting(State0, CurrentTime)}
-			end;
-		Num ->
-			{ok, State0#state{cancel_rate_num=Num}}
 	end.
 
 stop_stream(State=#state{http2_machine=HTTP2Machine}, StreamID) ->
