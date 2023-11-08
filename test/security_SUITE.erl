@@ -259,12 +259,9 @@ http2_cancel_flood_helper(Config, NumStreamsPerBatch, NumBatches) ->
 		AllStreamIDs,
 		lists:seq(1, NumBatches, 1)),
 	%% When Cowboy detects a flood it must close the connection.
-	case gen_tcp:recv(Socket, 9, 6000) of
-		{ok, <<_:24, 7:8, 0:8, 0:32>>} ->
+	case gen_tcp:recv(Socket, 17, 6000) of
+		{ok, <<_:24, 7:8, 0:8, 0:32, _LastStreamId:32, 11:32>>} ->
 			%% GOAWAY with error code 11 = enhance your calm
-			{ok, <<_LastStreamId:32, ErrorCode:32>>} =
-				gen_tcp:recv(Socket, 8, 1000),
-			11 = ErrorCode, %% ENHANCE_YOUR_CALM
 			ok;
 		%% We also accept the connection being closed immediately,
 		%% which may happen because we send the GOAWAY right before closing.
