@@ -27,13 +27,13 @@ init_http(Ref, ProtoOpts, Config) ->
 
 init_https(Ref, ProtoOpts, Config) ->
 	Opts = ct_helper:get_certs_from_ets(),
-	{ok, _} = cowboy:start_tls(Ref, Opts ++ [{port, 0}], ProtoOpts),
+	{ok, _} = cowboy:start_tls(Ref, Opts ++ [{port, 0}, {verify, verify_none}], ProtoOpts),
 	Port = ranch:get_port(Ref),
 	[{ref, Ref}, {type, ssl}, {protocol, http}, {port, Port}, {opts, Opts}|Config].
 
 init_http2(Ref, ProtoOpts, Config) ->
 	Opts = ct_helper:get_certs_from_ets(),
-	{ok, _} = cowboy:start_tls(Ref, Opts ++ [{port, 0}], ProtoOpts),
+	{ok, _} = cowboy:start_tls(Ref, Opts ++ [{port, 0}, {verify, verify_none}], ProtoOpts),
 	Port = ranch:get_port(Ref),
 	[{ref, Ref}, {type, ssl}, {protocol, http2}, {port, Port}, {opts, Opts}|Config].
 
