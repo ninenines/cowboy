@@ -1,0 +1,15 @@
+## Use workflows from ninenines/ci.erlang.mk to test Cowboy.
+
+name: Check Cowboy
+
+on:
+  push:
+  pull_request:
+  schedule:
+      ## Every Monday at 2am.
+      - cron: 0 2 * * 1
+
+jobs:
+  check:
+    name: Cowboy
+    uses: ninenines/ci.erlang.mk/.github/workflows/ci.yaml@master
