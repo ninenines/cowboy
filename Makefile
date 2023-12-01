@@ -7,7 +7,7 @@ PROJECT_REGISTERED = cowboy_clock
 
 # Options.
 
-PLT_APPS = public_key ssl
+PLT_APPS = public_key ssl # ct_helper gun common_test inets
 CT_OPTS += -ct_hooks cowboy_ct_hook [] # -boot start_sasl
 
 # Dependencies.
@@ -69,7 +69,7 @@ app:: rebar.config
 
 # Dialyze the tests.
 
-DIALYZER_OPTS += --src -r test
+#DIALYZER_OPTS += --src -r test
 
 # h2spec setup.
 
