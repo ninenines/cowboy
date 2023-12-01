@@ -554,7 +554,8 @@ do_read_body_expect_100_continue(Path, Config) ->
 		fin -> {ok, <<>>}
 	end,
 	gun:close(ConnPid),
-	do_decode(RespHeaders, RespBody).
+	do_decode(RespHeaders, RespBody),
+	ok.
 
 read_urlencoded_body(Config) ->
 	doc("application/x-www-form-urlencoded request body."),
