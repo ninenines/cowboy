@@ -29,8 +29,14 @@ suite() ->
 %% We initialize trace patterns here. Appropriate would be in
 %% init_per_suite/1, but this works just as well.
 all() ->
-	cowboy_tracer_h:set_trace_patterns(),
 	cowboy_test:common_all().
+
+init_per_suite(Config) ->
+	cowboy_tracer_h:set_trace_patterns(),
+	Config.
+
+end_per_suite(_) ->
+	ok.
 
 %% We want tests for each group to execute sequentially
 %% because we need to modify the protocol options. Groups
