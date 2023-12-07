@@ -62,7 +62,7 @@ init(Req0, State) ->
         undefined ->
             {cowboy_websocket, Req0, State};
         Subprotocols ->
-            case lists:keymember(<<"mqtt">>, 1, Subprotocols) of
+            case lists:member(<<"mqtt">>, 1, Subprotocols) of
                 true ->
                     Req = cowboy_req:set_resp_header(<<"sec-websocket-protocol">>,
                         <<"mqtt">>, Req0),
