@@ -12,6 +12,12 @@
 %% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+%% Note that Cowboy does not implement the PRIORITY mechanism.
+%% Everyone has been moving away from it and it is widely seen
+%% as a failure. Setting priorities has been counter productive
+%% with regards to performance. Clients have been moving away
+%% from the mechanism.
+
 -module(rfc7540_SUITE).
 -compile(export_all).
 -compile(nowarn_export_all).
@@ -482,14 +488,6 @@ http_upgrade_client_preface_settings_ack_timeout(Config) ->
 %%   If concurrency of an initial request with subsequent requests is
 %%   important, an OPTIONS request can be used to perform the upgrade to
 %%   HTTP/2, at the cost of an additional round trip.
-
-%% @todo If we ever handle priority, we need to check that the initial
-%% HTTP/1.1 request has default priority. The relevant RFC quote is:
-%%
-%% 3.2
-%%   The HTTP/1.1 request that is sent prior to upgrade is assigned a
-%%   stream identifier of 1 (see Section 5.1.1) with default priority
-%%   values (Section 5.3.5).
 
 http_upgrade_response(Config) ->
 	doc("A response must be sent to the initial HTTP/1.1 request "
