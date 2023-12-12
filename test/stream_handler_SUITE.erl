@@ -410,7 +410,7 @@ shutdown_timeout_on_socket_close(Config) ->
 	receive {Self, Pid, terminate, _, _, _} -> ok after 1000 -> error(timeout) end,
 	%% We should NOT receive a DOWN message immediately.
 	receive {'DOWN', MRef, process, Spawn, killed} -> error(killed) after 1500 -> ok end,
-	%% We should received it now.
+	%% We should receive it now.
 	receive {'DOWN', MRef, process, Spawn, killed} -> ok after 1000 -> error(timeout) end,
 	ok.
 

@@ -44,16 +44,16 @@ init_commands(_, _, #state{test=set_options_ignore_unknown}) ->
 	];
 init_commands(_, _, State=#state{test=shutdown_on_stream_stop}) ->
 	Spawn = init_process(false, State),
-	[{headers, 200, #{}}, {spawn, Spawn, 5000}, stop];
+	[{spawn, Spawn, 5000}, {headers, 200, #{}}, stop];
 init_commands(_, _, State=#state{test=shutdown_on_socket_close}) ->
 	Spawn = init_process(false, State),
-	[{headers, 200, #{}}, {spawn, Spawn, 5000}];
+	[{spawn, Spawn, 5000}, {headers, 200, #{}}];
 init_commands(_, _, State=#state{test=shutdown_timeout_on_stream_stop}) ->
 	Spawn = init_process(true, State),
-	[{headers, 200, #{}}, {spawn, Spawn, 2000}, stop];
+	[{spawn, Spawn, 2000}, {headers, 200, #{}}, stop];
 init_commands(_, _, State=#state{test=shutdown_timeout_on_socket_close}) ->
 	Spawn = init_process(true, State),
-	[{headers, 200, #{}}, {spawn, Spawn, 2000}];
+	[{spawn, Spawn, 2000}, {headers, 200, #{}}];
 init_commands(_, _, State=#state{test=switch_protocol_after_headers}) ->
 	[{headers, 200, #{}}, {switch_protocol, #{}, ?MODULE, State}];
 init_commands(_, _, State=#state{test=switch_protocol_after_headers_data}) ->

@@ -134,9 +134,11 @@
 -spec init(pid(), ranch:ref(), inet:socket(), module(),
 	ranch_proxy_header:proxy_info() | undefined, cowboy:opts()) -> ok.
 init(Parent, Ref, Socket, Transport, ProxyHeader, Opts) ->
-	Peer0 = Transport:peername(Socket),
-	Sock0 = Transport:sockname(Socket),
-	Cert1 = case Transport:name() of
+	{ok, Peer} = maybe_socket_error(undefined, Transport:peername(Socket),
+		'A socket error occurred when retrieving the peer name.'),
+	{ok, Sock} = maybe_socket_error(undefined, Transport:sockname(Socket),
+		'A socket error occurred when retrieving the sock name.'),
+	CertResult = case Transport:name() of
 		ssl ->
 			case ssl:peercert(Socket) of
 				{error, no_peercert} ->
@@ -147,19 +149,9 @@ init(Parent, Ref, Socket, Transport, ProxyHeader, Opts) ->
 		_ ->
 			{ok, undefined}
 	end,
-	case {Peer0, Sock0, Cert1} of
-		{{ok, Peer}, {ok, Sock}, {ok, Cert}} ->
-			init(Parent, Ref, Socket, Transport, ProxyHeader, Opts, Peer, Sock, Cert, <<>>);
-		{{error, Reason}, _, _} ->
-			terminate(undefined, {socket_error, Reason,
-				'A socket error occurred when retrieving the peer name.'});
-		{_, {error, Reason}, _} ->
-			terminate(undefined, {socket_error, Reason,
-				'A socket error occurred when retrieving the sock name.'});
-		{_, _, {error, Reason}} ->
-			terminate(undefined, {socket_error, Reason,
-				'A socket error occurred when retrieving the client TLS certificate.'})
-	end.
+	{ok, Cert} = maybe_socket_error(undefined, CertResult,
+		'A socket error occurred when retrieving the client TLS certificate.'),
+	init(Parent, Ref, Socket, Transport, ProxyHeader, Opts, Peer, Sock, Cert, <<>>).
 
 -spec init(pid(), ranch:ref(), inet:socket(), module(),
 	ranch_proxy_header:proxy_info() | undefined, cowboy:opts(),
@@ -167,12 +159,13 @@ init(Parent, Ref, Socket, Transport, ProxyHeader, Opts) ->
 	binary() | undefined, binary()) -> ok.
 init(Parent, Ref, Socket, Transport, ProxyHeader, Opts, Peer, Sock, Cert, Buffer) ->
 	{ok, Preface, HTTP2Machine} = cow_http2_machine:init(server, Opts),
+	%% Send the preface before doing all the init in case we get a socket error.
+	ok = maybe_socket_error(undefined, Transport:send(Socket, Preface)),
 	State = set_idle_timeout(init_rate_limiting(#state{parent=Parent, ref=Ref, socket=Socket,
 		transport=Transport, proxy_header=ProxyHeader,
 		opts=Opts, peer=Peer, sock=Sock, cert=Cert,
 		http2_status=sequence, http2_machine=HTTP2Machine})),
-	Transport:send(Socket, Preface),
-	setopts_active(State),
+	safe_setopts_active(State),
 	case Buffer of
 		<<>> -> loop(State, Buffer);
 		_ -> parse(State, Buffer)
@@ -228,8 +221,10 @@ init(Parent, Ref, Socket, Transport, ProxyHeader, Opts, Peer, Sock, Cert, Buffer
 		<<"upgrade">> => <<"h2c">>
 	}, ?MODULE, undefined}), %% @todo undefined or #{}?
 	State = set_idle_timeout(init_rate_limiting(State2#state{http2_status=sequence})),
-	Transport:send(Socket, Preface),
-	setopts_active(State),
+	%% In the case of HTTP/1.1 Upgrade we cannot send the Preface
+	%% until we send the 101 response.
+	ok = maybe_socket_error(State, Transport:send(Socket, Preface)),
+	safe_setopts_active(State),
 	case Buffer of
 		<<>> -> loop(State, Buffer);
 		_ -> parse(State, Buffer)
@@ -241,6 +236,9 @@ init(Parent, Ref, Socket, Transport, ProxyHeader, Opts, Peer, Sock, Cert, Buffer
 setopts_active(#state{socket=Socket, transport=Transport, opts=Opts}) ->
 	N = maps:get(active_n, Opts, 100),
 	Transport:setopts(Socket, [{active, N}]).
+
+safe_setopts_active(State) ->
+	ok = maybe_socket_error(State, setopts_active(State)).
 
 loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 		opts=Opts, timer=TimerRef, children=Children}, Buffer) ->
@@ -261,7 +259,7 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 		{Passive, Socket} when Passive =:= element(4, Messages);
 				%% Hardcoded for compatibility with Ranch 1.x.
 				Passive =:= tcp_passive; Passive =:= ssl_passive ->
-			setopts_active(State),
+			safe_setopts_active(State),
 			loop(State, Buffer);
 		%% System messages.
 		{'EXIT', Parent, shutdown} ->
@@ -413,8 +411,10 @@ maybe_ack(State=#state{http2_status=settings}, Frame) ->
 	maybe_ack(State#state{http2_status=connected}, Frame);
 maybe_ack(State=#state{socket=Socket, transport=Transport}, Frame) ->
 	case Frame of
-		{settings, _} -> Transport:send(Socket, cow_http2:settings_ack());
-		{ping, Opaque} -> Transport:send(Socket, cow_http2:ping_ack(Opaque));
+		{settings, _} ->
+			ok = maybe_socket_error(State, Transport:send(Socket, cow_http2:settings_ack()));
+		{ping, Opaque} ->
+			ok = maybe_socket_error(State, Transport:send(Socket, cow_http2:ping_ack(Opaque)));
 		_ -> ok
 	end,
 	State.
@@ -734,10 +734,10 @@ commands(State0=#state{socket=Socket, transport=Transport, http2_machine=HTTP2Ma
 	State = case cow_http2_machine:prepare_push_promise(StreamID, HTTP2Machine0,
 			PseudoHeaders, Headers) of
 		{ok, PromisedStreamID, HeaderBlock, HTTP2Machine} ->
-			Transport:send(Socket, cow_http2:push_promise(
-				StreamID, PromisedStreamID, HeaderBlock)),
-			headers_frame(State0#state{http2_machine=HTTP2Machine},
-				PromisedStreamID, fin, Headers, PseudoHeaders, 0);
+			State1 = State0#state{http2_machine=HTTP2Machine},
+			ok = maybe_socket_error(State1, Transport:send(Socket,
+				cow_http2:push_promise(StreamID, PromisedStreamID, HeaderBlock))),
+			headers_frame(State1, PromisedStreamID, fin, Headers, PseudoHeaders, 0);
 		{error, no_push} ->
 			State0
 	end,
@@ -763,7 +763,8 @@ commands(State, StreamID, [Error = {internal_error, _, _}|_Tail]) ->
 commands(State=#state{socket=Socket, transport=Transport, http2_status=upgrade},
 		StreamID, [{switch_protocol, Headers, ?MODULE, _}|Tail]) ->
 	%% @todo This 101 response needs to be passed through stream handlers.
-	Transport:send(Socket, cow_http:response(101, 'HTTP/1.1', maps:to_list(Headers))),
+	ok = maybe_socket_error(State, Transport:send(Socket,
+		cow_http:response(101, 'HTTP/1.1', maps:to_list(Headers)))),
 	commands(State, StreamID, Tail);
 %% Use a different protocol within the stream (CONNECT :protocol).
 %% @todo Make sure we error out when the feature is disabled.
@@ -784,7 +785,7 @@ commands(State=#state{opts=Opts}, StreamID, [Log={log, _, _, _}|Tail]) ->
 
 %% Tentatively update the window after the flow was updated.
 
-update_window(State=#state{socket=Socket, transport=Transport,
+update_window(State0=#state{socket=Socket, transport=Transport,
 		http2_machine=HTTP2Machine0, flow=Flow, streams=Streams}, StreamID) ->
 	#{StreamID := #stream{flow=StreamFlow}} = Streams,
 	{Data1, HTTP2Machine2} = case cow_http2_machine:ensure_window(Flow, HTTP2Machine0) of
@@ -795,11 +796,12 @@ update_window(State=#state{socket=Socket, transport=Transport,
 		ok -> {<<>>, HTTP2Machine2};
 		{ok, Increment2, HTTP2Machine3} -> {cow_http2:window_update(StreamID, Increment2), HTTP2Machine3}
 	end,
+	State = State0#state{http2_machine=HTTP2Machine},
 	case {Data1, Data2} of
 		{<<>>, <<>>} -> ok;
-		_ -> Transport:send(Socket, [Data1, Data2])
+		_ -> ok = maybe_socket_error(State, Transport:send(Socket, [Data1, Data2]))
 	end,
-	State#state{http2_machine=HTTP2Machine}.
+	State.
 
 %% Send the response, trailers or data.
 
@@ -823,14 +825,16 @@ send_response(State0=#state{http2_machine=HTTP2Machine0}, StreamID, StatusCode, 
 				[cow_http2:headers(StreamID, nofin, HeaderBlock)])
 	end.
 
-send_headers(State=#state{socket=Socket, transport=Transport,
+send_headers(State0=#state{socket=Socket, transport=Transport,
 		http2_machine=HTTP2Machine0}, StreamID, IsFin0, StatusCode, Headers) ->
 	{ok, IsFin, HeaderBlock, HTTP2Machine}
 		= cow_http2_machine:prepare_headers(StreamID, HTTP2Machine0, IsFin0,
 			#{status => cow_http:status_to_integer(StatusCode)},
 			headers_to_list(Headers)),
-	Transport:send(Socket, cow_http2:headers(StreamID, IsFin, HeaderBlock)),
-	State#state{http2_machine=HTTP2Machine}.
+	State = State0#state{http2_machine=HTTP2Machine},
+	ok = maybe_socket_error(State, Transport:send(Socket,
+		cow_http2:headers(StreamID, IsFin, HeaderBlock))),
+	State.
 
 %% The set-cookie header is special; we can only send one cookie per header.
 headers_to_list(Headers0=#{<<"set-cookie">> := SetCookies}) ->
@@ -847,13 +851,14 @@ maybe_send_data(State0=#state{socket=Socket, transport=Transport,
 	end,
 	case cow_http2_machine:send_or_queue_data(StreamID, HTTP2Machine0, IsFin, Data) of
 		{ok, HTTP2Machine} ->
+			State1 = State0#state{http2_machine=HTTP2Machine},
 			%% If we have prefix data (like a HEADERS frame) we need to send it
 			%% even if we do not send any DATA frames.
 			case Prefix of
 				[] -> ok;
-				_ -> Transport:send(Socket, Prefix)
+				_ -> ok = maybe_socket_error(State1, Transport:send(Socket, Prefix))
 			end,
-			maybe_send_data_alarm(State0#state{http2_machine=HTTP2Machine}, HTTP2Machine0, StreamID);
+			maybe_send_data_alarm(State1, HTTP2Machine0, StreamID);
 		{send, SendData, HTTP2Machine} ->
 			State = #state{http2_status=Status, streams=Streams}
 				= send_data(State0#state{http2_machine=HTTP2Machine}, SendData, Prefix),
@@ -871,12 +876,15 @@ send_data(State0=#state{socket=Socket, transport=Transport, opts=Opts}, SendData
 	_ = [case Data of
 		{sendfile, Offset, Bytes, Path} ->
 			%% When sendfile is disabled we explicitly use the fallback.
-			_ = case maps:get(sendfile, Opts, true) of
-				true -> Transport:sendfile(Socket, Path, Offset, Bytes);
-				false -> ranch_transport:sendfile(Transport, Socket, Path, Offset, Bytes, [])
-			end;
+			{ok, _} = maybe_socket_error(State,
+				case maps:get(sendfile, Opts, true) of
+					true -> Transport:sendfile(Socket, Path, Offset, Bytes);
+					false -> ranch_transport:sendfile(Transport, Socket, Path, Offset, Bytes, [])
+				end
+			),
+			ok;
 		_ ->
-			Transport:send(Socket, Data)
+			ok = maybe_socket_error(State, Transport:send(Socket, Data))
 	end || Data <- Acc],
 	send_data_terminate(State, SendData).
 
@@ -980,17 +988,17 @@ goaway(State0=#state{socket=Socket, transport=Transport, http2_machine=HTTP2Mach
 		when Status =:= connected; Status =:= closing_initiated; Status =:= closing ->
 	Streams = goaway_streams(State0, maps:to_list(Streams0), LastStreamID,
 		{stop, {goaway, Reason}, 'The connection is going away.'}, []),
-	State = State0#state{streams=maps:from_list(Streams)},
+	State1 = State0#state{streams=maps:from_list(Streams)},
 	if
 		Status =:= connected; Status =:= closing_initiated ->
 			{OurLastStreamID, HTTP2Machine} =
 				cow_http2_machine:set_last_streamid(HTTP2Machine0),
-			Transport:send(Socket, cow_http2:goaway(
-				OurLastStreamID, no_error, <<>>)),
-			State#state{http2_status=closing,
-				http2_machine=HTTP2Machine};
+			State = State1#state{http2_status=closing, http2_machine=HTTP2Machine},
+			ok = maybe_socket_error(State, Transport:send(Socket,
+				cow_http2:goaway(OurLastStreamID, no_error, <<>>))),
+			State;
 		true ->
-			State
+			State1
 	end;
 %% We terminate the connection immediately if it hasn't fully been initialized.
 goaway(State, {goaway, _, Reason, _}) ->
@@ -1016,7 +1024,8 @@ goaway_streams(State, [Stream|Tail], LastStreamID, Reason, Acc) ->
 -spec initiate_closing(#state{}, _) -> #state{}.
 initiate_closing(State=#state{http2_status=connected, socket=Socket,
 		transport=Transport, opts=Opts}, Reason) ->
-	Transport:send(Socket, cow_http2:goaway(16#7fffffff, no_error, <<>>)),
+	ok = maybe_socket_error(State, Transport:send(Socket,
+		cow_http2:goaway(16#7fffffff, no_error, <<>>))),
 	Timeout = maps:get(goaway_initial_timeout, Opts, 1000),
 	Message = {goaway_initial_timeout, Reason},
 	set_timeout(State#state{http2_status=closing_initiated}, Timeout, Message);
@@ -1032,14 +1041,16 @@ initiate_closing(State, Reason) ->
 -spec closing(#state{}, Reason :: term()) -> #state{}.
 closing(State=#state{streams=Streams}, Reason) when Streams =:= #{} ->
 	terminate(State, Reason);
-closing(State=#state{http2_status=closing_initiated,
+closing(State0=#state{http2_status=closing_initiated,
 		http2_machine=HTTP2Machine0, socket=Socket, transport=Transport},
 		Reason) ->
 	%% Stop accepting new streams.
 	{LastStreamID, HTTP2Machine} =
 		cow_http2_machine:set_last_streamid(HTTP2Machine0),
-	Transport:send(Socket, cow_http2:goaway(LastStreamID, no_error, <<>>)),
-	closing(State#state{http2_status=closing, http2_machine=HTTP2Machine}, Reason);
+	State = State0#state{http2_status=closing, http2_machine=HTTP2Machine},
+	ok = maybe_socket_error(State, Transport:send(Socket,
+		cow_http2:goaway(LastStreamID, no_error, <<>>))),
+	closing(State, Reason);
 closing(State=#state{http2_status=closing, opts=Opts}, Reason) ->
 	%% If client sent GOAWAY, we may already be in 'closing' but without the
 	%% goaway complete timeout set.
@@ -1049,6 +1060,19 @@ closing(State=#state{http2_status=closing, opts=Opts}, Reason) ->
 
 stop_reason({stop, Reason, _}) -> Reason;
 stop_reason(Reason) -> Reason.
+
+%% Function copied from cowboy_http.
+maybe_socket_error(State, {error, closed}) ->
+	terminate(State, {socket_error, closed, 'The socket has been closed.'});
+maybe_socket_error(State, Reason) ->
+	maybe_socket_error(State, Reason, 'An error has occurred on the socket.').
+
+maybe_socket_error(_, Result = ok, _) ->
+	Result;
+maybe_socket_error(_, Result = {ok, _}, _) ->
+	Result;
+maybe_socket_error(State, {error, Reason}, Human) ->
+	terminate(State, {socket_error, Reason, Human}).
 
 -spec terminate(#state{}, _) -> no_return().
 terminate(undefined, Reason) ->
@@ -1060,7 +1084,8 @@ terminate(State=#state{socket=Socket, transport=Transport, http2_status=Status,
 	%% as debug data in the GOAWAY frame here. Perhaps more.
 	if
 		Status =:= connected; Status =:= closing_initiated ->
-			Transport:send(Socket, cow_http2:goaway(
+			%% We are terminating so it's OK if we can't send the GOAWAY anymore.
+			_ = Transport:send(Socket, cow_http2:goaway(
 				cow_http2_machine:get_last_streamid(HTTP2Machine),
 				terminate_reason(Reason), <<>>));
 		%% We already sent the GOAWAY frame.
@@ -1071,8 +1096,8 @@ terminate(State=#state{socket=Socket, transport=Transport, http2_status=Status,
 	cowboy_children:terminate(Children),
 	terminate_linger(State),
 	exit({shutdown, Reason});
-terminate(#state{socket=Socket, transport=Transport}, Reason) ->
-	Transport:close(Socket),
+%% We are not fully connected so we can just terminate the connection.
+terminate(_State, Reason) ->
 	exit({shutdown, Reason}).
 
 terminate_reason({connection_error, Reason, _}) -> Reason;
@@ -1106,6 +1131,9 @@ terminate_linger(State=#state{socket=Socket, transport=Transport, opts=Opts}) ->
 terminate_linger_before_loop(State, TimerRef, Messages) ->
 	%% We may already be in active mode when we do this
 	%% but it's OK because we are shutting down anyway.
+	%%
+	%% We specially handle the socket error to terminate
+	%% when an error occurs.
 	case setopts_active(State) of
 		ok ->
 			terminate_linger_loop(State, TimerRef, Messages);
@@ -1136,7 +1164,8 @@ reset_stream(State0=#state{socket=Socket, transport=Transport,
 		{internal_error, _, _} -> internal_error;
 		{stream_error, Reason0, _} -> Reason0
 	end,
-	Transport:send(Socket, cow_http2:rst_stream(StreamID, Reason)),
+	ok = maybe_socket_error(State0, Transport:send(Socket,
+		cow_http2:rst_stream(StreamID, Reason))),
 	State1 = case cow_http2_machine:reset_stream(StreamID, HTTP2Machine0) of
 		{ok, HTTP2Machine} ->
 			terminate_stream(State0#state{http2_machine=HTTP2Machine}, StreamID, Error);
@@ -1208,7 +1237,8 @@ terminate_stream(State0=#state{socket=Socket, transport=Transport,
 		http2_machine=HTTP2Machine0}, StreamID) ->
 	State = case cow_http2_machine:get_stream_local_state(StreamID, HTTP2Machine0) of
 		{ok, fin, _} ->
-			Transport:send(Socket, cow_http2:rst_stream(StreamID, no_error)),
+			ok = maybe_socket_error(State0, Transport:send(Socket,
+				cow_http2:rst_stream(StreamID, no_error))),
 			{ok, HTTP2Machine} = cow_http2_machine:reset_stream(StreamID, HTTP2Machine0),
 			State0#state{http2_machine=HTTP2Machine};
 		{error, closed} ->

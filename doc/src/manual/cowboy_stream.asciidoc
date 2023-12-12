@@ -84,6 +84,13 @@ the `early_error/5` callback must return a response command.
 // @todo The logger option and the {log, Level, Format, Args}
 // options need to be documented and tested.
 
+The order in which the commands are given matters. For example,
+when sending a response and at the same time creating a new child
+process, the first command should be the `spawn` and the second the
+`response`. The reason for that is that the sending of the response
+may result in a socket error which leads to the termination of
+the connection before the rest of the commands are executed.
+
 The following commands are defined:
 
 [[inform_command]]
@@ -235,6 +242,8 @@ will end successfully as far as the client is concerned.
 
 To indicate that an error occurred, either use `error_response`
 before stopping, or use `internal_error`.
+
+No other command can be executed after the `stop` command.
 
 === internal_error
 
