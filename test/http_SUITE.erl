@@ -556,19 +556,19 @@ send_timeout_close(_Config) ->
 		[ServerSocket] = [PidOrPort || PidOrPort <- ServerLinks, is_port(PidOrPort)],
 		%% Poll the socket repeatedly until it is closed by the server.
 		WaitClosedFun =
-			fun F(T, Status) when T =< 0 ->
-					error({status, Status});
-				F(T, _) ->
-					case prim_inet:getstatus(ServerSocket) of
+			fun F(T) when T =< 0 ->
+					error({status, prim_inet:getstatus(ServerSocket)});
+				F(T) ->
+					Snooze = 100,
+					case inet:sockname(ServerSocket) of
 						{error, _} ->
-							ok;
-						{ok, Status} ->
-							Snooze = 100,
+							timer:sleep(Snooze);
+						{ok, _} ->
 							timer:sleep(Snooze),
-							F(T - Snooze, Status)
+							F(T - Snooze)
 					end
 			end,
-		ok = WaitClosedFun(2000, undefined),
+		ok = WaitClosedFun(2000),
 		false = erlang:is_process_alive(StreamPid),
 		false = erlang:is_process_alive(ServerPid)
 	after

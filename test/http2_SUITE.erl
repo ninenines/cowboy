@@ -448,7 +448,13 @@ send_timeout_close(Config) ->
 			{<<":path">>, <<"/endless">>},
 			{<<"x-test-pid">>, pid_to_list(self())}
 		]),
-		ok = gen_tcp:send(ClientSocket, cow_http2:headers(1, fin, HeadersBlock)),
+		ok = gen_tcp:send(ClientSocket, [
+			cow_http2:headers(1, fin, HeadersBlock),
+			%% Greatly increase the window to make sure we don't run
+			%% out of space before we get send timeouts.
+			cow_http2:window_update(10000000),
+			cow_http2:window_update(1, 10000000)
+		]),
 		%% Wait for the handler to start then get its pid,
 		%% the remote connection's pid and socket.
 		StreamPid = receive
@@ -462,19 +468,19 @@ send_timeout_close(Config) ->
 		[ServerSocket] = [PidOrPort || PidOrPort <- ServerLinks, is_port(PidOrPort)],
 		%% Poll the socket repeatedly until it is closed by the server.
 		WaitClosedFun =
-			fun F(T, Status) when T =< 0 ->
-					error({status, Status});
-				F(T, _) ->
-					case prim_inet:getstatus(ServerSocket) of
+			fun F(T) when T =< 0 ->
+					error({status, prim_inet:getstatus(ServerSocket)});
+				F(T) ->
+					Snooze = 100,
+					case inet:sockname(ServerSocket) of
 						{error, _} ->
-							ok;
-						{ok, Status} ->
-							Snooze = 100,
+							timer:sleep(Snooze);
+						{ok, _} ->
 							timer:sleep(Snooze),
-							F(T - Snooze, Status)
+							F(T - Snooze)
 					end
 			end,
-		ok = WaitClosedFun(2000, undefined),
+		ok = WaitClosedFun(2000),
 		false = erlang:is_process_alive(StreamPid),
 		false = erlang:is_process_alive(ServerPid)
 	after

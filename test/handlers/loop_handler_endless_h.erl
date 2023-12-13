@@ -19,6 +19,7 @@ init(Req0, #{delay := Delay} = Opts) ->
 	{cowboy_loop, Req, Opts}.
 
 info(timeout, Req, State) ->
-	cowboy_req:stream_body(<<0:1000/unit:8>>, nofin, Req),
-	erlang:send_after(10, self(), timeout),
+	cowboy_req:stream_body(<<0:10000/unit:8>>, nofin, Req),
+	%% Equivalent to a 0 timeout.
+	self() ! timeout,
 	{ok, Req, State}.
