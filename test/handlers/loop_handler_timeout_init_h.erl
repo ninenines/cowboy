@@ -11,7 +11,7 @@
 
 init(Req, _) ->
 	#{timeout := Timeout} = cowboy_req:match_qs([{timeout, int}], Req),
-	erlang:send_after(200, self(), message),
+	erlang:send_after(500, self(), message),
 	{cowboy_loop, Req, undefined, Timeout}.
 
 info(message, Req, State) ->

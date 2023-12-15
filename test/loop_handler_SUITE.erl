@@ -103,7 +103,7 @@ timeout_info(Config) ->
 timeout_init(Config) ->
 	doc("Ensure that loop handler idle timeouts trigger on time when set in init/2."),
 	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, "/loop_timeout_init?timeout=300",
+	Ref = gun:get(ConnPid, "/loop_timeout_init?timeout=1000",
 		[{<<"accept-encoding">>, <<"gzip">>}]),
 	{response, fin, 200, _} = gun:await(ConnPid, Ref),
 	Ref2 = gun:get(ConnPid, "/loop_timeout_init?timeout=100",

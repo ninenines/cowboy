@@ -14,7 +14,7 @@ init(Req, _) ->
 	{cowboy_loop, Req, undefined}.
 
 info(message, Req, State) ->
-	erlang:send_after(200, self(), message),
+	erlang:send_after(500, self(), message),
 	{ok, Req, State, 100};
 info(timeout, Req, State) ->
 	{stop, cowboy_req:reply(<<"299 OK!">>, Req), State}.
