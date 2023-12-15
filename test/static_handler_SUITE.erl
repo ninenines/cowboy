@@ -65,7 +65,7 @@ init_per_suite(Config) ->
 	%% Add a simple Erlang application archive containing one file
 	%% in its priv directory.
 	true = code:add_pathz(filename:join(
-		[config(data_dir, Config), "static_files_app", "ebin"])),
+		[config(data_dir, Config), "static_files_app.ez", "static_files_app", "ebin"])),
 	ok = application:load(static_files_app),
 	%% A special folder contains files of 1 character from 1 to 127
 	%% excluding / and \ as they are always rejected.
