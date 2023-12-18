@@ -293,7 +293,7 @@ flow_after_body_fully_read(Config) ->
 	%% Receive a 200 response, sent after the second flow command,
 	%% confirming that the flow command was accepted.
 	{response, _, 200, _} = gun:await(ConnPid, Ref),
-	ok.
+	gun:close(ConnPid).
 
 set_options_ignore_unknown(Config) ->
 	doc("Confirm that unknown options are ignored when using the set_options commands."),

@@ -230,7 +230,7 @@ expect(Config) ->
 		{<<"expect">>, <<"100-continue">>}
 	]),
 	{inform, 100, _} = gun:await(ConnPid, Ref),
-	ok.
+	gun:close(ConnPid).
 
 http10_expect(Config) ->
 	case config(protocol, Config) of

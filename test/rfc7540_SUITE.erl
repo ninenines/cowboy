@@ -1374,7 +1374,8 @@ max_frame_size_allow_exactly_custom(Config0) ->
 		{ok, << Len2:24, 1:8, _:40 >>} = gen_tcp:recv(Socket, 9, 6000),
 		{ok, _} = gen_tcp:recv(Socket, Len2, 6000),
 		%% No errors follow due to our sending of a 25000 bytes frame.
-		{error, timeout} = gen_tcp:recv(Socket, 0, 1000)
+		{error, timeout} = gen_tcp:recv(Socket, 0, 1000),
+		gen_tcp:close(Socket)
 	after
 		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
@@ -2742,7 +2743,8 @@ settings_initial_window_size(Config0) ->
 		{ok, << Len2:24, 1:8, _:40 >>} = gen_tcp:recv(Socket, 9, 6000),
 		{ok, _} = gen_tcp:recv(Socket, Len2, 6000),
 		%% No errors follow due to our sending of more than 65535 bytes of data.
-		{error, timeout} = gen_tcp:recv(Socket, 0, 1000)
+		{error, timeout} = gen_tcp:recv(Socket, 0, 1000),
+		gen_tcp:close(Socket)
 	after
 		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
@@ -2833,7 +2835,8 @@ settings_initial_window_size_before_ack(Config0) ->
 		{ok, << Len2:24, 1:8, _:40 >>} = gen_tcp:recv(Socket, 9, 6000),
 		{ok, _} = gen_tcp:recv(Socket, Len2, 6000),
 		%% No errors follow due to our sending of more than 0 bytes of data.
-		{error, timeout} = gen_tcp:recv(Socket, 0, 1000)
+		{error, timeout} = gen_tcp:recv(Socket, 0, 1000),
+		gen_tcp:close(Socket)
 	after
 		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
@@ -2866,7 +2869,8 @@ settings_max_frame_size(Config0) ->
 		{ok, << Len2:24, 1:8, _:40 >>} = gen_tcp:recv(Socket, 9, 6000),
 		{ok, _} = gen_tcp:recv(Socket, Len2, 6000),
 		%% No errors follow due to our sending of a 25000 bytes frame.
-		{error, timeout} = gen_tcp:recv(Socket, 0, 1000)
+		{error, timeout} = gen_tcp:recv(Socket, 0, 1000),
+		gen_tcp:close(Socket)
 	after
 		cowboy:stop_listener(?FUNCTION_NAME)
 	end.

@@ -62,7 +62,8 @@ idle_timeout(Config) ->
 		{ok, Socket} = do_handshake([{port, Port}|Config]),
 		timer:sleep(1000),
 		%% Receive a GOAWAY frame back with NO_ERROR.
-		{ok, << _:24, 7:8, _:72, 0:32 >>} = gen_tcp:recv(Socket, 17, 1000)
+		{ok, << _:24, 7:8, _:72, 0:32 >>} = gen_tcp:recv(Socket, 17, 1000),
+		gen_tcp:close(Socket)
 	after
 		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
@@ -79,7 +80,8 @@ idle_timeout_infinity(Config) ->
 		{ok, Socket} = do_handshake([{port, Port}|Config]),
 		timer:sleep(1000),
 		%% Don't receive a GOAWAY frame.
-		{error, timeout} = gen_tcp:recv(Socket, 17, 1000)
+		{error, timeout} = gen_tcp:recv(Socket, 17, 1000),
+		gen_tcp:close(Socket)
 	after
 		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
@@ -108,7 +110,8 @@ idle_timeout_reset_on_data(Config) ->
 		{ok, <<8:24, 6:8, 0:7, 1:1, 0:96>>} = gen_tcp:recv(Socket, 17, 1000),
 		%% The connection goes away soon after we stop sending data.
 		timer:sleep(1000),
-		{ok, << _:24, 7:8, _:72, 0:32 >>} = gen_tcp:recv(Socket, 17, 1000)
+		{ok, << _:24, 7:8, _:72, 0:32 >>} = gen_tcp:recv(Socket, 17, 1000),
+		gen_tcp:close(Socket)
 	after
 		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
@@ -125,7 +128,8 @@ inactivity_timeout(Config) ->
 		{ok, Socket} = do_handshake([{port, Port}|Config]),
 		receive after 1000 -> ok end,
 		%% Receive a GOAWAY frame back with an INTERNAL_ERROR.
-		{ok, << _:24, 7:8, _:72, 2:32 >>} = gen_tcp:recv(Socket, 17, 1000)
+		{ok, << _:24, 7:8, _:72, 2:32 >>} = gen_tcp:recv(Socket, 17, 1000),
+		gen_tcp:close(Socket)
 	after
 		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
@@ -149,7 +153,8 @@ initial_connection_window_size(Config) ->
 		{ok, << 4:8, 0:40, _:Len/binary >>} = gen_tcp:recv(Socket, 6 + Len, 1000),
 		%% Receive a WINDOW_UPDATE frame incrementing the connection window to 100000.
 		{ok, <<4:24, 8:8, 0:41, Size:31>>} = gen_tcp:recv(Socket, 13, 1000),
-		ConfiguredSize = Size + 65535
+		ConfiguredSize = Size + 65535,
+		gen_tcp:close(Socket)
 	after
 		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
@@ -192,7 +197,8 @@ max_frame_size_sent(Config) ->
 		%% The DATA frames following must have lengths of 20000
 		%% and then 10000 due to the limit.
 		{ok, <<20000:24, 0:8, _:40, _:20000/unit:8>>} = gen_tcp:recv(Socket, 20009, 6000),
-		{ok, <<10000:24, 0:8, _:40, _:10000/unit:8>>} = gen_tcp:recv(Socket, 10009, 6000)
+		{ok, <<10000:24, 0:8, _:40, _:10000/unit:8>>} = gen_tcp:recv(Socket, 10009, 6000),
+		gen_tcp:close(Socket)
 	after
 		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
@@ -236,7 +242,7 @@ preface_timeout_infinity(Config) ->
 			{'DOWN', Ref, process, Pid, Reason} ->
 				error(Reason)
 		after 1000 ->
-			ok
+			gen_tcp:close(Socket)
 		end
 	after
 		cowboy:stop_listener(?FUNCTION_NAME)
@@ -280,7 +286,7 @@ settings_timeout_infinity(Config) ->
 			{'DOWN', Ref, process, Pid, Reason} ->
 				error(Reason)
 		after 1000 ->
-			ok
+			gen_tcp:close(Socket)
 		end
 	after
 		cowboy:stop_listener(?FUNCTION_NAME)
@@ -366,6 +372,10 @@ graceful_shutdown_timeout(Config) ->
 
 graceful_shutdown_listener(Config) ->
 	doc("Check that connections are shut down gracefully when stopping a listener."),
+	TransOpts = #{
+		socket_opts => [{port, 0}],
+		shutdown => 1000 %% Shorter timeout to make the test case faster.
+	},
 	Dispatch = cowboy_router:compile([{"localhost", [
 		{"/delay_hello", delay_hello_h,
 			#{delay => 500, notify_received => self()}}
@@ -373,13 +383,15 @@ graceful_shutdown_listener(Config) ->
 	ProtoOpts = #{
 		env => #{dispatch => Dispatch}
 	},
-	{ok, Listener} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], ProtoOpts),
+	{ok, Listener} = cowboy:start_clear(?FUNCTION_NAME, TransOpts, ProtoOpts),
 	Port = ranch:get_port(?FUNCTION_NAME),
 	ConnPid = gun_open([{type, tcp}, {protocol, http2}, {port, Port}|Config]),
 	Ref = gun:get(ConnPid, "/delay_hello"),
 	%% Shutdown listener while the handlers are working.
 	receive {request_received, <<"/delay_hello">>} -> ok end,
 	ListenerMonitorRef = monitor(process, Listener),
+	%% Note: This call does not complete quickly and will
+	%% prevent other cowboy:stop_listener/1 calls to complete.
 	ok = cowboy:stop_listener(?FUNCTION_NAME),
 	receive
 		{'DOWN', ListenerMonitorRef, process, Listener, _Reason} ->
@@ -393,6 +405,10 @@ graceful_shutdown_listener(Config) ->
 
 graceful_shutdown_listener_timeout(Config) ->
 	doc("Check that connections are shut down when gracefully stopping a listener times out."),
+	TransOpts = #{
+		socket_opts => [{port, 0}],
+		shutdown => 1000 %% Shorter timeout to make the test case faster.
+	},
 	Dispatch = cowboy_router:compile([{"localhost", [
 		{"/long_delay_hello", delay_hello_h,
 			#{delay => 10000, notify_received => self()}}
@@ -402,13 +418,15 @@ graceful_shutdown_listener_timeout(Config) ->
 		goaway_initial_timeout => 200,
 		goaway_complete_timeout => 500
 	},
-	{ok, Listener} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], ProtoOpts),
+	{ok, Listener} = cowboy:start_clear(?FUNCTION_NAME, TransOpts, ProtoOpts),
 	Port = ranch:get_port(?FUNCTION_NAME),
 	ConnPid = gun_open([{type, tcp}, {protocol, http2}, {port, Port}|Config]),
 	Ref = gun:get(ConnPid, "/long_delay_hello"),
 	%% Shutdown listener while the handlers are working.
 	receive {request_received, <<"/long_delay_hello">>} -> ok end,
 	ListenerMonitorRef = monitor(process, Listener),
+	%% Note: This call does not complete quickly and will
+	%% prevent other cowboy:stop_listener/1 calls to complete.
 	ok = cowboy:stop_listener(?FUNCTION_NAME),
 	receive
 		{'DOWN', ListenerMonitorRef, process, Listener, _Reason} ->
@@ -482,7 +500,8 @@ send_timeout_close(Config) ->
 			end,
 		ok = WaitClosedFun(2000),
 		false = erlang:is_process_alive(StreamPid),
-		false = erlang:is_process_alive(ServerPid)
+		false = erlang:is_process_alive(ServerPid),
+		gen_tcp:close(ClientSocket)
 	after
 		cowboy:stop_listener(?FUNCTION_NAME)
 	end.

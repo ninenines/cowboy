@@ -246,7 +246,7 @@ idle_timeout_infinity(Config) ->
 			{'DOWN', Ref, process, Pid, Reason} ->
 				error(Reason)
 		after 1000 ->
-			ok
+			gun:close(ConnPid)
 		end
 	after
 		cowboy:stop_listener(?FUNCTION_NAME)
@@ -293,7 +293,7 @@ request_timeout_infinity(Config) ->
 			{'DOWN', Ref, process, Pid, Reason} ->
 				error(Reason)
 		after 1000 ->
-			ok
+			gun:close(ConnPid)
 		end
 	after
 		cowboy:stop_listener(?FUNCTION_NAME)
@@ -349,7 +349,8 @@ set_options_chunked_false_ignored(Config) ->
 		%% is not disabled for that second request.
 		StreamRef2 = gun:get(ConnPid, "/resp/stream_reply2/200"),
 		{response, nofin, 200, Headers} = gun:await(ConnPid, StreamRef2),
-		{_, <<"chunked">>} = lists:keyfind(<<"transfer-encoding">>, 1, Headers)
+		{_, <<"chunked">>} = lists:keyfind(<<"transfer-encoding">>, 1, Headers),
+		gun:close(ConnPid)
 	after
 		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
@@ -492,6 +493,10 @@ graceful_shutdown_connection(Config) ->
 
 graceful_shutdown_listener(Config) ->
 	doc("Check that connections are shut down gracefully when stopping a listener."),
+	TransOpts = #{
+		socket_opts => [{port, 0}],
+		shutdown => 1000 %% Shorter timeout to make the test case faster.
+	},
 	Dispatch = cowboy_router:compile([{"localhost", [
 		{"/delay_hello", delay_hello_h,
 			#{delay => 500, notify_received => self()}},
@@ -501,7 +506,7 @@ graceful_shutdown_listener(Config) ->
 	ProtoOpts = #{
 		env => #{dispatch => Dispatch}
 	},
-	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], ProtoOpts),
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, TransOpts, ProtoOpts),
 	Port = ranch:get_port(?FUNCTION_NAME),
 	ConnPid1 = gun_open([{type, tcp}, {protocol, http}, {port, Port}|Config]),
 	Ref1 = gun:get(ConnPid1, "/delay_hello"),
@@ -510,6 +515,8 @@ graceful_shutdown_listener(Config) ->
 	%% Shutdown listener while the handlers are working.
 	receive {request_received, <<"/delay_hello">>} -> ok end,
 	receive {request_received, <<"/long_delay_hello">>} -> ok end,
+	%% Note: This call does not complete quickly and will
+	%% prevent other cowboy:stop_listener/1 calls to complete.
 	ok = cowboy:stop_listener(?FUNCTION_NAME),
 	%% Check that the 1st request is handled before shutting down.
 	{response, nofin, 200, RespHeaders} = gun:await(ConnPid1, Ref1),
