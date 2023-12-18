@@ -10,6 +10,22 @@ on:
       - cron: 0 2 * * 1
 
 jobs:
+  cleanup-master:
+    name: Cleanup master build
+    runs-on: ubuntu-latest
+    steps:
+
+    - name: Cleanup master build if necessary
+      if: ${{ github.event_name == 'schedule' }}
+      run: |
+        gh extension install actions/gh-actions-cache
+        gh actions-cache delete Linux-X64-Erlang-master -R $REPO --confirm
+        gh actions-cache delete macOS-X64-Erlang-master -R $REPO --confirm
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        REPO: ${{ github.repository }}
+
   check:
     name: Cowboy
+    needs: cleanup-master
     uses: ninenines/ci.erlang.mk/.github/workflows/ci.yaml@master
