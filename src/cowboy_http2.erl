@@ -1094,6 +1094,7 @@ terminate(State=#state{socket=Socket, transport=Transport, http2_status=Status,
 	end,
 	terminate_all_streams(State, maps:to_list(Streams), Reason),
 	cowboy_children:terminate(Children),
+	%% @todo Don't linger on connection errors.
 	terminate_linger(State),
 	exit({shutdown, Reason});
 %% We are not fully connected so we can just terminate the connection.

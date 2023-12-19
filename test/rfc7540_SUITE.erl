@@ -1405,7 +1405,8 @@ max_frame_size_reject_larger_than_custom(Config0) ->
 			cow_http2:data(1, fin, <<0:30001/unit:8>>)
 		]),
 		%% Receive a FRAME_SIZE_ERROR connection error.
-		{ok, << _:24, 7:8, _:72, 6:32 >>} = gen_tcp:recv(Socket, 17, 6000)
+		{ok, << _:24, 7:8, _:72, 6:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+		gen_tcp:close(Socket)
 	after
 		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
@@ -2620,9 +2621,10 @@ settings_header_table_size_server(Config0) ->
 		{ok, << Len1:24, 1:8, _:40 >>} = gen_tcp:recv(Socket, 9, 6000),
 		{ok, RespHeadersBlock1} = gen_tcp:recv(Socket, Len1, 6000),
 		{RespHeaders, _} = cow_hpack:decode(RespHeadersBlock1, DecodeState),
-		{_, <<"200">>} = lists:keyfind(<<":status">>, 1, RespHeaders)
+		{_, <<"200">>} = lists:keyfind(<<":status">>, 1, RespHeaders),
 		%% The decoding succeeded on the server, confirming that
 		%% the table size was updated to HeaderTableSize.
+		gen_tcp:close(Socket)
 	after
 		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
@@ -2651,7 +2653,8 @@ settings_max_concurrent_streams(Config0) ->
 			cow_http2:headers(3, fin, ReqHeadersBlock2)
 		]),
 		%% Receive a REFUSED_STREAM stream error.
-		{ok, << _:24, 3:8, _:8, 3:32, 7:32 >>} = gen_tcp:recv(Socket, 13, 6000)
+		{ok, << _:24, 3:8, _:8, 3:32, 7:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+		gen_tcp:close(Socket)
 	after
 		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
@@ -2675,7 +2678,8 @@ settings_max_concurrent_streams_0(Config0) ->
 		]),
 		ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
 		%% Receive a REFUSED_STREAM stream error.
-		{ok, << _:24, 3:8, _:8, 1:32, 7:32 >>} = gen_tcp:recv(Socket, 13, 6000)
+		{ok, << _:24, 3:8, _:8, 1:32, 7:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+		gen_tcp:close(Socket)
 	after
 		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
@@ -2787,7 +2791,8 @@ settings_initial_window_size_after_ack(Config0) ->
 			cow_http2:data(1, fin, <<0:32/unit:8>>)
 		]),
 		%% Receive a FLOW_CONTROL_ERROR stream error.
-		{ok, << _:24, 3:8, _:8, 1:32, 3:32 >>} = gen_tcp:recv(Socket, 13, 6000)
+		{ok, << _:24, 3:8, _:8, 1:32, 3:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+		gen_tcp:close(Socket)
 	after
 		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
@@ -3119,7 +3124,8 @@ data_reject_overflow(Config0) ->
 			cow_http2:data(1, fin, <<0:15000/unit:8>>)
 		]),
 		%% Receive a FLOW_CONTROL_ERROR connection error.
-		{ok, << _:24, 7:8, _:72, 3:32 >>} = gen_tcp:recv(Socket, 17, 6000)
+		{ok, << _:24, 7:8, _:72, 3:32 >>} = gen_tcp:recv(Socket, 17, 6000),
+		gen_tcp:close(Socket)
 	after
 		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
@@ -3167,7 +3173,8 @@ data_reject_overflow_stream(Config0) ->
 			cow_http2:data(1, fin, <<0:15000/unit:8>>)
 		]),
 		%% Receive a FLOW_CONTROL_ERROR stream error.
-		{ok, << _:24, 3:8, _:8, 1:32, 3:32 >>} = gen_tcp:recv(Socket, 13, 6000)
+		{ok, << _:24, 3:8, _:8, 1:32, 3:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+		gen_tcp:close(Socket)
 	after
 		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
