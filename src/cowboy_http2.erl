@@ -833,14 +833,21 @@ commands(State=#state{opts=Opts}, StreamID, [Log={log, _, _, _}|Tail]) ->
 
 update_window(State0=#state{socket=Socket, transport=Transport,
 		http2_machine=HTTP2Machine0, flow=Flow, streams=Streams}, StreamID) ->
-	#{StreamID := #stream{flow=StreamFlow}} = Streams,
 	{Data1, HTTP2Machine2} = case cow_http2_machine:ensure_window(Flow, HTTP2Machine0) of
 		ok -> {<<>>, HTTP2Machine0};
 		{ok, Increment1, HTTP2Machine1} -> {cow_http2:window_update(Increment1), HTTP2Machine1}
 	end,
-	{Data2, HTTP2Machine} = case cow_http2_machine:ensure_window(StreamID, StreamFlow, HTTP2Machine2) of
-		ok -> {<<>>, HTTP2Machine2};
-		{ok, Increment2, HTTP2Machine3} -> {cow_http2:window_update(StreamID, Increment2), HTTP2Machine3}
+	{Data2, HTTP2Machine} = case Streams of
+		#{StreamID := #stream{flow=StreamFlow}} ->
+			case cow_http2_machine:ensure_window(StreamID, StreamFlow, HTTP2Machine2) of
+				ok ->
+					{<<>>, HTTP2Machine2};
+				{ok, Increment2, HTTP2Machine3} ->
+					{cow_http2:window_update(StreamID, Increment2), HTTP2Machine3}
+			end;
+		_ ->
+			%% Don't update the stream's window if it stopped.
+			{<<>>, HTTP2Machine2}
 	end,
 	State = State0#state{http2_machine=HTTP2Machine},
 	case {Data1, Data2} of
