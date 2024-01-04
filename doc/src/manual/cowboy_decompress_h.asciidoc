@@ -7,18 +7,26 @@ cowboy_decompress_h - Decompress stream handler
 == Description
 
 The module `cowboy_decompress_h` decompresses request bodies
-automatically when the server supports it. Requests will
-only be decompressed when their compression ratio is lower
-than the configured limit. Mismatch of the content and
-`content-encoding` is rejected with `400 Bad Request`.
+automatically when the server supports it.
+
+The only compression algorithm currently supported is the
+gzip algorithm. Another limitation is that decompression
+is only attempted when gzip is the only content-encoding
+in the request.
+
+This stream handler always adds a field to the Req object
+with the name `content_decoded` which is treated as a
+list of decoded content-encoding values. Currently this
+list may only contain the `<<"gzip">>` binary if content
+was decoded; or be empty otherwise.
 
 == Options
 
 [source,erlang]
 ----
 opts() :: #{
-	decompress_ratio_limit => non_neg_integer(),
-	decompress_ignore => boolean()
+	decompress_enabled => boolean(),
+	decompress_ratio_limit => non_neg_integer()
 }
 ----
 
@@ -28,17 +36,21 @@ The default value is given next to the option name:
 
 decompress_ratio_limit (20)::
 The max ratio of the compressed and decompressed body
-before it is rejected with `413 Payload Too Large`.
+before it is rejected with a `413 Payload Too Large`
+error response.
 +
 This option can be updated at any time using the
 `set_options` stream handler command.
 
-decompress_ignore (false)::
+decompress_enabled (true)::
 
-Whether the handler will be ignored.
+Whether the handler is enabled by default.
 +
-This option can be updated at any time using the
-`set_options` stream handler command.
+This option can be updated using the `set_options`
+stream handler command. This allows disabling
+decompression for the current stream. Attempts
+to enable or disable decompression after starting
+to read the body will be ignored.
 
 == Events
 

@@ -36,6 +36,7 @@ Stream handlers:
 
 * link:man:cowboy_stream_h(3)[cowboy_stream_h(3)] - Default stream handler
 * link:man:cowboy_compress_h(3)[cowboy_compress_h(3)] - Compress stream handler
+* link:man:cowboy_decompress_h(3)[cowboy_decompress_h(3)] - Decompress stream handler
 * link:man:cowboy_metrics_h(3)[cowboy_metrics_h(3)] - Metrics stream handler
 * link:man:cowboy_tracer_h(3)[cowboy_tracer_h(3)] - Tracer stream handler
 
