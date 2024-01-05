@@ -24,7 +24,7 @@
 
 -record(state, {
 	next :: any(),
-	enabled :: boolean(),
+	enabled = true :: boolean(),
 	ratio_limit :: non_neg_integer() | undefined,
 	compress = undefined :: undefined | gzip,
 	inflate = undefined :: undefined | zlib:zstream(),
