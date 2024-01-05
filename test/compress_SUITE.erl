@@ -109,6 +109,17 @@ gzip_reply_content_encoding(Config) ->
 	{_, <<"100000">>} = lists:keyfind(<<"content-length">>, 1, Headers),
 	ok.
 
+gzip_reply_etag(Config) ->
+	doc("Reply with etag header; get an uncompressed response."),
+	{200, Headers, _} = do_get("/reply/etag",
+		[{<<"accept-encoding">>, <<"gzip">>}], Config),
+	%% We set a strong etag.
+	{_, <<"\"STRONK\"">>} = lists:keyfind(<<"etag">>, 1, Headers),
+	%% The reply didn't include a vary header.
+	false = lists:keyfind(<<"vary">>, 1, Headers),
+	{_, <<"100000">>} = lists:keyfind(<<"content-length">>, 1, Headers),
+	ok.
+
 gzip_reply_large_body(Config) ->
 	doc("Reply a large body; get a gzipped response."),
 	{200, Headers, GzBody} = do_get("/reply/large",
@@ -170,6 +181,15 @@ gzip_stream_reply_content_encoding(Config) ->
 	{200, Headers, Body} = do_get("/stream_reply/content-encoding",
 		[{<<"accept-encoding">>, <<"gzip">>}], Config),
 	{_, <<"compress">>} = lists:keyfind(<<"content-encoding">>, 1, Headers),
+	false = lists:keyfind(<<"vary">>, 1, Headers),
+	100000 = iolist_size(Body),
+	ok.
+
+gzip_stream_reply_etag(Config) ->
+	doc("Stream reply with etag header; get an uncompressed response."),
+	{200, Headers, Body} = do_get("/stream_reply/etag",
+		[{<<"accept-encoding">>, <<"gzip">>}], Config),
+	{_, <<"\"STRONK\"">>} = lists:keyfind(<<"etag">>, 1, Headers),
 	false = lists:keyfind(<<"vary">>, 1, Headers),
 	100000 = iolist_size(Body),
 	ok.

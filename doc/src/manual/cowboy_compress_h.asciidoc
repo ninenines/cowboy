@@ -9,7 +9,7 @@ cowboy_compress_h - Compress stream handler
 The module `cowboy_compress_h` compresses response bodies
 automatically when the client supports it. It will not
 try to compress responses that already have a content
-encoding.
+encoding or that have an etag header defined.
 
 Normal responses will only be compressed when their
 size is lower than the configured threshold. Streamed
@@ -55,6 +55,8 @@ The compress stream handler does not produce any event.
 
 == Changelog
 
+* *2.11*: Compression is now disabled when the etag
+  header is in the response headers.
 * *2.6*: The options `compress_buffering` and
   `compress_threshold` were added.
 * *2.0*: Module introduced.

@@ -19,6 +19,9 @@ init(Req0, State=reply) ->
 		<<"content-encoding">> ->
 			cowboy_req:reply(200, #{<<"content-encoding">> => <<"compress">>},
 				lists:duplicate(100000, $a), Req0);
+		<<"etag">> ->
+			cowboy_req:reply(200, #{<<"etag">> => <<"\"STRONK\"">>},
+				lists:duplicate(100000, $a), Req0);
 		<<"sendfile">> ->
 			AppFile = code:where_is_file("cowboy.app"),
 			Size = filelib:file_size(AppFile),
@@ -34,6 +37,8 @@ init(Req0, State=stream_reply) ->
 			stream_reply(#{}, Req0);
 		<<"content-encoding">> ->
 			stream_reply(#{<<"content-encoding">> => <<"compress">>}, Req0);
+		<<"etag">> ->
+			stream_reply(#{<<"etag">> => <<"\"STRONK\"">>}, Req0);
 		<<"sendfile">> ->
 			Data = lists:duplicate(10000, $a),
 			AppFile = code:where_is_file("cowboy.app"),

@@ -96,6 +96,9 @@ check_req(Req) ->
 %% Do not compress responses that contain the content-encoding header.
 check_resp_headers(#{<<"content-encoding">> := _}, State) ->
 	State#state{compress=undefined};
+%% Do not compress responses that contain the etag header.
+check_resp_headers(#{<<"etag">> := _}, State) ->
+	State#state{compress=undefined};
 check_resp_headers(_, State) ->
 	State.
 
