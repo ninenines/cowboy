@@ -765,39 +765,42 @@ default_port(_) -> 80.
 request(Buffer, State0=#state{ref=Ref, transport=Transport, peer=Peer, sock=Sock, cert=Cert,
 		proxy_header=ProxyHeader, in_streamid=StreamID, in_state=
 			PS=#ps_header{method=Method, path=Path, qs=Qs, version=Version}},
-		Headers0, Host, Port) ->
+		Headers, Host, Port) ->
 	Scheme = case Transport:secure() of
 		true -> <<"https">>;
 		false -> <<"http">>
 	end,
-	{Headers, HasBody, BodyLength, TDecodeFun, TDecodeState} = case Headers0 of
+	{HasBody, BodyLength, TDecodeFun, TDecodeState} = case Headers of
+		#{<<"transfer-encoding">> := _, <<"content-length">> := _} ->
+			error_terminate(400, State0#state{in_state=PS#ps_header{headers=Headers}},
+				{stream_error, protocol_error,
+					'The request had both transfer-encoding and content-length headers. (RFC7230 3.3.3)'});
 		#{<<"transfer-encoding">> := TransferEncoding0} ->
 			try cow_http_hd:parse_transfer_encoding(TransferEncoding0) of
 				[<<"chunked">>] ->
-					{maps:remove(<<"content-length">>, Headers0),
-						true, undefined, fun cow_http_te:stream_chunked/2, {0, 0}};
+					{true, undefined, fun cow_http_te:stream_chunked/2, {0, 0}};
 				_ ->
-					error_terminate(400, State0#state{in_state=PS#ps_header{headers=Headers0}},
+					error_terminate(400, State0#state{in_state=PS#ps_header{headers=Headers}},
 						{stream_error, protocol_error,
 							'Cowboy only supports transfer-encoding: chunked. (RFC7230 3.3.1)'})
 			catch _:_ ->
-				error_terminate(400, State0#state{in_state=PS#ps_header{headers=Headers0}},
+				error_terminate(400, State0#state{in_state=PS#ps_header{headers=Headers}},
 					{stream_error, protocol_error,
 						'The transfer-encoding header is invalid. (RFC7230 3.3.1)'})
 			end;
 		#{<<"content-length">> := <<"0">>} ->
-			{Headers0, false, 0, undefined, undefined};
+			{false, 0, undefined, undefined};
 		#{<<"content-length">> := BinLength} ->
 			Length = try
 				cow_http_hd:parse_content_length(BinLength)
 			catch _:_ ->
-				error_terminate(400, State0#state{in_state=PS#ps_header{headers=Headers0}},
+				error_terminate(400, State0#state{in_state=PS#ps_header{headers=Headers}},
 					{stream_error, protocol_error,
 						'The content-length header is invalid. (RFC7230 3.3.2)'})
 			end,
-			{Headers0, true, Length, fun cow_http_te:stream_identity/2, {0, Length}};
+			{true, Length, fun cow_http_te:stream_identity/2, {0, Length}};
 		_ ->
-			{Headers0, false, 0, undefined, undefined}
+			{false, 0, undefined, undefined}
 	end,
 	Req0 = #{
 		ref => Ref,

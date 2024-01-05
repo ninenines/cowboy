@@ -1144,18 +1144,19 @@ reject_invalid_content_length(Config) ->
 %with a message body too large must be rejected with a 413 status
 %code and the closing of the connection. (RFC7230 3.3.2)
 
-ignore_content_length_when_transfer_encoding(Config) ->
+reject_when_both_content_length_and_transfer_encoding(Config) ->
 	doc("When a message includes both transfer-encoding and content-length "
-		"headers, the content-length header must be removed before processing "
-		"the request. (RFC7230 3.3.3)"),
-	#{code := 200, body := <<"Hello world!">>} = do_raw(Config, [
+		"headers, the message may be an attempt at request smuggling. It "
+		"must be rejected with a 400 status code and the closing of the "
+		"connection. (RFC7230 3.3.3)"),
+	#{code := 400, client := Client} = do_raw(Config, [
 		"POST /echo/read_body HTTP/1.1\r\n"
 		"Host: localhost\r\n"
 		"Transfer-encoding: chunked\r\n"
 		"Content-length: 12\r\n"
 		"\r\n"
 		"6\r\nHello \r\n5\r\nworld\r\n1\r\n!\r\n0\r\n\r\n"]),
-	ok.
+	{error, closed} = raw_recv(Client, 0, 1000).
 
 %socket_error_while_reading_body(Config) ->
 %If a socket error occurs while reading the body the server
