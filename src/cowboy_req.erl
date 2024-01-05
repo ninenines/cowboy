@@ -126,6 +126,7 @@
 	path := binary(),
 	qs := binary(),
 	headers := cowboy:http_headers(),
+	headers_raw := cow_http:headers() | binary() | undefined,
 	peer := {inet:ip_address(), inet:port_number()},
 	sock := {inet:ip_address(), inet:port_number()},
 	cert := binary() | undefined,
