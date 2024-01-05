@@ -21,26 +21,26 @@
 -import(cowboy_test, [gun_open/1]).
 
 all() ->
-	[{group, app}, {group, set_env}|cowboy_test:common_all()].
+	[{group, app}, {group, env}|cowboy_test:common_all()].
 
 groups() ->
 	Common = ct_helper:all(?MODULE)
-		-- [restart_gracefully, set_env, set_env_missing],
+		-- [restart_gracefully, get_env, set_env, set_env_missing],
 	[
 		{app, [], [restart_gracefully]},
-		{set_env, [parallel], [set_env, set_env_missing]}
+		{env, [parallel], [get_env, set_env, set_env_missing]}
 	|cowboy_test:common_groups(Common)].
 
 init_per_group(Name=app, Config) ->
 	cowboy_test:init_http(Name, #{
 		env => #{dispatch => init_dispatch(Config)}
 	}, Config);
-init_per_group(set_env, Config) ->
+init_per_group(env, Config) ->
 	Config;
 init_per_group(Name, Config) ->
 	cowboy_test:init_common_groups(Name, Config, ?MODULE).
 
-end_per_group(set_env, _) ->
+end_per_group(env, _) ->
 	ok;
 end_per_group(Name, _) ->
 	cowboy:stop_listener(Name).
@@ -83,6 +83,26 @@ router_invalid_path(Config) ->
 	Ref = gun:get(ConnPid, "/version/path/%\\u0016\\u0016/path"),
 	{response, _, 400, _} = gun:await(ConnPid, Ref),
 	ok.
+
+get_env(Config0) ->
+	doc("Ensure we can retrieve middleware environment values."),
+	Dispatch = init_dispatch(Config0),
+	_Config = cowboy_test:init_http(?FUNCTION_NAME, #{
+		env => #{
+			dispatch => Dispatch,
+			the_key => the_value
+		}
+	}, Config0),
+	try
+		Dispatch = cowboy:get_env(?FUNCTION_NAME, dispatch),
+		Dispatch = cowboy:get_env(?FUNCTION_NAME, dispatch, the_default),
+		the_value = cowboy:get_env(?FUNCTION_NAME, the_key),
+		the_value = cowboy:get_env(?FUNCTION_NAME, the_key, the_default),
+		{'EXIT', _} = (catch cowboy:get_env(?FUNCTION_NAME, missing_key)),
+		the_default = cowboy:get_env(?FUNCTION_NAME, missing_key, the_default)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
 
 set_env(Config0) ->
 	doc("Live replace a middleware environment value."),

@@ -14,6 +14,7 @@ manipulating Ranch listeners.
 * link:man:cowboy:start_clear(3)[cowboy:start_clear(3)] - Listen for connections using plain TCP
 * link:man:cowboy:start_tls(3)[cowboy:start_tls(3)] - Listen for connections using TLS
 * link:man:cowboy:stop_listener(3)[cowboy:stop_listener(3)] - Stop the given listener
+* link:man:cowboy:get_env(3)[cowboy:get_env(3)] - Retrieve a listener's environment value
 * link:man:cowboy:set_env(3)[cowboy:set_env(3)] - Update a listener's environment value
 
 == Types

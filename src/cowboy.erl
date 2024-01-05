@@ -17,6 +17,8 @@
 -export([start_clear/3]).
 -export([start_tls/3]).
 -export([stop_listener/1]).
+-export([get_env/2]).
+-export([get_env/3]).
 -export([set_env/3]).
 
 %% Internal.
@@ -68,6 +70,18 @@ ensure_connection_type(TransOpts) ->
 -spec stop_listener(ranch:ref()) -> ok | {error, not_found}.
 stop_listener(Ref) ->
 	ranch:stop_listener(Ref).
+
+-spec get_env(ranch:ref(), atom()) -> ok.
+get_env(Ref, Name) ->
+	Opts = ranch:get_protocol_options(Ref),
+	Env = maps:get(env, Opts, #{}),
+	maps:get(Name, Env).
+
+-spec get_env(ranch:ref(), atom(), any()) -> ok.
+get_env(Ref, Name, Default) ->
+	Opts = ranch:get_protocol_options(Ref),
+	Env = maps:get(env, Opts, #{}),
+	maps:get(Name, Env, Default).
 
 -spec set_env(ranch:ref(), atom(), any()) -> ok.
 set_env(Ref, Name, Value) ->

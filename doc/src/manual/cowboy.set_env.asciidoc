@@ -76,4 +76,5 @@ cowboy:set_env(example, dispatch, Dispatch).
 link:man:cowboy(3)[cowboy(3)],
 link:man:cowboy:start_clear(3)[cowboy:start_clear(3)],
 link:man:cowboy:start_tls(3)[cowboy:start_tls(3)],
+link:man:cowboy:get_env(3)[cowboy:get_env(3)],
 link:man:ranch:set_protocol_options(3)[ranch:set_protocol_options(3)]

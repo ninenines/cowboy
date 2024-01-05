@@ -1,0 +1,78 @@
+= cowboy:get_env(3)
+
+== Name
+
+cowboy:get_env - Retrieve a listener's environment value
+
+== Description
+
+[source,erlang]
+----
+get_env(Name :: ranch:ref(),
+        Key  :: atom())
+    -> any()
+
+get_env(Name    :: ranch:ref(),
+        Key     :: atom(),
+        Default :: any())
+    -> any()
+----
+
+Retrieve an environment value for a previously started
+listener.
+
+This function may crash when the key is missing from the
+environment and a default value is not provided.
+
+== Arguments
+
+Name::
+
+The name of the listener to access.
++
+The name of the listener is the first argument given to the
+link:man:cowboy:start_clear(3)[cowboy:start_clear(3)],
+link:man:cowboy:start_tls(3)[cowboy:start_tls(3)] or
+link:man:ranch:start_listener(3)[ranch:start_listener(3)] function.
+
+Key::
+
+The key in the environment map. Common keys include `dispatch`
+and `middlewares`.
+
+Default::
+
+The default value if the key is missing.
+
+== Return value
+
+The environment value is returned on success.
+
+If a default was provided and the key is missing, then the
+default value is returned.
+
+An `exit:badarg` exception is thrown when the listener does
+not exist.
+
+An `exit:{badkey, Key}` exception is thrown when the key
+requested is missing and no default was provided.
+
+== Changelog
+
+* *2.11*: Function introduced.
+
+== Examples
+
+.Retrieve a listener's routes
+[source,erlang]
+----
+Dispatch = cowboy:get_env(example, dispatch).
+----
+
+== See also
+
+link:man:cowboy(3)[cowboy(3)],
+link:man:cowboy:start_clear(3)[cowboy:start_clear(3)],
+link:man:cowboy:start_tls(3)[cowboy:start_tls(3)],
+link:man:cowboy:set_env(3)[cowboy:set_env(3)],
+link:man:ranch:get_protocol_options(3)[ranch:get_protocol_options(3)]
