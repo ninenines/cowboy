@@ -341,6 +341,7 @@ ws_first_frame_with_handshake(Config) ->
 	{ok, <<1:1, 0:3, 1:4, 0:1, 5:7, "Hello">>} = gen_tcp:recv(Socket, 0, 6000),
 	ok.
 
+%% @todo Move these tests to ws_handler_SUITE.
 ws_init_return_ok(Config) ->
 	doc("Handler does nothing."),
 	{ok, Socket, _} = do_handshake("/ws_init?ok", Config),

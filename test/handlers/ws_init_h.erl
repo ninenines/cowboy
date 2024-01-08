@@ -36,7 +36,10 @@ do_websocket_init(State=reply_many_hibernate) ->
 do_websocket_init(State=reply_many_close) ->
 	{[{text, "Hello"}, close], State};
 do_websocket_init(State=reply_many_close_hibernate) ->
-	{[{text, "Hello"}, close], State, hibernate}.
+	{[{text, "Hello"}, close], State, hibernate};
+do_websocket_init(State=reply_trap_exit) ->
+	Text = "trap_exit: " ++ atom_to_list(element(2, process_info(self(), trap_exit))),
+	{[{text, Text}, close], State, hibernate}.
 
 websocket_handle(_, State) ->
 	{[], State}.

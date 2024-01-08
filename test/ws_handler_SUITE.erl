@@ -50,6 +50,7 @@ init_dispatch(Name) ->
 		{"/init", ws_init_commands_h, RunOrHibernate},
 		{"/handle", ws_handle_commands_h, RunOrHibernate},
 		{"/info", ws_info_commands_h, RunOrHibernate},
+		{"/trap_exit", ws_init_h, RunOrHibernate},
 		{"/active", ws_active_commands_h, RunOrHibernate},
 		{"/deflate", ws_deflate_commands_h, RunOrHibernate},
 		{"/set_options", ws_set_options_commands_h, RunOrHibernate},
@@ -210,6 +211,13 @@ do_many_frames_then_close_frame(Config, Path) ->
 	{ok, {binary, <<"Two frames!">>}} = receive_ws(ConnPid, StreamRef),
 	{ok, close} = receive_ws(ConnPid, StreamRef),
 	gun_down(ConnPid).
+
+websocket_init_trap_exit_false(Config) ->
+	doc("The trap_exit process flag must be set back to false before "
+		"the connection is taken over by Websocket."),
+	{ok, ConnPid, StreamRef} = gun_open_ws(Config, "/trap_exit?reply_trap_exit", []),
+	{ok, {text, <<"trap_exit: false">>}} = receive_ws(ConnPid, StreamRef),
+	ok.
 
 websocket_active_false(Config) ->
 	doc("The {active, false} command stops receiving data from the socket. "

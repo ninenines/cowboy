@@ -1212,11 +1212,13 @@ commands(State0=#state{ref=Ref, parent=Parent, socket=Socket, transport=Transpor
 		_ -> State
 	end,
 	#stream{state=StreamState} = lists:keyfind(StreamID, #stream.id, Streams),
-	%% @todo We need to shutdown processes here first.
 	stream_call_terminate(StreamID, switch_protocol, StreamState, State),
 	%% Terminate children processes and flush any remaining messages from the mailbox.
 	cowboy_children:terminate(Children),
 	flush(Parent),
+	%% Turn off the trap_exit process flag
+	%% since this process will no longer be a supervisor.
+	process_flag(trap_exit, false),
 	Protocol:takeover(Parent, Ref, Socket, Transport, Opts, Buffer, InitialState);
 %% Set options dynamically.
 commands(State0=#state{overriden_opts=Opts},
