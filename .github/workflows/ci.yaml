@@ -19,8 +19,8 @@ jobs:
       if: ${{ github.event_name == 'schedule' }}
       run: |
         gh extension install actions/gh-actions-cache
-        gh actions-cache delete Linux-X64-Erlang-master -R $REPO --confirm
-        gh actions-cache delete macOS-X64-Erlang-master -R $REPO --confirm
+        gh actions-cache delete Linux-X64-Erlang-master -R $REPO --confirm || true
+        gh actions-cache delete macOS-X64-Erlang-master -R $REPO --confirm || true
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         REPO: ${{ github.repository }}
