@@ -57,6 +57,8 @@ The compress stream handler does not produce any event.
 
 * *2.11*: Compression is now disabled when the etag
   header is in the response headers.
+* *2.11*: The vary: accept-encoding header is now
+  always set when this handler is enabled.
 * *2.6*: The options `compress_buffering` and
   `compress_threshold` were added.
 * *2.0*: Module introduced.

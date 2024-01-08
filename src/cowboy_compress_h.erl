@@ -103,7 +103,7 @@ check_resp_headers(_, State) ->
 	State.
 
 fold(Commands, State=#state{compress=undefined}) ->
-	{Commands, State};
+	fold_vary_only(Commands, State, []);
 fold(Commands, State) ->
 	fold(Commands, State, []).
 
@@ -111,32 +111,32 @@ fold([], State, Acc) ->
 	{lists:reverse(Acc), State};
 %% We do not compress full sendfile bodies.
 fold([Response={response, _, _, {sendfile, _, _, _}}|Tail], State, Acc) ->
-	fold(Tail, State, [Response|Acc]);
+	fold(Tail, State, [vary_response(Response)|Acc]);
 %% We compress full responses directly, unless they are lower than
 %% the configured threshold or we find we are not able to by looking at the headers.
 fold([Response0={response, _, Headers, Body}|Tail],
 		State0=#state{threshold=CompressThreshold}, Acc) ->
 	case check_resp_headers(Headers, State0) of
 		State=#state{compress=undefined} ->
-			fold(Tail, State, [Response0|Acc]);
+			fold(Tail, State, [vary_response(Response0)|Acc]);
 		State1 ->
 			BodyLength = iolist_size(Body),
 			if
 				BodyLength =< CompressThreshold ->
-					fold(Tail, State1, [Response0|Acc]);
+					fold(Tail, State1, [vary_response(Response0)|Acc]);
 				true ->
 					{Response, State} = gzip_response(Response0, State1),
-					fold(Tail, State, [Response|Acc])
+					fold(Tail, State, [vary_response(Response)|Acc])
 			end
 	end;
 %% Check headers and initiate compression...
 fold([Response0={headers, _, Headers}|Tail], State0, Acc) ->
 	case check_resp_headers(Headers, State0) of
 		State=#state{compress=undefined} ->
-			fold(Tail, State, [Response0|Acc]);
+			fold(Tail, State, [vary_headers(Response0)|Acc]);
 		State1 ->
 			{Response, State} = gzip_headers(Response0, State1),
-			fold(Tail, State, [Response|Acc])
+			fold(Tail, State, [vary_headers(Response)|Acc])
 	end;
 %% then compress each data commands individually.
 fold([Data0={data, _, _}|Tail], State0=#state{compress=gzip}, Acc) ->
@@ -164,6 +164,15 @@ fold([SetOptions={set_options, Opts}|Tail], State=#state{
 fold([Command|Tail], State, Acc) ->
 	fold(Tail, State, [Command|Acc]).
 
+fold_vary_only([], State, Acc) ->
+	{lists:reverse(Acc), State};
+fold_vary_only([Response={response, _, _, _}|Tail], State, Acc) ->
+	fold_vary_only(Tail, State, [vary_response(Response)|Acc]);
+fold_vary_only([Response={headers, _, _}|Tail], State, Acc) ->
+	fold_vary_only(Tail, State, [vary_headers(Response)|Acc]);
+fold_vary_only([Command|Tail], State, Acc) ->
+	fold_vary_only(Tail, State, [Command|Acc]).
+
 buffering_to_zflush(true) -> none;
 buffering_to_zflush(false) -> sync.
 
@@ -183,10 +192,10 @@ gzip_response({response, Status, Headers, Body}, State) ->
 	after
 		zlib:close(Z)
 	end,
-	{{response, Status, vary(Headers#{
+	{{response, Status, Headers#{
 		<<"content-length">> => integer_to_binary(iolist_size(GzBody)),
 		<<"content-encoding">> => <<"gzip">>
-	}), GzBody}, State}.
+	}, GzBody}, State}.
 
 gzip_headers({headers, Status, Headers0}, State) ->
 	Z = zlib:open(),
@@ -194,9 +203,15 @@ gzip_headers({headers, Status, Headers0}, State) ->
 	%% @todo It might be good to allow them to be configured?
 	zlib:deflateInit(Z, default, deflated, 31, 8, default),
 	Headers = maps:remove(<<"content-length">>, Headers0),
-	{{headers, Status, vary(Headers#{
+	{{headers, Status, Headers#{
 		<<"content-encoding">> => <<"gzip">>
-	})}, State#state{deflate=Z}}.
+	}}, State#state{deflate=Z}}.
+
+vary_response({response, Status, Headers, Body}) ->
+	{response, Status, vary(Headers), Body}.
+
+vary_headers({headers, Status, Headers}) ->
+	{headers, Status, vary(Headers)}.
 
 %% We must add content-encoding to vary if it's not already there.
 vary(Headers=#{<<"vary">> := Vary}) ->
