@@ -521,7 +521,11 @@ read_body(Req=#{has_read_body := true}, _) ->
 read_body(Req, Opts) ->
 	Length = maps:get(length, Opts, 8000000),
 	Period = maps:get(period, Opts, 15000),
-	Timeout = maps:get(timeout, Opts, Period + 1000),
+	DefaultTimeout = case Period of
+		infinity -> infinity; %% infinity + 1000 = infinity.
+		_ -> Period + 1000
+	end,
+	Timeout = maps:get(timeout, Opts, DefaultTimeout),
 	Ref = make_ref(),
 	cast({read_body, self(), Ref, Length, Period}, Req),
 	receive

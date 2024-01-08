@@ -45,8 +45,49 @@ The default stream handler spawns the request process
 and receives its exit signal when it terminates. It
 will stop the stream once its receives it.
 
-// @todo It also implements the read_body mechanism.
-// Note that cowboy_stream_h sends the 100-continue automatically.
+Because this stream handler converts events from the
+request process into commands, other stream handlers
+may not work properly if they are executed after the
+default stream handler. Always be mindful of in which
+order stream handlers will get executed.
+
+=== Request body
+
+The default stream handler implements the `read_body`
+mechanism. In addition to reading the body, the handler
+will automatically handle the `expect: 100-continue`
+header and send a 100 Continue response.
+
+Normally one would use
+link:man:cowboy_req:read_body(3)[cowboy_req:read_body(3)]
+to read the request body. The default stream handler
+will buffer data until the amount gets larger than the
+requested length before sending it. Alternatively, it
+will send whatever data it has when the period timeout
+triggers. Depending on the protocol, the flow control
+window is updated to allow receiving data for the
+requested length.
+
+The default stream handler also comes with an automatic
+mode for reading the request body. This can be used by
+sending the event message `{read_body, Pid, Ref, auto, infinity}`
+using link:man:cowboy_req:cast(3)[cowboy_req:cast(3)].
+The default stream handler will then send data as soon
+as some becomes available using one of these two
+messages depending on whether body reading was completed:
+
+* `{request_body, Ref, nofin, Data}`
+* `{request_body, Ref, fin, BodyLen, Data}`
+
+Depending on the protocol, Cowboy will update the flow
+control window using the size of the data that was read.
+
+Auto mode automatically gets disabled after data has
+been sent to the handler. Therefore in order to continue
+reading data a `read_body` event message must be sent
+after each `request_body` message.
+
+=== Response
 
 In addition it returns a command for any event message
 looking like one of the following commands: `inform`,
@@ -54,14 +95,9 @@ looking like one of the following commands: `inform`,
 `switch_protocol`. This is what allows the request
 process to send a response.
 
-// @todo Add set_options, which updates options dynamically.
-
-Because this stream handler converts events from the
-request process into commands, other stream handlers
-may not work properly if they are executed
-
 == Changelog
 
+* *2.11*: Introduce body reading using auto mode.
 * *2.0*: Module introduced.
 
 == See also
@@ -71,4 +107,5 @@ link:man:cowboy_stream(3)[cowboy_stream(3)],
 link:man:cowboy_compress_h(3)[cowboy_compress_h(3)],
 link:man:cowboy_decompress_h(3)[cowboy_decompress_h(3)],
 link:man:cowboy_metrics_h(3)[cowboy_metrics_h(3)],
-link:man:cowboy_tracer_h(3)[cowboy_tracer_h(3)]
+link:man:cowboy_tracer_h(3)[cowboy_tracer_h(3)],
+link:man:cowboy_req:cast(3)[cowboy_req:cast(3)]

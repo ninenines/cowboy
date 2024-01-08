@@ -74,17 +74,33 @@ only up to 1MB for up to 5 seconds:
     #{length => 1000000, period => 5000}).
 ----
 
-You may also disable the length limit:
-
-[source,erlang]
-{ok, Data, Req} = cowboy_req:read_body(Req0, #{length => infinity}).
-
-This makes the function wait 15 seconds and return with
-whatever arrived during that period. This is not
-recommended for public facing applications.
-
 These two options can effectively be used to control
 the rate of transmission of the request body.
+
+It is also possible to asynchronously read the request
+body using auto mode:
+
+[source,erlang]
+----
+Ref = make_ref(),
+cowboy_req:cast({read_body, self(), Ref, auto, infinity}, Req).
+----
+
+Cowboy will wait indefinitely for data and then send a
+`request_body` message as soon as it has data available,
+regardless of length.
+
+[source,erlang]
+----
+receive
+    {request_body, Ref, nofin, Data} ->
+        do_something(Data);
+    {request_body, Ref, fin, _BodyLen, Data} ->
+        do_something(Data)
+end.
+----
+
+Asynchronous reading of data pairs well with loop handlers.
 
 === Streaming the body
 

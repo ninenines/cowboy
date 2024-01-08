@@ -68,6 +68,13 @@ The `timeout` option is a safeguard in case the connection
 process becomes unresponsive. The function will crash if no
 message was received in that interval. The timeout should be
 larger than the period. It defaults to the period + 1 second.
++
+Auto mode can be enabled by setting the `length` to `auto` and
+the `period` to `infinity`. When auto mode is used, Cowboy will
+send data to the handler as soon as it receives it, regardless
+of its size. It will wait indefinitely until data is available.
+Auto mode's main purpose is asynchronous body reading using
+link:man:cowboy_req:cast(3)[cowboy_req:cast(3)].
 
 == Return value
 
@@ -86,6 +93,9 @@ body has been read.
 
 == Changelog
 
+* *2.11*: The `length` option now accepts `auto` and the
+  period now accepts `infinity`. This adds support for
+  reading the body in auto mode.
 * *2.0*: Function introduced. Replaces `body/1,2`.
 
 == Examples

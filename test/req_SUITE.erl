@@ -64,6 +64,8 @@ init_dispatch(Config) ->
 		{"/opts/:key/timeout", echo_h, #{timeout => 1000, crash => true}},
 		{"/100-continue/:key", echo_h, []},
 		{"/full/:key", echo_h, []},
+		{"/auto-sync/:key", echo_h, []},
+		{"/auto-async/:key", echo_h, []},
 		{"/spawn/:key", echo_h, []},
 		{"/no/:key", echo_h, []},
 		{"/direct/:key/[...]", echo_h, []},
@@ -523,6 +525,12 @@ do_read_body_timeout(Path, Body, Config) ->
 	]),
 	{response, _, 500, _} = gun:await(ConnPid, Ref, infinity),
 	gun:close(ConnPid).
+
+read_body_auto(Config) ->
+	doc("Read the request body using auto mode."),
+	<<0:80000000>> = do_body("POST", "/auto-sync/read_body", [], <<0:80000000>>, Config),
+	<<0:80000000>> = do_body("POST", "/auto-async/read_body", [], <<0:80000000>>, Config),
+	ok.
 
 read_body_spawn(Config) ->
 	doc("Confirm we can use cowboy_req:read_body/1,2 from another process."),

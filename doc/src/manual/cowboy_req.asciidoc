@@ -120,8 +120,8 @@ request's URI.
 [source,erlang]
 ----
 read_body_opts() :: #{
-    length  => non_neg_integer(),
-    period  => non_neg_integer(),
+    length  => non_neg_integer() | auto,
+    period  => non_neg_integer() | infinity,
     timeout => timeout()
 }
 ----
@@ -129,6 +129,10 @@ read_body_opts() :: #{
 Body reading options.
 
 The defaults are function-specific.
+
+Auto mode can be enabled by setting `length` to `auto`
+and `period` to `infinity`. The period cannot be set
+to `infinity` when auto mode isn't used.
 
 === req()
 

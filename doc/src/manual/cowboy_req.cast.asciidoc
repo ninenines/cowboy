@@ -36,6 +36,22 @@ The atom `ok` is always returned. It can be safely ignored.
 
 == Examples
 
+.Read the body using auto mode
+[source,erlang]
+----
+read_body_auto_async(Req) ->
+    read_body_auto_async(Req, make_ref(), <<>>).
+
+read_body_auto_async(Req, Ref, Acc) ->
+    cowboy_req:cast({read_body, self(), Ref, auto, infinity}, Req),
+    receive
+        {request_body, Ref, nofin, Data} ->
+            read_body_auto_async(Req, Ref, <<Acc/binary, Data/binary>>);
+        {request_body, Ref, fin, _BodyLen, Data} ->
+            {ok, <<Acc/binary, Data/binary>>, Req}
+    end.
+----
+
 .Increase the HTTP/1.1 idle timeout
 [source,erlang]
 ----
