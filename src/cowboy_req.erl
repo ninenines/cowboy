@@ -830,7 +830,7 @@ do_reply_ensure_no_body(Status, Headers, Body, Req) ->
 			do_reply(Status, Headers, Body, Req);
 		_ ->
 			exit({response_error, payload_too_large,
-				'204 and 304 responses must not include a response body. (RFC7230 3.3)'})
+				'204 and 304 responses must not include a body. (RFC7230 3.3)'})
 	end.
 
 %% Don't send any body for HEAD responses. While the protocol code is
