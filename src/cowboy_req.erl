@@ -868,7 +868,7 @@ stream_reply(Status, Req) ->
 stream_reply(_, _, #{has_sent_resp := _}) ->
 	exit({response_error, response_already_sent,
 		'The final response has already been sent.'});
-stream_reply(_, #{<<"set-cookie">> := _}, _, _) ->
+stream_reply(_, #{<<"set-cookie">> := _}, _) ->
 	?INVALID_COOKIE_HEADER_ERROR;
 %% 204 and 304 responses must NOT send a body. We therefore
 %% transform the call to a full response and expect the user
