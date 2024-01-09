@@ -130,6 +130,10 @@ do(<<"inform2">>, Req0, Opts) ->
 		<<"twice">> ->
 			cowboy_req:inform(102, Req0),
 			cowboy_req:inform(102, Req0);
+		<<"after_reply">> ->
+			ct_helper:ignore(cowboy_req, inform, 3),
+			Req1 = cowboy_req:reply(200, Req0),
+			cowboy_req:inform(102, Req1);
 		Status ->
 			cowboy_req:inform(binary_to_integer(Status), Req0)
 	end,
@@ -146,6 +150,10 @@ do(<<"inform3">>, Req0, Opts) ->
 		<<"twice">> ->
 			cowboy_req:inform(102, Headers, Req0),
 			cowboy_req:inform(102, Headers, Req0);
+		<<"after_reply">> ->
+			ct_helper:ignore(cowboy_req, inform, 3),
+			Req1 = cowboy_req:reply(200, Req0),
+			cowboy_req:inform(102, Headers, Req1);
 		Status ->
 			cowboy_req:inform(binary_to_integer(Status), Headers, Req0)
 	end,
@@ -213,6 +221,13 @@ do(<<"stream_reply2">>, Req0, Opts) ->
 		<<"304body">> ->
 			ct_helper:ignore(cowboy_req, stream_body, 3),
 			Req = cowboy_req:stream_reply(304, Req0),
+			stream_body(Req),
+			{ok, Req, Opts};
+		<<"twice">> ->
+			ct_helper:ignore(cowboy_req, stream_reply, 3),
+			Req1 = cowboy_req:stream_reply(200, Req0),
+			%% We will crash here so the body shouldn't be sent.
+			Req = cowboy_req:stream_reply(200, Req1),
 			stream_body(Req),
 			{ok, Req, Opts};
 		Status ->
@@ -403,6 +418,11 @@ do(<<"push">>, Req, Opts) ->
 		<<"qs">> ->
 			cowboy_req:push("/static/style.css", #{<<"accept">> => <<"text/css">>}, Req,
 				#{qs => <<"server=cowboy&version=2.0">>});
+		<<"after_reply">> ->
+			ct_helper:ignore(cowboy_req, push, 4),
+			Req1 = cowboy_req:reply(200, Req),
+			%% We will crash here so no need to worry about propagating Req1.
+			cowboy_req:push("/static/style.css", #{<<"accept">> => <<"text/css">>}, Req1);
 		_ ->
 			cowboy_req:push("/static/style.css", #{<<"accept">> => <<"text/css">>}, Req),
 			%% The text/plain mime is not defined by default, so a 406 will be returned.

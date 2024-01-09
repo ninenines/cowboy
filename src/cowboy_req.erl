@@ -714,7 +714,7 @@ set_resp_cookie(Name, Value, Req, Opts) ->
 	RespCookies = maps:get(resp_cookies, Req, #{}),
 	Req#{resp_cookies => RespCookies#{Name => Cookie}}.
 
-%% @todo We could add has_resp_cookie and delete_resp_cookie now.
+%% @todo We could add has_resp_cookie and unset_resp_cookie now.
 
 -spec set_resp_header(binary(), iodata(), Req)
 	-> Req when Req::req().
@@ -779,7 +779,8 @@ inform(Status, Req) ->
 
 -spec inform(cowboy:http_status(), cowboy:http_headers(), req()) -> ok.
 inform(_, _, #{has_sent_resp := _}) ->
-	error(function_clause); %% @todo Better error message.
+	exit({response_error, response_already_sent,
+		'The final response has already been sent.'});
 inform(Status, Headers, Req) when is_integer(Status); is_binary(Status) ->
 	cast({inform, Status, Headers}, Req).
 
@@ -797,7 +798,8 @@ reply(Status, Headers, Req) ->
 -spec reply(cowboy:http_status(), cowboy:http_headers(), resp_body(), Req)
 	-> Req when Req::req().
 reply(_, _, _, #{has_sent_resp := _}) ->
-	error(function_clause); %% @todo Better error message.
+	exit({response_error, response_already_sent,
+		'The final response has already been sent.'});
 reply(Status, Headers, {sendfile, _, 0, _}, Req)
 		when is_integer(Status); is_binary(Status) ->
 	do_reply(Status, Headers#{
@@ -853,7 +855,8 @@ stream_reply(Status, Req) ->
 -spec stream_reply(cowboy:http_status(), cowboy:http_headers(), Req)
 	-> Req when Req::req().
 stream_reply(_, _, #{has_sent_resp := _}) ->
-	error(function_clause);
+	exit({response_error, response_already_sent,
+		'The final response has already been sent.'});
 %% 204 and 304 responses must NOT send a body. We therefore
 %% transform the call to a full response and expect the user
 %% to NOT call stream_body/3 afterwards. (RFC7230 3.3)
@@ -916,6 +919,9 @@ push(Path, Headers, Req) ->
 %% @todo Path, Headers, Opts, everything should be in proper binary,
 %% or normalized when creating the Req object.
 -spec push(iodata(), cowboy:http_headers(), req(), push_opts()) -> ok.
+push(_, _, #{has_sent_resp := _}, _) ->
+	exit({response_error, response_already_sent,
+		'The final response has already been sent.'});
 push(Path, Headers, Req=#{scheme := Scheme0, host := Host0, port := Port0}, Opts) ->
 	Method = maps:get(method, Opts, <<"GET">>),
 	Scheme = maps:get(scheme, Opts, Scheme0),

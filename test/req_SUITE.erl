@@ -883,6 +883,8 @@ inform2(Config) ->
 	{102, [], 200, _, _} = do_get_inform("/resp/inform2/binary", Config),
 	{500, _} = do_get_inform("/resp/inform2/error", Config),
 	{102, [], 200, _, _} = do_get_inform("/resp/inform2/twice", Config),
+	%% @todo How to test this properly? This isn't enough.
+	{200, _} = do_get_inform("/resp/inform2/after_reply", Config),
 	ok.
 
 inform3(Config) ->
@@ -892,6 +894,8 @@ inform3(Config) ->
 	{102, Headers, 200, _, _} = do_get_inform("/resp/inform3/binary", Config),
 	{500, _} = do_get_inform("/resp/inform3/error", Config),
 	{102, Headers, 200, _, _} = do_get_inform("/resp/inform3/twice", Config),
+	%% @todo How to test this properly? This isn't enough.
+	{200, _} = do_get_inform("/resp/inform3/after_reply", Config),
 	ok.
 
 reply2(Config) ->
@@ -901,8 +905,7 @@ reply2(Config) ->
 	{404, _, _} = do_get("/resp/reply2/404", Config),
 	{200, _, _} = do_get("/resp/reply2/binary", Config),
 	{500, _, _} = do_get("/resp/reply2/error", Config),
-	%% @todo We want to crash when reply or stream_reply is called twice.
-	%% How to test this properly? This isn't enough.
+	%% @todo How to test this properly? This isn't enough.
 	{200, _, _} = do_get("/resp/reply2/twice", Config),
 	ok.
 
@@ -925,8 +928,6 @@ reply4(Config) ->
 	{500, _, _} = do_get("/resp/reply4/error", Config),
 	ok.
 
-%% @todo Crash when stream_reply is called twice.
-
 stream_reply2(Config) ->
 	doc("Response with default headers and streamed body."),
 	Body = <<0:8000000>>,
@@ -936,6 +937,33 @@ stream_reply2(Config) ->
 	{200, _, Body} = do_get("/resp/stream_reply2/binary", Config),
 	{500, _, _} = do_get("/resp/stream_reply2/error", Config),
 	ok.
+
+stream_reply2_twice(Config) ->
+	doc("Attempting to stream a response twice results in a crash. "
+		"This crash can only be properly detected in HTTP/2."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/resp/stream_reply2/twice",
+		[{<<"accept-encoding">>, <<"gzip">>}]),
+	{response, nofin, 200, _} = gun:await(ConnPid, Ref, infinity),
+	Protocol = config(protocol, Config),
+	Flavor = config(flavor, Config),
+	case {Protocol, Flavor, gun:await_body(ConnPid, Ref, infinity)} of
+		%% In HTTP/1.1 we cannot propagate an error at that point.
+		%% The response will simply not have a body.
+		{http, vanilla, {ok, <<>>}} ->
+			ok;
+		%% When compression was used we do get gzip headers. But
+		%% we do not have any data in the zlib stream.
+		{http, compress, {ok, Data}} ->
+			Z = zlib:open(),
+			zlib:inflateInit(Z, 31),
+			0 = iolist_size(zlib:inflate(Z, Data)),
+			ok;
+		%% In HTTP/2 the stream gets reset with an appropriate error.
+		{http2, _, {error, {stream_error, {stream_error, internal_error, _}}}} ->
+			ok
+	end,
+	gun:close(ConnPid).
 
 stream_reply3(Config) ->
 	doc("Response with additional headers and streamed body."),
@@ -1152,6 +1180,14 @@ push(Config) ->
 		http2 -> do_push_http2(Config)
 	end.
 
+push_after_reply(Config) ->
+	doc("Trying to push a response after the final response results in a crash."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/resp/push/after_reply", []),
+	%% @todo How to test this properly? This isn't enough.
+	{response, fin, 200, _} = gun:await(ConnPid, Ref, infinity),
+	gun:close(ConnPid).
+
 push_method(Config) ->
 	case config(protocol, Config) of
 		http -> do_push_http("/resp/push/method", Config);
@@ -1176,7 +1212,7 @@ do_push_http(Path, Config) ->
 	ConnPid = gun_open(Config),
 	Ref = gun:get(ConnPid, Path, []),
 	{response, fin, 200, _} = gun:await(ConnPid, Ref, infinity),
-	ok.
+	gun:close(ConnPid).
 
 do_push_http2(Config) ->
 	doc("Pushed responses."),
