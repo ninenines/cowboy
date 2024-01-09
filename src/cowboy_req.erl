@@ -718,6 +718,9 @@ set_resp_cookie(Name, Value, Req, Opts) ->
 
 -spec set_resp_header(binary(), iodata(), Req)
 	-> Req when Req::req().
+set_resp_header(<<"set-cookie">>, _, _) ->
+	exit({response_error, invalid_header,
+    'The set-cookie header is special and must be set using cowboy_req:set_resp_cookie/3,4.'});
 set_resp_header(Name, Value, Req=#{resp_headers := RespHeaders}) ->
 	Req#{resp_headers => RespHeaders#{Name => Value}};
 set_resp_header(Name,Value, Req) ->
@@ -725,6 +728,10 @@ set_resp_header(Name,Value, Req) ->
 
 -spec set_resp_headers(cowboy:http_headers(), Req)
 	-> Req when Req::req().
+
+set_resp_headers(#{<<"set-cookie">> := _}, _) ->
+	exit({response_error, invalid_header,
+    'The set-cookie header is special and must be set using cowboy_req:set_resp_cookie/3,4.'});
 set_resp_headers(Headers, Req=#{resp_headers := RespHeaders}) ->
 	Req#{resp_headers => maps:merge(RespHeaders, Headers)};
 set_resp_headers(Headers, Req) ->
@@ -781,6 +788,9 @@ inform(Status, Req) ->
 inform(_, _, #{has_sent_resp := _}) ->
 	exit({response_error, response_already_sent,
 		'The final response has already been sent.'});
+inform(_, _, #{<<"set-cookie">> := _}) ->
+	exit({response_error, invalid_header,
+    'The set-cookie header is special and must be set using cowboy_req:set_resp_cookie/3,4.'});
 inform(Status, Headers, Req) when is_integer(Status); is_binary(Status) ->
 	cast({inform, Status, Headers}, Req).
 
@@ -800,6 +810,9 @@ reply(Status, Headers, Req) ->
 reply(_, _, _, #{has_sent_resp := _}) ->
 	exit({response_error, response_already_sent,
 		'The final response has already been sent.'});
+reply(_, #{<<"set-cookie">> := _}, _, _) ->
+	exit({response_error, invalid_header,
+    'The set-cookie header is special and must be set using cowboy_req:set_resp_cookie/3,4.'});
 reply(Status, Headers, {sendfile, _, 0, _}, Req)
 		when is_integer(Status); is_binary(Status) ->
 	do_reply(Status, Headers#{
@@ -857,6 +870,9 @@ stream_reply(Status, Req) ->
 stream_reply(_, _, #{has_sent_resp := _}) ->
 	exit({response_error, response_already_sent,
 		'The final response has already been sent.'});
+stream_reply(_, #{<<"set-cookie">> := _}, _, _) ->
+	exit({response_error, invalid_header,
+    'The set-cookie header is special and must be set using cowboy_req:set_resp_cookie/3,4.'});
 %% 204 and 304 responses must NOT send a body. We therefore
 %% transform the call to a full response and expect the user
 %% to NOT call stream_body/3 afterwards. (RFC7230 3.3)
@@ -908,6 +924,9 @@ stream_events(Events, IsFin, Req=#{has_sent_resp := headers}) ->
 	stream_body({data, self(), IsFin, cow_sse:events(Events)}, Req).
 
 -spec stream_trailers(cowboy:http_headers(), req()) -> ok.
+stream_trailers(<<"set-cookie">>, _) ->
+	exit({response_error, invalid_header,
+    'The set-cookie header is special and must be set using cowboy_req:set_resp_cookie/3,4.'});
 stream_trailers(Trailers, Req=#{has_sent_resp := headers}) ->
 	cast({trailers, Trailers}, Req).
 
