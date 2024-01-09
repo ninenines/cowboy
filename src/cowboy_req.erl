@@ -813,19 +813,25 @@ reply(Status, Headers, SendFile = {sendfile, _, Len, _}, Req)
 %% Neither status code must include a response body. (RFC7230 3.3)
 reply(Status, Headers, Body, Req)
 		when Status =:= 204; Status =:= 304 ->
-	0 = iolist_size(Body),
-	do_reply(Status, Headers, Body, Req);
+	do_reply_ensure_no_body(Status, Headers, Body, Req);
 reply(Status = <<"204",_/bits>>, Headers, Body, Req) ->
-	0 = iolist_size(Body),
-	do_reply(Status, Headers, Body, Req);
+	do_reply_ensure_no_body(Status, Headers, Body, Req);
 reply(Status = <<"304",_/bits>>, Headers, Body, Req) ->
-	0 = iolist_size(Body),
-	do_reply(Status, Headers, Body, Req);
+	do_reply_ensure_no_body(Status, Headers, Body, Req);
 reply(Status, Headers, Body, Req)
 		when is_integer(Status); is_binary(Status) ->
 	do_reply(Status, Headers#{
 		<<"content-length">> => integer_to_binary(iolist_size(Body))
 	}, Body, Req).
+
+do_reply_ensure_no_body(Status, Headers, Body, Req) ->
+	case iolist_size(Body) of
+		0 ->
+			do_reply(Status, Headers, Body, Req);
+		_ ->
+			exit({response_error, payload_too_large,
+				'204 and 304 responses must not include a response body. (RFC7230 3.3)'})
+	end.
 
 %% Don't send any body for HEAD responses. While the protocol code is
 %% supposed to enforce this rule, we prefer to avoid copying too much
@@ -851,11 +857,10 @@ stream_reply(_, _, #{has_sent_resp := _}) ->
 %% 204 and 304 responses must NOT send a body. We therefore
 %% transform the call to a full response and expect the user
 %% to NOT call stream_body/3 afterwards. (RFC7230 3.3)
-stream_reply(Status = 204, Headers=#{}, Req) ->
+stream_reply(Status, Headers=#{}, Req)
+		when Status =:= 204; Status =:= 304 ->
 	reply(Status, Headers, <<>>, Req);
 stream_reply(Status = <<"204",_/bits>>, Headers=#{}, Req) ->
-	reply(Status, Headers, <<>>, Req);
-stream_reply(Status = 304, Headers=#{}, Req) ->
 	reply(Status, Headers, <<>>, Req);
 stream_reply(Status = <<"304",_/bits>>, Headers=#{}, Req) ->
 	reply(Status, Headers, <<>>, Req);

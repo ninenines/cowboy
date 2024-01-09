@@ -182,10 +182,10 @@ do(<<"reply4">>, Req0, Opts) ->
 			ct_helper:ignore(erlang, iolist_size, 1),
 			cowboy_req:reply(200, #{}, ok, Req0);
 		<<"204body">> ->
-			ct_helper:ignore(cowboy_req, reply, 4),
+			ct_helper:ignore(cowboy_req, do_reply_ensure_no_body, 4),
 			cowboy_req:reply(204, #{}, <<"OK">>, Req0);
 		<<"304body">> ->
-			ct_helper:ignore(cowboy_req, reply, 4),
+			ct_helper:ignore(cowboy_req, do_reply_ensure_no_body, 4),
 			cowboy_req:reply(304, #{}, <<"OK">>, Req0);
 		Status ->
 			cowboy_req:reply(binary_to_integer(Status), #{}, <<"OK">>, Req0)
