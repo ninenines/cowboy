@@ -30,6 +30,10 @@ do(<<"set_resp_cookie4">>, Req0, Opts) ->
 do(<<"set_resp_header">>, Req0, Opts) ->
 	Req = cowboy_req:set_resp_header(<<"content-type">>, <<"text/plain">>, Req0),
 	{ok, cowboy_req:reply(200, #{}, "OK", Req), Opts};
+do(<<"set_resp_header_cookie">>, Req0, Opts) ->
+	ct_helper:ignore(cowboy_req, set_resp_header, 3),
+	Req = cowboy_req:set_resp_header(<<"set-cookie">>, <<"name=value">>, Req0),
+	{ok, cowboy_req:reply(200, #{}, "OK", Req), Opts};
 do(<<"set_resp_header_server">>, Req0, Opts) ->
 	Req = cowboy_req:set_resp_header(<<"server">>, <<"nginx">>, Req0),
 	{ok, cowboy_req:reply(200, #{}, "OK", Req), Opts};
@@ -37,6 +41,12 @@ do(<<"set_resp_headers">>, Req0, Opts) ->
 	Req = cowboy_req:set_resp_headers(#{
 		<<"content-type">> => <<"text/plain">>,
 		<<"content-encoding">> => <<"compress">>
+	}, Req0),
+	{ok, cowboy_req:reply(200, #{}, "OK", Req), Opts};
+do(<<"set_resp_headers_cookie">>, Req0, Opts) ->
+	ct_helper:ignore(cowboy_req, set_resp_headers, 2),
+	Req = cowboy_req:set_resp_headers(#{
+		<<"set-cookie">> => <<"name=value">>
 	}, Req0),
 	{ok, cowboy_req:reply(200, #{}, "OK", Req), Opts};
 do(<<"set_resp_headers_http11">>, Req0, Opts) ->
@@ -147,6 +157,9 @@ do(<<"inform3">>, Req0, Opts) ->
 		<<"error">> ->
 			ct_helper:ignore(cowboy_req, inform, 3),
 			cowboy_req:inform(ok, Headers, Req0);
+		<<"set_cookie">> ->
+			ct_helper:ignore(cowboy_req, inform, 3),
+			cowboy_req:inform(102, #{<<"set-cookie">> => <<"name=value">>}, Req0);
 		<<"twice">> ->
 			cowboy_req:inform(102, Headers, Req0),
 			cowboy_req:inform(102, Headers, Req0);
@@ -179,6 +192,9 @@ do(<<"reply3">>, Req0, Opts) ->
 		<<"error">> ->
 			ct_helper:ignore(cowboy_req, reply, 4),
 			cowboy_req:reply(200, ok, Req0);
+		<<"set_cookie">> ->
+			ct_helper:ignore(cowboy_req, reply, 4),
+			cowboy_req:reply(200, #{<<"set-cookie">> => <<"name=value">>}, Req0);
 		Status ->
 			cowboy_req:reply(binary_to_integer(Status),
 				#{<<"content-type">> => <<"text/plain">>}, Req0)
@@ -189,6 +205,9 @@ do(<<"reply4">>, Req0, Opts) ->
 		<<"error">> ->
 			ct_helper:ignore(erlang, iolist_size, 1),
 			cowboy_req:reply(200, #{}, ok, Req0);
+		<<"set_cookie">> ->
+			ct_helper:ignore(cowboy_req, reply, 4),
+			cowboy_req:reply(200, #{<<"set-cookie">> => <<"name=value">>}, <<"OK">>, Req0);
 		<<"204body">> ->
 			ct_helper:ignore(cowboy_req, do_reply_ensure_no_body, 4),
 			cowboy_req:reply(204, #{}, <<"OK">>, Req0);
@@ -240,6 +259,9 @@ do(<<"stream_reply3">>, Req0, Opts) ->
 		<<"error">> ->
 			ct_helper:ignore(cowboy_req, stream_reply, 3),
 			cowboy_req:stream_reply(200, ok, Req0);
+		<<"set_cookie">> ->
+			ct_helper:ignore(cowboy_req, stream_reply, 3),
+			cowboy_req:stream_reply(200, #{<<"set-cookie">> => <<"name=value">>}, Req0);
 		Status ->
 			cowboy_req:stream_reply(binary_to_integer(Status),
 				#{<<"content-type">> => <<"text/plain">>}, Req0)
@@ -393,6 +415,16 @@ do(<<"stream_trailers">>, Req0, Opts) ->
 			cowboy_req:stream_body(<<0:80000000>>, nofin, Req),
 			cowboy_req:stream_trailers(#{
 				<<"grpc-status">> => <<"0">>
+			}, Req),
+			{ok, Req, Opts};
+		<<"set_cookie">> ->
+			ct_helper:ignore(cowboy_req, stream_trailers, 2),
+			Req = cowboy_req:stream_reply(200, #{
+				<<"trailer">> => <<"set-cookie">>
+			}, Req0),
+			cowboy_req:stream_body(<<"Hello world!">>, nofin, Req),
+			cowboy_req:stream_trailers(#{
+				<<"set-cookie">> => <<"name=value">>
 			}, Req),
 			{ok, Req, Opts};
 		_ ->

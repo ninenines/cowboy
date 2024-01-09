@@ -809,6 +809,8 @@ set_resp_header(Config) ->
 	doc("Response using set_resp_header."),
 	{200, Headers, <<"OK">>} = do_get("/resp/set_resp_header", Config),
 	true = lists:keymember(<<"content-type">>, 1, Headers),
+	%% The set-cookie header is special. set_resp_cookie must be used.
+	{500, _, _} = do_get("/resp/set_resp_header_cookie", Config),
 	ok.
 
 set_resp_headers(Config) ->
@@ -816,6 +818,8 @@ set_resp_headers(Config) ->
 	{200, Headers, <<"OK">>} = do_get("/resp/set_resp_headers", Config),
 	true = lists:keymember(<<"content-type">>, 1, Headers),
 	true = lists:keymember(<<"content-encoding">>, 1, Headers),
+	%% The set-cookie header is special. set_resp_cookie must be used.
+	{500, _, _} = do_get("/resp/set_resp_headers_cookie", Config),
 	ok.
 
 resp_header(Config) ->
@@ -893,6 +897,8 @@ inform3(Config) ->
 	{102, Headers, 200, _, _} = do_get_inform("/resp/inform3/102", Config),
 	{102, Headers, 200, _, _} = do_get_inform("/resp/inform3/binary", Config),
 	{500, _} = do_get_inform("/resp/inform3/error", Config),
+	%% The set-cookie header is special. set_resp_cookie must be used.
+	{500, _} = do_get_inform("/resp/inform3/set_cookie", Config),
 	{102, Headers, 200, _, _} = do_get_inform("/resp/inform3/twice", Config),
 	%% @todo How to test this properly? This isn't enough.
 	{200, _} = do_get_inform("/resp/inform3/after_reply", Config),
@@ -918,6 +924,8 @@ reply3(Config) ->
 	{404, Headers3, _} = do_get("/resp/reply3/404", Config),
 	true = lists:keymember(<<"content-type">>, 1, Headers3),
 	{500, _, _} = do_get("/resp/reply3/error", Config),
+	%% The set-cookie header is special. set_resp_cookie must be used.
+	{500, _, _} = do_get("/resp/reply3/set_cookie", Config),
 	ok.
 
 reply4(Config) ->
@@ -926,6 +934,8 @@ reply4(Config) ->
 	{201, _, <<"OK">>} = do_get("/resp/reply4/201", Config),
 	{404, _, <<"OK">>} = do_get("/resp/reply4/404", Config),
 	{500, _, _} = do_get("/resp/reply4/error", Config),
+	%% The set-cookie header is special. set_resp_cookie must be used.
+	{500, _, _} = do_get("/resp/reply4/set_cookie", Config),
 	ok.
 
 stream_reply2(Config) ->
@@ -975,6 +985,8 @@ stream_reply3(Config) ->
 	{404, Headers3, Body} = do_get("/resp/stream_reply3/404", Config),
 	true = lists:keymember(<<"content-type">>, 1, Headers3),
 	{500, _, _} = do_get("/resp/stream_reply3/error", Config),
+	%% The set-cookie header is special. set_resp_cookie must be used.
+	{500, _, _} = do_get("/resp/stream_reply3/set_cookie", Config),
 	ok.
 
 stream_body_fin0(Config) ->
@@ -1152,6 +1164,27 @@ stream_trailers_no_te(Config) ->
 %	false = lists:keyfind(<<"trailer">>, 1, RespHeaders),
 	{ok, RespBody} = gun:await_body(ConnPid, Ref, infinity),
 	<<"Hello world!">> = do_decode(RespHeaders, RespBody),
+	gun:close(ConnPid).
+
+stream_trailers_set_cookie(Config) ->
+	doc("Trying to send set-cookie in trailers should result in a crash."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/resp/stream_trailers/set_cookie", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"te">>, <<"trailers">>}
+	]),
+	{response, nofin, 200, _} = gun:await(ConnPid, Ref, infinity),
+	case config(protocol, Config) of
+		http ->
+			%% Trailers are not sent because of the stream error.
+			{ok, _Body} = gun:await_body(ConnPid, Ref, infinity),
+			{error, timeout} = gun:await_body(ConnPid, Ref, 1000),
+			ok;
+		http2 ->
+			{error, {stream_error, {stream_error, internal_error, _}}}
+				= gun:await_body(ConnPid, Ref, infinity),
+			ok
+	end,
 	gun:close(ConnPid).
 
 do_trailers(Path, Config) ->
