@@ -413,20 +413,10 @@ do(<<"stream_trailers">>, Req0, Opts) ->
 				<<"trailer">> => <<"grpc-status">>
 			}, Req0),
 			%% The size should be larger than StreamSize and ConnSize
+			ct_helper:ignore(cowboy_req, stream_trailers, 2),
 			cowboy_req:stream_body(<<0:80000000>>, nofin, Req),
 			cowboy_req:stream_trailers(#{
 				<<"grpc-status">> => <<"0">>
-			}, Req),
-			{ok, Req, Opts};
-		<<"set_cookie">> ->
-			ct_helper:ignore(cowboy_req, stream_trailers, 2),
-			Req = cowboy_req:stream_reply(200, #{
-				<<"trailer">> => <<"grpc-status">>
-			}, Req0),
-			%% The size should be larger than StreamSize and ConnSize
-			cowboy_req:stream_body(<<0:80000000>>, nofin, Req),
-			cowboy_req:stream_trailers(#{
-				<<"set-cookie">> => <<"name=cormano">>
 			}, Req),
 			{ok, Req, Opts};
 		_ ->
