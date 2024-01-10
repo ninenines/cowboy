@@ -809,6 +809,8 @@ set_resp_header(Config) ->
 	doc("Response using set_resp_header."),
 	{200, Headers, <<"OK">>} = do_get("/resp/set_resp_header", Config),
 	true = lists:keymember(<<"content-type">>, 1, Headers),
+
+	{500, _, _} = do_get("/resp/set_resp_header_cookie", Config),
 	ok.
 
 set_resp_headers(Config) ->
@@ -816,6 +818,8 @@ set_resp_headers(Config) ->
 	{200, Headers, <<"OK">>} = do_get("/resp/set_resp_headers", Config),
 	true = lists:keymember(<<"content-type">>, 1, Headers),
 	true = lists:keymember(<<"content-encoding">>, 1, Headers),
+
+	{500, _, _} = do_get("/resp/set_resp_headers_cookie", Config),
 	ok.
 
 resp_header(Config) ->
