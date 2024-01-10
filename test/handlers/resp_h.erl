@@ -203,6 +203,9 @@ do(<<"reply4">>, Req0, Opts) ->
 		<<"error">> ->
 			ct_helper:ignore(erlang, iolist_size, 1),
 			cowboy_req:reply(200, #{}, ok, Req0);
+		<<"set_cookie">> ->
+			ct_helper:ignore(cowboy_req, reply, 4),
+			cowboy_req:reply(200, #{<<"set-cookie">> => <<"name=paco loco">>}, ok, Req0);
 		<<"204body">> ->
 			ct_helper:ignore(cowboy_req, do_reply_ensure_no_body, 4),
 			cowboy_req:reply(204, #{}, <<"OK">>, Req0);
@@ -224,6 +227,9 @@ do(<<"stream_reply2">>, Req0, Opts) ->
 			Req = cowboy_req:stream_reply(ok, Req0),
 			stream_body(Req),
 			{ok, Req, Opts};
+		<<"set_cookie">> ->
+			ct_helper:ignore(cowboy_req, reply, 4),
+			cowboy_req:reply(200, #{<<"set-cookie">> => <<"name=paco loco">>}, ok, Req0);
 		<<"204">> ->
 			Req = cowboy_req:stream_reply(204, Req0),
 			{ok, Req, Opts};
@@ -254,6 +260,9 @@ do(<<"stream_reply3">>, Req0, Opts) ->
 		<<"error">> ->
 			ct_helper:ignore(cowboy_req, stream_reply, 3),
 			cowboy_req:stream_reply(200, ok, Req0);
+		<<"set_cookie">> ->
+			ct_helper:ignore(cowboy_req, stream_reply, 3),
+			cowboy_req:stream_reply(200, #{<<"set-cookie">> => <<"name=cormano">>}, Req0);
 		Status ->
 			cowboy_req:stream_reply(binary_to_integer(Status),
 				#{<<"content-type">> => <<"text/plain">>}, Req0)
@@ -407,6 +416,17 @@ do(<<"stream_trailers">>, Req0, Opts) ->
 			cowboy_req:stream_body(<<0:80000000>>, nofin, Req),
 			cowboy_req:stream_trailers(#{
 				<<"grpc-status">> => <<"0">>
+			}, Req),
+			{ok, Req, Opts};
+		<<"set_cookie">> ->
+			ct_helper:ignore(cowboy_req, stream_trailers, 2),
+			Req = cowboy_req:stream_reply(200, #{
+				<<"trailer">> => <<"grpc-status">>
+			}, Req0),
+			%% The size should be larger than StreamSize and ConnSize
+			cowboy_req:stream_body(<<0:80000000>>, nofin, Req),
+			cowboy_req:stream_trailers(#{
+				<<"set-cookie">> => <<"name=cormano">>
 			}, Req),
 			{ok, Req, Opts};
 		_ ->

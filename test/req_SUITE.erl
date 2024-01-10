@@ -931,6 +931,7 @@ reply4(Config) ->
 	{201, _, <<"OK">>} = do_get("/resp/reply4/201", Config),
 	{404, _, <<"OK">>} = do_get("/resp/reply4/404", Config),
 	{500, _, _} = do_get("/resp/reply4/error", Config),
+	{500, _, _} = do_get("/resp/reply4/set_cookie", Config),
 	ok.
 
 stream_reply2(Config) ->
@@ -980,6 +981,7 @@ stream_reply3(Config) ->
 	{404, Headers3, Body} = do_get("/resp/stream_reply3/404", Config),
 	true = lists:keymember(<<"content-type">>, 1, Headers3),
 	{500, _, _} = do_get("/resp/stream_reply3/error", Config),
+	{500, _, _} = do_get("/resp/stream_reply3/set_cookie", Config),
 	ok.
 
 stream_body_fin0(Config) ->
@@ -1136,6 +1138,8 @@ stream_trailers(Config) ->
 		{<<"grpc-status">>, <<"0">>}
 	]} = do_trailers("/resp/stream_trailers", Config),
 	{_, <<"grpc-status">>} = lists:keyfind(<<"trailer">>, 1, RespHeaders),
+
+	{500, _, _} = do_trailers("resp/stream_trailers/set_cookie", Config),
 	ok.
 
 stream_trailers_large(Config) ->
