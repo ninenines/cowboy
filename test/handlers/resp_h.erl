@@ -155,6 +155,9 @@ do(<<"inform3">>, Req0, Opts) ->
 	case cowboy_req:binding(arg, Req0) of
 		<<"binary">> ->
 			cowboy_req:inform(<<"102 On my way">>, Headers, Req0);
+		<<"set_cookie">> ->
+			ct_helper:ignore(cowboy_req, inform, 3),
+			cowboy_req:inform(ok, #{<<"set-cookie">> => <<"name=paco loco">>}, Req0);
 		<<"error">> ->
 			ct_helper:ignore(cowboy_req, inform, 3),
 			cowboy_req:inform(ok, Headers, Req0);

@@ -897,6 +897,7 @@ inform3(Config) ->
 	{102, Headers, 200, _, _} = do_get_inform("/resp/inform3/102", Config),
 	{102, Headers, 200, _, _} = do_get_inform("/resp/inform3/binary", Config),
 	{500, _} = do_get_inform("/resp/inform3/error", Config),
+	{500, _} = do_get_inform("/resp/inform3/set_cookie", Config),
 	{102, Headers, 200, _, _} = do_get_inform("/resp/inform3/twice", Config),
 	%% @todo How to test this properly? This isn't enough.
 	{200, _} = do_get_inform("/resp/inform3/after_reply", Config),
