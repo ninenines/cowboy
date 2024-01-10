@@ -28,6 +28,7 @@ do(<<"set_resp_cookie4">>, Req0, Opts) ->
 		#{path => cowboy_req:path(Req0)}),
 	{ok, cowboy_req:reply(200, #{}, "OK", Req), Opts};
 do(<<"set_resp_header_cookie">>, Req0, Opts) ->
+	ct_helper:ignore(cowboy_req, set_resp_header, 3),
 	Req = cowboy_req:set_resp_header(<<"set-cookie">>, <<"name=cormano">>, Req0),
 	{ok, cowboy_req:reply(200, #{}, "OK", Req), Opts};
 do(<<"set_resp_headers_cookie">>, Req0, Opts) ->
@@ -38,7 +39,6 @@ do(<<"set_resp_headers_cookie">>, Req0, Opts) ->
 
 	{ok, cowboy_req:reply(200, #{}, "OK", Req), Opts};
 do(<<"set_resp_header">>, Req0, Opts) ->
-	ct_helper:ignore(cowboy_req, set_resp_header, 2),
 	Req = cowboy_req:set_resp_header(<<"content-type">>, <<"text/plain">>, Req0),
 	{ok, cowboy_req:reply(200, #{}, "OK", Req), Opts};
 do(<<"set_resp_header_server">>, Req0, Opts) ->
