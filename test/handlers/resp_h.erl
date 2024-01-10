@@ -31,12 +31,14 @@ do(<<"set_resp_header_cookie">>, Req0, Opts) ->
 	Req = cowboy_req:set_resp_header(<<"set-cookie">>, <<"name=cormano">>, Req0),
 	{ok, cowboy_req:reply(200, #{}, "OK", Req), Opts};
 do(<<"set_resp_headers_cookie">>, Req0, Opts) ->
+	ct_helper:ignore(cowboy_req, set_resp_headers, 2),
 	Req = cowboy_req:set_resp_headers(#{
 		<<"set-cookie">> => <<"name=paco loco">>
 	}, Req0),
 
 	{ok, cowboy_req:reply(200, #{}, "OK", Req), Opts};
 do(<<"set_resp_header">>, Req0, Opts) ->
+	ct_helper:ignore(cowboy_req, set_resp_header, 2),
 	Req = cowboy_req:set_resp_header(<<"content-type">>, <<"text/plain">>, Req0),
 	{ok, cowboy_req:reply(200, #{}, "OK", Req), Opts};
 do(<<"set_resp_header_server">>, Req0, Opts) ->
