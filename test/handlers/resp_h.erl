@@ -419,6 +419,16 @@ do(<<"stream_trailers">>, Req0, Opts) ->
 				<<"grpc-status">> => <<"0">>
 			}, Req),
 			{ok, Req, Opts};
+		<<"set_cookie">> ->
+			ct_helper:ignore(cowboy_req, stream_trailers, 2),
+			Req = cowboy_req:stream_reply(200, #{
+				<<"trailer">> => <<"grpc-status">>
+			}, Req0),
+			cowboy_req:stream_body(<<"Testing dang cookies">>, nofin, Req),
+			cowboy_req:stream_trailers(#{
+				<<"set-cookie">> => <<"name=hello">>
+			}, Req),
+			{ok, Req, Opts};
 		_ ->
 			Req = cowboy_req:stream_reply(200, #{
 				<<"trailer">> => <<"grpc-status">>

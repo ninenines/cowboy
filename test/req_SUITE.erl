@@ -1140,6 +1140,11 @@ stream_trailers(Config) ->
 	{_, <<"grpc-status">>} = lists:keyfind(<<"trailer">>, 1, RespHeaders),
 	ok.
 
+stream_trailers_set_cookie(Config) ->
+	doc("Stream with set-cookie header."),
+	do_trailers("/resp/stream_trailers/set_cookie", Config),
+	ok.
+
 stream_trailers_large(Config) ->
 	doc("Stream large body followed by trailer headers."),
 	{200, RespHeaders, <<0:80000000>>, [
@@ -1167,8 +1172,6 @@ do_trailers(Path, Config) ->
 		{<<"accept-encoding">>, <<"gzip">>},
 		{<<"te">>, <<"trailers">>}
 	]),
-
-
 	{response, nofin, Status, RespHeaders} = gun:await(ConnPid, Ref, infinity),
 	{ok, RespBody, Trailers} = gun:await_body(ConnPid, Ref, infinity),
 	gun:close(ConnPid),
