@@ -266,9 +266,24 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport, opts=Opts,
 		terminate(State, {internal_error, timeout, 'No message or data received before timeout.'})
 	end.
 
-%% We do not set request_timeout if there are active streams.
-set_timeout(State=#state{streams=[_|_]}, request_timeout) ->
-	State;
+%% For HTTP/1.1 we have two types of timeouts: the request_timeout
+%% is used when there is no currently ongoing request. This means
+%% that we are not currently sending or receiving data and that
+%% the next data to be received will be a new request. The
+%% request_timeout is set once when we no longer have ongoing
+%% requests, and runs until the full set of request headers
+%% is received. It is not reset.
+%%
+%% After that point we use the idle_timeout. We continue using
+%% the idle_timeout if pipelined requests come in: we are doing
+%% work and just want to ensure the socket is not half-closed.
+%% We continue using the idle_timeout up until there is no
+%% ongoing request. This includes requests that were processed
+%% and for which we only want to skip the body. Once the body
+%% has been read fully we can go back to request_timeout. The
+%% idle_timeout is reset every time we receive data and,
+%% optionally, every time we send data.
+
 %% We do not set request_timeout if we are skipping a body.
 set_timeout(State=#state{in_state=#ps_body{}}, request_timeout) ->
 	State;
@@ -392,10 +407,7 @@ after_parse({data, StreamID, IsFin, Data, State0=#state{opts=Opts, buffer=Buffer
 		{Commands, StreamState} ->
 			Streams = lists:keyreplace(StreamID, #stream.id, Streams0,
 				Stream#stream{state=StreamState}),
-			State1 = set_timeout(State0, case IsFin of
-				fin -> request_timeout;
-				nofin -> idle_timeout
-			end),
+			State1 = set_timeout(State0, idle_timeout),
 			State = update_flow(IsFin, Data, State1#state{streams=Streams}),
 			parse(Buffer, commands(State, StreamID, Commands))
 	catch Class:Exception:Stacktrace ->
@@ -1357,7 +1369,10 @@ stream_next(State0=#state{opts=Opts, active=Active, out_streamid=OutStreamID, st
 	NextOutStreamID = OutStreamID + 1,
 	case lists:keyfind(NextOutStreamID, #stream.id, Streams) of
 		false ->
-			State0#state{out_streamid=NextOutStreamID, out_state=wait};
+			State = State0#state{out_streamid=NextOutStreamID, out_state=wait},
+			%% There are no streams remaining. We therefore can
+			%% and want to switch back to the request_timeout.
+			set_timeout(State, request_timeout);
 		#stream{queue=Commands} ->
 			State = case Active of
 				true -> State0;

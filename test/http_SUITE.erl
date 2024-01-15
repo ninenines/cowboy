@@ -227,6 +227,68 @@ http10_keepalive_false(Config) ->
 		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
 
+idle_timeout_read_body(Config) ->
+	doc("Ensure the idle_timeout drops connections when the "
+		"connection is idle too long reading the request body."),
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
+		env => #{dispatch => init_dispatch(Config)},
+		request_timeout => 60000,
+		idle_timeout => 500
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		ConnPid = gun_open([{type, tcp}, {protocol, http}, {port, Port}|Config]),
+		{ok, http} = gun:await_up(ConnPid),
+		_StreamRef = gun:post(ConnPid, "/echo/read_body",
+			#{<<"content-length">> => <<"12">>}),
+		{error, {down, {shutdown, closed}}} = gun:await(ConnPid, undefined, 1000)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+idle_timeout_read_body_pipeline(Config) ->
+	doc("Ensure the idle_timeout drops connections when the "
+		"connection is idle too long reading the request body."),
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
+		env => #{dispatch => init_dispatch(Config)},
+		request_timeout => 60000,
+		idle_timeout => 500
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		ConnPid = gun_open([{type, tcp}, {protocol, http}, {port, Port}|Config]),
+		{ok, http} = gun:await_up(ConnPid),
+		StreamRef1 = gun:get(ConnPid, "/"),
+		StreamRef2 = gun:get(ConnPid, "/"),
+		_StreamRef3 = gun:post(ConnPid, "/echo/read_body",
+			#{<<"content-length">> => <<"12">>}),
+		{response, nofin, 200, _} = gun:await(ConnPid, StreamRef1),
+		{response, nofin, 200, _} = gun:await(ConnPid, StreamRef2),
+		{error, {down, {shutdown, closed}}} = gun:await(ConnPid, undefined, 1000)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+idle_timeout_skip_body(Config) ->
+	doc("Ensure the idle_timeout drops connections when the "
+		"connection is idle too long skipping the request body."),
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
+		env => #{dispatch => init_dispatch(Config)},
+		request_timeout => 60000,
+		idle_timeout => 500
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		ConnPid = gun_open([{type, tcp}, {protocol, http}, {port, Port}|Config]),
+		{ok, http} = gun:await_up(ConnPid),
+		StreamRef = gun:post(ConnPid, "/",
+			#{<<"content-length">> => <<"12">>}),
+		{response, nofin, 200, _} = gun:await(ConnPid, StreamRef),
+		{error, {down, {shutdown, closed}}} = gun:await(ConnPid, undefined, 1000)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
 idle_timeout_infinity(Config) ->
 	doc("Ensure the idle_timeout option accepts the infinity value."),
 	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
@@ -348,6 +410,108 @@ do_persistent_term_router(Config) ->
 		StreamRef = gun:get(ConnPid, "/"),
 		{response, nofin, 200, _} = gun:await(ConnPid, StreamRef),
 		gun:close(ConnPid)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+request_timeout(Config) ->
+	doc("Ensure the request_timeout drops connections when requests "
+		"fail to come in fast enough."),
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
+		env => #{dispatch => init_dispatch(Config)},
+		request_timeout => 500
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		ConnPid = gun_open([{type, tcp}, {protocol, http}, {port, Port}|Config]),
+		{ok, http} = gun:await_up(ConnPid),
+		{error, {down, {shutdown, closed}}} = gun:await(ConnPid, undefined, 1000)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+request_timeout_pipeline(Config) ->
+	doc("Ensure the request_timeout drops connections when requests "
+		"fail to come in fast enough after pipelined requests went through."),
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
+		env => #{dispatch => init_dispatch(Config)},
+		request_timeout => 500
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		ConnPid = gun_open([{type, tcp}, {protocol, http}, {port, Port}|Config]),
+		{ok, http} = gun:await_up(ConnPid),
+		StreamRef1 = gun:get(ConnPid, "/"),
+		StreamRef2 = gun:get(ConnPid, "/"),
+		StreamRef3 = gun:get(ConnPid, "/"),
+		{response, nofin, 200, _} = gun:await(ConnPid, StreamRef1),
+		{response, nofin, 200, _} = gun:await(ConnPid, StreamRef2),
+		{response, nofin, 200, _} = gun:await(ConnPid, StreamRef3),
+		{error, {down, {shutdown, closed}}} = gun:await(ConnPid, undefined, 1000)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+request_timeout_skip_body(Config) ->
+	doc("Ensure the request_timeout drops connections when requests "
+		"fail to come in fast enough after skipping a request body."),
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
+		env => #{dispatch => init_dispatch(Config)},
+		request_timeout => 500
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		Client = raw_open([{type, tcp}, {port, Port}, {opts, []}|Config]),
+		ok = raw_send(Client, <<
+			"POST / HTTP/1.1\r\n"
+			"host: localhost\r\n"
+			"content-length: 12\r\n\r\n"
+		>>),
+		Data = raw_recv_head(Client),
+		{'HTTP/1.1', 200, _, Rest0} = cow_http:parse_status_line(Data),
+		{Headers, Rest} = cow_http:parse_headers(Rest0),
+		{_, Len} = lists:keyfind(<<"content-length">>, 1, Headers),
+		<<"Hello world!">> = raw_recv_rest(Client, binary_to_integer(Len), Rest),
+		%% We then send the request data that should be skipped by Cowboy.
+		timer:sleep(100),
+		raw_send(Client, <<"Hello world!">>),
+		%% Connection should be closed by the request_timeout after that.
+		{error, closed} = raw_recv(Client, 1, 1000)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+request_timeout_skip_body_more(Config) ->
+	doc("Ensure the request_timeout drops connections when requests "
+		"fail to come in fast enough after skipping a request body."),
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
+		env => #{dispatch => init_dispatch(Config)},
+		request_timeout => 500
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		Client = raw_open([{type, tcp}, {port, Port}, {opts, []}|Config]),
+		ok = raw_send(Client, <<
+			"POST / HTTP/1.1\r\n"
+			"host: localhost\r\n"
+			"content-length: 12\r\n\r\n"
+		>>),
+		Data = raw_recv_head(Client),
+		{'HTTP/1.1', 200, _, Rest0} = cow_http:parse_status_line(Data),
+		{Headers, Rest} = cow_http:parse_headers(Rest0),
+		{_, Len} = lists:keyfind(<<"content-length">>, 1, Headers),
+		<<"Hello world!">> = raw_recv_rest(Client, binary_to_integer(Len), Rest),
+		%% We then send the request data that should be skipped by Cowboy.
+		timer:sleep(100),
+		raw_send(Client, <<"Hello world!">>),
+		%% Send the start of another request.
+		ok = raw_send(Client, <<
+			"GET / HTTP/1.1\r\n"
+			"host: localhost\r\n"
+			%% Missing final \r\n on purpose.
+		>>),
+		%% Connection should be closed by the request_timeout after that.
+		{error, closed} = raw_recv(Client, 1, 1000)
 	after
 		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
