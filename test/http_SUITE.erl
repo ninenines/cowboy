@@ -511,7 +511,12 @@ request_timeout_skip_body_more(Config) ->
 			%% Missing final \r\n on purpose.
 		>>),
 		%% Connection should be closed by the request_timeout after that.
-		{error, closed} = raw_recv(Client, 1, 1000)
+		%% We attempt to send a 408 response on a best effort basis so
+		%% that is accepted as well.
+		case raw_recv(Client, 13, 1000) of
+			{error, closed} -> ok;
+			{ok, <<"HTTP/1.1 408 ", _/bits>>} -> ok
+		end
 	after
 		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
