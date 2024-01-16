@@ -173,6 +173,12 @@ max_frame_size_received (16384)::
 Maximum size in bytes of the frames received by the server. This value is
 advertised to the remote endpoint which can then decide to use
 any value lower or equal for its frame sizes.
++
+It is highly recommended to increase this value for performance reasons.
+In a future Cowboy version the default will be increased to 1MB (1048576).
+Too low values may result in very large file uploads failing because
+Cowboy will detect the large number of frames as flood and close the
+connection.
 
 max_frame_size_sent (infinity)::
 
