@@ -571,6 +571,17 @@ generate_etag_missing(Config) ->
 	false = lists:keyfind(<<"etag">>, 1, Headers),
 	ok.
 
+generate_etag_undefined(Config) ->
+	doc("The etag header must not be sent when "
+		"the generate_etag callback returns undefined."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/generate_etag?undefined", [
+		{<<"accept-encoding">>, <<"gzip">>}
+	]),
+	{response, _, 200, Headers} = gun:await(ConnPid, Ref),
+	false = lists:keyfind(<<"etag">>, 1, Headers),
+	ok.
+
 generate_etag_binary_strong(Config) ->
 	doc("The etag header must be sent when the generate_etag "
 		"callback returns a strong binary. (RFC7232 2.3)"),

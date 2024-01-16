@@ -379,7 +379,7 @@ and that the request shouldn't be repeated.
 ----
 generate_etag(Req, State) -> {Result, Req, State}
 
-Result  :: binary() | {weak | strong, binary()}
+Result  :: binary() | {weak | strong, binary()} | undefined
 Default  - no etag value
 ----
 
@@ -388,6 +388,10 @@ Return the entity tag of the resource.
 When a binary is returned, the value is automatically
 parsed to a tuple. The binary must be in the same
 format as the etag header, including quotes.
+
+It is possible to conditionally generate an etag.
+When no etag can be generated, `undefined` should
+be returned.
 
 === is_authorized
 
@@ -730,6 +734,9 @@ listed here, like the authorization header.
 
 == Changelog
 
+* *2.11*: The `generate_etag` callback can now return
+          `undefined` to conditionally avoid generating
+          an etag.
 * *2.9*: An `AcceptCallback` can now return `{created, URI}` or
          `{see_other, URI}`. The return value `{true, URI}`
          is deprecated.

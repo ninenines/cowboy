@@ -97,7 +97,7 @@
 -optional_callbacks([forbidden/2]).
 
 -callback generate_etag(Req, State)
-	-> {binary() | {weak | strong, binary()}, Req, State}
+	-> {binary() | {weak | strong, binary()} | undefined, Req, State}
 	when Req::cowboy_req:req(), State::any().
 -optional_callbacks([generate_etag/2]).
 
@@ -1527,6 +1527,12 @@ generate_etag(Req, State=#state{etag=undefined}) ->
 	case unsafe_call(Req, State, generate_etag) of
 		no_call ->
 			{undefined, Req, State#state{etag=no_call}};
+		%% We allow the callback to return 'undefined'
+		%% to allow conditionally generating etags. We
+		%% handle 'undefined' the same as if the function
+		%% was not exported.
+		{undefined, Req2, State2} ->
+			{undefined, Req2, State2#state{etag=no_call}};
 		{Etag, Req2, State2} when is_binary(Etag) ->
 			Etag2 = cow_http_hd:parse_etag(Etag),
 			{Etag2, Req2, State2#state{etag=Etag2}};

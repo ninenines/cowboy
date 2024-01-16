@@ -34,6 +34,9 @@ generate_etag(Req=#{qs := <<"binary-weak-unquoted">>}, State) ->
 generate_etag(Req=#{qs := <<"binary-strong-unquoted">>}, State) ->
 	ct_helper_error_h:ignore(cow_http_hd, parse_etag, 1),
 	{<<"etag-header-value">>, Req, State};
+%% Returning 'undefined' to indicate no etag.
+generate_etag(Req=#{qs := <<"undefined">>}, State) ->
+	{undefined, Req, State};
 %% Simulate the callback being missing in other cases.
 generate_etag(#{qs := <<"missing">>}, _) ->
 	no_call.
