@@ -1,0 +1,73 @@
+= cowboy_stream:early_error(3)
+
+== Name
+
+cowboy_stream:early_error - Handle an early error for a stream
+
+== Description
+
+[source,erlang]
+----
+early_error(StreamID, Reason, PartialReq, Resp, Opts) -> Resp
+
+StreamID   :: cowboy_stream:stream_id()
+Reason     :: cowboy_stream:reason()
+PartialReq :: cowboy_stream:partial_req()
+Resp       :: cowboy_stream:resp_command()
+Opts       :: cowboy:opts()
+----
+
+Handle an early error for a stream.
+
+This function should be called by all stream handlers. It will
+propagate the early error to the next configured stream handler.
+
+== Arguments
+
+StreamID::
+
+The stream ID.
+
+Reason::
+
+Reason for termination.
+
+PartialReq::
+
+The request data that has been received so far.
+
+Resp::
+
+The response that will be sent as a result of the early error.
++
+It may be modified by the stream handler before or after
+being propagated to the next handler.
+
+Opts::
+
+The protocol options.
+
+== Return value
+
+The response to be sent as a result of the early error.
+
+== Changelog
+
+* *2.0*: Function introduced.
+
+== Examples
+
+.Propagate the early error to the next stream handler
+[source,erlang]
+----
+early_error(StreamID, Reason, PartialReq, Resp, Opts) ->
+    cowboy_stream:early_error(StreamID, Reason, PartialReq, Resp, Opts).
+----
+
+== See also
+
+link:man:cowboy_stream(3)[cowboy_stream(3)],
+link:man:cowboy_stream:init(3)[cowboy_stream:init(3)],
+link:man:cowboy_stream:data(3)[cowboy_stream:data(3)],
+link:man:cowboy_stream:info(3)[cowboy_stream:info(3)],
+link:man:cowboy_stream:terminate(3)[cowboy_stream:terminate(3)]

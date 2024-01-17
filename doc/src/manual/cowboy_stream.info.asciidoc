@@ -1,0 +1,77 @@
+= cowboy_stream:info(3)
+
+== Name
+
+cowboy_stream:info - Handle a message for a stream
+
+== Description
+
+[source,erlang]
+----
+info(StreamID, Info, State) -> {Commands, State}
+
+StreamID :: cowboy_stream:stream_id()
+Info     :: any()
+Commands :: cowboy_stream:commands()
+State    - opaque
+----
+
+Handle a message for a stream.
+
+This function should be called by all stream handlers. It will
+propagate the event to the next configured stream handler.
+Handlers do not have to propagate events that have been
+fully handled.
+
+== Arguments
+
+StreamID::
+
+The stream ID.
+
+Info::
+
+The event received.
+
+Commands::
+
+The commands to be executed.
+
+State::
+
+The state for the next stream handler.
+
+== Return value
+
+A list of commands and an opaque state is returned.
+
+The list of commands returned should be included in the
+commands returned from the current stream handler. It
+can be modified if necessary.
+
+The state should be stored in the current stream
+handler's state and passed to `cowboy_stream` when
+necessary. The state should be treated as opaque.
+
+== Changelog
+
+* *2.0*: Function introduced.
+
+== Examples
+
+.Propagate an event to the next stream handler
+[source,erlang]
+----
+info(StreamID, Info, State=#state{next=Next0}) ->
+    MyCommands = my_commands(),
+    {Commands, Next} = cowboy_stream:info(StreamID, Info, Next0),
+    {MyCommands ++ Commands, #state{next=Next}}.
+----
+
+== See also
+
+link:man:cowboy_stream(3)[cowboy_stream(3)],
+link:man:cowboy_stream:init(3)[cowboy_stream:init(3)],
+link:man:cowboy_stream:data(3)[cowboy_stream:data(3)],
+link:man:cowboy_stream:terminate(3)[cowboy_stream:terminate(3)],
+link:man:cowboy_stream:early_error(3)[cowboy_stream:early_error(3)]

@@ -1,0 +1,80 @@
+= cowboy_stream:init(3)
+
+== Name
+
+cowboy_stream:init - Initialize a stream
+
+== Description
+
+[source,erlang]
+----
+init(StreamID, Req, Opts) -> {Commands, State}
+
+StreamID :: cowboy_stream:stream_id()
+Req      :: cowboy_req:req()
+Opts     :: cowboy:opts()
+Commands :: cowboy_stream:commands()
+State    - opaque
+----
+
+Initialize a stream.
+
+This function must be called by all stream handlers. It will
+initialize the next configured stream handler.
+
+== Arguments
+
+StreamID::
+
+The stream ID.
+
+Req::
+
+The Req object.
+
+Opts::
+
+The protocol options.
+
+Commands::
+
+The commands to be executed.
+
+State::
+
+The state for the next stream handler.
+
+== Return value
+
+A list of commands and an opaque state is returned.
+
+The list of commands returned should be included in the
+commands returned from the current stream handler. It
+can be modified if necessary.
+
+The state should be stored in the current stream
+handler's state and passed to `cowboy_stream` when
+necessary. The state should be treated as opaque.
+
+== Changelog
+
+* *2.0*: Function introduced.
+
+== Examples
+
+.Initialize the next stream handler
+[source,erlang]
+----
+init(StreamID, Req, Opts) ->
+    MyCommands = my_commands(),
+    {Commands, Next} = cowboy_stream:init(StreamID, Req, Opts),
+    {MyCommands ++ Commands, #state{next=Next}}.
+----
+
+== See also
+
+link:man:cowboy_stream(3)[cowboy_stream(3)],
+link:man:cowboy_stream:data(3)[cowboy_stream:data(3)],
+link:man:cowboy_stream:info(3)[cowboy_stream:info(3)],
+link:man:cowboy_stream:terminate(3)[cowboy_stream:terminate(3)],
+link:man:cowboy_stream:early_error(3)[cowboy_stream:early_error(3)]

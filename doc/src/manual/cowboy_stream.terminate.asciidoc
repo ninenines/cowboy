@@ -1,0 +1,61 @@
+= cowboy_stream:terminate(3)
+
+== Name
+
+cowboy_stream:terminate - Terminate a stream
+
+== Description
+
+[source,erlang]
+----
+terminate(StreamID, Reason, State) -> ok
+
+StreamID :: cowboy_stream:stream_id()
+Reason   :: cowboy_stream:reason()
+State    - opaque
+----
+
+Terminate a stream.
+
+This function must be called by all stream handlers. It will
+terminate the next configured stream handler.
+
+== Arguments
+
+StreamID::
+
+The stream ID.
+
+Reason::
+
+Reason for termination.
+
+State::
+
+The state for the next stream handler.
+
+== Return value
+
+The atom `ok` is always returned. It can be safely ignored.
+
+== Changelog
+
+* *2.0*: Function introduced.
+
+== Examples
+
+.Terminate the next stream handler
+[source,erlang]
+----
+terminate(StreamID, Reason, State=#state{next=Next0}) ->
+    my_termination(State),
+    cowboy_stream:terminate(StreamID, Reason, Next0).
+----
+
+== See also
+
+link:man:cowboy_stream(3)[cowboy_stream(3)],
+link:man:cowboy_stream:init(3)[cowboy_stream:init(3)],
+link:man:cowboy_stream:data(3)[cowboy_stream:data(3)],
+link:man:cowboy_stream:info(3)[cowboy_stream:info(3)],
+link:man:cowboy_stream:early_error(3)[cowboy_stream:early_error(3)]

@@ -344,7 +344,7 @@ fin() :: fin | nofin
 ----
 
 Used in commands and events to indicate that this is
-the end of the stream.
+the end of a direction of a stream.
 
 === partial_req()
 
