@@ -329,6 +329,7 @@ do_idle_timeout_on_send(Config, Protocol) ->
 	try
 		ConnPid = gun_open([{type, tcp}, {protocol, Protocol}, {port, Port}|Config]),
 		{ok, Protocol} = gun:await_up(ConnPid),
+		timer:sleep(500),
 		#{socket := Socket} = gun:info(ConnPid),
 		Pid = get_remote_pid_tcp(Socket),
 		StreamRef = gun:get(ConnPid, "/streamed_result/10/250"),
@@ -359,6 +360,7 @@ do_idle_timeout_reset_on_send(Config, Protocol) ->
 	try
 		ConnPid = gun_open([{type, tcp}, {protocol, Protocol}, {port, Port}|Config]),
 		{ok, Protocol} = gun:await_up(ConnPid),
+		timer:sleep(500),
 		#{socket := Socket} = gun:info(ConnPid),
 		Pid = get_remote_pid_tcp(Socket),
 		StreamRef = gun:get(ConnPid, "/streamed_result/10/250"),
