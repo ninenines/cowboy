@@ -101,6 +101,9 @@ prepare_tag:
 	$(verbose) echo -n "GUIDE:  "
 	$(verbose) grep -h dep_$(PROJECT)_commit doc/src/guide/*.asciidoc || true
 	$(verbose) echo
+	$(verbose) echo "Links in the README:"
+	$(verbose) grep http.*:// README.asciidoc
+	$(verbose) echo
 	$(verbose) echo "Titles in most recent CHANGELOG:"
 	$(verbose) for f in `ls -r doc/src/guide/migrating_from_*.asciidoc | head -n1`; do \
 		echo $$f:; \
