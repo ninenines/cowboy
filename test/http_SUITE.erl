@@ -90,7 +90,7 @@ chunked_one_byte_at_a_time(Config) ->
 		"Transfer-encoding: chunked\r\n\r\n"),
 	_ = [begin
 		raw_send(Client, <<C>>),
-		timer:sleep(10)
+		timer:sleep(1)
 	end || <<C>> <= ChunkedBody],
 	Rest = case catch raw_recv_head(Client) of
 		{'EXIT', _} -> error(closed);
