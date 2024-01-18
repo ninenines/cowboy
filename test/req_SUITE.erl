@@ -265,6 +265,7 @@ match_qs(Config) ->
 	end,
 	%% Ensure match errors result in a 400 response.
 	{400, _, _} = do_get("/match/qs/a/c?a=b", [], Config),
+	{400, _, _} = do_get("/match/qs_with_constraints", [], Config),
 	%% This function is tested more extensively through unit tests.
 	ok.
 
