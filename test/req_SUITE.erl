@@ -591,8 +591,20 @@ do_read_urlencoded_body_too_large(Path, Body, Config) ->
 		{<<"content-length">>, integer_to_binary(iolist_size(Body))}
 	]),
 	gun:data(ConnPid, Ref, fin, Body),
-	{response, _, 413, _} = gun:await(ConnPid, Ref, infinity),
-	gun:close(ConnPid).
+	Response = gun:await(ConnPid, Ref, infinity),
+	gun:close(ConnPid),
+	case Response of
+		{response, _, 413, _} ->
+			ok;
+		%% We got the wrong crash, likely because the environment
+		%% was overloaded and the timeout triggered. Try again.
+		{response, _, 408, _} ->
+			do_read_urlencoded_body_too_large(Path, Body, Config);
+		%% Timing issues make it possible for the connection to be
+		%% closed before the data went through. We retry.
+		{error, {stream_error, {closed, {error,closed}}}} ->
+			do_read_urlencoded_body_too_large(Path, Body, Config)
+	end.
 
 read_urlencoded_body_too_long(Config) ->
 	doc("application/x-www-form-urlencoded request body sent too slow. "
