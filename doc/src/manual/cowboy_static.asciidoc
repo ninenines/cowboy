@@ -129,6 +129,8 @@ when it fails to detect a file's MIME type.
 
 == Changelog
 
+* *2.11*: Support for range requests was added in 2.6 and
+          is now considered stable.
 * *2.6*: The `charset` extra option was added.
 * *1.0*: Handler introduced.
 
