@@ -1,0 +1,139 @@
+[appendix]
+== Migrating from Cowboy 2.10 to 2.11
+
+Cowboy 2.11 contains a variety of new features and bug
+fixes. Nearly all previously experimental features are
+now marked as stable, including Websocket over HTTP/2.
+Included is a fix for an HTTP/2 protocol CVE.
+
+Cowboy 2.11 requires Erlang/OTP 24.0 or greater.
+
+Cowboy is now using GitHub Actions for CI. The main reason
+for the move is to reduce costs by no longer having to
+self-host CI runners. The downside is that GitHub runners
+are less reliable and timing dependent tests are now more
+likely to fail.
+
+=== Features added
+
+* A new HTTP/2 option `max_cancel_stream_rate` has been added
+  to control the rate of stream cancellation the server will
+  accept. By default Cowboy will accept 500 cancelled streams
+  every 10 seconds.
+
+* A new stream handler `cowboy_decompress_h` has been added.
+  It allows automatically decompressing incoming gzipped
+  request bodies. It includes options to protect against
+  zip bombs.
+
+* Websocket over HTTP/2 is no longer considered experimental.
+  Note that the `enable_connect_protocol` option must be set
+  to `true` in order to use Websocket over HTTP/2 for the
+  time being.
+
+* Automatic mode for reading request bodies has been
+  documented. In automatic mode, Cowboy waits indefinitely
+  for data and sends a `request_body` message when data
+  comes in. It mirrors `{active, once}` socket modes.
+  This is ideal for loop handlers and is also used
+  internally for HTTP/2 Websocket.
+
+* Ranged requests support is no longer considered
+  experimental. It was added in 2.6 to both `cowboy_static`
+  and `cowboy_rest`. Ranged responses can be produced
+  either automatically (for the `bytes` unit) or manually.
+  REST flowcharts have been updated with the new callbacks
+  and steps related to handling ranged requests.
+
+* A new HTTP/1.1 and HTTP/2 option `reset_idle_timeout_on_send`
+  has been added. When enabled, the `idle_timeout` will be
+  reset every time Cowboy sends data to the socket.
+
+* Loop handlers may now return a timeout value in the place
+  of `hibernate`. Timeouts behave the same as in `gen_server`.
+
+* The `generate_etag` callback of REST handlers now accepts
+  `undefined` as a return value to allow conditionally
+  generating etags.
+
+* The `cowboy_compress_h` options `compress_threshold` and
+  `compress_buffering` are no longer considered experimental.
+  They were de facto stable since 2.6 as they already were
+  documented.
+
+* Functions `cowboy:get_env/2,3` have been added.
+
+* Better error messages have been added when trying to send
+  a 204 or 304 response with a body; when attempting to
+  send two responses to a single request; when trying to
+  push a response after the final response; when trying
+  to send a `set-cookie` header without using
+  `cowboy_req:set_resp_cookie/3,4`.
+
+=== Features removed
+
+* Cowboy will no longer include the NPN extension when
+  starting a TLS listener. This extension has long been
+  deprecated and replaced with the ALPN extension. Cowboy
+  will continue using the ALPN extension for protocol
+  negotiation.
+
+=== Bugs fixed
+
+* A fix was made to address the HTTP/2 CVE CVE-2023-44487
+  via the new HTTP/2 option `max_cancel_stream_rate`.
+
+* HTTP/1.1 requests that contain both a content-length and
+  a transfer-encoding header will now be rejected to avoid
+  security risks. Previous behavior was to ignore the
+  content-length header as recommended by the HTTP RFC.
+
+* HTTP/1.1 connections would sometimes use the wrong timeout
+  value to determine whether the connection should be closed.
+  This resulted in connections staying up longer than
+  intended. This should no longer be the case.
+
+* Cowboy now reacts to socket errors immediately for HTTP/1.1
+  and HTTP/2 when possible. Cowboy will notice when connections
+  have been closed properly earlier than before. This also
+  means that the socket option `send_timeout_close` will work
+  as expected.
+
+* Shutting down HTTP/1.1 pipelined requests could lead to
+  the current request being terminated before the response
+  has been sent. This has been addressed.
+
+* When using HTTP/1.1 an invalid Connection header will now
+  be rejected with a 400 status code instead of crashing.
+
+* The documentation now recommends increasing the HTTP/2
+  option `max_frame_size_received`. Cowboy currently uses
+  the protocol default but will increase its default in a
+  future release. Until then users are recommended to set
+  the option to ensure larger requests are accepted and
+  processed with acceptable performance.
+
+* Cowboy could sometimes send HTTP/2 WINDOW_UPDATE frames
+  twice in a row. Now they should be consolidated.
+
+* Cowboy would sometimes send HTTP/2 WINDOW_UPDATE frames
+  for streams that have stopped internally. This should
+  no longer be the case.
+
+* The `cowboy_compress_h` stream handler will no longer
+  attempt to compress responses that have an `etag` header
+  to avoid caching issues.
+
+* The `cowboy_compress_h` will now always add `accept-encoding`
+  to the `vary` header as it indicates that responses may
+  be compressed.
+
+* Cowboy will now remove the `trap_exit` process flag when
+  HTTP/1.1 connections upgrade to Websocket.
+
+* Exit gracefully instead of crashing when the socket gets
+  closed when reading the PROXY header.
+
+* Missing `cowboy_stream` manual pages have been added.
+
+* A number of fixes were made to documentation and examples.

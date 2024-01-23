@@ -94,7 +94,10 @@ enable_connect_protocol (false)::
 
 Whether to enable the extended CONNECT method to allow
 protocols like Websocket to be used over an HTTP/2 stream.
-This option is experimental and disabled by default.
++
+For backward compatibility reasons, this option is disabled
+by default. It must be enabled to use Websocket over HTTP/2.
+It will be enabled by default in a future release.
 
 goaway_initial_timeout (1000)::
 
@@ -277,6 +280,7 @@ too many `WINDOW_UPDATE` frames.
 
 == Changelog
 
+* *2.11*: Websocket over HTTP/2 is now considered stable.
 * *2.11*: The `reset_idle_timeout_on_send` option was added.
 * *2.11*: Add the option `max_cancel_stream_rate` to protect
           against another flood scenario.
@@ -307,7 +311,7 @@ too many `WINDOW_UPDATE` frames.
          `max_frame_size_received`, `max_frame_size_sent`
          and `settings_timeout` to configure HTTP/2 SETTINGS
          and related behavior.
-* *2.4*: Add the experimental option `enable_connect_protocol`.
+* *2.4*: Add the option `enable_connect_protocol`.
 * *2.0*: Protocol introduced.
 
 == See also

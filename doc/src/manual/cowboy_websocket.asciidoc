@@ -285,6 +285,7 @@ normal circumstances if necessary.
 
 == Changelog
 
+* *2.11*: Websocket over HTTP/2 is now considered stable.
 * *2.11*: HTTP/1.1 Websocket no longer traps exits by default.
 * *2.8*: The `active_n` option was added.
 * *2.7*: The commands based interface has been documented.
