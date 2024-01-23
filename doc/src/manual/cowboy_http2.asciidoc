@@ -44,6 +44,7 @@ opts() :: #{
     max_stream_window_size         => 0..16#7fffffff,
     preface_timeout                => timeout(),
     proxy_header                   => boolean(),
+    reset_idle_timeout_on_send     => boolean(),
     sendfile                       => boolean(),
     settings_timeout               => timeout(),
     stream_handlers                => [module()],
@@ -235,6 +236,11 @@ Whether incoming connections have a PROXY protocol header. The
 proxy information will be passed forward via the `proxy_header`
 key of the Req object.
 
+reset_idle_timeout_on_send (false)::
+
+Whether the `idle_timeout` gets reset when sending data
+to the socket.
+
 sendfile (true)::
 
 Whether the sendfile syscall may be used. It can be useful to disable
@@ -271,6 +277,7 @@ too many `WINDOW_UPDATE` frames.
 
 == Changelog
 
+* *2.11*: The `reset_idle_timeout_on_send` option was added.
 * *2.11*: Add the option `max_cancel_stream_rate` to protect
           against another flood scenario.
 * *2.9*: The `goaway_initial_timeout` and `goaway_complete_timeout`
