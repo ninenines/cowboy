@@ -2,24 +2,23 @@
 <!-- Created with Inkscape (http://www.inkscape.org/) -->
 
 <svg
-   xmlns:osb="http://www.openswatchbook.org/uri/2009/osb"
-   xmlns:dc="http://purl.org/dc/elements/1.1/"
-   xmlns:cc="http://creativecommons.org/ns#"
-   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-   xmlns:svg="http://www.w3.org/2000/svg"
-   xmlns="http://www.w3.org/2000/svg"
-   xmlns:xlink="http://www.w3.org/1999/xlink"
-   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
-   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    width="744.09448819"
    height="1052.3622047"
    id="svg2"
    version="1.1"
-   inkscape:version="0.92.1 r"
+   inkscape:version="1.3.2 (091e20ef0f, 2023-11-25, custom)"
    sodipodi:docname="rest_get_head.svg"
    inkscape:export-filename="/home/essen/Dropbox/Public/drawing.png"
    inkscape:export-xdpi="90"
-   inkscape:export-ydpi="90">
+   inkscape:export-ydpi="90"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:dc="http://purl.org/dc/elements/1.1/">
   <defs
      id="defs4">
     <linearGradient
@@ -50,7 +49,7 @@
     </linearGradient>
     <linearGradient
        id="linearGradient5233"
-       osb:paint="solid">
+       inkscape:swatch="solid">
       <stop
          style="stop-color:#69d2e7;stop-opacity:1;"
          offset="0"
@@ -64,26 +63,34 @@
      borderopacity="1.0"
      inkscape:pageopacity="1"
      inkscape:pageshadow="2"
-     inkscape:zoom="1.4142136"
-     inkscape:cx="353.51266"
-     inkscape:cy="522.73683"
+     inkscape:zoom="0.66612663"
+     inkscape:cx="444.35996"
+     inkscape:cy="784.3854"
      inkscape:document-units="px"
      inkscape:current-layer="layer1"
      showgrid="false"
-     inkscape:window-width="1920"
-     inkscape:window-height="1043"
+     inkscape:window-width="1440"
+     inkscape:window-height="900"
      inkscape:window-x="0"
      inkscape:window-y="0"
      inkscape:window-maximized="1"
      inkscape:snap-global="true"
-     showguides="true">
+     showguides="true"
+     inkscape:showpageshadow="2"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1">
     <inkscape:grid
        type="xygrid"
        id="grid5357"
        empspacing="5"
-       visible="true"
+       visible="false"
        enabled="true"
-       snapvisiblegridlinesonly="true" />
+       snapvisiblegridlinesonly="true"
+       originx="0"
+       originy="0"
+       spacingy="1"
+       spacingx="1"
+       units="px" />
   </sodipodi:namedview>
   <metadata
      id="metadata7">
@@ -101,6 +108,223 @@
      inkscape:label="Layer 1"
      inkscape:groupmode="layer"
      id="layer1">
+    <g
+       transform="rotate(57.423293,-360.21231,998.44074)"
+       id="g5650-2-6-7"
+       inkscape:export-filename="rest_get_head.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643">
+      <path
+         inkscape:connector-curvature="0"
+         id="path5570-2-10-6"
+         d="M -57.78256,275.13761 V 404.27753"
+         style="opacity:0.8;fill:none;stroke:#9b3b1c;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+      <path
+         transform="matrix(0.58787746,0,0,0.58787746,73.160466,163.35774)"
+         inkscape:transform-center-y="2.1823437"
+         d="m -222.73865,430.10821 -12.85982,-22.27386 25.71964,0 z"
+         inkscape:randomized="0"
+         inkscape:rounded="0"
+         inkscape:flatsided="true"
+         sodipodi:arg2="2.6179939"
+         sodipodi:arg1="1.5707963"
+         sodipodi:r2="7.4246211"
+         sodipodi:r1="14.849242"
+         sodipodi:cy="415.25897"
+         sodipodi:cx="-222.73865"
+         sodipodi:sides="3"
+         id="path5576-12-6-7"
+         style="opacity:0.8;fill:#9b3b1c;fill-opacity:1;fill-rule:nonzero;stroke:#9b3b1c;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+         sodipodi:type="star" />
+    </g>
+    <g
+       transform="rotate(90,13.664042,694.60225)"
+       id="g5650-2-2-17-9">
+      <path
+         inkscape:connector-curvature="0"
+         id="path5570-2-1-0-4"
+         d="m -57.78256,343.20394 v 61.59661"
+         style="opacity:0.8;fill:none;stroke:#9b3b1c;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+      <path
+         transform="matrix(0.58787746,0,0,0.58787746,73.160466,163.35774)"
+         inkscape:transform-center-y="2.1823437"
+         d="m -222.73865,430.10821 -12.85982,-22.27386 25.71964,0 z"
+         inkscape:randomized="0"
+         inkscape:rounded="0"
+         inkscape:flatsided="true"
+         sodipodi:arg2="2.6179939"
+         sodipodi:arg1="1.5707963"
+         sodipodi:r2="7.4246211"
+         sodipodi:r1="14.849242"
+         sodipodi:cy="415.25897"
+         sodipodi:cx="-222.73865"
+         sodipodi:sides="3"
+         id="path5576-12-5-45-9"
+         style="opacity:0.8;fill:#9b3b1c;fill-opacity:1;fill-rule:nonzero;stroke:#9b3b1c;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+         sodipodi:type="star" />
+    </g>
+    <g
+       transform="rotate(142.84301,-18.689938,738.63976)"
+       id="g5650-2-2-17-9-1">
+      <path
+         inkscape:connector-curvature="0"
+         id="path5570-2-1-0-4-2"
+         d="m -57.78256,343.20394 v 61.59661"
+         style="opacity:0.8;fill:none;stroke:#9b3b1c;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+      <path
+         transform="matrix(0.58787746,0,0,0.58787746,73.160466,163.35774)"
+         inkscape:transform-center-y="2.1823437"
+         d="m -222.73865,430.10821 -12.85982,-22.27386 25.71964,0 z"
+         inkscape:randomized="0"
+         inkscape:rounded="0"
+         inkscape:flatsided="true"
+         sodipodi:arg2="2.6179939"
+         sodipodi:arg1="1.5707963"
+         sodipodi:r2="7.4246211"
+         sodipodi:r1="14.849242"
+         sodipodi:cy="415.25897"
+         sodipodi:cx="-222.73865"
+         sodipodi:sides="3"
+         id="path5576-12-5-45-9-9"
+         style="opacity:0.8;fill:#9b3b1c;fill-opacity:1;fill-rule:nonzero;stroke:#9b3b1c;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+         sodipodi:type="star" />
+    </g>
+    <g
+       transform="rotate(57.423293,-61.041025,828.63629)"
+       id="g5650-2-6">
+      <path
+         inkscape:connector-curvature="0"
+         id="path5570-2-10"
+         d="M -57.78256,275.13761 V 404.27753"
+         style="opacity:0.8;fill:none;stroke:#6d8e41;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+      <path
+         transform="matrix(0.58787746,0,0,0.58787746,73.160466,163.35774)"
+         inkscape:transform-center-y="2.1823437"
+         d="m -222.73865,430.10821 -12.85982,-22.27386 25.71964,0 z"
+         inkscape:randomized="0"
+         inkscape:rounded="0"
+         inkscape:flatsided="true"
+         sodipodi:arg2="2.6179939"
+         sodipodi:arg1="1.5707963"
+         sodipodi:r2="7.4246211"
+         sodipodi:r1="14.849242"
+         sodipodi:cy="415.25897"
+         sodipodi:cx="-222.73865"
+         sodipodi:sides="3"
+         id="path5576-12-6"
+         style="opacity:0.8;fill:#6d8e41;fill-opacity:1;fill-rule:nonzero;stroke:#6d8e41;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+         sodipodi:type="star" />
+    </g>
+    <g
+       transform="matrix(0.53842825,-0.84267136,-0.84267136,-0.53842825,668.22258,813.26466)"
+       id="g5650-2-6-0">
+      <path
+         inkscape:connector-curvature="0"
+         id="path5570-2-10-9"
+         d="M -57.78256,275.13761 V 404.27753"
+         style="opacity:0.8;fill:none;stroke:#9b3b1c;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+      <path
+         transform="matrix(0.58787746,0,0,0.58787746,73.160466,163.35774)"
+         inkscape:transform-center-y="2.1823437"
+         d="m -222.73865,430.10821 -12.85982,-22.27386 25.71964,0 z"
+         inkscape:randomized="0"
+         inkscape:rounded="0"
+         inkscape:flatsided="true"
+         sodipodi:arg2="2.6179939"
+         sodipodi:arg1="1.5707963"
+         sodipodi:r2="7.4246211"
+         sodipodi:r1="14.849242"
+         sodipodi:cy="415.25897"
+         sodipodi:cx="-222.73865"
+         sodipodi:sides="3"
+         id="path5576-12-6-1"
+         style="opacity:0.8;fill:#9b3b1c;fill-opacity:1;fill-rule:nonzero;stroke:#9b3b1c;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+         sodipodi:type="star" />
+    </g>
+    <g
+       transform="matrix(0.7948003,-0.60687106,-0.60687106,-0.7948003,570.69023,937.57491)"
+       id="g5650-2-6-0-1">
+      <path
+         inkscape:connector-curvature="0"
+         id="path5570-2-10-9-1"
+         d="m -56.935096,252.07781 -0.800167,152.0263"
+         style="opacity:0.8;fill:none;stroke:#9b3b1c;stroke-width:2.35779;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+      <path
+         transform="matrix(0.58787746,0,0,0.58787746,73.160466,163.35774)"
+         inkscape:transform-center-y="2.1823437"
+         d="m -222.73865,430.10821 -12.85982,-22.27386 25.71964,0 z"
+         inkscape:randomized="0"
+         inkscape:rounded="0"
+         inkscape:flatsided="true"
+         sodipodi:arg2="2.6179939"
+         sodipodi:arg1="1.5707963"
+         sodipodi:r2="7.4246211"
+         sodipodi:r1="14.849242"
+         sodipodi:cy="415.25897"
+         sodipodi:cx="-222.73865"
+         sodipodi:sides="3"
+         id="path5576-12-6-1-5"
+         style="opacity:0.8;fill:#9b3b1c;fill-opacity:1;fill-rule:nonzero;stroke:#9b3b1c;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+         sodipodi:type="star" />
+    </g>
+    <g
+       transform="translate(656.82134,696.68054)"
+       id="g5650-93-2-6-9-5-7-3-5-9"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643">
+      <path
+         inkscape:connector-curvature="0"
+         id="path5570-3-7-2-2-9-3-1-4-3"
+         d="m -57.78256,351.41962 v 52.3259"
+         style="opacity:0.8;fill:none;stroke:#6d8e41;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+      <path
+         transform="matrix(0.58787746,0,0,0.58787746,73.160466,163.35774)"
+         inkscape:transform-center-y="2.1823437"
+         d="m -222.73865,430.10821 -12.85982,-22.27386 25.71964,0 z"
+         inkscape:randomized="0"
+         inkscape:rounded="0"
+         inkscape:flatsided="true"
+         sodipodi:arg2="2.6179939"
+         sodipodi:arg1="1.5707963"
+         sodipodi:r2="7.4246211"
+         sodipodi:r1="14.849242"
+         sodipodi:cy="415.25897"
+         sodipodi:cx="-222.73865"
+         sodipodi:sides="3"
+         id="path5576-4-0-6-0-2-6-9-7-7"
+         style="opacity:0.8;fill:#6d8e41;fill-opacity:1;fill-rule:nonzero;stroke:#6d8e41;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+         sodipodi:type="star" />
+    </g>
+    <g
+       transform="translate(400.94834,696.68054)"
+       id="g5650-93-2-6-9-5-7-3-5"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643">
+      <path
+         inkscape:connector-curvature="0"
+         id="path5570-3-7-2-2-9-3-1-4"
+         d="m -57.78256,351.41962 v 52.3259"
+         style="opacity:0.8;fill:none;stroke:#6d8e41;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+      <path
+         transform="matrix(0.58787746,0,0,0.58787746,73.160466,163.35774)"
+         inkscape:transform-center-y="2.1823437"
+         d="m -222.73865,430.10821 -12.85982,-22.27386 25.71964,0 z"
+         inkscape:randomized="0"
+         inkscape:rounded="0"
+         inkscape:flatsided="true"
+         sodipodi:arg2="2.6179939"
+         sodipodi:arg1="1.5707963"
+         sodipodi:r2="7.4246211"
+         sodipodi:r1="14.849242"
+         sodipodi:cy="415.25897"
+         sodipodi:cx="-222.73865"
+         sodipodi:sides="3"
+         id="path5576-4-0-6-0-2-6-9-7"
+         style="opacity:0.8;fill:#6d8e41;fill-opacity:1;fill-rule:nonzero;stroke:#6d8e41;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+         sodipodi:type="star" />
+    </g>
     <path
        inkscape:export-ydpi="89.926643"
        inkscape:export-xdpi="89.926643"
@@ -110,7 +334,7 @@
        d="m -360.31658,371.70113 203.00246,0.045"
        style="fill:none;stroke:#6d8e41;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:1.99999999, 3.99999998;stroke-dashoffset:0" />
     <g
-       transform="translate(416.63925,-305.0045)"
+       transform="translate(674.63925,-305.0045)"
        id="g5650-7"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
@@ -118,8 +342,8 @@
       <path
          inkscape:connector-curvature="0"
          id="path5570-9"
-         d="m -57.78256,351.41962 0,52.3259"
-         style="opacity:0.8;fill:none;stroke:#6d8e41;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none" />
+         d="m -57.78256,351.41962 v 52.3259"
+         style="opacity:0.8;fill:none;stroke:#6d8e41;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
       <path
          transform="matrix(0.58787746,0,0,0.58787746,73.160466,163.35774)"
          inkscape:transform-center-y="2.1823437"
@@ -135,11 +359,11 @@
          sodipodi:cx="-222.73865"
          sodipodi:sides="3"
          id="path5576-0"
-         style="opacity:0.8;fill:#6d8e41;fill-opacity:1;fill-rule:nonzero;stroke:#6d8e41;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
+         style="opacity:0.8;fill:#6d8e41;fill-opacity:1;fill-rule:nonzero;stroke:#6d8e41;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
          sodipodi:type="star" />
     </g>
     <g
-       transform="translate(270.88515,-59.451492)"
+       transform="translate(528.88515,-59.451492)"
        id="g5650-0"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
@@ -147,8 +371,8 @@
       <path
          inkscape:connector-curvature="0"
          id="path5570-5"
-         d="m -57.78256,351.41962 0,52.3259"
-         style="opacity:0.8;fill:none;stroke:#6d8e41;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none" />
+         d="m -57.78256,351.41962 v 52.3259"
+         style="opacity:0.8;fill:none;stroke:#6d8e41;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
       <path
          transform="matrix(0.58787746,0,0,0.58787746,73.160466,163.35774)"
          inkscape:transform-center-y="2.1823437"
@@ -164,11 +388,11 @@
          sodipodi:cx="-222.73865"
          sodipodi:sides="3"
          id="path5576-1"
-         style="opacity:0.8;fill:#6d8e41;fill-opacity:1;fill-rule:nonzero;stroke:#6d8e41;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
+         style="opacity:0.8;fill:#6d8e41;fill-opacity:1;fill-rule:nonzero;stroke:#6d8e41;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
          sodipodi:type="star" />
     </g>
     <g
-       transform="translate(270.88515,22.975441)"
+       transform="translate(528.88515,22.975441)"
        id="g5650-94"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
@@ -176,8 +400,8 @@
       <path
          inkscape:connector-curvature="0"
          id="path5570-71"
-         d="m -57.78256,351.41962 0,52.3259"
-         style="opacity:0.8;fill:none;stroke:#6d8e41;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none" />
+         d="m -57.78256,351.41962 v 52.3259"
+         style="opacity:0.8;fill:none;stroke:#6d8e41;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
       <path
          transform="matrix(0.58787746,0,0,0.58787746,73.160466,163.35774)"
          inkscape:transform-center-y="2.1823437"
@@ -193,11 +417,11 @@
          sodipodi:cx="-222.73865"
          sodipodi:sides="3"
          id="path5576-5"
-         style="opacity:0.8;fill:#6d8e41;fill-opacity:1;fill-rule:nonzero;stroke:#6d8e41;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
+         style="opacity:0.8;fill:#6d8e41;fill-opacity:1;fill-rule:nonzero;stroke:#6d8e41;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
          sodipodi:type="star" />
     </g>
     <g
-       transform="translate(270.88515,105.29639)"
+       transform="translate(528.88515,105.29639)"
        id="g5650-93"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
@@ -205,8 +429,8 @@
       <path
          inkscape:connector-curvature="0"
          id="path5570-3"
-         d="m -57.78256,351.41962 0,52.3259"
-         style="opacity:0.8;fill:none;stroke:#6d8e41;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none" />
+         d="m -57.78256,351.41962 v 52.3259"
+         style="opacity:0.8;fill:none;stroke:#6d8e41;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
       <path
          transform="matrix(0.58787746,0,0,0.58787746,73.160466,163.35774)"
          inkscape:transform-center-y="2.1823437"
@@ -222,11 +446,11 @@
          sodipodi:cx="-222.73865"
          sodipodi:sides="3"
          id="path5576-4"
-         style="opacity:0.8;fill:#6d8e41;fill-opacity:1;fill-rule:nonzero;stroke:#6d8e41;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
+         style="opacity:0.8;fill:#6d8e41;fill-opacity:1;fill-rule:nonzero;stroke:#6d8e41;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
          sodipodi:type="star" />
     </g>
     <g
-       transform="translate(270.88515,187.81342)"
+       transform="translate(240.08356,270.33438)"
        id="g5650-3"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
@@ -234,8 +458,8 @@
       <path
          inkscape:connector-curvature="0"
          id="path5570-93"
-         d="m -57.78256,351.41962 0,52.3259"
-         style="opacity:0.8;fill:none;stroke:#6d8e41;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none" />
+         d="m -57.78256,351.41962 v 52.3259"
+         style="opacity:0.8;fill:none;stroke:#6d8e41;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
       <path
          transform="matrix(0.58787746,0,0,0.58787746,73.160466,163.35774)"
          inkscape:transform-center-y="2.1823437"
@@ -251,11 +475,11 @@
          sodipodi:cx="-222.73865"
          sodipodi:sides="3"
          id="path5576-04"
-         style="opacity:0.8;fill:#6d8e41;fill-opacity:1;fill-rule:nonzero;stroke:#6d8e41;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
+         style="opacity:0.8;fill:#6d8e41;fill-opacity:1;fill-rule:nonzero;stroke:#6d8e41;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
          sodipodi:type="star" />
     </g>
     <g
-       transform="translate(270.88515,270.7128)"
+       transform="translate(240.08356,353.23338)"
        id="g5650-6"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
@@ -263,8 +487,8 @@
       <path
          inkscape:connector-curvature="0"
          id="path5570-78"
-         d="m -57.78256,351.41962 0,52.3259"
-         style="opacity:0.8;fill:none;stroke:#6d8e41;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none" />
+         d="m -57.78256,351.41962 v 52.3259"
+         style="opacity:0.8;fill:none;stroke:#6d8e41;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
       <path
          transform="matrix(0.58787746,0,0,0.58787746,73.160466,163.35774)"
          inkscape:transform-center-y="2.1823437"
@@ -280,11 +504,11 @@
          sodipodi:cx="-222.73865"
          sodipodi:sides="3"
          id="path5576-9"
-         style="opacity:0.8;fill:#6d8e41;fill-opacity:1;fill-rule:nonzero;stroke:#6d8e41;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
+         style="opacity:0.8;fill:#6d8e41;fill-opacity:1;fill-rule:nonzero;stroke:#6d8e41;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
          sodipodi:type="star" />
     </g>
     <g
-       transform="translate(270.88515,-141.93971)"
+       transform="translate(528.88515,-141.93971)"
        id="g5650-0-8"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
@@ -292,8 +516,8 @@
       <path
          inkscape:connector-curvature="0"
          id="path5570-5-3"
-         d="m -57.78256,351.41962 0,52.3259"
-         style="opacity:0.8;fill:none;stroke:#6d8e41;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none" />
+         d="m -57.78256,351.41962 v 52.3259"
+         style="opacity:0.8;fill:none;stroke:#6d8e41;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
       <path
          transform="matrix(0.58787746,0,0,0.58787746,73.160466,163.35774)"
          inkscape:transform-center-y="2.1823437"
@@ -309,65 +533,65 @@
          sodipodi:cx="-222.73865"
          sodipodi:sides="3"
          id="path5576-1-1"
-         style="opacity:0.8;fill:#6d8e41;fill-opacity:1;fill-rule:nonzero;stroke:#6d8e41;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
+         style="opacity:0.8;fill:#6d8e41;fill-opacity:1;fill-rule:nonzero;stroke:#6d8e41;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
          sodipodi:type="star" />
     </g>
     <rect
-       style="fill:#d1f2a5;fill-opacity:1;fill-rule:nonzero;stroke:#a9ca7d;stroke-width:3;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
+       style="fill:#d1f2a5;fill-opacity:1;fill-rule:nonzero;stroke:#a9ca7d;stroke-width:3;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
        id="rect5273-1-28"
        width="210.17955"
        height="35.209244"
-       x="108.01281"
+       x="366.01282"
        y="275.4668"
        rx="15"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643" />
     <rect
-       style="fill:#d1f2a5;fill-opacity:1;fill-rule:nonzero;stroke:#a9ca7d;stroke-width:3;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
+       style="fill:#d1f2a5;fill-opacity:1;fill-rule:nonzero;stroke:#a9ca7d;stroke-width:3;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
        id="rect5273-1-5"
        width="210.17955"
        height="35.209244"
-       x="108.01281"
+       x="366.01282"
        y="357.98779"
        rx="15"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643" />
     <rect
-       style="fill:#d1f2a5;fill-opacity:1;fill-rule:nonzero;stroke:#a9ca7d;stroke-width:3;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
+       style="fill:#d1f2a5;fill-opacity:1;fill-rule:nonzero;stroke:#a9ca7d;stroke-width:3;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
        id="rect5273-1-8"
        width="210.17955"
        height="35.209244"
-       x="108.01281"
+       x="366.01282"
        y="440.50873"
        rx="15"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643" />
     <rect
-       style="fill:#d1f2a5;fill-opacity:1;fill-rule:nonzero;stroke:#a9ca7d;stroke-width:3;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
+       style="fill:#d1f2a5;fill-opacity:1;fill-rule:nonzero;stroke:#a9ca7d;stroke-width:3;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
        id="rect5273-1-4"
        width="210.17955"
        height="35.209244"
-       x="108.01281"
-       y="523.02966"
+       x="81.249367"
+       y="605.55103"
        rx="15"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643" />
     <g
-       transform="matrix(0,-1,1,0,-314.06239,730.23773)"
+       transform="rotate(-90,235.94692,576.81149)"
        id="g5650-2-0-4-8"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643">
       <path
-         style="fill:none;stroke:#9b3b1c;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none"
+         style="fill:none;stroke:#9b3b1c;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
          d="m 146.3711,152.21525 c 0,0 -65.760927,60.81119 -8.48528,132.93608"
          id="path20172-9-5"
          inkscape:connector-curvature="0"
-         transform="matrix(0,1,-1,0,248.85545,276.69312)" />
+         transform="rotate(90,-13.918835,262.77429)" />
       <path
          transform="matrix(0.38224114,0.44664484,-0.44664484,0.38224114,233.48523,355.54168)"
          inkscape:transform-center-y="-1.0388082"
@@ -383,29 +607,29 @@
          sodipodi:cx="-222.73865"
          sodipodi:sides="3"
          id="path5576-12-1-7-2"
-         style="opacity:0.8;fill:#9b3b1c;fill-opacity:1;fill-rule:nonzero;stroke:#9b3b1c;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
+         style="opacity:0.8;fill:#9b3b1c;fill-opacity:1;fill-rule:nonzero;stroke:#9b3b1c;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
          sodipodi:type="star"
          inkscape:transform-center-x="4.5299474" />
     </g>
     <rect
-       style="fill:#d1f2a5;fill-opacity:1;fill-rule:nonzero;stroke:#a9ca7d;stroke-width:3;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
+       style="fill:#d1f2a5;fill-opacity:1;fill-rule:nonzero;stroke:#a9ca7d;stroke-width:3;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
        id="rect5273-1-87"
        width="210.17955"
        height="35.209244"
-       x="108.01281"
-       y="605.5506"
+       x="81.249367"
+       y="688.07202"
        rx="15"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643" />
     <g
-       transform="matrix(0.70710678,-0.70710678,0.70710678,0.70710678,261.76354,-143.71473)"
+       transform="rotate(-45,86.402746,-699.267)"
        id="g5650-2-2-8">
       <path
          inkscape:connector-curvature="0"
          id="path5570-2-1-4"
-         d="m -57.78256,343.20394 0,61.59661"
-         style="opacity:0.8;fill:none;stroke:#9b3b1c;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none" />
+         d="m -57.78256,343.20394 v 61.59661"
+         style="opacity:0.8;fill:none;stroke:#9b3b1c;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
       <path
          transform="matrix(0.58787746,0,0,0.58787746,73.160466,163.35774)"
          inkscape:transform-center-y="2.1823437"
@@ -421,15 +645,15 @@
          sodipodi:cx="-222.73865"
          sodipodi:sides="3"
          id="path5576-12-5-3"
-         style="opacity:0.8;fill:#9b3b1c;fill-opacity:1;fill-rule:nonzero;stroke:#9b3b1c;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
+         style="opacity:0.8;fill:#9b3b1c;fill-opacity:1;fill-rule:nonzero;stroke:#9b3b1c;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
          sodipodi:type="star" />
     </g>
     <rect
-       style="fill:#d1f2a5;fill-opacity:1;fill-rule:nonzero;stroke:#a9ca7d;stroke-width:3;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
+       style="fill:#d1f2a5;fill-opacity:1;fill-rule:nonzero;stroke:#a9ca7d;stroke-width:3;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
        id="rect5273-1"
        width="210.17955"
        height="35.209244"
-       x="253.76691"
+       x="511.76691"
        y="112.69559"
        rx="15"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
@@ -506,7 +730,7 @@
        y="0"
        xlink:href="#rect5273-22"
        id="use5355"
-       transform="translate(530.58261,-183.7816)"
+       transform="translate(788.58261,-183.7816)"
        width="744.09448"
        height="1052.3622"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
@@ -537,7 +761,7 @@
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none"
-       x="213.07524"
+       x="471.07526"
        y="379.78381"
        id="text5371-2-3"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
@@ -545,22 +769,47 @@
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-6-7"
-         x="213.07524"
+         x="471.07526"
          y="379.78381"
          style="font-size:16px;line-height:1.25;font-family:sans-serif">last_modified</tspan></text>
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none"
-       x="212.74321"
-       y="546.59912"
+       x="185.63515"
+       y="629.15564"
        id="text5371-2-3-0"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-6-7-3"
-         x="212.74321"
-         y="546.59912"
+         x="185.63515"
+         y="629.15564"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">ProvideCallback</tspan></text>
+    <rect
+       style="fill:#d1f2a5;fill-opacity:1;fill-rule:nonzero;stroke:#a9ca7d;stroke-width:3;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       id="rect5273-1-4-4"
+       width="210.17955"
+       height="35.209244"
+       x="238.076"
+       y="1018.396"
+       rx="15"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none"
+       x="342.46179"
+       y="1042.0006"
+       id="text5371-2-3-0-5"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643"><tspan
+         sodipodi:role="line"
+         id="tspan5373-6-7-3-0"
+         x="342.46179"
+         y="1042.0006"
          style="font-size:16px;line-height:1.25;font-family:sans-serif">ProvideCallback</tspan></text>
     <text
        xml:space="preserve"
@@ -576,35 +825,35 @@
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#9b3b1c;fill-opacity:1;stroke:none"
-       x="359.14185"
-       y="50.482433"
+       x="617.14185"
+       y="50.114025"
        id="text5371-4-0"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
-         x="359.14185"
-         y="50.482433"
+         x="617.14185"
+         y="50.114025"
          id="tspan17171"
          style="font-size:16px;line-height:1.25;font-family:sans-serif">conneg</tspan></text>
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none"
-       x="212.77055"
-       y="627.34662"
+       x="186.01915"
+       y="709.83667"
        id="text5371-2-9"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-6-8"
-         x="212.77055"
-         y="627.34662"
+         x="186.01915"
+         y="709.83667"
          style="font-size:16px;line-height:1.25;font-family:sans-serif">multiple_choices</tspan></text>
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none"
-       x="358.52466"
+       x="616.52466"
        y="134.49161"
        id="text5371-2-95"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
@@ -612,13 +861,13 @@
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-6-80"
-         x="358.52466"
+         x="616.52466"
          y="134.49161"
          style="font-size:16px;line-height:1.25;font-family:sans-serif">resource_exists</tspan></text>
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none"
-       x="213.38774"
+       x="471.38776"
        y="296.80188"
        id="text5371-2-32"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
@@ -626,13 +875,13 @@
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-6-27"
-         x="213.38774"
+         x="471.38776"
          y="296.80188"
          style="font-size:16px;line-height:1.25;font-family:sans-serif">generate_etag</tspan></text>
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none"
-       x="213.05571"
+       x="471.05573"
        y="462.5274"
        id="text5371-2-74"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
@@ -640,9 +889,362 @@
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-6-18"
-         x="213.05571"
+         x="471.05573"
          y="462.5274"
          style="font-size:16px;line-height:1.25;font-family:sans-serif">expires</tspan></text>
+    <g
+       transform="translate(528.88515,270.08038)"
+       id="g5650-93-2"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643">
+      <path
+         inkscape:connector-curvature="0"
+         id="path5570-3-7"
+         d="m -57.78256,351.41962 v 52.3259"
+         style="opacity:0.8;fill:none;stroke:#6d8e41;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+      <path
+         transform="matrix(0.58787746,0,0,0.58787746,73.160466,163.35774)"
+         inkscape:transform-center-y="2.1823437"
+         d="m -222.73865,430.10821 -12.85982,-22.27386 25.71964,0 z"
+         inkscape:randomized="0"
+         inkscape:rounded="0"
+         inkscape:flatsided="true"
+         sodipodi:arg2="2.6179939"
+         sodipodi:arg1="1.5707963"
+         sodipodi:r2="7.4246211"
+         sodipodi:r1="14.849242"
+         sodipodi:cy="415.25897"
+         sodipodi:cx="-222.73865"
+         sodipodi:sides="3"
+         id="path5576-4-0"
+         style="opacity:0.8;fill:#6d8e41;fill-opacity:1;fill-rule:nonzero;stroke:#6d8e41;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+         sodipodi:type="star" />
+    </g>
+    <rect
+       style="fill:#d1f2a5;fill-opacity:1;fill-rule:nonzero;stroke:#a9ca7d;stroke-width:3;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       id="rect5273-1-8-93"
+       width="210.17955"
+       height="35.209244"
+       x="366.013"
+       y="605.5506"
+       rx="15"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none"
+       x="470.63077"
+       y="627.31525"
+       id="text5371-2-74-6"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643"><tspan
+         sodipodi:role="line"
+         id="tspan5373-6-18-0"
+         x="470.63077"
+         y="627.31525"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">has range?</tspan></text>
+    <g
+       transform="translate(528.88515,187.69716)"
+       id="g5650-93-2-6"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643">
+      <path
+         inkscape:connector-curvature="0"
+         id="path5570-3-7-2"
+         d="m -57.78256,351.41962 v 52.3259"
+         style="opacity:0.8;fill:none;stroke:#6d8e41;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+      <path
+         transform="matrix(0.58787746,0,0,0.58787746,73.160466,163.35774)"
+         inkscape:transform-center-y="2.1823437"
+         d="m -222.73865,430.10821 -12.85982,-22.27386 25.71964,0 z"
+         inkscape:randomized="0"
+         inkscape:rounded="0"
+         inkscape:flatsided="true"
+         sodipodi:arg2="2.6179939"
+         sodipodi:arg1="1.5707963"
+         sodipodi:r2="7.4246211"
+         sodipodi:r1="14.849242"
+         sodipodi:cy="415.25897"
+         sodipodi:cx="-222.73865"
+         sodipodi:sides="3"
+         id="path5576-4-0-6"
+         style="opacity:0.8;fill:#6d8e41;fill-opacity:1;fill-rule:nonzero;stroke:#6d8e41;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+         sodipodi:type="star" />
+    </g>
+    <rect
+       style="fill:#d1f2a5;fill-opacity:1;fill-rule:nonzero;stroke:#a9ca7d;stroke-width:3;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       id="rect5273-1-8-93-1"
+       width="210.17955"
+       height="35.209244"
+       x="366.013"
+       y="523.02966"
+       rx="15"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none"
+       x="470.63077"
+       y="544.79431"
+       id="text5371-2-74-6-8"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643"><tspan
+         sodipodi:role="line"
+         id="tspan5373-6-18-0-7"
+         x="470.63077"
+         y="544.79431"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">resource provides ranges?</tspan></text>
+    <g
+       transform="translate(528.88515,353.49259)"
+       id="g5650-93-2-6-9"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643">
+      <path
+         inkscape:connector-curvature="0"
+         id="path5570-3-7-2-2"
+         d="m -57.78256,351.41962 v 52.3259"
+         style="opacity:0.8;fill:none;stroke:#6d8e41;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+      <path
+         transform="matrix(0.58787746,0,0,0.58787746,73.160466,163.35774)"
+         inkscape:transform-center-y="2.1823437"
+         d="m -222.73865,430.10821 -12.85982,-22.27386 25.71964,0 z"
+         inkscape:randomized="0"
+         inkscape:rounded="0"
+         inkscape:flatsided="true"
+         sodipodi:arg2="2.6179939"
+         sodipodi:arg1="1.5707963"
+         sodipodi:r2="7.4246211"
+         sodipodi:r1="14.849242"
+         sodipodi:cy="415.25897"
+         sodipodi:cx="-222.73865"
+         sodipodi:sides="3"
+         id="path5576-4-0-6-0"
+         style="opacity:0.8;fill:#6d8e41;fill-opacity:1;fill-rule:nonzero;stroke:#6d8e41;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+         sodipodi:type="star" />
+    </g>
+    <rect
+       style="fill:#d1f2a5;fill-opacity:1;fill-rule:nonzero;stroke:#a9ca7d;stroke-width:3;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       id="rect5273-1-8-93-1-2"
+       width="210.17955"
+       height="35.209244"
+       x="366.013"
+       y="687.83093"
+       rx="15"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none"
+       x="470.63077"
+       y="709.63556"
+       id="text5371-2-74-6-8-3"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643"><tspan
+         sodipodi:role="line"
+         id="tspan5373-6-18-0-7-7"
+         x="470.63077"
+         y="709.63556"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">has if-range?</tspan></text>
+    <g
+       transform="translate(528.88515,435.58038)"
+       id="g5650-93-2-6-9-5"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643">
+      <path
+         inkscape:connector-curvature="0"
+         id="path5570-3-7-2-2-9"
+         d="m -57.78256,351.41962 v 52.3259"
+         style="opacity:0.8;fill:none;stroke:#6d8e41;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+      <path
+         transform="matrix(0.58787746,0,0,0.58787746,73.160466,163.35774)"
+         inkscape:transform-center-y="2.1823437"
+         d="m -222.73865,430.10821 -12.85982,-22.27386 25.71964,0 z"
+         inkscape:randomized="0"
+         inkscape:rounded="0"
+         inkscape:flatsided="true"
+         sodipodi:arg2="2.6179939"
+         sodipodi:arg1="1.5707963"
+         sodipodi:r2="7.4246211"
+         sodipodi:r1="14.849242"
+         sodipodi:cy="415.25897"
+         sodipodi:cx="-222.73865"
+         sodipodi:sides="3"
+         id="path5576-4-0-6-0-2"
+         style="opacity:0.8;fill:#6d8e41;fill-opacity:1;fill-rule:nonzero;stroke:#6d8e41;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+         sodipodi:type="star" />
+    </g>
+    <rect
+       style="fill:#d1f2a5;fill-opacity:1;fill-rule:nonzero;stroke:#a9ca7d;stroke-width:3;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       id="rect5273-1-8-93-1-2-2"
+       width="210.17955"
+       height="35.209244"
+       x="366.013"
+       y="770.83313"
+       rx="15"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none"
+       x="470.63077"
+       y="792.59778"
+       id="text5371-2-74-6-8-3-8"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643"><tspan
+         sodipodi:role="line"
+         id="tspan5373-6-18-0-7-7-9"
+         x="470.63077"
+         y="792.59778"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">requested range provided?</tspan></text>
+    <g
+       transform="translate(528.88515,518.28038)"
+       id="g5650-93-2-6-9-5-7"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643">
+      <path
+         inkscape:connector-curvature="0"
+         id="path5570-3-7-2-2-9-3"
+         d="m -57.78256,351.41962 v 52.3259"
+         style="opacity:0.8;fill:none;stroke:#6d8e41;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+      <path
+         transform="matrix(0.58787746,0,0,0.58787746,73.160466,163.35774)"
+         inkscape:transform-center-y="2.1823437"
+         d="m -222.73865,430.10821 -12.85982,-22.27386 25.71964,0 z"
+         inkscape:randomized="0"
+         inkscape:rounded="0"
+         inkscape:flatsided="true"
+         sodipodi:arg2="2.6179939"
+         sodipodi:arg1="1.5707963"
+         sodipodi:r2="7.4246211"
+         sodipodi:r1="14.849242"
+         sodipodi:cy="415.25897"
+         sodipodi:cx="-222.73865"
+         sodipodi:sides="3"
+         id="path5576-4-0-6-0-2-6"
+         style="opacity:0.8;fill:#6d8e41;fill-opacity:1;fill-rule:nonzero;stroke:#6d8e41;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+         sodipodi:type="star" />
+    </g>
+    <rect
+       style="fill:#d1f2a5;fill-opacity:1;fill-rule:nonzero;stroke:#a9ca7d;stroke-width:3;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       id="rect5273-1-8-93-1-2-2-1"
+       width="210.17955"
+       height="35.209244"
+       x="366.013"
+       y="853.35419"
+       rx="15"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none"
+       x="470.83078"
+       y="875.15881"
+       id="text5371-2-74-6-8-3-8-2"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643"><tspan
+         sodipodi:role="line"
+         id="tspan5373-6-18-0-7-7-9-9"
+         x="470.83078"
+         y="875.15881"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">range_satisfiable</tspan></text>
+    <g
+       transform="rotate(-34.012747,1234.1863,-299.61425)"
+       id="g5650-93-2-6-9-5-7-3"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643">
+      <path
+         inkscape:connector-curvature="0"
+         id="path5570-3-7-2-2-9-3-1"
+         d="m -57.78256,351.41962 v 52.3259"
+         style="opacity:0.8;fill:none;stroke:#6d8e41;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+      <path
+         transform="matrix(0.58787746,0,0,0.58787746,73.160466,163.35774)"
+         inkscape:transform-center-y="2.1823437"
+         d="m -222.73865,430.10821 -12.85982,-22.27386 25.71964,0 z"
+         inkscape:randomized="0"
+         inkscape:rounded="0"
+         inkscape:flatsided="true"
+         sodipodi:arg2="2.6179939"
+         sodipodi:arg1="1.5707963"
+         sodipodi:r2="7.4246211"
+         sodipodi:r1="14.849242"
+         sodipodi:cy="415.25897"
+         sodipodi:cx="-222.73865"
+         sodipodi:sides="3"
+         id="path5576-4-0-6-0-2-6-9"
+         style="opacity:0.8;fill:#6d8e41;fill-opacity:1;fill-rule:nonzero;stroke:#6d8e41;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+         sodipodi:type="star" />
+    </g>
+    <g
+       transform="rotate(33.477859,-837.91737,1442.2703)"
+       id="g5650-93-2-6-9-5-7-3-8"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643">
+      <path
+         inkscape:connector-curvature="0"
+         id="path5570-3-7-2-2-9-3-1-43"
+         d="m -57.78256,351.41962 v 52.3259"
+         style="opacity:0.8;fill:none;stroke:#6d8e41;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+      <path
+         transform="matrix(0.58787746,0,0,0.58787746,73.160466,163.35774)"
+         inkscape:transform-center-y="2.1823437"
+         d="m -222.73865,430.10821 -12.85982,-22.27386 25.71964,0 z"
+         inkscape:randomized="0"
+         inkscape:rounded="0"
+         inkscape:flatsided="true"
+         sodipodi:arg2="2.6179939"
+         sodipodi:arg1="1.5707963"
+         sodipodi:r2="7.4246211"
+         sodipodi:r1="14.849242"
+         sodipodi:cy="415.25897"
+         sodipodi:cx="-222.73865"
+         sodipodi:sides="3"
+         id="path5576-4-0-6-0-2-6-9-1"
+         style="opacity:0.8;fill:#6d8e41;fill-opacity:1;fill-rule:nonzero;stroke:#6d8e41;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+         sodipodi:type="star" />
+    </g>
+    <rect
+       style="fill:#d1f2a5;fill-opacity:1;fill-rule:nonzero;stroke:#a9ca7d;stroke-width:3;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       id="rect5273-1-8-93-1-2-2-1-4"
+       width="210.17955"
+       height="35.209244"
+       x="366.013"
+       y="935.875"
+       rx="15"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none"
+       x="470.94278"
+       y="957.45563"
+       id="text5371-2-74-6-8-3-8-2-7"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643"><tspan
+         sodipodi:role="line"
+         id="tspan5373-6-18-0-7-7-9-9-8"
+         x="470.94278"
+         y="957.45563"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">automatic range?</tspan></text>
     <rect
        style="fill:#d1f2a5;fill-opacity:1;fill-rule:nonzero;stroke:#a9ca7d;stroke-width:3;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
        id="rect5273-1-2"
@@ -654,7 +1256,7 @@
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#6d8e41;fill-opacity:1;stroke:none"
-       x="251.83722"
+       x="509.83722"
        y="175.92931"
        id="text5371-2-391"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
@@ -662,22 +1264,120 @@
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-6-63"
-         x="251.83722"
+         x="509.83722"
          y="175.92931"
          style="font-size:16px;line-height:1.25;font-family:sans-serif">true</tspan></text>
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#6d8e41;fill-opacity:1;stroke:none"
-       x="161.54012"
-       y="670.38055"
+       x="336.74399"
+       y="1000.7801"
+       id="text5371-2-391-4"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643"><tspan
+         sodipodi:role="line"
+         id="tspan5373-6-63-9"
+         x="336.74399"
+         y="1000.7801"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">true</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#6d8e41;fill-opacity:1;stroke:none"
+       x="484.61441"
+       y="669.48737"
+       id="text5371-2-391-4-6"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643"><tspan
+         sodipodi:role="line"
+         id="tspan5373-6-63-9-8"
+         x="484.61441"
+         y="669.48737"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">true</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#6d8e41;fill-opacity:1;stroke:none"
+       x="484.61441"
+       y="587.08673"
+       id="text5371-2-391-4-9"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643"><tspan
+         sodipodi:role="line"
+         id="tspan5373-6-63-9-2"
+         x="484.61441"
+         y="587.08673"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">true</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#6d8e41;fill-opacity:1;stroke:none"
+       x="397.49249"
+       y="751.30035"
+       id="text5371-2-391-4-66"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643"><tspan
+         sodipodi:role="line"
+         id="tspan5373-6-63-9-4"
+         x="397.49249"
+         y="751.30035"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">false, or</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#6d8e41;fill-opacity:1;stroke:none"
+       x="484.61441"
+       y="834.89026"
+       id="text5371-2-391-4-95"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643"><tspan
+         sodipodi:role="line"
+         id="tspan5373-6-63-9-0"
+         x="484.61441"
+         y="834.89026"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">true</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#6d8e41;fill-opacity:1;stroke:none"
+       x="484.61441"
+       y="917.41119"
+       id="text5371-2-391-4-4"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643"><tspan
+         sodipodi:role="line"
+         id="tspan5373-6-63-9-87"
+         x="484.61441"
+         y="917.41119"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">true</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#6d8e41;fill-opacity:1;stroke:none"
+       x="570.74402"
+       y="1000.7801"
+       id="text5371-2-391-2"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643"><tspan
+         sodipodi:role="line"
+         id="tspan5373-6-63-0"
+         x="570.74402"
+         y="1000.7801"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">false</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#6d8e41;fill-opacity:1;stroke:none"
+       x="130.73801"
+       y="752.90198"
        id="text5371-2-8"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-6-3"
-         x="161.54012"
-         y="670.38055"
+         x="130.73801"
+         y="752.90198"
          style="font-size:16px;line-height:1.25;font-family:sans-serif">false</tspan></text>
     <g
        transform="matrix(0,-1,1,0,-513.31414,353.05561)"
@@ -708,7 +1408,7 @@
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#9b3b1c;fill-opacity:1;stroke:none"
-       x="447.26678"
+       x="705.26678"
        y="176.39024"
        id="text5371-4-6"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
@@ -716,17 +1416,111 @@
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-9-0"
-         x="447.26678"
+         x="705.26678"
          y="176.39024"
          style="font-size:16px;line-height:1.25;font-family:sans-serif">false</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#9b3b1c;fill-opacity:1;stroke:none"
+       x="334.72018"
+       y="614.93298"
+       id="text5371-4-6-1"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643"><tspan
+         sodipodi:role="line"
+         id="tspan5373-9-0-5"
+         x="334.72018"
+         y="614.93298"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">false</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none"
+       x="312.42276"
+       y="575.93713"
+       id="text5371-4-6-1-0"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643"><tspan
+         sodipodi:role="line"
+         id="tspan5373-9-0-5-8"
+         x="312.42276"
+         y="575.93713"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif;fill:#6d8e41;fill-opacity:1">false</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#9b3b1c;fill-opacity:1;stroke:none"
+       x="323.40799"
+       y="900.71991"
+       id="text5371-4-6-1-3"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643"><tspan
+         sodipodi:role="line"
+         id="tspan5373-9-0-5-6"
+         x="323.40799"
+         y="900.71991"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">false</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#9b3b1c;fill-opacity:1;stroke:none"
+       x="318.40799"
+       y="744.23999"
+       id="text5371-4-6-1-9"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643"><tspan
+         sodipodi:role="line"
+         id="tspan5373-9-0-5-7"
+         x="318.40799"
+         y="744.23999"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">false</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#9b3b1c;fill-opacity:1;stroke:none"
+       x="372.94284"
+       y="665.52533"
+       id="text5371-4-6-1-7"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643"><tspan
+         sodipodi:role="line"
+         x="372.94284"
+         y="665.52533"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif"
+         id="tspan10">no match</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:end;letter-spacing:0px;word-spacing:0px;text-anchor:end;fill:#9b3b1c;fill-opacity:1;stroke:none"
+       x="218.43921"
+       y="1004.6766"
+       id="text5371-4-6-1-7-3"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643"><tspan
+         sodipodi:role="line"
+         x="218.43921"
+         y="1004.6766"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif;text-align:end;text-anchor:end"
+         id="tspan10-9">error producing</tspan><tspan
+         sodipodi:role="line"
+         x="218.43921"
+         y="1024.6765"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif;text-align:end;text-anchor:end"
+         id="tspan11">automatic</tspan><tspan
+         sodipodi:role="line"
+         x="218.43921"
+         y="1044.6765"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif;text-align:end;text-anchor:end"
+         id="tspan12">ranged response</tspan></text>
     <g
-       transform="translate(563.72619,-141.76777)"
+       transform="translate(821.72619,-141.76777)"
        id="g5650-2-2">
       <path
          inkscape:connector-curvature="0"
          id="path5570-2-1"
-         d="m -57.78256,343.20394 0,61.59661"
-         style="opacity:0.8;fill:none;stroke:#9b3b1c;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none" />
+         d="m -57.78256,343.20394 v 61.59661"
+         style="opacity:0.8;fill:none;stroke:#9b3b1c;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
       <path
          transform="matrix(0.58787746,0,0,0.58787746,73.160466,163.35774)"
          inkscape:transform-center-y="2.1823437"
@@ -742,7 +1536,7 @@
          sodipodi:cx="-222.73865"
          sodipodi:sides="3"
          id="path5576-12-5"
-         style="opacity:0.8;fill:#9b3b1c;fill-opacity:1;fill-rule:nonzero;stroke:#9b3b1c;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
+         style="opacity:0.8;fill:#9b3b1c;fill-opacity:1;fill-rule:nonzero;stroke:#9b3b1c;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
          sodipodi:type="star" />
     </g>
     <rect
@@ -805,21 +1599,21 @@
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#9b3b1c;fill-opacity:1;stroke:none"
-       x="46.409981"
-       y="711.18011"
+       x="23.607994"
+       y="793.70099"
        id="text5371-4-3-9"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-9-62-9"
-         x="46.409981"
-         y="711.18011"
+         x="23.607994"
+         y="793.70099"
          style="font-size:16px;line-height:1.25;font-family:sans-serif">true</tspan></text>
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#9b3b1c;fill-opacity:1;stroke:none"
-       x="545.12921"
+       x="803.12921"
        y="257.43518"
        id="text5371-4-4-9"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
@@ -827,11 +1621,11 @@
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-9-2-6"
-         x="545.12921"
+         x="803.12921"
          y="257.43518"
          style="font-size:16px;line-height:1.25;font-family:sans-serif">true</tspan></text>
     <g
-       transform="matrix(0.70710678,0.70710678,-0.70710678,0.70710678,547.47379,-62.310424)"
+       transform="rotate(45,477.95223,941.13721)"
        id="g5650-9-9"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
@@ -839,8 +1633,8 @@
       <path
          inkscape:connector-curvature="0"
          id="path5570-7-6"
-         d="m -57.78256,351.41962 0,52.3259"
-         style="opacity:0.8;fill:none;stroke:#6d8e41;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none" />
+         d="m -57.78256,351.41962 v 52.3259"
+         style="opacity:0.8;fill:none;stroke:#6d8e41;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
       <path
          transform="matrix(0.58787746,0,0,0.58787746,73.160466,163.35774)"
          inkscape:transform-center-y="2.1823437"
@@ -856,7 +1650,7 @@
          sodipodi:cx="-222.73865"
          sodipodi:sides="3"
          id="path5576-09-5"
-         style="opacity:0.8;fill:#6d8e41;fill-opacity:1;fill-rule:nonzero;stroke:#6d8e41;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
+         style="opacity:0.8;fill:#6d8e41;fill-opacity:1;fill-rule:nonzero;stroke:#6d8e41;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
          sodipodi:type="star" />
     </g>
     <use
@@ -864,7 +1658,7 @@
        y="0"
        xlink:href="#rect5273-22"
        id="use5355-0"
-       transform="translate(384.82851,-20.897068)"
+       transform="translate(642.82851,-20.897068)"
        width="744.09448"
        height="1052.3622"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
@@ -873,24 +1667,24 @@
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#9b3b1c;fill-opacity:1;stroke:none"
-       x="213.38774"
+       x="471.38776"
        y="216.5154"
        id="text5371-4-0-8"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
-         x="213.38774"
+         x="471.38776"
          y="216.5154"
          id="tspan17171-6"
          style="font-size:16px;line-height:1.25;font-family:sans-serif">cond</tspan></text>
     <rect
-       style="fill:#effab4;fill-opacity:1;fill-rule:nonzero;stroke:#c7d28c;stroke-width:2.73499846;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
+       style="fill:#effab4;fill-opacity:1;fill-rule:nonzero;stroke:#c7d28c;stroke-width:2.735;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
        id="rect5273-7-3-1-1"
        width="218.52127"
        height="34.993004"
-       x="103.84195"
-       y="770.70062"
+       x="77.078499"
+       y="853.2215"
        rx="12.372616"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
@@ -898,24 +1692,24 @@
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#77823c;fill-opacity:1;stroke:none"
-       x="212.88774"
-       y="792.61121"
+       x="186.33914"
+       y="874.87799"
        id="text5371-43-5"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-3-62"
-         x="212.88774"
-         y="792.61121"
+         x="186.33914"
+         y="874.87799"
          style="font-size:16px;line-height:1.25;font-family:sans-serif">300 multiple choices</tspan></text>
     <rect
-       style="fill:#effab4;fill-opacity:1;fill-rule:nonzero;stroke:#c7d28c;stroke-width:2.73499846;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
+       style="fill:#effab4;fill-opacity:1;fill-rule:nonzero;stroke:#c7d28c;stroke-width:2.735;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
        id="rect5273-7-3-1-8"
        width="218.52127"
        height="34.993004"
-       x="103.84195"
-       y="688.17969"
+       x="77.078499"
+       y="770.7005"
        rx="12.372616"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
@@ -923,29 +1717,137 @@
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#77823c;fill-opacity:1;stroke:none"
-       x="212.35258"
-       y="711.50043"
+       x="185.95512"
+       y="793.91699"
        id="text5371-43-3"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-3-1"
-         x="212.35258"
-         y="711.50043"
+         x="185.95512"
+         y="793.91699"
          style="font-size:16px;line-height:1.25;font-family:sans-serif">200 OK</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#6d8e41;fill-opacity:1;stroke:none"
+       x="360.77811"
+       y="1077.916"
+       id="text5371-2-8-2"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643"><tspan
+         sodipodi:role="line"
+         id="tspan5373-6-3-0"
+         x="360.77811"
+         y="1077.916"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">automatic</tspan><tspan
+         sodipodi:role="line"
+         x="360.77811"
+         y="1097.916"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif"
+         id="tspan4">ranged response</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:16px;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#6d8e41;fill-opacity:1;stroke:none"
+       x="484.05441"
+       y="751.09668"
+       id="text5371-2-8-2-4"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643"><tspan
+         sodipodi:role="line"
+         x="484.05441"
+         y="751.09668"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif"
+         id="tspan6">strong etag match</tspan></text>
+    <rect
+       style="fill:#effab4;fill-opacity:1;fill-rule:nonzero;stroke:#c7d28c;stroke-width:2.735;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       id="rect5273-7-3-1-8-6"
+       width="218.52127"
+       height="34.993004"
+       x="233.9435"
+       y="1114.3829"
+       rx="12.372616"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#77823c;fill-opacity:1;stroke:none"
+       x="342.99612"
+       y="1137.7036"
+       id="text5371-43-3-1"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643"><tspan
+         sodipodi:role="line"
+         id="tspan5373-3-1-5"
+         x="342.99612"
+         y="1137.7036"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">206 partial content</tspan></text>
+    <rect
+       style="fill:#d1f2a5;fill-opacity:1;fill-rule:nonzero;stroke:#a9ca7d;stroke-width:3;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       id="rect5273-1-4-4-6"
+       width="210.17955"
+       height="35.209244"
+       x="493.94901"
+       y="1018.396"
+       rx="15"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none"
+       x="598.33478"
+       y="1040.1606"
+       id="text5371-2-3-0-5-5"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643"><tspan
+         sodipodi:role="line"
+         id="tspan5373-6-7-3-0-6"
+         x="598.33478"
+         y="1040.1606"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">RangeCallback</tspan></text>
+    <rect
+       style="fill:#effab4;fill-opacity:1;fill-rule:nonzero;stroke:#c7d28c;stroke-width:2.735;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       id="rect5273-7-3-1-8-6-4"
+       width="218.52127"
+       height="34.993004"
+       x="489.77835"
+       y="1114.1394"
+       rx="12.372616"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#77823c;fill-opacity:1;stroke:none"
+       x="598.83099"
+       y="1137.4601"
+       id="text5371-43-3-1-7"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643"><tspan
+         sodipodi:role="line"
+         id="tspan5373-3-1-5-4"
+         x="598.83099"
+         y="1137.4601"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif">206 partial content</tspan></text>
     <g
-       transform="matrix(0,-1,-1,0,1028.2004,317.70407)"
+       transform="matrix(0,-1,-1,0,1286.2004,317.70407)"
        id="g5650-2-0-4-3-8"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643">
       <path
-         style="fill:none;stroke:#6d8e41;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none"
+         style="fill:none;stroke:#6d8e41;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
          d="m 146.3711,152.21525 c 0,0 -65.760927,60.81119 -8.48528,132.93608"
          id="path20172-9-8-9"
          inkscape:connector-curvature="0"
-         transform="matrix(0,1,-1,0,248.85545,276.69312)" />
+         transform="rotate(90,-13.918835,262.77429)" />
       <path
          transform="matrix(0.38224114,0.44664484,-0.44664484,0.38224114,233.48523,355.54168)"
          inkscape:transform-center-y="-1.0388082"
@@ -961,16 +1863,16 @@
          sodipodi:cx="-222.73865"
          sodipodi:sides="3"
          id="path5576-12-1-7-58-6"
-         style="opacity:0.8;fill:#6d8e41;fill-opacity:1;fill-rule:nonzero;stroke:#6d8e41;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
+         style="opacity:0.8;fill:#6d8e41;fill-opacity:1;fill-rule:nonzero;stroke:#6d8e41;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
          sodipodi:type="star"
          inkscape:transform-center-x="4.5299474" />
     </g>
     <rect
-       style="fill:#d1f2a5;fill-opacity:1;fill-rule:nonzero;stroke:#a9ca7d;stroke-width:3;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
+       style="fill:#d1f2a5;fill-opacity:1;fill-rule:nonzero;stroke:#a9ca7d;stroke-width:3;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
        id="rect5273-1-28-4"
        width="210.17955"
        height="35.209244"
-       x="400.85385"
+       x="658.85388"
        y="192.94594"
        rx="15"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
@@ -979,7 +1881,7 @@
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none"
-       x="505.77957"
+       x="763.77954"
        y="216.51541"
        id="text5371-2-32-6"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
@@ -987,13 +1889,13 @@
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-6-27-8"
-         x="505.77957"
+         x="763.77954"
          y="216.51541"
          style="font-size:16px;line-height:1.25;font-family:sans-serif">has if-match?</tspan></text>
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#6d8e41;fill-opacity:1;stroke:none"
-       x="651.74426"
+       x="875.74426"
        y="299.27689"
        id="text5371-2-391-5"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
@@ -1001,11 +1903,11 @@
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-6-63-7"
-         x="651.74426"
+         x="875.74426"
          y="299.27689"
          style="font-size:16px;line-height:1.25;font-family:sans-serif">false</tspan></text>
     <g
-       transform="translate(563.72619,22.800669)"
+       transform="translate(821.72619,22.800669)"
        id="g5650-0-6"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
@@ -1013,8 +1915,8 @@
       <path
          inkscape:connector-curvature="0"
          id="path5570-5-7"
-         d="m -57.78256,351.41962 0,52.3259"
-         style="opacity:0.8;fill:none;stroke:#6d8e41;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none" />
+         d="m -57.78256,351.41962 v 52.3259"
+         style="opacity:0.8;fill:none;stroke:#6d8e41;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
       <path
          transform="matrix(0.58787746,0,0,0.58787746,73.160466,163.35774)"
          inkscape:transform-center-y="2.1823437"
@@ -1030,21 +1932,21 @@
          sodipodi:cx="-222.73865"
          sodipodi:sides="3"
          id="path5576-1-3"
-         style="opacity:0.8;fill:#6d8e41;fill-opacity:1;fill-rule:nonzero;stroke:#6d8e41;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
+         style="opacity:0.8;fill:#6d8e41;fill-opacity:1;fill-rule:nonzero;stroke:#6d8e41;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
          sodipodi:type="star" />
     </g>
     <g
-       transform="matrix(0,-1,-1,0,1027.6701,482.30508)"
+       transform="matrix(0,-1,-1,0,1285.6701,482.30508)"
        id="g5650-2-0-4-3"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643">
       <path
-         style="fill:none;stroke:#9b3b1c;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none"
+         style="fill:none;stroke:#9b3b1c;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
          d="m 146.3711,152.21525 c 0,0 -65.760927,60.81119 -8.48528,132.93608"
          id="path20172-9-8"
          inkscape:connector-curvature="0"
-         transform="matrix(0,1,-1,0,248.85545,276.69312)" />
+         transform="rotate(90,-13.918835,262.77429)" />
       <path
          transform="matrix(0.38224114,0.44664484,-0.44664484,0.38224114,233.48523,355.54168)"
          inkscape:transform-center-y="-1.0388082"
@@ -1060,16 +1962,16 @@
          sodipodi:cx="-222.73865"
          sodipodi:sides="3"
          id="path5576-12-1-7-58"
-         style="opacity:0.8;fill:#9b3b1c;fill-opacity:1;fill-rule:nonzero;stroke:#9b3b1c;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
+         style="opacity:0.8;fill:#9b3b1c;fill-opacity:1;fill-rule:nonzero;stroke:#9b3b1c;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
          sodipodi:type="star"
          inkscape:transform-center-x="4.5299474" />
     </g>
     <rect
-       style="fill:#d1f2a5;fill-opacity:1;fill-rule:nonzero;stroke:#a9ca7d;stroke-width:3;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
+       style="fill:#d1f2a5;fill-opacity:1;fill-rule:nonzero;stroke:#a9ca7d;stroke-width:3;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
        id="rect5273-1-28-7"
        width="210.17955"
        height="35.209244"
-       x="400.85385"
+       x="658.85388"
        y="357.98779"
        rx="15"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
@@ -1078,7 +1980,7 @@
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none"
-       x="505.94363"
+       x="763.9436"
        y="379.78381"
        id="text5371-2-32-8"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
@@ -1086,15 +1988,15 @@
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-6-27-1"
-         x="505.94363"
+         x="763.9436"
          y="379.78381"
          style="font-size:16px;line-height:1.25;font-family:sans-serif">previously_existed</tspan></text>
     <rect
-       style="fill:#effab4;fill-opacity:1;fill-rule:nonzero;stroke:#c7d28c;stroke-width:2.73499846;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
+       style="fill:#effab4;fill-opacity:1;fill-rule:nonzero;stroke:#c7d28c;stroke-width:2.735;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
        id="rect5273-7-3-1-5"
        width="218.52127"
        height="34.993004"
-       x="396.68301"
+       x="654.68298"
        y="440.37622"
        rx="12.372616"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
@@ -1103,7 +2005,7 @@
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#77823c;fill-opacity:1;stroke:none"
-       x="506.2796"
+       x="764.2796"
        y="463.83755"
        id="text5371-43-2"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
@@ -1111,13 +2013,13 @@
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-3-9"
-         x="506.2796"
+         x="764.2796"
          y="463.83755"
          style="font-size:16px;line-height:1.25;font-family:sans-serif">404 not found</tspan></text>
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#6d8e41;fill-opacity:1;stroke:none"
-       x="528.75421"
+       x="786.75421"
        y="422.69736"
        id="text5371-2-8-9"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
@@ -1125,17 +2027,17 @@
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-6-3-4"
-         x="528.75421"
+         x="786.75421"
          y="422.69736"
          style="font-size:16px;line-height:1.25;font-family:sans-serif">false</tspan></text>
     <g
-       transform="translate(563.72619,187.85116)"
+       transform="translate(821.72619,187.85116)"
        id="g5650-2-2-17">
       <path
          inkscape:connector-curvature="0"
          id="path5570-2-1-0"
-         d="m -57.78256,343.20394 0,61.59661"
-         style="opacity:0.8;fill:none;stroke:#9b3b1c;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none" />
+         d="m -57.78256,343.20394 v 61.59661"
+         style="opacity:0.8;fill:none;stroke:#9b3b1c;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
       <path
          transform="matrix(0.58787746,0,0,0.58787746,73.160466,163.35774)"
          inkscape:transform-center-y="2.1823437"
@@ -1151,21 +2053,21 @@
          sodipodi:cx="-222.73865"
          sodipodi:sides="3"
          id="path5576-12-5-45"
-         style="opacity:0.8;fill:#9b3b1c;fill-opacity:1;fill-rule:nonzero;stroke:#9b3b1c;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
+         style="opacity:0.8;fill:#9b3b1c;fill-opacity:1;fill-rule:nonzero;stroke:#9b3b1c;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
          sodipodi:type="star" />
     </g>
     <g
-       transform="matrix(0,-1,-1,0,1027.4933,646.81763)"
+       transform="matrix(0,-1,-1,0,1285.4933,646.81763)"
        id="g5650-2-0-4-3-8-0-3"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643">
       <path
-         style="fill:none;stroke:#6d8e41;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none"
+         style="fill:none;stroke:#6d8e41;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
          d="m 146.3711,152.21525 c 0,0 -65.760927,60.81119 -8.48528,132.93608"
          id="path20172-9-8-9-31-8"
          inkscape:connector-curvature="0"
-         transform="matrix(0,1,-1,0,248.85545,276.69312)" />
+         transform="rotate(90,-13.918835,262.77429)" />
       <path
          transform="matrix(0.38224114,0.44664484,-0.44664484,0.38224114,233.48523,355.54168)"
          inkscape:transform-center-y="-1.0388082"
@@ -1181,16 +2083,16 @@
          sodipodi:cx="-222.73865"
          sodipodi:sides="3"
          id="path5576-12-1-7-58-6-3-6"
-         style="opacity:0.8;fill:#6d8e41;fill-opacity:1;fill-rule:nonzero;stroke:#6d8e41;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
+         style="opacity:0.8;fill:#6d8e41;fill-opacity:1;fill-rule:nonzero;stroke:#6d8e41;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
          sodipodi:type="star"
          inkscape:transform-center-x="4.5299474" />
     </g>
     <rect
-       style="fill:#d1f2a5;fill-opacity:1;fill-rule:nonzero;stroke:#a9ca7d;stroke-width:3;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
+       style="fill:#d1f2a5;fill-opacity:1;fill-rule:nonzero;stroke:#a9ca7d;stroke-width:3;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
        id="rect5273-1-8-9"
        width="210.17955"
        height="35.209244"
-       x="400.85385"
+       x="658.85388"
        y="523.02966"
        rx="15"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
@@ -1199,7 +2101,7 @@
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none"
-       x="505.45535"
+       x="763.45532"
        y="544.82568"
        id="text5371-2-74-0"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
@@ -1207,7 +2109,7 @@
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-6-18-2"
-         x="505.45535"
+         x="763.45532"
          y="544.82568"
          style="font-size:16px;line-height:1.25;font-family:sans-serif">moved_permanently</tspan></text>
     <g
@@ -1242,11 +2144,11 @@
          inkscape:transform-center-x="4.5299474" />
     </g>
     <rect
-       style="fill:#effab4;fill-opacity:1;fill-rule:nonzero;stroke:#c7d28c;stroke-width:2.73499846;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
+       style="fill:#effab4;fill-opacity:1;fill-rule:nonzero;stroke:#c7d28c;stroke-width:2.735;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
        id="rect5273-7-3-1"
        width="218.52127"
        height="34.993004"
-       x="396.68301"
+       x="654.68298"
        y="275.81555"
        rx="12.372616"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
@@ -1255,7 +2157,7 @@
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#77823c;fill-opacity:1;stroke:none"
-       x="506.2796"
+       x="764.2796"
        y="297.7261"
        id="text5371-43"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
@@ -1263,13 +2165,13 @@
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-3"
-         x="506.2796"
+         x="764.2796"
          y="297.7261"
          style="font-size:16px;line-height:1.25;font-family:sans-serif">412 precondition failed</tspan></text>
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#9b3b1c;fill-opacity:1;stroke:none"
-       x="668.11926"
+       x="892.11926"
        y="463.37662"
        id="text5371-4-3-9-8"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
@@ -1277,13 +2179,13 @@
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-9-62-9-9"
-         x="668.11926"
+         x="892.11926"
          y="463.37662"
          style="font-size:16px;line-height:1.25;font-family:sans-serif">true</tspan></text>
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#9b3b1c;fill-opacity:1;stroke:none"
-       x="549.12921"
+       x="807.12921"
        y="587.59863"
        id="text5371-4-4-9-3"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
@@ -1291,13 +2193,13 @@
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-9-2-6-2"
-         x="549.12921"
+         x="807.12921"
          y="587.59863"
          style="font-size:16px;line-height:1.25;font-family:sans-serif">true*</tspan></text>
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#6d8e41;fill-opacity:1;stroke:none"
-       x="651.74426"
+       x="875.74426"
        y="628.87946"
        id="text5371-2-391-5-5-1"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
@@ -1305,15 +2207,15 @@
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-6-63-7-9-9"
-         x="651.74426"
+         x="875.74426"
          y="628.87946"
          style="font-size:16px;line-height:1.25;font-family:sans-serif">false</tspan></text>
     <rect
-       style="fill:#effab4;fill-opacity:1;fill-rule:nonzero;stroke:#c7d28c;stroke-width:2.73499846;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
+       style="fill:#effab4;fill-opacity:1;fill-rule:nonzero;stroke:#c7d28c;stroke-width:2.735;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
        id="rect5273-7-3-1-5-9"
        width="218.52127"
        height="34.993004"
-       x="396.68301"
+       x="654.68298"
        y="605.41809"
        rx="12.372616"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
@@ -1322,7 +2224,7 @@
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#77823c;fill-opacity:1;stroke:none"
-       x="505.57257"
+       x="763.57257"
        y="627.32867"
        id="text5371-43-2-9"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
@@ -1330,17 +2232,17 @@
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-3-9-7"
-         x="505.57257"
+         x="763.57257"
          y="627.32867"
          style="font-size:16px;line-height:1.25;font-family:sans-serif">301 moved permanently</tspan></text>
     <g
-       transform="translate(563.72619,353.12604)"
+       transform="translate(821.72619,353.12604)"
        id="g5650-2-2-65">
       <path
          inkscape:connector-curvature="0"
          id="path5570-2-1-5"
-         d="m -57.78256,343.20394 0,61.59661"
-         style="opacity:0.8;fill:none;stroke:#9b3b1c;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none" />
+         d="m -57.78256,343.20394 v 61.59661"
+         style="opacity:0.8;fill:none;stroke:#9b3b1c;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
       <path
          transform="matrix(0.58787746,0,0,0.58787746,73.160466,163.35774)"
          inkscape:transform-center-y="2.1823437"
@@ -1356,21 +2258,21 @@
          sodipodi:cx="-222.73865"
          sodipodi:sides="3"
          id="path5576-12-5-5"
-         style="opacity:0.8;fill:#9b3b1c;fill-opacity:1;fill-rule:nonzero;stroke:#9b3b1c;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
+         style="opacity:0.8;fill:#9b3b1c;fill-opacity:1;fill-rule:nonzero;stroke:#9b3b1c;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
          sodipodi:type="star" />
     </g>
     <g
-       transform="matrix(0,-1,-1,0,1032.2004,811.50699)"
+       transform="matrix(0,-1,-1,0,1290.2004,811.50699)"
        id="g5650-2-0-4-3-8-0-3-7"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
        inkscape:export-xdpi="89.926643"
        inkscape:export-ydpi="89.926643">
       <path
-         style="fill:none;stroke:#6d8e41;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none"
+         style="fill:none;stroke:#6d8e41;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
          d="m 146.3711,152.21525 c 0,0 -65.760927,60.81119 -8.48528,132.93608"
          id="path20172-9-8-9-31-8-1"
          inkscape:connector-curvature="0"
-         transform="matrix(0,1,-1,0,248.85545,276.69312)" />
+         transform="rotate(90,-13.918835,262.77429)" />
       <path
          transform="matrix(0.38224114,0.44664484,-0.44664484,0.38224114,233.48523,355.54168)"
          inkscape:transform-center-y="-1.0388082"
@@ -1386,16 +2288,16 @@
          sodipodi:cx="-222.73865"
          sodipodi:sides="3"
          id="path5576-12-1-7-58-6-3-6-3"
-         style="opacity:0.8;fill:#6d8e41;fill-opacity:1;fill-rule:nonzero;stroke:#6d8e41;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
+         style="opacity:0.8;fill:#6d8e41;fill-opacity:1;fill-rule:nonzero;stroke:#6d8e41;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
          sodipodi:type="star"
          inkscape:transform-center-x="4.5299474" />
     </g>
     <rect
-       style="fill:#d1f2a5;fill-opacity:1;fill-rule:nonzero;stroke:#a9ca7d;stroke-width:3;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
+       style="fill:#d1f2a5;fill-opacity:1;fill-rule:nonzero;stroke:#a9ca7d;stroke-width:3;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
        id="rect5273-1-8-9-1"
        width="210.17955"
        height="35.209244"
-       x="400.85385"
+       x="658.85388"
        y="687.83093"
        rx="15"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
@@ -1404,7 +2306,7 @@
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#6d8e41;fill-opacity:1;stroke:none"
-       x="505.45535"
+       x="763.45532"
        y="709.62695"
        id="text5371-2-74-0-7"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
@@ -1412,13 +2314,13 @@
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-6-18-2-8"
-         x="505.45535"
+         x="763.45532"
          y="709.62695"
          style="font-size:16px;line-height:1.25;font-family:sans-serif">moved_temporarily</tspan></text>
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#9b3b1c;fill-opacity:1;stroke:none"
-       x="549.12921"
+       x="807.12921"
        y="752.64056"
        id="text5371-4-4-9-3-2"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
@@ -1426,13 +2328,13 @@
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-9-2-6-2-6"
-         x="549.12921"
+         x="807.12921"
          y="752.64056"
          style="font-size:16px;line-height:1.25;font-family:sans-serif">true*</tspan></text>
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#6d8e41;fill-opacity:1;stroke:none"
-       x="651.74426"
+       x="875.74426"
        y="794.16199"
        id="text5371-2-391-5-5-1-0"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
@@ -1440,15 +2342,15 @@
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-6-63-7-9-9-2"
-         x="651.74426"
+         x="875.74426"
          y="794.16199"
          style="font-size:16px;line-height:1.25;font-family:sans-serif">false</tspan></text>
     <rect
-       style="fill:#effab4;fill-opacity:1;fill-rule:nonzero;stroke:#c7d28c;stroke-width:2.73499846;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
+       style="fill:#effab4;fill-opacity:1;fill-rule:nonzero;stroke:#c7d28c;stroke-width:2.735;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
        id="rect5273-7-3-1-5-9-2"
        width="218.52127"
        height="34.993004"
-       x="396.68301"
+       x="654.68298"
        y="770.70062"
        rx="12.372616"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
@@ -1457,7 +2359,7 @@
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#77823c;fill-opacity:1;stroke:none"
-       x="505.57257"
+       x="763.57257"
        y="792.61121"
        id="text5371-43-2-9-7"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
@@ -1465,15 +2367,15 @@
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-3-9-7-8"
-         x="505.57257"
+         x="763.57257"
          y="792.61121"
          style="font-size:16px;line-height:1.25;font-family:sans-serif">307 moved temporarily</tspan></text>
     <rect
-       style="fill:#effab4;fill-opacity:1;fill-rule:nonzero;stroke:#c7d28c;stroke-width:2.73499846;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
+       style="fill:#effab4;fill-opacity:1;fill-rule:nonzero;stroke:#c7d28c;stroke-width:2.735;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
        id="rect5273-7-3-1-5-9-2-4"
        width="218.52127"
        height="34.993004"
-       x="396.68301"
+       x="654.68298"
        y="853.22168"
        rx="12.372616"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
@@ -1482,7 +2384,7 @@
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#77823c;fill-opacity:1;stroke:none"
-       x="505.97882"
+       x="763.97882"
        y="874.99164"
        id="text5371-43-2-9-7-3"
        inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
@@ -1490,7 +2392,7 @@
        inkscape:export-ydpi="89.926643"><tspan
          sodipodi:role="line"
          id="tspan5373-3-9-7-8-7"
-         x="505.97882"
+         x="763.97882"
          y="874.99164"
          style="font-size:16px;line-height:1.25;font-family:sans-serif">410 gone</tspan></text>
     <g
@@ -1519,5 +2421,30 @@
          style="opacity:0.8;fill:#9b3b1c;fill-opacity:1;fill-rule:nonzero;stroke:#9b3b1c;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
          sodipodi:type="star" />
     </g>
+    <rect
+       style="fill:#effab4;fill-opacity:1;fill-rule:nonzero;stroke:#c7d28c;stroke-width:2.735;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       id="rect5273-7-3-1-8-6-4-8"
+       width="218.52127"
+       height="34.993004"
+       x="77.078499"
+       y="935.98315"
+       rx="12.372616"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#77823c;fill-opacity:1;stroke:none"
+       x="186.57913"
+       y="959.51965"
+       id="text5371-43-3-1-7-6"
+       inkscape:export-filename="/home/essen/ninenines/cowboy/guide/rest_options.png"
+       inkscape:export-xdpi="89.926643"
+       inkscape:export-ydpi="89.926643"><tspan
+         sodipodi:role="line"
+         x="186.57913"
+         y="959.51965"
+         style="font-size:16px;line-height:1.25;font-family:sans-serif"
+         id="tspan8">416 not satisfiable</tspan></text>
   </g>
 </svg>

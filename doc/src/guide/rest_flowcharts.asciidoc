@@ -95,6 +95,11 @@ callback will only be called at the end of the
 "GET and HEAD methods" diagram, when all conditions
 have been met.
 
+Optionally, the `ranges_provided` also returns the
+name of a callback for every range unit it accepts. This
+will be called at the end of the "GET and HEAD methods"
+diagram in the case of ranged requests.
+
 The selected content-type, language and charset are
 saved as meta values in the Req object. You *should*
 use the appropriate representation if you set a
@@ -121,11 +126,18 @@ succeed, the resource can be retrieved.
 
 Cowboy prepares the response by first retrieving
 metadata about the representation, then by calling
-the `ProvideResource` callback. This is the callback
+the `ProvideCallback` callback. This is the callback
 you defined for each content-types you returned from
 `content_types_provided`. This callback returns the body
-that will be sent back to the client, or a fun if the
-body must be streamed.
+that will be sent back to the client.
+
+For ranged requests, but only when the `ranges_provided`
+callback was defined earlier, Cowboy will add the selected
+`range` information to the Req object and call the
+`range_satisfiable` callback. After confirming that the
+range can be provided, Cowboy calls the `RangeResource`
+callback and produces a ranged response using the
+ranged data from the callback.
 
 When the resource does not exist, Cowboy will figure out
 whether the resource existed previously, and if so whether
