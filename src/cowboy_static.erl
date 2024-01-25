@@ -1,4 +1,4 @@
-%% Copyright (c) 2013-2017, Loïc Hoguin <essen@ninenines.eu>
+%% Copyright (c) 2013-2024, Loïc Hoguin <essen@ninenines.eu>
 %% Copyright (c) 2011, Magnus Klaar <magnus.klaar@gmail.com>
 %%
 %% Permission to use, copy, modify, and/or distribute this software for any
