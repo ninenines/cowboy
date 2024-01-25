@@ -50,7 +50,7 @@ endef
 
 include erlang.mk
 
-# Don't run the examples test suite by default.
+# Don't run the examples/autobahn test suites by default.
 
 ifndef FULL
 CT_SUITES := $(filter-out examples ws_autobahn,$(CT_SUITES))
