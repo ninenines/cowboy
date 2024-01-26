@@ -46,7 +46,7 @@ jobs:
     steps:
 
     - name: Checkout repository
-      uses: actions/checkout@v4.1.1
+      uses: actions/checkout@v4
 
     - name: Output latest Erlang/OTP version
       id: latest_version
@@ -58,7 +58,7 @@ jobs:
         } >> "$GITHUB_OUTPUT"
 
     - name: Restore CI cache
-      uses: actions/cache/restore@v3.3.2
+      uses: actions/cache/restore@v4
       with:
         path: |
           ~/erlang/
