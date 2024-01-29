@@ -42,7 +42,7 @@ jobs:
     name: Check examples
     needs: check
     runs-on: 'ubuntu-latest'
-    if: ${{ always() }}
+    if: ${{ !cancelled() }}
     steps:
 
     - name: Checkout repository
