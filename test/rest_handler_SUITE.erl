@@ -778,6 +778,17 @@ last_modified_missing(Config) ->
 	false = lists:keyfind(<<"last-modified">>, 1, Headers),
 	ok.
 
+head_call(Config) ->
+	doc("A successful HEAD request to a simple handler results in "
+		"a 200 OK response with the allow header set. (RFC7231 4.3.7)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:head(ConnPid, "/", [
+		{<<"accept-encoding">>, <<"gzip">>}
+	]),
+	{response, fin, 200, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"HEAD, GET, OPTIONS">>} = lists:keyfind(<<"allow">>, 1, Headers),
+	ok.
+
 options_missing(Config) ->
 	doc("A successful OPTIONS request to a simple handler results in "
 		"a 200 OK response with the allow header set. (RFC7231 4.3.7)"),
@@ -799,6 +810,7 @@ provide_callback(Config) ->
 	]),
 	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
 	{_, <<"text/plain">>} = lists:keyfind(<<"content-type">>, 1, Headers),
+	{_, <<"HEAD, GET, OPTIONS">>} = lists:keyfind(<<"allow">>, 1, Headers),
 	{ok, <<"This is REST!">>} = gun:await_body(ConnPid, Ref),
 	ok.
 

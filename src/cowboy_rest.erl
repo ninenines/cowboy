@@ -328,7 +328,9 @@ uri_too_long(Req, State) ->
 allowed_methods(Req, State=#state{method=Method}) ->
 	case call(Req, State, allowed_methods) of
 		no_call when Method =:= <<"HEAD">>; Method =:= <<"GET">> ->
-			next(Req, State, fun malformed_request/2);
+			Allow = <<"HEAD, GET, OPTIONS">>,
+			Req2 = cowboy_req:set_resp_header(<<"allow">>, Allow, Req),
+			next(Req2, State, fun malformed_request/2);
 		no_call when Method =:= <<"OPTIONS">> ->
 			next(Req, State#state{allowed_methods=
 				[<<"HEAD">>, <<"GET">>, <<"OPTIONS">>]},
@@ -343,7 +345,9 @@ allowed_methods(Req, State=#state{method=Method}) ->
 		{List, Req2, State2} ->
 			case lists:member(Method, List) of
 				true when Method =:= <<"OPTIONS">> ->
-					next(Req2, State2#state{allowed_methods=List},
+					<< ", ", Allow/binary >> = << << ", ", M/binary >> || M <- List >>,
+					Req3 = cowboy_req:set_resp_header(<<"allow">>, Allow, Req2),
+					next(Req3, State2#state{allowed_methods=List},
 						fun malformed_request/2);
 				true ->
 					next(Req2, State2, fun malformed_request/2);
