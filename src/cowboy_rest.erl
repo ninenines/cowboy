@@ -423,8 +423,7 @@ options(Req, State=#state{allowed_methods=Methods, method= <<"OPTIONS">>}) ->
 			Req2 = cowboy_req:set_resp_header(<<"allow">>, <<>>, Req),
 			respond(Req2, State, 200);
 		no_call ->
-			<< ", ", Allow/binary >>
-				= << << ", ", M/binary >> || M <- Methods >>,
+			Allow = stringify_allowed_methods(Methods),
 			Req2 = cowboy_req:set_resp_header(<<"allow">>, Allow, Req),
 			respond(Req2, State, 200);
 		{stop, Req2, State2} ->
