@@ -324,16 +324,20 @@ known_methods(Req, State=#state{method=Method}) ->
 uri_too_long(Req, State) ->
 	expect(Req, State, uri_too_long, false, fun allowed_methods/2, 414).
 
+stringify_allowed_methods(MethodList) when is_list(MethodList) ->
+	<< ", ", Allow/binary >> = << << ", ", M/binary >> || M <- MethodList >>,
+	Allow.
+
 %% allowed_methods/2 should return a list of binary methods.
 allowed_methods(Req, State=#state{method=Method}) ->
+	DefaultAllowedMethods = [<<"HEAD">>, <<"GET">>, <<"OPTIONS">>],
 	case call(Req, State, allowed_methods) of
 		no_call when Method =:= <<"HEAD">>; Method =:= <<"GET">> ->
-			Allow = <<"HEAD, GET, OPTIONS">>,
+			Allow = stringify_allowed_methods(DefaultAllowedMethods),
 			Req2 = cowboy_req:set_resp_header(<<"allow">>, Allow, Req),
 			next(Req2, State, fun malformed_request/2);
 		no_call when Method =:= <<"OPTIONS">> ->
-			next(Req, State#state{allowed_methods=
-				[<<"HEAD">>, <<"GET">>, <<"OPTIONS">>]},
+			next(Req, State#state{allowed_methods=DefaultAllowedMethods},
 				fun malformed_request/2);
 		no_call ->
 			method_not_allowed(Req, State,
