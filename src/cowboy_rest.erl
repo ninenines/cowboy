@@ -347,11 +347,6 @@ allowed_methods(Req, State=#state{method=Method}) ->
 			switch_handler(Switch, Req2, State2);
 		{List, Req2, State2} ->
 			case lists:member(Method, List) of
-				true when Method =:= <<"OPTIONS">> ->
-					Allow = stringify_allowed_methods(List),
-					Req3 = cowboy_req:set_resp_header(<<"allow">>, Allow, Req2),
-					next(Req3, State2#state{allowed_methods=List},
-						fun malformed_request/2);
 				true ->
 					Allow = stringify_allowed_methods(List),
 					Req3 = cowboy_req:set_resp_header(<<"allow">>, Allow, Req2),
