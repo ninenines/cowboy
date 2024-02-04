@@ -472,7 +472,8 @@ delete_resource_missing(Config) ->
 	Ref = gun:delete(ConnPid, "/delete_resource?missing", [
 		{<<"accept-encoding">>, <<"gzip">>}
 	]),
-	{response, _, 500, _} = gun:await(ConnPid, Ref),
+	{response, _, 500, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"DELETE">>} = lists:keyfind(<<"allow">>, 1, Headers),
 	ok.
 
 create_resource_created(Config) ->
@@ -483,7 +484,8 @@ create_resource_created(Config) ->
 	Ref = gun:post(ConnPid, "/create_resource?created", [
 		{<<"content-type">>, <<"application/text">>}
 	], <<"hello">>, #{}),
-	{response, _, 201, _} = gun:await(ConnPid, Ref),
+	{response, _, 201, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"POST">>} = lists:keyfind(<<"allow">>, 1, Headers),
 	ok.
 
 create_resource_see_other(Config) ->
@@ -496,6 +498,7 @@ create_resource_see_other(Config) ->
 	], <<"hello">>, #{}),
 	{response, _, 303, RespHeaders} = gun:await(ConnPid, Ref),
 	{_, _} = lists:keyfind(<<"location">>, 1, RespHeaders),
+	{_, <<"POST">>} = lists:keyfind(<<"allow">>, 1, RespHeaders),
 	ok.
 
 error_on_malformed_accept(Config) ->

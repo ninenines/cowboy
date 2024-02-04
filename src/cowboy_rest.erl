@@ -340,8 +340,7 @@ allowed_methods(Req, State=#state{method=Method}) ->
 			next(Req, State#state{allowed_methods=DefaultAllowedMethods},
 				fun malformed_request/2);
 		no_call ->
-			method_not_allowed(Req, State,
-				[<<"HEAD">>, <<"GET">>, <<"OPTIONS">>]);
+			method_not_allowed(Req, State, DefaultAllowedMethods);
 		{stop, Req2, State2} ->
 			terminate(Req2, State2);
 		{Switch, Req2, State2} when element(1, Switch) =:= switch_handler ->
@@ -349,12 +348,14 @@ allowed_methods(Req, State=#state{method=Method}) ->
 		{List, Req2, State2} ->
 			case lists:member(Method, List) of
 				true when Method =:= <<"OPTIONS">> ->
-					<< ", ", Allow/binary >> = << << ", ", M/binary >> || M <- List >>,
+					Allow = stringify_allowed_methods(List),
 					Req3 = cowboy_req:set_resp_header(<<"allow">>, Allow, Req2),
 					next(Req3, State2#state{allowed_methods=List},
 						fun malformed_request/2);
 				true ->
-					next(Req2, State2, fun malformed_request/2);
+					Allow = stringify_allowed_methods(List),
+					Req3 = cowboy_req:set_resp_header(<<"allow">>, Allow, Req2),
+					next(Req3, State2, fun malformed_request/2);
 				false ->
 					method_not_allowed(Req2, State2, List)
 			end
