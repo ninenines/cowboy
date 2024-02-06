@@ -726,6 +726,10 @@ set_resp_header(Name, Value, Req=#{resp_headers := RespHeaders}) ->
 set_resp_header(Name,Value, Req) ->
 	Req#{resp_headers => #{Name => Value}}.
 
+-spec set_resp_headers_list(list(term()), req())
+set_resp_headers_list(List, Req) ->
+	ok.
+
 -spec set_resp_headers(cowboy:http_headers(), Req)
 	-> Req when Req::req().
 set_resp_headers(#{<<"set-cookie">> := _}, _) ->
