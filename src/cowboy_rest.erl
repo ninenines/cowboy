@@ -332,11 +332,7 @@ stringify_allowed_methods(MethodList) when is_list(MethodList) ->
 allowed_methods(Req, State=#state{method=Method}) ->
 	DefaultAllowedMethods = [<<"HEAD">>, <<"GET">>, <<"OPTIONS">>],
 	case call(Req, State, allowed_methods) of
-		no_call when Method =:= <<"HEAD">>; Method =:= <<"GET">> ->
-			Allow = stringify_allowed_methods(DefaultAllowedMethods),
-			Req2 = cowboy_req:set_resp_header(<<"allow">>, Allow, Req),
-			next(Req2, State, fun malformed_request/2);
-		no_call when Method =:= <<"OPTIONS">> ->
+		no_call when Method =:= <<"HEAD">>; Method =:= <<"GET">>; Method =:= <<"OPTIONS">> ->
 			Allow = stringify_allowed_methods(DefaultAllowedMethods),
 			Req2 = cowboy_req:set_resp_header(<<"allow">>, Allow, Req),
 			next(Req2, State, fun malformed_request/2);
