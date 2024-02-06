@@ -325,8 +325,12 @@ uri_too_long(Req, State) ->
 	expect(Req, State, uri_too_long, false, fun allowed_methods/2, 414).
 
 stringify_allowed_methods(MethodList) when is_list(MethodList) ->
-	<< ", ", Allow/binary >> = << << ", ", M/binary >> || M <- MethodList >>,
-	Allow.
+	case MethodList of
+		[] -> <<>>;
+		_ ->
+		<< ", ", Allow/binary >> = << << ", ", M/binary >> || M <- MethodList >>,
+		Allow
+	end.
 
 %% allowed_methods/2 should return a list of binary methods.
 allowed_methods(Req, State=#state{method=Method}) ->
