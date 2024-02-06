@@ -341,29 +341,26 @@ allowed_methods(Req, State=#state{method=Method}) ->
 			Req2 = cowboy_req:set_resp_header(<<"allow">>, Allow, Req),
 			next(Req2, State, fun malformed_request/2);
 		no_call ->
-			method_not_allowed(Req, State, DefaultAllowedMethods);
+			Allow = stringify_allowed_methods(DefaultAllowedMethods),
+			Req2 = cowboy_req:set_resp_header(<<"allow">>, Allow, Req),
+			method_not_allowed(Req2, State);
 		{stop, Req2, State2} ->
 			terminate(Req2, State2);
 		{Switch, Req2, State2} when element(1, Switch) =:= switch_handler ->
 			switch_handler(Switch, Req2, State2);
 		{List, Req2, State2} ->
+			Allow = stringify_allowed_methods(List),
+			Req3 = cowboy_req:set_resp_header(<<"allow">>, Allow, Req2),
 			case lists:member(Method, List) of
 				true ->
-					Allow = stringify_allowed_methods(List),
-					Req3 = cowboy_req:set_resp_header(<<"allow">>, Allow, Req2),
 					next(Req3, State2, fun malformed_request/2);
 				false ->
-					method_not_allowed(Req2, State2, List)
+					method_not_allowed(Req3, State2)
 			end
 	end.
 
-method_not_allowed(Req, State, []) ->
-	Req2 = cowboy_req:set_resp_header(<<"allow">>, <<>>, Req),
-	respond(Req2, State, 405);
-method_not_allowed(Req, State, Methods) ->
-	<< ", ", Allow/binary >> = << << ", ", M/binary >> || M <- Methods >>,
-	Req2 = cowboy_req:set_resp_header(<<"allow">>, Allow, Req),
-	respond(Req2, State, 405).
+method_not_allowed(Req, State) ->
+	respond(Req, State, 405).
 
 malformed_request(Req, State) ->
 	expect(Req, State, malformed_request, false, fun is_authorized/2, 400).
