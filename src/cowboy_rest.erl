@@ -337,8 +337,9 @@ allowed_methods(Req, State=#state{method=Method}) ->
 			Req2 = cowboy_req:set_resp_header(<<"allow">>, Allow, Req),
 			next(Req2, State, fun malformed_request/2);
 		no_call when Method =:= <<"OPTIONS">> ->
-			next(Req, State#state{allowed_methods=DefaultAllowedMethods},
-				fun malformed_request/2);
+			Allow = stringify_allowed_methods(DefaultAllowedMethods),
+			Req2 = cowboy_req:set_resp_header(<<"allow">>, Allow, Req),
+			next(Req2, State, fun malformed_request/2);
 		no_call ->
 			method_not_allowed(Req, State, DefaultAllowedMethods);
 		{stop, Req2, State2} ->
@@ -417,15 +418,10 @@ valid_entity_length(Req, State) ->
 
 %% If you need to add additional headers to the response at this point,
 %% you should do it directly in the options/2 call using set_resp_headers.
-options(Req, State=#state{allowed_methods=Methods, method= <<"OPTIONS">>}) ->
+options(Req, State=#state{method= <<"OPTIONS">>}) ->
 	case call(Req, State, options) of
-		no_call when Methods =:= [] ->
-			Req2 = cowboy_req:set_resp_header(<<"allow">>, <<>>, Req),
-			respond(Req2, State, 200);
 		no_call ->
-			Allow = stringify_allowed_methods(Methods),
-			Req2 = cowboy_req:set_resp_header(<<"allow">>, Allow, Req),
-			respond(Req2, State, 200);
+			respond(Req, State, 200);
 		{stop, Req2, State2} ->
 			terminate(Req2, State2);
 		{Switch, Req2, State2} when element(1, Switch) =:= switch_handler ->
