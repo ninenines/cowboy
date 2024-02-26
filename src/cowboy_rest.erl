@@ -246,9 +246,6 @@
 	handler :: atom(),
 	handler_state :: any(),
 
-	%% Allowed methods. Only used for OPTIONS requests.
-	allowed_methods :: [binary()] | undefined,
-
 	%% Media type.
 	content_types_p = [] ::
 		[{binary() | {binary(), binary(), [{binary(), binary()}] | '*'},
