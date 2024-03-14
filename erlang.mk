@@ -17,7 +17,7 @@
 ERLANG_MK_FILENAME := $(realpath $(lastword $(MAKEFILE_LIST)))
 export ERLANG_MK_FILENAME
 
-ERLANG_MK_VERSION = bb811a8
+ERLANG_MK_VERSION = 61f58ff
 ERLANG_MK_WITHOUT = 
 
 # Make 3.81 and 3.82 are deprecated.
@@ -4665,7 +4665,6 @@ define makedep.erl
 	end,
 	MakeDepend = fun
 		(F, Fd, Mod, StartLocation) ->
-			{ok, Filename} = file:pid2name(Fd),
 			case io:parse_erl_form(Fd, undefined, StartLocation) of
 				{ok, AbsData, EndLocation} ->
 					case AbsData of
