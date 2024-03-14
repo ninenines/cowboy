@@ -35,6 +35,7 @@ opts() :: #{
     max_connection_window_size     => 0..16#7fffffff,
     max_decode_table_size          => non_neg_integer(),
     max_encode_table_size          => non_neg_integer(),
+    max_fragmented_header_block_size => 16384..16#7fffffff,
     max_frame_size_received        => 16384..16777215,
     max_frame_size_sent            => 16384..16777215 | infinity,
     max_received_frame_rate        => {pos_integer(), timeout()},
@@ -171,6 +172,14 @@ max_encode_table_size (4096)::
 Maximum header table size in bytes used by the encoder. The server will
 compare this value to what the client advertises and choose the smallest
 one as the encoder's header table size.
+
+max_fragmented_header_block_size (32768)::
+
+Maximum header block size when headers are split over multiple HEADERS
+and CONTINUATION frames. Clients that attempt to send header blocks
+larger than this value will receive an ENHANCE_YOUR_CALM connection
+error. Note that this value is not advertised and should be large
+enough for legitimate requests.
 
 max_frame_size_received (16384)::
 
