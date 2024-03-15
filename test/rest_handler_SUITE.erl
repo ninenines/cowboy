@@ -472,7 +472,8 @@ delete_resource_missing(Config) ->
 	Ref = gun:delete(ConnPid, "/delete_resource?missing", [
 		{<<"accept-encoding">>, <<"gzip">>}
 	]),
-	{response, _, 500, _} = gun:await(ConnPid, Ref),
+	{response, _, 500, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"DELETE">>} = lists:keyfind(<<"allow">>, 1, Headers),
 	ok.
 
 create_resource_created(Config) ->
@@ -483,7 +484,8 @@ create_resource_created(Config) ->
 	Ref = gun:post(ConnPid, "/create_resource?created", [
 		{<<"content-type">>, <<"application/text">>}
 	], <<"hello">>, #{}),
-	{response, _, 201, _} = gun:await(ConnPid, Ref),
+	{response, _, 201, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"POST">>} = lists:keyfind(<<"allow">>, 1, Headers),
 	ok.
 
 create_resource_see_other(Config) ->
@@ -496,6 +498,7 @@ create_resource_see_other(Config) ->
 	], <<"hello">>, #{}),
 	{response, _, 303, RespHeaders} = gun:await(ConnPid, Ref),
 	{_, _} = lists:keyfind(<<"location">>, 1, RespHeaders),
+	{_, <<"POST">>} = lists:keyfind(<<"allow">>, 1, RespHeaders),
 	ok.
 
 error_on_malformed_accept(Config) ->
@@ -778,6 +781,17 @@ last_modified_missing(Config) ->
 	false = lists:keyfind(<<"last-modified">>, 1, Headers),
 	ok.
 
+head_call(Config) ->
+	doc("A successful HEAD request to a simple handler results in "
+		"a 200 OK response with the allow header set. (RFC7231 4.3.7)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:head(ConnPid, "/", [
+		{<<"accept-encoding">>, <<"gzip">>}
+	]),
+	{response, fin, 200, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"HEAD, GET, OPTIONS">>} = lists:keyfind(<<"allow">>, 1, Headers),
+	ok.
+
 options_missing(Config) ->
 	doc("A successful OPTIONS request to a simple handler results in "
 		"a 200 OK response with the allow header set. (RFC7231 4.3.7)"),
@@ -799,6 +813,7 @@ provide_callback(Config) ->
 	]),
 	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
 	{_, <<"text/plain">>} = lists:keyfind(<<"content-type">>, 1, Headers),
+	{_, <<"HEAD, GET, OPTIONS">>} = lists:keyfind(<<"allow">>, 1, Headers),
 	{ok, <<"This is REST!">>} = gun:await_body(ConnPid, Ref),
 	ok.
 
