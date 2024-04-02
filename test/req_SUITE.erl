@@ -324,7 +324,7 @@ filter_then_parse_cookies(Config) ->
 			[{<<"cookie">>, "bad name=strawberry"}], Config),
 	<<"[{<<\"cake\">>,<<\"strawberry\">>}]">>
 		= do_get_body("/filter_then_parse_cookies",
-			[{<<"cookie">>, "bad name=strawberry; cake=strawberry"}], Config),
+			[{<<"cookie">>, "bad name=strawberry; another bad name=strawberry; cake=strawberry"}], Config),
 	<<"[]">>
 		= do_get_body("/filter_then_parse_cookies",
 			[{<<"cookie">>, "Blocked by http://www.example.com/upgrade-to-remove"}], Config),
