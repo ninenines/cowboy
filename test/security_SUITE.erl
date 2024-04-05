@@ -224,7 +224,7 @@ http2_empty_frame_flooding_push_promise(Config) ->
 
 http2_infinite_continuations(Config) ->
 	doc("Confirm that Cowboy rejects CONTINUATION frames when the "
-		"total size of HEADERS + CONTINUATION(s) exceeds the limit."),
+		"total size of HEADERS + CONTINUATION(s) exceeds the limit. (VU#421644)"),
 	{ok, Socket} = rfc7540_SUITE:do_handshake(Config),
 	%% Send a HEADERS frame followed by a large number
 	%% of continuation frames.
