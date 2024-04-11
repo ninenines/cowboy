@@ -391,7 +391,7 @@ set_idle_timeout(State=#state{opts=Opts, timeout_ref=PrevRef}, TimeoutNum) ->
 	%% options are changed dynamically.
 	_ = case PrevRef of
 		undefined -> ignore;
-		PrevRef -> erlang:cancel_timer(PrevRef)
+		PrevRef -> erlang:cancel_timer(PrevRef, [{async, true}, {info, false}])
 	end,
 	case maps:get(idle_timeout, Opts, 60000) of
 		infinity ->
