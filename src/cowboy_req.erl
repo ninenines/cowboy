@@ -68,6 +68,7 @@
 -export([resp_headers/1]).
 -export([set_resp_header/3]).
 -export([set_resp_headers/2]).
+-export([set_resp_headers_list/2]).
 -export([has_resp_header/2]).
 -export([delete_resp_header/2]).
 -export([set_resp_body/2]).
@@ -365,6 +366,26 @@ uri2_test() ->
 	%% Interesting combinations.
 	<<"http://localhost/path?dummy=2785">> = iolist_to_binary(uri(Req, #{port => 80})),
 	<<"https://localhost/path?dummy=2785">> = iolist_to_binary(uri(Req, #{scheme => "https", port => 443})),
+	ok.
+
+resp_headers_test() ->
+	Req = #{
+		scheme => <<"http">>, host => <<"localhost">>, port => 8080,
+		path => <<"/path">>, qs => <<"dummy=2785">>
+	},
+	#{resp_headers := RespHeaders} = set_resp_headers_list([
+		{<<"Name">>, <<"Cormano">>},
+		{<<"Name">>, <<"Paco">>},
+		{<<"X-MyHeader">>, <<"custom-header">>},
+		{<<"api-key">>, "My api"},
+		{<<"api-key">>, "KEY"}
+	], #{}, Req),
+
+	#{
+		<<"Name">> := <<"Cormano, Paco">>,
+		<<"X-MyHeader">> := <<"custom-header">>
+	 } = RespHeaders,
+
 	ok.
 -endif.
 
@@ -726,24 +747,27 @@ set_resp_header(Name, Value, Req=#{resp_headers := RespHeaders}) ->
 set_resp_header(Name,Value, Req) ->
 	Req#{resp_headers => #{Name => Value}}.
 
-% @todo process headers list - reduce to a map and concat the values of repeated headers, except for set-cookie that will be treated differently
-% @todo define the correct spec
--spec set_resp_headers_list(list(term()), req())
+% @todo make it work with iodata(), for now only bitstrings are accepted
+
+-spec set_resp_headers_list(list({ binary(), iodata() }), Req)
+	-> Req when Req::req().
 set_resp_headers_list(HeaderTupleList, Req) ->
 	set_resp_headers_list(HeaderTupleList, #{}, Req).
 
 set_resp_headers_list([], Map, Req) ->
-	% @todo merge Map with Req headers
-	Req;
+	set_resp_headers(Map, Req);
+
+set_resp_headers_list([{<<"set-cookie">>, Value} | Headers], Map, Req) ->
+	set_resp_headers_list(Headers, Map, Req);
 set_resp_headers_list([{Name, Value} | Headers], Map, Req) ->
 	NewHeaderValue = case maps:get(Name, Map, undefined) of
-		undefined -> Value,
+		undefined -> Value;
 		ExistingValue -> <<ExistingValue/binary, ", ", Value/binary>>
 	end,
 
 	Map1 = maps:put(Name, NewHeaderValue, Map),
 
-	set_resp_headers_list(Headers, Map1, Req1).
+	set_resp_headers_list(Headers, Map1, Req).
 
 -spec set_resp_headers(cowboy:http_headers(), Req)
 	-> Req when Req::req().
