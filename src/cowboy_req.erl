@@ -377,13 +377,17 @@ resp_headers_test() ->
 		{<<"Name">>, <<"Cormano">>},
 		{<<"Name">>, <<"Paco">>},
 		{<<"X-MyHeader">>, <<"custom-header">>},
-		{<<"api-key">>, "My api"},
-		{<<"api-key">>, "KEY"}
+		{<<"game-name">>, "Sunset"},
+		{<<"game-name">>, "Riders"},
+		{<<"header">>, ["io", "data"]},
+		{<<"header">>, ["header"]}
 	], #{}, Req),
 
 	#{
 		<<"Name">> := <<"Cormano, Paco">>,
-		<<"X-MyHeader">> := <<"custom-header">>
+		<<"X-MyHeader">> := <<"custom-header">>,
+		<<"game-name">> := <<"Sunset, Riders">>,
+		<<"header">> := <<"iodata, header">>
 	 } = RespHeaders,
 
 	ok.
@@ -757,12 +761,14 @@ set_resp_headers_list(HeaderTupleList, Req) ->
 set_resp_headers_list([], Map, Req) ->
 	set_resp_headers(Map, Req);
 
-set_resp_headers_list([{<<"set-cookie">>, Value} | Headers], Map, Req) ->
+set_resp_headers_list([{<<"set-cookie">>, _} | Headers], Map, Req) ->
 	set_resp_headers_list(Headers, Map, Req);
 set_resp_headers_list([{Name, Value} | Headers], Map, Req) ->
+	BinaryValue = iolist_to_binary(Value),
 	NewHeaderValue = case maps:get(Name, Map, undefined) of
-		undefined -> Value;
-		ExistingValue -> <<ExistingValue/binary, ", ", Value/binary>>
+		undefined -> BinaryValue;
+		ExistingValue ->
+			<<ExistingValue/binary, ", ", BinaryValue/binary>>
 	end,
 
 	Map1 = maps:put(Name, NewHeaderValue, Map),
