@@ -729,11 +729,21 @@ set_resp_header(Name,Value, Req) ->
 % @todo process headers list - reduce to a map and concat the values of repeated headers, except for set-cookie that will be treated differently
 % @todo define the correct spec
 -spec set_resp_headers_list(list(term()), req())
-set_resp_headers_list([], Req) ->
+set_resp_headers_list(HeaderTupleList, Req) ->
+	set_resp_headers_list(HeaderTupleList, #{}, Req).
+
+set_resp_headers_list([], Map, Req) ->
+	% @todo merge Map with Req headers
 	Req;
-set_resp_headers_list([{Name, Value} | Headers], Req) ->
-	Req1 = set_resp_header(Name, Value, Req),
-	set_resp_headers_list(Headers, Req1).
+set_resp_headers_list([{Name, Value} | Headers], Map, Req) ->
+	NewHeaderValue = case maps:get(Name, Map, undefined) of
+		undefined -> Value,
+		ExistingValue -> <<ExistingValue/binary, ", ", Value/binary>>
+	end,
+
+	Map1 = maps:put(Name, NewHeaderValue, Map),
+
+	set_resp_headers_list(Headers, Map1, Req1).
 
 -spec set_resp_headers(cowboy:http_headers(), Req)
 	-> Req when Req::req().
