@@ -1,4 +1,4 @@
-%% Copyright (c) 2011-2017, Loïc Hoguin <essen@ninenines.eu>
+%% Copyright (c) 2011-2024, Loïc Hoguin <essen@ninenines.eu>
 %% Copyright (c) 2011, Anthony Ramine <nox@dev-extend.eu>
 %%
 %% Permission to use, copy, modify, and/or distribute this software for any
@@ -1024,7 +1024,12 @@ filter([], Map, Errors) ->
 		_ -> {error, Errors}
 	end;
 filter([{Key, Constraints}|Tail], Map, Errors) ->
-	filter_constraints(Tail, Map, Errors, Key, maps:get(Key, Map), Constraints);
+	case maps:find(Key, Map) of
+		{ok, Value} ->
+			filter_constraints(Tail, Map, Errors, Key, Value, Constraints);
+		error ->
+			filter(Tail, Map, Errors#{Key => required})
+	end;
 filter([{Key, Constraints, Default}|Tail], Map, Errors) ->
 	case maps:find(Key, Map) of
 		{ok, Value} ->

@@ -1,4 +1,4 @@
-%% Copyright (c) 2018, Loïc Hoguin <essen@ninenines.eu>
+%% Copyright (c) 2018-2024, Loïc Hoguin <essen@ninenines.eu>
 %%
 %% Permission to use, copy, modify, and/or distribute this software for any
 %% purpose with or without fee is hereby granted, provided that the above
@@ -33,13 +33,14 @@ groups() ->
 	Tests = [nc_rand, nc_zero],
 	H1Tests = [slowloris, slowloris_chunks],
 	H2CTests = [
+		http2_cancel_flood,
 		http2_data_dribble,
 		http2_empty_frame_flooding_data,
 		http2_empty_frame_flooding_headers_continuation,
 		http2_empty_frame_flooding_push_promise,
+		http2_infinite_continuations,
 		http2_ping_flood,
 		http2_reset_flood,
-		http2_cancel_flood,
 		http2_settings_flood,
 		http2_zero_length_header_leak
 	],
@@ -48,10 +49,12 @@ groups() ->
 		{https, [parallel], Tests ++ H1Tests},
 		{h2, [parallel], Tests},
 		{h2c, [parallel], Tests ++ H2CTests},
+		{h3, [], Tests},
 		{http_compress, [parallel], Tests ++ H1Tests},
 		{https_compress, [parallel], Tests ++ H1Tests},
 		{h2_compress, [parallel], Tests},
-		{h2c_compress, [parallel], Tests ++ H2CTests}
+		{h2c_compress, [parallel], Tests ++ H2CTests},
+		{h3_compress, [], Tests}
 	].
 
 init_per_suite(Config) ->
@@ -65,7 +68,7 @@ init_per_group(Name, Config) ->
 	cowboy_test:init_common_groups(Name, Config, ?MODULE).
 
 end_per_group(Name, _) ->
-	cowboy:stop_listener(Name).
+	cowboy_test:stop_group(Name).
 
 %% Routes.
 
@@ -217,6 +220,38 @@ http2_empty_frame_flooding_push_promise(Config) ->
 	%% Cowboy rejects all PUSH_PROMISE frames therefore no flooding
 	%% can take place.
 	{ok, <<_:24, 7:8, _:72, 1:32>>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
+
+http2_infinite_continuations(Config) ->
+	doc("Confirm that Cowboy rejects CONTINUATION frames when the "
+		"total size of HEADERS + CONTINUATION(s) exceeds the limit. (VU#421644)"),
+	{ok, Socket} = rfc7540_SUITE:do_handshake(Config),
+	%% Send a HEADERS frame followed by a large number
+	%% of continuation frames.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>}
+	]),
+	HeadersBlockLen = iolist_size(HeadersBlock),
+	ok = gen_tcp:send(Socket, [
+		%% HEADERS frame.
+		<<
+			HeadersBlockLen:24, 1:8, 0:5,
+			0:1, %% END_HEADERS
+			0:1,
+			1:1, %% END_STREAM
+			0:1,
+			1:31 %% Stream ID.
+		>>,
+		HeadersBlock,
+		%% CONTINUATION frames.
+		[<<1024:24, 9:8, 0:8, 0:1, 1:31, 0:1024/unit:8>>
+			|| _ <- lists:seq(1, 100)]
+	]),
+	%% Receive an ENHANCE_YOUR_CALM connection error.
+	{ok, <<_:24, 7:8, _:72, 11:32>>} = gen_tcp:recv(Socket, 17, 6000),
 	ok.
 
 %% @todo http2_internal_data_buffering(Config) -> I do not know how to test this.

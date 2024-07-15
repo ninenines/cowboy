@@ -2,7 +2,7 @@
 
 PROJECT = cowboy
 PROJECT_DESCRIPTION = Small, fast, modern HTTP server.
-PROJECT_VERSION = 2.10.0
+PROJECT_VERSION = 2.12.0
 PROJECT_REGISTERED = cowboy_clock
 
 # Options.
@@ -15,8 +15,13 @@ CT_OPTS += -ct_hooks cowboy_ct_hook [] # -boot start_sasl
 LOCAL_DEPS = crypto
 
 DEPS = cowlib ranch
-dep_cowlib = git https://github.com/ninenines/cowlib 2.12.1
+dep_cowlib = git https://github.com/ninenines/cowlib master
 dep_ranch = git https://github.com/ninenines/ranch 1.8.0
+
+ifeq ($(COWBOY_QUICER),1)
+DEPS += quicer
+dep_quicer = git https://github.com/emqx/quic main
+endif
 
 DOC_DEPS = asciideck
 
@@ -38,8 +43,8 @@ define HEX_TARBALL_EXTRA_METADATA
 #{
 	licenses => [<<"ISC">>],
 	links => #{
-		<<"User guide">> => <<"https://ninenines.eu/docs/en/cowboy/2.10/guide/">>,
-		<<"Function reference">> => <<"https://ninenines.eu/docs/en/cowboy/2.10/manual/">>,
+		<<"User guide">> => <<"https://ninenines.eu/docs/en/cowboy/2.12/guide/">>,
+		<<"Function reference">> => <<"https://ninenines.eu/docs/en/cowboy/2.12/manual/">>,
 		<<"GitHub">> => <<"https://github.com/ninenines/cowboy">>,
 		<<"Sponsor">> => <<"https://github.com/sponsors/essen">>
 	}
@@ -50,10 +55,16 @@ endef
 
 include erlang.mk
 
-# Don't run the examples test suite by default.
+# Don't run the examples/autobahn test suites by default.
 
 ifndef FULL
 CT_SUITES := $(filter-out examples ws_autobahn,$(CT_SUITES))
+endif
+
+# Don't run HTTP/3 test suites on Windows.
+
+ifeq ($(PLATFORM),msys2)
+CT_SUITES := $(filter-out rfc9114 rfc9204 rfc9220,$(CT_SUITES))
 endif
 
 # Compile options.
@@ -61,9 +72,19 @@ endif
 ERLC_OPTS += +warn_missing_spec +warn_untyped_record # +bin_opt_info
 TEST_ERLC_OPTS += +'{parse_transform, eunit_autoexport}'
 
+ifeq ($(COWBOY_QUICER),1)
+ERLC_OPTS += -D COWBOY_QUICER=1
+TEST_ERLC_OPTS += -D COWBOY_QUICER=1
+endif
+
 # Generate rebar.config on build.
 
 app:: rebar.config
+
+# Fix quicer compilation for HTTP/3.
+
+autopatch-quicer::
+	$(verbose) printf "%s\n" "all: ;" > $(DEPS_DIR)/quicer/c_src/Makefile.erlang.mk
 
 # Dialyze the tests.
 
@@ -101,8 +122,11 @@ prepare_tag:
 	$(verbose) echo -n "GUIDE:  "
 	$(verbose) grep -h dep_$(PROJECT)_commit doc/src/guide/*.asciidoc || true
 	$(verbose) echo
+	$(verbose) echo "Links in the README:"
+	$(verbose) grep http.*:// README.asciidoc
+	$(verbose) echo
 	$(verbose) echo "Titles in most recent CHANGELOG:"
-	$(verbose) for f in `ls -r doc/src/guide/migrating_from_*.asciidoc | head -n1`; do \
+	$(verbose) for f in `ls -rv doc/src/guide/migrating_from_*.asciidoc | head -n1`; do \
 		echo $$f:; \
 		grep == $$f; \
 	done

@@ -1,4 +1,4 @@
-%% Copyright (c) 2011-2017, Loïc Hoguin <essen@ninenines.eu>
+%% Copyright (c) 2011-2024, Loïc Hoguin <essen@ninenines.eu>
 %%
 %% Permission to use, copy, modify, and/or distribute this software for any
 %% purpose with or without fee is hereby granted, provided that the above
@@ -1189,6 +1189,7 @@ if_range(Req=#{headers := #{<<"if-range">> := _, <<"range">> := _}},
 if_range(Req, State) ->
 	range(Req, State).
 
+%% @todo This can probably be moved to if_range directly.
 range(Req, State=#state{ranges_a=[]}) ->
 	set_resp_body(Req, State);
 range(Req, State) ->

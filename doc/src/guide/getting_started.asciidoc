@@ -62,14 +62,16 @@ handler.
 === Cowboy setup
 
 We will modify the 'Makefile' to tell the build system it needs to
-fetch and compile Cowboy:
+fetch and compile Cowboy, and that we will use releases:
 
 [source,makefile]
 ----
 PROJECT = hello_erlang
 
 DEPS = cowboy
-dep_cowboy_commit = 2.10.0
+dep_cowboy_commit = 2.11.0
+
+REL_DEPS = relx
 
 DEP_PLUGINS = cowboy
 
@@ -79,6 +81,9 @@ include erlang.mk
 The `DEP_PLUGINS` line tells the build system to load the plugins
 Cowboy provides. These include predefined templates that we will
 use soon.
+
+The `REL_DEPS` line tells the build system to fetch and build
+`relx`, the library that will create the release.
 
 If you do `make run` now, Cowboy will be included in the release
 and started automatically. This is not enough however, as Cowboy

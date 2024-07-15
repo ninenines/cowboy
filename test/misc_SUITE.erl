@@ -1,4 +1,4 @@
-%% Copyright (c) 2017, Loïc Hoguin <essen@ninenines.eu>
+%% Copyright (c) 2017-2024, Loïc Hoguin <essen@ninenines.eu>
 %%
 %% Permission to use, copy, modify, and/or distribute this software for any
 %% purpose with or without fee is hereby granted, provided that the above
@@ -43,7 +43,7 @@ init_per_group(Name, Config) ->
 end_per_group(env, _) ->
 	ok;
 end_per_group(Name, _) ->
-	cowboy:stop_listener(Name).
+	cowboy_test:stop_group(Name).
 
 init_dispatch(_) ->
 	cowboy_router:compile([{"localhost", [

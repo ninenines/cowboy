@@ -86,6 +86,7 @@ echo(<<"match">>, Req, Opts) ->
 	Fields = [binary_to_atom(F, latin1) || F <- Fields0],
 	Value = case Type of
 		<<"qs">> -> cowboy_req:match_qs(Fields, Req);
+		<<"qs_with_constraints">> -> cowboy_req:match_qs([{id, integer}], Req);
 		<<"cookies">> -> cowboy_req:match_cookies(Fields, Req);
 		<<"body_qs">> ->
 			%% Note that the Req should not be discarded but for the

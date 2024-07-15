@@ -605,17 +605,139 @@ The response body can be provided either as the actual data
 to be sent or a tuple indicating which file to send.
 
 This function is called for both GET and HEAD requests. For
-the latter the body is not sent, however.
+the latter the body is not sent: it is only used to calculate
+the content length.
 
 // @todo Perhaps we can optimize HEAD requests and just
 // allow calculating the length instead of returning the
 // whole thing.
 
-Note that there used to be a way to stream the response body.
-It was temporarily removed and will be added back in a later
-release.
+It is possible to stream the response body either by manually
+sending the response and returning a `stop` value; or by
+switching to a different handler (for example a loop handler)
+and manually sending the response. All headers already set
+by Cowboy will also be included in the response.
 
-// @todo Add a way to switch to loop handler for streaming the body.
+== RangeCallback
+
+[source,erlang]
+----
+RangeCallback(Req, State) -> {Result, Req, State}
+
+Result  :: [{Range, Body}]
+Range   :: {From, To, Total} | binary()
+From    :: non_neg_integer()
+To      :: non_neg_integer()
+Total   :: non_neg_integer() | '*'
+Body    :: cowboy_req:resp_body()
+Default  - crash
+----
+
+Return a list of ranges for the response body.
+
+The range selected can be found in the key `range`
+in the Req object, as indicated in `range_satisfiable`.
+
+Instead of returning the full response body as would
+be done in the `ProvideCallback`, a list of ranges
+must be returned. There can be one or more range.
+When one range is returned, a normal ranged response
+is sent. When multiple ranges are returned, Cowboy
+will automatically send a multipart/byteranges
+response.
+
+When the total is not known the atom `'*'` can be
+returned.
+
+== ranges_provided
+
+[source,erlang]
+----
+ranges_provided(Req, State) -> {Result, Req, State}
+
+Result :: [Range | Auto]
+Range  :: {
+    binary(),  %% lowercase; case insensitive
+    RangeCallback :: atom()
+}
+Auto   :: {<<"bytes">>, auto}
+Default - skip this step
+----
+
+Return the list of range units the resource provides.
+
+During content negotiation Cowboy will build an accept-ranges
+response header with the list of ranges provided. Cowboy
+does not choose a range at this time; ranges are choosen
+when it comes time to call the `ProvideCallback`.
+
+By default ranged requests will be handled the same as normal
+requests: the `ProvideCallback` will be called and the full
+response body will be sent.
+
+It is possible to let Cowboy handle ranged responses
+automatically when the range unit is bytes and the
+atom returned is `auto` (instead of a callback name).
+In that case Cowboy will call the `ProvideCallback`
+and split the response automatically, including by
+producing a multipart/byteranges response if necessary.
+
+== range_satisfiable
+
+[source,erlang]
+----
+range_satisfiable(Req, State) -> {Result, Req, State}
+
+Result  :: boolean() | {false, non_neg_integer() | iodata()}
+Default :: true
+----
+
+Whether the range request is satisfiable.
+
+When the time comes to send the response body, and when
+ranges have been provided via the `ranges_provided`
+callback, Cowboy will process the if-range and the
+range request headers and ensure it is satisfiable.
+
+This callback allows making resource-specific checks
+before sending the ranged response. The default is
+to accept sending a ranged response.
+
+Cowboy adds the requested `range` to the Req object
+just before calling this callback:
+
+[source,erlang]
+----
+req() :: #{
+    range => {
+        binary(),  %% lowercase; case insensitive
+        Range
+    }
+}
+
+Range     :: ByteRange | binary()
+
+ByteRange :: [{FirstByte, LastByte | infinity} | SuffixLen]
+FirstByte :: non_neg_integer()
+LastByte  :: non_neg_integer()
+SuffixLen :: neg_integer()
+----
+
+Only byte ranges are parsed. Other ranges are provided
+as binary. Byte ranges may either be requested from first
+to last bytes (inclusive); from first bytes to the end
+(`infinity` is used to represent the last byte); or
+the last bytes of the representation via a negative
+integer (so -500 means the last 500 bytes).
+
+Returning `false` will result in a 416 Range Not Satisfiable
+response being sent. The content-range header will be
+set automatically in the response if a tuple is
+returned. The integer value represents the total
+size (in the choosen unit) of the resource. An
+iodata value may also be returned and will be
+used as-is to build the content range header,
+prepended with the unit choosen.
 
 === rate_limited
 
@@ -625,7 +747,7 @@ rate_limited(Req, State) -> {Result, Req, State}
 
 Result     :: false | {true, RetryAfter}
 RetryAfter :: non_neg_integer() | calendar:datetime()
-Default  - false
+Default    :: false
 ----
 
 Return whether the user is rate limited.
@@ -734,6 +856,8 @@ listed here, like the authorization header.
 
 == Changelog
 
+* *2.11*: The `ranges_provided`, `range_satisfiable` and
+          the `RangeCallback` callbacks have been added.
 * *2.11*: The `generate_etag` callback can now return
           `undefined` to conditionally avoid generating
           an etag.

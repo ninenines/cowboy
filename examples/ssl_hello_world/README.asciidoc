@@ -9,8 +9,9 @@ $ make run
 
 Then point your browser to https://localhost:8443
 
-You will need to temporarily trust the root certificate authority,
-which can also be found in `priv/ssl/cowboy-ca.crt`.
+You will be greeted by a security message. You can ask for more
+information and ultimately accept to access localhost. This is
+due to the example using a self-signed certificate.
 
 Recent browsers will communicate using HTTP/2. Older browsers
 will use HTTP/1.1.
@@ -19,7 +20,7 @@ will use HTTP/1.1.
 
 [source,bash]
 ----
-$ curl --cacert priv/ssl/cowboy-ca.crt -i https://localhost:8443
+$ curl -k -i https://localhost:8443
 HTTP/1.1 200 OK
 connection: keep-alive
 server: Cowboy

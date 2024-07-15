@@ -1,4 +1,4 @@
-%% Copyright (c) 2018, Loïc Hoguin <essen@ninenines.eu>
+%% Copyright (c) 2018-2024, Loïc Hoguin <essen@ninenines.eu>
 %%
 %% Permission to use, copy, modify, and/or distribute this software for any
 %% purpose with or without fee is hereby granted, provided that the above
@@ -39,7 +39,7 @@ init_per_group(Name, Config) ->
 	cowboy_test:init_common_groups(Name, Config, ?MODULE).
 
 end_per_group(Name, _) ->
-	cowboy:stop_listener(Name).
+	cowboy_test:stop_group(Name).
 
 %% Routes.
 
@@ -58,8 +58,15 @@ crash_after_reply(Config) ->
 	Ref = gun:get(ConnPid, "/crash/reply", [
 		{<<"accept-encoding">>, <<"gzip">>}
 	]),
-	{response, fin, 200, _} = gun:await(ConnPid, Ref),
-	{error, timeout} = gun:await(ConnPid, Ref, 1000),
+	Protocol = config(protocol, Config),
+	_ = case gun:await(ConnPid, Ref) of
+		{response, fin, 200, _} ->
+			{error, timeout} = gun:await(ConnPid, Ref, 1000);
+		%% See maybe_h3_error comment for details.
+		{error, {stream_error, {stream_error, h3_internal_error, _}}}
+				when Protocol =:= http3 ->
+			ok
+	end,
 	gun:close(ConnPid).
 
 crash_before_reply(Config) ->

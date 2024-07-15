@@ -1,0 +1,15 @@
+[appendix]
+== Migrating from Cowboy 2.11 to 2.12
+
+Cowboy 2.12 contains a small security improvement for
+the HTTP/2 protocol.
+
+Cowboy 2.12 requires Erlang/OTP 24.0 or greater.
+
+=== Features added
+
+* A new HTTP/2 option `max_fragmented_header_block_size` has
+  been added to limit the size of header blocks that are
+  sent over multiple HEADERS and CONTINUATION frames.
+
+* Update Cowlib to 2.13.0.

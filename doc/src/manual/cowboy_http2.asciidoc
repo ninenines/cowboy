@@ -35,6 +35,7 @@ opts() :: #{
     max_connection_window_size     => 0..16#7fffffff,
     max_decode_table_size          => non_neg_integer(),
     max_encode_table_size          => non_neg_integer(),
+    max_fragmented_header_block_size => 16384..16#7fffffff,
     max_frame_size_received        => 16384..16777215,
     max_frame_size_sent            => 16384..16777215 | infinity,
     max_received_frame_rate        => {pos_integer(), timeout()},
@@ -44,6 +45,7 @@ opts() :: #{
     max_stream_window_size         => 0..16#7fffffff,
     preface_timeout                => timeout(),
     proxy_header                   => boolean(),
+    reset_idle_timeout_on_send     => boolean(),
     sendfile                       => boolean(),
     settings_timeout               => timeout(),
     stream_handlers                => [module()],
@@ -93,7 +95,10 @@ enable_connect_protocol (false)::
 
 Whether to enable the extended CONNECT method to allow
 protocols like Websocket to be used over an HTTP/2 stream.
-This option is experimental and disabled by default.
++
+For backward compatibility reasons, this option is disabled
+by default. It must be enabled to use Websocket over HTTP/2.
+It will be enabled by default in a future release.
 
 goaway_initial_timeout (1000)::
 
@@ -168,6 +173,14 @@ Maximum header table size in bytes used by the encoder. The server will
 compare this value to what the client advertises and choose the smallest
 one as the encoder's header table size.
 
+max_fragmented_header_block_size (32768)::
+
+Maximum header block size when headers are split over multiple HEADERS
+and CONTINUATION frames. Clients that attempt to send header blocks
+larger than this value will receive an ENHANCE_YOUR_CALM connection
+error. Note that this value is not advertised and should be large
+enough for legitimate requests.
+
 max_frame_size_received (16384)::
 
 Maximum size in bytes of the frames received by the server. This value is
@@ -235,6 +248,11 @@ Whether incoming connections have a PROXY protocol header. The
 proxy information will be passed forward via the `proxy_header`
 key of the Req object.
 
+reset_idle_timeout_on_send (false)::
+
+Whether the `idle_timeout` gets reset when sending data
+to the socket.
+
 sendfile (true)::
 
 Whether the sendfile syscall may be used. It can be useful to disable
@@ -271,6 +289,8 @@ too many `WINDOW_UPDATE` frames.
 
 == Changelog
 
+* *2.11*: Websocket over HTTP/2 is now considered stable.
+* *2.11*: The `reset_idle_timeout_on_send` option was added.
 * *2.11*: Add the option `max_cancel_stream_rate` to protect
           against another flood scenario.
 * *2.9*: The `goaway_initial_timeout` and `goaway_complete_timeout`
@@ -300,7 +320,7 @@ too many `WINDOW_UPDATE` frames.
          `max_frame_size_received`, `max_frame_size_sent`
          and `settings_timeout` to configure HTTP/2 SETTINGS
          and related behavior.
-* *2.4*: Add the experimental option `enable_connect_protocol`.
+* *2.4*: Add the option `enable_connect_protocol`.
 * *2.0*: Protocol introduced.
 
 == See also

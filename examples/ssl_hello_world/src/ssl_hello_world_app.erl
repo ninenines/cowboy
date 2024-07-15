@@ -19,9 +19,8 @@ start(_Type, _Args) ->
 	PrivDir = code:priv_dir(ssl_hello_world),
 	{ok, _} = cowboy:start_tls(https, [
 		{port, 8443},
-		{cacertfile, PrivDir ++ "/ssl/cowboy-ca.crt"},
-		{certfile, PrivDir ++ "/ssl/server.crt"},
-		{keyfile, PrivDir ++ "/ssl/server.key"}
+		{certfile, PrivDir ++ "/ssl/cert.pem"},
+		{keyfile, PrivDir ++ "/ssl/key.pem"}
 	], #{env => #{dispatch => Dispatch}}),
 	ssl_hello_world_sup:start_link().
 

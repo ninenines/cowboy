@@ -4,10 +4,15 @@ name: Check Cowboy
 
 on:
   push:
+    branches:
+      - master
   pull_request:
   schedule:
       ## Every Monday at 2am.
       - cron: 0 2 * * 1
+
+env:
+  CI_ERLANG_MK: 1
 
 jobs:
   cleanup-master:
@@ -29,3 +34,37 @@ jobs:
     name: Cowboy
     needs: cleanup-master
     uses: ninenines/ci.erlang.mk/.github/workflows/ci.yaml@master
+
+# The examples test suite is nice to run but typically not
+# important. So we run them after we are done with the other
+# test suites. At this point we know that Erlang was built
+# so we can just use the latest version.
+
+  examples:
+    name: Check examples
+    needs: check
+    runs-on: 'ubuntu-latest'
+    if: ${{ !cancelled() }}
+    steps:
+
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Output latest Erlang/OTP version
+      id: latest_version
+      run: |
+        {
+          echo "latest<<EOF"
+          make ci-list | grep -v rc | grep -v master | tail -n1
+          echo EOF
+        } >> "$GITHUB_OUTPUT"
+
+    - name: Restore CI cache
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          ~/erlang/
+        key: ${{ runner.os }}-${{ runner.arch }}-Erlang-${{ steps.latest_version.outputs.latest }}
+
+    - name: Run ct-examples
+      run: make ct-examples LATEST_ERLANG_OTP=1

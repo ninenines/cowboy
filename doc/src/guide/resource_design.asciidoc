@@ -144,6 +144,16 @@ never be called.
 Implement the `languages_provided` or `charsets_provided`
 callbacks if applicable.
 
+Does the resource accept ranged requests? If it does,
+implement the `ranges_provided` callback. Resources that
+only accept `bytes` units can use the callback name
+`auto` and let Cowboy automatically do ranged responses.
+Other callbacks should have a name prefix of `ranged_`
+for clarity. For example, `ranged_bytes` or `ranged_pages`.
+If the resource needs to perform additional checks before
+accepting to do a ranged responses, implement the
+`range_satisfiable` callback.
+
 Is there any other header that may make the representation
 of the resource vary? Implement the `variances` callback.
 
@@ -191,9 +201,14 @@ the `options` method.
 === GET and HEAD methods
 
 If you implement the methods GET and/or HEAD, you must
-implement one `ProvideResource` callback for each
+implement one `ProvideCallback` callback for each
 content-type returned by the `content_types_provided`
 callback.
+
+When range requests are accepted, you must implement one
+`RangeCallback` for each range unit returned by
+`ranges_provided` (unless `auto` was used). This is
+in addition to the `ProvideCallback` callback.
 
 === PUT, POST and PATCH methods
 

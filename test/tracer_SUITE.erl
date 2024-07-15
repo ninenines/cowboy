@@ -1,4 +1,4 @@
-%% Copyright (c) 2017, Loïc Hoguin <essen@ninenines.eu>
+%% Copyright (c) 2017-2024, Loïc Hoguin <essen@ninenines.eu>
 %%
 %% Permission to use, copy, modify, and/or distribute this software for any
 %% purpose with or without fee is hereby granted, provided that the above
@@ -29,7 +29,8 @@ suite() ->
 %% We initialize trace patterns here. Appropriate would be in
 %% init_per_suite/1, but this works just as well.
 all() ->
-	cowboy_test:common_all().
+	%% @todo Implement these tests for HTTP/3.
+	cowboy_test:common_all() -- [{group, h3}, {group, h3_compress}].
 
 init_per_suite(Config) ->
 	cowboy_tracer_h:set_trace_patterns(),

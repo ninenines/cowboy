@@ -1,4 +1,4 @@
-%% Copyright (c) 2014-2017, Loïc Hoguin <essen@ninenines.eu>
+%% Copyright (c) 2014-2024, Loïc Hoguin <essen@ninenines.eu>
 %%
 %% Permission to use, copy, modify, and/or distribute this software for any
 %% purpose with or without fee is hereby granted, provided that the above
@@ -37,35 +37,82 @@ init_http2(Ref, ProtoOpts, Config) ->
 	Port = ranch:get_port(Ref),
 	[{ref, Ref}, {type, ssl}, {protocol, http2}, {port, Port}, {opts, Opts}|Config].
 
+%% @todo This will probably require TransOpts as argument.
+init_http3(Ref, ProtoOpts, Config) ->
+	%% @todo Quicer does not currently support non-file cert/key,
+	%%       so we use quicer test certificates for now.
+	%% @todo Quicer also does not support cacerts which means
+	%%       we currently have no authentication based security.
+	DataDir = filename:dirname(filename:dirname(config(data_dir, Config)))
+		++ "/rfc9114_SUITE_data",
+	TransOpts = #{
+		socket_opts => [
+			{certfile, DataDir ++ "/server.pem"},
+			{keyfile, DataDir ++ "/server.key"}
+		]
+	},
+	{ok, Listener} = cowboy:start_quic(Ref, TransOpts, ProtoOpts),
+	{ok, {_, Port}} = quicer:sockname(Listener),
+	%% @todo Keep listener information around in a better place.
+	persistent_term:put({cowboy_test_quic, Ref}, Listener),
+	[{ref, Ref}, {type, quic}, {protocol, http3}, {port, Port}, {opts, TransOpts}|Config].
+
+stop_group(Ref) ->
+	case persistent_term:get({cowboy_test_quic, Ref}, undefined) of
+		undefined ->
+			cowboy:stop_listener(Ref);
+		Listener ->
+			quicer:close_listener(Listener)
+	end.
+
 %% Common group of listeners used by most suites.
 
 common_all() ->
-	[
+	All = [
 		{group, http},
 		{group, https},
 		{group, h2},
 		{group, h2c},
+		{group, h3},
 		{group, http_compress},
 		{group, https_compress},
 		{group, h2_compress},
-		{group, h2c_compress}
-	].
+		{group, h2c_compress},
+		{group, h3_compress}
+	],
+	%% Don't run HTTP/3 tests on Windows for now.
+	case os:type() of
+		{win32, _} ->
+			All -- [{group, h3}, {group, h3_compress}];
+		_ ->
+			All
+	end.
 
 common_groups(Tests) ->
 	Opts = case os:getenv("NO_PARALLEL") of
 		false -> [parallel];
 		_ -> []
 	end,
-	[
+	Groups = [
 		{http, Opts, Tests},
 		{https, Opts, Tests},
 		{h2, Opts, Tests},
 		{h2c, Opts, Tests},
+		{h3, Opts, Tests},
 		{http_compress, Opts, Tests},
 		{https_compress, Opts, Tests},
 		{h2_compress, Opts, Tests},
-		{h2c_compress, Opts, Tests}
-	].
+		{h2c_compress, Opts, Tests},
+		{h3_compress, Opts, Tests}
+	],
+	%% Don't run HTTP/3 tests on Windows for now.
+	case os:type() of
+		{win32, _} ->
+			Groups -- [{h3, Opts, Tests}, {h3_compress, Opts, Tests}];
+		_ ->
+			Groups
+	end.
+
 
 init_common_groups(Name = http, Config, Mod) ->
 	init_http(Name, #{
@@ -84,6 +131,10 @@ init_common_groups(Name = h2c, Config, Mod) ->
 		env => #{dispatch => Mod:init_dispatch(Config)}
 	}, [{flavor, vanilla}|Config]),
 	lists:keyreplace(protocol, 1, Config1, {protocol, http2});
+init_common_groups(Name = h3, Config, Mod) ->
+	init_http3(Name, #{
+		env => #{dispatch => Mod:init_dispatch(Config)}
+	}, [{flavor, vanilla}|Config]);
 init_common_groups(Name = http_compress, Config, Mod) ->
 	init_http(Name, #{
 		env => #{dispatch => Mod:init_dispatch(Config)},
@@ -104,7 +155,12 @@ init_common_groups(Name = h2c_compress, Config, Mod) ->
 		env => #{dispatch => Mod:init_dispatch(Config)},
 		stream_handlers => [cowboy_compress_h, cowboy_stream_h]
 	}, [{flavor, compress}|Config]),
-	lists:keyreplace(protocol, 1, Config1, {protocol, http2}).
+	lists:keyreplace(protocol, 1, Config1, {protocol, http2});
+init_common_groups(Name = h3_compress, Config, Mod) ->
+	init_http3(Name, #{
+		env => #{dispatch => Mod:init_dispatch(Config)},
+		stream_handlers => [cowboy_compress_h, cowboy_stream_h]
+	}, [{flavor, compress}|Config]).
 
 %% Support functions for testing using Gun.
 
@@ -114,7 +170,7 @@ gun_open(Config) ->
 gun_open(Config, Opts) ->
 	TlsOpts = case proplists:get_value(no_cert, Config, false) of
 		true -> [{verify, verify_none}];
-		false -> ct_helper:get_certs_from_ets()
+		false -> ct_helper:get_certs_from_ets() %% @todo Wrong in current quicer.
 	end,
 	{ok, ConnPid} = gun:open("localhost", config(port, Config), Opts#{
 		retry => 0,

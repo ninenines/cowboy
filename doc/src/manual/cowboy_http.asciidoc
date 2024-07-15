@@ -17,27 +17,28 @@ as a Ranch protocol.
 [source,erlang]
 ----
 opts() :: #{
-    active_n                 => pos_integer(),
-    chunked                  => boolean(),
-    connection_type          => worker | supervisor,
-    http10_keepalive         => boolean(),
-    idle_timeout             => timeout(),
-    inactivity_timeout       => timeout(),
-    initial_stream_flow_size => non_neg_integer(),
-    linger_timeout           => timeout(),
-    logger                   => module(),
-    max_empty_lines          => non_neg_integer(),
-    max_header_name_length   => non_neg_integer(),
-    max_header_value_length  => non_neg_integer(),
-    max_headers              => non_neg_integer(),
-    max_keepalive            => non_neg_integer(),
-    max_method_length        => non_neg_integer(),
-    max_request_line_length  => non_neg_integer(),
-    max_skip_body_length     => non_neg_integer(),
-    proxy_header             => boolean(),
-    request_timeout          => timeout(),
-    sendfile                 => boolean(),
-    stream_handlers          => [module()]
+    active_n                   => pos_integer(),
+    chunked                    => boolean(),
+    connection_type            => worker | supervisor,
+    http10_keepalive           => boolean(),
+    idle_timeout               => timeout(),
+    inactivity_timeout         => timeout(),
+    initial_stream_flow_size   => non_neg_integer(),
+    linger_timeout             => timeout(),
+    logger                     => module(),
+    max_empty_lines            => non_neg_integer(),
+    max_header_name_length     => non_neg_integer(),
+    max_header_value_length    => non_neg_integer(),
+    max_headers                => non_neg_integer(),
+    max_keepalive              => non_neg_integer(),
+    max_method_length          => non_neg_integer(),
+    max_request_line_length    => non_neg_integer(),
+    max_skip_body_length       => non_neg_integer(),
+    proxy_header               => boolean(),
+    request_timeout            => timeout(),
+    reset_idle_timeout_on_send => boolean(),
+    sendfile                   => boolean(),
+    stream_handlers            => [module()]
 }
 ----
 
@@ -148,6 +149,11 @@ request_timeout (5000)::
 
 Time in ms with no requests before Cowboy closes the connection.
 
+reset_idle_timeout_on_send (false)::
+
+Whether the `idle_timeout` gets reset when sending data
+to the socket.
+
 sendfile (true)::
 
 Whether the sendfile syscall may be used. It can be useful to disable
@@ -160,6 +166,7 @@ Ordered list of stream handlers that will handle all stream events.
 
 == Changelog
 
+* *2.11*: The `reset_idle_timeout_on_send` option was added.
 * *2.8*: The `active_n` option was added.
 * *2.7*: The `initial_stream_flow_size` and `logger` options were added.
 * *2.6*: The `chunked`, `http10_keepalive`, `proxy_header` and `sendfile` options were added.

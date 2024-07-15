@@ -1,4 +1,4 @@
-%% Copyright (c) 2015-2017, Loïc Hoguin <essen@ninenines.eu>
+%% Copyright (c) 2015-2024, Loïc Hoguin <essen@ninenines.eu>
 %%
 %% Permission to use, copy, modify, and/or distribute this software for any
 %% purpose with or without fee is hereby granted, provided that the above
@@ -44,6 +44,7 @@
 	max_connection_window_size => 0..16#7fffffff,
 	max_decode_table_size => non_neg_integer(),
 	max_encode_table_size => non_neg_integer(),
+	max_fragmented_header_block_size => 16384..16#7fffffff,
 	max_frame_size_received => 16384..16777215,
 	max_frame_size_sent => 16384..16777215 | infinity,
 	max_received_frame_rate => {pos_integer(), timeout()},
@@ -1138,7 +1139,7 @@ maybe_socket_error(_, Result = {ok, _}, _) ->
 maybe_socket_error(State, {error, Reason}, Human) ->
 	terminate(State, {socket_error, Reason, Human}).
 
--spec terminate(#state{}, _) -> no_return().
+-spec terminate(#state{} | undefined, _) -> no_return().
 terminate(undefined, Reason) ->
 	exit({shutdown, Reason});
 terminate(State=#state{socket=Socket, transport=Transport, http2_status=Status,

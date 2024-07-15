@@ -1,4 +1,4 @@
-%% Copyright (c) 2011-2017, Loïc Hoguin <essen@ninenines.eu>
+%% Copyright (c) 2011-2024, Loïc Hoguin <essen@ninenines.eu>
 %%
 %% Permission to use, copy, modify, and/or distribute this software for any
 %% purpose with or without fee is hereby granted, provided that the above
@@ -16,6 +16,7 @@
 
 -export([start_clear/3]).
 -export([start_tls/3]).
+-export([start_quic/3]).
 -export([stop_listener/1]).
 -export([get_env/2]).
 -export([get_env/3]).
@@ -24,6 +25,9 @@
 %% Internal.
 -export([log/2]).
 -export([log/4]).
+
+%% Don't warn about the bad quicer specs.
+-dialyzer([{nowarn_function, start_quic/3}]).
 
 -type opts() :: cowboy_http:opts() | cowboy_http2:opts().
 -export_type([opts/0]).
@@ -44,6 +48,7 @@
 
 -spec start_clear(ranch:ref(), ranch:opts(), opts())
 	-> {ok, pid()} | {error, any()}.
+
 start_clear(Ref, TransOpts0, ProtoOpts0) ->
 	TransOpts1 = ranch:normalize_opts(TransOpts0),
 	{TransOpts, ConnectionType} = ensure_connection_type(TransOpts1),
@@ -52,6 +57,7 @@ start_clear(Ref, TransOpts0, ProtoOpts0) ->
 
 -spec start_tls(ranch:ref(), ranch:opts(), opts())
 	-> {ok, pid()} | {error, any()}.
+
 start_tls(Ref, TransOpts0, ProtoOpts0) ->
 	TransOpts1 = ranch:normalize_opts(TransOpts0),
 	SocketOpts = maps:get(socket_opts, TransOpts1, []),
@@ -62,28 +68,103 @@ start_tls(Ref, TransOpts0, ProtoOpts0) ->
 	ProtoOpts = ProtoOpts0#{connection_type => ConnectionType},
 	ranch:start_listener(Ref, ranch_ssl, TransOpts, cowboy_tls, ProtoOpts).
 
+%% @todo Experimental function to start a barebone QUIC listener.
+%%       This will need to be reworked to be closer to Ranch
+%%       listeners and provide equivalent features.
+%%
+%% @todo Better type for transport options. Might require fixing quicer types.
+
+-spec start_quic(ranch:ref(), #{socket_opts => [{atom(), _}]}, cowboy_http3:opts())
+	-> {ok, pid()}.
+
+start_quic(Ref, TransOpts, ProtoOpts) ->
+	{ok, _} = application:ensure_all_started(quicer),
+	Parent = self(),
+	SocketOpts0 = maps:get(socket_opts, TransOpts, []),
+	{Port, SocketOpts2} = case lists:keytake(port, 1, SocketOpts0) of
+		{value, {port, Port0}, SocketOpts1} ->
+			{Port0, SocketOpts1};
+		false ->
+			{port_0(), SocketOpts0}
+	end,
+	SocketOpts = [
+		{alpn, ["h3"]}, %% @todo Why not binary?
+		{peer_unidi_stream_count, 3}, %% We only need control and QPACK enc/dec.
+		{peer_bidi_stream_count, 100}
+	|SocketOpts2],
+	_ListenerPid = spawn(fun() ->
+		{ok, Listener} = quicer:listen(Port, SocketOpts),
+		Parent ! {ok, Listener},
+		_AcceptorPid = [spawn(fun AcceptLoop() ->
+			{ok, Conn} = quicer:accept(Listener, []),
+			Pid = spawn(fun() ->
+				receive go -> ok end,
+				%% We have to do the handshake after handing control of
+				%% the connection otherwise streams may come in before
+				%% the controlling process is changed and messages will
+				%% not be sent to the correct process.
+				{ok, Conn} = quicer:handshake(Conn),
+				process_flag(trap_exit, true), %% @todo Only if supervisor though.
+				try cowboy_http3:init(Parent, Ref, Conn, ProtoOpts)
+				catch
+					exit:{shutdown,_} -> ok;
+					C:E:S -> log(error, "CRASH ~p:~p:~p", [C,E,S], ProtoOpts)
+				end
+			end),
+			ok = quicer:controlling_process(Conn, Pid),
+			Pid ! go,
+			AcceptLoop()
+		end) || _ <- lists:seq(1, 20)],
+		%% Listener process must not terminate.
+		receive after infinity -> ok end
+	end),
+	receive
+		{ok, Listener} ->
+			{ok, Listener}
+	end.
+
+%% Select a random UDP port using gen_udp because quicer
+%% does not provide equivalent functionality. Taken from
+%% quicer test suites.
+port_0() ->
+	{ok, Socket} = gen_udp:open(0, [{reuseaddr, true}]),
+	{ok, {_, Port}} = inet:sockname(Socket),
+	gen_udp:close(Socket),
+	case os:type() of
+		{unix, darwin} ->
+			%% Apparently macOS doesn't free the port immediately.
+			timer:sleep(500);
+		_ ->
+			ok
+	end,
+	Port.
+
 ensure_connection_type(TransOpts=#{connection_type := ConnectionType}) ->
 	{TransOpts, ConnectionType};
 ensure_connection_type(TransOpts) ->
 	{TransOpts#{connection_type => supervisor}, supervisor}.
 
 -spec stop_listener(ranch:ref()) -> ok | {error, not_found}.
+
 stop_listener(Ref) ->
 	ranch:stop_listener(Ref).
 
 -spec get_env(ranch:ref(), atom()) -> ok.
+
 get_env(Ref, Name) ->
 	Opts = ranch:get_protocol_options(Ref),
 	Env = maps:get(env, Opts, #{}),
 	maps:get(Name, Env).
 
 -spec get_env(ranch:ref(), atom(), any()) -> ok.
+
 get_env(Ref, Name, Default) ->
 	Opts = ranch:get_protocol_options(Ref),
 	Env = maps:get(env, Opts, #{}),
 	maps:get(Name, Env, Default).
 
 -spec set_env(ranch:ref(), atom(), any()) -> ok.
+
 set_env(Ref, Name, Value) ->
 	Opts = ranch:get_protocol_options(Ref),
 	Env = maps:get(env, Opts, #{}),
@@ -93,10 +174,12 @@ set_env(Ref, Name, Value) ->
 %% Internal.
 
 -spec log({log, logger:level(), io:format(), list()}, opts()) -> ok.
+
 log({log, Level, Format, Args}, Opts) ->
 	log(Level, Format, Args, Opts).
 
 -spec log(logger:level(), io:format(), list(), opts()) -> ok.
+
 log(Level, Format, Args, #{logger := Logger})
 		when Logger =/= error_logger ->
 	_ = Logger:Level(Format, Args),

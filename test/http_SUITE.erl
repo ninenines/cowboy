@@ -1,4 +1,4 @@
-%% Copyright (c) 2018, Loïc Hoguin <essen@ninenines.eu>
+%% Copyright (c) 2018-2024, Loïc Hoguin <essen@ninenines.eu>
 %%
 %% Permission to use, copy, modify, and/or distribute this software for any
 %% purpose with or without fee is hereby granted, provided that the above
@@ -90,7 +90,7 @@ chunked_one_byte_at_a_time(Config) ->
 		"Transfer-encoding: chunked\r\n\r\n"),
 	_ = [begin
 		raw_send(Client, <<C>>),
-		timer:sleep(10)
+		timer:sleep(1)
 	end || <<C>> <= ChunkedBody],
 	Rest = case catch raw_recv_head(Client) of
 		{'EXIT', _} -> error(closed);
@@ -329,6 +329,7 @@ do_idle_timeout_on_send(Config, Protocol) ->
 	try
 		ConnPid = gun_open([{type, tcp}, {protocol, Protocol}, {port, Port}|Config]),
 		{ok, Protocol} = gun:await_up(ConnPid),
+		timer:sleep(500),
 		#{socket := Socket} = gun:info(ConnPid),
 		Pid = get_remote_pid_tcp(Socket),
 		StreamRef = gun:get(ConnPid, "/streamed_result/10/250"),
@@ -359,6 +360,7 @@ do_idle_timeout_reset_on_send(Config, Protocol) ->
 	try
 		ConnPid = gun_open([{type, tcp}, {protocol, Protocol}, {port, Port}|Config]),
 		{ok, Protocol} = gun:await_up(ConnPid),
+		timer:sleep(500),
 		#{socket := Socket} = gun:info(ConnPid),
 		Pid = get_remote_pid_tcp(Socket),
 		StreamRef = gun:get(ConnPid, "/streamed_result/10/250"),
