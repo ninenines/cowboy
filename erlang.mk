@@ -17,7 +17,7 @@
 ERLANG_MK_FILENAME := $(realpath $(lastword $(MAKEFILE_LIST)))
 export ERLANG_MK_FILENAME
 
-ERLANG_MK_VERSION = 16d60fa
+ERLANG_MK_VERSION = d3485e7
 ERLANG_MK_WITHOUT = 
 
 # Make 3.81 and 3.82 are deprecated.
@@ -184,8 +184,9 @@ core_http_get = curl -Lf$(if $(filter-out 0,$(V)),,s)o $(call core_native_path,$
 
 core_eq = $(and $(findstring $(1),$(2)),$(findstring $(2),$(1)))
 
-# We skip files that contain spaces or '#' because they end up causing issues.
-core_find = $(if $(wildcard $1),$(shell find $(1:%/=%) \( -type l -o -type f \) -name $(subst *,\*,$2) -not -name "*[ \#]*"))
+# We skip files that contain spaces because they end up causing issues.
+# Files that begin with a dot are already ignored by the wildcard function.
+core_find = $(foreach f,$(wildcard $(1:%/=%)/*),$(if $(wildcard $f/.),$(call core_find,$f,$2),$(if $(filter $(subst *,%,$2),$f),$(if $(wildcard $f),$f))))
 
 core_lc = $(subst A,a,$(subst B,b,$(subst C,c,$(subst D,d,$(subst E,e,$(subst F,f,$(subst G,g,$(subst H,h,$(subst I,i,$(subst J,j,$(subst K,k,$(subst L,l,$(subst M,m,$(subst N,n,$(subst O,o,$(subst P,p,$(subst Q,q,$(subst R,r,$(subst S,s,$(subst T,t,$(subst U,u,$(subst V,v,$(subst W,w,$(subst X,x,$(subst Y,y,$(subst Z,z,$(1)))))))))))))))))))))))))))
 
@@ -800,7 +801,7 @@ pkg_cuttlefish_description = cuttlefish configuration abstraction
 pkg_cuttlefish_homepage = https://github.com/Kyorai/cuttlefish
 pkg_cuttlefish_fetch = git
 pkg_cuttlefish_repo = https://github.com/Kyorai/cuttlefish
-pkg_cuttlefish_commit = master
+pkg_cuttlefish_commit = main
 
 PACKAGES += damocles
 pkg_damocles_name = damocles
@@ -3564,8 +3565,10 @@ export DEPS_DIR
 REBAR_DEPS_DIR = $(DEPS_DIR)
 export REBAR_DEPS_DIR
 
+# When testing Erlang.mk and updating these, make sure
+# to delete test/test_rebar_git before running tests again.
 REBAR3_GIT ?= https://github.com/erlang/rebar3
-REBAR3_COMMIT ?= 06aaecd51b0ce828b66bb65a74d3c1fd7833a4ba # 3.22.1 + OTP-27 fixes
+REBAR3_COMMIT ?= bde4b54248d16280b2c70a244aca3bb7566e2033 # 3.23.0
 
 CACHE_DEPS ?= 0
 
@@ -4439,6 +4442,49 @@ ERLANG_MK_QUERY_REL_DEPS_FILE = $(ERLANG_MK_TMP)/query-rel-deps.log
 ERLANG_MK_QUERY_TEST_DEPS_FILE = $(ERLANG_MK_TMP)/query-test-deps.log
 ERLANG_MK_QUERY_SHELL_DEPS_FILE = $(ERLANG_MK_TMP)/query-shell-deps.log
 
+# Copyright (c) 2024, Loïc Hoguin <essen@ninenines.eu>
+# This file is part of erlang.mk and subject to the terms of the ISC License.
+
+.PHONY: beam-cache-restore-app beam-cache-restore-test clean-beam-cache distclean-beam-cache
+
+BEAM_CACHE_DIR ?= $(ERLANG_MK_TMP)/beam-cache
+PROJECT_BEAM_CACHE_DIR = $(BEAM_CACHE_DIR)/$(PROJECT)
+
+clean:: clean-beam-cache
+
+clean-beam-cache:
+	$(verbose) rm -rf $(PROJECT_BEAM_CACHE_DIR)
+
+distclean:: distclean-beam-cache
+
+$(PROJECT_BEAM_CACHE_DIR):
+	$(verbose) mkdir -p $(PROJECT_BEAM_CACHE_DIR)
+
+distclean-beam-cache:
+	$(gen_verbose) rm -rf $(BEAM_CACHE_DIR)
+
+beam-cache-restore-app: | $(PROJECT_BEAM_CACHE_DIR)
+	$(verbose) rm -rf $(PROJECT_BEAM_CACHE_DIR)/ebin-test
+ifneq ($(wildcard ebin/),)
+	$(verbose) mv ebin/ $(PROJECT_BEAM_CACHE_DIR)/ebin-test
+endif
+ifneq ($(wildcard $(PROJECT_BEAM_CACHE_DIR)/ebin-app),)
+	$(gen_verbose) mv $(PROJECT_BEAM_CACHE_DIR)/ebin-app ebin/
+else
+	$(verbose) $(MAKE) --no-print-directory clean-app
+endif
+
+beam-cache-restore-test: | $(PROJECT_BEAM_CACHE_DIR)
+	$(verbose) rm -rf $(PROJECT_BEAM_CACHE_DIR)/ebin-app
+ifneq ($(wildcard ebin/),)
+	$(verbose) mv ebin/ $(PROJECT_BEAM_CACHE_DIR)/ebin-app
+endif
+ifneq ($(wildcard $(PROJECT_BEAM_CACHE_DIR)/ebin-test),)
+	$(gen_verbose) mv $(PROJECT_BEAM_CACHE_DIR)/ebin-test ebin/
+else
+	$(verbose) $(MAKE) --no-print-directory clean-app
+endif
+
 # Copyright (c) 2013-2016, Loïc Hoguin <essen@ninenines.eu>
 # This file is part of erlang.mk and subject to the terms of the ISC License.
 
@@ -4494,7 +4540,7 @@ ifneq ($(wildcard src/),)
 
 # Targets.
 
-app:: $(if $(wildcard ebin/test),clean) deps
+app:: $(if $(wildcard ebin/test),beam-cache-restore-app) deps
 	$(verbose) $(MAKE) --no-print-directory $(PROJECT).d
 	$(verbose) $(MAKE) --no-print-directory app-build
 
@@ -4881,14 +4927,17 @@ define compile_test_erl
 endef
 
 ERL_TEST_FILES = $(call core_find,$(TEST_DIR)/,*.erl)
+
 $(ERLANG_MK_TMP)/$(PROJECT).last-testdir-build: $(ERL_TEST_FILES) $(MAKEFILE_LIST)
-	$(eval FILES_TO_COMPILE := $(if $(filter $(MAKEFILE_LIST),$?),$(filter $(ERL_TEST_FILES),$^),$?))
+# When we have to recompile files in src/ the .d file always gets rebuilt.
+# Therefore we want to ignore it when rebuilding test files.
+	$(eval FILES_TO_COMPILE := $(if $(filter $(filter-out $(PROJECT).d,$(MAKEFILE_LIST)),$?),$(filter $(ERL_TEST_FILES),$^),$(filter $(ERL_TEST_FILES),$?)))
 	$(if $(strip $(FILES_TO_COMPILE)),$(call compile_test_erl,$(FILES_TO_COMPILE)) && touch $@)
 endif
 
 test-build:: IS_TEST=1
 test-build:: ERLC_OPTS=$(TEST_ERLC_OPTS)
-test-build:: $(if $(wildcard src),$(if $(wildcard ebin/test),,clean)) $(if $(IS_APP),,deps test-deps)
+test-build:: $(if $(wildcard src),$(if $(wildcard ebin/test),,beam-cache-restore-test)) $(if $(IS_APP),,deps test-deps)
 # We already compiled everything when IS_APP=1.
 ifndef IS_APP
 ifneq ($(wildcard src),)
@@ -5492,7 +5541,7 @@ endif
 	$(verbose) mkdir config/
 	$(verbose) $(call core_render,bs_sys_config,config/sys.config)
 	$(verbose) $(call core_render,bs_vm_args,config/vm.args)
-	$(verbose) awk '/^include erlang.mk/ && !ins {print "BUILD_DEPS += relx";ins=1};{print}' Makefile > Makefile.bak
+	$(verbose) awk '/^include erlang.mk/ && !ins {print "REL_DEPS += relx";ins=1};{print}' Makefile > Makefile.bak
 	$(verbose) mv Makefile.bak Makefile
 
 new-app:
