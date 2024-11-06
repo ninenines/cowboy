@@ -68,3 +68,12 @@ jobs:
 
     - name: Run ct-examples
       run: make ct-examples LATEST_ERLANG_OTP=1
+
+    - name: Upload logs
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: Common Test logs (examples)
+        path: |
+          logs/
+          !logs/**/log_private
