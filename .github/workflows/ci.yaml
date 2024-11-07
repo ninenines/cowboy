@@ -11,6 +11,8 @@ on:
       ## Every Monday at 2am.
       - cron: 0 2 * * 1
 
+permissions: write-all
+
 env:
   CI_ERLANG_MK: 1
 
