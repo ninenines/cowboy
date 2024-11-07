@@ -17,7 +17,7 @@ maybe_generate_markdown(Path) ->
 	ModifiedAt = filelib:last_modified(source_path(Path)),
 	GeneratedAt = filelib:last_modified(Path),
 	case ModifiedAt > GeneratedAt of
-		true -> erlmarkdown:conv_file(source_path(Path), Path);
+		true -> markdown:conv_file(source_path(Path), Path);
 		false -> ok
 	end.
 
