@@ -18,8 +18,8 @@ jobs:
   cleanup-master:
     name: Cleanup master build
     runs-on: ubuntu-latest
-	permissions:
-	  actions: write
+    permissions:
+      actions: write
     steps:
 
     - name: Cleanup master build if necessary
