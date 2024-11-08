@@ -18,12 +18,12 @@ jobs:
   cleanup-master:
     name: Cleanup master build
     runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'schedule' }}
     permissions:
       actions: write
     steps:
 
     - name: Cleanup master build if necessary
-      if: ${{ github.event_name == 'schedule' }}
       run: |
         gh cache delete Linux-X64-Erlang-master -R $REPO || true
         gh cache delete macOS-ARM64-Erlang-master -R $REPO || true
@@ -34,6 +34,7 @@ jobs:
   check:
     name: Cowboy
     needs: cleanup-master
+    if: ${{ !cancelled() }}
     uses: ninenines/ci.erlang.mk/.github/workflows/ci.yaml@master
 
 # The examples test suite is nice to run but typically not
@@ -43,32 +44,19 @@ jobs:
 
   examples:
     name: Check examples
-    needs: check
     runs-on: 'ubuntu-latest'
-    if: ${{ !cancelled() }}
     steps:
 
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Output latest Erlang/OTP version
-      id: latest_version
-      run: |
-        {
-          echo "latest<<EOF"
-          make ci-list | grep -v rc | grep -v master | tail -n1
-          echo EOF
-        } >> "$GITHUB_OUTPUT"
-
-    - name: Restore CI cache
-      uses: actions/cache/restore@v4
+    - name: Install latest Erlang/OTP
+      uses: erlef/setup-beam@v1
       with:
-        path: |
-          ~/erlang/
-        key: ${{ runner.os }}-${{ runner.arch }}-Erlang-${{ steps.latest_version.outputs.latest }}
+        otp-version: latest
 
     - name: Run ct-examples
-      run: make ct-examples LATEST_ERLANG_OTP=1
+      run: make ct-examples
 
     - name: Upload logs
       uses: actions/upload-artifact@v4
