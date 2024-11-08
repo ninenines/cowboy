@@ -11,6 +11,10 @@ on:
       ## Every Monday at 2am.
       - cron: 0 2 * * 1
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 env:
   CI_ERLANG_MK: 1
 
