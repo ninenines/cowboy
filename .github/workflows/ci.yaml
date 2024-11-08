@@ -15,9 +15,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
-env:
-  CI_ERLANG_MK: 1
-
 jobs:
   cleanup-master:
     name: Cleanup master build
