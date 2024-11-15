@@ -18,7 +18,7 @@ For general discussion about this project, please open a ticket.
 Feedback is always welcome and may transform in tasks to improve
 the project, so having the discussion start there is a plus.
 
-Alternatively you may try the #ninenines IRC channel on Freenode,
+Alternatively you may try the https://discord.gg/x468ZsxG[Discord server]
 or, if you need the discussion to stay private, you can send an
 email at contact@ninenines.eu.
 
