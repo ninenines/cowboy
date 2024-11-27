@@ -779,8 +779,8 @@ graceful_shutdown_listener(Config) ->
 send_timeout_close(_Config) ->
 	doc("Check that connections are closed on send timeout."),
 	TransOpts = #{
-		port => 0,
 		socket_opts => [
+			{port, 0},
 			{send_timeout, 100},
 			{send_timeout_close, true},
 			{sndbuf, 10}
