@@ -42,6 +42,10 @@
 -type state() :: {binary(), {direct | archive, #file_info{}}
 	| {error, atom()}, extra()}.
 
+-define(DEFAULT_INDEX, <<"index.html">>).
+-define(DEFAULT_REDIR, 301).
+
+
 %% Resolve the file that will be sent and get its file information.
 %% If the handler is configured to manage a directory, check that the
 %% requested file is inside the configured directory.
@@ -180,7 +184,70 @@ fullpath([Segment|Tail], Acc) ->
 
 init_info(Req, Path, HowToAccess, Extra) ->
 	Info = read_file_info(Path, HowToAccess),
-	{cowboy_rest, Req, {Path, Info, Extra}}.
+	case Info of
+		{direct, #file_info{type = directory}} ->
+			ReqPath = cowboy_req:path(Req),
+			PrefixLen = max(byte_size(ReqPath)-1, 0),
+			case ReqPath of
+				<<_:PrefixLen/binary, $/>> ->
+					dir_with_slash(Req, ReqPath, Path,
+					               Info, Extra);
+				_ ->
+					dir_without_slash(Req, ReqPath, Path,
+					                  Info, Extra)
+			end;
+		_Other ->
+			{cowboy_rest, Req, {Path, Info, Extra}}
+	end.
+
+dir_without_slash(Req, ReqPath, FilePath, Info, Extra) ->
+	%% no ending slash - redirect to slashed version unless disabled
+	Opts = case lists:keyfind(directory_slash, 1, Extra) of
+			{directory_slash, X} -> X;
+			_ -> true   % note: enabled by default
+		end,
+	case slash_options(Opts) of
+		false ->
+			{cowboy_rest, Req, {FilePath, Info, Extra}};
+		Code when is_integer(Code) ->
+			local_redirect(<< ReqPath/binary, <<"/">>/binary >>,
+			               Code, Req)
+	end.
+
+slash_options(false) -> false;
+slash_options(true) -> slash_options(?DEFAULT_REDIR);
+slash_options(Code) when is_integer(Code) -> Code.
+
+dir_with_slash(Req, ReqPath, FilePath, Info, Extra) ->
+	%% URL ends in slash - it's a proper directory reference
+	%% so redirect to index file if enabled
+	Opts = case lists:keyfind(directory_index, 1, Extra) of
+			{directory_index, X} -> X;
+			_ -> false  % note: disabled by default
+	       end,
+	case index_options(Opts) of
+		false ->
+			{cowboy_rest, Req, {FilePath, Info, Extra}};
+		Module when is_atom(Module) ->
+			{Module, Req, Extra};
+		{Code, File} when is_binary(File) ->
+			%% TODO: also allow list of multiple possible file names
+			local_redirect(<< ReqPath/binary, File/binary >>,
+			               Code, Req)
+	end.
+
+index_options({_, File}=Opt) when is_binary(File) -> Opt;
+index_options(false) -> false;
+index_options(true) -> index_options(?DEFAULT_REDIR);
+index_options(Module) when is_atom(Module) -> Module;
+index_options(Code) when is_integer(Code) -> {Code, ?DEFAULT_INDEX};
+index_options(File) -> {?DEFAULT_REDIR, File}.
+
+local_redirect(NewPath, Code, Req) ->
+	NewURI = cowboy_req:uri(Req, #{path => NewPath}),
+	{ok,
+	 cowboy_req:reply(Code, #{<<"Location">> => NewURI}, <<>>, Req),
+	 []}.
 
 read_file_info(Path, direct) ->
 	case file:read_file_info(Path, [{time, universal}]) of
