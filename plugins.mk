@@ -3,7 +3,7 @@
 # Plain HTTP handlers.
 define tpl_cowboy.http
 -module($(n)).
--behavior(cowboy_handler).
+-behaviour(cowboy_handler).
 
 -export([init/2]).
 
@@ -14,7 +14,7 @@ endef
 # Loop handlers.
 define tpl_cowboy.loop
 -module($(n)).
--behavior(cowboy_loop).
+-behaviour(cowboy_loop).
 
 -export([init/2]).
 -export([info/3]).
@@ -29,7 +29,7 @@ endef
 # REST handlers.
 define tpl_cowboy.rest
 -module($(n)).
--behavior(cowboy_rest).
+-behaviour(cowboy_rest).
 
 -export([init/2]).
 -export([content_types_provided/2]).
@@ -50,7 +50,7 @@ endef
 # Websocket handlers.
 define tpl_cowboy.ws
 -module($(n)).
--behavior(cowboy_websocket).
+-behaviour(cowboy_websocket).
 
 -export([init/2]).
 -export([websocket_init/1]).
