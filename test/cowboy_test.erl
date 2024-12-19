@@ -89,9 +89,16 @@ common_all() ->
 	end.
 
 common_groups(Tests) ->
-	Opts = case os:getenv("NO_PARALLEL") of
-		false -> [parallel];
-		_ -> []
+	Parallel = case os:getenv("NO_PARALLEL") of
+		false -> parallel;
+		_ -> no_parallel
+	end,
+	common_groups(Tests, Parallel).
+
+common_groups(Tests, Parallel) ->
+	Opts = case Parallel of
+		parallel -> [parallel];
+		no_parallel -> []
 	end,
 	Groups = [
 		{http, Opts, Tests},
@@ -112,7 +119,6 @@ common_groups(Tests) ->
 		_ ->
 			Groups
 	end.
-
 
 init_common_groups(Name = http, Config, Mod) ->
 	init_http(Name, #{

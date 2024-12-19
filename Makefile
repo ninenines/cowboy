@@ -16,7 +16,7 @@ LOCAL_DEPS = crypto
 
 DEPS = cowlib ranch
 dep_cowlib = git https://github.com/ninenines/cowlib master
-dep_ranch = git https://github.com/ninenines/ranch 1.8.0
+dep_ranch = git https://github.com/ninenines/ranch 1.8.x
 
 ifeq ($(COWBOY_QUICER),1)
 DEPS += quicer

@@ -1,1 +1,5 @@
+# Don't include Erlang.mk in diffs.
 erlang.mk -diff
+
+# Don't change line endings in our test data on Windows.
+test/ws_perf_SUITE_data/*.txt -text
