@@ -18,28 +18,63 @@
 
 -import(ct_helper, [config/2]).
 -import(ct_helper, [doc/1]).
--import(cowboy_test, [gun_open/1]).
+-import(cowboy_test, [gun_open/2]).
 -import(cowboy_test, [gun_down/1]).
 
 %% ct.
 
 all() ->
-	ct_helper:all(?MODULE).
+	[{group, http}, {group, h2c}].
 
-init_per_suite(Config0) ->
-	Config = cowboy_test:init_http(?MODULE, #{
-		env => #{dispatch => init_dispatch()}
-	}, Config0),
+groups() ->
+	cowboy_test:common_groups(ct_helper:all(?MODULE), no_parallel).
+
+init_per_suite(Config) ->
 	{ok, LargeText} = file:read_file(filename:join(config(data_dir, Config), "grok_segond.txt")),
 	[{large_text, LargeText}|Config].
 
 end_per_suite(_Config) ->
 	ok.
 
+init_per_group(Name=http, Config) ->
+	ct:pal("Websocket over cleartext HTTP/1.1"),
+	cowboy_test:init_http(Name, #{
+		env => #{dispatch => init_dispatch(Config)}
+	}, [{flavor, vanilla}|Config]);
+init_per_group(Name=h2c, Config) ->
+	ct:pal("Websocket over cleartext HTTP/2"),
+	Config1 = cowboy_test:init_http(Name, #{
+		enable_connect_protocol => true,
+		env => #{dispatch => init_dispatch(Config)},
+		max_frame_size_received => 1048576
+	}, [{flavor, vanilla}|Config]),
+	lists:keyreplace(protocol, 1, Config1, {protocol, http2}).
+
+end_per_group(Name, _Config) ->
+	cowboy_test:stop_group(Name).
+
+%% Dispatch configuration.
+
+init_dispatch(_Config) ->
+	cowboy_router:compile([
+		{"localhost", [
+			{"/ws_echo", ws_echo, []}
+		]}
+	]).
+
 %% Support functions for testing using Gun.
 
 do_gun_open_ws(Config) ->
-	ConnPid = gun_open(Config),
+	ConnPid = gun_open(Config, #{http2_opts => #{
+		max_frame_size_received => 1048576,
+		notify_settings_changed => true
+	}}),
+	case config(protocol, Config) of
+		http -> ok;
+		http2 ->
+			{notify, settings_changed, #{enable_connect_protocol := true}}
+				= gun:await(ConnPid, undefined) %% @todo Maybe have a gun:await/1?
+	end,
 	StreamRef = gun:ws_upgrade(ConnPid, "/ws_echo"),
 	receive
 		{gun_upgrade, ConnPid, StreamRef, [<<"websocket">>], _} ->
@@ -56,18 +91,9 @@ receive_ws(ConnPid, StreamRef) ->
 	receive
 		{gun_ws, ConnPid, StreamRef, Frame} ->
 			{ok, Frame}
-	after 1000 ->
+	after 5000 ->
 		{error, timeout}
 	end.
-
-%% Dispatch configuration.
-
-init_dispatch() ->
-	cowboy_router:compile([
-		{"localhost", [
-			{"/ws_echo", ws_echo, []}
-		]}
-	]).
 
 %% Tests.
 
