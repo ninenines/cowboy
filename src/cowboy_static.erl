@@ -29,7 +29,7 @@
 -type extra_charset() :: {charset, module(), function()} | {charset, binary()}.
 -type extra_etag() :: {etag, module(), function()} | {etag, false}.
 -type extra_mimetypes() :: {mimetypes, module(), function()}
-	| {mimetypes, binary() | {binary(), binary(), [{binary(), binary()}]}}.
+	| {mimetypes, binary() | {binary(), binary(), '*' | [{binary(), binary()}]}}.
 -type extra() :: [extra_charset() | extra_etag() | extra_mimetypes()].
 -type opts() :: {file | dir, string() | binary()}
 	| {file | dir, string() | binary(), extra()}
@@ -332,7 +332,7 @@ forbidden(Req, State) ->
 %% Detect the mimetype of the file.
 
 -spec content_types_provided(Req, State)
-	-> {[{binary(), get_file}], Req, State}
+	-> {[{binary() | {binary(), binary(), '*' | [{binary(), binary()}]}, get_file}], Req, State}
 	when State::state().
 content_types_provided(Req, State={Path, _, Extra}) when is_list(Extra) ->
 	case lists:keyfind(mimetypes, 1, Extra) of
@@ -347,7 +347,7 @@ content_types_provided(Req, State={Path, _, Extra}) when is_list(Extra) ->
 %% Detect the charset of the file.
 
 -spec charsets_provided(Req, State)
-	-> {[binary()], Req, State}
+	-> {[binary()], Req, State} | no_call
 	when State::state().
 charsets_provided(Req, State={Path, _, Extra}) ->
 	case lists:keyfind(charset, 1, Extra) of
@@ -381,7 +381,7 @@ resource_exists(Req, State) ->
 %% Generate an etag for the file.
 
 -spec generate_etag(Req, State)
-	-> {{strong | weak, binary()}, Req, State}
+	-> {{strong | weak, binary() | undefined}, Req, State}
 	when State::state().
 generate_etag(Req, State={Path, {_, #file_info{size=Size, mtime=Mtime}},
 		Extra}) ->
@@ -408,7 +408,7 @@ last_modified(Req, State={_, {_, #file_info{mtime=Modified}}, _}) ->
 %% Stream the file.
 
 -spec get_file(Req, State)
-	-> {{sendfile, 0, non_neg_integer(), binary()}, Req, State}
+	-> {{sendfile, 0, non_neg_integer(), binary()} | binary(), Req, State}
 	when State::state().
 get_file(Req, State={Path, {direct, #file_info{size=Size}}, _}) ->
 	{{sendfile, 0, Size, Path}, Req, State};
