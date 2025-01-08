@@ -29,7 +29,7 @@
 -type extra_charset() :: {charset, module(), function()} | {charset, binary()}.
 -type extra_etag() :: {etag, module(), function()} | {etag, false}.
 -type extra_mimetypes() :: {mimetypes, module(), function()}
-	| {mimetypes, binary() | {binary(), binary(), [{binary(), binary()}]}}.
+	| {mimetypes, binary() | {binary(), binary(), [{binary(), binary()}] | '*'}}.
 -type extra() :: [extra_charset() | extra_etag() | extra_mimetypes()].
 -type opts() :: {file | dir, string() | binary()}
 	| {file | dir, string() | binary(), extra()}
@@ -332,7 +332,7 @@ forbidden(Req, State) ->
 %% Detect the mimetype of the file.
 
 -spec content_types_provided(Req, State)
-	-> {[{binary(), get_file}], Req, State}
+	-> {[{binary() | {binary(), binary(), [{binary(), binary()}] | '*'}, get_file}], Req, State}
 	when State::state().
 content_types_provided(Req, State={Path, _, Extra}) when is_list(Extra) ->
 	case lists:keyfind(mimetypes, 1, Extra) of
