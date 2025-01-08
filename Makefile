@@ -9,6 +9,7 @@ PROJECT_REGISTERED = cowboy_clock
 
 PLT_APPS = public_key ssl # ct_helper gun common_test inets
 CT_OPTS += -ct_hooks cowboy_ct_hook [] # -boot start_sasl
+#CT_OPTS += +JPperf true +S 1
 
 # Dependencies.
 

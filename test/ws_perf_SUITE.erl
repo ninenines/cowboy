@@ -37,6 +37,14 @@ groups() ->
 		{japanese, [], SubGroups}
 	].
 
+init_per_suite(Config) ->
+	%% Optionally enable `perf` for the current node.
+%	spawn(fun() -> ct:pal(os:cmd("perf record -g -F 9999 -o /tmp/ws_perf.data -p " ++ os:getpid() ++ " -- sleep 11")) end),
+	Config.
+
+end_per_suite(_Config) ->
+	ok.
+
 init_per_group(Name=http, Config) ->
 	ct:pal("Websocket over cleartext HTTP/1.1 (~s)",
 		[init_data_info(Config)]),
@@ -185,6 +193,8 @@ do_full(Config, What, Num, FrameSize) ->
 		text -> do_text_data(Config, FrameSize);
 		binary -> rand:bytes(FrameSize)
 	end,
+	%% Heat up the processes before doing the real run.
+%	do_full1(ConnPid, StreamRef, Num, FrameType, FrameData),
 	{Time, _} = timer:tc(?MODULE, do_full1, [ConnPid, StreamRef, Num, FrameType, FrameData]),
 	do_log("~-6s ~-6s ~6s: ~8bµs", [What, FrameType, do_format_size(FrameSize), Time]),
 	gun:ws_send(ConnPid, StreamRef, close),
