@@ -85,6 +85,14 @@
 	state :: {module, any()}
 }).
 
+%% We don't want to reset the idle timeout too often,
+%% so we don't reset it on data. Instead we reset the
+%% number of ticks we have observed. We divide the
+%% timeout value by a value and that value becomes
+%% the number of ticks at which point we can drop
+%% the connection. This value is the number of ticks.
+-define(IDLE_TIMEOUT_TICKS, 10).
+
 -record(state, {
 	parent = undefined :: pid(),
 	ref :: ranch:ref(),
@@ -95,6 +103,7 @@
 
 	%% Timer for idle_timeout; also used for goaway timers.
 	timer = undefined :: undefined | reference(),
+	idle_timeout_num = 0 :: 0..?IDLE_TIMEOUT_TICKS,
 
 	%% Remote address and port for the connection.
 	peer = undefined :: {inet:ip_address(), inet:port_number()},
@@ -166,7 +175,7 @@ init(Parent, Ref, Socket, Transport, ProxyHeader, Opts, Peer, Sock, Cert, Buffer
 	State = set_idle_timeout(init_rate_limiting(#state{parent=Parent, ref=Ref, socket=Socket,
 		transport=Transport, proxy_header=ProxyHeader,
 		opts=Opts, peer=Peer, sock=Sock, cert=Cert,
-		http2_status=sequence, http2_machine=HTTP2Machine})),
+		http2_status=sequence, http2_machine=HTTP2Machine}), 0),
 	safe_setopts_active(State),
 	case Buffer of
 		<<>> -> loop(State, Buffer);
@@ -222,7 +231,7 @@ init(Parent, Ref, Socket, Transport, ProxyHeader, Opts, Peer, Sock, Cert, Buffer
 		<<"connection">> => <<"Upgrade">>,
 		<<"upgrade">> => <<"h2c">>
 	}, ?MODULE, undefined}), %% @todo undefined or #{}?
-	State = set_idle_timeout(init_rate_limiting(State2#state{http2_status=sequence})),
+	State = set_idle_timeout(init_rate_limiting(State2#state{http2_status=sequence}), 0),
 	%% In the case of HTTP/1.1 Upgrade we cannot send the Preface
 	%% until we send the 101 response.
 	ok = maybe_socket_error(State, Transport:send(Socket, Preface)),
@@ -249,7 +258,7 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 	receive
 		%% Socket messages.
 		{OK, Socket, Data} when OK =:= element(1, Messages) ->
-			parse(set_idle_timeout(State), << Buffer/binary, Data/binary >>);
+			parse(State#state{idle_timeout_num=0}, << Buffer/binary, Data/binary >>);
 		{Closed, Socket} when Closed =:= element(2, Messages) ->
 			Reason = case State#state.http2_status of
 				closing -> {stop, closed, 'The client is going away.'};
@@ -273,8 +282,7 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 			sys:handle_system_msg(Request, From, Parent, ?MODULE, [], {State, Buffer});
 		%% Timeouts.
 		{timeout, TimerRef, idle_timeout} ->
-			terminate(State, {stop, timeout,
-				'Connection idle longer than configuration allows.'});
+			tick_idle_timeout(State, Buffer);
 		{timeout, Ref, {shutdown, Pid}} ->
 			cowboy_children:shutdown_timeout(Children, Ref, Pid),
 			loop(State, Buffer);
@@ -302,12 +310,24 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 		terminate(State, {internal_error, timeout, 'No message or data received before timeout.'})
 	end.
 
-set_idle_timeout(State=#state{http2_status=Status, timer=TimerRef})
+tick_idle_timeout(State=#state{idle_timeout_num=?IDLE_TIMEOUT_TICKS}, _) ->
+	terminate(State, {stop, timeout,
+		'Connection idle longer than configuration allows.'});
+tick_idle_timeout(State=#state{idle_timeout_num=TimeoutNum}, Buffer) ->
+	loop(set_idle_timeout(State, TimeoutNum + 1), Buffer).
+
+set_idle_timeout(State=#state{http2_status=Status, timer=TimerRef}, _)
 		when Status =:= closing_initiated orelse Status =:= closing,
 			TimerRef =/= undefined ->
 	State;
-set_idle_timeout(State=#state{opts=Opts}) ->
-	set_timeout(State, maps:get(idle_timeout, Opts, 60000), idle_timeout).
+set_idle_timeout(State=#state{opts=Opts}, TimeoutNum) ->
+	case maps:get(idle_timeout, Opts, 60000) of
+		infinity ->
+			State#state{timer=undefined};
+		Timeout ->
+			set_timeout(State#state{idle_timeout_num=TimeoutNum},
+				Timeout div ?IDLE_TIMEOUT_TICKS, idle_timeout)
+	end.
 
 set_timeout(State=#state{timer=TimerRef0}, Timeout, Message) ->
 	ok = case TimerRef0 of
@@ -323,7 +343,7 @@ set_timeout(State=#state{timer=TimerRef0}, Timeout, Message) ->
 maybe_reset_idle_timeout(State=#state{opts=Opts}) ->
 	case maps:get(reset_idle_timeout_on_send, Opts, false) of
 		true ->
-			set_idle_timeout(State);
+			State#state{idle_timeout_num=0};
 		false ->
 			State
 	end.

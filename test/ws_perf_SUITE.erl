@@ -39,7 +39,7 @@ groups() ->
 
 init_per_suite(Config) ->
 	%% Optionally enable `perf` for the current node.
-%	spawn(fun() -> ct:pal(os:cmd("perf record -g -F 9999 -o /tmp/ws_perf.data -p " ++ os:getpid() ++ " -- sleep 11")) end),
+%	spawn(fun() -> ct:pal(os:cmd("perf record -g -F 9999 -o /tmp/ws_perf.data -p " ++ os:getpid() ++ " -- sleep 60")) end),
 	Config.
 
 end_per_suite(_Config) ->
