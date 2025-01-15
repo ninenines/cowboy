@@ -51,7 +51,7 @@ end_per_group(Listener, _Config) ->
 
 init_dispatch() ->
 	cowboy_router:compile([
-		{"localhost", [
+		{"host.docker.internal", [
 			{"/ws_echo", ws_echo, []}
 		]}
 	]).
@@ -73,7 +73,15 @@ autobahn_fuzzingclient(Config) ->
 	end.
 
 do_start_port(Config, Pid) ->
-	Port = open_port({spawn, "wstest -m fuzzingclient -s " ++ config(data_dir, Config) ++ "client.json"},
+%	Cmd = "wstest -m fuzzingclient -s " ++ config(data_dir, Config) ++ "client.json",
+	Cmd = "sudo docker run --rm "
+		"-v " ++ config(data_dir, Config) ++ "/client.json:/client.json "
+		"-v " ++ config(priv_dir, Config) ++ "/reports:/reports "
+		"--add-host=host.docker.internal:host-gateway "
+		"--name fuzzingclient "
+		"crossbario/autobahn-testsuite "
+		"wstest -m fuzzingclient -s client.json",
+	Port = open_port({spawn, Cmd},
 		[{line, 10000}, {cd, config(priv_dir, Config)}, binary, eof]),
 	do_receive_infinity(Port, Pid).
 
