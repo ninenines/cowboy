@@ -138,7 +138,9 @@ commands() :: [Command]
 
 Command :: {active, boolean()}
          | {deflate, boolean()}
-         | {set_options, #{idle_timeout => timeout()}}
+         | {set_options, #{
+             idle_timeout => timeout(),
+             max_frame_size => non_neg_integer() | infinity}}
          | {shutdown_reason, any()}
          | Frame :: cow_ws:frame()
 ----
@@ -159,8 +161,8 @@ effect on connections that did not negotiate compression.
 
 set_options::
 
-Set Websocket options. Currently only the option `idle_timeout`
-may be updated from a Websocket handler.
+Set Websocket options. Currently only the options `idle_timeout`
+and `max_frame_size` may be updated from a Websocket handler.
 
 shutdown_reason::
 
@@ -285,6 +287,7 @@ normal circumstances if necessary.
 
 == Changelog
 
+* *2.13*: The `max_frame_size` option can now be set dynamically.
 * *2.11*: Websocket over HTTP/2 is now considered stable.
 * *2.11*: HTTP/1.1 Websocket no longer traps exits by default.
 * *2.8*: The `active_n` option was added.

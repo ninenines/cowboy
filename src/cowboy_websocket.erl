@@ -615,14 +615,16 @@ commands([{active, Active}|Tail], State0=#state{active=Active0}, Data) when is_b
 	commands(Tail, State#state{active=Active}, Data);
 commands([{deflate, Deflate}|Tail], State, Data) when is_boolean(Deflate) ->
 	commands(Tail, State#state{deflate=Deflate}, Data);
-commands([{set_options, SetOpts}|Tail], State0=#state{opts=Opts}, Data) ->
-	State = case SetOpts of
-		#{idle_timeout := IdleTimeout} ->
+commands([{set_options, SetOpts}|Tail], State0, Data) ->
+	State = maps:fold(fun
+		(idle_timeout, IdleTimeout, StateF=#state{opts=Opts}) ->
 			%% We reset the number of ticks when changing the idle_timeout option.
-			set_idle_timeout(State0#state{opts=Opts#{idle_timeout => IdleTimeout}}, 0);
-		_ ->
-			State0
-	end,
+			set_idle_timeout(StateF#state{opts=Opts#{idle_timeout => IdleTimeout}}, 0);
+		(max_frame_size, MaxFrameSize, StateF=#state{opts=Opts}) ->
+			StateF#state{opts=Opts#{max_frame_size => MaxFrameSize}};
+		(_, _, StateF) ->
+			StateF
+	end, State0, SetOpts),
 	commands(Tail, State, Data);
 commands([{shutdown_reason, ShutdownReason}|Tail], State, Data) ->
 	commands(Tail, State#state{shutdown_reason=ShutdownReason}, Data);
