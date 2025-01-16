@@ -296,6 +296,41 @@ websocket_set_options_idle_timeout(Config) ->
 		error(timeout)
 	end.
 
+websocket_set_options_max_frame_size(Config) ->
+	doc("The max_frame_size option can be modified using the "
+		"command {set_options, Opts} at runtime."),
+	ConnPid = gun_open(Config),
+	StreamRef = gun:ws_upgrade(ConnPid, "/set_options"),
+	receive
+		{gun_upgrade, ConnPid, StreamRef, [<<"websocket">>], _} ->
+			ok;
+		{gun_response, ConnPid, _, _, Status, Headers} ->
+			exit({ws_upgrade_failed, Status, Headers});
+		{gun_error, ConnPid, StreamRef, Reason} ->
+			exit({ws_upgrade_failed, Reason})
+	after 1000 ->
+		error(timeout)
+	end,
+	%% We first send a 1MB frame to confirm that yes, we can
+	%% send a frame that large. The default max_frame_size is infinity.
+	gun:ws_send(ConnPid, StreamRef, {binary, <<0:8000000>>}),
+	{ws, {binary, <<0:8000000>>}} = gun:await(ConnPid, StreamRef),
+	%% Trigger the change in max_frame_size. From now on we will
+	%% only allow frames of up to 1000 bytes.
+	gun:ws_send(ConnPid, StreamRef, {text, <<"max_frame_size_small">>}),
+	%% Confirm that we can send frames of up to 1000 bytes.
+	gun:ws_send(ConnPid, StreamRef, {binary, <<0:8000>>}),
+	{ws, {binary, <<0:8000>>}} = gun:await(ConnPid, StreamRef),
+	%% Confirm that sending frames larger than 1000 bytes
+	%% results in the closing of the connection.
+	gun:ws_send(ConnPid, StreamRef, {binary, <<0:8008>>}),
+	receive
+		{gun_down, ConnPid, _, _, _} ->
+			ok
+	after 2000 ->
+		error(timeout)
+	end.
+
 websocket_shutdown_reason(Config) ->
 	doc("The command {shutdown_reason, any()} can be used to "
 		"change the shutdown reason of a Websocket connection."),
