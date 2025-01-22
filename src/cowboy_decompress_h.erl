@@ -66,10 +66,11 @@ data(StreamID, IsFin, Data, State=#state{next=Next0, enabled=false, read_body_bu
 	{Commands, Next} = cowboy_stream:data(StreamID, IsFin,
 		buffer_to_binary([Data|Buffer]), Next0),
 	fold(Commands, State#state{next=Next, read_body_is_fin=IsFin});
-data(StreamID, IsFin, Data, State0=#state{next=Next0, ratio_limit=RatioLimit,
+data(StreamID, IsFin, Data0, State0=#state{next=Next0, ratio_limit=RatioLimit,
 		inflate=Z, is_reading=true, read_body_buffer=Buffer}) ->
+	Data = buffer_to_iovec([Data0|Buffer]),
 	Limit = iolist_size(Data) * RatioLimit,
-	case cow_deflate:inflate(Z, buffer_to_iovec([Data|Buffer]), Limit) of
+	case cow_deflate:inflate(Z, Data, Limit) of
 		{error, ErrorType} ->
 			zlib:close(Z),
 			Status = case ErrorType of
