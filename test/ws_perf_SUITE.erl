@@ -29,7 +29,7 @@ all() ->
 groups() ->
 	CommonGroups = cowboy_test:common_groups(ct_helper:all(?MODULE), no_parallel),
 	SubGroups = [G || G = {GN, _, _} <- CommonGroups,
-		GN =:= http orelse GN =:= h2c],
+		GN =:= http orelse GN =:= h2c orelse GN =:= http_compress orelse GN =:= h2c_compress],
 	[
 		{binary, [], SubGroups},
 		{ascii, [], SubGroups},
@@ -45,16 +45,16 @@ init_per_suite(Config) ->
 end_per_suite(_Config) ->
 	ok.
 
-init_per_group(Name=http, Config) ->
-	ct:pal("Websocket over cleartext HTTP/1.1 (~s)",
-		[init_data_info(Config)]),
-	cowboy_test:init_http(Name, #{
-		env => #{dispatch => init_dispatch(Config)}
-	}, [{flavor, vanilla}|Config]);
-init_per_group(Name=h2c, Config) ->
-	ct:pal("Websocket over cleartext HTTP/2 (~s)",
-		[init_data_info(Config)]),
-	Config1 = cowboy_test:init_http(Name, #{
+init_per_group(Name, Config) when Name =:= http; Name =:= http_compress ->
+	init_info(Name, Config),
+	cowboy_test:init_common_groups(Name, Config, ?MODULE);
+init_per_group(Name, Config) when Name =:= h2c; Name =:= h2c_compress ->
+	init_info(Name, Config),
+	{Flavor, Opts} = case Name of
+		h2c -> {vanilla, #{}};
+		h2c_compress -> {compress, #{stream_handlers => [cowboy_compress_h, cowboy_stream_h]}}
+	end,
+	Config1 = cowboy_test:init_http(Name, Opts#{
 		connection_window_margin_size => 64*1024,
 		enable_connect_protocol => true,
 		env => #{dispatch => init_dispatch(Config)},
@@ -62,7 +62,7 @@ init_per_group(Name=h2c, Config) ->
 		max_frame_size_received => 16384 * 1024 - 1,
 		stream_window_data_threshold => 1024,
 		stream_window_margin_size => 64*1024
-	}, [{flavor, vanilla}|Config]),
+	}, [{flavor, Flavor}|Config]),
 	lists:keyreplace(protocol, 1, Config1, {protocol, http2});
 init_per_group(ascii, Config) ->
 	init_text_data("ascii.txt", Config);
@@ -73,11 +73,18 @@ init_per_group(japanese, Config) ->
 init_per_group(binary, Config) ->
 	[{frame_type, binary}|Config].
 
-init_data_info(Config) ->
-	case config(frame_type, Config) of
+init_info(Name, Config) ->
+	DataInfo = case config(frame_type, Config) of
 		text -> config(text_data_filename, Config);
 		binary -> binary
-	end.
+	end,
+	ConnInfo = case Name of
+		http -> "cleartext HTTP/1.1";
+		http_compress -> "cleartext HTTP/1.1 with compression";
+		h2c -> "cleartext HTTP/2";
+		h2c_compress -> "cleartext HTTP/2 with compression"
+	end,
+	ct:pal("Websocket over ~s (~s)", [ConnInfo, DataInfo]).
 
 init_text_data(Filename, Config) ->
 	{ok, Text} = file:read_file(filename:join(config(data_dir, Config), Filename)),
@@ -103,7 +110,6 @@ init_dispatch(_Config) ->
 
 do_gun_open_ws(Config) ->
 	ConnPid = gun_open(Config, #{
-		tcp_opts => [{nodelay, true}],
 		http2_opts => #{
 			connection_window_margin_size => 64*1024,
 			max_frame_size_sent => 64*1024,
@@ -111,7 +117,9 @@ do_gun_open_ws(Config) ->
 			notify_settings_changed => true,
 			stream_window_data_threshold => 1024,
 			stream_window_margin_size => 64*1024
-		}
+		},
+		tcp_opts => [{nodelay, true}],
+		ws_opts => #{compress => config(flavor, Config) =:= compress}
 	}),
 	case config(protocol, Config) of
 		http -> ok;
