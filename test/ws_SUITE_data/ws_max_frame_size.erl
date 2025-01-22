@@ -5,7 +5,7 @@
 -export([websocket_info/2]).
 
 init(Req, State) ->
-	{cowboy_websocket, Req, State, #{max_frame_size => 8}}.
+	{cowboy_websocket, Req, State, #{max_frame_size => 8, compress => true}}.
 
 websocket_handle({text, Data}, State) ->
 	{[{text, Data}], State};
