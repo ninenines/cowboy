@@ -480,12 +480,16 @@ parse_header(State=#state{opts=Opts, frag_state=FragState, extensions=Extensions
 			websocket_close(State, HandlerState, {error, badframe})
 	end.
 
-parse_payload(State=#state{frag_state=FragState, utf8_state=Incomplete, extensions=Extensions},
+parse_payload(State=#state{opts=Opts, frag_state=FragState, utf8_state=Incomplete, extensions=Extensions},
 		HandlerState, ParseState=#ps_payload{
 			type=Type, len=Len, mask_key=MaskKey, rsv=Rsv,
 			unmasked=Unmasked, unmasked_len=UnmaskedLen}, Data) ->
+	MaxFrameSize = case maps:get(max_frame_size, Opts, infinity) of
+		infinity -> infinity;
+		MaxFrameSize0 -> MaxFrameSize0 - UnmaskedLen
+	end,
 	case cow_ws:parse_payload(Data, MaskKey, Incomplete, UnmaskedLen,
-			Type, Len, FragState, Extensions, Rsv) of
+			Type, Len, FragState, Extensions#{max_inflate_size => MaxFrameSize}, Rsv) of
 		{ok, CloseCode, Payload, Utf8State, Rest} ->
 			dispatch_frame(State#state{utf8_state=Utf8State}, HandlerState,
 				ParseState#ps_payload{unmasked= <<Unmasked/binary, Payload/binary>>,
