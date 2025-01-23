@@ -35,7 +35,7 @@ guarantee that the experience will be safe and smooth. You are advised
 to perform the necessary testing and security audits prior to deploying
 on other platforms.
 
-Cowboy is developed for Erlang/OTP 22.0 and newer.
+Cowboy is developed for Erlang/OTP 24.0 and newer.
 
 === License
 
