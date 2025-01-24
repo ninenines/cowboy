@@ -295,6 +295,7 @@ set_timeout(State=#state{streams=[], in_state=InState}, idle_timeout)
 		when element(1, InState) =/= ps_body ->
 	State;
 %% Otherwise we can set the timeout.
+%% @todo Don't do this so often, use a strategy similar to Websocket/H2 if possible.
 set_timeout(State0=#state{opts=Opts, overriden_opts=Override}, Name) ->
 	State = cancel_timeout(State0),
 	Default = case Name of
