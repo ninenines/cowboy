@@ -462,7 +462,7 @@ filter_cookies(Names0, Req=#{headers := Headers}) ->
 	case header(<<"cookie">>, Req) of
 		undefined -> Req;
 		Value0 ->
-			Cookies0 = binary:split(Value0, <<$;>>),
+			Cookies0 = binary:split(Value0, <<$;>>, [global]),
 			Cookies = lists:filter(fun(Cookie) ->
 				lists:member(cookie_name(Cookie), Names)
 			end, Cookies0),
