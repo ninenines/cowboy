@@ -28,6 +28,9 @@
 	compress_buffering => boolean(),
 	compress_threshold => non_neg_integer(),
 	connection_type => worker | supervisor,
+	dynamic_buffer => false | {pos_integer(), pos_integer()},
+	dynamic_buffer_initial_average => non_neg_integer(),
+	dynamic_buffer_initial_size => pos_integer(),
 	env => cowboy_middleware:env(),
 	http10_keepalive => boolean(),
 	idle_timeout => timeout(),
@@ -137,6 +140,10 @@
 	%% Flow requested for the current stream.
 	flow = infinity :: non_neg_integer() | infinity,
 
+	%% Dynamic buffer moving average and current buffer size.
+	dynamic_buffer_size :: pos_integer() | false,
+	dynamic_buffer_moving_average :: non_neg_integer(),
+
 	%% Identifier for the stream currently being written.
 	%% Note that out_streamid =< in_streamid.
 	out_streamid = 1 :: pos_integer(),
@@ -181,12 +188,16 @@ init(Parent, Ref, Socket, Transport, ProxyHeader, Opts) ->
 		parent=Parent, ref=Ref, socket=Socket,
 		transport=Transport, proxy_header=ProxyHeader, opts=Opts,
 		peer=Peer, sock=Sock, cert=Cert,
+		dynamic_buffer_size=init_dynamic_buffer_size(Opts),
+		dynamic_buffer_moving_average=maps:get(dynamic_buffer_initial_average, Opts, 0),
 		last_streamid=maps:get(max_keepalive, Opts, 1000)},
 	safe_setopts_active(State),
 	loop(set_timeout(State, request_timeout)).
 
+-include("cowboy_dynamic_buffer.hrl").
+
 setopts_active(#state{socket=Socket, transport=Transport, opts=Opts}) ->
-	N = maps:get(active_n, Opts, 100),
+	N = maps:get(active_n, Opts, 1),
 	Transport:setopts(Socket, [{active, N}]).
 
 safe_setopts_active(State) ->
@@ -220,11 +231,13 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport, opts=Opts,
 	receive
 		%% Discard data coming in after the last request
 		%% we want to process was received fully.
-		{OK, Socket, _} when OK =:= element(1, Messages), InStreamID > LastStreamID ->
-			loop(State);
+		{OK, Socket, Data} when OK =:= element(1, Messages), InStreamID > LastStreamID ->
+			State1 = maybe_resize_buffer(State, Data),
+			loop(State1);
 		%% Socket messages.
 		{OK, Socket, Data} when OK =:= element(1, Messages) ->
-			parse(<< Buffer/binary, Data/binary >>, State);
+			State1 = maybe_resize_buffer(State, Data),
+			parse(<< Buffer/binary, Data/binary >>, State1);
 		{Closed, Socket} when Closed =:= element(2, Messages) ->
 			terminate(State, {socket_error, closed, 'The socket has been closed.'});
 		{Error, Socket, Reason} when Error =:= element(3, Messages) ->
@@ -885,12 +898,12 @@ is_http2_upgrade(_, _) ->
 
 %% Prior knowledge upgrade, without an HTTP/1.1 request.
 http2_upgrade(State=#state{parent=Parent, ref=Ref, socket=Socket, transport=Transport,
-		proxy_header=ProxyHeader, opts=Opts, peer=Peer, sock=Sock, cert=Cert}, Buffer) ->
+		proxy_header=ProxyHeader, peer=Peer, sock=Sock, cert=Cert}, Buffer) ->
 	case Transport:secure() of
 		false ->
 			_ = cancel_timeout(State),
-			cowboy_http2:init(Parent, Ref, Socket, Transport,
-				ProxyHeader, Opts, Peer, Sock, Cert, Buffer);
+			cowboy_http2:init(Parent, Ref, Socket, Transport, ProxyHeader,
+				opts_for_upgrade(State), Peer, Sock, Cert, Buffer);
 		true ->
 			error_terminate(400, State, {connection_error, protocol_error,
 				'Clients that support HTTP/2 over TLS MUST use ALPN. (RFC7540 3.4)'})
@@ -898,7 +911,7 @@ http2_upgrade(State=#state{parent=Parent, ref=Ref, socket=Socket, transport=Tran
 
 %% Upgrade via an HTTP/1.1 request.
 http2_upgrade(State=#state{parent=Parent, ref=Ref, socket=Socket, transport=Transport,
-		proxy_header=ProxyHeader, opts=Opts, peer=Peer, sock=Sock, cert=Cert},
+		proxy_header=ProxyHeader, peer=Peer, sock=Sock, cert=Cert},
 		Buffer, HTTP2Settings, Req) ->
 	%% @todo
 	%% However if the client sent a body, we need to read the body in full
@@ -907,12 +920,19 @@ http2_upgrade(State=#state{parent=Parent, ref=Ref, socket=Socket, transport=Tran
 	try cow_http_hd:parse_http2_settings(HTTP2Settings) of
 		Settings ->
 			_ = cancel_timeout(State),
-			cowboy_http2:init(Parent, Ref, Socket, Transport,
-				ProxyHeader, Opts, Peer, Sock, Cert, Buffer, Settings, Req)
+			cowboy_http2:init(Parent, Ref, Socket, Transport, ProxyHeader,
+				opts_for_upgrade(State), Peer, Sock, Cert, Buffer, Settings, Req)
 	catch _:_ ->
 		error_terminate(400, State, {connection_error, protocol_error,
 			'The HTTP2-Settings header must contain a base64 SETTINGS payload. (RFC7540 3.2, RFC7540 3.2.1)'})
 	end.
+
+opts_for_upgrade(#state{opts=Opts, dynamic_buffer_size=Size,
+		dynamic_buffer_moving_average=MovingAvg}) ->
+	Opts#{
+		dynamic_buffer_initial_average => MovingAvg,
+		dynamic_buffer_initial_size => Size
+	}.
 
 %% Request body parsing.
 
@@ -1210,7 +1230,7 @@ commands(State0=#state{socket=Socket, transport=Transport, streams=Streams, out_
 	commands(State, StreamID, Tail);
 %% Protocol takeover.
 commands(State0=#state{ref=Ref, parent=Parent, socket=Socket, transport=Transport,
-		out_state=OutState, opts=Opts, buffer=Buffer, children=Children}, StreamID,
+		out_state=OutState, buffer=Buffer, children=Children}, StreamID,
 		[{switch_protocol, Headers, Protocol, InitialState}|_Tail]) ->
 	%% @todo If there's streams opened after this one, fail instead of 101.
 	State1 = cancel_timeout(State0),
@@ -1234,7 +1254,8 @@ commands(State0=#state{ref=Ref, parent=Parent, socket=Socket, transport=Transpor
 	%% Turn off the trap_exit process flag
 	%% since this process will no longer be a supervisor.
 	process_flag(trap_exit, false),
-	Protocol:takeover(Parent, Ref, Socket, Transport, Opts, Buffer, InitialState);
+	Protocol:takeover(Parent, Ref, Socket, Transport,
+		opts_for_upgrade(State), Buffer, InitialState);
 %% Set options dynamically.
 commands(State0=#state{overriden_opts=Opts},
 		StreamID, [{set_options, SetOpts}|Tail]) ->
@@ -1370,22 +1391,22 @@ stream_terminate(State0=#state{opts=Opts, in_streamid=InStreamID, in_state=InSta
 
 stream_next(State0=#state{opts=Opts, active=Active, out_streamid=OutStreamID, streams=Streams}) ->
 	NextOutStreamID = OutStreamID + 1,
+	State1 = case Active of
+		true -> State0;
+		false -> active(State0)
+	end,
 	case lists:keyfind(NextOutStreamID, #stream.id, Streams) of
 		false ->
-			State = State0#state{out_streamid=NextOutStreamID, out_state=wait},
+			State = State1#state{out_streamid=NextOutStreamID, out_state=wait},
 			%% There are no streams remaining. We therefore can
 			%% and want to switch back to the request_timeout.
 			set_timeout(State, request_timeout);
 		#stream{queue=Commands} ->
-			State = case Active of
-				true -> State0;
-				false -> active(State0)
-			end,
 			%% @todo Remove queue from the stream.
 			%% We set the flow to the initial flow size even though
 			%% we might have sent some data through already due to pipelining.
 			Flow = maps:get(initial_stream_flow_size, Opts, 65535),
-			commands(State#state{flow=Flow, out_streamid=NextOutStreamID, out_state=wait},
+			commands(State1#state{flow=Flow, out_streamid=NextOutStreamID, out_state=wait},
 				NextOutStreamID, Commands)
 	end.
 

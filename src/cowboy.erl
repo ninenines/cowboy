@@ -51,8 +51,12 @@
 
 start_clear(Ref, TransOpts0, ProtoOpts0) ->
 	TransOpts1 = ranch:normalize_opts(TransOpts0),
-	{TransOpts, ConnectionType} = ensure_connection_type(TransOpts1),
-	ProtoOpts = ProtoOpts0#{connection_type => ConnectionType},
+	{TransOpts2, DynamicBuffer} = ensure_dynamic_buffer(TransOpts1, ProtoOpts0),
+	{TransOpts, ConnectionType} = ensure_connection_type(TransOpts2),
+	ProtoOpts = ProtoOpts0#{
+		connection_type => ConnectionType,
+		dynamic_buffer => DynamicBuffer
+	},
 	ranch:start_listener(Ref, ranch_tcp, TransOpts, cowboy_clear, ProtoOpts).
 
 -spec start_tls(ranch:ref(), ranch:opts(), opts())
@@ -60,12 +64,13 @@ start_clear(Ref, TransOpts0, ProtoOpts0) ->
 
 start_tls(Ref, TransOpts0, ProtoOpts0) ->
 	TransOpts1 = ranch:normalize_opts(TransOpts0),
-	SocketOpts = maps:get(socket_opts, TransOpts1, []),
-	TransOpts2 = TransOpts1#{socket_opts => [
-		{alpn_preferred_protocols, [<<"h2">>, <<"http/1.1">>]}
-	|SocketOpts]},
-	{TransOpts, ConnectionType} = ensure_connection_type(TransOpts2),
-	ProtoOpts = ProtoOpts0#{connection_type => ConnectionType},
+	{TransOpts2, DynamicBuffer} = ensure_dynamic_buffer(TransOpts1, ProtoOpts0),
+	TransOpts3 = ensure_alpn(TransOpts2),
+	{TransOpts, ConnectionType} = ensure_connection_type(TransOpts3),
+	ProtoOpts = ProtoOpts0#{
+		connection_type => ConnectionType,
+		dynamic_buffer => DynamicBuffer
+	},
 	ranch:start_listener(Ref, ranch_ssl, TransOpts, cowboy_tls, ProtoOpts).
 
 %% @todo Experimental function to start a barebone QUIC listener.
@@ -77,6 +82,7 @@ start_tls(Ref, TransOpts0, ProtoOpts0) ->
 -spec start_quic(ranch:ref(), #{socket_opts => [{atom(), _}]}, cowboy_http3:opts())
 	-> {ok, pid()}.
 
+%% @todo Implement dynamic_buffer for HTTP/3 if/when it applies.
 start_quic(Ref, TransOpts, ProtoOpts) ->
 	{ok, _} = application:ensure_all_started(quicer),
 	Parent = self(),
@@ -139,10 +145,31 @@ port_0() ->
 	end,
 	Port.
 
+ensure_alpn(TransOpts) ->
+	SocketOpts = maps:get(socket_opts, TransOpts, []),
+	TransOpts#{socket_opts => [
+		{alpn_preferred_protocols, [<<"h2">>, <<"http/1.1">>]}
+	|SocketOpts]}.
+
 ensure_connection_type(TransOpts=#{connection_type := ConnectionType}) ->
 	{TransOpts, ConnectionType};
 ensure_connection_type(TransOpts) ->
 	{TransOpts#{connection_type => supervisor}, supervisor}.
+
+%% Dynamic buffer was set; accept transport options as-is.
+%% Note that initial 'buffer' size may be lower than dynamic buffer allows.
+ensure_dynamic_buffer(TransOpts, #{dynamic_buffer := DynamicBuffer}) ->
+	{TransOpts, DynamicBuffer};
+%% Dynamic buffer was not set; define default dynamic buffer
+%% only if 'buffer' size was not configured. In that case we
+%% set the 'buffer' size to the lowest value.
+ensure_dynamic_buffer(TransOpts=#{socket_opts := SocketOpts}, _) ->
+	case proplists:get_value(buffer, SocketOpts, undefined) of
+		undefined ->
+			{TransOpts#{socket_opts => [{buffer, 8192}|SocketOpts]}, {8192, 131072}};
+		_ ->
+			{TransOpts, false}
+	end.
 
 -spec stop_listener(ranch:ref()) -> ok | {error, not_found}.
 
