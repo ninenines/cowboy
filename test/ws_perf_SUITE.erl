@@ -60,6 +60,7 @@ init_per_group(Name, Config) when Name =:= h2c; Name =:= h2c_compress ->
 		env => #{dispatch => init_dispatch(Config)},
 		max_frame_size_sent => 64*1024,
 		max_frame_size_received => 16384 * 1024 - 1,
+		max_received_frame_rate => {10_000_000, 1},
 		stream_window_data_threshold => 1024,
 		stream_window_margin_size => 64*1024
 	}, [{flavor, Flavor}|Config]),
@@ -102,13 +103,14 @@ end_per_group(Name, _Config) ->
 init_dispatch(_Config) ->
 	cowboy_router:compile([
 		{"localhost", [
-			{"/ws_echo", ws_echo, []}
+			{"/ws_echo", ws_echo, []},
+			{"/ws_ignore", ws_ignore, []}
 		]}
 	]).
 
 %% Support functions for testing using Gun.
 
-do_gun_open_ws(Config) ->
+do_gun_open_ws(Path, Config) ->
 	ConnPid = gun_open(Config, #{
 		http2_opts => #{
 			connection_window_margin_size => 64*1024,
@@ -127,7 +129,7 @@ do_gun_open_ws(Config) ->
 			{notify, settings_changed, #{enable_connect_protocol := true}}
 				= gun:await(ConnPid, undefined) %% @todo Maybe have a gun:await/1?
 	end,
-	StreamRef = gun:ws_upgrade(ConnPid, "/ws_echo"),
+	StreamRef = gun:ws_upgrade(ConnPid, Path),
 	receive
 		{gun_upgrade, ConnPid, StreamRef, [<<"websocket">>], _} ->
 			{ok, ConnPid, StreamRef};
@@ -149,72 +151,140 @@ receive_ws(ConnPid, StreamRef) ->
 
 %% Tests.
 
-one_00064KiB(Config) ->
+echo_1_00064KiB(Config) ->
 	doc("Send and receive a 64KiB frame."),
-	do_full(Config, one, 1, 64 * 1024).
+	do_echo(Config, echo_1, 1, 64 * 1024).
 
-one_00256KiB(Config) ->
+echo_1_00256KiB(Config) ->
 	doc("Send and receive a 256KiB frame."),
-	do_full(Config, one, 1, 256 * 1024).
+	do_echo(Config, echo_1, 1, 256 * 1024).
 
-one_01024KiB(Config) ->
+echo_1_01024KiB(Config) ->
 	doc("Send and receive a 1024KiB frame."),
-	do_full(Config, one, 1, 1024 * 1024).
+	do_echo(Config, echo_1, 1, 1024 * 1024).
 
-one_04096KiB(Config) ->
+echo_1_04096KiB(Config) ->
 	doc("Send and receive a 4096KiB frame."),
-	do_full(Config, one, 1, 4096 * 1024).
+	do_echo(Config, echo_1, 1, 4096 * 1024).
 
 %% Minus one because frames can only get so big.
-one_16384KiB(Config) ->
+echo_1_16384KiB(Config) ->
 	doc("Send and receive a 16384KiB - 1 frame."),
-	do_full(Config, one, 1, 16384 * 1024 - 1).
+	do_echo(Config, echo_1, 1, 16384 * 1024 - 1).
 
-repeat_00000B(Config) ->
+echo_N_00000B(Config) ->
 	doc("Send and receive a 0B frame 1000 times."),
-	do_full(Config, repeat, 1000, 0).
+	do_echo(Config, echo_N, 1000, 0).
 
-repeat_00256B(Config) ->
+echo_N_00256B(Config) ->
 	doc("Send and receive a 256B frame 1000 times."),
-	do_full(Config, repeat, 1000, 256).
+	do_echo(Config, echo_N, 1000, 256).
 
-repeat_01024B(Config) ->
+echo_N_01024B(Config) ->
 	doc("Send and receive a 1024B frame 1000 times."),
-	do_full(Config, repeat, 1000, 1024).
+	do_echo(Config, echo_N, 1000, 1024).
 
-repeat_04096B(Config) ->
+echo_N_04096B(Config) ->
 	doc("Send and receive a 4096B frame 1000 times."),
-	do_full(Config, repeat, 1000, 4096).
+	do_echo(Config, echo_N, 1000, 4096).
 
-repeat_16384B(Config) ->
+echo_N_16384B(Config) ->
 	doc("Send and receive a 16384B frame 1000 times."),
-	do_full(Config, repeat, 1000, 16384).
+	do_echo(Config, echo_N, 1000, 16384).
 
-%repeat_16384B_10K(Config) ->
+%echo_N_16384B_10K(Config) ->
 %	doc("Send and receive a 16384B frame 10000 times."),
-%	do_full(Config, repeat, 10000, 16384).
+%	do_echo(Config, echo_N, 10000, 16384).
 
-do_full(Config, What, Num, FrameSize) ->
-	{ok, ConnPid, StreamRef} = do_gun_open_ws(Config),
+do_echo(Config, What, Num, FrameSize) ->
+	{ok, ConnPid, StreamRef} = do_gun_open_ws("/ws_echo", Config),
 	FrameType = config(frame_type, Config),
 	FrameData = case FrameType of
 		text -> do_text_data(Config, FrameSize);
 		binary -> rand:bytes(FrameSize)
 	end,
 	%% Heat up the processes before doing the real run.
-%	do_full1(ConnPid, StreamRef, Num, FrameType, FrameData),
-	{Time, _} = timer:tc(?MODULE, do_full1, [ConnPid, StreamRef, Num, FrameType, FrameData]),
+%	do_echo_loop(ConnPid, StreamRef, Num, FrameType, FrameData),
+	{Time, _} = timer:tc(?MODULE, do_echo_loop, [ConnPid, StreamRef, Num, FrameType, FrameData]),
 	do_log("~-6s ~-6s ~6s: ~8bµs", [What, FrameType, do_format_size(FrameSize), Time]),
 	gun:ws_send(ConnPid, StreamRef, close),
 	{ok, close} = receive_ws(ConnPid, StreamRef),
 	gun_down(ConnPid).
 
-do_full1(_, _, 0, _, _) ->
+do_echo_loop(_, _, 0, _, _) ->
 	ok;
-do_full1(ConnPid, StreamRef, Num, FrameType, FrameData) ->
+do_echo_loop(ConnPid, StreamRef, Num, FrameType, FrameData) ->
 	gun:ws_send(ConnPid, StreamRef, {FrameType, FrameData}),
 	{ok, {FrameType, FrameData}} = receive_ws(ConnPid, StreamRef),
-	do_full1(ConnPid, StreamRef, Num - 1, FrameType, FrameData).
+	do_echo_loop(ConnPid, StreamRef, Num - 1, FrameType, FrameData).
+
+send_1_00064KiB(Config) ->
+	doc("Send a 64KiB frame."),
+	do_send(Config, send_1, 1, 64 * 1024).
+
+send_1_00256KiB(Config) ->
+	doc("Send a 256KiB frame."),
+	do_send(Config, send_1, 1, 256 * 1024).
+
+send_1_01024KiB(Config) ->
+	doc("Send a 1024KiB frame."),
+	do_send(Config, send_1, 1, 1024 * 1024).
+
+send_1_04096KiB(Config) ->
+	doc("Send a 4096KiB frame."),
+	do_send(Config, send_1, 1, 4096 * 1024).
+
+%% Minus one because frames can only get so big.
+send_1_16384KiB(Config) ->
+	doc("Send a 16384KiB - 1 frame."),
+	do_send(Config, send_1, 1, 16384 * 1024 - 1).
+
+send_N_00000B(Config) ->
+	doc("Send a 0B frame 10000 times."),
+	do_send(Config, send_N, 10000, 0).
+
+send_N_00256B(Config) ->
+	doc("Send a 256B frame 10000 times."),
+	do_send(Config, send_N, 10000, 256).
+
+send_N_01024B(Config) ->
+	doc("Send a 1024B frame 10000 times."),
+	do_send(Config, send_N, 10000, 1024).
+
+send_N_04096B(Config) ->
+	doc("Send a 4096B frame 10000 times."),
+	do_send(Config, send_N, 10000, 4096).
+
+send_N_16384B(Config) ->
+	doc("Send a 16384B frame 10000 times."),
+	do_send(Config, send_N, 10000, 16384).
+
+%send_N_16384B_10K(Config) ->
+%	doc("Send and receive a 16384B frame 10000 times."),
+%	do_send(Config, send_N, 10000, 16384).
+
+do_send(Config, What, Num, FrameSize) ->
+	{ok, ConnPid, StreamRef} = do_gun_open_ws("/ws_ignore", Config),
+	FrameType = config(frame_type, Config),
+	FrameData = case FrameType of
+		text -> do_text_data(Config, FrameSize);
+		binary -> rand:bytes(FrameSize)
+	end,
+	%% Heat up the processes before doing the real run.
+%	do_send_loop(ConnPid, StreamRef, Num, FrameType, FrameData),
+	{Time, _} = timer:tc(?MODULE, do_send_loop, [ConnPid, StreamRef, Num, FrameType, FrameData]),
+	do_log("~-6s ~-6s ~6s: ~8bµs", [What, FrameType, do_format_size(FrameSize), Time]),
+	gun:ws_send(ConnPid, StreamRef, close),
+	{ok, close} = receive_ws(ConnPid, StreamRef),
+	gun_down(ConnPid).
+
+do_send_loop(ConnPid, StreamRef, 0, _, _) ->
+	gun:ws_send(ConnPid, StreamRef, {text, <<"CHECK">>}),
+	{ok, {text, <<"CHECK">>}} = receive_ws(ConnPid, StreamRef),
+	ok;
+do_send_loop(ConnPid, StreamRef, Num, FrameType, FrameData) ->
+	gun:ws_send(ConnPid, StreamRef, {FrameType, FrameData}),
+	do_send_loop(ConnPid, StreamRef, Num - 1, FrameType, FrameData).
 
 %% Internal.
 
