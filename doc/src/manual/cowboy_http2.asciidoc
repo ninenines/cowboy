@@ -21,6 +21,7 @@ opts() :: #{
     connection_type                => worker | supervisor,
     connection_window_margin_size  => 0..16#7fffffff,
     connection_window_update_threshold => 0..16#7fffffff,
+    dynamic_buffer                 => false | {pos_integer(), pos_integer()},
     enable_connect_protocol        => boolean(),
     goaway_initial_timeout         => timeout(),
     goaway_complete_timeout        => timeout(),
@@ -66,7 +67,7 @@ Ranch functions `ranch:get_protocol_options/1` and
 
 The default value is given next to the option name:
 
-active_n (100)::
+active_n (1)::
 
 The number of packets Cowboy will request from the socket at once.
 This can be used to tweak the performance of the server. Higher
@@ -90,6 +91,17 @@ connection_window_update_threshold (163840)::
 The connection window will only get updated when its size
 becomes lower than this threshold, in bytes. This is to
 avoid sending too many `WINDOW_UPDATE` frames.
+
+dynamic_buffer ({8192, 131072})::
+
+Cowboy will dynamically change the socket's `buffer` size
+depending on the size of the data it receives from the socket.
+This lets Cowboy use the optimal buffer size for the current
+workload.
++
+The dynamic buffer size functionality can be disabled by
+setting this option to `false`. Cowboy will also disable
+it by default when the `buffer` transport option is configured.
 
 enable_connect_protocol (false)::
 
@@ -289,6 +301,8 @@ too many `WINDOW_UPDATE` frames.
 
 == Changelog
 
+* *2.13*: The `active_n` default value was changed to `1`.
+* *2.13*: The `dynamic_buffer` option was added.
 * *2.11*: Websocket over HTTP/2 is now considered stable.
 * *2.11*: The `reset_idle_timeout_on_send` option was added.
 * *2.11*: Add the option `max_cancel_stream_rate` to protect

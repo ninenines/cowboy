@@ -69,6 +69,9 @@
 	active_n => pos_integer(),
 	compress => boolean(),
 	deflate_opts => cow_ws:deflate_opts(),
+	dynamic_buffer => false | {pos_integer(), pos_integer()},
+	dynamic_buffer_initial_average => non_neg_integer(),
+	dynamic_buffer_initial_size => pos_integer(),
 	idle_timeout => timeout(),
 	max_frame_size => non_neg_integer() | infinity,
 	req_filter => fun((cowboy_req:req()) -> map()),
@@ -97,6 +100,11 @@
 	timeout_num = 0 :: 0..?IDLE_TIMEOUT_TICKS,
 	messages = undefined :: undefined | {atom(), atom(), atom()}
 		| {atom(), atom(), atom(), atom()},
+
+	%% Dynamic buffer moving average and current buffer size.
+	dynamic_buffer_size = false :: pos_integer() | false,
+	dynamic_buffer_moving_average = 0 :: non_neg_integer(),
+
 	hibernate = false :: boolean(),
 	frag_state = undefined :: cow_ws:frag_state(),
 	frag_buffer = <<>> :: binary(),
@@ -270,7 +278,7 @@ websocket_handshake(State, Req=#{ref := Ref, pid := Pid, streamid := StreamID},
 	%% @todo We don't want date and server headers.
 	Headers = cowboy_req:response_headers(#{}, Req),
 	Pid ! {{Pid, StreamID}, {switch_protocol, Headers, ?MODULE, {State, HandlerState}}},
-	takeover(Pid, Ref, {Pid, StreamID}, undefined, undefined, <<>>,
+	takeover(Pid, Ref, {Pid, StreamID}, undefined, #{}, <<>>,
 		{State, HandlerState}).
 
 %% Connection process.
@@ -295,8 +303,8 @@ websocket_handshake(State, Req=#{ref := Ref, pid := Pid, streamid := StreamID},
 -spec takeover(pid(), ranch:ref(), inet:socket() | {pid(), cowboy_stream:streamid()},
 	module() | undefined, any(), binary(),
 	{#state{}, any()}) -> no_return().
-takeover(Parent, Ref, Socket, Transport, _Opts, Buffer,
-		{State0=#state{handler=Handler, req=Req}, HandlerState}) ->
+takeover(Parent, Ref, Socket, Transport, Opts, Buffer,
+		{State0=#state{opts=WsOpts, handler=Handler, req=Req}, HandlerState}) ->
 	case Req of
 		#{version := 'HTTP/3'} -> ok;
 		%% @todo We should have an option to disable this behavior.
@@ -308,7 +316,11 @@ takeover(Parent, Ref, Socket, Transport, _Opts, Buffer,
 	end,
 	State = set_idle_timeout(State0#state{parent=Parent,
 		ref=Ref, socket=Socket, transport=Transport,
-		key=undefined, messages=Messages}, 0),
+		opts=WsOpts#{dynamic_buffer => maps:get(dynamic_buffer, Opts, false)},
+		key=undefined, messages=Messages,
+		%% Dynamic buffer only applies to HTTP/1.1 Websocket.
+		dynamic_buffer_size=init_dynamic_buffer_size(Opts),
+		dynamic_buffer_moving_average=maps:get(dynamic_buffer_initial_average, Opts, 0)}, 0),
 	%% We call parse_header/3 immediately because there might be
 	%% some data in the buffer that was sent along with the handshake.
 	%% While it is not allowed by the protocol to send frames immediately,
@@ -318,6 +330,12 @@ takeover(Parent, Ref, Socket, Transport, _Opts, Buffer,
 			websocket_init, undefined, fun after_init/3);
 		false -> after_init(State, HandlerState, #ps_header{buffer=Buffer})
 	end.
+
+-include("cowboy_dynamic_buffer.hrl").
+
+%% @todo Implement early socket error detection.
+maybe_socket_error(_, _) ->
+	ok.
 
 after_init(State=#state{active=true}, HandlerState, ParseState) ->
 	%% Enable active,N for HTTP/1.1, and auto read_body for HTTP/2.
@@ -340,7 +358,7 @@ after_init(State, HandlerState, ParseState) ->
 setopts_active(#state{transport=undefined}) ->
 	ok;
 setopts_active(#state{socket=Socket, transport=Transport, opts=Opts}) ->
-	N = maps:get(active_n, Opts, 100),
+	N = maps:get(active_n, Opts, 1),
 	Transport:setopts(Socket, [{active, N}]).
 
 maybe_read_body(#state{socket=Stream={Pid, _}, transport=undefined, active=true}) ->
@@ -414,7 +432,8 @@ loop(State=#state{parent=Parent, socket=Socket, messages=Messages,
 	receive
 		%% Socket messages. (HTTP/1.1)
 		{OK, Socket, Data} when OK =:= element(1, Messages) ->
-			parse(?reset_idle_timeout(State), HandlerState, ParseState, Data);
+			State1 = maybe_resize_buffer(State, Data),
+			parse(?reset_idle_timeout(State1), HandlerState, ParseState, Data);
 		{Closed, Socket} when Closed =:= element(2, Messages) ->
 			terminate(State, HandlerState, {error, closed});
 		{Error, Socket, Reason} when Error =:= element(3, Messages) ->

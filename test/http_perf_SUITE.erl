@@ -32,7 +32,7 @@ groups() ->
 init_per_suite(Config) ->
 	do_log("", []),
 	%% Optionally enable `perf` for the current node.
-%	spawn(fun() -> ct:pal(os:cmd("perf record -g -F 9999 -o /tmp/ws_perf.data -p " ++ os:getpid() ++ " -- sleep 60")) end),
+%	spawn(fun() -> ct:pal(os:cmd("perf record -g -F 9999 -o /tmp/http_perf.data -p " ++ os:getpid() ++ " -- sleep 60")) end),
 	Config.
 
 end_per_suite(_) ->
@@ -43,7 +43,16 @@ init_per_group(Name, Config) ->
 		%% HTTP/1.1
 		max_keepalive => infinity,
 		%% HTTP/2
-		max_received_frame_rate => {10_000_000, 1}
+		%% @todo Must configure Gun for performance too.
+		connection_window_margin_size => 64*1024,
+		enable_connect_protocol => true,
+		env => #{dispatch => init_dispatch(Config)},
+		max_frame_size_sent => 64*1024,
+		max_frame_size_received => 16384 * 1024 - 1,
+		max_received_frame_rate => {10_000_000, 1},
+		stream_window_data_threshold => 1024,
+		stream_window_margin_size => 64*1024
+
 	})].
 
 end_per_group(Name, _) ->
@@ -54,10 +63,19 @@ end_per_group(Name, _) ->
 
 init_dispatch(_) ->
 	cowboy_router:compile([{'_', [
-		{"/", hello_h, []}
+		{"/", hello_h, []},
+		{"/read_body", read_body_h, []}
 	]}]).
 
-%% Tests.
+%% Tests: Hello world.
+
+plain_h_hello_1(Config) ->
+	doc("Plain HTTP handler Hello World; 10K requests per 1 client."),
+	do_bench_get(?FUNCTION_NAME, "/", #{}, 1, 10000, Config).
+
+plain_h_hello_10(Config) ->
+	doc("Plain HTTP handler Hello World; 10K requests per 10 clients."),
+	do_bench_get(?FUNCTION_NAME, "/", #{}, 10, 10000, Config).
 
 stream_h_hello_1(Config) ->
 	doc("Stream handler Hello World; 10K requests per 1 client."),
@@ -81,51 +99,86 @@ do_stream_h_hello(Config, NumClients) ->
 	do_bench_get(?FUNCTION_NAME, "/", #{}, NumClients, 10000, Config),
 	ranch:set_protocol_options(Ref, ProtoOpts).
 
-plain_h_hello_1(Config) ->
-	doc("Plain HTTP handler Hello World; 10K requests per 1 client."),
-	do_bench_get(?FUNCTION_NAME, "/", #{}, 1, 10000, Config).
+%% Tests: Large body upload.
 
-plain_h_hello_10(Config) ->
-	doc("Plain HTTP handler Hello World; 10K requests per 10 clients."),
-	do_bench_get(?FUNCTION_NAME, "/", #{}, 10, 10000, Config).
+plain_h_1M_post_1(Config) ->
+	doc("Plain HTTP handler body reading; 100 requests per 1 client."),
+	do_bench_post(?FUNCTION_NAME, "/read_body", #{}, <<0:8_000_000>>, 1, 10000, Config).
+
+plain_h_1M_post_10(Config) ->
+	doc("Plain HTTP handler body reading; 100 requests per 10 clients."),
+	do_bench_post(?FUNCTION_NAME, "/read_body", #{}, <<0:8_000_000>>, 10, 10000, Config).
 
 %% Internal.
 
 do_bench_get(What, Path, Headers, NumClients, NumRuns, Config) ->
-	Clients = [spawn_link(?MODULE, do_bench_proc, [self(), What, Path, Headers, NumRuns, Config])
+	Clients = [spawn_link(?MODULE, do_bench_get_proc,
+		[self(), What, Path, Headers, NumRuns, Config])
 		|| _ <- lists:seq(1, NumClients)],
 	_ = [receive {What, ready} -> ok end || _ <- Clients],
-	{Time, _} = timer:tc(?MODULE, do_bench_get1, [What, Clients]),
+	{Time, _} = timer:tc(?MODULE, do_bench_wait, [What, Clients]),
 	do_log("~32s: ~8bµs ~8.1freqs/s", [
 		[atom_to_list(config(group, Config)), $., atom_to_list(What)],
 		Time,
 		(NumClients * NumRuns) / Time * 1_000_000]),
 	ok.
 
-do_bench_get1(What, Clients) ->
-	_ = [ClientPid ! {What, go} || ClientPid <- Clients],
-	_ = [receive {What, done} -> ok end || _ <- Clients],
-	ok.
-
-do_bench_proc(Parent, What, Path, Headers0, NumRuns, Config) ->
+do_bench_get_proc(Parent, What, Path, Headers0, NumRuns, Config) ->
 	ConnPid = gun_open(Config),
 	Headers = Headers0#{<<"accept-encoding">> => <<"gzip">>},
 	Parent ! {What, ready},
 	receive {What, go} -> ok end,
-	do_bench_run(ConnPid, Path, Headers, NumRuns),
+	do_bench_get_run(ConnPid, Path, Headers, NumRuns),
 	Parent ! {What, done},
 	gun:close(ConnPid).
 
-do_bench_run(_, _, _, 0) ->
+do_bench_get_run(_, _, _, 0) ->
 	ok;
-do_bench_run(ConnPid, Path, Headers, Num) ->
+do_bench_get_run(ConnPid, Path, Headers, Num) ->
 	Ref = gun:request(ConnPid, <<"GET">>, Path, Headers, <<>>),
 	{response, IsFin, 200, _RespHeaders} = gun:await(ConnPid, Ref, infinity),
 	{ok, _} = case IsFin of
 		nofin -> gun:await_body(ConnPid, Ref, infinity);
 		fin -> {ok, <<>>}
 	end,
-	do_bench_run(ConnPid, Path, Headers, Num - 1).
+	do_bench_get_run(ConnPid, Path, Headers, Num - 1).
+
+do_bench_post(What, Path, Headers, Body, NumClients, NumRuns, Config) ->
+	Clients = [spawn_link(?MODULE, do_bench_post_proc,
+		[self(), What, Path, Headers, Body, NumRuns, Config])
+		|| _ <- lists:seq(1, NumClients)],
+	_ = [receive {What, ready} -> ok end || _ <- Clients],
+	{Time, _} = timer:tc(?MODULE, do_bench_wait, [What, Clients]),
+	do_log("~32s: ~8bµs ~8.1freqs/s", [
+		[atom_to_list(config(group, Config)), $., atom_to_list(What)],
+		Time,
+		(NumClients * NumRuns) / Time * 1_000_000]),
+	ok.
+
+do_bench_post_proc(Parent, What, Path, Headers0, Body, NumRuns, Config) ->
+	ConnPid = gun_open(Config),
+	Headers = Headers0#{<<"accept-encoding">> => <<"gzip">>},
+	Parent ! {What, ready},
+	receive {What, go} -> ok end,
+	do_bench_post_run(ConnPid, Path, Headers, Body, NumRuns),
+	Parent ! {What, done},
+	gun:close(ConnPid).
+
+do_bench_post_run(_, _, _, _, 0) ->
+	ok;
+do_bench_post_run(ConnPid, Path, Headers, Body, Num) ->
+	Ref = gun:request(ConnPid, <<"POST">>, Path, Headers, Body),
+	{response, IsFin, 200, _RespHeaders} = gun:await(ConnPid, Ref, infinity),
+	{ok, _} = case IsFin of
+		nofin -> gun:await_body(ConnPid, Ref, infinity);
+		fin -> {ok, <<>>}
+	end,
+	do_bench_post_run(ConnPid, Path, Headers, Body, Num - 1).
+
+do_bench_wait(What, Clients) ->
+	_ = [ClientPid ! {What, go} || ClientPid <- Clients],
+	_ = [receive {What, done} -> ok end || _ <- Clients],
+	ok.
 
 do_log(Str, Args) ->
 	ct:log(Str, Args),

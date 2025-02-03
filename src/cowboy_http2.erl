@@ -29,6 +29,9 @@
 	connection_type => worker | supervisor,
 	connection_window_margin_size => 0..16#7fffffff,
 	connection_window_update_threshold => 0..16#7fffffff,
+	dynamic_buffer => false | {pos_integer(), pos_integer()},
+	dynamic_buffer_initial_average => non_neg_integer(),
+	dynamic_buffer_initial_size => pos_integer(),
 	enable_connect_protocol => boolean(),
 	env => cowboy_middleware:env(),
 	goaway_initial_timeout => timeout(),
@@ -133,6 +136,10 @@
 	%% Flow requested for all streams.
 	flow = 0 :: non_neg_integer(),
 
+	%% Dynamic buffer moving average and current buffer size.
+	dynamic_buffer_size :: pos_integer() | false,
+	dynamic_buffer_moving_average :: non_neg_integer(),
+
 	%% Currently active HTTP/2 streams. Streams may be initiated either
 	%% by the client or by the server through PUSH_PROMISE frames.
 	streams = #{} :: #{cow_http2:streamid() => #stream{}},
@@ -169,12 +176,15 @@ init(Parent, Ref, Socket, Transport, ProxyHeader, Opts) ->
 	{inet:ip_address(), inet:port_number()}, {inet:ip_address(), inet:port_number()},
 	binary() | undefined, binary()) -> ok.
 init(Parent, Ref, Socket, Transport, ProxyHeader, Opts, Peer, Sock, Cert, Buffer) ->
+	DynamicBuffer = init_dynamic_buffer_size(Opts),
 	{ok, Preface, HTTP2Machine} = cow_http2_machine:init(server, Opts),
 	%% Send the preface before doing all the init in case we get a socket error.
 	ok = maybe_socket_error(undefined, Transport:send(Socket, Preface)),
 	State = set_idle_timeout(init_rate_limiting(#state{parent=Parent, ref=Ref, socket=Socket,
 		transport=Transport, proxy_header=ProxyHeader,
 		opts=Opts, peer=Peer, sock=Sock, cert=Cert,
+		dynamic_buffer_size=DynamicBuffer,
+		dynamic_buffer_moving_average=maps:get(dynamic_buffer_initial_average, Opts, 0),
 		http2_status=sequence, http2_machine=HTTP2Machine}), 0),
 	safe_setopts_active(State),
 	case Buffer of
@@ -216,12 +226,15 @@ add_period(Time, Period) -> Time + Period.
 	binary() | undefined, binary(), map() | undefined, cowboy_req:req()) -> ok.
 init(Parent, Ref, Socket, Transport, ProxyHeader, Opts, Peer, Sock, Cert, Buffer,
 		_Settings, Req=#{method := Method}) ->
+	DynamicBuffer = init_dynamic_buffer_size(Opts),
 	{ok, Preface, HTTP2Machine0} = cow_http2_machine:init(server, Opts),
 	{ok, StreamID, HTTP2Machine}
 		= cow_http2_machine:init_upgrade_stream(Method, HTTP2Machine0),
 	State0 = #state{parent=Parent, ref=Ref, socket=Socket,
 		transport=Transport, proxy_header=ProxyHeader,
 		opts=Opts, peer=Peer, sock=Sock, cert=Cert,
+		dynamic_buffer_size=DynamicBuffer,
+		dynamic_buffer_moving_average=maps:get(dynamic_buffer_initial_average, Opts, 0),
 		http2_status=upgrade, http2_machine=HTTP2Machine},
 	State1 = headers_frame(State0#state{
 		http2_machine=HTTP2Machine}, StreamID, Req),
@@ -241,11 +254,14 @@ init(Parent, Ref, Socket, Transport, ProxyHeader, Opts, Peer, Sock, Cert, Buffer
 		_ -> parse(State, Buffer)
 	end.
 
+-include("cowboy_dynamic_buffer.hrl").
+
 %% Because HTTP/2 has flow control and Cowboy has other rate limiting
 %% mechanisms implemented, a very large active_n value should be fine,
 %% as long as the stream handlers do their work in a timely manner.
+%% However large active_n values reduce the impact of dynamic_buffer.
 setopts_active(#state{socket=Socket, transport=Transport, opts=Opts}) ->
-	N = maps:get(active_n, Opts, 100),
+	N = maps:get(active_n, Opts, 1),
 	Transport:setopts(Socket, [{active, N}]).
 
 safe_setopts_active(State) ->
@@ -258,7 +274,8 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 	receive
 		%% Socket messages.
 		{OK, Socket, Data} when OK =:= element(1, Messages) ->
-			parse(State#state{idle_timeout_num=0}, << Buffer/binary, Data/binary >>);
+			State1 = maybe_resize_buffer(State, Data),
+			parse(State1#state{idle_timeout_num=0}, << Buffer/binary, Data/binary >>);
 		{Closed, Socket} when Closed =:= element(2, Messages) ->
 			Reason = case State#state.http2_status of
 				closing -> {stop, closed, 'The client is going away.'};

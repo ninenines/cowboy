@@ -203,6 +203,7 @@ opts() :: #{
     active_n       => pos_integer(),
     compress       => boolean(),
     deflate_opts   => cow_ws:deflate_opts()
+    dynamic_buffer => false | {pos_integer(), pos_integer()},
     idle_timeout   => timeout(),
     max_frame_size => non_neg_integer() | infinity,
     req_filter     => fun((cowboy_req:req()) -> map()),
@@ -224,7 +225,7 @@ init(Req, State) ->
 
 The default value is given next to the option name:
 
-active_n (100)::
+active_n (1)::
 
 The number of packets Cowboy will request from the socket at once.
 This can be used to tweak the performance of the server. Higher
@@ -247,6 +248,17 @@ extension. Allows configuring both the negotiated
 options and the zlib compression options. The
 defaults optimize the compression at the expense
 of some memory and CPU.
+
+dynamic_buffer ({8192, 131072})::
+
+Cowboy will dynamically change the socket's `buffer` size
+depending on the size of the data it receives from the socket.
+This lets Cowboy use the optimal buffer size for the current
+workload.
++
+The dynamic buffer size functionality can be disabled by
+setting this option to `false`. Cowboy will also disable
+it by default when the `buffer` transport option is configured.
 
 idle_timeout (60000)::
 
@@ -287,6 +299,8 @@ normal circumstances if necessary.
 
 == Changelog
 
+* *2.13*: The `active_n` default value was changed to `1`.
+* *2.13*: The `dynamic_buffer` option was added.
 * *2.13*: The `max_frame_size` option can now be set dynamically.
 * *2.11*: Websocket over HTTP/2 is now considered stable.
 * *2.11*: HTTP/1.1 Websocket no longer traps exits by default.

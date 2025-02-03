@@ -20,6 +20,7 @@ opts() :: #{
     active_n                   => pos_integer(),
     chunked                    => boolean(),
     connection_type            => worker | supervisor,
+    dynamic_buffer             => false | {pos_integer(), pos_integer()},
     http10_keepalive           => boolean(),
     idle_timeout               => timeout(),
     inactivity_timeout         => timeout(),
@@ -53,7 +54,7 @@ Ranch functions `ranch:get_protocol_options/1` and
 
 The default value is given next to the option name:
 
-active_n (100)::
+active_n (1)::
 
 The number of packets Cowboy will request from the socket at once.
 This can be used to tweak the performance of the server. Higher
@@ -74,6 +75,17 @@ This option can be updated at any time using the
 connection_type (supervisor)::
 
 Whether the connection process also acts as a supervisor.
+
+dynamic_buffer ({8192, 131072})::
+
+Cowboy will dynamically change the socket's `buffer` size
+depending on the size of the data it receives from the socket.
+This lets Cowboy use the optimal buffer size for the current
+workload.
++
+The dynamic buffer size functionality can be disabled by
+setting this option to `false`. Cowboy will also disable
+it by default when the `buffer` transport option is configured.
 
 http10_keepalive (true)::
 
@@ -166,6 +178,8 @@ Ordered list of stream handlers that will handle all stream events.
 
 == Changelog
 
+* *2.13*: The `active_n` default value was changed to `1`.
+* *2.13*: The `dynamic_buffer` option was added.
 * *2.11*: The `reset_idle_timeout_on_send` option was added.
 * *2.8*: The `active_n` option was added.
 * *2.7*: The `initial_stream_flow_size` and `logger` options were added.
