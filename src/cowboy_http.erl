@@ -1392,23 +1392,24 @@ stream_terminate(State0=#state{opts=Opts, in_streamid=InStreamID, in_state=InSta
 	end.
 
 stream_next(State0=#state{opts=Opts, active=Active, out_streamid=OutStreamID, streams=Streams}) ->
+	%% Enable active mode again if it was disabled.
+	State1 = case Active of
+		true -> State0;
+		false -> active(State0)
+	end,
 	NextOutStreamID = OutStreamID + 1,
 	case lists:keyfind(NextOutStreamID, #stream.id, Streams) of
 		false ->
-			State = State0#state{out_streamid=NextOutStreamID, out_state=wait},
+			State = State1#state{out_streamid=NextOutStreamID, out_state=wait},
 			%% There are no streams remaining. We therefore can
 			%% and want to switch back to the request_timeout.
 			set_timeout(State, request_timeout);
 		#stream{queue=Commands} ->
-			State = case Active of
-				true -> State0;
-				false -> active(State0)
-			end,
 			%% @todo Remove queue from the stream.
 			%% We set the flow to the initial flow size even though
 			%% we might have sent some data through already due to pipelining.
 			Flow = maps:get(initial_stream_flow_size, Opts, 65535),
-			commands(State#state{flow=Flow, out_streamid=NextOutStreamID, out_state=wait},
+			commands(State1#state{flow=Flow, out_streamid=NextOutStreamID, out_state=wait},
 				NextOutStreamID, Commands)
 	end.
 
