@@ -249,7 +249,7 @@ options and the zlib compression options. The
 defaults optimize the compression at the expense
 of some memory and CPU.
 
-dynamic_buffer ({8192, 131072})::
+dynamic_buffer ({1024, 131072})::
 
 Cowboy will dynamically change the socket's `buffer` size
 depending on the size of the data it receives from the socket.

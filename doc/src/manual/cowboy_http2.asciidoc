@@ -92,7 +92,7 @@ The connection window will only get updated when its size
 becomes lower than this threshold, in bytes. This is to
 avoid sending too many `WINDOW_UPDATE` frames.
 
-dynamic_buffer ({8192, 131072})::
+dynamic_buffer ({1024, 131072})::
 
 Cowboy will dynamically change the socket's `buffer` size
 depending on the size of the data it receives from the socket.
