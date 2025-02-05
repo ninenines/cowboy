@@ -59,7 +59,7 @@ include erlang.mk
 # Don't run the examples/autobahn test suites by default.
 
 ifndef FULL
-CT_SUITES := $(filter-out examples ws_autobahn,$(CT_SUITES))
+CT_SUITES := $(filter-out examples http_perf ws_autobahn ws_perf,$(CT_SUITES))
 endif
 
 # Don't run HTTP/3 test suites on Windows.
