@@ -102,12 +102,16 @@ do_stream_h_hello(Config, NumClients) ->
 %% Tests: Large body upload.
 
 plain_h_1M_post_1(Config) ->
-	doc("Plain HTTP handler body reading; 100 requests per 1 client."),
+	doc("Plain HTTP handler body reading; 10K requests per 1 client."),
 	do_bench_post(?FUNCTION_NAME, "/read_body", #{}, <<0:8_000_000>>, 1, 10000, Config).
 
 plain_h_1M_post_10(Config) ->
-	doc("Plain HTTP handler body reading; 100 requests per 10 clients."),
+	doc("Plain HTTP handler body reading; 10K requests per 10 clients."),
 	do_bench_post(?FUNCTION_NAME, "/read_body", #{}, <<0:8_000_000>>, 10, 10000, Config).
+
+plain_h_10G_post(Config) ->
+	doc("Plain HTTP handler body reading; 1 request with a 10GB body."),
+	do_bench_post_one_large(?FUNCTION_NAME, "/read_body", #{}, 10_000, <<0:8_000_000>>, Config).
 
 %% Internal.
 
@@ -115,7 +119,6 @@ do_bench_get(What, Path, Headers, NumClients, NumRuns, Config) ->
 	Clients = [spawn_link(?MODULE, do_bench_get_proc,
 		[self(), What, Path, Headers, NumRuns, Config])
 		|| _ <- lists:seq(1, NumClients)],
-	_ = [receive {What, ready} -> ok end || _ <- Clients],
 	{Time, _} = timer:tc(?MODULE, do_bench_wait, [What, Clients]),
 	do_log("~32s: ~8bµs ~8.1freqs/s", [
 		[atom_to_list(config(group, Config)), $., atom_to_list(What)],
@@ -147,7 +150,6 @@ do_bench_post(What, Path, Headers, Body, NumClients, NumRuns, Config) ->
 	Clients = [spawn_link(?MODULE, do_bench_post_proc,
 		[self(), What, Path, Headers, Body, NumRuns, Config])
 		|| _ <- lists:seq(1, NumClients)],
-	_ = [receive {What, ready} -> ok end || _ <- Clients],
 	{Time, _} = timer:tc(?MODULE, do_bench_wait, [What, Clients]),
 	do_log("~32s: ~8bµs ~8.1freqs/s", [
 		[atom_to_list(config(group, Config)), $., atom_to_list(What)],
@@ -175,7 +177,41 @@ do_bench_post_run(ConnPid, Path, Headers, Body, Num) ->
 	end,
 	do_bench_post_run(ConnPid, Path, Headers, Body, Num - 1).
 
+do_bench_post_one_large(What, Path, Headers, NumChunks, BodyChunk, Config) ->
+	Client = spawn_link(?MODULE, do_bench_post_one_large_proc,
+		[self(), What, Path, Headers, NumChunks, BodyChunk, Config]),
+	{Time, _} = timer:tc(?MODULE, do_bench_wait, [What, [Client]]),
+	do_log("~32s: ~8bµs ~8.1freqs/s", [
+		[atom_to_list(config(group, Config)), $., atom_to_list(What)],
+		Time,
+		1 / Time * 1_000_000]),
+	ok.
+
+do_bench_post_one_large_proc(Parent, What, Path, Headers0, NumChunks, BodyChunk, Config) ->
+	ConnPid = gun_open(Config),
+	Headers = Headers0#{<<"accept-encoding">> => <<"gzip">>},
+	Parent ! {What, ready},
+	receive {What, go} -> ok end,
+	StreamRef = gun:headers(ConnPid, <<"POST">>, Path, Headers#{
+		<<"content-length">> => integer_to_binary(NumChunks * byte_size(BodyChunk))
+	}),
+	do_bench_post_one_large_run(ConnPid, StreamRef, NumChunks - 1, BodyChunk),
+	{response, IsFin, 200, _RespHeaders} = gun:await(ConnPid, StreamRef, infinity),
+	{ok, _} = case IsFin of
+		nofin -> gun:await_body(ConnPid, StreamRef, infinity);
+		fin -> {ok, <<>>}
+	end,
+	Parent ! {What, done},
+	gun:close(ConnPid).
+
+do_bench_post_one_large_run(ConnPid, StreamRef, 0, BodyChunk) ->
+	gun:data(ConnPid, StreamRef, fin, BodyChunk);
+do_bench_post_one_large_run(ConnPid, StreamRef, NumChunks, BodyChunk) ->
+	gun:data(ConnPid, StreamRef, nofin, BodyChunk),
+	do_bench_post_one_large_run(ConnPid, StreamRef, NumChunks - 1, BodyChunk).
+
 do_bench_wait(What, Clients) ->
+	_ = [receive {What, ready} -> ok end || _ <- Clients],
 	_ = [ClientPid ! {What, go} || ClientPid <- Clients],
 	_ = [receive {What, done} -> ok end || _ <- Clients],
 	ok.
