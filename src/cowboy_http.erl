@@ -436,8 +436,8 @@ after_parse({data, StreamID, IsFin, Data, State0=#state{opts=Opts, buffer=Buffer
 	end;
 %% No corresponding stream. We must skip the body of the previous request
 %% in order to process the next one.
-after_parse({data, _, IsFin, _, State}) ->
-	loop(set_timeout(State, case IsFin of
+after_parse({data, StreamID, IsFin, _, State=#state{buffer=Buffer}}) ->
+	parse(Buffer, set_timeout(State, case IsFin of
 		fin -> request_timeout;
 		nofin -> idle_timeout
 	end));

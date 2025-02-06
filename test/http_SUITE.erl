@@ -43,6 +43,7 @@ end_per_group(Name, _) ->
 init_dispatch(_) ->
 	cowboy_router:compile([{"localhost", [
 		{"/", hello_h, []},
+		{"/delay_hello", delay_hello_h, #{delay => 1000, notify_received => self()}},
 		{"/echo/:key", echo_h, []},
 		{"/resp/:key[/:arg]", resp_h, []},
 		{"/set_options/:key", set_options_h, []},
@@ -449,6 +450,26 @@ request_timeout_pipeline(Config) ->
 		{response, nofin, 200, _} = gun:await(ConnPid, StreamRef1),
 		{response, nofin, 200, _} = gun:await(ConnPid, StreamRef2),
 		{response, nofin, 200, _} = gun:await(ConnPid, StreamRef3),
+		{error, {down, {shutdown, closed}}} = gun:await(ConnPid, undefined, 1000)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+request_timeout_pipeline_delay(Config) ->
+	doc("Ensure the request_timeout does not trigger on requests "
+		"coming in after a large request body."),
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
+		env => #{dispatch => init_dispatch(Config)},
+		request_timeout => 500
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		ConnPid = gun_open([{type, tcp}, {protocol, http}, {port, Port}|Config]),
+		{ok, http} = gun:await_up(ConnPid),
+		StreamRef1 = gun:post(ConnPid, "/", #{}, <<0:8000000>>),
+		StreamRef2 = gun:get(ConnPid, "/delay_hello"),
+		{response, nofin, 200, _} = gun:await(ConnPid, StreamRef1),
+		{response, nofin, 200, _} = gun:await(ConnPid, StreamRef2),
 		{error, {down, {shutdown, closed}}} = gun:await(ConnPid, undefined, 1000)
 	after
 		cowboy:stop_listener(?FUNCTION_NAME)
