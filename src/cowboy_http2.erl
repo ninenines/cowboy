@@ -17,6 +17,7 @@
 -export([init/6]).
 -export([init/10]).
 -export([init/12]).
+-export([loop/2]).
 
 -export([system_continue/3]).
 -export([system_terminate/4]).
@@ -36,6 +37,7 @@
 	env => cowboy_middleware:env(),
 	goaway_initial_timeout => timeout(),
 	goaway_complete_timeout => timeout(),
+	hibernate => boolean(),
 	idle_timeout => timeout(),
 	inactivity_timeout => timeout(),
 	initial_connection_window_size => 65535..16#7fffffff,
@@ -188,7 +190,7 @@ init(Parent, Ref, Socket, Transport, ProxyHeader, Opts, Peer, Sock, Cert, Buffer
 		http2_status=sequence, http2_machine=HTTP2Machine}), 0),
 	safe_setopts_active(State),
 	case Buffer of
-		<<>> -> loop(State, Buffer);
+		<<>> -> before_loop(State, Buffer);
 		_ -> parse(State, Buffer)
 	end.
 
@@ -250,7 +252,7 @@ init(Parent, Ref, Socket, Transport, ProxyHeader, Opts, Peer, Sock, Cert, Buffer
 	ok = maybe_socket_error(State, Transport:send(Socket, Preface)),
 	safe_setopts_active(State),
 	case Buffer of
-		<<>> -> loop(State, Buffer);
+		<<>> -> before_loop(State, Buffer);
 		_ -> parse(State, Buffer)
 	end.
 
@@ -266,6 +268,13 @@ setopts_active(#state{socket=Socket, transport=Transport, opts=Opts}) ->
 
 safe_setopts_active(State) ->
 	ok = maybe_socket_error(State, setopts_active(State)).
+
+before_loop(State=#state{opts=#{hibernate := true}}, Buffer) ->
+	proc_lib:hibernate(?MODULE, loop, [State, Buffer]);
+before_loop(State, Buffer) ->
+	loop(State, Buffer).
+
+-spec loop(#state{}, binary()) -> ok.
 
 loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 		opts=Opts, timer=TimerRef, children=Children}, Buffer) ->
@@ -288,11 +297,11 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 				%% Hardcoded for compatibility with Ranch 1.x.
 				Passive =:= tcp_passive; Passive =:= ssl_passive ->
 			safe_setopts_active(State),
-			loop(State, Buffer);
+			before_loop(State, Buffer);
 		%% System messages.
 		{'EXIT', Parent, shutdown} ->
 			Reason = {stop, {exit, shutdown}, 'Parent process requested shutdown.'},
-			loop(initiate_closing(State, Reason), Buffer);
+			before_loop(initiate_closing(State, Reason), Buffer);
 		{'EXIT', Parent, Reason} ->
 			terminate(State, {stop, {exit, Reason}, 'Parent process terminated.'});
 		{system, From, Request} ->
@@ -302,27 +311,27 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 			tick_idle_timeout(State, Buffer);
 		{timeout, Ref, {shutdown, Pid}} ->
 			cowboy_children:shutdown_timeout(Children, Ref, Pid),
-			loop(State, Buffer);
+			before_loop(State, Buffer);
 		{timeout, TRef, {cow_http2_machine, Name}} ->
-			loop(timeout(State, Name, TRef), Buffer);
+			before_loop(timeout(State, Name, TRef), Buffer);
 		{timeout, TimerRef, {goaway_initial_timeout, Reason}} ->
-			loop(closing(State, Reason), Buffer);
+			before_loop(closing(State, Reason), Buffer);
 		{timeout, TimerRef, {goaway_complete_timeout, Reason}} ->
 			terminate(State, {stop, stop_reason(Reason),
 				'Graceful shutdown timed out.'});
 		%% Messages pertaining to a stream.
 		{{Pid, StreamID}, Msg} when Pid =:= self() ->
-			loop(info(State, StreamID, Msg), Buffer);
+			before_loop(info(State, StreamID, Msg), Buffer);
 		%% Exit signal from children.
 		Msg = {'EXIT', Pid, _} ->
-			loop(down(State, Pid, Msg), Buffer);
+			before_loop(down(State, Pid, Msg), Buffer);
 		%% Calls from supervisor module.
 		{'$gen_call', From, Call} ->
 			cowboy_children:handle_supervisor_call(Call, From, Children, ?MODULE),
-			loop(State, Buffer);
+			before_loop(State, Buffer);
 		Msg ->
 			cowboy:log(warning, "Received stray message ~p.", [Msg], Opts),
-			loop(State, Buffer)
+			before_loop(State, Buffer)
 	after InactivityTimeout ->
 		terminate(State, {internal_error, timeout, 'No message or data received before timeout.'})
 	end.
@@ -331,7 +340,7 @@ tick_idle_timeout(State=#state{idle_timeout_num=?IDLE_TIMEOUT_TICKS}, _) ->
 	terminate(State, {stop, timeout,
 		'Connection idle longer than configuration allows.'});
 tick_idle_timeout(State=#state{idle_timeout_num=TimeoutNum}, Buffer) ->
-	loop(set_idle_timeout(State, TimeoutNum + 1), Buffer).
+	before_loop(set_idle_timeout(State, TimeoutNum + 1), Buffer).
 
 set_idle_timeout(State=#state{http2_status=Status, timer=TimerRef}, _)
 		when Status =:= closing_initiated orelse Status =:= closing,
@@ -372,7 +381,7 @@ parse(State=#state{http2_status=sequence}, Data) ->
 		{ok, Rest} ->
 			parse(State#state{http2_status=settings}, Rest);
 		more ->
-			loop(State, Data);
+			before_loop(State, Data);
 		Error = {connection_error, _, _} ->
 			terminate(State, Error)
 	end;
@@ -391,7 +400,7 @@ parse(State=#state{http2_status=Status, http2_machine=HTTP2Machine, streams=Stre
 		more when Status =:= closing, Streams =:= #{} ->
 			terminate(State, {stop, normal, 'The connection is going away.'});
 		more ->
-			loop(State, Data)
+			before_loop(State, Data)
 	end.
 
 %% Frame rate flood protection.
@@ -1379,12 +1388,12 @@ terminate_stream_handler(#state{opts=Opts}, StreamID, Reason, StreamState) ->
 
 -spec system_continue(_, _, {#state{}, binary()}) -> ok.
 system_continue(_, _, {State, Buffer}) ->
-	loop(State, Buffer).
+	before_loop(State, Buffer).
 
 -spec system_terminate(any(), _, _, {#state{}, binary()}) -> no_return().
 system_terminate(Reason0, _, _, {State, Buffer}) ->
 	Reason = {stop, {exit, Reason0}, 'sys:terminate/2,3 was called.'},
-	loop(initiate_closing(State, Reason), Buffer).
+	before_loop(initiate_closing(State, Reason), Buffer).
 
 -spec system_code_change(Misc, _, _, _) -> {ok, Misc} when Misc::{#state{}, binary()}.
 system_code_change(Misc, _, _, _) ->

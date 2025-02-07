@@ -25,6 +25,7 @@ opts() :: #{
     enable_connect_protocol        => boolean(),
     goaway_initial_timeout         => timeout(),
     goaway_complete_timeout        => timeout(),
+    hibernate                      => boolean(),
     idle_timeout                   => timeout(),
     inactivity_timeout             => timeout(),
     initial_connection_window_size => 65535..16#7fffffff,
@@ -121,6 +122,10 @@ goaway_complete_timeout (3000)::
 
 Time in ms to wait for ongoing streams to complete before closing the connection
 during a graceful shutdown.
+
+hibernate (false)::
+
+Whether the connection process will hibernate automatically.
 
 idle_timeout (60000)::
 
@@ -302,7 +307,7 @@ too many `WINDOW_UPDATE` frames.
 == Changelog
 
 * *2.13*: The `active_n` default value was changed to `1`.
-* *2.13*: The `dynamic_buffer` option was added.
+* *2.13*: The `dynamic_buffer` and `hibernate` options were added.
 * *2.11*: Websocket over HTTP/2 is now considered stable.
 * *2.11*: The `reset_idle_timeout_on_send` option was added.
 * *2.11*: Add the option `max_cancel_stream_rate` to protect
