@@ -1272,7 +1272,9 @@ commands(State0, StreamID, [{set_options, SetOpts}|Tail]) ->
 			StateF#state{overriden_opts=Opts#{chunked => Chunked}};
 		(idle_timeout, IdleTimeout, StateF=#state{overriden_opts=Opts}) ->
 			set_timeout(StateF#state{overriden_opts=Opts#{idle_timeout => IdleTimeout}},
-				idle_timeout)
+				idle_timeout);
+		(_, _, StateF) ->
+			StateF
 	end, State0, SetOpts),
 	commands(State, StreamID, Tail);
 %% Stream shutdown.
