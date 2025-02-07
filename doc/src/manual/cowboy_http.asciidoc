@@ -21,6 +21,7 @@ opts() :: #{
     chunked                    => boolean(),
     connection_type            => worker | supervisor,
     dynamic_buffer             => false | {pos_integer(), pos_integer()},
+    hibernate                  => boolean(),
     http10_keepalive           => boolean(),
     idle_timeout               => timeout(),
     inactivity_timeout         => timeout(),
@@ -86,6 +87,10 @@ workload.
 The dynamic buffer size functionality can be disabled by
 setting this option to `false`. Cowboy will also disable
 it by default when the `buffer` transport option is configured.
+
+hibernate (false)::
+
+Whether the connection process will hibernate automatically.
 
 http10_keepalive (true)::
 
@@ -179,7 +184,7 @@ Ordered list of stream handlers that will handle all stream events.
 == Changelog
 
 * *2.13*: The `active_n` default value was changed to `1`.
-* *2.13*: The `dynamic_buffer` option was added.
+* *2.13*: The `dynamic_buffer` and `hibernate` options were added.
 * *2.11*: The `reset_idle_timeout_on_send` option was added.
 * *2.8*: The `active_n` option was added.
 * *2.7*: The `initial_stream_flow_size` and `logger` options were added.

@@ -17,6 +17,7 @@
 -module(cowboy_http).
 
 -export([init/6]).
+-export([loop/1]).
 
 -export([system_continue/3]).
 -export([system_terminate/4]).
@@ -32,6 +33,7 @@
 	dynamic_buffer_initial_average => non_neg_integer(),
 	dynamic_buffer_initial_size => pos_integer(),
 	env => cowboy_middleware:env(),
+	hibernate => boolean(),
 	http10_keepalive => boolean(),
 	idle_timeout => timeout(),
 	inactivity_timeout => timeout(),
@@ -192,7 +194,7 @@ init(Parent, Ref, Socket, Transport, ProxyHeader, Opts) ->
 		dynamic_buffer_moving_average=maps:get(dynamic_buffer_initial_average, Opts, 0),
 		last_streamid=maps:get(max_keepalive, Opts, 1000)},
 	safe_setopts_active(State),
-	loop(set_timeout(State, request_timeout)).
+	before_loop(set_timeout(State, request_timeout)).
 
 -include("cowboy_dynamic_buffer.hrl").
 
@@ -223,6 +225,11 @@ flush_passive(Socket, Messages) ->
 		ok
 	end.
 
+before_loop(State=#state{opts=#{hibernate := true}}) ->
+	proc_lib:hibernate(?MODULE, loop, [State]);
+before_loop(State) ->
+	loop(State).
+
 loop(State=#state{parent=Parent, socket=Socket, transport=Transport, opts=Opts,
 		buffer=Buffer, timer=TimerRef, children=Children, in_streamid=InStreamID,
 		last_streamid=LastStreamID}) ->
@@ -233,7 +240,7 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport, opts=Opts,
 		%% we want to process was received fully.
 		{OK, Socket, Data} when OK =:= element(1, Messages), InStreamID > LastStreamID ->
 			State1 = maybe_resize_buffer(State, Data),
-			loop(State1);
+			before_loop(State1);
 		%% Socket messages.
 		{OK, Socket, Data} when OK =:= element(1, Messages) ->
 			State1 = maybe_resize_buffer(State, Data),
@@ -246,37 +253,37 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport, opts=Opts,
 				%% Hardcoded for compatibility with Ranch 1.x.
 				Passive =:= tcp_passive; Passive =:= ssl_passive ->
 			safe_setopts_active(State),
-			loop(State);
+			before_loop(State);
 		%% Timeouts.
 		{timeout, Ref, {shutdown, Pid}} ->
 			cowboy_children:shutdown_timeout(Children, Ref, Pid),
-			loop(State);
+			before_loop(State);
 		{timeout, TimerRef, Reason} ->
 			timeout(State, Reason);
 		{timeout, _, _} ->
-			loop(State);
+			before_loop(State);
 		%% System messages.
 		{'EXIT', Parent, shutdown} ->
 			Reason = {stop, {exit, shutdown}, 'Parent process requested shutdown.'},
-			loop(initiate_closing(State, Reason));
+			before_loop(initiate_closing(State, Reason));
 		{'EXIT', Parent, Reason} ->
 			terminate(State, {stop, {exit, Reason}, 'Parent process terminated.'});
 		{system, From, Request} ->
 			sys:handle_system_msg(Request, From, Parent, ?MODULE, [], State);
 		%% Messages pertaining to a stream.
 		{{Pid, StreamID}, Msg} when Pid =:= self() ->
-			loop(info(State, StreamID, Msg));
+			before_loop(info(State, StreamID, Msg));
 		%% Exit signal from children.
 		Msg = {'EXIT', Pid, _} ->
-			loop(down(State, Pid, Msg));
+			before_loop(down(State, Pid, Msg));
 		%% Calls from supervisor module.
 		{'$gen_call', From, Call} ->
 			cowboy_children:handle_supervisor_call(Call, From, Children, ?MODULE),
-			loop(State);
+			before_loop(State);
 		%% Unknown messages.
 		Msg ->
 			cowboy:log(warning, "Received stray message ~p.~n", [Msg], Opts),
-			loop(State)
+			before_loop(State)
 	after InactivityTimeout ->
 		terminate(State, {internal_error, timeout, 'No message or data received before timeout.'})
 	end.
@@ -362,12 +369,12 @@ timeout(State, idle_timeout) ->
 		'Connection idle longer than configuration allows.'}).
 
 parse(<<>>, State) ->
-	loop(State#state{buffer= <<>>});
+	before_loop(State#state{buffer= <<>>});
 %% Do not process requests that come in after the last request
 %% and discard the buffer if any to save memory.
 parse(_, State=#state{in_streamid=InStreamID, in_state=#ps_request_line{},
 		last_streamid=LastStreamID}) when InStreamID > LastStreamID ->
-	loop(State#state{buffer= <<>>});
+	before_loop(State#state{buffer= <<>>});
 parse(Buffer, State=#state{in_state=#ps_request_line{empty_lines=EmptyLines}}) ->
 	after_parse(parse_request(Buffer, State, EmptyLines));
 parse(Buffer, State=#state{in_state=PS=#ps_header{headers=Headers, name=undefined}}) ->
@@ -442,7 +449,7 @@ after_parse({data, _, IsFin, _, State=#state{buffer=Buffer}}) ->
 		nofin -> idle_timeout
 	end));
 after_parse({more, State}) ->
-	loop(set_timeout(State, idle_timeout)).
+	before_loop(set_timeout(State, idle_timeout)).
 
 update_flow(fin, _, State) ->
 	%% This function is only called after parsing, therefore we
@@ -1622,12 +1629,12 @@ terminate_linger_loop(State=#state{socket=Socket}, TimerRef, Messages) ->
 
 -spec system_continue(_, _, #state{}) -> ok.
 system_continue(_, _, State) ->
-	loop(State).
+	before_loop(State).
 
 -spec system_terminate(any(), _, _, #state{}) -> no_return().
 system_terminate(Reason0, _, _, State) ->
 	Reason = {stop, {exit, Reason0}, 'sys:terminate/2,3 was called.'},
-	loop(initiate_closing(State, Reason)).
+	before_loop(initiate_closing(State, Reason)).
 
 -spec system_code_change(Misc, _, _, _) -> {ok, Misc} when Misc::{#state{}, binary()}.
 system_code_change(Misc, _, _, _) ->

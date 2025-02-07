@@ -199,6 +199,27 @@ do_chunked_body(ChunkSize0, Data, Acc) ->
 	do_chunked_body(ChunkSize, Rest,
 		[iolist_to_binary(cow_http_te:chunk(Chunk))|Acc]).
 
+hibernate(Config) ->
+	doc("Ensure that we can enable hibernation for HTTP/1.1 connections."),
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
+		env => #{dispatch => init_dispatch(Config)},
+		hibernate => true
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		ConnPid = gun_open([{type, tcp}, {protocol, http}, {port, Port}|Config]),
+		{ok, http} = gun:await_up(ConnPid),
+		StreamRef1 = gun:get(ConnPid, "/"),
+		StreamRef2 = gun:get(ConnPid, "/"),
+		StreamRef3 = gun:get(ConnPid, "/"),
+		{response, nofin, 200, _} = gun:await(ConnPid, StreamRef1),
+		{response, nofin, 200, _} = gun:await(ConnPid, StreamRef2),
+		{response, nofin, 200, _} = gun:await(ConnPid, StreamRef3),
+		gun:close(ConnPid)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
 http10_keepalive_false(Config) ->
 	doc("Confirm the option http10_keepalive => false disables keep-alive "
 		"completely for HTTP/1.0 connections."),

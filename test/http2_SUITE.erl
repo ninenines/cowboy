@@ -51,6 +51,27 @@ do_handshake(Settings, Config) ->
 	{ok, << 0:24, 4:8, 1:8, 0:32 >>} = gen_tcp:recv(Socket, 9, 1000),
 	{ok, Socket}.
 
+hibernate(Config) ->
+	doc("Ensure that we can enable hibernation for HTTP/1.1 connections."),
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
+		env => #{dispatch => init_dispatch(Config)},
+		hibernate => true
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		ConnPid = gun_open([{type, tcp}, {protocol, http2}, {port, Port}|Config]),
+		{ok, http2} = gun:await_up(ConnPid),
+		StreamRef1 = gun:get(ConnPid, "/"),
+		StreamRef2 = gun:get(ConnPid, "/"),
+		StreamRef3 = gun:get(ConnPid, "/"),
+		{response, nofin, 200, _} = gun:await(ConnPid, StreamRef1),
+		{response, nofin, 200, _} = gun:await(ConnPid, StreamRef2),
+		{response, nofin, 200, _} = gun:await(ConnPid, StreamRef3),
+		gun:close(ConnPid)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
 idle_timeout(Config) ->
 	doc("Terminate when the idle timeout is reached."),
 	ProtoOpts = #{
