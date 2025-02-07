@@ -1268,21 +1268,16 @@ commands(State0=#state{ref=Ref, parent=Parent, socket=Socket, transport=Transpor
 	Protocol:takeover(Parent, Ref, Socket, Transport,
 		opts_for_upgrade(State), Buffer, InitialState);
 %% Set options dynamically.
-commands(State0=#state{overriden_opts=Opts},
-		StreamID, [{set_options, SetOpts}|Tail]) ->
-	State1 = case SetOpts of
-		#{idle_timeout := IdleTimeout} ->
-			set_timeout(State0#state{overriden_opts=Opts#{idle_timeout => IdleTimeout}},
+commands(State0, StreamID, [{set_options, SetOpts}|Tail]) ->
+	State = maps:fold(fun
+		(chunked, Chunked, StateF=#state{overriden_opts=Opts}) ->
+			StateF#state{overriden_opts=Opts#{chunked => Chunked}};
+		(idle_timeout, IdleTimeout, StateF=#state{overriden_opts=Opts}) ->
+			set_timeout(StateF#state{overriden_opts=Opts#{idle_timeout => IdleTimeout}},
 				idle_timeout);
-		_ ->
-			State0
-	end,
-	State = case SetOpts of
-		#{chunked := Chunked} ->
-			State1#state{overriden_opts=Opts#{chunked => Chunked}};
-		_ ->
-			State1
-	end,
+		(_, _, StateF) ->
+			StateF
+	end, State0, SetOpts),
 	commands(State, StreamID, Tail);
 %% Stream shutdown.
 commands(State, StreamID, [stop|Tail]) ->
