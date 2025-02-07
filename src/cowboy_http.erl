@@ -230,6 +230,8 @@ before_loop(State=#state{opts=#{hibernate := true}}) ->
 before_loop(State) ->
 	loop(State).
 
+-spec loop(#state{}) -> ok.
+
 loop(State=#state{parent=Parent, socket=Socket, transport=Transport, opts=Opts,
 		buffer=Buffer, timer=TimerRef, children=Children, in_streamid=InStreamID,
 		last_streamid=LastStreamID}) ->

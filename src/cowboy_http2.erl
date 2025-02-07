@@ -274,6 +274,8 @@ before_loop(State=#state{opts=#{hibernate := true}}, Buffer) ->
 before_loop(State, Buffer) ->
 	loop(State, Buffer).
 
+-spec loop(#state{}, binary()) -> ok.
+
 loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 		opts=Opts, timer=TimerRef, children=Children}, Buffer) ->
 	Messages = Transport:messages(),
