@@ -105,7 +105,7 @@ This option can be updated at any time using the
 
 inactivity_timeout (300000)::
 
-Time in ms with nothing received at all before Cowboy closes the connection.
+**DEPRECATED** Time in ms with nothing received at all before Cowboy closes the connection.
 
 initial_stream_flow_size (65535)::
 
@@ -183,6 +183,7 @@ Ordered list of stream handlers that will handle all stream events.
 
 == Changelog
 
+* *2.13*: The `inactivity_timeout` option was deprecated.
 * *2.13*: The `active_n` default value was changed to `1`.
 * *2.13*: The `dynamic_buffer` and `hibernate` options were added.
 * *2.11*: The `reset_idle_timeout_on_send` option was added.

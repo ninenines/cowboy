@@ -133,7 +133,7 @@ Time in ms with no data received before Cowboy closes the connection.
 
 inactivity_timeout (300000)::
 
-Time in ms with nothing received at all before Cowboy closes the connection.
+**DEPRECATED** Time in ms with nothing received at all before Cowboy closes the connection.
 
 initial_connection_window_size (65535)::
 
@@ -306,6 +306,7 @@ too many `WINDOW_UPDATE` frames.
 
 == Changelog
 
+* *2.13*: The `inactivity_timeout` option was deprecated.
 * *2.13*: The `active_n` default value was changed to `1`.
 * *2.13*: The `dynamic_buffer` and `hibernate` options were added.
 * *2.11*: Websocket over HTTP/2 is now considered stable.
