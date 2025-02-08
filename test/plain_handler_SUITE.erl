@@ -45,6 +45,7 @@ end_per_group(Name, _) ->
 
 init_dispatch(_) ->
 	cowboy_router:compile([{"localhost", [
+		{"/crash/external_exit", crash_h, external_exit},
 		{"/crash/no_reply", crash_h, no_reply},
 		{"/crash/reply", crash_h, reply}
 	]}]).
@@ -74,6 +75,16 @@ crash_before_reply(Config) ->
 		"results in a 500 response."),
 	ConnPid = gun_open(Config),
 	Ref = gun:get(ConnPid, "/crash/no_reply", [
+		{<<"accept-encoding">>, <<"gzip">>}
+	]),
+	{response, fin, 500, _} = gun:await(ConnPid, Ref),
+	gun:close(ConnPid).
+
+external_exit_before_reply(Config) ->
+	doc("A plain handler exits externally before a response was sent "
+		"results in a 500 response."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/crash/external_exit", [
 		{<<"accept-encoding">>, <<"gzip">>}
 	]),
 	{response, fin, 500, _} = gun:await(ConnPid, Ref),

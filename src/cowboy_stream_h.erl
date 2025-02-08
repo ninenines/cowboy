@@ -138,7 +138,7 @@ info(StreamID, Info={'EXIT', Pid, {{request_error, Reason, _HumanReadable}, _}},
 		{error_response, Status, #{<<"content-length">> => <<"0">>}, <<>>},
 		stop
 	], State);
-info(StreamID, Exit={'EXIT', Pid, {Reason, Stacktrace}}, State=#state{ref=Ref, pid=Pid}) ->
+info(StreamID, Exit={'EXIT', Pid, Reason}, State=#state{ref=Ref, pid=Pid}) ->
 	Commands0 = [{internal_error, Exit, 'Stream process crashed.'}],
 	Commands = case Reason of
 		normal -> Commands0;
@@ -146,9 +146,8 @@ info(StreamID, Exit={'EXIT', Pid, {Reason, Stacktrace}}, State=#state{ref=Ref, p
 		{shutdown, _} -> Commands0;
 		_ -> [{log, error,
 				"Ranch listener ~p, connection process ~p, stream ~p "
-				"had its request process ~p exit with reason "
-				"~999999p and stacktrace ~999999p~n",
-				[Ref, self(), StreamID, Pid, Reason, Stacktrace]}
+				"had its request process ~p exit with reason ~0p~n",
+				[Ref, self(), StreamID, Pid, Reason]}
 			|Commands0]
 	end,
 	%% @todo We are trying to send a 500 response before resetting

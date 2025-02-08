@@ -7,6 +7,9 @@
 -export([init/2]).
 
 -spec init(_, _) -> no_return().
+init(_, external_exit) ->
+	ct_helper:ignore(?MODULE, init, 2),
+	exit(self(), ct_helper_ignore);
 init(_, no_reply) ->
 	ct_helper:ignore(?MODULE, init, 2),
 	error(crash);
