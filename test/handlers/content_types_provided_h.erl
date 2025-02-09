@@ -11,9 +11,14 @@
 init(Req, Opts) ->
 	{cowboy_rest, Req, Opts}.
 
+content_types_provided(Req=#{qs := <<"invalid-type">>}, State) ->
+	ct_helper:ignore(cowboy_rest, normalize_content_types, 2),
+	{[{{'*', '*', '*'}, get_text_plain}], Req, State};
 content_types_provided(Req=#{qs := <<"wildcard-param">>}, State) ->
 	{[{{<<"text">>, <<"plain">>, '*'}, get_text_plain}], Req, State}.
 
+get_text_plain(Req=#{qs := <<"invalid-type">>}, State) ->
+	{<<"invalid-type">>, Req, State};
 get_text_plain(Req=#{qs := <<"wildcard-param">>}, State) ->
 	{_, _, Param} = maps:get(media_type, Req),
 	Body = if

@@ -471,7 +471,7 @@ content_types_provided(Req, State) ->
 		{[], Req2, State2} ->
 			not_acceptable(Req2, State2);
 		{CTP, Req2, State2} ->
-			CTP2 = [normalize_content_types(P) || P <- CTP],
+			CTP2 = [normalize_content_types(P, provide) || P <- CTP],
 			State3 = State2#state{content_types_p=CTP2},
 			try cowboy_req:parse_header(<<"accept">>, Req2) of
 				undefined ->
@@ -491,10 +491,14 @@ content_types_provided(Req, State) ->
 			end
 	end.
 
-normalize_content_types({ContentType, Callback})
+normalize_content_types({ContentType, Callback}, _)
 		when is_binary(ContentType) ->
 	{cow_http_hd:parse_content_type(ContentType), Callback};
-normalize_content_types(Normalized) ->
+normalize_content_types(Normalized = {{Type, SubType, _}, _}, _)
+		when is_binary(Type), is_binary(SubType) ->
+	Normalized;
+%% Wildcard for content_types_accepted.
+normalize_content_types(Normalized = {'*', _}, accept) ->
 	Normalized.
 
 prioritize_accept(Accept) ->
@@ -1059,7 +1063,7 @@ accept_resource(Req, State) ->
 		{Switch, Req2, State2} when element(1, Switch) =:= switch_handler ->
 			switch_handler(Switch, Req2, State2);
 		{CTA, Req2, State2} ->
-			CTA2 = [normalize_content_types(P) || P <- CTA],
+			CTA2 = [normalize_content_types(P, accept) || P <- CTA],
 			try cowboy_req:parse_header(<<"content-type">>, Req2) of
 				%% We do not match against the boundary parameter for multipart.
 				{Type = <<"multipart">>, SubType, Params} ->

@@ -404,6 +404,18 @@ content_types_accepted_wildcard_param_content_type_with_param(Config) ->
 	{response, fin, 204, _} = gun:await(ConnPid, Ref),
 	ok.
 
+content_types_provided_invalid_type(Config) ->
+	doc("When an invalid type is returned from the "
+		"content_types_provided callback, the "
+		"resource is incorrect and a 500 response is expected."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/content_types_provided?invalid-type", [
+		{<<"accept">>, <<"*/*">>},
+		{<<"accept-encoding">>, <<"gzip">>}
+	]),
+	{response, _, 500, _} = do_maybe_h3_error(gun:await(ConnPid, Ref)),
+	ok.
+
 content_types_provided_wildcard_param_no_accept_param(Config) ->
 	doc("When a wildcard is returned for parameters from the "
 		"content_types_provided callback, an accept header "
