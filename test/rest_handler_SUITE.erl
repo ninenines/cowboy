@@ -817,6 +817,7 @@ provide_callback(Config) ->
 	]),
 	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
 	{_, <<"text/plain">>} = lists:keyfind(<<"content-type">>, 1, Headers),
+	{_, <<"HEAD, GET, OPTIONS">>} = lists:keyfind(<<"allow">>, 1, Headers),
 	{ok, <<"This is REST!">>} = gun:await_body(ConnPid, Ref),
 	ok.
 
