@@ -230,7 +230,7 @@ execute(Req=#{path := Path}, Env) ->
 		<<"/bad/dir/route">> -> ct_helper:ignore(cowboy_static, escape_reserved, 1);
 		<<"/bad">> -> ct_helper:ignore(cowboy_static, init_opts, 2);
 		<<"/bad/options">> -> ct_helper:ignore(cowboy_static, content_types_provided, 2);
-		<<"/bad/options/mime">> -> ct_helper:ignore(cowboy_rest, set_content_type, 2);
+		<<"/bad/options/mime">> -> ct_helper:ignore(cowboy_rest, normalize_content_types, 2);
 		<<"/bad/options/etag">> -> ct_helper:ignore(cowboy_static, generate_etag, 2);
 		<<"/bad/options/charset">> -> ct_helper:ignore(cowboy_static, charsets_provided, 2);
 		_ -> ok
