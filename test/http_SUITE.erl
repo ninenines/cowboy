@@ -28,9 +28,16 @@
 -import(cowboy_test, [raw_recv/3]).
 -import(cowboy_test, [raw_expect_recv/2]).
 
-all() -> [{group, clear}].
+all() ->
+	[{group, clear_no_parallel}, {group, clear}].
 
-groups() -> [{clear, [parallel], ct_helper:all(?MODULE)}].
+groups() ->
+	[
+		%% cowboy:stop_listener can be slow when called many times
+		%% in parallel so we must run this test separately from the others.
+		{clear_no_parallel, [], [graceful_shutdown_listener]},
+		{clear, [parallel], ct_helper:all(?MODULE) -- [graceful_shutdown_listener]}
+	].
 
 init_per_group(Name, Config) ->
 	cowboy_test:init_http(Name, #{
