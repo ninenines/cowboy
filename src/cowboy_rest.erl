@@ -307,17 +307,17 @@ known_methods(Req, State=#state{method=Method}) ->
 				Method =:= <<"POST">>; Method =:= <<"PUT">>;
 				Method =:= <<"PATCH">>; Method =:= <<"DELETE">>;
 				Method =:= <<"OPTIONS">> ->
-			next(Req, State, fun uri_too_long/2);
+			uri_too_long(Req, State);
 		no_call ->
-			next(Req, State, 501);
+			respond(Req, State, 501);
 		{stop, Req2, State2} ->
 			terminate(Req2, State2);
 		{Switch, Req2, State2} when element(1, Switch) =:= switch_handler ->
 			switch_handler(Switch, Req2, State2);
 		{List, Req2, State2} ->
 			case lists:member(Method, List) of
-				true -> next(Req2, State2, fun uri_too_long/2);
-				false -> next(Req2, State2, 501)
+				true -> uri_too_long(Req2, State2);
+				false -> respond(Req2, State2, 501)
 			end
 	end.
 
@@ -328,11 +328,10 @@ uri_too_long(Req, State) ->
 allowed_methods(Req, State=#state{method=Method}) ->
 	case call(Req, State, allowed_methods) of
 		no_call when Method =:= <<"HEAD">>; Method =:= <<"GET">> ->
-			next(Req, State, fun malformed_request/2);
+			malformed_request(Req, State);
 		no_call when Method =:= <<"OPTIONS">> ->
-			next(Req, State#state{allowed_methods=
-				[<<"HEAD">>, <<"GET">>, <<"OPTIONS">>]},
-				fun malformed_request/2);
+			malformed_request(Req, State#state{allowed_methods=
+				[<<"HEAD">>, <<"GET">>, <<"OPTIONS">>]});
 		no_call ->
 			method_not_allowed(Req, State,
 				[<<"HEAD">>, <<"GET">>, <<"OPTIONS">>]);
@@ -343,10 +342,9 @@ allowed_methods(Req, State=#state{method=Method}) ->
 		{List, Req2, State2} ->
 			case lists:member(Method, List) of
 				true when Method =:= <<"OPTIONS">> ->
-					next(Req2, State2#state{allowed_methods=List},
-						fun malformed_request/2);
+					malformed_request(Req2, State2#state{allowed_methods=List});
 				true ->
-					next(Req2, State2, fun malformed_request/2);
+					malformed_request(Req2, State2);
 				false ->
 					method_not_allowed(Req2, State2, List)
 			end
@@ -1103,9 +1101,9 @@ process_content_type(Req, State=#state{method=Method, exists=Exists}, Fun) ->
 		{Switch, Req2, State2} when element(1, Switch) =:= switch_handler ->
 			switch_handler(Switch, Req2, State2);
 		{true, Req2, State2} when Exists ->
-			next(Req2, State2, fun has_resp_body/2);
+			has_resp_body(Req2, State2);
 		{true, Req2, State2} ->
-			next(Req2, State2, fun maybe_created/2);
+			maybe_created(Req2, State2);
 		{false, Req2, State2} ->
 			respond(Req2, State2, 400);
 		{{created, ResURL}, Req2, State2} when Method =:= <<"POST">> ->
