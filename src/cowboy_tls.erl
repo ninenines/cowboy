@@ -39,7 +39,11 @@ connection_process(Parent, Ref, Transport, Opts) ->
 		{ok, <<"h2">>} ->
 			init(Parent, Ref, Socket, Transport, ProxyInfo, Opts, cowboy_http2);
 		_ -> %% http/1.1 or no protocol negotiated.
-			init(Parent, Ref, Socket, Transport, ProxyInfo, Opts, cowboy_http)
+			Protocol = case maps:get(alpn_default_protocol, Opts, http) of
+				http -> cowboy_http;
+				http2 -> cowboy_http2
+			end,
+			init(Parent, Ref, Socket, Transport, ProxyInfo, Opts, Protocol)
 	end.
 
 init(Parent, Ref, Socket, Transport, ProxyInfo, Opts, Protocol) ->

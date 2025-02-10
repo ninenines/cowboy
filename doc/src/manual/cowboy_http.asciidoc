@@ -18,6 +18,7 @@ as a Ranch protocol.
 ----
 opts() :: #{
     active_n                   => pos_integer(),
+    alpn_default_protocol      => http | http2,
     chunked                    => boolean(),
     connection_type            => worker | supervisor,
     dynamic_buffer             => false | {pos_integer(), pos_integer()},
@@ -36,6 +37,7 @@ opts() :: #{
     max_method_length          => non_neg_integer(),
     max_request_line_length    => non_neg_integer(),
     max_skip_body_length       => non_neg_integer(),
+    protocols                  => [http | http2],
     proxy_header               => boolean(),
     request_timeout            => timeout(),
     reset_idle_timeout_on_send => boolean(),
@@ -62,6 +64,12 @@ This can be used to tweak the performance of the server. Higher
 values reduce the number of times Cowboy need to request more
 packets from the port driver at the expense of potentially
 higher memory being used.
+
+alpn_default_protocol (http)::
+
+Default protocol to use when the client connects over TLS
+without ALPN. Can be set to `http2` to disable HTTP/1.1
+entirely.
 
 chunked (true)::
 
@@ -155,6 +163,13 @@ max_skip_body_length (1000000)::
 
 Maximum length Cowboy is willing to skip when the user code did not read the body fully.
 When the remaining length is too large or unknown Cowboy will close the connection.
+
+protocols ([http2, http])::
+
+Protocols that may be used when the client connects over
+cleartext TCP. The default is to allow both HTTP/1.1 and
+HTTP/2. HTTP/1.1 and HTTP/2 can be disabled entirely by
+omitting them from the list.
 
 proxy_header (false)::
 

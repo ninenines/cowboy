@@ -25,6 +25,7 @@
 
 -type opts() :: #{
 	active_n => pos_integer(),
+	alpn_default_protocol => http | http2,
 	compress_buffering => boolean(),
 	compress_threshold => non_neg_integer(),
 	connection_type => worker | supervisor,
@@ -62,6 +63,7 @@
 	metrics_resp_headers_filter => fun((cowboy:http_headers()) -> cowboy:http_headers()),
 	middlewares => [module()],
 	preface_timeout => timeout(),
+	protocols => [http | http2],
 	proxy_header => boolean(),
 	reset_idle_timeout_on_send => boolean(),
 	sendfile => boolean(),

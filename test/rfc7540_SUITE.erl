@@ -35,8 +35,9 @@ all() -> [{group, clear}, {group, tls}].
 
 groups() ->
 	Tests = ct_helper:all(?MODULE),
-	Clear = [T || T <- Tests, lists:sublist(atom_to_list(T), 4) =/= "alpn"] -- [prior_knowledge_reject_tls],
-	TLS = [T || T <- Tests, lists:sublist(atom_to_list(T), 4) =:= "alpn"] ++ [prior_knowledge_reject_tls],
+	RejectTLS = [http_upgrade_reject_tls, prior_knowledge_reject_tls],
+	Clear = [T || T <- Tests, lists:sublist(atom_to_list(T), 4) =/= "alpn"] -- RejectTLS,
+	TLS = [T || T <- Tests, lists:sublist(atom_to_list(T), 4) =:= "alpn"] ++ RejectTLS,
 	[{clear, [parallel], Clear}, {tls, [parallel], TLS}].
 
 init_per_group(Name = clear, Config) ->
@@ -67,6 +68,24 @@ init_routes(_) -> [
 ].
 
 %% Starting HTTP/2 for "http" URIs.
+
+http_upgrade_reject_tls(Config) ->
+	doc("Implementations that support HTTP/2 over TLS must use ALPN. (RFC7540 3.4)"),
+	TlsOpts = ct_helper:get_certs_from_ets(),
+	{ok, Socket} = ssl:connect("localhost", config(port, Config),
+		[binary, {active, false}|TlsOpts]),
+	%% Send a valid preface.
+	ok = ssl:send(Socket, [
+		"GET / HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Connection: Upgrade, HTTP2-Settings\r\n"
+		"Upgrade: h2c\r\n"
+		"HTTP2-Settings: ", base64:encode(cow_http2:settings_payload(#{})), "\r\n",
+		"\r\n"]),
+	%% We expect the server to send an HTTP 400 error
+	%% when trying to use HTTP/2 without going through ALPN negotiation.
+	{ok, <<"HTTP/1.1 400">>} = ssl:recv(Socket, 12, 1000),
+	ok.
 
 http_upgrade_ignore_h2(Config) ->
 	doc("An h2 token in an Upgrade field must be ignored. (RFC7540 3.2)"),

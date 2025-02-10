@@ -25,6 +25,7 @@
 
 -type opts() :: #{
 	active_n => pos_integer(),
+	alpn_default_protocol => http | http2,
 	chunked => boolean(),
 	compress_buffering => boolean(),
 	compress_threshold => non_neg_integer(),
@@ -52,6 +53,7 @@
 	metrics_req_filter => fun((cowboy_req:req()) -> map()),
 	metrics_resp_headers_filter => fun((cowboy:http_headers()) -> cowboy:http_headers()),
 	middlewares => [module()],
+	protocols => [http | http2],
 	proxy_header => boolean(),
 	request_timeout => timeout(),
 	reset_idle_timeout_on_send => boolean(),
@@ -511,8 +513,13 @@ parse_request(Buffer, State=#state{opts=Opts, in_streamid=InStreamID}, EmptyLine
 						'The TRACE method is currently not implemented. (RFC7231 4.3.8)'});
 				%% Accept direct HTTP/2 only at the beginning of the connection.
 				<< "PRI * HTTP/2.0\r\n", _/bits >> when InStreamID =:= 1 ->
-					%% @todo Might be worth throwing to get a clean stacktrace.
-					http2_upgrade(State, Buffer);
+					case lists:member(http2, maps:get(protocols, Opts, [http2, http])) of
+						true ->
+							http2_upgrade(State, Buffer);
+						false ->
+							error_terminate(501, State, {connection_error, no_error,
+								'Prior knowledge upgrade to HTTP/2 is disabled by configuration.'})
+					end;
 				_ ->
 					parse_method(Buffer, State, <<>>,
 						maps:get(max_method_length, Opts, 32))
@@ -800,7 +807,7 @@ default_port(_) -> 80.
 %% End of request parsing.
 
 request(Buffer, State0=#state{ref=Ref, transport=Transport, peer=Peer, sock=Sock, cert=Cert,
-		proxy_header=ProxyHeader, in_streamid=StreamID, in_state=
+		opts=Opts, proxy_header=ProxyHeader, in_streamid=StreamID, in_state=
 			PS=#ps_header{method=Method, path=Path, qs=Qs, version=Version}},
 		Headers, Host, Port) ->
 	Scheme = case Transport:secure() of
@@ -864,7 +871,7 @@ request(Buffer, State0=#state{ref=Ref, transport=Transport, peer=Peer, sock=Sock
 		undefined -> Req0;
 		_ -> Req0#{proxy_header => ProxyHeader}
 	end,
-	case is_http2_upgrade(Headers, Version) of
+	case is_http2_upgrade(Headers, Version, Opts) of
 		false ->
 			State = case HasBody of
 				true ->
@@ -886,12 +893,13 @@ request(Buffer, State0=#state{ref=Ref, transport=Transport, peer=Peer, sock=Sock
 
 %% HTTP/2 upgrade.
 
-%% @todo We must not upgrade to h2c over a TLS connection.
 is_http2_upgrade(#{<<"connection">> := Conn, <<"upgrade">> := Upgrade,
-		<<"http2-settings">> := HTTP2Settings}, 'HTTP/1.1') ->
+		<<"http2-settings">> := HTTP2Settings}, 'HTTP/1.1', Opts) ->
 	Conns = cow_http_hd:parse_connection(Conn),
-	case {lists:member(<<"upgrade">>, Conns), lists:member(<<"http2-settings">>, Conns)} of
-		{true, true} ->
+	case lists:member(<<"upgrade">>, Conns)
+			andalso lists:member(<<"http2-settings">>, Conns)
+			andalso lists:member(http2, maps:get(protocols, Opts, [http2, http])) of
+		true ->
 			Protocols = cow_http_hd:parse_upgrade(Upgrade),
 			case lists:member(<<"h2c">>, Protocols) of
 				true ->
@@ -902,7 +910,7 @@ is_http2_upgrade(#{<<"connection">> := Conn, <<"upgrade">> := Upgrade,
 		_ ->
 			false
 	end;
-is_http2_upgrade(_, _) ->
+is_http2_upgrade(_, _, _) ->
 	false.
 
 %% Prior knowledge upgrade, without an HTTP/1.1 request.
@@ -922,18 +930,24 @@ http2_upgrade(State=#state{parent=Parent, ref=Ref, socket=Socket, transport=Tran
 http2_upgrade(State=#state{parent=Parent, ref=Ref, socket=Socket, transport=Transport,
 		proxy_header=ProxyHeader, peer=Peer, sock=Sock, cert=Cert},
 		Buffer, HTTP2Settings, Req) ->
-	%% @todo
-	%% However if the client sent a body, we need to read the body in full
-	%% and if we can't do that, return a 413 response. Some options are in order.
-	%% Always half-closed stream coming from this side.
-	try cow_http_hd:parse_http2_settings(HTTP2Settings) of
-		Settings ->
-			_ = cancel_timeout(State),
-			cowboy_http2:init(Parent, Ref, Socket, Transport, ProxyHeader,
-				opts_for_upgrade(State), Peer, Sock, Cert, Buffer, Settings, Req)
-	catch _:_ ->
-		error_terminate(400, State, {connection_error, protocol_error,
-			'The HTTP2-Settings header must contain a base64 SETTINGS payload. (RFC7540 3.2, RFC7540 3.2.1)'})
+	case Transport:secure() of
+		false ->
+			%% @todo
+			%% However if the client sent a body, we need to read the body in full
+			%% and if we can't do that, return a 413 response. Some options are in order.
+			%% Always half-closed stream coming from this side.
+			try cow_http_hd:parse_http2_settings(HTTP2Settings) of
+				Settings ->
+					_ = cancel_timeout(State),
+					cowboy_http2:init(Parent, Ref, Socket, Transport, ProxyHeader,
+						opts_for_upgrade(State), Peer, Sock, Cert, Buffer, Settings, Req)
+			catch _:_ ->
+				error_terminate(400, State, {connection_error, protocol_error,
+					'The HTTP2-Settings header must contain a base64 SETTINGS payload. (RFC7540 3.2, RFC7540 3.2.1)'})
+			end;
+		true ->
+			error_terminate(400, State, {connection_error, protocol_error,
+				'Clients that support HTTP/2 over TLS MUST use ALPN. (RFC7540 3.4)'})
 	end.
 
 opts_for_upgrade(#state{opts=Opts, dynamic_buffer_size=false}) ->

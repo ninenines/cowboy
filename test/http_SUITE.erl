@@ -199,6 +199,73 @@ do_chunked_body(ChunkSize0, Data, Acc) ->
 	do_chunked_body(ChunkSize, Rest,
 		[iolist_to_binary(cow_http_te:chunk(Chunk))|Acc]).
 
+disable_http1_tls(Config) ->
+	doc("Ensure that we can disable HTTP/1.1 over TLS (force HTTP/2)."),
+	TlsOpts = ct_helper:get_certs_from_ets(),
+	{ok, _} = cowboy:start_tls(?FUNCTION_NAME, TlsOpts ++ [{port, 0}], #{
+		env => #{dispatch => init_dispatch(Config)},
+		alpn_default_protocol => http2
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		{ok, Socket} = ssl:connect("localhost", Port,
+			[binary, {active, false}|TlsOpts]),
+		%% ALPN was not negotiated but we're still over HTTP/2.
+		{error, protocol_not_negotiated} = ssl:negotiated_protocol(Socket),
+		%% Send a valid preface.
+		ok = ssl:send(Socket, [
+			"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n",
+			cow_http2:settings(#{})]),
+		%% Receive the server preface.
+		{ok, << Len:24 >>} = ssl:recv(Socket, 3, 1000),
+		{ok, << 4:8, 0:40, _:Len/binary >>} = ssl:recv(Socket, 6 + Len, 1000),
+		ok
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+disable_http2_prior_knowledge(Config) ->
+	doc("Ensure that we can disable prior knowledge HTTP/2 upgrade."),
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
+		env => #{dispatch => init_dispatch(Config)},
+		protocols => [http]
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		{ok, Socket} = gen_tcp:connect("localhost", Port, [binary, {active, false}]),
+		%% Send a valid preface.
+		ok = gen_tcp:send(Socket, [
+			"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n",
+			cow_http2:settings(#{})]),
+		{ok, <<"HTTP/1.1 501">>} = gen_tcp:recv(Socket, 12, 1000),
+		ok
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+disable_http2_upgrade(Config) ->
+	doc("Ensure that we can disable HTTP/1.1 upgrade to HTTP/2."),
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
+		env => #{dispatch => init_dispatch(Config)},
+		protocols => [http]
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		{ok, Socket} = gen_tcp:connect("localhost", Port, [binary, {active, false}]),
+		%% Send a valid preface.
+		ok = gen_tcp:send(Socket, [
+			"GET / HTTP/1.1\r\n"
+			"Host: localhost\r\n"
+			"Connection: Upgrade, HTTP2-Settings\r\n"
+			"Upgrade: h2c\r\n"
+			"HTTP2-Settings: ", base64:encode(cow_http2:settings_payload(#{})), "\r\n",
+			"\r\n"]),
+		{ok, <<"HTTP/1.1 200">>} = gen_tcp:recv(Socket, 12, 1000),
+		ok
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
 hibernate(Config) ->
 	doc("Ensure that we can enable hibernation for HTTP/1.1 connections."),
 	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{

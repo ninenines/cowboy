@@ -18,6 +18,7 @@ as a Ranch protocol.
 ----
 opts() :: #{
     active_n                       => pos_integer(),
+    alpn_default_protocol          => http | http2,
     connection_type                => worker | supervisor,
     connection_window_margin_size  => 0..16#7fffffff,
     connection_window_update_threshold => 0..16#7fffffff,
@@ -46,6 +47,7 @@ opts() :: #{
     max_stream_buffer_size         => non_neg_integer(),
     max_stream_window_size         => 0..16#7fffffff,
     preface_timeout                => timeout(),
+    protocols                      => [http | http2],
     proxy_header                   => boolean(),
     reset_idle_timeout_on_send     => boolean(),
     sendfile                       => boolean(),
@@ -75,6 +77,12 @@ This can be used to tweak the performance of the server. Higher
 values reduce the number of times Cowboy need to request more
 packets from the port driver at the expense of potentially
 higher memory being used.
+
+alpn_default_protocol (http)::
+
+Default protocol to use when the client connects over TLS
+without ALPN. Can be set to `http2` to disable HTTP/1.1
+entirely.
 
 connection_type (supervisor)::
 
@@ -258,6 +266,13 @@ body or receiving said body.
 preface_timeout (5000)::
 
 Time in ms Cowboy is willing to wait for the connection preface.
+
+protocols ([http2, http])::
+
+Protocols that may be used when the client connects over
+cleartext TCP. The default is to allow both HTTP/1.1 and
+HTTP/2. HTTP/1.1 and HTTP/2 can be disabled entirely by
+omitting them from the list.
 
 proxy_header (false)::
 
