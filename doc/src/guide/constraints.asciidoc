@@ -91,6 +91,11 @@ int(forward, Value) ->
 The value must be returned even if it is not converted
 by the constraint.
 
+The two other operations are currently experimental. They are
+meant to help implement HATEOAS type services, but proper
+support for HATEOAS is not expected to be available before
+Cowboy 3.0 because of Cowboy's current router's limitations.
+
 The `reverse` operation does the opposite: it
 takes a converted value and changes it back to what the
 user input would have been.

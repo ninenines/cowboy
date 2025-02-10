@@ -258,7 +258,8 @@ contain two parameters of name `key`.
 
 The same is true when trying to use the PHP-style suffix `[]`.
 When a query string is `key[]=1&key[]=2`, the list returned will
-contain two parameters of name `key[]`.
+contain two parameters of name `key[]`. Cowboy does not require
+the `[]` suffix to properly handle repeated key names.
 
 When a query string is simply `key`, Cowboy will return the
 list `[{<<"key">>, true}]`, using `true` to indicate that the
@@ -291,9 +292,11 @@ If no default is provided and the value is missing, the
 query string is deemed invalid and the process will crash.
 
 When the query string is `key=1&key=2`, the value for `key`
-will be the list `[1, 2]`. Parameter names do not need to
-include the PHP-style suffix. Constraints may be used to
-ensure that only one value was passed through.
+will be the list `[<<"1">>, <<"2">>]`. Parameter names do not
+need to include the PHP-style suffix. Constraints may be used
+to ensure that only one value was given. Constraints do not
+automatically look inside the list, a custom constraint must
+be written if that is necessary.
 
 === Headers
 
