@@ -11,7 +11,7 @@ cowboy_req:set_resp_headers - Set several response headers
 set_resp_headers(Headers, Req :: cowboy_req:req())
     -> Req
 
-Headers :: cowboy:http_headers()
+Headers :: cowboy:http_headers() | [{binary(), iodata()}]
 ----
 
 Set several headers to be sent with the response.
@@ -32,8 +32,16 @@ instead of this function to set cookies.
 
 Headers::
 
-Headers as a map with keys being lowercase binary strings,
-and values as binary strings.
+Headers as a map with names being lowercase binary strings,
+and values as iodata; or as a list with the same requirements
+for names and values.
++
+When a list is given it is converted to its equivalent map,
+with duplicate headers concatenated with a comma inserted
+in-between. Support for lists is meant to simplify using
+data from clients or other applications.
++
+The set-cookie header must not be set using this function.
 
 Req::
 
@@ -48,6 +56,7 @@ otherwise the headers will not be sent in the response.
 
 == Changelog
 
+* *2.13*: The function now accepts a list of headers.
 * *2.0*: Function introduced.
 
 == Examples

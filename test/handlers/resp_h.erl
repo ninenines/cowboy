@@ -43,11 +43,24 @@ do(<<"set_resp_headers">>, Req0, Opts) ->
 		<<"content-encoding">> => <<"compress">>
 	}, Req0),
 	{ok, cowboy_req:reply(200, #{}, "OK", Req), Opts};
+do(<<"set_resp_headers_list">>, Req0, Opts) ->
+	Req = cowboy_req:set_resp_headers([
+		{<<"content-type">>, <<"text/plain">>},
+		{<<"content-encoding">>, <<"compress">>}
+	], Req0),
+	{ok, cowboy_req:reply(200, #{}, "OK", Req), Opts};
 do(<<"set_resp_headers_cookie">>, Req0, Opts) ->
 	ct_helper:ignore(cowboy_req, set_resp_headers, 2),
 	Req = cowboy_req:set_resp_headers(#{
 		<<"set-cookie">> => <<"name=value">>
 	}, Req0),
+	{ok, cowboy_req:reply(200, #{}, "OK", Req), Opts};
+do(<<"set_resp_headers_list_cookie">>, Req0, Opts) ->
+	ct_helper:ignore(cowboy_req, set_resp_headers_list, 3),
+	Req = cowboy_req:set_resp_headers([
+		{<<"set-cookie">>, <<"name=value">>},
+		{<<"set-cookie">>, <<"name2=value2">>}
+	], Req0),
 	{ok, cowboy_req:reply(200, #{}, "OK", Req), Opts};
 do(<<"set_resp_headers_http11">>, Req0, Opts) ->
 	Req = cowboy_req:set_resp_headers(#{

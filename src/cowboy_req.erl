@@ -726,8 +726,10 @@ set_resp_header(Name, Value, Req=#{resp_headers := RespHeaders}) ->
 set_resp_header(Name,Value, Req) ->
 	Req#{resp_headers => #{Name => Value}}.
 
--spec set_resp_headers(cowboy:http_headers(), Req)
+-spec set_resp_headers(cowboy:http_headers() | [{binary(), iodata()}], Req)
 	-> Req when Req::req().
+set_resp_headers(Headers, Req) when is_list(Headers) ->
+	set_resp_headers_list(Headers, Req, #{});
 set_resp_headers(#{<<"set-cookie">> := _}, _) ->
 	exit({response_error, invalid_header,
 		'Response cookies must be set using cowboy_req:set_resp_cookie/3,4.'});
@@ -735,6 +737,19 @@ set_resp_headers(Headers, Req=#{resp_headers := RespHeaders}) ->
 	Req#{resp_headers => maps:merge(RespHeaders, Headers)};
 set_resp_headers(Headers, Req) ->
 	Req#{resp_headers => Headers}.
+
+set_resp_headers_list([], Req, Acc) ->
+	set_resp_headers(Acc, Req);
+set_resp_headers_list([{<<"set-cookie">>, _}|_], _, _) ->
+	exit({response_error, invalid_header,
+		'Response cookies must be set using cowboy_req:set_resp_cookie/3,4.'});
+set_resp_headers_list([{Name, Value}|Tail], Req, Acc) ->
+	case Acc of
+		#{Name := ValueAcc} ->
+			set_resp_headers_list(Tail, Req, Acc#{Name => [ValueAcc, <<", ">>, Value]});
+		_ ->
+			set_resp_headers_list(Tail, Req, Acc#{Name => Value})
+	end.
 
 -spec resp_header(binary(), req()) -> binary() | undefined.
 resp_header(Name, Req) ->
