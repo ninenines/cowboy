@@ -46,7 +46,9 @@ do(<<"set_resp_headers">>, Req0, Opts) ->
 do(<<"set_resp_headers_list">>, Req0, Opts) ->
 	Req = cowboy_req:set_resp_headers([
 		{<<"content-type">>, <<"text/plain">>},
-		{<<"content-encoding">>, <<"compress">>}
+		{<<"test-header">>, <<"one">>},
+		{<<"content-encoding">>, <<"compress">>},
+		{<<"test-header">>, <<"two">>}
 	], Req0),
 	{ok, cowboy_req:reply(200, #{}, "OK", Req), Opts};
 do(<<"set_resp_headers_cookie">>, Req0, Opts) ->

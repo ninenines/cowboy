@@ -864,6 +864,7 @@ set_resp_headers(Config) ->
 	{200, Headers2, <<"OK">>} = do_get("/resp/set_resp_headers_list", Config),
 	true = lists:keymember(<<"content-type">>, 1, Headers2),
 	true = lists:keymember(<<"content-encoding">>, 1, Headers2),
+	{_, <<"one, two">>} = lists:keyfind(<<"test-header">>, 1, Headers2),
 	%% The set-cookie header is special. set_resp_cookie must be used.
 	{500, _, _} = do_maybe_h3_error3(do_get("/resp/set_resp_headers_cookie", Config)),
 	{500, _, _} = do_maybe_h3_error3(do_get("/resp/set_resp_headers_list_cookie", Config)),
