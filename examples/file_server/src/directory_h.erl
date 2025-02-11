@@ -37,7 +37,7 @@ charsets_provided(Req, State) ->
 
 list_json(Req, {Path, Fs}) ->
 	Files = [unicode:characters_to_binary(F) || F <- Fs],
-	{jsx:encode(Files), Req, Path}.
+	{json:encode(Files), Req, Path}.
 
 list_html(Req, {Path, Fs}) ->
 	Body = [[links(Path, unicode:characters_to_binary(F)) || F <- [".."|Fs]]],
