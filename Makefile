@@ -52,6 +52,9 @@ define HEX_TARBALL_EXTRA_METADATA
 }
 endef
 
+hex_req_ranch = >= 1.8.0 and < 3.0.0
+# @todo hex_req_cowlib
+
 # Standard targets.
 
 include erlang.mk
