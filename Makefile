@@ -53,7 +53,7 @@ define HEX_TARBALL_EXTRA_METADATA
 endef
 
 hex_req_ranch = >= 1.8.0 and < 3.0.0
-# @todo hex_req_cowlib
+hex_req_cowlib = >= 2.14.0 and < 3.0.0
 
 # Standard targets.
 
@@ -138,6 +138,7 @@ prepare_tag:
 	$(verbose) echo "Dependencies:"
 	$(verbose) grep ^DEPS Makefile || echo "DEPS ="
 	$(verbose) grep ^dep_ Makefile || true
+	$(verbose) grep ^hex_req_ Makefile || true
 	$(verbose) echo
 	$(verbose) echo "rebar.config:"
 	$(verbose) cat rebar.config || true
