@@ -52,7 +52,6 @@ init_per_group(Name, Config) ->
 		max_received_frame_rate => {10_000_000, 1},
 		stream_window_data_threshold => 1024,
 		stream_window_margin_size => 64*1024
-
 	})].
 
 end_per_group(Name, _) ->
