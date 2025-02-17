@@ -1,5 +1,5 @@
-%% Copyright (c) 2011-2024, Loïc Hoguin <essen@ninenines.eu>
-%% Copyright (c) 2011, Anthony Ramine <nox@dev-extend.eu>
+%% Copyright (c) Loïc Hoguin <essen@ninenines.eu>
+%% Copyright (c) Anthony Ramine <nox@dev-extend.eu>
 %%
 %% Permission to use, copy, modify, and/or distribute this software for any
 %% purpose with or without fee is hereby granted, provided that the above
