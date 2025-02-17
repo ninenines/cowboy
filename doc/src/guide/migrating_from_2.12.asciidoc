@@ -1,0 +1,115 @@
+[appendix]
+== Migrating from Cowboy 2.12 to 2.13
+
+Cowboy 2.13 focuses on improving the performance of
+Websocket, as well as the HTTP protocols. It also
+contains a variety of new features and bug fixes.
+In addition, Cowboy 2.13 is the first Cowboy version
+that contains the experimental HTTP/3 support.
+
+Cowboy 2.13 requires Erlang/OTP 24.0 or greater.
+
+=== Features added
+
+* The option `dynamic_buffer` has been added. When
+  enabled, Cowboy will dynamically change the
+  `buffer` socket option based on how much data
+  it receives. It will start at 1024 bytes and
+  go up to 131072 bytes by default. This applies
+  to HTTP/1.1, HTTP/2 and Websocket. The performance
+  gains are very important depending on the scenario.
+
+* HTTP/1.1 and HTTP/2 now accept the `hibernate`
+  option. When set the connection process will
+  automatically hibernate to reduce memory usage
+  at a small performance cost.
+
+* The `protocols` and `alpn_default_protocol` protocol
+  options have been added to control exactly which
+  HTTP protocols are allowed over clear and TLS listeners.
+
+* The Websocket `max_frame_size` option can now be
+  set dynamically via the `set_options` command.
+  This allows configuring a smaller max size and
+  increase it after authentication or other checks.
+
+* `cowboy_req:set_resp_headers` now accept lists of
+  headers. This can be used to simplify passing
+  headers coming from client applications such as
+  Gun. Note that the set-cookie header cannot be
+  provided using this function.
+
+* `cowboy_rest` now always sets the allow header.
+
+* Update Ranch to 1.8.1.
+
+* Update Cowlib to 2.14.0.
+
+* When using Hex.pm, version check requirements will
+  now be relaxed. Cowboy will accept any Ranch version
+  from 1.8.0 to 2.2.0 as well as future 2.x versions.
+  Similarly, any Cowlib 2.x version from 2.14.0 will
+  be accepted.
+
+=== Experimental features added
+
+* Experimental support for HTTP/3 has been added,
+  including Websocket over HTTP/3. HTTP/3 support
+  is disabled by default; to enable, the environment
+  variable COWBOY_QUICER must be set at compile-time.
+
+=== Features deprecated
+
+* The `inactivity_timeout` option is now deprecated
+  for all protocols. It is de facto ignored when
+  `hibernate` is enabled.
+
+=== Optimisation-related changes
+
+* The behavior of the `idle_timeout` timer has been
+  changed for HTTP/2 and Websocket. Cowboy used to
+  reset the timer on every data packet received from
+  the socket. Now Cowboy will check periodically
+  whether new data was received in the interval.
+
+* URI and query string hex encoding and decoding has
+  been optimised.
+
+* Websocket UTF-8 validation of text frames has been
+  optimised.
+
+* Websocket unmasking has been optimised.
+
+=== Bugs fixed
+
+* HTTP/1.1 upgrade to HTTP/2 is now disabled over TLS,
+  as HTTP/2 over TLS must be negotiated via ALPN.
+
+* `cowboy_req:filter_cookies` could miss valid cookies.
+  It has been corrected.
+
+* HTTP/1.1 could get to a state where it would stop
+  receiving data from the socket, or buffer the data
+  without processing it, and the connection eventually
+  time out. This has been fixed.
+
+* Websocket did not compress zero-length frames properly.
+  This resulted in decompression errors in the client.
+  This has been corrected.
+
+* Websocket compression will now be disabled when only
+  the server sets `client_max_window_bits`, as otherwise
+  decompression errors will occur.
+
+* Websocket will now apply `max_frame_size` both to
+  compressed frames as well as the uncompressed payload.
+  Cowboy will stop decompressing when the limit is
+  reached.
+
+* Cowboy now properly handles exits of request processes
+  that occurred externally (e.g. via `exit/2`).
+
+* Invalid return values from `content_types_provided`
+  could result in an atom sent to the socket, leading
+  to a cryptic error message. The invalid value will
+  now result in a better error message.

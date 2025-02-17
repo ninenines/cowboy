@@ -75,6 +75,8 @@ include::performance.asciidoc[Performance]
 
 = Additional information
 
+include::migrating_from_2.12.asciidoc[Migrating from Cowboy 2.12 to 2.13]
+
 include::migrating_from_2.11.asciidoc[Migrating from Cowboy 2.11 to 2.12]
 
 include::migrating_from_2.10.asciidoc[Migrating from Cowboy 2.10 to 2.11]
