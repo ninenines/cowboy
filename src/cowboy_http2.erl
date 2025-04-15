@@ -147,7 +147,7 @@
 
 	%% Dynamic buffer moving average and current buffer size.
 	dynamic_buffer_size :: pos_integer() | false,
-	dynamic_buffer_moving_average :: non_neg_integer(),
+	dynamic_buffer_moving_average :: float(),
 
 	%% Currently active HTTP/2 streams. Streams may be initiated either
 	%% by the client or by the server through PUSH_PROMISE frames.
@@ -195,7 +195,7 @@ init(Parent, Ref, Socket, Transport, ProxyHeader, Opts, Peer, Sock, Cert, Buffer
 		transport=Transport, proxy_header=ProxyHeader,
 		opts=Opts, peer=Peer, sock=Sock, cert=Cert,
 		dynamic_buffer_size=DynamicBuffer,
-		dynamic_buffer_moving_average=maps:get(dynamic_buffer_initial_average, Opts, 0),
+		dynamic_buffer_moving_average=maps:get(dynamic_buffer_initial_average, Opts, 0.0),
 		http2_status=sequence, http2_machine=HTTP2Machine}), 0),
 	safe_setopts_active(State),
 	case Buffer of
@@ -246,7 +246,7 @@ init(Parent, Ref, Socket, Transport, ProxyHeader, Opts, Peer, Sock, Cert, Buffer
 		transport=Transport, proxy_header=ProxyHeader,
 		opts=Opts, peer=Peer, sock=Sock, cert=Cert,
 		dynamic_buffer_size=DynamicBuffer,
-		dynamic_buffer_moving_average=maps:get(dynamic_buffer_initial_average, Opts, 0),
+		dynamic_buffer_moving_average=maps:get(dynamic_buffer_initial_average, Opts, 0.0),
 		http2_status=upgrade, http2_machine=HTTP2Machine},
 	State1 = headers_frame(State0#state{
 		http2_machine=HTTP2Machine}, StreamID, Req),

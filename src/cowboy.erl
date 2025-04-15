@@ -172,7 +172,7 @@ ensure_dynamic_buffer(TransOpts, #{dynamic_buffer := DynamicBuffer}) ->
 ensure_dynamic_buffer(TransOpts=#{socket_opts := SocketOpts}, _) ->
 	case proplists:get_value(buffer, SocketOpts, undefined) of
 		undefined ->
-			{TransOpts#{socket_opts => [{buffer, 1024}|SocketOpts]}, {1024, 131072}};
+			{TransOpts#{socket_opts => [{buffer, 512}|SocketOpts]}, {512, 131072}};
 		_ ->
 			{TransOpts, false}
 	end.

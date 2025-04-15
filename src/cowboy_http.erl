@@ -146,7 +146,7 @@
 
 	%% Dynamic buffer moving average and current buffer size.
 	dynamic_buffer_size :: pos_integer() | false,
-	dynamic_buffer_moving_average :: non_neg_integer(),
+	dynamic_buffer_moving_average :: float(),
 
 	%% Identifier for the stream currently being written.
 	%% Note that out_streamid =< in_streamid.
@@ -193,7 +193,7 @@ init(Parent, Ref, Socket, Transport, ProxyHeader, Opts) ->
 		transport=Transport, proxy_header=ProxyHeader, opts=Opts,
 		peer=Peer, sock=Sock, cert=Cert,
 		dynamic_buffer_size=init_dynamic_buffer_size(Opts),
-		dynamic_buffer_moving_average=maps:get(dynamic_buffer_initial_average, Opts, 0),
+		dynamic_buffer_moving_average=maps:get(dynamic_buffer_initial_average, Opts, 0.0),
 		last_streamid=maps:get(max_keepalive, Opts, 1000)},
 	safe_setopts_active(State),
 	before_loop(set_timeout(State, request_timeout)).
