@@ -65,7 +65,7 @@ maybe_resize_buffer(State=#state{transport=Transport, socket=Socket,
 		opts=#{dynamic_buffer := {LowDynamicBuffer, HighDynamicBuffer}},
 		dynamic_buffer_size=BufferSize0, dynamic_buffer_moving_average=MovingAvg0}, Data) ->
 	DataLen = byte_size(Data),
-	MovingAvg = (MovingAvg0 + DataLen) div 2,
+	MovingAvg = (MovingAvg0 * 7 + DataLen) / 8,
 	if
 		BufferSize0 < HighDynamicBuffer andalso MovingAvg > BufferSize0 * 0.9 ->
 			BufferSize = min(BufferSize0 * 2, HighDynamicBuffer),

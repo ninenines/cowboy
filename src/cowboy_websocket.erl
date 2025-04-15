@@ -103,7 +103,7 @@
 
 	%% Dynamic buffer moving average and current buffer size.
 	dynamic_buffer_size = false :: pos_integer() | false,
-	dynamic_buffer_moving_average = 0 :: non_neg_integer(),
+	dynamic_buffer_moving_average = 0.0 :: non_neg_integer(),
 
 	hibernate = false :: boolean(),
 	frag_state = undefined :: cow_ws:frag_state(),
@@ -320,7 +320,7 @@ takeover(Parent, Ref, Socket, Transport, Opts, Buffer,
 		key=undefined, messages=Messages,
 		%% Dynamic buffer only applies to HTTP/1.1 Websocket.
 		dynamic_buffer_size=init_dynamic_buffer_size(Opts),
-		dynamic_buffer_moving_average=maps:get(dynamic_buffer_initial_average, Opts, 0)}, 0),
+		dynamic_buffer_moving_average=maps:get(dynamic_buffer_initial_average, Opts, 0.0)}, 0),
 	%% We call parse_header/3 immediately because there might be
 	%% some data in the buffer that was sent along with the handshake.
 	%% While it is not allowed by the protocol to send frames immediately,
