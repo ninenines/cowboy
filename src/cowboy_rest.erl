@@ -1622,5 +1622,6 @@ error_terminate(Req, #state{handler=Handler, handler_state=HandlerState}, Class,
 	erlang:raise(Class, Reason, Stacktrace).
 
 terminate(Req, #state{handler=Handler, handler_state=HandlerState}) ->
+	%% @todo I don't think the result is used anywhere?
 	Result = cowboy_handler:terminate(normal, Req, HandlerState, Handler),
 	{ok, Req, Result}.

@@ -95,8 +95,14 @@ start_quic(Ref, TransOpts, ProtoOpts) ->
 	end,
 	SocketOpts = [
 		{alpn, ["h3"]}, %% @todo Why not binary?
-		{peer_unidi_stream_count, 3}, %% We only need control and QPACK enc/dec.
-		{peer_bidi_stream_count, 100}
+		%% We only need 3 for control and QPACK enc/dec,
+		%% but we need more for WebTransport. %% @todo Use 3 if WT is disabled.
+		{peer_unidi_stream_count, 100},
+		{peer_bidi_stream_count, 100},
+		%% For WebTransport.
+		%% @todo We probably don't want it enabled if WT isn't used.
+		{datagram_send_enabled, 1},
+		{datagram_receive_enabled, 1}
 	|SocketOpts2],
 	_ListenerPid = spawn(fun() ->
 		{ok, Listener} = quicer:listen(Port, SocketOpts),

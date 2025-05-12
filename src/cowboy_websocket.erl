@@ -402,6 +402,7 @@ before_loop(State, HandlerState, ParseState) ->
 
 -spec set_idle_timeout(#state{}, 0..?IDLE_TIMEOUT_TICKS) -> #state{}.
 
+%% @todo Do we really need this for HTTP/2?
 set_idle_timeout(State=#state{opts=Opts, timeout_ref=PrevRef}, TimeoutNum) ->
 	%% Most of the time we don't need to cancel the timer since it
 	%% will have triggered already. But this call is harmless so

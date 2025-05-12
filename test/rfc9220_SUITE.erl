@@ -426,7 +426,7 @@ reject_upgrade_header(Config) ->
 % Examples.
 
 accept_handshake_when_enabled(Config) ->
-	doc("Confirm the example for Websocket over HTTP/2 works. (RFC9220, RFC8441 5.1)"),
+	doc("Confirm the example for Websocket over HTTP/3 works. (RFC9220, RFC8441 5.1)"),
 	%% Connect to server and confirm that SETTINGS_ENABLE_CONNECT_PROTOCOL = 1.
 	#{conn := Conn, settings := Settings} = rfc9114_SUITE:do_connect(Config),
 	#{enable_connect_protocol := true} = Settings,

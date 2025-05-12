@@ -49,6 +49,7 @@
 -type reason() :: normal | switch_protocol
 	| {internal_error, timeout | {error | exit | throw, any()}, human_reason()}
 	| {socket_error, closed | atom(), human_reason()}
+	%% @todo Or cow_http3:error().
 	| {stream_error, cow_http2:error(), human_reason()}
 	| {connection_error, cow_http2:error(), human_reason()}
 	| {stop, cow_http2:frame() | {exit, any()}, human_reason()}.

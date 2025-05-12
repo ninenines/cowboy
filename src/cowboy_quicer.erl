@@ -23,9 +23,12 @@
 -export([shutdown/2]).
 
 %% Streams.
+-export([start_bidi_stream/2]).
 -export([start_unidi_stream/2]).
 -export([send/3]).
 -export([send/4]).
+-export([send_datagram/2]).
+-export([shutdown_stream/2]).
 -export([shutdown_stream/4]).
 
 %% Messages.
@@ -45,6 +48,9 @@ peercert(_) -> no_quicer().
 -spec shutdown(_, _) -> no_return().
 shutdown(_, _) -> no_quicer().
 
+-spec start_bidi_stream(_, _) -> no_return().
+start_bidi_stream(_, _) -> no_quicer().
+
 -spec start_unidi_stream(_, _) -> no_return().
 start_unidi_stream(_, _) -> no_quicer().
 
@@ -53,6 +59,12 @@ send(_, _, _) -> no_quicer().
 
 -spec send(_, _, _, _) -> no_return().
 send(_, _, _, _) -> no_quicer().
+
+-spec send_datagram(_, _) -> no_return().
+send_datagram(_, _) -> no_quicer().
+
+-spec shutdown_stream(_, _) -> no_return().
+shutdown_stream(_, _) -> no_quicer().
 
 -spec shutdown_stream(_, _, _, _) -> no_return().
 shutdown_stream(_, _, _, _) -> no_quicer().
@@ -109,16 +121,26 @@ shutdown(Conn, ErrorCode) ->
 
 %% Streams.
 
+-spec start_bidi_stream(quicer_connection_handle(), iodata())
+	-> {ok, cow_http3:stream_id()}
+	| {error, any()}.
+
+start_bidi_stream(Conn, InitialData) ->
+	start_stream(Conn, InitialData, ?QUIC_STREAM_OPEN_FLAG_NONE).
+
 -spec start_unidi_stream(quicer_connection_handle(), iodata())
 	-> {ok, cow_http3:stream_id()}
 	| {error, any()}.
 
-start_unidi_stream(Conn, HeaderData) ->
+start_unidi_stream(Conn, InitialData) ->
+	start_stream(Conn, InitialData, ?QUIC_STREAM_OPEN_FLAG_UNIDIRECTIONAL).
+
+start_stream(Conn, InitialData, OpenFlag) ->
 	case quicer:start_stream(Conn, #{
 			active => true,
-			open_flag => ?QUIC_STREAM_OPEN_FLAG_UNIDIRECTIONAL}) of
+			open_flag => OpenFlag}) of
 		{ok, StreamRef} ->
-			case quicer:send(StreamRef, HeaderData) of
+			case quicer:send(StreamRef, InitialData) of
 				{ok, _} ->
 					{ok, StreamID} = quicer:get_stream_id(StreamRef),
 					put({quicer_stream, StreamID}, StreamRef),
@@ -156,6 +178,29 @@ send(_Conn, StreamID, Data, IsFin) ->
 send_flag(nofin) -> ?QUIC_SEND_FLAG_NONE;
 send_flag(fin) -> ?QUIC_SEND_FLAG_FIN.
 
+-spec send_datagram(quicer_connection_handle(), iodata())
+	-> ok | {error, any()}.
+
+send_datagram(Conn, Data) ->
+	%% @todo Fix/ignore the Dialyzer error instead of doing this.
+	DataBin = iolist_to_binary(Data),
+	Size = byte_size(DataBin),
+	case quicer:send_dgram(Conn, DataBin) of
+		{ok, Size} ->
+			ok;
+		%% @todo Handle error cases.
+		Error ->
+			Error
+	end.
+
+-spec shutdown_stream(quicer_connection_handle(), cow_http3:stream_id())
+	-> ok.
+
+shutdown_stream(_Conn, StreamID) ->
+	StreamRef = get({quicer_stream, StreamID}),
+	_ = quicer:shutdown_stream(StreamRef),
+	ok.
+
 -spec shutdown_stream(quicer_connection_handle(),
 	cow_http3:stream_id(), both | receiving, quicer_app_errno())
 	-> ok.
@@ -165,6 +210,7 @@ shutdown_stream(_Conn, StreamID, Dir, ErrorCode) ->
 	_ = quicer:shutdown_stream(StreamRef, shutdown_flag(Dir), ErrorCode, infinity),
 	ok.
 
+%% @todo Are these flags correct for what we want?
 shutdown_flag(both) -> ?QUIC_STREAM_SHUTDOWN_FLAG_ABORT;
 shutdown_flag(receiving) -> ?QUIC_STREAM_SHUTDOWN_FLAG_ABORT_RECEIVE.
 
@@ -173,9 +219,11 @@ shutdown_flag(receiving) -> ?QUIC_STREAM_SHUTDOWN_FLAG_ABORT_RECEIVE.
 %% @todo Probably should have the Conn given as argument too?
 -spec handle({quic, _, _, _})
 	-> {data, cow_http3:stream_id(), cow_http:fin(), binary()}
+	| {datagram, binary()}
 	| {stream_started, cow_http3:stream_id(), unidi | bidi}
 	| {stream_closed, cow_http3:stream_id(), quicer_app_errno()}
 	| closed
+	| {peer_send_shutdown, cow_http3:stream_id()}
 	| ok
 	| unknown
 	| {socket_error, any()}.
@@ -187,6 +235,9 @@ handle({quic, Data, StreamRef, #{flags := Flags}}) when is_binary(Data) ->
 		_ -> nofin
 	end,
 	{data, StreamID, IsFin, Data};
+%% @todo Match on Conn.
+handle({quic, Data, _Conn, Flags}) when is_binary(Data), is_integer(Flags) ->
+	{datagram, Data};
 %% QUIC_CONNECTION_EVENT_PEER_STREAM_STARTED.
 handle({quic, new_stream, StreamRef, #{flags := Flags}}) ->
 	case quicer:setopt(StreamRef, active, true) of
@@ -219,8 +270,9 @@ handle({quic, dgram_state_changed, _Conn, _Props}) ->
 %% QUIC_CONNECTION_EVENT_SHUTDOWN_INITIATED_BY_TRANSPORT
 handle({quic, transport_shutdown, _Conn, _Flags}) ->
 	ok;
-handle({quic, peer_send_shutdown, _StreamRef, undefined}) ->
-	ok;
+handle({quic, peer_send_shutdown, StreamRef, undefined}) ->
+	{ok, StreamID} = quicer:get_stream_id(StreamRef),
+	{peer_send_shutdown, StreamID};
 handle({quic, send_shutdown_complete, _StreamRef, _IsGraceful}) ->
 	ok;
 handle({quic, shutdown, _Conn, success}) ->
