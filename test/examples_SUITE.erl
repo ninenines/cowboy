@@ -35,10 +35,10 @@ init_per_suite(Config) ->
 	%% reuse the same build across all tests.
 	Make = do_find_make_cmd(),
 	CommonDir = config(priv_dir, Config),
-	ct:log("~s~n", [os:cmd("git clone --depth 1 https://github.com/ninenines/cowboy "
+	ct:log("~ts~n", [os:cmd("git clone --depth 1 https://github.com/ninenines/cowboy "
 		++ CommonDir ++ "cowboy")]),
-	ct:log("~s~n", [os:cmd(Make ++ " -C " ++ CommonDir ++ "cowboy distclean")]),
-	ct:log("~s~n", [os:cmd(Make ++ " -C " ++ CommonDir ++ "cowboy DEPS_DIR=" ++ CommonDir)]),
+	ct:log("~ts~n", [os:cmd(Make ++ " -C " ++ CommonDir ++ "cowboy distclean")]),
+	ct:log("~ts~n", [os:cmd(Make ++ " -C " ++ CommonDir ++ "cowboy DEPS_DIR=" ++ CommonDir)]),
 	Config.
 
 end_per_suite(_) ->
@@ -70,24 +70,24 @@ do_get_paths(Example0) ->
 do_compile_and_start(Example, Config) ->
 	Make = do_find_make_cmd(),
 	{Dir, Rel, _} = do_get_paths(Example),
-	ct:log("~s~n", [os:cmd(Make ++ " -C " ++ Dir ++ " distclean")]),
+	ct:log("~ts~n", [os:cmd(Make ++ " -C " ++ Dir ++ " distclean")]),
 	%% We use a common build for Cowboy, Cowlib and Ranch to speed things up.
 	CommonDir = config(priv_dir, Config),
-	ct:log("~s~n", [os:cmd("mkdir " ++ Dir ++ "/deps")]),
-	ct:log("~s~n", [os:cmd("ln -s " ++ CommonDir ++ "cowboy " ++ Dir ++ "/deps/cowboy")]),
-	ct:log("~s~n", [os:cmd("ln -s " ++ CommonDir ++ "cowlib " ++ Dir ++ "/deps/cowlib")]),
-	ct:log("~s~n", [os:cmd("ln -s " ++ CommonDir ++ "ranch " ++ Dir ++ "/deps/ranch")]),
+	ct:log("~ts~n", [os:cmd("mkdir " ++ Dir ++ "/deps")]),
+	ct:log("~ts~n", [os:cmd("ln -s " ++ CommonDir ++ "cowboy " ++ Dir ++ "/deps/cowboy")]),
+	ct:log("~ts~n", [os:cmd("ln -s " ++ CommonDir ++ "cowlib " ++ Dir ++ "/deps/cowlib")]),
+	ct:log("~ts~n", [os:cmd("ln -s " ++ CommonDir ++ "ranch " ++ Dir ++ "/deps/ranch")]),
 	%% TERM=dumb disables relx coloring.
-	ct:log("~s~n", [os:cmd(Make ++ " -C " ++ Dir ++ " TERM=dumb")]),
-	ct:log("~s~n", [os:cmd(Rel ++ " stop")]),
-	ct:log("~s~n", [os:cmd(Rel ++ " daemon")]),
+	ct:log("~ts~n", [os:cmd(Make ++ " -C " ++ Dir ++ " TERM=dumb")]),
+	ct:log("~ts~n", [os:cmd(Rel ++ " stop")]),
+	ct:log("~ts~n", [os:cmd(Rel ++ " daemon")]),
 	timer:sleep(2000),
 	ok.
 
 do_stop(Example) ->
 	{_, Rel, Log} = do_get_paths(Example),
-	ct:log("~s~n", [os:cmd(Rel ++ " stop")]),
-	ct:log("~s~n", [element(2, file:read_file(Log))]),
+	ct:log("~ts~n", [os:cmd(Rel ++ " stop")]),
+	ct:log("~ts~n", [element(2, file:read_file(Log))]),
 	ok.
 
 %% Fetch a response.
