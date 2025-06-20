@@ -154,7 +154,8 @@
 }).
 
 -spec init(pid(), ranch:ref(), inet:socket(), module(),
-	ranch_proxy_header:proxy_info() | undefined, cowboy:opts()) -> ok.
+	ranch_proxy_header:proxy_info() | undefined, cowboy:opts()) -> no_return().
+
 init(Parent, Ref, Socket, Transport, ProxyHeader, Opts) ->
 	{ok, Peer} = maybe_socket_error(undefined, Transport:peername(Socket),
 		'A socket error occurred when retrieving the peer name.'),
@@ -178,7 +179,8 @@ init(Parent, Ref, Socket, Transport, ProxyHeader, Opts) ->
 -spec init(pid(), ranch:ref(), inet:socket(), module(),
 	ranch_proxy_header:proxy_info() | undefined, cowboy:opts(),
 	{inet:ip_address(), inet:port_number()}, {inet:ip_address(), inet:port_number()},
-	binary() | undefined, binary()) -> ok.
+	binary() | undefined, binary()) -> no_return().
+
 init(Parent, Ref, Socket, Transport, ProxyHeader, Opts, Peer, Sock, Cert, Buffer) ->
 	DynamicBuffer = init_dynamic_buffer_size(Opts),
 	{ok, Preface, HTTP2Machine} = cow_http2_machine:init(server, Opts),
@@ -227,7 +229,8 @@ add_period(Time, Period) -> Time + Period.
 -spec init(pid(), ranch:ref(), inet:socket(), module(),
 	ranch_proxy_header:proxy_info() | undefined, cowboy:opts(),
 	{inet:ip_address(), inet:port_number()}, {inet:ip_address(), inet:port_number()},
-	binary() | undefined, binary(), map() | undefined, cowboy_req:req()) -> ok.
+	binary() | undefined, binary(), map() | undefined, cowboy_req:req()) -> no_return().
+
 init(Parent, Ref, Socket, Transport, ProxyHeader, Opts, Peer, Sock, Cert, Buffer,
 		_Settings, Req=#{method := Method}) ->
 	DynamicBuffer = init_dynamic_buffer_size(Opts),
@@ -276,7 +279,7 @@ before_loop(State=#state{opts=#{hibernate := true}}, Buffer) ->
 before_loop(State, Buffer) ->
 	loop(State, Buffer).
 
--spec loop(#state{}, binary()) -> ok.
+-spec loop(#state{}, binary()) -> no_return().
 
 loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 		opts=Opts, timer=TimerRef, children=Children}, Buffer) ->
@@ -1134,7 +1137,9 @@ goaway_streams(State, [Stream|Tail], LastStreamID, Reason, Acc) ->
 %% in-flight stream creation (at least one round-trip time), the server can send
 %% another GOAWAY frame with an updated last stream identifier. This ensures
 %% that a connection can be cleanly shut down without losing requests.
+
 -spec initiate_closing(#state{}, _) -> #state{}.
+
 initiate_closing(State=#state{http2_status=connected, socket=Socket,
 		transport=Transport, opts=Opts}, Reason) ->
 	ok = maybe_socket_error(State, Transport:send(Socket,
@@ -1151,7 +1156,9 @@ initiate_closing(State, Reason) ->
 	terminate(State, {stop, stop_reason(Reason), 'The connection is going away.'}).
 
 %% Switch to 'closing' state and stop accepting new streams.
+
 -spec closing(#state{}, Reason :: term()) -> #state{}.
+
 closing(State=#state{streams=Streams}, Reason) when Streams =:= #{} ->
 	terminate(State, Reason);
 closing(State0=#state{http2_status=closing_initiated,
@@ -1188,6 +1195,7 @@ maybe_socket_error(State, {error, Reason}, Human) ->
 	terminate(State, {socket_error, Reason, Human}).
 
 -spec terminate(#state{} | undefined, _) -> no_return().
+
 terminate(undefined, Reason) ->
 	exit({shutdown, Reason});
 terminate(State=#state{socket=Socket, transport=Transport, http2_status=Status,
@@ -1388,15 +1396,18 @@ terminate_stream_handler(#state{opts=Opts}, StreamID, Reason, StreamState) ->
 
 %% System callbacks.
 
--spec system_continue(_, _, {#state{}, binary()}) -> ok.
+-spec system_continue(_, _, {#state{}, binary()}) -> no_return().
+
 system_continue(_, _, {State, Buffer}) ->
 	before_loop(State, Buffer).
 
 -spec system_terminate(any(), _, _, {#state{}, binary()}) -> no_return().
+
 system_terminate(Reason0, _, _, {State, Buffer}) ->
 	Reason = {stop, {exit, Reason0}, 'sys:terminate/2,3 was called.'},
 	before_loop(initiate_closing(State, Reason), Buffer).
 
 -spec system_code_change(Misc, _, _, _) -> {ok, Misc} when Misc::{#state{}, binary()}.
+
 system_code_change(Misc, _, _, _) ->
 	{ok, Misc}.
