@@ -20,7 +20,7 @@
 %% HTTP/3:
 %%  - SETTINGS_H3_DATAGRAM = 1
 %%  - SETTINGS_ENABLE_CONNECT_PROTOCOL = 1
-%%  - SETTINGS_WEBTRANSPORT_MAX_SESSIONS >= 1
+%%  - SETTINGS_WT_MAX_SESSIONS >= 1
 
 %% Cowboy supports versions 07 through 13 of the WebTransport drafts.
 %% Cowboy also has some compatibility with version 02.
@@ -239,10 +239,10 @@ commands([Command={send, _, _}|Tail], State, Res, Acc) ->
 %% {send, StreamID, IsFin, Data}.
 commands([Command={send, _, _, _}|Tail], State, Res, Acc) ->
 	commands(Tail, State, Res, [Command|Acc]);
-%% initiate_close - DRAIN_WEBTRANSPORT_SESSION
+%% initiate_close - DRAIN_WT_SESSION
 commands([Command=initiate_close|Tail], State, Res, Acc) ->
 	commands(Tail, State, Res, [Command|Acc]);
-%% close | {close, Code} | {close, Code, Msg} - CLOSE_WEBTRANSPORT_SESSION
+%% close | {close, Code} | {close, Code, Msg} - CLOSE_WT_SESSION
 %% @todo At this point the handler must not issue stream or send commands.
 commands([Command=close|Tail], State, _, Acc) ->
 	commands(Tail, State, stop, [Command|Acc]);

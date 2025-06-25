@@ -36,7 +36,7 @@ init_per_group(Name = enabled, Config) ->
 		enable_connect_protocol => true,
 		h3_datagram => true,
 		enable_webtransport => true, %% For compatibility with draft-02.
-		webtransport_max_sessions => 10,
+		wt_max_sessions => 10,
 		env => #{dispatch => cowboy_router:compile(init_routes(Config))}
 	}, Config).
 
@@ -68,7 +68,7 @@ init_routes(_) -> [
 
 %% 3.1. Establishing a WebTransport-Capable HTTP/3 Connection
 
-%% In order to indicate support for WebTransport, the server MUST send a SETTINGS_WEBTRANSPORT_MAX_SESSIONS value greater than "0" in its SETTINGS frame. (3.1)
+%% In order to indicate support for WebTransport, the server MUST send a SETTINGS_WT_MAX_SESSIONS value greater than "0" in its SETTINGS frame. (3.1)
 %% @todo reject_session_disabled
 %% @todo accept_session_below
 %% @todo accept_session_equal
@@ -93,7 +93,7 @@ init_routes(_) -> [
 
 %% 3.2. Extended CONNECT in HTTP/3
 
-%% [RFC8441] defines an extended CONNECT method in Section 4, enabled by the SETTINGS_ENABLE_CONNECT_PROTOCOL setting. That setting is defined for HTTP/3 by [RFC9220]. A server supporting WebTransport over HTTP/3 MUST send both the SETTINGS_WEBTRANSPORT_MAX_SESSIONS setting with a value greater than "0" and the SETTINGS_ENABLE_CONNECT_PROTOCOL setting with a value of "1". (3.2)
+%% [RFC8441] defines an extended CONNECT method in Section 4, enabled by the SETTINGS_ENABLE_CONNECT_PROTOCOL setting. That setting is defined for HTTP/3 by [RFC9220]. A server supporting WebTransport over HTTP/3 MUST send both the SETTINGS_WT_MAX_SESSIONS setting with a value greater than "0" and the SETTINGS_ENABLE_CONNECT_PROTOCOL setting with a value of "1". (3.2)
 %% @todo settings_enable_connect_protocol_enabled
 %% @todo reject_settings_enable_connect_protocol_disabled
 
@@ -208,7 +208,7 @@ bidirectional_streams_server(Config) ->
 	{fin, <<"Hello">>} = do_receive_data(RemoteStreamRef),
 	ok.
 
-%% Endpoints MUST NOT send WEBTRANSPORT_STREAM as a frame type on HTTP/3 streams other than the very first bytes of a request stream. Receiving this frame type in any other circumstances MUST be treated as a connection error of type H3_FRAME_ERROR. (4.2)
+%% Endpoints MUST NOT send WT_STREAM as a frame type on HTTP/3 streams other than the very first bytes of a request stream. Receiving this frame type in any other circumstances MUST be treated as a connection error of type H3_FRAME_ERROR. (4.2)
 
 %% 4.3. Resetting Data Streams
 
@@ -242,7 +242,7 @@ datagrams(Config) ->
 
 %% To handle this case (out of order stream_open/CONNECT), WebTransport endpoints SHOULD buffer streams and datagrams until those can be associated with an established session. (4.5)
 
-%% To avoid resource exhaustion, the endpoints MUST limit the number of buffered streams and datagrams. When the number of buffered streams is exceeded, a stream SHALL be closed by sending a RESET_STREAM and/or STOP_SENDING with the WEBTRANSPORT_BUFFERED_STREAM_REJECTED error code. When the number of buffered datagrams is exceeded, a datagram SHALL be dropped. It is up to an implementation to choose what stream or datagram to discard. (4.5)
+%% To avoid resource exhaustion, the endpoints MUST limit the number of buffered streams and datagrams. When the number of buffered streams is exceeded, a stream SHALL be closed by sending a RESET_STREAM and/or STOP_SENDING with the WT_BUFFERED_STREAM_REJECTED error code. When the number of buffered datagrams is exceeded, a datagram SHALL be dropped. It is up to an implementation to choose what stream or datagram to discard. (4.5)
 
 %% 4.6. Interaction with HTTP/3 GOAWAY frame
 
@@ -356,7 +356,7 @@ wt_drain_session_continue_server(Config) ->
 
 %% 5.1. Limiting the Number of Simultaneous Sessions
 
-%% This document defines a SETTINGS_WEBTRANSPORT_MAX_SESSIONS parameter that allows the server to limit the maximum number of concurrent WebTransport sessions on a single HTTP/3 connection. The client MUST NOT open more simultaneous sessions than indicated in the server SETTINGS parameter. The server MUST NOT close the connection if the client opens sessions exceeding this limit, as the client and the server do not have a consistent view of how many sessions are open due to the asynchronous nature of the protocol; instead, it MUST reset all of the CONNECT streams it is not willing to process with the H3_REQUEST_REJECTED status defined in [HTTP3]. (5.1)
+%% This document defines a SETTINGS_WT_MAX_SESSIONS parameter that allows the server to limit the maximum number of concurrent WebTransport sessions on a single HTTP/3 connection. The client MUST NOT open more simultaneous sessions than indicated in the server SETTINGS parameter. The server MUST NOT close the connection if the client opens sessions exceeding this limit, as the client and the server do not have a consistent view of how many sessions are open due to the asynchronous nature of the protocol; instead, it MUST reset all of the CONNECT streams it is not willing to process with the H3_REQUEST_REJECTED status defined in [HTTP3]. (5.1)
 
 %% 5.2. Limiting the Number of Streams Within a Session
 
@@ -386,9 +386,9 @@ wt_drain_session_continue_server(Config) ->
 
 %% 5.5. Flow Control SETTINGS
 
-%% WT_MAX_STREAMS via SETTINGS_WEBTRANSPORT_INITIAL_MAX_STREAMS_UNI and SETTINGS_WEBTRANSPORT_INITIAL_MAX_STREAMS_BIDI (5.5)
+%% WT_MAX_STREAMS via SETTINGS_WT_INITIAL_MAX_STREAMS_UNI and SETTINGS_WT_INITIAL_MAX_STREAMS_BIDI (5.5)
 
-%% WT_MAX_DATA via SETTINGS_WEBTRANSPORT_INITIAL_MAX_DATA (5.5)
+%% WT_MAX_DATA via SETTINGS_WT_INITIAL_MAX_DATA (5.5)
 
 %% 5.6. Flow Control Capsules
 
@@ -404,7 +404,7 @@ wt_drain_session_continue_server(Config) ->
 
 %% Note that this limit includes streams that have been closed as well as those that are open. (5.6.1)
 
-%% Initial values for these limits MAY be communicated by sending non-zero values for SETTINGS_WEBTRANSPORT_INITIAL_MAX_STREAMS_UNI and SETTINGS_WEBTRANSPORT_INITIAL_MAX_STREAMS_BIDI. (5.6.1)
+%% Initial values for these limits MAY be communicated by sending non-zero values for SETTINGS_WT_INITIAL_MAX_STREAMS_UNI and SETTINGS_WT_INITIAL_MAX_STREAMS_BIDI. (5.6.1)
 
 %% 5.7. WT_STREAMS_BLOCKED Capsule
 
@@ -418,7 +418,7 @@ wt_drain_session_continue_server(Config) ->
 
 %% All data sent in WT_STREAM capsules counts toward this limit. The sum of the lengths of Stream Data fields in WT_STREAM capsules MUST NOT exceed the value advertised by a receiver. (5.8)
 
-%% The initial value for this limit MAY be communicated by sending a non-zero value for SETTINGS_WEBTRANSPORT_INITIAL_MAX_DATA. (5.8)
+%% The initial value for this limit MAY be communicated by sending a non-zero value for SETTINGS_WT_INITIAL_MAX_DATA. (5.8)
 
 %% 5.9. WT_DATA_BLOCKED Capsule
 
@@ -504,16 +504,16 @@ wt_session_gone_client(Config) ->
 		cow_capsule:wt_close_session(0, <<>>),
 		?QUIC_SEND_FLAG_FIN),
 	%% All streams from that WT session have been aborted.
-	#{reason := webtransport_session_gone} = do_wait_stream_aborted(LocalUnidiStreamRef),
-	#{reason := webtransport_session_gone} = do_wait_stream_aborted(RemoteUnidiStreamRef),
-	#{reason := webtransport_session_gone} = do_wait_stream_aborted(LocalBidiStreamRef),
-	#{reason := webtransport_session_gone} = do_wait_stream_aborted(RemoteBidiStreamRef),
+	#{reason := wt_session_gone} = do_wait_stream_aborted(LocalUnidiStreamRef),
+	#{reason := wt_session_gone} = do_wait_stream_aborted(RemoteUnidiStreamRef),
+	#{reason := wt_session_gone} = do_wait_stream_aborted(LocalBidiStreamRef),
+	#{reason := wt_session_gone} = do_wait_stream_aborted(RemoteBidiStreamRef),
 	ok.
 
 wt_session_gone_server(Config) ->
 	doc("After the session has been terminated by the WT server, "
 		"the WT server must reset associated streams with the "
-		"WEBTRANSPORT_SESSION_GONE error code. (draft_webtrans_http3 4.6)"),
+		"WT_SESSION_GONE error code. (draft_webtrans_http3 4.6)"),
 	%% Connect to the WebTransport server.
 	#{
 		conn := Conn,
@@ -545,10 +545,10 @@ wt_session_gone_server(Config) ->
 	CloseWTSessionCapsule = cow_capsule:wt_close_session(0, <<>>),
 	{fin, CloseWTSessionCapsule} = do_receive_data(ConnectStreamRef),
 	%% All streams from that WT session have been aborted.
-	#{reason := webtransport_session_gone} = do_wait_stream_aborted(LocalUnidiStreamRef),
-	#{reason := webtransport_session_gone} = do_wait_stream_aborted(RemoteUnidiStreamRef),
-	#{reason := webtransport_session_gone} = do_wait_stream_aborted(LocalBidiStreamRef),
-	#{reason := webtransport_session_gone} = do_wait_stream_aborted(RemoteBidiStreamRef),
+	#{reason := wt_session_gone} = do_wait_stream_aborted(LocalUnidiStreamRef),
+	#{reason := wt_session_gone} = do_wait_stream_aborted(RemoteUnidiStreamRef),
+	#{reason := wt_session_gone} = do_wait_stream_aborted(LocalBidiStreamRef),
+	#{reason := wt_session_gone} = do_wait_stream_aborted(RemoteBidiStreamRef),
 	ok.
 
 %% Application Error Message: A UTF-8 encoded error message string provided by the application closing the session. The message takes up the remainder of the capsule, and its length MUST NOT exceed 1024 bytes. (6)
@@ -722,8 +722,8 @@ do_webtransport_connect(Config, ExtraHeaders) ->
 	}),
 	%% Confirm that SETTINGS_ENABLE_CONNECT_PROTOCOL = 1.
 	#{enable_connect_protocol := true} = Settings,
-	%% Confirm that SETTINGS_WEBTRANSPORT_MAX_SESSIONS >= 1.
-	#{webtransport_max_sessions := WTMaxSessions} = Settings,
+	%% Confirm that SETTINGS_WT_MAX_SESSIONS >= 1.
+	#{wt_max_sessions := WTMaxSessions} = Settings,
 	true = WTMaxSessions >= 1,
 	%% Confirm that SETTINGS_H3_DATAGRAM = 1.
 	#{h3_datagram := true} = Settings,

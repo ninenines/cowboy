@@ -973,7 +973,6 @@ wt_commands(State0=#state{conn=Conn}, Session=#stream{id=SessionID}, [Cmd|Tail])
 	Capsule = cow_capsule:wt_close_session(AppCode, AppMsg),
 	case cowboy_quicer:send(Conn, SessionID, Capsule, fin) of
 		ok ->
-			%% @todo The endpoint MAY send a STOP_SENDING to indicate it is no longer reading from the CONNECT stream.
 			State = webtransport_terminate_session(State0, Session),
 			%% @todo Because the handler is in a separate process
 			%%       we must wait for it to stop and eventually
@@ -994,7 +993,7 @@ webtransport_terminate_session(State=#state{conn=Conn, http3_machine=HTTP3Machin
 		(StreamID, #stream{status={webtransport_stream, StreamSessionID}})
 				when StreamSessionID =:= SessionID ->
 			cowboy_quicer:shutdown_stream(Conn, StreamID,
-				both, cow_http3:error_to_code(webtransport_session_gone)),
+				both, cow_http3:error_to_code(wt_session_gone)),
 			false;
 		(_, _) ->
 			true
