@@ -163,7 +163,7 @@ init(Parent, Ref, Socket, Transport, ProxyHeader, Opts) ->
 		'A socket error occurred when retrieving the sock name.'),
 	CertResult = case Transport:name() of
 		ssl ->
-			case ssl:peercert(Socket) of
+			case Transport:peercert(Socket) of
 				{error, no_peercert} ->
 					{ok, undefined};
 				Cert0 ->
