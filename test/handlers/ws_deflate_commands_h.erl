@@ -8,10 +8,11 @@
 -export([websocket_handle/2]).
 -export([websocket_info/2]).
 
-init(Req, RunOrHibernate) ->
+init(Req, Opts) ->
+	DataDelivery = maps:get(data_delivery, Opts, stream_handlers),
 	{cowboy_websocket, Req,
-		#{deflate => true, hibernate => RunOrHibernate},
-		#{compress => true}}.
+		#{deflate => true, hibernate => maps:get(run_or_hibernate, Opts)},
+		#{compress => true, data_delivery => DataDelivery}}.
 
 websocket_handle(Frame, State=#{deflate := Deflate0, hibernate := run}) ->
 	Deflate = not Deflate0,

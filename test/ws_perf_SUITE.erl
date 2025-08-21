@@ -55,14 +55,15 @@ init_per_group(Name, Config) when Name =:= h2c; Name =:= h2c_compress ->
 		h2c_compress -> {compress, #{stream_handlers => [cowboy_compress_h, cowboy_stream_h]}}
 	end,
 	Config1 = cowboy_test:init_http(Name, Opts#{
-		connection_window_margin_size => 64*1024,
+		%% The margin sizes must be larger than the larger test message for plain sockets.
+		connection_window_margin_size => 128*1024,
 		enable_connect_protocol => true,
 		env => #{dispatch => init_dispatch(Config)},
 		max_frame_size_sent => 64*1024,
 		max_frame_size_received => 16384 * 1024 - 1,
 		max_received_frame_rate => {10_000_000, 1},
 		stream_window_data_threshold => 1024,
-		stream_window_margin_size => 64*1024
+		stream_window_margin_size => 128*1024
 	}, [{flavor, Flavor}|Config]),
 	lists:keyreplace(protocol, 1, Config1, {protocol, http2});
 init_per_group(ascii, Config) ->
@@ -265,13 +266,14 @@ send_N_16384B(Config) ->
 
 do_send(Config, What, Num, FrameSize) ->
 	{ok, ConnPid, StreamRef} = do_gun_open_ws("/ws_ignore", Config),
+	%% Prepare the frame data.
 	FrameType = config(frame_type, Config),
 	FrameData = case FrameType of
 		text -> do_text_data(Config, FrameSize);
 		binary -> rand:bytes(FrameSize)
 	end,
 	%% Heat up the processes before doing the real run.
-%	do_send_loop(ConnPid, StreamRef, Num, FrameType, FrameData),
+%	do_send_loop(Socket, Num, FrameType, Mask, MaskedFrameData),
 	{Time, _} = timer:tc(?MODULE, do_send_loop, [ConnPid, StreamRef, Num, FrameType, FrameData]),
 	do_log("~-6s ~-6s ~6s: ~8bµs", [What, FrameType, do_format_size(FrameSize), Time]),
 	gun:ws_send(ConnPid, StreamRef, close),
@@ -279,12 +281,181 @@ do_send(Config, What, Num, FrameSize) ->
 	gun_down(ConnPid).
 
 do_send_loop(ConnPid, StreamRef, 0, _, _) ->
-	gun:ws_send(ConnPid, StreamRef, {text, <<"CHECK">>}),
-	{ok, {text, <<"CHECK">>}} = receive_ws(ConnPid, StreamRef),
-	ok;
+   gun:ws_send(ConnPid, StreamRef, {text, <<"CHECK">>}),
+   {ok, {text, <<"CHECK">>}} = receive_ws(ConnPid, StreamRef),
+   ok;
 do_send_loop(ConnPid, StreamRef, Num, FrameType, FrameData) ->
-	gun:ws_send(ConnPid, StreamRef, {FrameType, FrameData}),
-	do_send_loop(ConnPid, StreamRef, Num - 1, FrameType, FrameData).
+   gun:ws_send(ConnPid, StreamRef, {FrameType, FrameData}),
+   do_send_loop(ConnPid, StreamRef, Num - 1, FrameType, FrameData).
+
+tcp_send_N_00000B(Config) ->
+	doc("Send a 0B frame 10000 times."),
+	do_tcp_send(Config, tcps_N, 10000, 0).
+
+tcp_send_N_00256B(Config) ->
+	doc("Send a 256B frame 10000 times."),
+	do_tcp_send(Config, tcps_N, 10000, 256).
+
+tcp_send_N_01024B(Config) ->
+	doc("Send a 1024B frame 10000 times."),
+	do_tcp_send(Config, tcps_N, 10000, 1024).
+
+tcp_send_N_04096B(Config) ->
+	doc("Send a 4096B frame 10000 times."),
+	do_tcp_send(Config, tcps_N, 10000, 4096).
+
+tcp_send_N_16384B(Config) ->
+	doc("Send a 16384B frame 10000 times."),
+	do_tcp_send(Config, tcps_N, 10000, 16384).
+
+do_tcp_send(Config, What, Num, FrameSize) ->
+	{ok, Socket} = do_tcp_handshake(Config, #{}),
+	%% Prepare the frame data.
+	FrameType = config(frame_type, Config),
+	FrameData = case FrameType of
+		text -> do_text_data(Config, FrameSize);
+		binary -> rand:bytes(FrameSize)
+	end,
+	%% Mask the data outside the benchmark to avoid influencing the results.
+	Mask = 16#37fa213d,
+	MaskedFrameData = ws_SUITE:do_mask(FrameData, Mask, <<>>),
+	FrameSizeWithHeader = FrameSize + case FrameSize of
+		N when N =< 125 -> 6;
+		N when N =< 16#ffff -> 8;
+		N when N =< 16#7fffffffffffffff -> 14
+	end,
+	%% Run the benchmark; different function for h1 and h2.
+	{Time, _} = case config(protocol, Config) of
+		http -> timer:tc(?MODULE, do_tcp_send_loop_h1,
+			[Socket, Num, FrameType, Mask, MaskedFrameData]);
+		http2 -> timer:tc(?MODULE, do_tcp_send_loop_h2,
+			[Socket, 65535, Num, FrameType, Mask, MaskedFrameData, FrameSizeWithHeader])
+	end,
+	do_log("~-6s ~-6s ~6s: ~8bµs", [What, FrameType, do_format_size(FrameSize), Time]),
+	gen_tcp:close(Socket).
+
+%% Do a prior knowledge handshake.
+do_tcp_handshake(Config, LocalSettings) ->
+	Protocol = config(protocol, Config),
+	Socket1 = case Protocol of
+		http ->
+			{ok, Socket, _} = ws_SUITE:do_handshake(<<"/ws_ignore">>, Config),
+			Socket;
+		http2 ->
+			{ok, Socket} = gen_tcp:connect("localhost", config(port, Config), [binary, {active, false}]),
+			%% Send a valid preface.
+			ok = gen_tcp:send(Socket, [
+				"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n",
+				cow_http2:settings(LocalSettings)
+			]),
+			%% Receive the server preface.
+			{ok, << Len:24 >>} = gen_tcp:recv(Socket, 3, 1000),
+			{ok, << 4:8, 0:40, SettingsPayload:Len/binary >>} = gen_tcp:recv(Socket, 6 + Len, 1000),
+			RemoteSettings = cow_http2:parse_settings_payload(SettingsPayload),
+			#{enable_connect_protocol := true} = RemoteSettings,
+			%% Send the SETTINGS ack.
+			ok = gen_tcp:send(Socket, cow_http2:settings_ack()),
+			%% Receive the SETTINGS ack.
+			{ok, << 0:24, 4:8, 1:8, 0:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+			%% Send a CONNECT :protocol request to upgrade the stream to Websocket.
+			{ReqHeadersBlock, _} = cow_hpack:encode([
+				{<<":method">>, <<"CONNECT">>},
+				{<<":protocol">>, <<"websocket">>},
+				{<<":scheme">>, <<"http">>},
+				{<<":path">>, <<"/ws_ignore">>},
+				{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+				{<<"sec-websocket-version">>, <<"13">>},
+				{<<"origin">>, <<"http://localhost">>}
+			]),
+			ok = gen_tcp:send(Socket, cow_http2:headers(1, nofin, ReqHeadersBlock)),
+			%% Receive a 200 response.
+			{ok, << Len1:24, 1:8, _:8, 1:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+			{ok, RespHeadersBlock} = gen_tcp:recv(Socket, Len1, 1000),
+			{RespHeaders, _} = cow_hpack:decode(RespHeadersBlock),
+			{_, <<"200">>} = lists:keyfind(<<":status">>, 1, RespHeaders),
+			Socket
+	end,
+	%% Enable active mode to avoid delays in receiving data at the end of benchmark.
+	ok = inet:setopts(Socket1, [{active, true}]),
+	%% Stream number 1 is ready.
+	{ok, Socket1}.
+
+do_tcp_send_loop_h1(Socket, 0, _, Mask, _) ->
+	MaskedFrameData = ws_SUITE:do_mask(<<"CHECK">>, Mask, <<>>),
+	ok = gen_tcp:send(Socket,
+		<<1:1, 0:3, 1:4, 1:1, 5:7, Mask:32, MaskedFrameData/binary>>),
+	do_tcp_wait_for_check(Socket);
+do_tcp_send_loop_h1(Socket, Num, FrameType, Mask, MaskedFrameData) ->
+	Len = byte_size(MaskedFrameData),
+	LenBits = case Len of
+		N when N =< 125 -> << N:7 >>;
+		N when N =< 16#ffff -> << 126:7, N:16 >>;
+		N when N =< 16#7fffffffffffffff -> << 127:7, N:64 >>
+	end,
+	FrameHeader = <<1:1, 0:3, 2:4, 1:1, LenBits/bits, Mask:32>>,
+	ok = gen_tcp:send(Socket, [
+		FrameHeader,
+		MaskedFrameData
+	]),
+	do_tcp_send_loop_h1(Socket, Num - 1, FrameType, Mask, MaskedFrameData).
+
+do_tcp_send_loop_h2(Socket, _, 0, _, Mask, _, _) ->
+	MaskedFrameData = ws_SUITE:do_mask(<<"CHECK">>, Mask, <<>>),
+	ok = gen_tcp:send(Socket, cow_http2:data(1, nofin,
+		<<1:1, 0:3, 1:4, 1:1, 5:7, Mask:32, MaskedFrameData/binary>>)),
+	do_tcp_wait_for_check(Socket);
+do_tcp_send_loop_h2(Socket, Window0, Num, FrameType, Mask, MaskedFrameData, FrameSizeWithHeader)
+		when Window0 < FrameSizeWithHeader ->
+	%% The remaining window isn't large enough so
+	%% we wait for WINDOW_UPDATE frames.
+	Window = do_tcp_wait_window_updates(Socket, Window0),
+	do_tcp_send_loop_h2(Socket, Window, Num, FrameType, Mask, MaskedFrameData, FrameSizeWithHeader);
+do_tcp_send_loop_h2(Socket, Window, Num, FrameType, Mask, MaskedFrameData, FrameSizeWithHeader) ->
+	Len = byte_size(MaskedFrameData),
+	LenBits = case Len of
+		N when N =< 125 -> << N:7 >>;
+		N when N =< 16#ffff -> << 126:7, N:16 >>;
+		N when N =< 16#7fffffffffffffff -> << 127:7, N:64 >>
+	end,
+	FrameHeader = <<1:1, 0:3, 2:4, 1:1, LenBits/bits, Mask:32>>,
+	ok = gen_tcp:send(Socket, cow_http2:data(1, nofin, [
+		FrameHeader,
+		MaskedFrameData
+	])),
+	do_tcp_send_loop_h2(Socket, Window - FrameSizeWithHeader,
+		Num - 1, FrameType, Mask, MaskedFrameData, FrameSizeWithHeader).
+
+do_tcp_wait_window_updates(Socket, Window) ->
+	receive
+		{tcp, Socket, Data} ->
+			do_tcp_wait_window_updates_parse(Socket, Window, Data)
+	after 0 ->
+		Window
+	end.
+
+do_tcp_wait_window_updates_parse(Socket, Window, Data) ->
+	case Data of
+		%% Ignore the connection-wide WINDOW_UPDATE.
+		<<4:24, 8:8, 0:8, 0:32, 0:1, _:31, Rest/bits>> ->
+			do_tcp_wait_window_updates_parse(Socket, Window, Rest);
+		%% Use the stream-specific WINDOW_UPDATE to increment our window.
+		<<4:24, 8:8, 0:8, 1:32, 0:1, Inc:31, Rest/bits>> ->
+			do_tcp_wait_window_updates_parse(Socket, Window + Inc, Rest);
+		%% Other frames are not expected.
+		<<>> ->
+			do_tcp_wait_window_updates(Socket, Window)
+	end.
+
+do_tcp_wait_for_check(Socket) ->
+	receive
+		{tcp, Socket, Data} ->
+			case binary:match(Data, <<"CHECK">>) of
+				nomatch -> do_tcp_wait_for_check(Socket);
+				_ -> ok
+			end
+	after 5000 ->
+		error(timeout)
+	end.
 
 %% Internal.
 

@@ -9,14 +9,20 @@
 -export([websocket_handle/2]).
 -export([websocket_info/2]).
 
-init(Req=#{pid := Pid}, RunOrHibernate) ->
+init(Req, Opts) ->
 	Commands0 = cowboy_req:header(<<"x-commands">>, Req),
 	Commands = binary_to_term(base64:decode(Commands0)),
 	case Commands of
-		bad -> ct_helper_error_h:ignore(Pid, cowboy_websocket, handler_call, 6);
-		_ -> ok
+		bad ->
+			Pid = case Req of
+				#{version := 'HTTP/2'} -> self();
+				#{pid := Pid0} -> Pid0
+			end,
+			ct_helper_error_h:ignore(Pid, cowboy_websocket, handler_call, 6);
+		_ ->
+			ok
 	end,
-	{cowboy_websocket, Req, {Commands, RunOrHibernate}}.
+	{cowboy_websocket, Req, {Commands, maps:get(run_or_hibernate, Opts)}, Opts}.
 
 websocket_init(State={Commands, run}) ->
 	{Commands, State};

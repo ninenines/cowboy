@@ -277,6 +277,7 @@ handler_terminate(#state{handler=Handler, req=Req}, HandlerState, Reason) ->
 %% callback is not implemented.
 %%
 %% @todo Better type than map() for the cowboy_stream state.
+%% @todo Is this really useful?
 
 -spec info(cowboy_stream:streamid(), any(), State)
 	-> {cowboy_stream:commands(), State} when State::map().

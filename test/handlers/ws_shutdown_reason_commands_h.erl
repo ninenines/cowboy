@@ -10,9 +10,9 @@
 -export([websocket_handle/2]).
 -export([websocket_info/2]).
 
-init(Req, RunOrHibernate) ->
+init(Req, Opts) ->
 	TestPid = list_to_pid(binary_to_list(cowboy_req:header(<<"x-test-pid">>, Req))),
-	{cowboy_websocket, Req, {TestPid, RunOrHibernate}}.
+	{cowboy_websocket, Req, {TestPid, maps:get(run_or_hibernate, Opts)}, Opts}.
 
 websocket_init(State={TestPid, RunOrHibernate}) ->
 	TestPid ! {ws_pid, self()},

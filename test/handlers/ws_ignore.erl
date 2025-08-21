@@ -8,6 +8,7 @@
 
 init(Req, _) ->
 	{cowboy_websocket, Req, undefined, #{
+		data_delivery => relay,
 		compress => true
 	}}.
 

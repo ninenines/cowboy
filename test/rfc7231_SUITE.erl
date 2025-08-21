@@ -44,7 +44,7 @@ init_dispatch(_) ->
 		{"/echo/:key", echo_h, []},
 		{"/delay/echo/:key", echo_h, []},
 		{"/resp/:key[/:arg]", resp_h, []},
-		{"/ws", ws_init_h, []}
+		{"/ws", ws_init_h, #{}}
 	]}]).
 
 %% @todo The documentation should list what methods, headers and status codes

@@ -42,7 +42,7 @@ init_dispatch() ->
 		{"localhost", [
 			{"/ws_echo", ws_echo, []},
 			{"/ws_echo_timer", ws_echo_timer, []},
-			{"/ws_init", ws_init_h, []},
+			{"/ws_init", ws_init_h, #{}},
 			{"/ws_init_shutdown", ws_init_shutdown, []},
 			{"/ws_send_many", ws_send_many, [
 				{sequence, [

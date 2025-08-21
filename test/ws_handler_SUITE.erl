@@ -19,20 +19,39 @@
 -import(ct_helper, [config/2]).
 -import(ct_helper, [doc/1]).
 -import(cowboy_test, [gun_open/1]).
+-import(cowboy_test, [gun_open/2]).
 -import(cowboy_test, [gun_down/1]).
 
 %% ct.
 
 all() ->
-	[{group, ws}, {group, ws_hibernate}].
+	[
+		{group, h1},
+		{group, h1_hibernate},
+		{group, h2},
+		{group, h2_relay}
+	].
 
 %% @todo Test against HTTP/2 too.
 groups() ->
 	AllTests = ct_helper:all(?MODULE),
-	[{ws, [parallel], AllTests}, {ws_hibernate, [parallel], AllTests}].
+	[
+		{h1, [parallel], AllTests},
+		{h1_hibernate, [parallel], AllTests},
+		%% The websocket_deflate_false test isn't compatible with HTTP/2.
+		{h2, [parallel], AllTests -- [websocket_deflate_false]},
+		{h2_relay, [parallel], AllTests -- [websocket_deflate_false]}
+	].
 
-init_per_group(Name, Config) ->
+init_per_group(Name, Config)
+		when Name =:= h1; Name =:= h1_hibernate ->
 	cowboy_test:init_http(Name, #{
+		env => #{dispatch => init_dispatch(Name)}
+	}, Config);
+init_per_group(Name, Config)
+		when Name =:= h2; Name =:= h2_relay ->
+	cowboy_test:init_http2(Name, #{
+		enable_connect_protocol => true,
 		env => #{dispatch => init_dispatch(Name)}
 	}, Config).
 
@@ -42,25 +61,27 @@ end_per_group(Name, _) ->
 %% Dispatch configuration.
 
 init_dispatch(Name) ->
-	RunOrHibernate = case Name of
-		ws -> run;
-		ws_hibernate -> hibernate
+	InitialState = case Name of
+		h1_hibernate -> #{run_or_hibernate => hibernate};
+		h2_relay -> #{run_or_hibernate => run, data_delivery => relay};
+		_ -> #{run_or_hibernate => run}
 	end,
 	cowboy_router:compile([{'_', [
-		{"/init", ws_init_commands_h, RunOrHibernate},
-		{"/handle", ws_handle_commands_h, RunOrHibernate},
-		{"/info", ws_info_commands_h, RunOrHibernate},
-		{"/trap_exit", ws_init_h, RunOrHibernate},
-		{"/active", ws_active_commands_h, RunOrHibernate},
-		{"/deflate", ws_deflate_commands_h, RunOrHibernate},
-		{"/set_options", ws_set_options_commands_h, RunOrHibernate},
-		{"/shutdown_reason", ws_shutdown_reason_commands_h, RunOrHibernate}
+		{"/init", ws_init_commands_h, InitialState},
+		{"/handle", ws_handle_commands_h, InitialState},
+		{"/info", ws_info_commands_h, InitialState},
+		{"/trap_exit", ws_init_h, InitialState},
+		{"/active", ws_active_commands_h, InitialState},
+		{"/deflate", ws_deflate_commands_h, InitialState},
+		{"/set_options", ws_set_options_commands_h, InitialState},
+		{"/shutdown_reason", ws_shutdown_reason_commands_h, InitialState}
 	]}]).
 
 %% Support functions for testing using Gun.
 
 gun_open_ws(Config, Path, Commands) ->
-	ConnPid = gun_open(Config),
+	ConnPid = gun_open(Config, #{http2_opts => #{notify_settings_changed => true}}),
+	do_await_enable_connect_protocol(config(protocol, Config), ConnPid),
 	StreamRef = gun:ws_upgrade(ConnPid, Path, [
 		{<<"x-commands">>, base64:encode(term_to_binary(Commands))}
 	]),
@@ -74,6 +95,13 @@ gun_open_ws(Config, Path, Commands) ->
 	after 1000 ->
 		error(timeout)
 	end.
+
+do_await_enable_connect_protocol(http, _) ->
+	ok;
+do_await_enable_connect_protocol(http2, ConnPid) ->
+	{notify, settings_changed, #{enable_connect_protocol := true}}
+		= gun:await(ConnPid, undefined), %% @todo Maybe have a gun:await/1?
+	ok.
 
 receive_ws(ConnPid, StreamRef) ->
 	receive
@@ -123,7 +151,14 @@ websocket_info_invalid(Config) ->
 do_invalid(Config, Path) ->
 	{ok, ConnPid, StreamRef} = gun_open_ws(Config, Path, bad),
 	ensure_handle_is_called(ConnPid, StreamRef, Path),
-	gun_down(ConnPid).
+	case config(protocol, Config) of
+		%% HTTP/1.1 closes the connection.
+		http -> gun_down(ConnPid);
+		%% HTTP/2 terminates the stream.
+		http2 ->
+			receive {gun_error, ConnPid, StreamRef, {stream_error, internal_error, _}} -> ok
+			after 500 -> error(timeout) end
+	end.
 
 websocket_init_one_frame(Config) ->
 	doc("A single frame is received when websocket_init/1 returns it as a command."),
@@ -223,8 +258,12 @@ websocket_active_false(Config) ->
 	doc("The {active, false} command stops receiving data from the socket. "
 		"The {active, true} command reenables it."),
 	{ok, ConnPid, StreamRef} = gun_open_ws(Config, "/active", []),
+	%% We must exhaust the HTTP/2 flow control window
+	%% otherwise the frame will be received even if active mode is disabled.
+	gun:ws_send(ConnPid, StreamRef, {binary, <<0:100000/unit:8>>}),
 	gun:ws_send(ConnPid, StreamRef, {text, <<"Not received until the handler enables active again.">>}),
 	{error, timeout} = receive_ws(ConnPid, StreamRef),
+	{ok, {binary, _}} = receive_ws(ConnPid, StreamRef),
 	{ok, {text, <<"Not received until the handler enables active again.">>}}
 		= receive_ws(ConnPid, StreamRef),
 	ok.
@@ -271,7 +310,8 @@ websocket_deflate_ignore_if_not_negotiated(Config) ->
 websocket_set_options_idle_timeout(Config) ->
 	doc("The idle_timeout option can be modified using the "
 		"command {set_options, Opts} at runtime."),
-	ConnPid = gun_open(Config),
+	ConnPid = gun_open(Config, #{http2_opts => #{notify_settings_changed => true}}),
+	do_await_enable_connect_protocol(config(protocol, Config), ConnPid),
 	StreamRef = gun:ws_upgrade(ConnPid, "/set_options"),
 	receive
 		{gun_upgrade, ConnPid, StreamRef, [<<"websocket">>], _} ->
@@ -299,7 +339,8 @@ websocket_set_options_idle_timeout(Config) ->
 websocket_set_options_max_frame_size(Config) ->
 	doc("The max_frame_size option can be modified using the "
 		"command {set_options, Opts} at runtime."),
-	ConnPid = gun_open(Config),
+	ConnPid = gun_open(Config, #{http2_opts => #{notify_settings_changed => true}}),
+	do_await_enable_connect_protocol(config(protocol, Config), ConnPid),
 	StreamRef = gun:ws_upgrade(ConnPid, "/set_options"),
 	receive
 		{gun_upgrade, ConnPid, StreamRef, [<<"websocket">>], _} ->
@@ -334,7 +375,8 @@ websocket_set_options_max_frame_size(Config) ->
 websocket_shutdown_reason(Config) ->
 	doc("The command {shutdown_reason, any()} can be used to "
 		"change the shutdown reason of a Websocket connection."),
-	ConnPid = gun_open(Config),
+	ConnPid = gun_open(Config, #{http2_opts => #{notify_settings_changed => true}}),
+	do_await_enable_connect_protocol(config(protocol, Config), ConnPid),
 	StreamRef = gun:ws_upgrade(ConnPid, "/shutdown_reason", [
 		{<<"x-test-pid">>, pid_to_list(self())}
 	]),

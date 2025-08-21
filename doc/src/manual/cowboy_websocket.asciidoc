@@ -200,14 +200,16 @@ Cowboy does it automatically for you.
 [source,erlang]
 ----
 opts() :: #{
-    active_n       => pos_integer(),
-    compress       => boolean(),
-    deflate_opts   => cow_ws:deflate_opts()
-    dynamic_buffer => false | {pos_integer(), pos_integer()},
-    idle_timeout   => timeout(),
-    max_frame_size => non_neg_integer() | infinity,
-    req_filter     => fun((cowboy_req:req()) -> map()),
-    validate_utf8  => boolean()
+    active_n           => pos_integer(),
+    compress           => boolean(),
+    data_delivery      => stream_handlers | relay,
+    data_delivery_flow => pos_integer(),
+    deflate_opts       => cow_ws:deflate_opts(),
+    dynamic_buffer     => false | {pos_integer(), pos_integer()},
+    idle_timeout       => timeout(),
+    max_frame_size     => non_neg_integer() | infinity,
+    req_filter         => fun((cowboy_req:req()) -> map()),
+    validate_utf8      => boolean()
 }
 ----
 
@@ -240,6 +242,22 @@ compress (false)::
 Whether to enable the Websocket frame compression
 extension. Frames will only be compressed for the
 clients that support this extension.
+
+data_delivery (stream_handlers)::
+
+HTTP/2+ only. Determines how data will be delivered
+to the Websocket session process. `stream_handlers`
+is the default and makes data go through stream
+handlers. `relay` is a faster method introduced in
+Cowboy 2.14 and sends data directly. `relay` is
+intended to become the default in Cowboy 3.0.
+
+data_delivery_flow (pos_integer())::
+
+When the `relay` data delivery method is used,
+this value may be used to decide how much the
+flow control window should be for the Websocket
+stream. Currently only applies to HTTP/2.
 
 deflate_opts (#{})::
 
@@ -299,6 +317,10 @@ normal circumstances if necessary.
 
 == Changelog
 
+* *2.14*: The `data_delivery` and `data_delivery_flow` options
+          were added. The `relay` data delivery mechanism
+          provides a better way of forwarding data to
+          HTTP/2+ Websocket session processes.
 * *2.13*: The `active_n` default value was changed to `1`.
 * *2.13*: The `dynamic_buffer` option was added.
 * *2.13*: The `max_frame_size` option can now be set dynamically.

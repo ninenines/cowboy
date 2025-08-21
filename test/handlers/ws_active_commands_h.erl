@@ -9,8 +9,8 @@
 -export([websocket_handle/2]).
 -export([websocket_info/2]).
 
-init(Req, RunOrHibernate) ->
-	{cowboy_websocket, Req, RunOrHibernate}.
+init(Req, Opts) ->
+	{cowboy_websocket, Req, maps:get(run_or_hibernate, Opts), Opts}.
 
 websocket_init(State=run) ->
 	erlang:send_after(1500, self(), active_true),

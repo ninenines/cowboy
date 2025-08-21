@@ -7,9 +7,10 @@
 -export([websocket_handle/2]).
 -export([websocket_info/2]).
 
-init(Req, RunOrHibernate) ->
-	{cowboy_websocket, Req, RunOrHibernate,
-		#{idle_timeout => infinity}}.
+init(Req, Opts) ->
+	DataDelivery = maps:get(data_delivery, Opts, stream_handlers),
+	{cowboy_websocket, Req, maps:get(run_or_hibernate, Opts),
+		#{idle_timeout => infinity, data_delivery => DataDelivery}}.
 
 %% Set the idle_timeout option dynamically.
 websocket_handle({text, <<"idle_timeout_short">>}, State=run) ->

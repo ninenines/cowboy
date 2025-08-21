@@ -396,6 +396,9 @@ accept_handshake_when_enabled(Config) ->
 	MaskedHello = ws_SUITE:do_mask(<<"Hello">>, Mask, <<>>),
 	ok = gen_tcp:send(Socket, cow_http2:data(1, nofin,
 		<<1:1, 0:3, 1:4, 1:1, 5:7, Mask:32, MaskedHello/binary>>)),
+	%% Ignore expected WINDOW_UPDATE frames.
+	{ok, <<4:24, 8:8, _:72>>} = gen_tcp:recv(Socket, 13, 1000),
+	{ok, <<4:24, 8:8, _:72>>} = gen_tcp:recv(Socket, 13, 1000),
 	{ok, <<Len2:24, _:8, _:8, _:32>>} = gen_tcp:recv(Socket, 9, 1000),
 	{ok, <<1:1, 0:3, 1:4, 0:1, 5:7, "Hello">>} = gen_tcp:recv(Socket, Len2, 1000),
 	ok.

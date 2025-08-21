@@ -8,9 +8,9 @@
 -export([websocket_handle/2]).
 -export([websocket_info/2]).
 
-init(Req, _) ->
+init(Req, Opts) ->
 	State = binary_to_atom(cowboy_req:qs(Req), latin1),
-	{cowboy_websocket, Req, State}.
+	{cowboy_websocket, Req, State, Opts}.
 
 %% Sleep to make sure the HTTP response was sent.
 websocket_init(State) ->

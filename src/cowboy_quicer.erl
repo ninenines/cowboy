@@ -25,6 +25,7 @@
 %% Streams.
 -export([start_bidi_stream/2]).
 -export([start_unidi_stream/2]).
+-export([setopt/4]).
 -export([send/3]).
 -export([send/4]).
 -export([send_datagram/2]).
@@ -53,6 +54,9 @@ start_bidi_stream(_, _) -> no_quicer().
 
 -spec start_unidi_stream(_, _) -> no_return().
 start_unidi_stream(_, _) -> no_quicer().
+
+-spec setopt(_, _, _, _) -> no_return().
+setopt(_, _, _, _) -> no_quicer().
 
 -spec send(_, _, _) -> no_return().
 send(_, _, _) -> no_quicer().
@@ -109,7 +113,7 @@ sockname(Conn) ->
 	| {error, any()}.
 
 peercert(Conn) ->
-  quicer_nif:peercert(Conn).
+	quicer_nif:peercert(Conn).
 
 -spec shutdown(quicer_connection_handle(), quicer_app_errno())
 	-> ok | {error, any()}.
@@ -153,6 +157,13 @@ start_stream(Conn, InitialData, OpenFlag) ->
 		Error ->
 			Error
 	end.
+
+-spec setopt(quicer_connection_handle(), cow_http3:stream_id(), active, boolean())
+	-> ok | {error, any()}.
+
+setopt(_Conn, StreamID, active, Value) ->
+	StreamRef = get({quicer_stream, StreamID}),
+	quicer:setopt(StreamRef, active, Value).
 
 -spec send(quicer_connection_handle(), cow_http3:stream_id(), iodata())
 	-> ok | {error, any()}.
