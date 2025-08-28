@@ -130,7 +130,7 @@
 -optional_callbacks([languages_provided/2]).
 
 -callback last_modified(Req, State)
-	-> {calendar:datetime(), Req, State}
+	-> {calendar:datetime() | undefined, Req, State}
 	when Req::cowboy_req:req(), State::any().
 -optional_callbacks([last_modified/2]).
 
