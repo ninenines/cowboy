@@ -483,7 +483,7 @@ req() :: #{
 ----
 last_modified(Req, State) -> {Result, Req, State}
 
-Result  :: calendar:datetime()
+Result  :: calendar:datetime() | undefined
 Default  - no last modified value
 ----
 
@@ -492,6 +492,10 @@ Return the resource's last modification date.
 This date will be used to test against the if-modified-since
 and if-unmodified-since headers, and sent as the last-modified
 header in the response to GET and HEAD requests.
+
+When `undefined` is returned, no last-modified header is
+added to response. Can be useful if you save timestamp on store
+action in memory and lose it after restart.
 
 === malformed_request
 
@@ -856,6 +860,9 @@ listed here, like the authorization header.
 
 == Changelog
 
+* *2.14*: The `last_modified` callback is now type correct
+          when returning `undefined` to avoid responding
+          a last-modified header.
 * *2.11*: The `ranges_provided`, `range_satisfiable` and
           the `RangeCallback` callbacks have been added.
 * *2.11*: The `generate_etag` callback can now return

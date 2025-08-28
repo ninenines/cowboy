@@ -19,6 +19,8 @@ get_text_plain(Req, State) ->
 
 last_modified(Req=#{qs := <<"tuple">>}, State) ->
 	{{{2012, 9, 21}, {22, 36, 14}}, Req, State};
+last_modified(Req=#{qs := <<"undefined">>}, State) ->
+	{undefined, Req, State};
 %% Simulate the callback being missing in other cases.
 last_modified(#{qs := <<"missing">>}, _) ->
 	no_call.

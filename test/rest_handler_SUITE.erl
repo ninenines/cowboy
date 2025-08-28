@@ -796,6 +796,16 @@ last_modified_missing(Config) ->
 	false = lists:keyfind(<<"last-modified">>, 1, Headers),
 	ok.
 
+last_modified_undefined(Config) ->
+	doc("The last-modified header must not be sent when the callback returns undefined."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/last_modified?undefined", [
+		{<<"accept-encoding">>, <<"gzip">>}
+	]),
+	{response, _, 200, Headers} = gun:await(ConnPid, Ref),
+	false = lists:keyfind(<<"last-modified">>, 1, Headers),
+	ok.
+
 options_missing(Config) ->
 	doc("A successful OPTIONS request to a simple handler results in "
 		"a 200 OK response with the allow header set. (RFC7231 4.3.7)"),
