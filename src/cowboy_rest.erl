@@ -1531,6 +1531,11 @@ last_modified(Req, State=#state{last_modified=undefined}) ->
 	case unsafe_call(Req, State, last_modified) of
 		no_call ->
 			{undefined, Req, State#state{last_modified=no_call}};
+                %% We allow the callback to return 'undefined',
+                %% in which case the generated header would be missing
+                %% as if the callback was not called.
+		{undefined, Req2, State2} ->
+			{undefined, Req2, State2#state{last_modified=no_call}};
 		{LastModified, Req2, State2} ->
 			{LastModified, Req2, State2#state{last_modified=LastModified}}
 	end;
