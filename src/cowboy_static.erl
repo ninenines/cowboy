@@ -183,12 +183,12 @@ init_info(Req, Path, HowToAccess, Extra) ->
 	{cowboy_rest, Req, {Path, Info, Extra}}.
 
 read_file_info(Path, direct) ->
-	case file:read_file_info(Path, [{time, universal}]) of
+	case file:read_file_info(Path, [raw, {time, universal}]) of
 		{ok, Info} -> {direct, Info};
 		Error      -> Error
 	end;
 read_file_info(Path, {archive, Archive}) ->
-	case file:read_file_info(Archive, [{time, universal}]) of
+	case file:read_file_info(Archive, [raw, {time, universal}]) of
 		{ok, ArchiveInfo} ->
 			%% The Erlang application archive is fine.
 			%% Now check if the requested file is in that
