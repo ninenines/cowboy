@@ -2,7 +2,7 @@
 
 PROJECT = cowboy
 PROJECT_DESCRIPTION = Small, fast, modern HTTP server.
-PROJECT_VERSION = 2.13.0
+PROJECT_VERSION = 2.14.0
 PROJECT_REGISTERED = cowboy_clock
 
 # Options.
@@ -16,7 +16,7 @@ CT_OPTS += -ct_hooks cowboy_ct_hook [] # -boot start_sasl
 LOCAL_DEPS = crypto
 
 DEPS = cowlib ranch
-dep_cowlib = git https://github.com/ninenines/cowlib master
+dep_cowlib = git https://github.com/ninenines/cowlib 2.16.0
 dep_ranch = git https://github.com/ninenines/ranch 1.8.1
 
 ifeq ($(COWBOY_QUICER),1)
@@ -44,8 +44,8 @@ define HEX_TARBALL_EXTRA_METADATA
 #{
 	licenses => [<<"ISC">>],
 	links => #{
-		<<"User guide">> => <<"https://ninenines.eu/docs/en/cowboy/2.13/guide/">>,
-		<<"Function reference">> => <<"https://ninenines.eu/docs/en/cowboy/2.13/manual/">>,
+		<<"User guide">> => <<"https://ninenines.eu/docs/en/cowboy/2.14/guide/">>,
+		<<"Function reference">> => <<"https://ninenines.eu/docs/en/cowboy/2.14/manual/">>,
 		<<"GitHub">> => <<"https://github.com/ninenines/cowboy">>,
 		<<"Sponsor">> => <<"https://github.com/sponsors/essen">>
 	}
@@ -53,7 +53,7 @@ define HEX_TARBALL_EXTRA_METADATA
 endef
 
 hex_req_ranch = >= 1.8.0 and < 3.0.0
-hex_req_cowlib = >= 2.14.0 and < 3.0.0
+hex_req_cowlib = >= 2.16.0 and < 3.0.0
 
 # Standard targets.
 

@@ -1,0 +1,63 @@
+[appendix]
+== Migrating from Cowboy 2.13 to 2.14
+
+Cowboy 2.14 adds experimental support for HTTP/3
+WebTransport based on the most recent draft. It
+also has a new data delivery mechanism for HTTP/2
+and HTTP/3 Websocket, providing better performance.
+
+Cowboy 2.14 requires Erlang/OTP 24.0 or greater.
+
+=== Features added
+
+* The `relay` data delivery mechanism has been
+  added to HTTP/2 and HTTP/3 protocols. Using
+  this mechanism lets the Websocket protocol
+  bypass stream handlers to forward data from
+  the connection process to the Websocket
+  session process, as well as better manage
+  HTTP/2's flow control. This results in a
+  noticeable performance improvement. This
+  new mechanism can be used by all sub-protocols
+  built on top of HTTP/2 or HTTP/3 such as
+  Websocket or the upcoming HTTP/2 WebTransport.
+
+* The `last_modified` callback of REST handlers
+  now accepts `undefined` as a return value to
+  allow conditionally providing a timestamp.
+
+=== Experimental features added
+
+* Experimental support for HTTP/3 WebTransport
+  has been added, based on the most recent RFC
+  drafts. The implementation should also be
+  compatible with earlier drafts that are
+  currently in use by some browsers. Both
+  HTTP/3 and HTTP/3 WebTransport are disabled
+  by default; to enable, the environment
+  variable COWBOY_QUICER must be set at
+  compile-time, and a number of options must
+  be provided at run time, including
+  `enable_connect_protocol`, `h3_datagram`,
+  `wt_max_sessions` and for earlier drafts
+  `enable_webtransport`. The test suite is
+  the best place to get started at this time.
+
+=== Optimisation-related changes
+
+* The `dynamic_buffer` option introduced in
+  the previous release has been tweaked to
+  start at 512 bytes and have its value
+  changed less abruptly. This is based on
+  additional work done implementing the same
+  feature in RabbitMQ.
+
+* The static file handler will now use `raw`
+  mode to read file information to avoid a
+  bottleneck when querying the file server.
+
+=== Bugs fixed
+
+* It was possible for Websocket to fail to
+  enable active mode again after it had been
+  disabled. This has been fixed.
