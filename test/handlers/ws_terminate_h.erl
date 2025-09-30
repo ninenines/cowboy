@@ -21,7 +21,10 @@ init(Req, _) ->
 	end,
 	{cowboy_websocket, Req, #state{pid=Pid}, Opts}.
 
-websocket_init(State) ->
+websocket_init(State=#state{pid=Pid}) ->
+	Pid ! {ws_pid, self()},
+	%% We must trap 'EXIT' signals for HTTP/2 to call terminate/3.
+	process_flag(trap_exit, true),
 	{ok, State}.
 
 websocket_handle(_, State) ->

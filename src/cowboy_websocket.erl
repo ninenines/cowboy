@@ -492,8 +492,12 @@ loop(State=#state{parent=Parent, socket=Socket, messages=Messages,
 			before_loop(State, HandlerState, ParseState);
 		%% System messages.
 		{'EXIT', Parent, Reason} ->
-			%% @todo We should exit gracefully.
-			exit(Reason);
+			%% The terminate reason will differ with HTTP/1.1
+			%% since we don't have direct access to the socket.
+			%% @todo Perhaps we can make cowboy_children:terminate
+			%% receive the shutdown Reason and send {shutdown, Reason}
+			%% instead of just 'shutdown' in this scenario.
+			terminate(State, HandlerState, Reason);
 		{system, From, Request} ->
 			sys:handle_system_msg(Request, From, Parent, ?MODULE, [],
 				{State, HandlerState, ParseState});

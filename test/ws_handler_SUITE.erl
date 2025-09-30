@@ -74,7 +74,8 @@ init_dispatch(Name) ->
 		{"/active", ws_active_commands_h, InitialState},
 		{"/deflate", ws_deflate_commands_h, InitialState},
 		{"/set_options", ws_set_options_commands_h, InitialState},
-		{"/shutdown_reason", ws_shutdown_reason_commands_h, InitialState}
+		{"/shutdown_reason", ws_shutdown_reason_commands_h, InitialState},
+		{"/terminate", ws_terminate_h, InitialState}
 	]}]).
 
 %% Support functions for testing using Gun.
@@ -116,6 +117,15 @@ ensure_handle_is_called(ConnPid, StreamRef, "/handle") ->
 ensure_handle_is_called(_, _, _) ->
 	ok.
 
+do_receive(Tag) ->
+	receive
+		Msg when element(1, Msg) =:= Tag ->
+			Msg
+	after 1000 ->
+		ct:pal("do_receive(~p): ~p", [Tag, process_info(self(), messages)]),
+		error(timeout)
+	end.
+
 %% Tests.
 
 websocket_init_nothing(Config) ->
@@ -134,7 +144,7 @@ do_nothing(Config, Path) ->
 	{ok, ConnPid, StreamRef} = gun_open_ws(Config, Path, []),
 	ensure_handle_is_called(ConnPid, StreamRef, Path),
 	{error, timeout} = receive_ws(ConnPid, StreamRef),
-	ok.
+	gun:close(ConnPid).
 
 websocket_init_invalid(Config) ->
 	doc("The connection must be closed when websocket_init/1 returns an invalid command."),
@@ -178,7 +188,7 @@ do_one_frame(Config, Path) ->
 	]),
 	ensure_handle_is_called(ConnPid, StreamRef, Path),
 	{ok, {text, <<"One frame!">>}} = receive_ws(ConnPid, StreamRef),
-	ok.
+	gun:close(ConnPid).
 
 websocket_init_many_frames(Config) ->
 	doc("Multiple frames are received when websocket_init/1 returns them as commands."),
@@ -200,7 +210,7 @@ do_many_frames(Config, Path) ->
 	ensure_handle_is_called(ConnPid, StreamRef, Path),
 	{ok, {text, <<"One frame!">>}} = receive_ws(ConnPid, StreamRef),
 	{ok, {binary, <<"Two frames!">>}} = receive_ws(ConnPid, StreamRef),
-	ok.
+	gun:close(ConnPid).
 
 websocket_init_close_frame(Config) ->
 	doc("A single close frame is received when websocket_init/1 returns it as a command."),
@@ -266,7 +276,7 @@ websocket_active_false(Config) ->
 	{ok, {binary, _}} = receive_ws(ConnPid, StreamRef),
 	{ok, {text, <<"Not received until the handler enables active again.">>}}
 		= receive_ws(ConnPid, StreamRef),
-	ok.
+	gun:close(ConnPid).
 
 websocket_deflate_false(Config) ->
 	doc("The {deflate, false} command temporarily disables compression. "
@@ -305,7 +315,7 @@ websocket_deflate_ignore_if_not_negotiated(Config) ->
 		gun:ws_send(ConnPid, StreamRef, {text, <<"Hello.">>}),
 		{ok, {text, <<"Hello.">>}} = receive_ws(ConnPid, StreamRef)
 	end || _ <- lists:seq(1, 10)],
-	ok.
+	gun:close(ConnPid).
 
 websocket_set_options_idle_timeout(Config) ->
 	doc("The idle_timeout option can be modified using the "
@@ -390,3 +400,84 @@ websocket_shutdown_reason(Config) ->
 	after 1000 ->
 		error(timeout)
 	end.
+
+websocket_terminate_close_normal(Config) ->
+	doc("Receiving a close frame results in a terminate/3 call. "
+		"The Req object is kept in a more compact form by default."),
+	ConnPid = gun_open(Config, #{http2_opts => #{notify_settings_changed => true}}),
+	do_await_enable_connect_protocol(config(protocol, Config), ConnPid),
+	StreamRef = gun:ws_upgrade(ConnPid, "/terminate", [
+		{<<"x-test-pid">>, pid_to_list(self())}
+	]),
+	{upgrade, [<<"websocket">>], _} = gun:await(ConnPid, StreamRef),
+	{ws_pid, WsPid} = do_receive(ws_pid),
+	MRef = monitor(process, WsPid),
+	gun:ws_send(ConnPid, StreamRef, close),
+	{terminate, remote, Req} = do_receive(terminate),
+	{'DOWN', MRef, process, WsPid, normal} = do_receive('DOWN'),
+	%% Confirm terminate/3 was called with a compacted Req.
+	true = maps:is_key(path, Req),
+	false = maps:is_key(headers, Req),
+	ok.
+
+websocket_terminate_close_reason(Config) ->
+	doc("Receiving a close frame results in a terminate/3 call. "
+		"The Req object is kept in a more compact form by default."),
+	ConnPid = gun_open(Config, #{http2_opts => #{notify_settings_changed => true}}),
+	do_await_enable_connect_protocol(config(protocol, Config), ConnPid),
+	StreamRef = gun:ws_upgrade(ConnPid, "/terminate", [
+		{<<"x-test-pid">>, pid_to_list(self())}
+	]),
+	{upgrade, [<<"websocket">>], _} = gun:await(ConnPid, StreamRef),
+	{ws_pid, WsPid} = do_receive(ws_pid),
+	MRef = monitor(process, WsPid),
+	gun:ws_send(ConnPid, StreamRef, {close, 4000, <<"test-close">>}),
+	{terminate, {remote, 4000, <<"test-close">>}, Req} = do_receive(terminate),
+	{'DOWN', MRef, process, WsPid, normal} = do_receive('DOWN'),
+	%% Confirm terminate/3 was called with a compacted Req.
+	true = maps:is_key(path, Req),
+	false = maps:is_key(headers, Req),
+	ok.
+
+websocket_terminate_socket_close(Config) ->
+	doc("The socket getting closed results in a terminate/3 call. "
+		"The Req object is kept in a more compact form by default."),
+	Protocol = config(protocol, Config),
+	ConnPid = gun_open(Config, #{http2_opts => #{notify_settings_changed => true}}),
+	do_await_enable_connect_protocol(Protocol, ConnPid),
+	StreamRef = gun:ws_upgrade(ConnPid, "/terminate", [
+		{<<"x-test-pid">>, pid_to_list(self())}
+	]),
+	{upgrade, [<<"websocket">>], _} = gun:await(ConnPid, StreamRef),
+	{ws_pid, WsPid} = do_receive(ws_pid),
+	MRef = monitor(process, WsPid),
+	gun:close(ConnPid),
+	%% Terminate reasons differ depending on the protocol.
+	{terminate, Reason, Req} = do_receive(terminate),
+	case Reason of
+		{error, closed} when Protocol =:= http -> ok;
+		shutdown when Protocol =:= http2 -> ok
+	end,
+	{'DOWN', MRef, process, WsPid, normal} = do_receive('DOWN'),
+	%% Confirm terminate/3 was called with a compacted Req.
+	true = maps:is_key(path, Req),
+	false = maps:is_key(headers, Req),
+	ok.
+
+websocket_terminate_req_filter(Config) ->
+	doc("Receiving a close frame results in a terminate/3 call. "
+		"A function can be given to filter the Req object."),
+	ConnPid = gun_open(Config, #{http2_opts => #{notify_settings_changed => true}}),
+	do_await_enable_connect_protocol(config(protocol, Config), ConnPid),
+	StreamRef = gun:ws_upgrade(ConnPid, "/terminate?req_filter", [
+		{<<"x-test-pid">>, pid_to_list(self())}
+	]),
+	{upgrade, [<<"websocket">>], _} = gun:await(ConnPid, StreamRef),
+	{ws_pid, WsPid} = do_receive(ws_pid),
+	MRef = monitor(process, WsPid),
+	gun:ws_send(ConnPid, StreamRef, close),
+	{terminate, remote, Req} = do_receive(terminate),
+	{'DOWN', MRef, process, WsPid, normal} = do_receive('DOWN'),
+	%% Confirm terminate/3 was called with a filtered Req.
+	filtered = Req,
+	ok.
