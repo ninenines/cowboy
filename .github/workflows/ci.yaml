@@ -32,7 +32,7 @@ jobs:
     - name: Install latest Erlang/OTP
       uses: erlef/setup-beam@v1
       with:
-        otp-version: > 0
+        otp-version: '> 0'
 
     - name: Run ct-examples
       run: make ct-examples
