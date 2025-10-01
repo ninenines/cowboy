@@ -1,0 +1,11 @@
+[appendix]
+== Changes since Cowboy 2.14
+
+The following patch versions were released since Cowboy 2.14:
+
+=== Cowboy 2.14.1
+
+HTTP/2 Websocket did not call `terminate/3` on abrupt
+socket close (without a close frame being sent first).
+This is now fixed. Do note however that the Websocket
+session process must trap exits to call `terminate/3`.
