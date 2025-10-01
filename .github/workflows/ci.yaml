@@ -16,36 +16,14 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  cleanup-master:
-    name: Cleanup master build
-    runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'schedule' }}
-    permissions:
-      actions: write
-    steps:
-
-    - name: Cleanup master build if necessary
-      run: |
-        gh cache delete Linux-X64-Erlang-master -R $REPO || true
-        gh cache delete macOS-ARM64-Erlang-master -R $REPO || true
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        REPO: ${{ github.repository }}
-
   check:
-    name: Cowboy
-    needs: cleanup-master
+    name: Check
     if: ${{ !cancelled() }}
     uses: ninenines/ci.erlang.mk/.github/workflows/ci.yaml@master
 
-# The examples test suite is nice to run but typically not
-# important. So we run them after we are done with the other
-# test suites. At this point we know that Erlang was built
-# so we can just use the latest version.
-
   examples:
     name: Check examples
-    runs-on: 'ubuntu-latest'
+    runs-on: ubuntu-latest
     steps:
 
     - name: Checkout repository
@@ -54,7 +32,7 @@ jobs:
     - name: Install latest Erlang/OTP
       uses: erlef/setup-beam@v1
       with:
-        otp-version: latest
+        otp-version: > 0
 
     - name: Run ct-examples
       run: make ct-examples
