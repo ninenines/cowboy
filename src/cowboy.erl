@@ -16,18 +16,21 @@
 
 -export([start_clear/3]).
 -export([start_tls/3]).
--export([start_quic/3]).
 -export([stop_listener/1]).
 -export([get_env/2]).
 -export([get_env/3]).
 -export([set_env/3]).
 
-%% Internal.
--export([log/2]).
--export([log/4]).
+-ifdef(COWBOY_QUICER).
+-export([start_quic/3]).
 
 %% Don't warn about the bad quicer specs.
 -dialyzer([{nowarn_function, start_quic/3}]).
+-endif.
+
+%% Internal.
+-export([log/2]).
+-export([log/4]).
 
 -type opts() :: cowboy_http:opts() | cowboy_http2:opts().
 -export_type([opts/0]).
@@ -72,6 +75,8 @@ start_tls(Ref, TransOpts0, ProtoOpts0) ->
 		dynamic_buffer => DynamicBuffer
 	},
 	ranch:start_listener(Ref, ranch_ssl, TransOpts, cowboy_tls, ProtoOpts).
+
+-ifdef(COWBOY_QUICER).
 
 %% @todo Experimental function to start a barebone QUIC listener.
 %%       This will need to be reworked to be closer to Ranch
@@ -150,6 +155,8 @@ port_0() ->
 			ok
 	end,
 	Port.
+
+-endif.
 
 ensure_alpn(TransOpts) ->
 	SocketOpts = maps:get(socket_opts, TransOpts, []),

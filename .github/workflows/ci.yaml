@@ -21,6 +21,22 @@ jobs:
     if: ${{ !cancelled() }}
     uses: ninenines/ci.erlang.mk/.github/workflows/ci.yaml@master
 
+  dialyzer-no-quicer:
+    name: Check / Dialyzer (without COWBOY_QUICER)
+    runs-on: ubuntu-latest
+    steps:
+
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install latest Erlang/OTP
+      uses: erlef/setup-beam@v1
+      with:
+        otp-version: '> 0'
+
+    - name: Run Dialyzer (without COWBOY_QUICER)
+      run: make dialyze COWBOY_QUICER=0
+
   examples:
     name: Check examples
     runs-on: ubuntu-latest

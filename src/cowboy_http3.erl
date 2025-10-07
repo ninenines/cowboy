@@ -19,6 +19,8 @@
 
 -module(cowboy_http3).
 
+-ifdef(COWBOY_QUICER).
+
 -export([init/4]).
 
 %% Temporary callback to do sendfile over QUIC.
@@ -1303,3 +1305,5 @@ stream_linger(State=#state{lingering_streams=Lingering0}, StreamID) ->
 
 is_lingering_stream(#state{lingering_streams=Lingering}, StreamID) ->
 	lists:member(StreamID, Lingering).
+
+-endif.

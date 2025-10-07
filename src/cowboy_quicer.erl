@@ -16,6 +16,8 @@
 
 -module(cowboy_quicer).
 
+-ifdef(COWBOY_QUICER).
+
 %% Connection.
 -export([peername/1]).
 -export([sockname/1]).
@@ -34,55 +36,6 @@
 
 %% Messages.
 -export([handle/1]).
-
--ifndef(COWBOY_QUICER).
-
--spec peername(_) -> no_return().
-peername(_) -> no_quicer().
-
--spec sockname(_) -> no_return().
-sockname(_) -> no_quicer().
-
--spec peercert(_) -> no_return().
-peercert(_) -> no_quicer().
-
--spec shutdown(_, _) -> no_return().
-shutdown(_, _) -> no_quicer().
-
--spec start_bidi_stream(_, _) -> no_return().
-start_bidi_stream(_, _) -> no_quicer().
-
--spec start_unidi_stream(_, _) -> no_return().
-start_unidi_stream(_, _) -> no_quicer().
-
--spec setopt(_, _, _, _) -> no_return().
-setopt(_, _, _, _) -> no_quicer().
-
--spec send(_, _, _) -> no_return().
-send(_, _, _) -> no_quicer().
-
--spec send(_, _, _, _) -> no_return().
-send(_, _, _, _) -> no_quicer().
-
--spec send_datagram(_, _) -> no_return().
-send_datagram(_, _) -> no_quicer().
-
--spec shutdown_stream(_, _) -> no_return().
-shutdown_stream(_, _) -> no_quicer().
-
--spec shutdown_stream(_, _, _, _) -> no_return().
-shutdown_stream(_, _, _, _) -> no_quicer().
-
--spec handle(_) -> no_return().
-handle(_) -> no_quicer().
-
-no_quicer() ->
-	error({no_quicer,
-		"Cowboy must be compiled with environment variable COWBOY_QUICER=1 "
-		"or with compilation flag -D COWBOY_QUICER=1 in order to enable "
-		"QUIC support using the emqx/quic NIF"}).
-
--else.
 
 %% @todo Make quicer export these types.
 -type quicer_connection_handle() :: reference().
