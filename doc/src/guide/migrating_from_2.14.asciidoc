@@ -3,6 +3,19 @@
 
 The following patch versions were released since Cowboy 2.14:
 
+=== Cowboy 2.14.2
+
+Cowboy compiled without `COWBOY_QUICER` set would
+have a number of Dialyzer errors. Now in that
+scenario the HTTP/3 code is fully behind ifdefs
+and Dialyzer no longer complains.
+
+Now when `COWBOY_QUICER` isn't set:
+
+ * `cowboy:start_quic/3` is no longer defined.
+ * `cowboy_http3` compiles to an empty module.
+ * `cowboy_quicer` compiles to an empty module.
+
 === Cowboy 2.14.1
 
 HTTP/2 Websocket did not call `terminate/3` on abrupt
