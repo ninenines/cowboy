@@ -17,32 +17,34 @@ as a Ranch protocol.
 [source,erlang]
 ----
 opts() :: #{
-    active_n                   => pos_integer(),
-    alpn_default_protocol      => http | http2,
-    chunked                    => boolean(),
-    connection_type            => worker | supervisor,
-    dynamic_buffer             => false | {pos_integer(), pos_integer()},
-    hibernate                  => boolean(),
-    http10_keepalive           => boolean(),
-    idle_timeout               => timeout(),
-    inactivity_timeout         => timeout(),
-    initial_stream_flow_size   => non_neg_integer(),
-    linger_timeout             => timeout(),
-    logger                     => module(),
-    max_empty_lines            => non_neg_integer(),
-    max_header_name_length     => non_neg_integer(),
-    max_header_value_length    => non_neg_integer(),
-    max_headers                => non_neg_integer(),
-    max_keepalive              => non_neg_integer(),
-    max_method_length          => non_neg_integer(),
-    max_request_line_length    => non_neg_integer(),
-    max_skip_body_length       => non_neg_integer(),
-    protocols                  => [http | http2],
-    proxy_header               => boolean(),
-    request_timeout            => timeout(),
-    reset_idle_timeout_on_send => boolean(),
-    sendfile                   => boolean(),
-    stream_handlers            => [module()]
+    active_n                              => pos_integer(),
+    alpn_default_protocol                 => http | http2,
+    chunked                               => boolean(),
+    connection_type                       => worker | supervisor,
+    dynamic_buffer                        => false | {pos_integer(), pos_integer()},
+    hibernate                             => boolean(),
+    http10_keepalive                      => boolean(),
+    idle_timeout                          => timeout(),
+    inactivity_timeout                    => timeout(),
+    initial_stream_flow_size              => non_neg_integer(),
+    linger_timeout                        => timeout(),
+    logger                                => module(),
+    max_empty_lines                       => non_neg_integer(),
+    max_header_name_length                => non_neg_integer(),
+    max_header_value_length               => non_neg_integer(),
+    max_authorization_header_value_length => non_neg_integer(),
+    max_cookie_header_value_length        => non_neg_integer(),
+    max_headers                           => non_neg_integer(),
+    max_keepalive                         => non_neg_integer(),
+    max_method_length                     => non_neg_integer(),
+    max_request_line_length               => non_neg_integer(),
+    max_skip_body_length                  => non_neg_integer(),
+    protocols                             => [http | http2],
+    proxy_header                          => boolean(),
+    request_timeout                       => timeout(),
+    reset_idle_timeout_on_send            => boolean(),
+    sendfile                              => boolean(),
+    stream_handlers                       => [module()]
 }
 ----
 
@@ -142,6 +144,14 @@ Maximum length of header names.
 max_header_value_length (4096)::
 
 Maximum length of header values.
+
+max_authorization_header_value_length (value of max_header_value_length)::
+
+Maximum length of the `authorization` header value.
+
+max_cookie_header_value_length (value of max_header_value_length)::
+
+Maximum length of the `cookie` header value.
 
 max_headers (100)::
 
