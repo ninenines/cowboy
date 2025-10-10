@@ -29,6 +29,8 @@ opts() :: #{
     initial_stream_flow_size   => non_neg_integer(),
     linger_timeout             => timeout(),
     logger                     => module(),
+    max_authorization_header_value_length => non_neg_integer(),
+    max_cookie_header_value_length        => non_neg_integer(),
     max_empty_lines            => non_neg_integer(),
     max_header_name_length     => non_neg_integer(),
     max_header_value_length    => non_neg_integer(),
@@ -130,6 +132,16 @@ https://tools.ietf.org/html/rfc7230#section-6.6[section 6.6 of RFC7230].
 logger (error_logger)::
 
 The module that will be used to write log messages.
+
+max_authorization_header_value_length::
+
+Maximum length of the `authorization` header value.
+Defaults to the value of the option `max_header_value_length`.
+
+max_cookie_header_value_length::
+
+Maximum length of the `cookie` header value.
+Defaults to the value of the option `max_header_value_length`.
 
 max_empty_lines (5)::
 

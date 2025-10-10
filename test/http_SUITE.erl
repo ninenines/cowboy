@@ -489,6 +489,73 @@ do_idle_timeout_recv_loop(Ref, Pid, ConnPid, StreamRef, ExpectCompletion) ->
 	      error(timeout)
 	end.
 
+max_authorization_header_value_length(Config) ->
+	doc("Confirm the max_authorization_header_value_length option "
+		"correctly limits the length of authorization header values."),
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
+		env => #{dispatch => init_dispatch(Config)},
+		max_authorization_header_value_length => 2048
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		do_max_header_value_length(Config, Port,
+			<<"authorization">>, 2048),
+		%% Confirm that other headers still use the default limit.
+		do_max_header_value_length(Config, Port,
+			<<"my-header">>, 4096)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+max_cookie_header_value_length(Config) ->
+	doc("Confirm the max_cookie_header_value_length option "
+		"correctly limits the length of cookie header values."),
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
+		env => #{dispatch => init_dispatch(Config)},
+		max_cookie_header_value_length => 2048
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		do_max_header_value_length(Config, Port,
+			<<"cookie">>, 2048),
+		%% Confirm that other headers still use the default limit.
+		do_max_header_value_length(Config, Port,
+			<<"my-header">>, 4096)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+max_header_value_length(Config) ->
+	doc("Confirm the max_header_value_length option "
+		"correctly limits the length of header values."),
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
+		env => #{dispatch => init_dispatch(Config)},
+		max_header_value_length => 2048
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		do_max_header_value_length(Config, Port,
+			<<"my-header">>, 2048)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+max_header_value_length_default(Config) ->
+	doc("Confirm the max_header_value_length option "
+		"correctly limits the length of header values."),
+	do_max_header_value_length(Config, config(port, Config),
+		<<"my-header">>, 4096).
+
+do_max_header_value_length(Config, Port, Name, MaxLen) ->
+	ConnPid = gun_open([{type, tcp}, {protocol, http}, {port, Port}|Config]),
+	{ok, http} = gun:await_up(ConnPid),
+	StreamRef1 = gun:get(ConnPid, "/", #{Name => lists:duplicate(MaxLen, $a)}),
+	{response, nofin, 200, _} = gun:await(ConnPid, StreamRef1),
+	%% We * 2 because this is a soft limit.
+	StreamRef2 = gun:get(ConnPid, "/", #{Name => lists:duplicate(MaxLen * 2, $a)}),
+	{response, fin, 431, _} = gun:await(ConnPid, StreamRef2),
+	gun:close(ConnPid).
+
 persistent_term_router(Config) ->
 	doc("The router can retrieve the routes from persistent_term storage."),
 	case erlang:function_exported(persistent_term, get, 1) of
