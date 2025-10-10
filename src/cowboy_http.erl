@@ -703,7 +703,7 @@ parse_hd_before_value(<< $\s, Rest/bits >>, S, H, N) ->
 parse_hd_before_value(<< $\t, Rest/bits >>, S, H, N) ->
 	parse_hd_before_value(Rest, S, H, N);
 parse_hd_before_value(Buffer, State=#state{opts=Opts, in_state=PS}, H, N) ->
-	MaxLength = maps:get(max_header_value_length, Opts, 4096),
+	MaxLength = max_header_value_length(N, Opts),
 	case match_eol(Buffer, 0) of
 		nomatch when byte_size(Buffer) > MaxLength ->
 			error_terminate(431, State#state{in_state=PS#ps_header{headers=H}},
@@ -714,6 +714,15 @@ parse_hd_before_value(Buffer, State=#state{opts=Opts, in_state=PS}, H, N) ->
 		_ ->
 			parse_hd_value(Buffer, State, H, N, <<>>)
 	end.
+
+max_header_value_length(<<"authorization">>, #{max_authorization_header_value_length:=Max}) ->
+    Max;
+max_header_value_length(<<"cookie">>, #{max_cookie_header_value_length:=Max}) ->
+    Max;
+max_header_value_length(_, #{max_header_value_length:=Max}) ->
+    Max;
+max_header_value_length(_, _) ->
+    4096.
 
 parse_hd_value(<< $\r, $\n, Rest/bits >>, S, Headers0, Name, SoFar) ->
 	Value = clean_value_ws_end(SoFar, byte_size(SoFar) - 1),
