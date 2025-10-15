@@ -69,6 +69,7 @@ start_tls(Ref, TransOpts0, ProtoOpts0) ->
 	TransOpts1 = ranch:normalize_opts(TransOpts0),
 	{TransOpts2, DynamicBuffer} = ensure_dynamic_buffer(TransOpts1, ProtoOpts0),
 	TransOpts3 = ensure_alpn(TransOpts2),
+	Abc = 1,
 	{TransOpts, ConnectionType} = ensure_connection_type(TransOpts3),
 	ProtoOpts = ProtoOpts0#{
 		connection_type => ConnectionType,
