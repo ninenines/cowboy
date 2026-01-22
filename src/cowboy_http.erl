@@ -174,7 +174,7 @@
 -include_lib("cowlib/include/cow_parse.hrl").
 
 -spec init(pid(), ranch:ref(), inet:socket(), module(),
-	ranch_proxy_header:proxy_info(), cowboy:opts()) -> no_return().
+	ranch_proxy_header:proxy_info() | undefined, cowboy:opts()) -> no_return().
 
 init(Parent, Ref, Socket, Transport, ProxyHeader, Opts) ->
 	proc_lib:set_label({?MODULE, Ref}),
