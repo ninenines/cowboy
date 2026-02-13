@@ -27,6 +27,7 @@
 
 %% Predefined rewrites.
 -export([index/2]).
+-export([regex/2]).
 -export([slash/2]).
 
 %% The outcome determines what happens after a rewrite
@@ -106,8 +107,6 @@ record_rewrite(Event, Req) ->
 
 %% Rewrite logic.
 
-%% @todo Mark the Req as being modified so we can detect it was.
-
 rewrite([], Req) ->
 	{ok, Req};
 rewrite([{F, Opts}|Tail], Req0) when is_atom(F) ->
@@ -155,7 +154,48 @@ index(Req=#{path := Path0}, Opts) ->
 			{continue, Req}
 	end.
 
-%% @todo regex
+%% Apply a regular expression to the path using re:replace/4.
+%%
+%% The regex can be provided as text or pre-compiled.
+%% Some options may not apply; the user must carefully choose
+%% which option(s) to use if they decide to use any.
+%%
+%% The resulting replacement may including a query string.
+%% In that case the new query string segment is pre-pended
+%% to the one in Req. The result must either be a /path
+%% or a /path?query_string. Users are responsible for the
+%% generated string, this function only checks that the
+%% result starts with a /.
+
+-spec regex(cowboy_req:req(), #{
+		regex := re:mp() | iodata() | unicode:charlist(),
+		replacement := iodata() | unicode:charlist() | re:replace_fun(),
+		options => re:options(),
+		outcome => outcome()})
+	-> {outcome(), cowboy_req:req()}.
+
+regex(Req=#{path := Path0}, Opts=#{regex := Regex, replacement := Replacement}) ->
+	Options = maps:get(options, Opts, []),
+	Result = iolist_to_binary(re:replace(Path0, Regex, Replacement, Options)),
+	<<"/",_/bits>> = Result, %% Result must be a path.
+	case string:split(Result, <<"?">>) of
+		[Path0] ->
+			{continue, Req};
+		[Path] ->
+			{maps:get(outcome, Opts, continue),
+				record_rewrite({path, Path0, Path},
+					Req#{path => Path})};
+		[Path, ReQs] ->
+			#{qs := Qs0} = Req,
+			Qs = case Qs0 of
+				<<>> -> ReQs;
+				_ -> iolist_to_binary([ReQs, $&, Qs0])
+			end,
+			{maps:get(outcome, Opts, continue),
+				record_rewrite({path, Path0, Path},
+					record_rewrite({qs, Qs0, Qs},
+						Req#{path => Path, qs => Qs}))}
+	end.
 
 %% Ensure there is a slash at the end of the path.
 
