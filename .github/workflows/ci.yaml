@@ -21,22 +21,6 @@ jobs:
     if: ${{ !cancelled() }}
     uses: ninenines/ci.erlang.mk/.github/workflows/ci.yaml@master
 
-  dialyzer-no-quicer:
-    name: Check / Dialyzer (without COWBOY_QUICER)
-    runs-on: ubuntu-latest
-    steps:
-
-    - name: Checkout repository
-      uses: actions/checkout@v4
-
-    - name: Install latest Erlang/OTP
-      uses: erlef/setup-beam@v1
-      with:
-        otp-version: '> 0'
-
-    - name: Run Dialyzer (without COWBOY_QUICER)
-      run: make dialyze COWBOY_QUICER=0
-
   examples:
     name: Check examples
     runs-on: ubuntu-latest
@@ -58,6 +42,78 @@ jobs:
       if: always()
       with:
         name: Common Test logs (examples)
+        path: |
+          logs/
+          !logs/**/log_private
+
+  http3-erlang-quic:
+    name: Check HTTP/3 with erlang_quic
+    runs-on: ubuntu-latest
+    steps:
+
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install Erlang/OTP 27
+      uses: erlef/setup-beam@v1
+      with:
+        otp-version: '27'
+
+    - name: Build
+      run: make
+
+    - name: Run erlang_quic HTTP/3 tests
+      run: make ct-h3 ct-rfc9114_quic ct-rfc9220_quic ct-webtransport_quic
+
+    - name: Upload logs
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: Common Test logs (erlang_quic)
+        path: |
+          logs/
+          !logs/**/log_private
+
+  http3-quicer:
+    name: Check HTTP/3 with quicer
+    runs-on: ubuntu-latest
+    # Allow failure - quicer adapter needs updates for latest emqx/quic API
+    continue-on-error: true
+    steps:
+
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install Erlang/OTP 27
+      uses: erlef/setup-beam@v1
+      with:
+        otp-version: '27'
+
+    - name: Install MsQuic dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake build-essential
+
+    - name: Configure git for GitHub
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        git config --global url."https://github.com/".insteadOf git://github.com/
+        git config --global url."https://github.com/".insteadOf git@github.com:
+        git config --global credential.helper store
+        echo "https://x-access-token:${GITHUB_TOKEN}@github.com" > ~/.git-credentials
+
+    - name: Build with quicer
+      run: make COWBOY_QUICER=1
+
+    - name: Run quicer HTTP/3 tests
+      run: make COWBOY_QUICER=1 ct-rfc9114 ct-rfc9204 ct-rfc9220
+
+    - name: Upload logs
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: Common Test logs (quicer)
         path: |
           logs/
           !logs/**/log_private

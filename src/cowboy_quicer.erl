@@ -41,6 +41,10 @@
 -type quicer_connection_handle() :: reference().
 -export_type([quicer_connection_handle/0]).
 
+%% Alias for compatibility with cowboy_quic module interface.
+-type connection_handle() :: quicer_connection_handle().
+-export_type([connection_handle/0]).
+
 -type quicer_app_errno() :: non_neg_integer().
 
 -include_lib("quicer/include/quicer.hrl").

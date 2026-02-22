@@ -811,4 +811,10 @@ do_receive_datagram(Conn) ->
 		error({timeout, waiting_for_datagram})
 	end.
 
+-else.
+
+all() -> [].
+
+groups() -> [].
+
 -endif.

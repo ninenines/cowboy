@@ -38,11 +38,9 @@ init_http2(Ref, ProtoOpts, Config) ->
 	[{ref, Ref}, {type, ssl}, {protocol, http2}, {port, Port}, {opts, Opts}|Config].
 
 %% @todo This will probably require TransOpts as argument.
+-ifdef(COWBOY_QUICER).
+%% quicer version: uses quicer:sockname/1 and persistent_term for listener storage.
 init_http3(Ref, ProtoOpts, Config) ->
-	%% @todo Quicer does not currently support non-file cert/key,
-	%%       so we use quicer test certificates for now.
-	%% @todo Quicer also does not support cacerts which means
-	%%       we currently have no authentication based security.
 	DataDir = filename:dirname(filename:dirname(config(data_dir, Config)))
 		++ "/rfc9114_SUITE_data",
 	TransOpts = #{
@@ -53,7 +51,7 @@ init_http3(Ref, ProtoOpts, Config) ->
 	},
 	{ok, Listener} = cowboy:start_quic(Ref, TransOpts, ProtoOpts),
 	{ok, {_, Port}} = quicer:sockname(Listener),
-	%% @todo Keep listener information around in a better place.
+	%% Keep listener information around in a better place.
 	persistent_term:put({cowboy_test_quic, Ref}, Listener),
 	[{ref, Ref}, {type, quic}, {protocol, http3}, {port, Port}, {opts, TransOpts}|Config].
 
@@ -64,29 +62,54 @@ stop_group(Ref) ->
 		Listener ->
 			quicer:close_listener(Listener)
 	end.
+-else.
+%% erlang_quic version: uses quic:get_server_info and quic_listener:get_port.
+init_http3(Ref, ProtoOpts, Config) ->
+	DataDir = filename:dirname(filename:dirname(config(data_dir, Config)))
+		++ "/rfc9114_SUITE_data",
+	TransOpts = #{
+		socket_opts => [
+			{certfile, DataDir ++ "/server.pem"},
+			{keyfile, DataDir ++ "/server.key"}
+		]
+	},
+	{ok, _Pid} = cowboy:start_quic(Ref, TransOpts, ProtoOpts),
+	%% Get the actual port from the listener.
+	%% Navigate supervisor tree: quic_listener_sup -> quic_listener_sup_sup -> quic_listener
+	{ok, #{pid := SupPid}} = quic:get_server_info(Ref),
+	[{quic_listener_sup_sup, ListenerSupSup, supervisor, _}|_] =
+		[C || C = {Id, _, _, _} <- supervisor:which_children(SupPid), Id =:= quic_listener_sup_sup],
+	[{_, ListenerPid, worker, _}|_] = supervisor:which_children(ListenerSupSup),
+	Port = quic_listener:get_port(ListenerPid),
+	[{ref, Ref}, {type, quic}, {protocol, http3}, {port, Port}, {opts, TransOpts}|Config].
+
+stop_group(Ref) ->
+	%% Try to stop as a ranch listener first (most common case),
+	%% fall back to QUIC server if not found.
+	case cowboy:stop_listener(Ref) of
+		ok ->
+			ok;
+		{error, not_found} ->
+			quic:stop_server(Ref)
+	end.
+-endif.
 
 %% Common group of listeners used by most suites.
 
 common_all() ->
-	All = [
+	%% Don't run HTTP/3 tests in common groups because Gun requires quicer.
+	%% HTTP/3 is tested separately in h3_SUITE and rfc9114_quic_SUITE
+	%% using erlang_quic directly.
+	[
 		{group, http},
 		{group, https},
 		{group, h2},
 		{group, h2c},
-		{group, h3},
 		{group, http_compress},
 		{group, https_compress},
 		{group, h2_compress},
-		{group, h2c_compress},
-		{group, h3_compress}
-	],
-	%% Don't run HTTP/3 tests on Windows for now.
-	case os:type() of
-		{win32, _} ->
-			All -- [{group, h3}, {group, h3_compress}];
-		_ ->
-			All
-	end.
+		{group, h2c_compress}
+	].
 
 common_groups(Tests) ->
 	Parallel = case os:getenv("NO_PARALLEL") of
@@ -100,25 +123,18 @@ common_groups(Tests, Parallel) ->
 		parallel -> [parallel];
 		no_parallel -> []
 	end,
-	Groups = [
+	%% Don't include HTTP/3 groups because Gun requires quicer.
+	%% HTTP/3 is tested separately in h3_SUITE and rfc9114_quic_SUITE.
+	[
 		{http, Opts, Tests},
 		{https, Opts, Tests},
 		{h2, Opts, Tests},
 		{h2c, Opts, Tests},
-		{h3, Opts, Tests},
 		{http_compress, Opts, Tests},
 		{https_compress, Opts, Tests},
 		{h2_compress, Opts, Tests},
-		{h2c_compress, Opts, Tests},
-		{h3_compress, Opts, Tests}
-	],
-	%% Don't run HTTP/3 tests on Windows for now.
-	case os:type() of
-		{win32, _} ->
-			Groups -- [{h3, Opts, Tests}, {h3_compress, Opts, Tests}];
-		_ ->
-			Groups
-	end.
+		{h2c_compress, Opts, Tests}
+	].
 
 init_common_groups(Name, Config, Mod) ->
 	init_common_groups(Name, Config, Mod, #{}).
@@ -179,7 +195,7 @@ gun_open(Config) ->
 gun_open(Config, Opts) ->
 	TlsOpts = case proplists:get_value(no_cert, Config, false) of
 		true -> [{verify, verify_none}];
-		false -> ct_helper:get_certs_from_ets() %% @todo Wrong in current quicer.
+		false -> ct_helper:get_certs_from_ets()
 	end,
 	{ok, ConnPid} = gun:open("localhost", config(port, Config), Opts#{
 		retry => 0,

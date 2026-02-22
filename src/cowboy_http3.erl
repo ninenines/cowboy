@@ -19,7 +19,7 @@
 
 -module(cowboy_http3).
 
--ifdef(COWBOY_QUICER).
+-include("cowboy_quic_adapter.hrl").
 
 -export([init/4]).
 
@@ -83,7 +83,7 @@
 -record(state, {
 	parent :: pid(),
 	ref :: ranch:ref(),
-	conn :: cowboy_quicer:quicer_connection_handle(),
+	conn :: ?QUIC_ADAPTER:connection_handle(),
 	opts = #{} :: opts(),
 
 	%% Remote address and port for the connection.
@@ -94,6 +94,9 @@
 
 	%% Client certificate.
 	cert :: undefined | binary(),
+
+	%% HTTP/3 connection status for graceful shutdown.
+	http3_status = connected :: connected | closing,
 
 	%% HTTP/3 state machine.
 	http3_machine :: cow_http3_machine:http3_machine(),
@@ -114,10 +117,14 @@
 
 	%% Streams can spawn zero or more children which are then managed
 	%% by this module if operating as a supervisor.
-	children = cowboy_children:init() :: cowboy_children:children()
+	children = cowboy_children:init() :: cowboy_children:children(),
+
+	%% Stream reset rate limiting (CVE-2019-9514 protection).
+	reset_rate_num = undefined :: undefined | pos_integer(),
+	reset_rate_time = undefined :: undefined | integer()
 }).
 
--spec init(pid(), ranch:ref(), cowboy_quicer:quicer_connection_handle(), opts())
+-spec init(pid(), ranch:ref(), ?QUIC_ADAPTER:connection_handle(), opts())
 	-> no_return().
 
 init(Parent, Ref, Conn, Opts) ->
@@ -126,23 +133,23 @@ init(Parent, Ref, Conn, Opts) ->
 	%% @todo An endpoint MAY avoid creating an encoder stream if it will not be used (for example, if its encoder does not wish to use the dynamic table or if the maximum size of the dynamic table permitted by the peer is zero).
 	%% @todo An endpoint MAY avoid creating a decoder stream if its decoder sets the maximum capacity of the dynamic table to zero.
 	{ok, ControlID} = maybe_socket_error(undefined,
-		cowboy_quicer:start_unidi_stream(Conn, [<<0>>, SettingsBin]),
+		?QUIC_ADAPTER:start_unidi_stream(Conn, [<<0>>, SettingsBin]),
 		'A socket error occurred when opening the control stream.'),
 	{ok, EncoderID} = maybe_socket_error(undefined,
-		cowboy_quicer:start_unidi_stream(Conn, <<2>>),
+		?QUIC_ADAPTER:start_unidi_stream(Conn, <<2>>),
 		'A socket error occurred when opening the encoder stream.'),
 	{ok, DecoderID} = maybe_socket_error(undefined,
-		cowboy_quicer:start_unidi_stream(Conn, <<3>>),
+		?QUIC_ADAPTER:start_unidi_stream(Conn, <<3>>),
 		'A socket error occurred when opening the encoder stream.'),
 	%% Set the control, encoder and decoder streams in the machine.
 	HTTP3Machine = cow_http3_machine:init_unidi_local_streams(
 		ControlID, EncoderID, DecoderID, HTTP3Machine0),
 	%% Get the peername/sockname/cert.
-	{ok, Peer} = maybe_socket_error(undefined, cowboy_quicer:peername(Conn),
+	{ok, Peer} = maybe_socket_error(undefined, ?QUIC_ADAPTER:peername(Conn),
 		'A socket error occurred when retrieving the peer name.'),
-	{ok, Sock} = maybe_socket_error(undefined, cowboy_quicer:sockname(Conn),
+	{ok, Sock} = maybe_socket_error(undefined, ?QUIC_ADAPTER:sockname(Conn),
 		'A socket error occurred when retrieving the sock name.'),
-	CertResult = case cowboy_quicer:peercert(Conn) of
+	CertResult = case ?QUIC_ADAPTER:peercert(Conn) of
 		{error, no_peercert} ->
 			{ok, undefined};
 		Cert0 ->
@@ -150,11 +157,15 @@ init(Parent, Ref, Conn, Opts) ->
 	end,
 	{ok, Cert} = maybe_socket_error(undefined, CertResult,
 		'A socket error occurred when retrieving the client TLS certificate.'),
-	%% Quick! Let's go!
-	loop(#state{parent=Parent, ref=Ref, conn=Conn,
+	%% Initialize rate limiting.
+	CurrentTime = erlang:monotonic_time(millisecond),
+	State0 = #state{parent=Parent, ref=Ref, conn=Conn,
 		opts=Opts, peer=Peer, sock=Sock, cert=Cert,
 		http3_machine=HTTP3Machine, local_control_id=ControlID,
-		local_encoder_id=EncoderID, local_decoder_id=DecoderID}).
+		local_encoder_id=EncoderID, local_decoder_id=DecoderID},
+	State = init_reset_rate_limiting(State0, CurrentTime),
+	%% Quick! Let's go!
+	loop(State).
 
 loop(State0=#state{opts=Opts, children=Children}) ->
 	receive
@@ -181,7 +192,7 @@ loop(State0=#state{opts=Opts, children=Children}) ->
 	end.
 
 handle_quic_msg(State0=#state{opts=Opts}, Msg) ->
-	case cowboy_quicer:handle(Msg) of
+	case ?QUIC_ADAPTER:handle(Msg) of
 		{data, StreamID, IsFin, Data} ->
 			parse(State0, StreamID, Data, IsFin);
 		{datagram, Data} ->
@@ -195,6 +206,16 @@ handle_quic_msg(State0=#state{opts=Opts}, Msg) ->
 		{peer_send_shutdown, StreamID} ->
 			State = stream_peer_send_shutdown(State0, StreamID),
 			loop(State);
+		{goaway, LastStreamID} ->
+			goaway(State0, {goaway, LastStreamID});
+		{transport_error, Code, Reason} ->
+			Reason1 = {connection_error, {transport_error, Code},
+				iolist_to_binary([<<"Transport error: ">>, Reason])},
+			terminate(State0, Reason1);
+		{send_ready, _StreamID} ->
+			%% Flow control signal - stream is ready to send more data.
+			%% Currently we send data immediately, so this is informational.
+			loop(State0);
 		closed ->
 			%% @todo Different error reason if graceful?
 			Reason = {socket_error, closed, 'The socket has been closed.'},
@@ -203,13 +224,10 @@ handle_quic_msg(State0=#state{opts=Opts}, Msg) ->
 			loop(State0);
 		unknown ->
 			cowboy:log(warning, "Received unknown QUIC message ~p.", [Msg], Opts),
-			loop(State0);
-		{socket_error, Reason} ->
-			terminate(State0, {socket_error, Reason,
-				'An error has occurred on the socket.'})
+			loop(State0)
 	end.
 
-parse(State=#state{opts=Opts}, StreamID, Data, IsFin) ->
+parse(State, StreamID, Data, IsFin) ->
 	case stream_get(State, StreamID) of
 		Stream=#stream{buffer= <<>>} ->
 			parse1(State, Stream, Data, IsFin);
@@ -221,13 +239,19 @@ parse(State=#state{opts=Opts}, StreamID, Data, IsFin) ->
 		error ->
 			case is_lingering_stream(State, StreamID) of
 				true ->
-					ok;
+					loop(State);
 				false ->
-					%% We avoid logging the data as it could be quite large.
-					cowboy:log(warning, "Received data for unknown stream ~p.",
-						[StreamID], Opts)
-			end,
-			loop(State)
+					%% Stream not found. For erlang_quic, streams are created
+					%% lazily when data arrives (no stream_opened notification).
+					%% Determine stream type from ID and create the stream.
+					StreamType = case StreamID band 2 of
+						0 -> bidi;
+						2 -> unidi
+					end,
+					State1 = stream_new_remote(State, StreamID, StreamType),
+					Stream = stream_get(State1, StreamID),
+					parse1(State1, Stream, Data, IsFin)
+			end
 	end.
 
 parse1(State, Stream=#stream{status=header}, Data, IsFin) ->
@@ -241,7 +265,13 @@ parse1(State=#state{http3_machine=HTTP3Machine0},
 		{error, Error={connection_error, _, _}, HTTP3Machine} ->
 			terminate(State#state{http3_machine=HTTP3Machine}, Error)
 	end;
-%% @todo Handle when IsFin = fin which must terminate the WT session.
+%% Handle FIN on WebTransport session CONNECT stream.
+%% When the CONNECT stream receives FIN, it's equivalent to a clean close.
+parse1(State=#state{conn=Conn}, Stream=#stream{id=SessionID, status=
+		{webtransport_session, _}}, <<>>, fin) ->
+	webtransport_event(State, SessionID, {closed, 0, <<>>}),
+	?QUIC_ADAPTER:shutdown_stream(Conn, SessionID),
+	loop(webtransport_terminate_session(State, Stream));
 parse1(State=#state{conn=Conn}, Stream=#stream{id=SessionID, status=
 		{webtransport_session, normal}}, Data, IsFin) ->
 	case cow_capsule:parse(Data) of
@@ -253,7 +283,7 @@ parse1(State=#state{conn=Conn}, Stream=#stream{id=SessionID, status=
 			%% to the termination of the session process.
 			webtransport_event(State, SessionID, {closed, AppCode, AppMsg}),
 			%% Shutdown the CONNECT stream immediately.
-			cowboy_quicer:shutdown_stream(Conn, SessionID),
+			?QUIC_ADAPTER:shutdown_stream(Conn, SessionID),
 			%% @todo Will we receive a {stream_closed,...} after that?
 			%% If any data is received past that point this is an error.
 			%% @todo Don't crash, error out properly.
@@ -271,12 +301,12 @@ parse1(State=#state{conn=Conn}, Stream=#stream{id=SessionID, status=
 		{skip, Len} when Len =< 8192 ->
 			loop(stream_store(State, Stream#stream{
 				status={webtransport_session, {ignore, Len}}}));
-		{skip, Len} ->
-			%% @todo What should be done on capsule error?
-			error({todo, capsule_too_long, Len});
+		{skip, _Len} ->
+			reset_stream(State, Stream, {stream_error, h3_message_error,
+				'Capsule payload exceeds maximum allowed size.'});
 		error ->
-			%% @todo What should be done on capsule error?
-			error({todo, capsule_error, Data})
+			reset_stream(State, Stream, {stream_error, h3_message_error,
+				'Failed to parse capsule on WebTransport session stream.'})
 	end;
 parse1(State, Stream=#stream{status=
 		{webtransport_session, {ignore, Len}}}, Data, IsFin) ->
@@ -445,9 +475,9 @@ frame(State=#state{http3_machine=HTTP3Machine0},
 		{ok, {headers, Headers, PseudoHeaders, BodyLen}, Instrs, HTTP3Machine} ->
 			headers_frame(send_instructions(State#state{http3_machine=HTTP3Machine}, Instrs),
 				Stream, IsFin, Headers, PseudoHeaders, BodyLen);
-		{ok, {trailers, _Trailers}, Instrs, HTTP3Machine} ->
-			%% @todo Propagate trailers.
-			send_instructions(State#state{http3_machine=HTTP3Machine}, Instrs);
+		{ok, {trailers, Trailers}, Instrs, HTTP3Machine} ->
+			State1 = send_instructions(State#state{http3_machine=HTTP3Machine}, Instrs),
+			trailers_frame(State1, Stream, Trailers);
 		{ok, GoAway={goaway, _}, HTTP3Machine} ->
 			goaway(State#state{http3_machine=HTTP3Machine}, GoAway);
 		{error, Error={stream_error, _Reason, _Human}, Instrs, HTTP3Machine} ->
@@ -473,11 +503,54 @@ data_frame(State=#state{opts=Opts},
 			'Unhandled exception in cowboy_stream:data/4.'})
 	end.
 
-headers_frame(State, Stream, IsFin, Headers,
-		PseudoHeaders=#{method := <<"CONNECT">>}, _)
+trailers_frame(State, Stream=#stream{status={relaying, _, RelayPid}, id=StreamID}, Trailers) ->
+	RelayPid ! {'$cowboy_relay_trailers', {self(), StreamID}, headers_to_map(Trailers, #{})},
+	stream_store(State, Stream);
+trailers_frame(State=#state{opts=Opts},
+		Stream=#stream{id=StreamID, state=StreamState0}, Trailers) ->
+	try cowboy_stream:info(StreamID, {trailers, headers_to_map(Trailers, #{})}, StreamState0) of
+		{Commands, StreamState} ->
+			commands(State, Stream#stream{state=StreamState}, Commands)
+	catch Class:Exception:Stacktrace ->
+		cowboy:log(cowboy_stream:make_error_log(info,
+			[StreamID, {trailers, Trailers}, StreamState0],
+			Class, Exception, Stacktrace), Opts),
+		reset_stream(State, Stream, {internal_error, {Class, Exception},
+			'Unhandled exception in cowboy_stream:info/3.'})
+	end.
+
+%% Regular CONNECT method (RFC 9110 Section 9.3.6).
+%% Only :method and :authority pseudo-headers are allowed.
+headers_frame(State=#state{ref=Ref, peer=Peer, sock=Sock, cert=Cert},
+		Stream=#stream{id=StreamID}, IsFin, Headers,
+		PseudoHeaders=#{method := <<"CONNECT">>, authority := Authority}, _)
 		when map_size(PseudoHeaders) =:= 2 ->
-	early_error(State, Stream, IsFin, Headers, PseudoHeaders, 501,
-		'The CONNECT method is currently not implemented. (RFC7231 4.3.6)');
+	try cow_http_hd:parse_host(Authority) of
+		{Host, Port0} ->
+			Port = case Port0 of undefined -> 443; _ -> Port0 end,
+			Req = #{
+				ref => Ref,
+				pid => self(),
+				streamid => StreamID,
+				peer => Peer,
+				sock => Sock,
+				cert => Cert,
+				method => <<"CONNECT">>,
+				scheme => <<"https">>,
+				host => Host,
+				port => Port,
+				path => <<>>,
+				qs => <<>>,
+				version => 'HTTP/3',
+				headers => headers_to_map(Headers, #{}),
+				has_body => IsFin =:= nofin,
+				body_length => undefined
+			},
+			headers_frame(State, Stream, Req)
+	catch _:_ ->
+		reset_stream(State, Stream, {stream_error, h3_message_error,
+			'Invalid :authority pseudo-header in CONNECT request.'})
+	end;
 headers_frame(State, Stream, IsFin, Headers,
 		PseudoHeaders=#{method := <<"TRACE">>}, _) ->
 	early_error(State, Stream, IsFin, Headers, PseudoHeaders, 501,
@@ -611,7 +684,11 @@ parse_datagram(State, Data0) ->
 			webtransport_event(State, SessionID, {datagram, Data}),
 			loop(State);
 		_ ->
-			error(todo) %% @todo Might be a future WT session or an error.
+			%% Datagram for unknown/terminated session - silently discard.
+			%% This can happen for datagrams arriving for sessions that
+			%% have already been terminated, or for future sessions
+			%% that haven't been established yet.
+			loop(State)
 	end.
 
 %% Erlang messages.
@@ -695,10 +772,10 @@ commands(State0=#state{conn=Conn}, Stream=#stream{id=StreamID}, [{data, IsFin, D
 			{ok, _} = ranch_transport:sendfile(?MODULE, {Conn, StreamID},
 				Path, Offset, Bytes, []),
 			ok = maybe_socket_error(State0,
-				cowboy_quicer:send(Conn, StreamID, cow_http3:data(<<>>), IsFin));
+				?QUIC_ADAPTER:send(Conn, StreamID, cow_http3:data(<<>>), IsFin));
 		_ ->
 			ok = maybe_socket_error(State0,
-				cowboy_quicer:send(Conn, StreamID, cow_http3:data(Data), IsFin))
+				?QUIC_ADAPTER:send(Conn, StreamID, cow_http3:data(Data), IsFin))
 	end,
 	State = maybe_send_is_fin(State0, Stream, IsFin),
 	commands(State, Stream, Tail);
@@ -710,61 +787,27 @@ commands(State0=#state{conn=Conn, http3_machine=HTTP3Machine0},
 		{trailers, HeaderBlock, Instrs, HTTP3Machine} ->
 			State1 = send_instructions(State0#state{http3_machine=HTTP3Machine}, Instrs),
 			ok = maybe_socket_error(State1,
-				cowboy_quicer:send(Conn, StreamID, cow_http3:headers(HeaderBlock), fin)),
+				?QUIC_ADAPTER:send(Conn, StreamID, cow_http3:headers(HeaderBlock), fin)),
 			State1;
 		{no_trailers, HTTP3Machine} ->
 			ok = maybe_socket_error(State0,
-				cowboy_quicer:send(Conn, StreamID, cow_http3:data(<<>>), fin)),
+				?QUIC_ADAPTER:send(Conn, StreamID, cow_http3:data(<<>>), fin)),
 			State0#state{http3_machine=HTTP3Machine}
 	end,
 	commands(State, Stream, Tail);
-%% Send a push promise.
+%% Server push is not implemented.
 %%
-%% @todo Responses sent as a result of a push_promise request
-%% must not send push_promise frames themselves.
+%% HTTP/2 and HTTP/3 server push has been deprecated and removed by all major
+%% browsers: Chrome removed support in v106 (2022), Firefox in v132 (Oct 2024).
+%% The feature provided minimal real-world benefit and added complexity.
+%% Therefore, push promises are intentionally not supported.
 %%
-%% @todo We should not send push_promise frames when we are
-%% in the closing http2_status.
-%commands(State0=#state{socket=Socket, transport=Transport, http3_machine=HTTP3Machine0},
-%		Stream, [{push, Method, Scheme, Host, Port, Path, Qs, Headers0}|Tail]) ->
-%	Authority = case {Scheme, Port} of
-%		{<<"http">>, 80} -> Host;
-%		{<<"https">>, 443} -> Host;
-%		_ -> iolist_to_binary([Host, $:, integer_to_binary(Port)])
-%	end,
-%	PathWithQs = iolist_to_binary(case Qs of
-%		<<>> -> Path;
-%		_ -> [Path, $?, Qs]
-%	end),
-%	PseudoHeaders = #{
-%		method => Method,
-%		scheme => Scheme,
-%		authority => Authority,
-%		path => PathWithQs
-%	},
-%	%% We need to make sure the header value is binary before we can
-%	%% create the Req object, as it expects them to be flat.
-%	Headers = maps:to_list(maps:map(fun(_, V) -> iolist_to_binary(V) end, Headers0)),
-%	%% @todo
-%	State = case cow_http2_machine:prepare_push_promise(StreamID, HTTP3Machine0,
-%			PseudoHeaders, Headers) of
-%		{ok, PromisedStreamID, HeaderBlock, HTTP3Machine} ->
-%			Transport:send(Socket, cow_http2:push_promise(
-%				StreamID, PromisedStreamID, HeaderBlock)),
-%			headers_frame(State0#state{http3_machine=HTTP2Machine},
-%				PromisedStreamID, fin, Headers, PseudoHeaders, 0);
-%		{error, no_push} ->
-%			State0
-%	end,
-%	commands(State, Stream, Tail);
-%%% Read the request body.
-%commands(State0=#state{flow=Flow, streams=Streams}, Stream, [{flow, Size}|Tail]) ->
+%% Read the request body.
+%%
+%% Unlike HTTP/2, QUIC handles flow control automatically at the transport layer.
+%% The QUIC stack sends MAX_STREAM_DATA frames to the peer when it's ready to
+%% receive more data. Therefore, the {flow, Size} command is a no-op for HTTP/3.
 commands(State, Stream, [{flow, _Size}|Tail]) ->
-	%% @todo We should tell the QUIC stream to increase its window size.
-%	#{StreamID := Stream=#stream{flow=StreamFlow}} = Streams,
-%	State = update_window(State0#state{flow=Flow + Size,
-%		streams=Streams#{StreamID => Stream#stream{flow=StreamFlow + Size}}},
-%		StreamID),
 	commands(State, Stream, Tail);
 %% Supervise a child process.
 commands(State=#state{children=Children}, Stream=#stream{id=StreamID},
@@ -803,8 +846,8 @@ commands(State0, Stream0=#stream{id=StreamID},
 	State = info(stream_store(State0, Stream0), StreamID, {headers, 200, Headers}),
 	Stream1 = #stream{status=normal} = stream_get(State, StreamID),
 	#{data_delivery_pid := RelayPid} = ModState,
-	%% We do not set data_delivery_flow because it is managed by quicer
-	%% and we do not have an easy way to modify it.
+	%% We do not set data_delivery_flow because it is managed by the
+	%% QUIC library and we do not have an easy way to modify it.
 	Stream = Stream1#stream{status={relaying, normal, RelayPid}},
 	commands(State, Stream, Tail);
 commands(State0, Stream0=#stream{id=StreamID},
@@ -846,16 +889,16 @@ send_response(State0=#state{conn=Conn, http3_machine=HTTP3Machine0},
 			_ = case Body of
 				{sendfile, Offset, Bytes, Path} ->
 					ok = maybe_socket_error(State,
-						cowboy_quicer:send(Conn, StreamID, cow_http3:headers(HeaderBlock))),
+						?QUIC_ADAPTER:send(Conn, StreamID, cow_http3:headers(HeaderBlock))),
 					%% Temporary solution to do sendfile over QUIC.
 					{ok, _} = maybe_socket_error(State,
 						ranch_transport:sendfile(?MODULE, {Conn, StreamID},
 							Path, Offset, Bytes, [])),
 					ok = maybe_socket_error(State,
-						cowboy_quicer:send(Conn, StreamID, cow_http3:data(<<>>), fin));
+						?QUIC_ADAPTER:send(Conn, StreamID, cow_http3:data(<<>>), fin));
 				_ ->
 					ok = maybe_socket_error(State,
-						cowboy_quicer:send(Conn, StreamID, [
+						?QUIC_ADAPTER:send(Conn, StreamID, [
 							cow_http3:headers(HeaderBlock),
 							cow_http3:data(Body)
 						], fin))
@@ -871,11 +914,11 @@ maybe_send_is_fin(State, _, _) ->
 	State.
 
 %% Temporary callback to do sendfile over QUIC.
--spec send({cowboy_quicer:quicer_connection_handle(), cow_http3:stream_id()},
+-spec send({?QUIC_ADAPTER:connection_handle(), cow_http3:stream_id()},
 	iodata()) -> ok | {error, any()}.
 
 send({Conn, StreamID}, IoData) ->
-	cowboy_quicer:send(Conn, StreamID, cow_http3:data(IoData)).
+	?QUIC_ADAPTER:send(Conn, StreamID, cow_http3:data(IoData)).
 
 send_headers(State0=#state{conn=Conn, http3_machine=HTTP3Machine0},
 		#stream{id=StreamID}, IsFin0, StatusCode, Headers) ->
@@ -885,7 +928,7 @@ send_headers(State0=#state{conn=Conn, http3_machine=HTTP3Machine0},
 			headers_to_list(Headers)),
 	State = send_instructions(State0#state{http3_machine=HTTP3Machine}, Instrs),
 	ok = maybe_socket_error(State,
-		cowboy_quicer:send(Conn, StreamID, cow_http3:headers(HeaderBlock), IsFin)),
+		?QUIC_ADAPTER:send(Conn, StreamID, cow_http3:headers(HeaderBlock), IsFin)),
 	State.
 
 %% The set-cookie header is special; we can only send one cookie per header.
@@ -903,13 +946,13 @@ send_instructions(State, undefined) ->
 send_instructions(State=#state{conn=Conn, local_decoder_id=DecoderID},
 		{decoder_instructions, DecData}) ->
 	ok = maybe_socket_error(State,
-		cowboy_quicer:send(Conn, DecoderID, DecData)),
+		?QUIC_ADAPTER:send(Conn, DecoderID, DecData)),
 	State;
 %% Encoder instructions.
 send_instructions(State=#state{conn=Conn, local_encoder_id=EncoderID},
 		{encoder_instructions, EncData}) ->
 	ok = maybe_socket_error(State,
-		cowboy_quicer:send(Conn, EncoderID, EncData)),
+		?QUIC_ADAPTER:send(Conn, EncoderID, EncData)),
 	State.
 
 %% Relay data delivery commands.
@@ -919,11 +962,11 @@ relay_command(State, StreamID, DataCmd = {data, _, _}) ->
 	commands(State, Stream, [DataCmd]);
 relay_command(State=#state{conn=Conn}, StreamID, active) ->
 	ok = maybe_socket_error(State,
-		cowboy_quicer:setopt(Conn, StreamID, active, true)),
+		?QUIC_ADAPTER:setopt(Conn, StreamID, active, true)),
 	State;
 relay_command(State=#state{conn=Conn}, StreamID, passive) ->
 	ok = maybe_socket_error(State,
-		cowboy_quicer:setopt(Conn, StreamID, active, false)),
+		?QUIC_ADAPTER:setopt(Conn, StreamID, active, false)),
 	State.
 
 %% We mark the stream as being a WebTransport stream
@@ -964,7 +1007,7 @@ webtransport_commands(State, SessionID, Commands) ->
 
 wt_commands(State, _, []) ->
 	State;
-wt_commands(State0=#state{conn=Conn}, Session=#stream{id=SessionID},
+wt_commands(State0=#state{conn=Conn, opts=Opts}, Session=#stream{id=SessionID},
 		[{open_stream, OpenStreamRef, StreamType, InitialData}|Tail]) ->
 	%% Because opening the stream involves sending a short header
 	%% we necessarily write data. The InitialData variable allows
@@ -974,49 +1017,85 @@ wt_commands(State0=#state{conn=Conn}, Session=#stream{id=SessionID},
 		unidi -> start_unidi_stream
 	end,
 	Header = cow_http3:webtransport_stream_header(SessionID, StreamType),
-	case cowboy_quicer:StartF(Conn, [Header, InitialData]) of
+	case ?QUIC_ADAPTER:StartF(Conn, [Header, InitialData]) of
 		{ok, StreamID} ->
-			%% @todo Pass Session directly?
 			webtransport_event(State0, SessionID,
 				{opened_stream_id, OpenStreamRef, StreamID}),
 			State = stream_new_local(State0, StreamID, StreamType,
 				{webtransport_stream, SessionID}),
-			wt_commands(State, Session, Tail)
-		%% @todo Handle errors.
+			wt_commands(State, Session, Tail);
+		{error, Reason} ->
+			cowboy:log(warning, "Failed to open WebTransport stream: ~p", [Reason], Opts),
+			webtransport_event(State0, SessionID,
+				{stream_open_failed, OpenStreamRef, Reason}),
+			wt_commands(State0, Session, Tail)
 	end;
-wt_commands(State, Session, [{close_stream, StreamID, Code}|Tail]) ->
-	%% @todo Check that StreamID belongs to Session.
-	error({todo, State, Session, [{close_stream, StreamID, Code}|Tail]});
-wt_commands(State=#state{conn=Conn}, Session=#stream{id=SessionID},
+wt_commands(State0=#state{conn=Conn}, Session=#stream{id=SessionID},
+		[{close_stream, StreamID, Code}|Tail]) ->
+	%% Verify that the stream belongs to this session before closing.
+	case stream_get(State0, StreamID) of
+		#stream{status={webtransport_stream, SessionID}} ->
+			ErrorCode = cow_http3:error_to_code({wt_application_error, Code}),
+			?QUIC_ADAPTER:shutdown_stream(Conn, StreamID, both, ErrorCode),
+			State = stream_closed(State0, StreamID, 0),
+			wt_commands(State, Session, Tail);
+		_ ->
+			%% Stream doesn't exist or doesn't belong to this session.
+			wt_commands(State0, Session, Tail)
+	end;
+wt_commands(State=#state{conn=Conn, opts=Opts}, Session=#stream{id=SessionID},
 		[{send, datagram, Data}|Tail]) ->
-	case cowboy_quicer:send_datagram(Conn, cow_http3:datagram(SessionID, Data)) of
+	%% Datagrams are unreliable by design, so we just log and continue on error.
+	case ?QUIC_ADAPTER:send_datagram(Conn, cow_http3:datagram(SessionID, Data)) of
 		ok ->
-			wt_commands(State, Session, Tail)
-		%% @todo Handle errors.
-	end;
-wt_commands(State=#state{conn=Conn}, Session, [{send, StreamID, Data}|Tail]) ->
-	%% @todo Check that StreamID belongs to Session.
-	case cowboy_quicer:send(Conn, StreamID, Data, nofin) of
-		ok ->
-			wt_commands(State, Session, Tail)
-		%% @todo Handle errors.
-	end;
-wt_commands(State=#state{conn=Conn}, Session, [{send, StreamID, IsFin, Data}|Tail]) ->
-	%% @todo Check that StreamID belongs to Session.
-	case cowboy_quicer:send(Conn, StreamID, Data, IsFin) of
-		ok ->
-			wt_commands(State, Session, Tail)
-		%% @todo Handle errors.
-	end;
-wt_commands(State=#state{conn=Conn}, Session=#stream{id=SessionID}, [initiate_close|Tail]) ->
+			ok;
+		{error, Reason} ->
+			cowboy:log(debug, "Failed to send WebTransport datagram: ~p", [Reason], Opts)
+	end,
+	wt_commands(State, Session, Tail);
+wt_commands(State=#state{conn=Conn, opts=Opts}, Session=#stream{id=SessionID},
+		[{send, StreamID, Data}|Tail]) ->
+	%% Verify stream belongs to session before sending.
+	case stream_get(State, StreamID) of
+		#stream{status={webtransport_stream, SessionID}} ->
+			case ?QUIC_ADAPTER:send(Conn, StreamID, Data, nofin) of
+				ok ->
+					ok;
+				{error, Reason} ->
+					cowboy:log(warning, "Failed to send on WebTransport stream ~p: ~p",
+						[StreamID, Reason], Opts)
+			end;
+		_ ->
+			cowboy:log(warning, "Attempted to send on unknown WebTransport stream ~p", [StreamID], Opts)
+	end,
+	wt_commands(State, Session, Tail);
+wt_commands(State=#state{conn=Conn, opts=Opts}, Session=#stream{id=SessionID},
+		[{send, StreamID, IsFin, Data}|Tail]) ->
+	%% Verify stream belongs to session before sending.
+	case stream_get(State, StreamID) of
+		#stream{status={webtransport_stream, SessionID}} ->
+			case ?QUIC_ADAPTER:send(Conn, StreamID, Data, IsFin) of
+				ok ->
+					ok;
+				{error, Reason} ->
+					cowboy:log(warning, "Failed to send on WebTransport stream ~p: ~p",
+						[StreamID, Reason], Opts)
+			end;
+		_ ->
+			cowboy:log(warning, "Attempted to send on unknown WebTransport stream ~p", [StreamID], Opts)
+	end,
+	wt_commands(State, Session, Tail);
+wt_commands(State=#state{conn=Conn, opts=Opts}, Session=#stream{id=SessionID}, [initiate_close|Tail]) ->
 	%% We must send a WT_DRAIN_SESSION capsule on the CONNECT stream.
 	Capsule = cow_capsule:wt_drain_session(),
-	case cowboy_quicer:send(Conn, SessionID, Capsule, nofin) of
+	case ?QUIC_ADAPTER:send(Conn, SessionID, Capsule, nofin) of
 		ok ->
-			wt_commands(State, Session, Tail)
-		%% @todo Handle errors.
-	end;
-wt_commands(State0=#state{conn=Conn}, Session=#stream{id=SessionID}, [Cmd|Tail])
+			ok;
+		{error, Reason} ->
+			cowboy:log(warning, "Failed to send WT_DRAIN_SESSION: ~p", [Reason], Opts)
+	end,
+	wt_commands(State, Session, Tail);
+wt_commands(State0=#state{conn=Conn, opts=Opts}, Session=#stream{id=SessionID}, [Cmd|Tail])
 		when Cmd =:= close; element(1, Cmd) =:= close ->
 	%% We must send a WT_CLOSE_SESSION capsule on the CONNECT stream.
 	{AppCode, AppMsg} = case Cmd of
@@ -1025,16 +1104,17 @@ wt_commands(State0=#state{conn=Conn}, Session=#stream{id=SessionID}, [Cmd|Tail])
 		{close, AppCode0, AppMsg0} -> {AppCode0, AppMsg0}
 	end,
 	Capsule = cow_capsule:wt_close_session(AppCode, AppMsg),
-	case cowboy_quicer:send(Conn, SessionID, Capsule, fin) of
+	State = case ?QUIC_ADAPTER:send(Conn, SessionID, Capsule, fin) of
 		ok ->
-			State = webtransport_terminate_session(State0, Session),
-			%% @todo Because the handler is in a separate process
-			%%       we must wait for it to stop and eventually
-			%%       kill the process if it takes too long.
-			%% @todo We may need to fully close the CONNECT stream (if remote doesn't reset it).
-			wt_commands(State, Session, Tail)
-		%% @todo Handle errors.
-	end.
+			webtransport_terminate_session(State0, Session);
+		{error, Reason} ->
+			%% Failed to send close capsule, force terminate the session.
+			cowboy:log(warning, "Failed to send WT_CLOSE_SESSION: ~p, forcing termination", [Reason], Opts),
+			?QUIC_ADAPTER:shutdown_stream(Conn, SessionID, both, cow_http3:error_to_code(h3_internal_error)),
+			webtransport_terminate_session(State0, Session)
+	end,
+	%% Continue processing remaining commands even though session is terminated.
+	wt_commands(State, Session, Tail).
 
 webtransport_terminate_session(State=#state{conn=Conn, http3_machine=HTTP3Machine0,
 		streams=Streams0, lingering_streams=Lingering0}, #stream{id=SessionID}) ->
@@ -1046,7 +1126,7 @@ webtransport_terminate_session(State=#state{conn=Conn, http3_machine=HTTP3Machin
 			false;
 		(StreamID, #stream{status={webtransport_stream, StreamSessionID}})
 				when StreamSessionID =:= SessionID ->
-			cowboy_quicer:shutdown_stream(Conn, StreamID,
+			?QUIC_ADAPTER:shutdown_stream(Conn, StreamID,
 				both, cow_http3:error_to_code(wt_session_gone)),
 			false;
 		(_, _) ->
@@ -1071,7 +1151,7 @@ stream_peer_send_shutdown(State=#state{conn=Conn}, StreamID) ->
 		Stream = #stream{status={webtransport_session, _}} ->
 			webtransport_event(State, StreamID, {closed, 0, <<>>}),
 			%% Shutdown the CONNECT stream fully.
-			cowboy_quicer:shutdown_stream(Conn, StreamID),
+			?QUIC_ADAPTER:shutdown_stream(Conn, StreamID),
 			webtransport_terminate_session(State, Stream);
 		_ ->
 			State
@@ -1085,7 +1165,7 @@ reset_stream(State0=#state{conn=Conn, http3_machine=HTTP3Machine0},
 	end,
 	%% @todo Do we want to close both sides?
 	%% @todo Should we close the send side if the receive side was already closed?
-	cowboy_quicer:shutdown_stream(Conn, StreamID,
+	?QUIC_ADAPTER:shutdown_stream(Conn, StreamID,
 		both, cow_http3:error_to_code(Reason)),
 	State1 = case cow_http3_machine:reset_stream(StreamID, HTTP3Machine0) of
 		{ok, HTTP3Machine} ->
@@ -1093,15 +1173,40 @@ reset_stream(State0=#state{conn=Conn, http3_machine=HTTP3Machine0},
 		{error, not_found} ->
 			terminate_stream(State0, Stream, Error)
 	end,
-%% @todo
-%	case reset_rate(State1) of
-%		{ok, State} ->
-%			State;
-%		error ->
-%			terminate(State1, {connection_error, enhance_your_calm,
-%				'Stream reset rate larger than configuration allows. Flood? (CVE-2019-9514)'})
-%	end.
-	State1.
+	case reset_rate(State1) of
+		{ok, State} ->
+			State;
+		error ->
+			terminate(State1, {connection_error, h3_excessive_load,
+				'Stream reset rate larger than configuration allows. Flood? (CVE-2019-9514)'})
+	end.
+
+%% Stream reset rate limiting (CVE-2019-9514 protection).
+
+init_reset_rate_limiting(State=#state{opts=Opts}, CurrentTime) ->
+	{ResetRateNum, ResetRatePeriod} = maps:get(max_reset_stream_rate, Opts, {10, 10000}),
+	State#state{
+		reset_rate_num=ResetRateNum,
+		reset_rate_time=add_period(CurrentTime, ResetRatePeriod)
+	}.
+
+reset_rate(State0=#state{reset_rate_num=Num0, reset_rate_time=Time}) ->
+	case Num0 - 1 of
+		0 ->
+			CurrentTime = erlang:monotonic_time(millisecond),
+			if
+				CurrentTime < Time ->
+					error;
+				true ->
+					%% When the option has a period of infinity we cannot reach this clause.
+					{ok, init_reset_rate_limiting(State0, CurrentTime)}
+			end;
+		Num ->
+			{ok, State0#state{reset_rate_num=Num}}
+	end.
+
+add_period(_, infinity) -> infinity;
+add_period(Time, Period) -> Time + Period.
 
 stop_stream(State0=#state{http3_machine=HTTP3Machine}, Stream=#stream{id=StreamID}) ->
 	%% We abort reading when stopping the stream but only
@@ -1163,15 +1268,39 @@ ignored_frame(State=#state{http3_machine=HTTP3Machine0}, #stream{id=StreamID}) -
 	end.
 
 stream_abort_receive(State=#state{conn=Conn}, Stream=#stream{id=StreamID}, Reason) ->
-	cowboy_quicer:shutdown_stream(Conn, StreamID,
+	?QUIC_ADAPTER:shutdown_stream(Conn, StreamID,
 		receiving, cow_http3:error_to_code(Reason)),
 	stream_store(State, Stream#stream{status=stopping}).
 
-%% @todo Graceful connection shutdown.
-%% We terminate the connection immediately if it hasn't fully been initialized.
+%% Graceful connection shutdown.
+%%
+%% When we receive a GOAWAY frame from the client, we update our status
+%% and begin graceful shutdown. When the server initiates shutdown,
+%% we send a GOAWAY frame and begin graceful shutdown.
 -spec goaway(#state{}, {goaway, _}) -> no_return().
-goaway(State, {goaway, _}) ->
-	terminate(State, {stop, goaway, 'The connection is going away.'}).
+goaway(State, {goaway, _LastStreamID}) ->
+	%% Client initiated graceful shutdown.
+	%% We should stop accepting new streams and finish existing ones.
+	terminate(State#state{http3_status=closing}, {stop, goaway, 'The connection is going away.'}).
+
+%% Send a GOAWAY frame to initiate graceful shutdown.
+send_goaway(#state{conn=Conn, local_control_id=ControlID, streams=Streams}) ->
+	%% Find the maximum client-initiated bidirectional stream ID.
+	%% Client-initiated bidi streams have ID rem 4 == 0.
+	LastStreamID = maps:fold(fun(StreamID, _, Max) ->
+		case StreamID rem 4 of
+			0 when StreamID > Max -> StreamID;
+			_ -> Max
+		end
+	end, 0, Streams),
+	GoAwayFrame = build_goaway_frame(LastStreamID),
+	?QUIC_ADAPTER:send(Conn, ControlID, GoAwayFrame).
+
+%% Build a GOAWAY frame (frame type 7).
+build_goaway_frame(StreamID) ->
+	EncodedStreamID = cow_http3:encode_int(StreamID),
+	Len = byte_size(iolist_to_binary([EncodedStreamID])),
+	[<<7>>, cow_http3:encode_int(Len), EncodedStreamID].
 
 %% Function copied from cowboy_http.
 maybe_socket_error(State, {error, closed}) ->
@@ -1189,29 +1318,27 @@ maybe_socket_error(State, {error, Reason}, Human) ->
 -spec terminate(#state{} | undefined, _) -> no_return().
 terminate(undefined, Reason) ->
 	exit({shutdown, Reason});
-terminate(State=#state{conn=Conn, %http3_status=Status,
-		%http3_machine=HTTP3Machine,
+terminate(State=#state{conn=Conn, http3_status=Status,
 		streams=Streams, children=Children}, Reason) ->
-%	if
-%		Status =:= connected; Status =:= closing_initiated ->
-%% @todo
-%			%% We are terminating so it's OK if we can't send the GOAWAY anymore.
-%			_ = cowboy_quicer:send(Conn, ControlID, cow_http3:goaway(
-%				cow_http3_machine:get_last_streamid(HTTP3Machine))),
-		%% We already sent the GOAWAY frame.
-%		Status =:= closing ->
-%			ok
-%	end,
+	%% Send GOAWAY if we haven't already done so.
+	%% Wrap in try/catch since the QUIC connection may already be closed.
+	_ = case Status of
+		connected ->
+			%% We are terminating so it's OK if we can't send the GOAWAY anymore.
+			try send_goaway(State) catch _:_ -> ok end;
+		closing ->
+			%% We already sent the GOAWAY frame.
+			ok
+	end,
 	terminate_all_streams(State, maps:to_list(Streams), Reason),
 	cowboy_children:terminate(Children),
-%	terminate_linger(State),
-	_ = cowboy_quicer:shutdown(Conn, cow_http3:error_to_code(terminate_reason(Reason))),
+	_ = ?QUIC_ADAPTER:shutdown(Conn, cow_http3:error_to_code(terminate_reason(Reason))),
 	exit({shutdown, Reason}).
 
+terminate_reason({connection_error, {transport_error, _Code}, _}) -> h3_internal_error;
 terminate_reason({connection_error, Reason, _}) -> Reason;
 terminate_reason({stop, _, _}) -> h3_no_error;
 terminate_reason({socket_error, _, _}) -> h3_internal_error.
-%terminate_reason({internal_error, _, _}) -> internal_error.
 
 terminate_all_streams(_, [], _) ->
 	ok;
@@ -1305,5 +1432,3 @@ stream_linger(State=#state{lingering_streams=Lingering0}, StreamID) ->
 
 is_lingering_stream(#state{lingering_streams=Lingering}, StreamID) ->
 	lists:member(StreamID, Lingering).
-
--endif.

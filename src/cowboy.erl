@@ -21,9 +21,9 @@
 -export([get_env/3]).
 -export([set_env/3]).
 
--ifdef(COWBOY_QUICER).
 -export([start_quic/3]).
 
+-ifdef(COWBOY_QUICER).
 %% Don't warn about the bad quicer specs.
 -dialyzer([{nowarn_function, start_quic/3}]).
 -endif.
@@ -76,8 +76,6 @@ start_tls(Ref, TransOpts0, ProtoOpts0) ->
 	},
 	ranch:start_listener(Ref, ranch_ssl, TransOpts, cowboy_tls, ProtoOpts).
 
--ifdef(COWBOY_QUICER).
-
 %% @todo Experimental function to start a barebone QUIC listener.
 %%       This will need to be reworked to be closer to Ranch
 %%       listeners and provide equivalent features.
@@ -87,6 +85,8 @@ start_tls(Ref, TransOpts0, ProtoOpts0) ->
 -spec start_quic(ranch:ref(), #{socket_opts => [{atom(), _}]}, cowboy_http3:opts())
 	-> {ok, pid()}.
 
+-ifdef(COWBOY_QUICER).
+%% quicer (emqx/quicer NIF) implementation.
 %% @todo Implement dynamic_buffer for HTTP/3 if/when it applies.
 start_quic(Ref, TransOpts, ProtoOpts) ->
 	{ok, _} = application:ensure_all_started(quicer),
@@ -155,6 +155,88 @@ port_0() ->
 			ok
 	end,
 	Port.
+
+-else.
+%% erlang_quic (pure Erlang) implementation.
+start_quic(Ref, TransOpts, ProtoOpts) ->
+	{ok, _} = application:ensure_all_started(quic),
+	Parent = self(),
+	SocketOpts0 = maps:get(socket_opts, TransOpts, []),
+	{Port, SocketOpts2} = case lists:keytake(port, 1, SocketOpts0) of
+		{value, {port, Port0}, SocketOpts1} ->
+			{Port0, SocketOpts1};
+		false ->
+			{0, SocketOpts0}
+	end,
+	%% Extract certificate configuration.
+	{Cert, CertChain, Key, SocketOpts} = extract_cert_opts(SocketOpts2),
+	%% Build server options.
+	ServerOpts = maps:merge(maps:from_list(SocketOpts), #{
+		cert => Cert,
+		cert_chain => CertChain,
+		key => Key,
+		alpn => [<<"h3">>],
+		connection_handler => fun(_ConnPid, ConnRef) ->
+			Pid = spawn(fun() ->
+				receive go -> ok end,
+				%% Wait for handshake to complete.
+				receive
+					{quic, ConnRef, {connected, _Info}} ->
+						ok
+				after 30000 ->
+					exit({shutdown, handshake_timeout})
+				end,
+				process_flag(trap_exit, true),
+				try cowboy_http3:init(Parent, Ref, ConnRef, ProtoOpts)
+				catch
+					exit:{shutdown,_} -> ok;
+					C:E:S ->
+						log(error, "CRASH ~p:~p:~p", [C,E,S], ProtoOpts)
+				end
+			end),
+			%% Ownership will be transferred by the listener after this returns.
+			Pid ! go,
+			{ok, Pid}
+		end
+	}),
+	quic:start_server(Ref, Port, ServerOpts).
+
+%% Extract certificate options from socket opts.
+extract_cert_opts(SocketOpts) ->
+	{Certfile, SocketOpts1} = case lists:keytake(certfile, 1, SocketOpts) of
+		{value, {certfile, CF}, SO1} -> {CF, SO1};
+		false -> {undefined, SocketOpts}
+	end,
+	{Keyfile, SocketOpts2} = case lists:keytake(keyfile, 1, SocketOpts1) of
+		{value, {keyfile, KF}, SO2} -> {KF, SO2};
+		false -> {undefined, SocketOpts1}
+	end,
+	%% Read certificate and key from files.
+	{Cert, CertChain} = case Certfile of
+		undefined -> {undefined, []};
+		_ -> read_cert_file(Certfile)
+	end,
+	Key = case Keyfile of
+		undefined -> undefined;
+		_ -> read_key_file(Keyfile)
+	end,
+	{Cert, CertChain, Key, SocketOpts2}.
+
+%% Read certificate file (PEM) and convert to DER.
+read_cert_file(Filename) ->
+	{ok, PemBin} = file:read_file(Filename),
+	PemEntries = public_key:pem_decode(PemBin),
+	Certs = [Der || {'Certificate', Der, not_encrypted} <- PemEntries],
+	case Certs of
+		[Cert|Chain] -> {Cert, Chain};
+		[] -> {undefined, []}
+	end.
+
+%% Read key file (PEM) and return the key.
+read_key_file(Filename) ->
+	{ok, PemBin} = file:read_file(Filename),
+	[PemEntry|_] = public_key:pem_decode(PemBin),
+	public_key:pem_entry_decode(PemEntry).
 
 -endif.
 

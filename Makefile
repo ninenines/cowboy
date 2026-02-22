@@ -19,9 +19,16 @@ DEPS = cowlib ranch
 dep_cowlib = git https://github.com/ninenines/cowlib 2.16.0
 dep_ranch = git https://github.com/ninenines/ranch 1.8.1
 
+# Conditional QUIC backend.
+# Use COWBOY_QUICER=1 for quicer (emqx/quic NIF), default is erlang_quic.
 ifeq ($(COWBOY_QUICER),1)
 DEPS += quicer
 dep_quicer = git https://github.com/emqx/quic main
+ERLC_OPTS += -D COWBOY_QUICER=1
+TEST_ERLC_OPTS += -D COWBOY_QUICER=1
+else
+DEPS += quic
+dep_quic = git https://github.com/benoitc/erlang_quic 0.10.2
 endif
 
 DOC_DEPS = asciideck
@@ -35,8 +42,8 @@ dep_gun = git https://github.com/ninenines/gun master
 dep_ci.erlang.mk = git https://github.com/ninenines/ci.erlang.mk master
 DEP_EARLY_PLUGINS = ci.erlang.mk
 
-AUTO_CI_OTP ?= OTP-LATEST-24+
-AUTO_CI_WINDOWS ?= OTP-LATEST-24+
+AUTO_CI_OTP ?= OTP-LATEST-26+
+AUTO_CI_WINDOWS ?= OTP-LATEST-26+
 
 # Hex configuration.
 
@@ -75,11 +82,6 @@ endif
 
 ERLC_OPTS += +warn_missing_spec +warn_untyped_record # +bin_opt_info
 TEST_ERLC_OPTS += +'{parse_transform, eunit_autoexport}'
-
-ifeq ($(COWBOY_QUICER),1)
-ERLC_OPTS += -D COWBOY_QUICER=1
-TEST_ERLC_OPTS += -D COWBOY_QUICER=1
-endif
 
 # Generate rebar.config on build.
 
