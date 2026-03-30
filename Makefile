@@ -27,7 +27,7 @@ endif
 DOC_DEPS = asciideck
 
 TEST_DEPS = $(if $(CI_ERLANG_MK),ci.erlang.mk) ct_helper gun
-dep_ct_helper = git https://github.com/extend/ct_helper master
+dep_ct_helper = git https://github.com/ninenines/ct_helper master
 dep_gun = git https://github.com/ninenines/gun master
 
 # CI configuration.
