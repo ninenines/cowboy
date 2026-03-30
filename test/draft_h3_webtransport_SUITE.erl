@@ -20,7 +20,7 @@
 -import(ct_helper, [doc/1]).
 -import(rfc9114_SUITE, [do_wait_stream_aborted/1]).
 
--ifdef(COWBOY_QUICER).
+-ifdef(CORRAL).
 
 -include_lib("quicer/include/quicer.hrl").
 

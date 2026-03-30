@@ -37,32 +37,30 @@ init_http2(Ref, ProtoOpts, Config) ->
 	Port = ranch:get_port(Ref),
 	[{ref, Ref}, {type, ssl}, {protocol, http2}, {port, Port}, {opts, Opts}|Config].
 
-%% @todo This will probably require TransOpts as argument.
+%% @todo This will probably require QuicOpts as argument.
 init_http3(Ref, ProtoOpts, Config) ->
-	%% @todo Quicer does not currently support non-file cert/key,
+	%% @todo Corral does not currently support non-file cert/key,
 	%%       so we use quicer test certificates for now.
-	%% @todo Quicer also does not support cacerts which means
-	%%       we currently have no authentication based security.
+	%% @todo We will want to setup cacerts as well in the client.
 	DataDir = filename:dirname(filename:dirname(config(data_dir, Config)))
 		++ "/rfc9114_SUITE_data",
-	TransOpts = #{
-		socket_opts => [
-			{certfile, DataDir ++ "/server.pem"},
-			{keyfile, DataDir ++ "/server.key"}
-		]
+	QuicOpts = #{
+		certfile => DataDir ++ "/server.pem",
+		keyfile => DataDir ++ "/server.key"
 	},
-	{ok, Listener} = cowboy:start_quic(Ref, TransOpts, ProtoOpts),
-	{ok, {_, Port}} = quicer:sockname(Listener),
+	ct:pal("wc ~0p", [supervisor:which_children(corral_sup)]),
+	{ok, Listener} = cowboy:start_quic(Ref, QuicOpts, ProtoOpts),
+	Port = corral:get_port(Ref),
 	%% @todo Keep listener information around in a better place.
 	persistent_term:put({cowboy_test_quic, Ref}, Listener),
-	[{ref, Ref}, {type, quic}, {protocol, http3}, {port, Port}, {opts, TransOpts}|Config].
+	[{ref, Ref}, {type, quic}, {protocol, http3}, {port, Port}, {opts, QuicOpts}|Config].
 
 stop_group(Ref) ->
 	case persistent_term:get({cowboy_test_quic, Ref}, undefined) of
 		undefined ->
 			cowboy:stop_listener(Ref);
-		Listener ->
-			quicer:close_listener(Listener)
+		_ ->
+			corral:stop_listener(Ref)
 	end.
 
 %% Common group of listeners used by most suites.

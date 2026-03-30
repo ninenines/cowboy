@@ -19,9 +19,9 @@ DEPS = cowlib ranch
 dep_cowlib = git https://github.com/ninenines/cowlib 2.16.0
 dep_ranch = git https://github.com/ninenines/ranch 1.8.1
 
-ifeq ($(COWBOY_QUICER),1)
-DEPS += quicer
-dep_quicer = git https://github.com/emqx/quic main
+ifdef CORRAL_DEPS
+DEPS += corral
+dep_corral = git https://github.com/ninenines/corral master
 endif
 
 DOC_DEPS = asciideck
@@ -76,9 +76,9 @@ endif
 ERLC_OPTS += +warn_missing_spec +warn_untyped_record # +bin_opt_info
 TEST_ERLC_OPTS += +'{parse_transform, eunit_autoexport}'
 
-ifeq ($(COWBOY_QUICER),1)
-ERLC_OPTS += -D COWBOY_QUICER=1
-TEST_ERLC_OPTS += -D COWBOY_QUICER=1
+ifdef CORRAL_DEPS
+ERLC_OPTS += -D CORRAL=1
+TEST_ERLC_OPTS += -D CORRAL=1
 endif
 
 # Generate rebar.config on build.

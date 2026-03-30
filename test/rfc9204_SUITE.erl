@@ -19,7 +19,7 @@
 -import(ct_helper, [config/2]).
 -import(ct_helper, [doc/1]).
 
--ifdef(COWBOY_QUICER).
+-ifdef(CORRAL).
 
 -include_lib("quicer/include/quicer.hrl").
 
