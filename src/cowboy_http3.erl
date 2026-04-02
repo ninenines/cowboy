@@ -100,7 +100,7 @@
 	http3_machine :: cow_http3_machine:http3_machine(),
 
 	%% Specially handled local unidi streams.
-	local_control_id = undefined :: undefined | cow_http3:stream_id(),
+	local_control_id = undefined :: undefined | cow_http3:stream_id(), %% @todo We probably don't need this.
 	local_encoder_id = undefined :: undefined | cow_http3:stream_id(),
 	local_decoder_id = undefined :: undefined | cow_http3:stream_id(),
 
@@ -191,13 +191,10 @@ handle_quic_msg(State0=#state{backend=QuicBackend, opts=Opts}, Msg) ->
 			State = stream_new_remote(State0, StreamID, StreamType),
 			loop(State);
 		{stream_reset, StreamID, _ErrorCode} ->
-			%% @todo Properly handle half-closed.
-			%% @todo Rename this function.
-			State = stream_peer_send_shutdown(State0, StreamID),
+			State = stream_reset_remote(State0, StreamID),
 			loop(State);
 		{stream_stop_sending, StreamID, ErrorCode} ->
-			%% @todo Properly handle half-closed.
-			State = stream_closed(State0, StreamID, ErrorCode),
+			State = stream_stop_sending_remote(State0, StreamID, ErrorCode),
 			loop(State);
 		{conn_closed, transport, _QuicErrno} ->
 			%% @todo Different error reason if graceful?
@@ -263,8 +260,6 @@ parse1(State=#state{backend=QuicBackend, conn=Conn}, Stream=#stream{id=SessionID
 			webtransport_event(State, SessionID, {closed, AppCode, AppMsg}),
 			%% Shutdown the CONNECT stream immediately.
 			QuicBackend:send(Conn, SessionID, fin, <<>>),
-			%% @todo Will we receive a {stream_closed,...} after that?
-			%% If any data is received past that point this is an error.
 			%% @todo Don't crash, error out properly.
 			<<>> = Rest,
 			loop(webtransport_terminate_session(State, Stream));
@@ -948,7 +943,7 @@ become_webtransport_stream(State0=#state{http3_machine=HTTP3Machine0},
 		{ok, HTTP3Machine} ->
 			State = State0#state{http3_machine=HTTP3Machine},
 			Stream = Stream0#stream{status={webtransport_stream, SessionID}},
-			webtransport_event(State, SessionID, {stream_open, StreamID, StreamType}),
+			webtransport_event(State, SessionID, {stream_opened, StreamID, StreamType}),
 			%% We don't need to parse the remaining data if there isn't any.
 			case {Rest, IsFin} of
 				{<<>>, nofin} -> loop(stream_store(State, Stream));
@@ -999,13 +994,6 @@ wt_commands(State0=#state{backend=QuicBackend, conn=Conn}, Session=#stream{id=Se
 wt_commands(State, Session, [{close_stream, StreamID, Code}|Tail]) ->
 	%% @todo Check that StreamID belongs to Session.
 	error({todo, State, Session, [{close_stream, StreamID, Code}|Tail]});
-wt_commands(State=#state{backend=QuicBackend, conn=Conn}, Session=#stream{id=SessionID},
-		[{send, datagram, Data}|Tail]) ->
-	case QuicBackend:send_datagram(Conn, cow_http3:datagram(SessionID, Data)) of
-		ok ->
-			wt_commands(State, Session, Tail)
-		%% @todo Handle errors.
-	end;
 wt_commands(State=#state{backend=QuicBackend, conn=Conn}, Session, [{send, StreamID, Data}|Tail]) ->
 	%% @todo Check that StreamID belongs to Session.
 	case QuicBackend:send(Conn, StreamID, Data) of
@@ -1020,7 +1008,15 @@ wt_commands(State=#state{backend=QuicBackend, conn=Conn}, Session, [{send, Strea
 			wt_commands(State, Session, Tail)
 		%% @todo Handle errors.
 	end;
-wt_commands(State=#state{backend=QuicBackend, conn=Conn}, Session=#stream{id=SessionID}, [initiate_close|Tail]) ->
+wt_commands(State=#state{backend=QuicBackend, conn=Conn}, Session=#stream{id=SessionID},
+		[{send_datagram, Data}|Tail]) ->
+	case QuicBackend:send_datagram(Conn, cow_http3:datagram(SessionID, Data)) of
+		ok ->
+			wt_commands(State, Session, Tail)
+		%% @todo Handle errors.
+	end;
+wt_commands(State=#state{backend=QuicBackend, conn=Conn}, Session=#stream{id=SessionID},
+		[drain_session|Tail]) ->
 	%% We must send a WT_DRAIN_SESSION capsule on the CONNECT stream.
 	Capsule = cow_capsule:wt_drain_session(),
 	case QuicBackend:send(Conn, SessionID, Capsule) of
@@ -1032,9 +1028,9 @@ wt_commands(State0=#state{backend=QuicBackend, conn=Conn}, Session=#stream{id=Se
 		when Cmd =:= close; element(1, Cmd) =:= close ->
 	%% We must send a WT_CLOSE_SESSION capsule on the CONNECT stream.
 	{AppCode, AppMsg} = case Cmd of
-		close -> {0, <<>>};
-		{close, AppCode0} -> {AppCode0, <<>>};
-		{close, AppCode0, AppMsg0} -> {AppCode0, AppMsg0}
+		close_session -> {0, <<>>};
+		{close_session, AppCode0} -> {AppCode0, <<>>};
+		{close_session, AppCode0, AppMsg0} -> {AppCode0, AppMsg0}
 	end,
 	Capsule = cow_capsule:wt_close_session(AppCode, AppMsg),
 	case QuicBackend:send(Conn, SessionID, fin, Capsule) of
@@ -1074,19 +1070,6 @@ webtransport_terminate_session(State=#state{backend=QuicBackend, conn=Conn, http
 		streams=Streams,
 		lingering_streams=Lingering
 	}.
-
-stream_peer_send_shutdown(State=#state{backend=QuicBackend, conn=Conn}, StreamID) ->
-	case stream_get(State, StreamID) of
-		%% Cleanly terminating the CONNECT stream is equivalent
-		%% to an application error code of 0 and empty message.
-		Stream = #stream{status={webtransport_session, _}} ->
-			webtransport_event(State, StreamID, {closed, 0, <<>>}),
-			%% Shutdown the CONNECT stream fully.
-			QuicBackend:send(Conn, StreamID, fin, <<>>),
-			webtransport_terminate_session(State, Stream);
-		_ ->
-			State
-	end.
 
 reset_stream(State0=#state{backend=QuicBackend, conn=Conn, http3_machine=HTTP3Machine0},
 		Stream=#stream{id=StreamID}, Error) ->
@@ -1254,6 +1237,29 @@ stream_new(State=#state{http3_machine=HTTP3Machine0, streams=Streams},
 	end,
 	Stream = #stream{id=StreamID, status=Status},
 	State#state{http3_machine=HTTP3Machine, streams=Streams#{StreamID => Stream}}.
+
+stream_reset_remote(State=#state{backend=QuicBackend, conn=Conn}, StreamID) ->
+	%% Peer will no longer send data.
+	%% @todo Check remote control streams, they must not be closed.
+
+	case stream_get(State, StreamID) of
+		%% Cleanly terminating the CONNECT stream is equivalent
+		%% to an application error code of 0 and empty message.
+		Stream = #stream{status={webtransport_session, _}} ->
+			webtransport_event(State, StreamID, {closed, 0, <<>>}),
+			%% Shutdown the CONNECT stream fully.
+			QuicBackend:send(Conn, StreamID, fin, <<>>),
+			webtransport_terminate_session(State, Stream);
+		_ ->
+			State
+	end.
+
+stream_stop_sending_remote(
+	%% Peer will no longer receive data.
+	%% @todo Check local control streams, they must not be closed.
+
+%% @todo For WT we send an event and clean up if stream is closed right?
+
 
 %% Stream closed message for a local (write-only) unidi stream.
 stream_closed(State=#state{local_control_id=StreamID}, StreamID, _) ->

@@ -27,7 +27,7 @@ start_link(Ref, QuicBackend, Conn, Opts) ->
 	{ok, Pid}.
 
 -spec connection_process(pid(), corral:ref(), module(), corral_backend:conn(), cowboy:opts())
-	-> ok.
+	-> no_return().
 
 connection_process(Parent, Ref, QuicBackend, Conn, Opts) ->
 	{ok, #{alpn := <<"h3">>}} = QuicBackend:handshake(Conn),
