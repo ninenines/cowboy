@@ -54,14 +54,14 @@
 	{stream_reset, cow_http3:stream_id(), cow_http3:wt_app_error_code() | undefined} | %% @todo Add. (for undefined see end of 4.4)
 	{stream_stop_sending, cow_http3:stream_id(), cow_http3:wt_app_error_code() | undefined} | %% @todo Add.
 	{datagram, binary()} |
-	drain_session. %% @todo Add a test, command tested, event not.
+	drain_session.
 
 -type commands() :: [
 	{open_stream, open_stream_ref(), stream_type(), iodata()} |
 	{send, cow_http3:stream_id(), iodata()} |
 	{send, cow_http3:stream_id(), cow_http:fin(), iodata()} |
-	{reset_stream, cow_http3:stream_id(), cow_http3:wt_app_error_code()} | %% @todo Separated from close_stream.
-	{stop_sending, cow_http3:stream_id(), cow_http3:wt_app_error_code()} | %% @todo Separated from close_stream.
+	{reset_stream, cow_http3:stream_id(), cow_http3:wt_app_error_code()} | %% @todo Not implemented.
+	{stop_sending, cow_http3:stream_id(), cow_http3:wt_app_error_code()} | %% @todo Not implemented.
 	{send_datagram, iodata()} |
 	drain_session |
 	close_session |
@@ -236,8 +236,11 @@ commands([], State=#state{id=SessionID, parent=Pid}, Res, Commands) ->
 %% {open_stream, OpenStreamRef, StreamType, InitialData}.
 commands([Command={open_stream, _, _, _}|Tail], State, Res, Acc) ->
 	commands(Tail, State, Res, [Command|Acc]);
-%% {close_stream, StreamID, Code}.
-commands([Command={close_stream, _, _}|Tail], State, Res, Acc) ->
+%% {reset_stream, StreamID, Code}
+commands([Command={reset_stream, _, _}|Tail], State, Res, Acc) ->
+	commands(Tail, State, Res, [Command|Acc]);
+%% {stop_sending, StreamID, Code}
+commands([Command={stop_sending, _, _}|Tail], State, Res, Acc) ->
 	commands(Tail, State, Res, [Command|Acc]);
 %% @todo We must reject send to a remote unidi stream.
 %% {send, StreamID, Data}.
