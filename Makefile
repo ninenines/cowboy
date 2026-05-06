@@ -28,7 +28,7 @@ DOC_DEPS = asciideck
 
 TEST_DEPS = $(if $(CI_ERLANG_MK),ci.erlang.mk) ct_helper gun
 dep_ct_helper = git https://github.com/ninenines/ct_helper master
-dep_gun = git https://github.com/ninenines/gun master
+dep_gun = git https://github.com/ninenines/gun corral
 
 # CI configuration.
 
@@ -84,11 +84,6 @@ endif
 # Generate rebar.config on build.
 
 app:: rebar.config
-
-# Fix quicer compilation for HTTP/3.
-
-autopatch-quicer::
-	$(verbose) printf "%s\n" "all: ;" > $(DEPS_DIR)/quicer/c_src/Makefile.erlang.mk
 
 # Dialyze the tests.
 
