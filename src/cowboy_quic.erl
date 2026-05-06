@@ -18,7 +18,10 @@
 -export([start_link/4]).
 -export([connection_process/5]).
 
--spec start_link(corral:ref(), module(), corral_backend:conn(), cowboy:opts())
+-opaque conn() :: any().
+-export_type([conn/0]).
+
+-spec start_link(corral:ref(), module(), cowboy_quic:conn(), cowboy:opts())
 	-> {ok, pid()}.
 
 start_link(Ref, QuicBackend, Conn, Opts) ->
@@ -26,7 +29,7 @@ start_link(Ref, QuicBackend, Conn, Opts) ->
 		[self(), Ref, QuicBackend, Conn, Opts]),
 	{ok, Pid}.
 
--spec connection_process(pid(), corral:ref(), module(), corral_backend:conn(), cowboy:opts())
+-spec connection_process(pid(), corral:ref(), module(), cowboy_quic:conn(), cowboy:opts())
 	-> no_return().
 
 connection_process(Parent, Ref, QuicBackend, Conn, Opts) ->

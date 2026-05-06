@@ -84,7 +84,7 @@
 	parent :: pid(),
 	ref :: ranch:ref(),
 	backend :: module(),
-	conn :: corral_backend:conn(),
+	conn :: cowboy_quic:conn(),
 	opts = #{} :: opts(),
 
 	%% Remote address and port for the connection.
@@ -117,7 +117,7 @@
 	children = cowboy_children:init() :: cowboy_children:children()
 }).
 
--spec init(pid(), ranch:ref(), module(), corral_backend:conn(), opts())
+-spec init(pid(), ranch:ref(), module(), cowboy_quic:conn(), opts())
 	-> no_return().
 
 init(Parent, Ref, QuicBackend, Conn, Opts) ->
@@ -887,13 +887,14 @@ send_response(State0=#state{backend=QuicBackend, conn=Conn, http3_machine=HTTP3M
 
 maybe_send_is_fin(State=#state{http3_machine=HTTP3Machine0},
 		Stream=#stream{id=StreamID}, fin) ->
-	HTTP3Machine = cow_http3_machine:fin_local(StreamID, HTTP3Machine0),
+	%% Even if the stream is closed we let the stream handlers finish.
+	{_, HTTP3Machine} = cow_http3_machine:fin_local(StreamID, HTTP3Machine0),
 	maybe_terminate_stream(State#state{http3_machine=HTTP3Machine}, Stream);
 maybe_send_is_fin(State, _, _) ->
 	State.
 
 %% Temporary callback to do sendfile over QUIC.
--spec send({module(), corral_backend:conn(), cow_http3:stream_id()},
+-spec send({module(), cowboy_quic:conn(), cow_http3:stream_id()},
 	iodata()) -> ok | {error, any()}.
 
 send({QuicBackend, Conn, StreamID}, IoData) ->
@@ -1045,7 +1046,7 @@ wt_commands(State=#state{backend=QuicBackend, conn=Conn}, Session=#stream{id=Ses
 		%% @todo Handle errors.
 	end;
 wt_commands(State0=#state{backend=QuicBackend, conn=Conn}, Session=#stream{id=SessionID}, [Cmd|Tail])
-		when Cmd =:= close; element(1, Cmd) =:= close ->
+		when Cmd =:= close_session; element(1, Cmd) =:= close_session ->
 	%% We must send a WT_CLOSE_SESSION capsule on the CONNECT stream.
 	{AppCode, AppMsg} = case Cmd of
 		close_session -> {0, <<>>};
@@ -1098,7 +1099,7 @@ close_stream(State0=#state{backend=QuicBackend, conn=Conn, http3_machine=HTTP3Ma
 		{stream_error, Reason0, _} -> Reason0
 	end,
 	_ = QuicBackend:close_stream(Conn, StreamID, cow_http3:error_to_code(Reason)),
-	{ok, HTTP3Machine} = cow_http3_machine:discard_stream(StreamID, HTTP3Machine0),
+	{closed, HTTP3Machine} = cow_http3_machine:discard_stream(StreamID, HTTP3Machine0),
 	State1 = terminate_stream(State0#state{http3_machine=HTTP3Machine}, Stream, Error),
 %% @todo
 %	case reset_rate(State1) of
@@ -1292,10 +1293,10 @@ stream_reset_remote(State0=#state{http3_machine=HTTP3Machine0},
 			%% @todo Not confident that the error reason is good. Not sure
 			%%       if it should be wrapped in stream_error or whatnot,
 			%%       just doing the same as http2 for now.
-			terminate_stream(State, StreamID, cow_http3:code_to_error(AppErrno));
+			terminate_stream(State, Stream, cow_http3:code_to_error(AppErrno));
 		%% Response was already fully sent, terminate the stream.
 		closed ->
-			terminate_stream(State1, StreamID, normal);
+			terminate_stream(State1, Stream, normal);
 		%% Connection error.
 		{connection_error, _, _} ->
 			terminate(State1, Result)
@@ -1338,7 +1339,7 @@ stream_stop_sending_remote(State=#state{backend=QuicBackend, conn=Conn, http3_ma
 		%% Client no longer interested in the response.
 		ok ->
 			QuicBackend:reset_stream(Conn, StreamID, cow_http3:error_to_code(h3_request_canceled)),
-			{ok, HTTP3Machine} = cow_http3_machine:discard_stream(StreamID, HTTP3Machine1),
+			{closed, HTTP3Machine} = cow_http3_machine:discard_stream(StreamID, HTTP3Machine1),
 			%% @todo We probably need a proper "request canceled" error for all protocols.
 			terminate_stream(State#state{http3_machine=HTTP3Machine}, Stream, cow_http3:code_to_error(AppErrno));
 		closed ->
