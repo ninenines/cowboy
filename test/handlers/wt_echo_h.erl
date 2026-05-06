@@ -26,10 +26,10 @@ init(Req0, _) ->
 	end,
 	{cowboy_webtransport, Req, #{}}.
 
-webtransport_handle(Event = {stream_open, StreamID, bidi}, Streams) ->
+webtransport_handle(Event = {stream_opened, StreamID, bidi}, Streams) ->
 	?LOG("WT handle ~p~n", [Event]),
 	{[], Streams#{StreamID => bidi}};
-webtransport_handle(Event = {stream_open, StreamID, unidi}, Streams) ->
+webtransport_handle(Event = {stream_opened, StreamID, unidi}, Streams) ->
 	?LOG("WT handle ~p~n", [Event]),
 	OpenStreamRef = make_ref(),
 	{[{open_stream, OpenStreamRef, unidi, <<>>}], Streams#{
@@ -56,14 +56,14 @@ webtransport_handle(Event = {stream_data, StreamID, _IsFin, <<"TEST:", Test/bits
 			OpenStreamRef = make_ref(),
 			{[{open_stream, OpenStreamRef, bidi, <<>>}],
 				Streams#{OpenStreamRef => bidi}};
-		<<"initiate_close">> ->
-			{[initiate_close], Streams};
-		<<"close">> ->
+		<<"drain_session">> ->
+			{[drain_session], Streams};
+		<<"close_session">> ->
 			{[close], Streams};
-		<<"close_app_code">> ->
-			{[{close, 1234567890}], Streams};
-		<<"close_app_code_msg">> ->
-			{[{close, 1234567890, <<"onetwothreefourfivesixseveneightnineten">>}], Streams};
+		<<"close_session_app_code">> ->
+			{[{close_session, 1234567890}], Streams};
+		<<"close_session_app_code_msg">> ->
+			{[{close_session, 1234567890, <<"onetwothreefourfivesixseveneightnineten">>}], Streams};
 		<<"event_pid:", EventPidBin/bits>> ->
 			{[{send, StreamID, nofin, <<"event_pid_received">>}],
 				Streams#{event_pid => binary_to_term(EventPidBin)}}
@@ -82,10 +82,10 @@ webtransport_handle(Event = {stream_data, StreamID, IsFin, Data}, Streams) ->
 	end;
 webtransport_handle(Event = {datagram, Data}, Streams) ->
 	?LOG("WT handle ~p~n", [Event]),
-	{[{send, datagram, Data}], Streams};
-webtransport_handle(Event = close_initiated, Streams) ->
+	{[{send_datagram, Data}], Streams};
+webtransport_handle(Event = drain_session, Streams) ->
 	?LOG("WT handle ~p~n", [Event]),
-	{[{send, datagram, <<"TEST:close_initiated">>}], Streams};
+	{[{send_datagram, <<"TEST:drain_session">>}], Streams};
 webtransport_handle(Event, Streams) ->
 	?LOG("WT handle ignore ~p~n", [Event]),
 	{[], Streams}.

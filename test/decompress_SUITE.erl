@@ -52,6 +52,8 @@ init_per_group(Name = h2c_compress, Config) ->
 init_per_group(Name = h3_compress, Config) ->
 	cowboy_test:init_http3(Name, init_compress_opts(Config), Config).
 
+end_per_group(Name, _) when Name =:= h3; Name =:= h3_compress ->
+	corral:stop_listener(Name);
 end_per_group(Name, _) ->
 	cowboy:stop_listener(Name).
 

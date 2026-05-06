@@ -19,7 +19,7 @@
 -import(ct_helper, [config/2]).
 -import(ct_helper, [doc/1]).
 
--ifdef(COWBOY_QUICER).
+-ifdef(CORRAL).
 
 -include_lib("quicer/include/quicer.hrl").
 
@@ -1392,7 +1392,7 @@ control_accept_first_frame_settings(Config) ->
 	]),
 	%% The connection should remain up.
 	receive
-		{quic, shutdown, Conn, {unknown_quic_status, Code}} ->
+		{quic, shutdown, Conn, Code} ->
 			Reason = cow_http3:code_to_error(Code),
 			error(Reason)
 	after 1000 ->
@@ -1516,6 +1516,7 @@ do_critical_local_closed_abort(Config, HeaderData) ->
 
 control_local_closed_graceful(Config) ->
 	doc("Endpoints must not close the control stream. (RFC9114 6.2.1)"),
+%dbg:tracer(), dbg:tpl(cowboy_http3, []), dbg:p(all, c),
 	{ok, SettingsBin, _HTTP3Machine0} = cow_http3_machine:init(client, #{}),
 	do_critical_local_closed_graceful(Config, [<<0>>, SettingsBin]).
 
@@ -1624,7 +1625,7 @@ settings_frame_can_span_multiple_packets(Config) ->
 	]),
 	%% The connection should remain up.
 	receive
-		{quic, shutdown, Conn, {unknown_quic_status, Code}} ->
+		{quic, shutdown, Conn, Code} ->
 			Reason = cow_http3:code_to_error(Code),
 			error(Reason)
 	after 1000 ->
@@ -1648,12 +1649,8 @@ goaway_frame_can_span_multiple_packets(Config) ->
 	]),
 	%% The connection should be closed gracefully.
 	receive
-		{quic, shutdown, Conn, {unknown_quic_status, Code}} ->
+		{quic, shutdown, Conn, Code} ->
 			h3_no_error = cow_http3:code_to_error(Code),
-			ok;
-		%% @todo Temporarily also accept this message. I am
-		%%       not sure why it happens but it isn't wrong per se.
-		{quic, shutdown, Conn, success} ->
 			ok
 	after 1000 ->
 		error(timeout)
@@ -1676,7 +1673,7 @@ max_push_id_frame_can_span_multiple_packets(Config) ->
 	]),
 	%% The connection should remain up.
 	receive
-		{quic, shutdown, Conn, {unknown_quic_status, Code}} ->
+		{quic, shutdown, Conn, Code} ->
 			Reason = cow_http3:code_to_error(Code),
 			error(Reason)
 	after 1000 ->
@@ -1981,7 +1978,7 @@ settings_ignore_unknown_identifier(Config) ->
 	]),
 	%% The connection should remain up.
 	receive
-		{quic, shutdown, Conn, {unknown_quic_status, Code}} ->
+		{quic, shutdown, Conn, Code} ->
 			Reason = cow_http3:code_to_error(Code),
 			error(Reason)
 	after 1000 ->
@@ -2004,7 +2001,7 @@ settings_ignore_reserved_identifier(Config) ->
 	]),
 	%% The connection should remain up.
 	receive
-		{quic, shutdown, Conn, {unknown_quic_status, Code}} ->
+		{quic, shutdown, Conn, Code} ->
 			Reason = cow_http3:code_to_error(Code),
 			error(Reason)
 	after 1000 ->
@@ -2129,7 +2126,7 @@ reserved_on_control_stream(Config) ->
 	]),
 	%% The connection should remain up.
 	receive
-		{quic, shutdown, Conn, {unknown_quic_status, Code}} ->
+		{quic, shutdown, Conn, Code} ->
 			Reason = cow_http3:code_to_error(Code),
 			error(Reason)
 	after 1000 ->
@@ -2416,10 +2413,11 @@ do_receive_response(StreamRef) ->
 
 do_wait_connection_closed(Conn) ->
 	receive
-		{quic, shutdown, Conn, {unknown_quic_status, Code}} ->
+		{quic, shutdown, Conn, Code} ->
 			Reason = cow_http3:code_to_error(Code),
 			#{reason => Reason}
 	after 5000 ->
+		ct:pal("~p", [process_info(self(), messages)]),
 		{error, timeout}
 	end.
 

@@ -20,7 +20,7 @@
 -import(ct_helper, [doc/1]).
 -import(rfc9114_SUITE, [do_wait_stream_aborted/1]).
 
--ifdef(COWBOY_QUICER).
+-ifdef(CORRAL).
 
 -include_lib("quicer/include/quicer.hrl").
 
@@ -273,7 +273,7 @@ datagrams(Config) ->
 %		cow_http3:encode_int(0)
 %	]),
 %	%% Receive a datagram indicating processing by the WT handler.
-%	{datagram, SessionID, <<"TEST:close_initiated">>} = do_receive_datagram(Conn),
+%	{datagram, SessionID, <<"TEST:drain_session">>} = do_receive_datagram(Conn),
 %	ok.
 
 wt_drain_session_client(Config) ->
@@ -288,7 +288,7 @@ wt_drain_session_client(Config) ->
 	%% Send the WT_DRAIN_SESSION capsule on the CONNECT stream.
 	{ok, _} = quicer:send(ConnectStreamRef, cow_capsule:wt_drain_session()),
 	%% Receive a datagram indicating processing by the WT handler.
-	{datagram, SessionID, <<"TEST:close_initiated">>} = do_receive_datagram(Conn),
+	{datagram, SessionID, <<"TEST:drain_session">>} = do_receive_datagram(Conn),
 	ok.
 
 wt_drain_session_server(Config) ->
@@ -302,7 +302,7 @@ wt_drain_session_server(Config) ->
 	} = do_webtransport_connect(Config),
 	%% Create a bidi stream, send a special instruction to make it initiate the close.
 	{ok, LocalStreamRef} = quicer:start_stream(Conn, #{}),
-	{ok, _} = quicer:send(LocalStreamRef, <<1:2, 16#41:14, 0:2, SessionID:6, "TEST:initiate_close">>),
+	{ok, _} = quicer:send(LocalStreamRef, <<1:2, 16#41:14, 0:2, SessionID:6, "TEST:drain_session">>),
 	%% Receive the WT_DRAIN_SESSION capsule on the CONNECT stream.
 	DrainWTSessionCapsule = cow_capsule:wt_drain_session(),
 	{nofin, DrainWTSessionCapsule} = do_receive_data(ConnectStreamRef),
@@ -321,7 +321,7 @@ wt_drain_session_continue_client(Config) ->
 	%% Send the WT_DRAIN_SESSION capsule on the CONNECT stream.
 	{ok, _} = quicer:send(ConnectStreamRef, cow_capsule:wt_drain_session()),
 	%% Receive a datagram indicating processing by the WT handler.
-	{datagram, SessionID, <<"TEST:close_initiated">>} = do_receive_datagram(Conn),
+	{datagram, SessionID, <<"TEST:drain_session">>} = do_receive_datagram(Conn),
 	%% Create a new bidi stream, send Hello, get Hello back.
 	{ok, ContinueStreamRef} = quicer:start_stream(Conn, #{}),
 	{ok, _} = quicer:send(ContinueStreamRef, <<1:2, 16#41:14, 0:2, SessionID:6, "Hello">>),
@@ -340,7 +340,7 @@ wt_drain_session_continue_server(Config) ->
 	} = do_webtransport_connect(Config),
 	%% Create a bidi stream, send a special instruction to make it initiate the close.
 	{ok, LocalStreamRef} = quicer:start_stream(Conn, #{}),
-	{ok, _} = quicer:send(LocalStreamRef, <<1:2, 16#41:14, 0:2, SessionID:6, "TEST:initiate_close">>),
+	{ok, _} = quicer:send(LocalStreamRef, <<1:2, 16#41:14, 0:2, SessionID:6, "TEST:drain_session">>),
 	%% Receive the WT_DRAIN_SESSION capsule on the CONNECT stream.
 	DrainWTSessionCapsule = cow_capsule:wt_drain_session(),
 	{nofin, DrainWTSessionCapsule} = do_receive_data(ConnectStreamRef),
@@ -465,7 +465,7 @@ wt_close_session_server(Config) ->
 	} = do_webtransport_connect(Config),
 	%% Create a bidi stream, send a special instruction to make it initiate the close.
 	{ok, LocalStreamRef} = quicer:start_stream(Conn, #{}),
-	{ok, _} = quicer:send(LocalStreamRef, <<1:2, 16#41:14, 0:2, SessionID:6, "TEST:close">>),
+	{ok, _} = quicer:send(LocalStreamRef, <<1:2, 16#41:14, 0:2, SessionID:6, "TEST:close_session">>),
 	%% Receive the WT_CLOSE_SESSION capsule on the CONNECT stream.
 	CloseWTSessionCapsule = cow_capsule:wt_close_session(0, <<>>),
 	{fin, CloseWTSessionCapsule} = do_receive_data(ConnectStreamRef),
@@ -540,7 +540,7 @@ wt_session_gone_server(Config) ->
 	{nofin, <<"Hello">>} = do_receive_data(RemoteBidiStreamRef),
 
 	%% Send a special instruction to make the server initiate the close.
-	{ok, _} = quicer:send(LocalBidiStreamRef, <<"TEST:close">>),
+	{ok, _} = quicer:send(LocalBidiStreamRef, <<"TEST:close_session">>),
 	%% Receive the WT_CLOSE_SESSION capsule on the CONNECT stream.
 	CloseWTSessionCapsule = cow_capsule:wt_close_session(0, <<>>),
 	{fin, CloseWTSessionCapsule} = do_receive_data(ConnectStreamRef),
@@ -575,7 +575,7 @@ wt_close_session_app_code_msg_client(Config) ->
 	%% @todo Stop reading from the CONNECt stream too. (STOP_SENDING)
 	%% Receive the terminate event from the WT handler.
 	receive
-		{'$wt_echo_h', terminate, {closed, 17, <<"seventeen">>}, _, _} ->
+		{'$wt_echo_h', terminate, {close_session, 17, <<"seventeen">>}, _, _} ->
 			ok
 	after 1000 ->
 		error({timeout, waiting_for_terminate_event})
@@ -593,7 +593,7 @@ wt_close_session_app_code_server(Config) ->
 	%% Create a bidi stream, send a special instruction to make it initiate the close.
 	{ok, LocalStreamRef} = quicer:start_stream(Conn, #{}),
 	{ok, _} = quicer:send(LocalStreamRef, <<1:2, 16#41:14, 0:2, SessionID:6,
-		"TEST:close_app_code">>),
+		"TEST:close_session_app_code">>),
 	%% Receive the WT_CLOSE_SESSION capsule on the CONNECT stream.
 	CloseWTSessionCapsule = cow_capsule:wt_close_session(1234567890, <<>>),
 	{fin, CloseWTSessionCapsule} = do_receive_data(ConnectStreamRef),
@@ -611,7 +611,7 @@ wt_close_session_app_code_msg_server(Config) ->
 	%% Create a bidi stream, send a special instruction to make it initiate the close.
 	{ok, LocalStreamRef} = quicer:start_stream(Conn, #{}),
 	{ok, _} = quicer:send(LocalStreamRef, <<1:2, 16#41:14, 0:2, SessionID:6,
-		"TEST:close_app_code_msg">>),
+		"TEST:close_session_app_code_msg">>),
 	%% Receive the WT_CLOSE_SESSION capsule on the CONNECT stream.
 	CloseWTSessionCapsule = iolist_to_binary(cow_capsule:wt_close_session(1234567890,
 		<<"onetwothreefourfivesixseveneightnineten">>)),
@@ -645,7 +645,7 @@ connect_stream_closed_cleanly_fin(Config) ->
 	{ok, _} = quicer:send(ConnectStreamRef, <<>>, ?QUIC_SEND_FLAG_FIN),
 	%% Receive the terminate event from the WT handler.
 	receive
-		{'$wt_echo_h', terminate, {closed, 0, <<>>}, _, _} ->
+		{'$wt_echo_h', terminate, {close_session, 0, <<>>}, _, _} ->
 			ok
 	after 1000 ->
 		error({timeout, waiting_for_terminate_event})
@@ -671,7 +671,7 @@ connect_stream_closed_cleanly_shutdown(Config) ->
 	_ = quicer:shutdown_stream(ConnectStreamRef),
 	%% Receive the terminate event from the WT handler.
 	receive
-		{'$wt_echo_h', terminate, {closed, 0, <<>>}, _, _} ->
+		{'$wt_echo_h', terminate, {close_session, 0, <<>>}, _, _} ->
 			ok
 	after 1000 ->
 		error({timeout, waiting_for_terminate_event})
@@ -699,7 +699,7 @@ connect_stream_closed_abruptly(Config) ->
 	receive
 		%% @todo It would be good to forward a stream error as well
 		%%       so that a WT error can be sent, but I have been unsuccessful.
-		{'$wt_echo_h', terminate, closed_abruptly, _, _} ->
+		{'$wt_echo_h', terminate, {session_error, _, _}, _, _} ->
 			ok
 	after 1000 ->
 		error({timeout, waiting_for_terminate_event})

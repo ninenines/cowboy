@@ -16,19 +16,19 @@ CT_OPTS += -ct_hooks cowboy_ct_hook [] # -boot start_sasl
 LOCAL_DEPS = crypto
 
 DEPS = cowlib ranch
-dep_cowlib = git https://github.com/ninenines/cowlib 2.16.0
+dep_cowlib = git https://github.com/ninenines/cowlib corral
 dep_ranch = git https://github.com/ninenines/ranch 1.8.1
 
-ifeq ($(COWBOY_QUICER),1)
-DEPS += quicer
-dep_quicer = git https://github.com/emqx/quic main
+ifdef CORRAL_DEPS
+DEPS += corral
+dep_corral = git https://github.com/ninenines/corral master
 endif
 
 DOC_DEPS = asciideck
 
 TEST_DEPS = $(if $(CI_ERLANG_MK),ci.erlang.mk) ct_helper gun
-dep_ct_helper = git https://github.com/extend/ct_helper master
-dep_gun = git https://github.com/ninenines/gun master
+dep_ct_helper = git https://github.com/ninenines/ct_helper master
+dep_gun = git https://github.com/ninenines/gun corral
 
 # CI configuration.
 
@@ -76,19 +76,14 @@ endif
 ERLC_OPTS += +warn_missing_spec +warn_untyped_record # +bin_opt_info
 TEST_ERLC_OPTS += +'{parse_transform, eunit_autoexport}'
 
-ifeq ($(COWBOY_QUICER),1)
-ERLC_OPTS += -D COWBOY_QUICER=1
-TEST_ERLC_OPTS += -D COWBOY_QUICER=1
+ifdef CORRAL_DEPS
+ERLC_OPTS += -D CORRAL=1
+TEST_ERLC_OPTS += -D CORRAL=1
 endif
 
 # Generate rebar.config on build.
 
 app:: rebar.config
-
-# Fix quicer compilation for HTTP/3.
-
-autopatch-quicer::
-	$(verbose) printf "%s\n" "all: ;" > $(DEPS_DIR)/quicer/c_src/Makefile.erlang.mk
 
 # Dialyze the tests.
 

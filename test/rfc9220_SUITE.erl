@@ -56,74 +56,82 @@ reject_handshake_when_disabled(Config0) ->
 	doc("Extended CONNECT requests MUST be rejected with a "
 		"H3_MESSAGE_ERROR stream error when enable_connect_protocol=false. "
 		"(RFC9220, RFC8441 4)"),
-	Config = cowboy_test:init_http3(disabled, #{
+	Config = cowboy_test:init_http3(?FUNCTION_NAME, #{
 		enable_connect_protocol => false,
 		env => #{dispatch => cowboy_router:compile(init_routes(Config0))}
 	}, Config0),
-	%% Connect to server and confirm that SETTINGS_ENABLE_CONNECT_PROTOCOL = 0.
-	#{
-		conn := Conn,
-		settings := Settings
-	} = rfc9114_SUITE:do_connect(Config),
-	case Settings of
-		#{enable_connect_protocol := false} -> ok;
-		_ when map_size(Settings) =:= 0 -> ok
-	end,
-	%% Send a CONNECT :protocol request to upgrade the stream to Websocket.
-	{ok, StreamRef} = quicer:start_stream(Conn, #{}),
-	{ok, EncodedRequest, _EncData, _EncSt} = cow_qpack:encode_field_section([
-		{<<":method">>, <<"CONNECT">>},
-		{<<":protocol">>, <<"websocket">>},
-		{<<":scheme">>, <<"https">>},
-		{<<":path">>, <<"/ws">>},
-		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
-		{<<"sec-websocket-version">>, <<"13">>},
-		{<<"origin">>, <<"http://localhost">>}
-	], 0, cow_qpack:init(encoder)),
-	{ok, _} = quicer:send(StreamRef, [
-		<<1>>, %% HEADERS frame.
-		cow_http3:encode_int(iolist_size(EncodedRequest)),
-		EncodedRequest
-	]),
-	%% The stream should have been aborted.
-	#{reason := h3_message_error} = rfc9114_SUITE:do_wait_stream_aborted(StreamRef),
-	ok.
+	try
+		%% Connect to server and confirm that SETTINGS_ENABLE_CONNECT_PROTOCOL = 0.
+		#{
+			conn := Conn,
+			settings := Settings
+		} = rfc9114_SUITE:do_connect(Config),
+		case Settings of
+			#{enable_connect_protocol := false} -> ok;
+			_ when map_size(Settings) =:= 0 -> ok
+		end,
+		%% Send a CONNECT :protocol request to upgrade the stream to Websocket.
+		{ok, StreamRef} = quicer:start_stream(Conn, #{}),
+		{ok, EncodedRequest, _EncData, _EncSt} = cow_qpack:encode_field_section([
+			{<<":method">>, <<"CONNECT">>},
+			{<<":protocol">>, <<"websocket">>},
+			{<<":scheme">>, <<"https">>},
+			{<<":path">>, <<"/ws">>},
+			{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+			{<<"sec-websocket-version">>, <<"13">>},
+			{<<"origin">>, <<"http://localhost">>}
+		], 0, cow_qpack:init(encoder)),
+		{ok, _} = quicer:send(StreamRef, [
+			<<1>>, %% HEADERS frame.
+			cow_http3:encode_int(iolist_size(EncodedRequest)),
+			EncodedRequest
+		]),
+		%% The stream should have been aborted.
+		#{reason := h3_message_error} = rfc9114_SUITE:do_wait_stream_aborted(StreamRef),
+		ok
+	after
+		corral:stop_listener(?FUNCTION_NAME)
+	end.
 
 reject_handshake_disabled_by_default(Config0) ->
 	doc("Extended CONNECT requests MUST be rejected with a "
 		"H3_MESSAGE_ERROR stream error when enable_connect_protocol=false. "
 		"(RFC9220, RFC8441 4)"),
-	Config = cowboy_test:init_http3(disabled, #{
+	Config = cowboy_test:init_http3(?FUNCTION_NAME, #{
 		env => #{dispatch => cowboy_router:compile(init_routes(Config0))}
 	}, Config0),
-	%% Connect to server and confirm that SETTINGS_ENABLE_CONNECT_PROTOCOL = 0.
-	#{
-		conn := Conn,
-		settings := Settings
-	} = rfc9114_SUITE:do_connect(Config),
-	case Settings of
-		#{enable_connect_protocol := false} -> ok;
-		_ when map_size(Settings) =:= 0 -> ok
-	end,
-	%% Send a CONNECT :protocol request to upgrade the stream to Websocket.
-	{ok, StreamRef} = quicer:start_stream(Conn, #{}),
-	{ok, EncodedRequest, _EncData, _EncSt} = cow_qpack:encode_field_section([
-		{<<":method">>, <<"CONNECT">>},
-		{<<":protocol">>, <<"websocket">>},
-		{<<":scheme">>, <<"https">>},
-		{<<":path">>, <<"/ws">>},
-		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
-		{<<"sec-websocket-version">>, <<"13">>},
-		{<<"origin">>, <<"http://localhost">>}
-	], 0, cow_qpack:init(encoder)),
-	{ok, _} = quicer:send(StreamRef, [
-		<<1>>, %% HEADERS frame.
-		cow_http3:encode_int(iolist_size(EncodedRequest)),
-		EncodedRequest
-	]),
-	%% The stream should have been aborted.
-	#{reason := h3_message_error} = rfc9114_SUITE:do_wait_stream_aborted(StreamRef),
-	ok.
+	try
+		%% Connect to server and confirm that SETTINGS_ENABLE_CONNECT_PROTOCOL = 0.
+		#{
+			conn := Conn,
+			settings := Settings
+		} = rfc9114_SUITE:do_connect(Config),
+		case Settings of
+			#{enable_connect_protocol := false} -> ok;
+			_ when map_size(Settings) =:= 0 -> ok
+		end,
+		%% Send a CONNECT :protocol request to upgrade the stream to Websocket.
+		{ok, StreamRef} = quicer:start_stream(Conn, #{}),
+		{ok, EncodedRequest, _EncData, _EncSt} = cow_qpack:encode_field_section([
+			{<<":method">>, <<"CONNECT">>},
+			{<<":protocol">>, <<"websocket">>},
+			{<<":scheme">>, <<"https">>},
+			{<<":path">>, <<"/ws">>},
+			{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+			{<<"sec-websocket-version">>, <<"13">>},
+			{<<"origin">>, <<"http://localhost">>}
+		], 0, cow_qpack:init(encoder)),
+		{ok, _} = quicer:send(StreamRef, [
+			<<1>>, %% HEADERS frame.
+			cow_http3:encode_int(iolist_size(EncodedRequest)),
+			EncodedRequest
+		]),
+		%% The stream should have been aborted.
+		#{reason := h3_message_error} = rfc9114_SUITE:do_wait_stream_aborted(StreamRef),
+		ok
+	after
+		corral:stop_listener(?FUNCTION_NAME)
+	end.
 
 % The Extended CONNECT Method.
 

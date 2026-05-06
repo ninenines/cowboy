@@ -48,20 +48,25 @@
 -type open_stream_ref() :: any().
 
 -type event() ::
-	{stream_open, cow_http3:stream_id(), stream_type()} |
-	{opened_stream_id, open_stream_ref(), cow_http3:stream_id()} |
+	{stream_opened, cow_http3:stream_id(), stream_type()} |
+	{opened_stream_id, open_stream_ref(), cow_http3:stream_id()} | %% Unfortunate but unavoidable.
 	{stream_data, cow_http3:stream_id(), cow_http:fin(), binary()} |
+	{stream_reset, cow_http3:stream_id(), cow_http3:wt_app_error_code() | undefined} | %% @todo Add. (for undefined see end of 4.4)
+	{stream_stop_sending, cow_http3:stream_id(), cow_http3:wt_app_error_code() | undefined} | %% @todo Add.
 	{datagram, binary()} |
-	close_initiated.
+	drain_session.
 
 -type commands() :: [
 	{open_stream, open_stream_ref(), stream_type(), iodata()} |
-	{close_stream, cow_http3:stream_id(), cow_http3:wt_app_error_code()} |
-	{send, cow_http3:stream_id() | datagram, iodata()} |
-	initiate_close |
-	close |
-	{close, cow_http3:wt_app_error_code()} |
-	{close, cow_http3:wt_app_error_code(), iodata()}
+	{send, cow_http3:stream_id(), iodata()} |
+	{send, cow_http3:stream_id(), cow_http:fin(), iodata()} |
+	{reset_stream, cow_http3:stream_id(), cow_http3:wt_app_error_code()} | %% @todo Not implemented.
+	{stop_sending, cow_http3:stream_id(), cow_http3:wt_app_error_code()} | %% @todo Not implemented.
+	{send_datagram, iodata()} |
+	drain_session |
+	close_session |
+	{close_session, cow_http3:wt_app_error_code()} |
+	{close_session, cow_http3:wt_app_error_code(), iodata()}
 ].
 -export_type([commands/0]).
 
@@ -167,9 +172,11 @@ before_loop(State, HandlerState) ->
 
 loop(State=#state{id=SessionID, parent=Parent}, HandlerState) ->
 	receive
-		{'$webtransport_event', SessionID, Event={closed, _, _}} ->
+		%% Application close via WT_CLOSE_SESSION.
+		{'$webtransport_event', SessionID, Event={close_session, _, _}} -> %% @todo Renamed.
 			terminate_proc(State, HandlerState, Event);
-		{'$webtransport_event', SessionID, Event=closed_abruptly} ->
+		%% Abrupt session close.
+		{'$webtransport_event', SessionID, Event={session_error, _, _}} -> %% @todo Renamed and added info (atom reason, atom/binary string explaining).
 			terminate_proc(State, HandlerState, Event);
 		{'$webtransport_event', SessionID, Event} ->
 			handler_call(State, HandlerState, webtransport_handle, Event);
@@ -229,26 +236,32 @@ commands([], State=#state{id=SessionID, parent=Pid}, Res, Commands) ->
 %% {open_stream, OpenStreamRef, StreamType, InitialData}.
 commands([Command={open_stream, _, _, _}|Tail], State, Res, Acc) ->
 	commands(Tail, State, Res, [Command|Acc]);
-%% {close_stream, StreamID, Code}.
-commands([Command={close_stream, _, _}|Tail], State, Res, Acc) ->
+%% {reset_stream, StreamID, Code}
+commands([Command={reset_stream, _, _}|Tail], State, Res, Acc) ->
+	commands(Tail, State, Res, [Command|Acc]);
+%% {stop_sending, StreamID, Code}
+commands([Command={stop_sending, _, _}|Tail], State, Res, Acc) ->
 	commands(Tail, State, Res, [Command|Acc]);
 %% @todo We must reject send to a remote unidi stream.
-%% {send, StreamID | datagram, Data}.
+%% {send, StreamID, Data}.
 commands([Command={send, _, _}|Tail], State, Res, Acc) ->
 	commands(Tail, State, Res, [Command|Acc]);
 %% {send, StreamID, IsFin, Data}.
 commands([Command={send, _, _, _}|Tail], State, Res, Acc) ->
 	commands(Tail, State, Res, [Command|Acc]);
-%% initiate_close - DRAIN_WT_SESSION
-commands([Command=initiate_close|Tail], State, Res, Acc) ->
+%% {send_datagram, Data}.
+commands([Command={send_datagram, _}|Tail], State, Res, Acc) ->
 	commands(Tail, State, Res, [Command|Acc]);
-%% close | {close, Code} | {close, Code, Msg} - CLOSE_WT_SESSION
+%% drain_session - DRAIN_WT_SESSION
+commands([Command=drain_session|Tail], State, Res, Acc) ->
+	commands(Tail, State, Res, [Command|Acc]);
+%% close_session | {close_session, Code} | {close_session, Code, Msg} - CLOSE_WT_SESSION
 %% @todo At this point the handler must not issue stream or send commands.
-commands([Command=close|Tail], State, _, Acc) ->
+commands([Command=close_session|Tail], State, _, Acc) ->
 	commands(Tail, State, stop, [Command|Acc]);
-commands([Command={close, _}|Tail], State, _, Acc) ->
+commands([Command={close_session, _}|Tail], State, _, Acc) ->
 	commands(Tail, State, stop, [Command|Acc]);
-commands([Command={close, _, _}|Tail], State, _, Acc) ->
+commands([Command={close_session, _, _}|Tail], State, _, Acc) ->
 	commands(Tail, State, stop, [Command|Acc]).
 %% @todo A set_options command could be useful to increase the number of allowed streams
 %%       or other forms of flow control. Alternatively a flow command. Or both.

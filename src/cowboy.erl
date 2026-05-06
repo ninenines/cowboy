@@ -21,11 +21,8 @@
 -export([get_env/3]).
 -export([set_env/3]).
 
--ifdef(COWBOY_QUICER).
+-ifdef(CORRAL).
 -export([start_quic/3]).
-
-%% Don't warn about the bad quicer specs.
--dialyzer([{nowarn_function, start_quic/3}]).
 -endif.
 
 %% Internal.
@@ -76,93 +73,83 @@ start_tls(Ref, TransOpts0, ProtoOpts0) ->
 	},
 	ranch:start_listener(Ref, ranch_ssl, TransOpts, cowboy_tls, ProtoOpts).
 
--ifdef(COWBOY_QUICER).
-
-%% @todo Experimental function to start a barebone QUIC listener.
-%%       This will need to be reworked to be closer to Ranch
-%%       listeners and provide equivalent features.
-%%
-%% @todo Better type for transport options. Might require fixing quicer types.
-
--spec start_quic(ranch:ref(), #{socket_opts => [{atom(), _}]}, cowboy_http3:opts())
-	-> {ok, pid()}.
-
-%% @todo Implement dynamic_buffer for HTTP/3 if/when it applies.
-start_quic(Ref, TransOpts, ProtoOpts) ->
-	{ok, _} = application:ensure_all_started(quicer),
-	Parent = self(),
-	SocketOpts0 = maps:get(socket_opts, TransOpts, []),
-	{Port, SocketOpts2} = case lists:keytake(port, 1, SocketOpts0) of
-		{value, {port, Port0}, SocketOpts1} ->
-			{Port0, SocketOpts1};
-		false ->
-			{port_0(), SocketOpts0}
-	end,
-	SocketOpts = [
-		{alpn, ["h3"]}, %% @todo Why not binary?
-		%% We only need 3 for control and QPACK enc/dec,
-		%% but we need more for WebTransport. %% @todo Use 3 if WT is disabled.
-		{peer_unidi_stream_count, 100},
-		{peer_bidi_stream_count, 100},
-		%% For WebTransport.
-		%% @todo We probably don't want it enabled if WT isn't used.
-		{datagram_send_enabled, 1},
-		{datagram_receive_enabled, 1}
-	|SocketOpts2],
-	_ListenerPid = spawn(fun() ->
-		{ok, Listener} = quicer:listen(Port, SocketOpts),
-		Parent ! {ok, Listener},
-		_AcceptorPid = [spawn(fun AcceptLoop() ->
-			{ok, Conn} = quicer:accept(Listener, []),
-			Pid = spawn(fun() ->
-				receive go -> ok end,
-				%% We have to do the handshake after handing control of
-				%% the connection otherwise streams may come in before
-				%% the controlling process is changed and messages will
-				%% not be sent to the correct process.
-				{ok, Conn} = quicer:handshake(Conn),
-				process_flag(trap_exit, true), %% @todo Only if supervisor though.
-				try cowboy_http3:init(Parent, Ref, Conn, ProtoOpts)
-				catch
-					exit:{shutdown,_} -> ok;
-					C:E:S -> log(error, "CRASH ~p:~p:~p", [C,E,S], ProtoOpts)
-				end
-			end),
-			ok = quicer:controlling_process(Conn, Pid),
-			Pid ! go,
-			AcceptLoop()
-		end) || _ <- lists:seq(1, 20)],
-		%% Listener process must not terminate.
-		receive after infinity -> ok end
-	end),
-	receive
-		{ok, Listener} ->
-			{ok, Listener}
-	end.
-
-%% Select a random UDP port using gen_udp because quicer
-%% does not provide equivalent functionality. Taken from
-%% quicer test suites.
-port_0() ->
-	{ok, Socket} = gen_udp:open(0, [{reuseaddr, true}]),
-	{ok, {_, Port}} = inet:sockname(Socket),
-	gen_udp:close(Socket),
-	case os:type() of
-		{unix, darwin} ->
-			%% Apparently macOS doesn't free the port immediately.
-			timer:sleep(500);
-		_ ->
-			ok
-	end,
-	Port.
-
--endif.
-
 ensure_alpn(TransOpts) ->
 	SocketOpts = maps:get(socket_opts, TransOpts, []),
 	TransOpts#{socket_opts => [
 		{alpn_preferred_protocols, [<<"h2">>, <<"http/1.1">>]}
 	|SocketOpts]}.
+
+-ifdef(CORRAL).
+
+%% @todo Experimental function to start a barebone QUIC listener.
+
+-spec start_quic(corral:ref(), corral:quic_server_opts(), cowboy_http3:opts())
+	-> {ok, pid()}.
+
+%% @todo Implement dynamic_buffer for HTTP/3 if/when it applies.
+start_quic(Ref, QuicOpts0, ProtoOpts0) ->
+	{ok, _} = application:ensure_all_started(corral),
+	{QuicOpts1, ConnectionType} = ensure_connection_type(QuicOpts0),
+	QuicOpts = QuicOpts1#{
+		alpn => [<<"h3">>],
+		backend => corral_quicer
+	},
+	ProtoOpts = ProtoOpts0#{
+		connection_type => ConnectionType
+	},
+	corral:start_listener(Ref, QuicOpts, cowboy_quic, ProtoOpts).
+
+
+%	SocketOpts0 = maps:get(socket_opts, TransOpts, []),
+%	{Port, SocketOpts2} = case lists:keytake(port, 1, SocketOpts0) of
+%		{value, {port, Port0}, SocketOpts1} ->
+%			{Port0, SocketOpts1};
+%		false ->
+%			{port_0(), SocketOpts0}
+%	end,
+%	SocketOpts = [
+%		{alpn, ["h3"]}, %% @todo Why not binary?
+%		%% We only need 3 for control and QPACK enc/dec,
+%		%% but we need more for WebTransport. %% @todo Use 3 if WT is disabled.
+%		{peer_unidi_stream_count, 100},
+%		{peer_bidi_stream_count, 100},
+%		%% For WebTransport.
+%		%% @todo We probably don't want it enabled if WT isn't used.
+%		{datagram_send_enabled, 1},
+%		{datagram_receive_enabled, 1}
+%	|SocketOpts2],
+%	_ListenerPid = spawn(fun() ->
+%		{ok, Listener} = quicer:listen(Port, SocketOpts),
+%		Parent ! {ok, Listener},
+%		_AcceptorPid = [spawn(fun AcceptLoop() ->
+%			{ok, Conn} = quicer:accept(Listener, []),
+%			Pid = spawn(fun() ->
+%				receive go -> ok end,
+%				%% We have to do the handshake after handing control of
+%				%% the connection otherwise streams may come in before
+%				%% the controlling process is changed and messages will
+%				%% not be sent to the correct process.
+%				{ok, Conn} = quicer:handshake(Conn),
+%				process_flag(trap_exit, true), %% @todo Only if supervisor though.
+%				try cowboy_http3:init(Parent, Ref, Conn, ProtoOpts)
+%				catch
+%					exit:{shutdown,_} -> ok;
+%					C:E:S -> log(error, "CRASH ~p:~p:~p", [C,E,S], ProtoOpts)
+%				end
+%			end),
+%			ok = quicer:controlling_process(Conn, Pid),
+%			Pid ! go,
+%			AcceptLoop()
+%		end) || _ <- lists:seq(1, 20)],
+%		%% Listener process must not terminate.
+%		receive after infinity -> ok end
+%	end),
+%	receive
+%		{ok, Listener} ->
+%			{ok, Listener}
+%	end.
+
+-endif.
 
 ensure_connection_type(TransOpts=#{connection_type := ConnectionType}) ->
 	{TransOpts, ConnectionType};
