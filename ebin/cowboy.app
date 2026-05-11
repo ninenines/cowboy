@@ -5,6 +5,6 @@
 	{registered, [cowboy_sup,cowboy_clock]},
 	{applications, [kernel,stdlib,crypto,cowlib,ranch]},
 	{optional_applications, []},
-	{mod, {cowboy_app, []}},
+	{mod, {'cowboy_app', []}},
 	{env, []}
 ]}.
