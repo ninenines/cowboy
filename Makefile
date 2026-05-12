@@ -135,6 +135,9 @@ prepare_tag:
 		grep == $$f; \
 	done
 	$(verbose) echo
+	$(verbose) echo -n "LICENSE: " ; head -n1 LICENSE
+	$(verbose) echo -n "Guide:   " ; grep Copyright doc/src/guide/introduction.asciidoc
+	$(verbose) echo
 	$(verbose) echo "Dependencies:"
 	$(verbose) grep ^DEPS Makefile || echo "DEPS ="
 	$(verbose) grep ^dep_ Makefile || true
