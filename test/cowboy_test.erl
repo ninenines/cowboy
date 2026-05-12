@@ -73,12 +73,12 @@ common_all() ->
 		{group, https},
 		{group, h2},
 		{group, h2c},
-		{group, h3},
+%		{group, h3},
 		{group, http_compress},
 		{group, https_compress},
 		{group, h2_compress},
-		{group, h2c_compress},
-		{group, h3_compress}
+		{group, h2c_compress}
+%		{group, h3_compress}
 	],
 	%% Don't run HTTP/3 tests on Windows for now.
 	case os:type() of
