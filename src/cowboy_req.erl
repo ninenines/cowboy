@@ -612,11 +612,9 @@ read_part(Req, Opts) ->
 read_part(Buffer, Opts, Req=#{multipart := {Boundary, _}}) ->
 	try cow_multipart:parse_headers(Buffer, Boundary) of
 		more ->
-			{Data, Req2} = stream_multipart(Req, Opts, headers),
-			read_part(<< Buffer/binary, Data/binary >>, Opts, Req2);
+			read_part_more(Buffer, Opts, Req);
 		{more, Buffer2} ->
-			{Data, Req2} = stream_multipart(Req, Opts, headers),
-			read_part(<< Buffer2/binary, Data/binary >>, Opts, Req2);
+			read_part_more(Buffer2, Opts, Req);
 		{ok, Headers0, Rest} ->
 			Headers = maps:from_list(Headers0),
 			%% Reject multipart content containing duplicate headers.
@@ -630,6 +628,16 @@ read_part(Buffer, Opts, Req=#{multipart := {Boundary, _}}) ->
 			'Malformed body; multipart expected.'
 		}, Stacktrace)
 	end.
+
+%% We reject multipart header blocks that are twice the maximum
+%% size of the largest expected multipart header blocks.
+read_part_more(Buffer, _, _) when byte_size(Buffer) > 2048 ->
+	exit({request_error, {multipart, headers},
+		'Malformed body; multipart header block too large.'
+	});
+read_part_more(Buffer, Opts, Req0) ->
+	{Data, Req} = stream_multipart(Req0, Opts, headers),
+	read_part(<<Buffer/binary, Data/binary>>, Opts, Req).
 
 -spec read_part_body(Req)
 	-> {ok, binary(), Req} | {more, binary(), Req}

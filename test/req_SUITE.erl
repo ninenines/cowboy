@@ -754,8 +754,19 @@ multipart_error_headers(Config) ->
 	], ReqBody, Config),
 	ok.
 
-%% The function to parse the multipart body currently does not crash,
-%% as far as I can tell. There is therefore no test for it.
+multipart_error_headers_too_large(Config) ->
+	doc("Multipart request body with part headers larger than 2048 bytes."),
+	ReqBody = [
+		%% We use a very large header size because we are testing on
+		%% localhost (large socket buffers) and this is a soft limit
+		%% (we parse if we have the data in buffers already).
+		"--deadbeef\r\ncontent-type: ", binary:copy(<<"a">>, 100000), "\r\n\r\nbody\r\n",
+		"--deadbeef--"
+	],
+	{400, _} = do_body_error("POST", "/multipart", [
+		{<<"content-type">>, <<"multipart/mixed; boundary=deadbeef">>}
+	], ReqBody, Config),
+	ok.
 
 multipart_error_no_final_boundary(Config) ->
 	doc("Multipart request body with no final boundary."),
