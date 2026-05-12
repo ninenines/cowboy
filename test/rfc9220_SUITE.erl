@@ -19,6 +19,8 @@
 -import(ct_helper, [config/2]).
 -import(ct_helper, [doc/1]).
 
+-ifdef(COWBOY_QUICER).
+
 all() ->
 	[{group, enabled}].
 
@@ -483,3 +485,9 @@ accept_handshake_when_enabled(Config) ->
 %% @todo client other frame with FIN
 %% @todo server other frame with FIN
 %% @todo client close connection
+
+-else.
+
+all() -> [].
+
+-endif.

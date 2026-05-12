@@ -2423,4 +2423,8 @@ do_wait_connection_closed(Conn) ->
 		{error, timeout}
 	end.
 
+-else.
+
+all() -> [].
+
 -endif.

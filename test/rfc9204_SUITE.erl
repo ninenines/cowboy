@@ -354,4 +354,8 @@ do_wait_unidi_streams(Conn, Acc) ->
 %% a connection error of the appropriate type if on the
 %% encoder or decoder stream.
 
+-else.
+
+all() -> [].
+
 -endif.
