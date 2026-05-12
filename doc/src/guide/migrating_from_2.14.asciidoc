@@ -1,24 +1,31 @@
 [appendix]
-== Changes since Cowboy 2.14
+== Migrating from Cowboy 2.14 to 2.15
 
-The following patch versions were released since Cowboy 2.14:
+Cowboy 2.15 fixes a number of security vulnerabilities.
+It also has a few new options for HTTP/1.1.
 
-=== Cowboy 2.14.2
+Cowboy 2.15 updates Cowlib to 2.16.1. Both applications
+must be updated as they both contain security fixes.
 
-Cowboy compiled without `COWBOY_QUICER` set would
-have a number of Dialyzer errors. Now in that
-scenario the HTTP/3 code is fully behind ifdefs
-and Dialyzer no longer complains.
+Cowboy 2.15 requires Erlang/OTP 24.0 or greater.
 
-Now when `COWBOY_QUICER` isn't set:
+=== Features added
 
- * `cowboy:start_quic/3` is no longer defined.
- * `cowboy_http3` compiles to an empty module.
- * `cowboy_quicer` compiles to an empty module.
+* The `max_authorization_header_value_length` and
+  `max_cookie_header_value_length` options were added
+  to HTTP/1.1. They allow more fine-grained control
+  over header value lengths.
 
-=== Cowboy 2.14.1
+=== Bugs fixed
 
-HTTP/2 Websocket did not call `terminate/3` on abrupt
-socket close (without a close frame being sent first).
-This is now fixed. Do note however that the Websocket
-session process must trap exits to call `terminate/3`.
+* A number of security vulnerabilities have been fixed,
+  including a possible denial of service in the HTTP/1.1
+  parser.
+
+* Update Cowlib to 2.16.1.
+
+* HTTP/2 Websocket did not call `terminate/3` on abrupt
+  socket close (without a close frame being sent first).
+  This is now fixed. Do note however that the Websocket
+  session process must trap exits to call `terminate/3`.
+  This was fixed since Cowboy 2.14.1.

@@ -2,7 +2,7 @@
 
 PROJECT = cowboy
 PROJECT_DESCRIPTION = Small, fast, modern HTTP server.
-PROJECT_VERSION = 2.14.2
+PROJECT_VERSION = 2.15.0
 PROJECT_REGISTERED = cowboy_clock
 
 # Options.
@@ -44,8 +44,8 @@ define HEX_TARBALL_EXTRA_METADATA
 #{
 	licenses => [<<"ISC">>],
 	links => #{
-		<<"User guide">> => <<"https://ninenines.eu/docs/en/cowboy/2.14/guide/">>,
-		<<"Function reference">> => <<"https://ninenines.eu/docs/en/cowboy/2.14/manual/">>,
+		<<"User guide">> => <<"https://ninenines.eu/docs/en/cowboy/2.15/guide/">>,
+		<<"Function reference">> => <<"https://ninenines.eu/docs/en/cowboy/2.15/manual/">>,
 		<<"GitHub">> => <<"https://github.com/ninenines/cowboy">>,
 		<<"Sponsor">> => <<"https://github.com/sponsors/essen">>
 	}
