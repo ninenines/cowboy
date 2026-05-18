@@ -922,6 +922,59 @@ graceful_shutdown_connection(Config) ->
 		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
 
+terminate_linger_releases_socket_on_kill(_Config) ->
+	doc("When the connection process is killed during the linger loop "
+		"with outbound data still unacknowledged by the peer, the "
+		"server-side socket must be released promptly rather than "
+		"leaking in erlang:ports(). See erlang/otp#9529."),
+	Dispatch = cowboy_router:compile([{"localhost", [
+		{"/long", long_body_h, #{size => 1048576}}
+	]}]),
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME,
+		[{port, 0}, {sndbuf, 2097152}], #{
+		env => #{dispatch => Dispatch},
+		linger_timeout => infinity
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		%% Tiny client receive window so the peer stalls quickly and
+		%% leaves the server with unacknowledged data in flight.
+		{ok, Client} = gen_tcp:connect("localhost", Port, [
+			binary, {active, false}, {packet, raw},
+			{recbuf, 1024}, {buffer, 1024}
+		]),
+		ok = gen_tcp:send(Client,
+			"GET /long HTTP/1.1\r\n"
+			"Host: localhost\r\n"
+			"Connection: close\r\n\r\n"),
+		%% Read a small amount so the response starts flowing.
+		{ok, _} = gen_tcp:recv(Client, 100, 5000),
+		CowboyConnPid = get_remote_pid_tcp(Client),
+		{links, Links} = process_info(CowboyConnPid, links),
+		[ServerPort] = [P || P <- Links, is_port(P),
+			erlang:port_info(P, name) =:= {name, "tcp_inet"}],
+		%% Give the server time to reach terminate_linger.
+		timer:sleep(200),
+		MonRef = erlang:monitor(process, CowboyConnPid),
+		exit(CowboyConnPid, kill),
+		receive
+			{'DOWN', MonRef, _, _, _} -> ok
+		after 1000 ->
+			error(process_did_not_die)
+		end,
+		WaitFun = fun
+			F(0) -> error({port_leaked, erlang:port_info(ServerPort)});
+			F(N) ->
+				case lists:member(ServerPort, erlang:ports()) of
+					false -> ok;
+					true -> timer:sleep(50), F(N - 1)
+				end
+		end,
+		ok = WaitFun(20)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
 graceful_shutdown_listener(Config) ->
 	doc("Check that connections are shut down gracefully when stopping a listener."),
 	TransOpts = #{
