@@ -169,7 +169,7 @@
 -include_lib("cowlib/include/cow_parse.hrl").
 
 -spec init(pid(), ranch:ref(), inet:socket(), module(),
-	ranch_proxy_header:proxy_info(), cowboy:opts()) -> ok.
+	ranch_proxy_header:proxy_info() | undefined, cowboy:opts()) -> ok.
 init(Parent, Ref, Socket, Transport, ProxyHeader, Opts) ->
 	{ok, Peer} = maybe_socket_error(undefined, Transport:peername(Socket),
 		'A socket error occurred when retrieving the peer name.'),
