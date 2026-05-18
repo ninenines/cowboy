@@ -1603,6 +1603,8 @@ terminate_all_streams(State, [#stream{id=StreamID, state=StreamState}|Tail], Rea
 terminate_linger(State=#state{socket=Socket, transport=Transport, opts=Opts}) ->
 	case Transport:shutdown(Socket, write) of
 		ok ->
+			%% Release the socket on process exit. See erlang/otp#9529.
+			_ = Transport:setopts(Socket, [{linger, {true, 0}}]),
 			case maps:get(linger_timeout, Opts, 1000) of
 				0 ->
 					ok;
