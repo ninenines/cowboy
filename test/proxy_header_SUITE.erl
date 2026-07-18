@@ -95,6 +95,64 @@ fail_gracefully_on_disconnect(Config) ->
 		error(timeout)
 	end.
 
+fail_gracefully_on_timeout(Config) ->
+	doc("A connection that does not send a PROXY header must not generate a crash"),
+	{ok, Socket} = gen_tcp:connect("localhost", config(port, Config),
+		[binary, {active, false}, {packet, raw}]),
+	timer:sleep(50),
+	Pid = do_get_remote_pid(Socket, Config),
+	Ref = erlang:monitor(process, Pid),
+	receive
+		{'DOWN', Ref, process, Pid, {shutdown, {socket_error, timeout, _}}} ->
+			ok;
+		{'DOWN', Ref, process, Pid, Reason} ->
+			error(Reason)
+	after 2000 ->
+		error(timeout)
+	end.
+
+fail_gracefully_on_invalid_proxy_header(Config) ->
+	doc("Sending data that is not a PROXY header must not generate a crash"),
+	{ok, Socket} = gen_tcp:connect("localhost", config(port, Config),
+		[binary, {active, false}, {packet, raw}]),
+	timer:sleep(50),
+	Pid = do_get_remote_pid(Socket, Config),
+	Ref = erlang:monitor(process, Pid),
+	ok = gen_tcp:send(Socket, <<"invalid data instead of a proxy header">>),
+	receive
+		{'DOWN', Ref, process, Pid, {shutdown, {connection_error, protocol_error, _}}} ->
+			ok;
+		{'DOWN', Ref, process, Pid, Reason} ->
+			error(Reason)
+	after 1000 ->
+		error(timeout)
+	end.
+
+fail_gracefully_on_partial_header_disconnect(Config) ->
+	doc("Disconnecting after sending a partial PROXY header must not generate a crash"),
+	{ok, Socket} = gen_tcp:connect("localhost", config(port, Config),
+		[binary, {active, false}, {packet, raw}]),
+	timer:sleep(50),
+	Pid = do_get_remote_pid(Socket, Config),
+	Ref = erlang:monitor(process, Pid),
+	ok = gen_tcp:send(Socket, <<"PROXY TCP4 127.0.0.1">>),
+	timer:sleep(50),
+	gen_tcp:close(Socket),
+	receive
+		{'DOWN', Ref, process, Pid, {shutdown, {connection_error, protocol_error, _}}} ->
+			ok;
+		{'DOWN', Ref, process, Pid, Reason} ->
+			error(Reason)
+	after 1000 ->
+		error(timeout)
+	end.
+
+do_get_remote_pid(Socket, Config) ->
+	case config(type, Config) of
+		tcp -> ct_helper:get_remote_pid_tcp(Socket);
+		ssl -> ct_helper:get_remote_pid_tls_state(ct_helper:get_remote_pid_tcp(Socket))
+	end.
+
 v1_proxy_header(Config) ->
 	doc("Confirm we can read the proxy header at the start of the connection."),
 	ProxyInfo = #{
