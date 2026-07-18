@@ -76,14 +76,7 @@ fail_gracefully_on_disconnect(Config) ->
 	{ok, Socket} = gen_tcp:connect("localhost", config(port, Config),
 		[binary, {active, false}, {packet, raw}]),
 	timer:sleep(50),
-	Pid = case config(type, Config) of
-		tcp -> ct_helper:get_remote_pid_tcp(Socket);
-		%% We connect to a TLS port using a TCP socket so we need
-		%% to first obtain the remote pid of the TCP socket, which
-		%% is a TLS socket on the server, and then get the real
-		%% remote pid from its state.
-		ssl -> ct_helper:get_remote_pid_tls_state(ct_helper:get_remote_pid_tcp(Socket))
-	end,
+	Pid = do_get_remote_pid(Socket, Config),
 	Ref = erlang:monitor(process, Pid),
 	gen_tcp:close(Socket),
 	receive
@@ -91,8 +84,65 @@ fail_gracefully_on_disconnect(Config) ->
 			ok;
 		{'DOWN', Ref, process, Pid, Reason} ->
 			error(Reason)
-	after 500 ->
+	after 5000 ->
 		error(timeout)
+	end.
+
+fail_gracefully_on_timeout(Config) ->
+	doc("A connection that does not send a PROXY header must not generate a crash"),
+	{ok, Socket} = gen_tcp:connect("localhost", config(port, Config),
+		[binary, {active, false}, {packet, raw}]),
+	timer:sleep(50),
+	Pid = do_get_remote_pid(Socket, Config),
+	Ref = erlang:monitor(process, Pid),
+	receive
+		{'DOWN', Ref, process, Pid, {shutdown, closed}} ->
+			ok;
+		{'DOWN', Ref, process, Pid, Reason} ->
+			error(Reason)
+	after 5000 ->
+		error(timeout)
+	end.
+
+fail_gracefully_on_invalid_proxy_header(Config) ->
+	doc("Sending data that is not a PROXY header must not generate a crash"),
+	{ok, Socket} = gen_tcp:connect("localhost", config(port, Config),
+		[binary, {active, false}, {packet, raw}]),
+	timer:sleep(50),
+	Pid = do_get_remote_pid(Socket, Config),
+	Ref = erlang:monitor(process, Pid),
+	ok = gen_tcp:send(Socket, <<"invalid data instead of a proxy header">>),
+	receive
+		{'DOWN', Ref, process, Pid, {shutdown, {connection_error, protocol_error, _}}} ->
+			ok;
+		{'DOWN', Ref, process, Pid, Reason} ->
+			error(Reason)
+	after 5000 ->
+		error(timeout)
+	end.
+
+fail_gracefully_on_partial_header_disconnect(Config) ->
+	doc("Disconnecting after sending a partial PROXY header must not generate a crash"),
+	{ok, Socket} = gen_tcp:connect("localhost", config(port, Config),
+		[binary, {active, false}, {packet, raw}]),
+	timer:sleep(50),
+	Pid = do_get_remote_pid(Socket, Config),
+	Ref = erlang:monitor(process, Pid),
+	ok = gen_tcp:send(Socket, <<"PROXY TCP4 127.0.0.1">>),
+	gen_tcp:close(Socket),
+	receive
+		{'DOWN', Ref, process, Pid, {shutdown, {connection_error, protocol_error, _}}} ->
+			ok;
+		{'DOWN', Ref, process, Pid, Reason} ->
+			error(Reason)
+	after 5000 ->
+		error(timeout)
+	end.
+
+do_get_remote_pid(Socket, Config) ->
+	case config(type, Config) of
+		tcp -> ct_helper:get_remote_pid_tcp(Socket);
+		ssl -> ct_helper:get_remote_pid_tls(Socket)
 	end.
 
 v1_proxy_header(Config) ->

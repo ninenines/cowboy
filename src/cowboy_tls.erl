@@ -56,7 +56,9 @@ init(Parent, Ref, Socket, Transport, ProxyInfo, Opts, Protocol) ->
 get_proxy_info(Ref, #{proxy_header := true}) ->
 	case ranch:recv_proxy_header(Ref, 1000) of
 		{ok, ProxyInfo} -> ProxyInfo;
-		{error, closed} -> exit({shutdown, closed})
+		{error, _} -> exit({shutdown, closed});
+		{error, protocol_error, HumanReadable} ->
+			exit({shutdown, {connection_error, protocol_error, HumanReadable}})
 	end;
 get_proxy_info(_, _) ->
 	undefined.
