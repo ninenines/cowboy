@@ -574,10 +574,11 @@ set_body_length(Req=#{headers := Headers}, BodyLength) ->
 
 -spec read_urlencoded_body(Req) -> {ok, [{binary(), binary() | true}], Req} when Req::req().
 read_urlencoded_body(Req) ->
-	read_urlencoded_body(Req, #{length => 64000, period => 5000}).
+	read_urlencoded_body(Req, #{}).
 
 -spec read_urlencoded_body(Req, read_body_opts()) -> {ok, [{binary(), binary() | true}], Req} when Req::req().
-read_urlencoded_body(Req0, Opts) ->
+read_urlencoded_body(Req0, Opts0) ->
+	Opts = maps:merge(#{length => 64000, period => 5000}, Opts0),
 	case read_body(Req0, Opts) of
 		{ok, Body, Req} ->
 			try
@@ -602,7 +603,7 @@ read_urlencoded_body(Req0, Opts) ->
 -spec read_and_match_urlencoded_body(cowboy:fields(), Req)
 	-> {ok, map(), Req} when Req::req().
 read_and_match_urlencoded_body(Fields, Req) ->
-	read_and_match_urlencoded_body(Fields, Req, #{length => 64000, period => 5000}).
+	read_and_match_urlencoded_body(Fields, Req, #{}).
 
 -spec read_and_match_urlencoded_body(cowboy:fields(), Req, read_body_opts())
 	-> {ok, map(), Req} when Req::req().
