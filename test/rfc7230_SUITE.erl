@@ -916,6 +916,7 @@ reject_header_name_without_colon(Config) ->
 		"Host\r\n"
 		" : localhost\r\n"
 		"\r\n"]),
+	{error, closed} = raw_recv(Client3, 0, 1000),
 	#{code := 400, client := Client4} = do_raw(Config, [
 		"GET / HTTP/1.1\r\n"
 		"Content-Encoding\r\nX-Invalid: hello\r\n"
@@ -1709,12 +1710,13 @@ accept_at_least_1_empty_line_keepalive(Config) ->
 	ok.
 
 reject_lf_line_breaks_empty_line(Config) ->
-	#{code := 400, client := Client} = do_raw(Config,
+	#{code := 200, client := Client} = do_raw(Config,
 		"GET / HTTP/1.1\r\n"
 		"Host: localhost\r\n"
-		"\r\n"
-		%% We send an extra LF that must be rejected.
-		"\n"),
+		"\r\n"),
+	%% We send an extra LF that must be rejected.
+	ok = raw_send(Client, "\n"),
+	{_, 400, _, _} = cow_http:parse_status_line(raw_recv_head(Client)),
 	{error, closed} = raw_recv(Client, 0, 1000).
 
 %skip_request_body_by_closing_connection(Config) ->

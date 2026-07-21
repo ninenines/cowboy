@@ -112,9 +112,7 @@
 	%% Expected body size.
 	local_expected_size = undefined :: undefined | non_neg_integer(),
 	%% Sent body size.
-	local_sent_size = 0 :: non_neg_integer(),
-	%% Commands queued.
-	queue = [] :: cowboy_stream:commands()
+	local_sent_size = 0 :: non_neg_integer()
 }).
 
 -type stream() :: #stream{}.
@@ -149,7 +147,7 @@
 	in_streamid = 1 :: pos_integer(),
 
 	%% Parsing state for the current stream or stream-to-be.
-	in_state = #ps_request_line{} :: #ps_request_line{} | #ps_header{} | #ps_body{} | #ps_trailer{},
+	in_state = #ps_request_line{} :: #ps_request_line{} | #ps_header{} | #ps_body{} | #ps_trailer{} | ps_next_request,
 
 	%% Flow requested for the current stream.
 	flow = infinity :: non_neg_integer() | infinity,
@@ -158,18 +156,14 @@
 	dynamic_buffer_size :: pos_integer() | false,
 	dynamic_buffer_moving_average :: float(),
 
-	%% Identifier for the stream currently being written.
-	%% Note that out_streamid =< in_streamid.
-	out_streamid = 1 :: pos_integer(),
-
 	%% Whether we finished writing data for the current stream.
 	out_state = wait :: wait | chunked | streaming | done,
 
 	%% The connection will be closed after this stream.
 	last_streamid = undefined :: pos_integer(),
 
-	%% Currently active HTTP/1.1 streams.
-	streams = [] :: [stream()],
+	%% Current HTTP/1.1 stream.
+	stream = undefined :: undefined | stream(),
 
 	%% Children processes created by streams.
 	children = cowboy_children:init() :: cowboy_children:children()
@@ -179,7 +173,8 @@
 -include_lib("cowlib/include/cow_parse.hrl").
 
 -spec init(pid(), ranch:ref(), inet:socket(), module(),
-	ranch_proxy_header:proxy_info(), cowboy:opts()) -> ok.
+	ranch_proxy_header:proxy_info(), cowboy:opts()) -> no_return().
+
 init(Parent, Ref, Socket, Transport, ProxyHeader, Opts) ->
 	{ok, Peer} = maybe_socket_error(undefined, Transport:peername(Socket),
 		'A socket error occurred when retrieving the peer name.'),
@@ -237,12 +232,23 @@ flush_passive(Socket, Messages) ->
 		ok
 	end.
 
+before_loop(State0=#state{in_state=ps_next_request, stream=undefined}) ->
+	next_request(State0);
 before_loop(State=#state{opts=#{hibernate := true}}) ->
 	proc_lib:hibernate(?MODULE, loop, [State]);
 before_loop(State) ->
 	loop(State).
 
--spec loop(#state{}) -> ok.
+next_request(State0=#state{buffer=Buffer}) ->
+	%% Switch back to the request_timeout.
+	State1 = set_timeout(State0, request_timeout),
+	State = State1#state{in_state=#ps_request_line{}},
+	case Buffer of
+		<<>> -> before_loop(State);
+		_ -> parse(Buffer, State)
+	end.
+
+-spec loop(#state{}) -> no_return().
 
 loop(State=#state{parent=Parent, socket=Socket, transport=Transport, opts=Opts,
 		buffer=Buffer, timer=TimerRef, children=Children, in_streamid=InStreamID,
@@ -320,13 +326,12 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport, opts=Opts,
 %% idle_timeout is reset every time we receive data and,
 %% optionally, every time we send data.
 
-%% We do not set request_timeout if we are skipping a body.
-set_timeout(State=#state{in_state=#ps_body{}}, request_timeout) ->
-	State;
 %% We do not set idle_timeout if there are no active streams,
 %% unless when we are skipping a body.
-set_timeout(State=#state{streams=[], in_state=InState}, idle_timeout)
-		when element(1, InState) =/= ps_body ->
+set_timeout(State=#state{stream=undefined, in_state=InState}, idle_timeout)
+		when InState =:= ps_next_request;
+			element(1, InState) =:= ps_request_line;
+			element(1, InState) =:= ps_header ->
 	State;
 %% Otherwise we can set the timeout.
 %% @todo Don't do this so often, use a strategy similar to Websocket/H2 if possible.
@@ -372,6 +377,7 @@ cancel_timeout(State=#state{timer=TimerRef}) ->
 	State#state{timer=undefined}.
 
 -spec timeout(_, _) -> no_return().
+
 timeout(State=#state{in_state=#ps_request_line{}}, request_timeout) ->
 	terminate(State, {connection_error, timeout,
 		'No request-line received before timeout.'});
@@ -386,9 +392,15 @@ parse(<<>>, State) ->
 	before_loop(State#state{buffer= <<>>});
 %% Do not process requests that come in after the last request
 %% and discard the buffer if any to save memory.
-parse(_, State=#state{in_streamid=InStreamID, in_state=#ps_request_line{},
-		last_streamid=LastStreamID}) when InStreamID > LastStreamID ->
+parse(_, State=#state{in_streamid=InStreamID, in_state=InState,
+		last_streamid=LastStreamID}) when InStreamID > LastStreamID,
+		(InState =:= ps_next_request) orelse (element(1, InState) =:= ps_request_line) ->
 	before_loop(State#state{buffer= <<>>});
+%% Delay parsing pipelined requests until current stream stops.
+parse(Buffer, State=#state{in_state=ps_next_request, stream=#stream{}}) ->
+	before_loop(State#state{buffer=Buffer});
+parse(Buffer, State=#state{in_state=ps_next_request, stream=undefined}) ->
+	next_request(State#state{buffer=Buffer});
 parse(Buffer, State=#state{in_state=#ps_request_line{empty_lines=EmptyLines}}) ->
 	after_parse(parse_request(Buffer, State, EmptyLines));
 parse(Buffer, State=#state{in_state=PS=#ps_header{headers=Headers, name=undefined}}) ->
@@ -406,25 +418,16 @@ parse(Buffer, State=#state{in_state=#ps_trailer{}}) ->
 
 after_parse({request, Req=#{streamid := StreamID, method := Method,
 		headers := Headers, version := Version},
-		State0=#state{opts=Opts, buffer=Buffer, streams=Streams0}}) ->
+		State0=#state{opts=Opts, buffer=Buffer, stream=undefined}}) ->
 	try cowboy_stream:init(StreamID, Req, Opts) of
 		{Commands, StreamState} ->
 			Flow = maps:get(initial_stream_flow_size, Opts, 65535),
 			TE = maps:get(<<"te">>, Headers, undefined),
-			Streams = [#stream{id=StreamID, state=StreamState,
-				method=Method, version=Version, te=TE}|Streams0],
-			State1 = State0#state{streams=Streams, flow=Flow},
-			State2 = case maybe_req_close(State1, Headers, Version) of
-				close ->
-					State1#state{last_streamid=StreamID};
-				keepalive ->
-					State1;
-				bad_connection_header ->
-					error_terminate(400, State1, {connection_error, protocol_error,
-						'The Connection header is invalid. (RFC7230 6.1)'})
-			end,
-			State = set_timeout(State2, idle_timeout),
-			parse(Buffer, commands(State, StreamID, Commands))
+			Stream = #stream{id=StreamID, state=StreamState,
+				method=Method, version=Version, te=TE},
+			State1 = State0#state{stream=Stream, flow=Flow},
+			State = set_timeout(State1, idle_timeout),
+			parse(Buffer, commands(State, Commands))
 	catch Class:Exception:Stacktrace ->
 		cowboy:log(cowboy_stream:make_error_log(init,
 			[StreamID, Req, Opts],
@@ -438,32 +441,26 @@ after_parse({request, Req=#{streamid := StreamID, method := Method,
 			'Unhandled exception in cowboy_stream:init/3.'}, Req),
 		parse(Buffer, State0)
 	end;
-%% Streams are sequential so the body is always about the last stream created
-%% unless that stream has terminated.
-after_parse({data, StreamID, IsFin, Data, State0=#state{opts=Opts, buffer=Buffer,
-		streams=Streams0=[Stream=#stream{id=StreamID, state=StreamState0}|_]}}) ->
+after_parse({data, IsFin, Data, State0=#state{opts=Opts, buffer=Buffer,
+		stream=Stream0=#stream{id=StreamID, state=StreamState0}}}) ->
 	try cowboy_stream:data(StreamID, IsFin, Data, StreamState0) of
 		{Commands, StreamState} ->
-			Streams = lists:keyreplace(StreamID, #stream.id, Streams0,
-				Stream#stream{state=StreamState}),
-			State1 = set_timeout(State0, idle_timeout),
-			State = update_flow(IsFin, Data, State1#state{streams=Streams}),
-			parse(Buffer, commands(State, StreamID, Commands))
+			Stream = Stream0#stream{state=StreamState},
+			State1 = set_timeout(State0#state{stream=Stream}, idle_timeout),
+			State = update_flow(IsFin, Data, State1),
+			parse(Buffer, commands(State, Commands))
 	catch Class:Exception:Stacktrace ->
 		cowboy:log(cowboy_stream:make_error_log(data,
 			[StreamID, IsFin, Data, StreamState0],
 			Class, Exception, Stacktrace), Opts),
-		%% @todo Should call parse after this.
-		stream_terminate(State0, StreamID, {internal_error, {Class, Exception},
-			'Unhandled exception in cowboy_stream:data/4.'})
+		Reason = {internal_error, {Class, Exception},
+			'Unhandled exception in cowboy_stream:data/4.'},
+		terminate(stream_terminate(State0, Reason), Reason)
 	end;
 %% No corresponding stream. We must skip the body of the previous request
 %% in order to process the next one.
-after_parse({data, _, IsFin, _, State=#state{buffer=Buffer}}) ->
-	parse(Buffer, set_timeout(State, case IsFin of
-		fin -> request_timeout;
-		nofin -> idle_timeout
-	end));
+after_parse({data, _, _, State=#state{buffer=Buffer}}) ->
+	parse(Buffer, set_timeout(State, idle_timeout));
 after_parse({more, State}) ->
 	before_loop(set_timeout(State, idle_timeout)).
 
@@ -485,9 +482,9 @@ update_flow(nofin, Data, State0=#state{flow=Flow0}) ->
 
 -spec parse_request(Buffer, State, non_neg_integer())
 	-> {request, cowboy_req:req(), State}
-	| {data, cowboy_stream:streamid(), cowboy_stream:fin(), binary(), State}
 	| {more, State}
 	when Buffer::binary(), State::#state{}.
+
 %% Empty lines must be using \r\n.
 parse_request(<< $\n, _/bits >>, State, _) ->
 	error_terminate(400, State, {connection_error, protocol_error,
@@ -826,7 +823,8 @@ request(Buffer, State=#state{transport=Transport,
 				{stream_error, protocol_error,
 					'HTTP/1.1 requests must include a host header. (RFC7230 5.4)'});
 		undefined ->
-			request(Buffer, State, Headers, <<>>, default_port(Transport:secure()));
+			request_parse_connection(Buffer, State, Headers, <<>>,
+				default_port(Transport:secure()));
 		%% @todo When CONNECT requests come in we need to ignore the RawHost
 		%% and instead use the Authority as the source of host.
 		RawHost when Authority =:= undefined; Authority =:= RawHost ->
@@ -853,9 +851,10 @@ request_parse_host(Buffer, State=#state{opts=Opts}, Headers, RawHost) ->
 request_parse_host1(Buffer, State=#state{transport=Transport, in_state=PS}, Headers, RawHost) ->
 	try cow_http_hd:parse_host(RawHost) of
 		{Host, undefined} ->
-			request(Buffer, State, Headers, Host, default_port(Transport:secure()));
+			request_parse_connection(Buffer, State, Headers, Host,
+				default_port(Transport:secure()));
 		{Host, Port} when Port > 0, Port =< 65535 ->
-			request(Buffer, State, Headers, Host, Port);
+			request_parse_connection(Buffer, State, Headers, Host, Port);
 		_ ->
 			error_terminate(400, State, {stream_error, protocol_error,
 				'The port component of the absolute-form is not in the range 0..65535. (RFC7230 2.7.1)'})
@@ -866,8 +865,23 @@ request_parse_host1(Buffer, State=#state{transport=Transport, in_state=PS}, Head
 	end.
 
 -spec default_port(boolean()) -> 80 | 443.
+
 default_port(true) -> 443;
 default_port(_) -> 80.
+
+request_parse_connection(Buffer, State0=#state{in_streamid=StreamID,
+		in_state=PS=#ps_header{version=Version}}, Headers, Host, Port) ->
+	State = case maybe_req_close(State0, Headers, Version) of
+		close ->
+			State0#state{last_streamid=StreamID};
+		keepalive ->
+			State0;
+		bad_connection_header ->
+			error_terminate(400, State0#state{in_state=PS#ps_header{headers=Headers}},
+				{connection_error, protocol_error,
+					'The Connection header is invalid. (RFC7230 6.1)'})
+	end,
+	request(Buffer, State, Headers, Host, Port).
 
 %% End of request parsing.
 
@@ -946,7 +960,7 @@ request(Buffer, State0=#state{ref=Ref, transport=Transport, peer=Peer, sock=Sock
 						transfer_decode_state = TDecodeState
 					}};
 				false ->
-					State0#state{in_streamid=StreamID + 1, in_state=#ps_request_line{}}
+					State0#state{in_streamid=StreamID + 1, in_state=ps_next_request}
 			end,
 			{request, Req, State#state{buffer=Buffer}};
 		{true, HTTP2Settings} ->
@@ -1033,58 +1047,58 @@ parse_body(Buffer, State=#state{in_streamid=StreamID, in_state=
 		more ->
 			{more, State#state{buffer=Buffer}};
 		{more, Data, TState} ->
-			{data, StreamID, nofin, Data, State#state{buffer= <<>>,
+			{data, nofin, Data, State#state{buffer= <<>>,
 				in_state=PS#ps_body{received=Received + byte_size(Data),
 					transfer_decode_state=TState}}};
 		{more, Data, _Length, TState} when is_integer(_Length) ->
-			{data, StreamID, nofin, Data, State#state{buffer= <<>>,
+			{data, nofin, Data, State#state{buffer= <<>>,
 				in_state=PS#ps_body{received=Received + byte_size(Data),
 					transfer_decode_state=TState}}};
 		{more, Data, Rest, TState} ->
-			{data, StreamID, nofin, Data, State#state{buffer=Rest,
+			{data, nofin, Data, State#state{buffer=Rest,
 				in_state=PS#ps_body{received=Received + byte_size(Data),
 					transfer_decode_state=TState}}};
 		{done, no_trailers, Rest} ->
-			{data, StreamID, fin, <<>>, State#state{
+			{data, fin, <<>>, State#state{
 				buffer=Rest,
 				in_streamid=StreamID + 1,
-				in_state=#ps_request_line{}
+				in_state=ps_next_request
 			}};
 		{done, trailers, Rest} ->
-			{data, StreamID, fin, <<>>, State#state{
+			{data, fin, <<>>, State#state{
 				buffer=Rest,
 				in_state=#ps_trailer{}
 			}};
 		{done, Data, no_trailers, Rest} ->
-			{data, StreamID, fin, Data, State#state{
+			{data, fin, Data, State#state{
 				buffer=Rest,
 				in_streamid=StreamID + 1,
-				in_state=#ps_request_line{}
+				in_state=ps_next_request
 			}};
 		{done, Data, trailers, Rest} ->
-			{data, StreamID, fin, Data, State#state{
+			{data, fin, Data, State#state{
 				buffer=Rest,
 				in_state=#ps_trailer{}
 			}}
 	catch _:_ ->
 		Reason = {connection_error, protocol_error,
 			'Failure to decode the content. (RFC7230 4)'},
-		terminate(stream_terminate(State, StreamID, Reason), Reason)
+		terminate(stream_terminate(State, Reason), Reason)
 	end.
 
 %% Trailer field values.
 
 %% @todo Proper trailers.
-parse_trailer(Buffer, State=#state{in_streamid=StreamID, streams=Streams}) ->
+parse_trailer(Buffer, State=#state{in_streamid=StreamID, stream=Stream}) ->
 	case binary:split(Buffer, <<"\r\n\r\n">>) of
 		[_] when byte_size(Buffer) >= 4096 ->
 			Reason = {connection_error, limit_reached,
 				'Trailer field values larger than hard limit allows.'},
-			case Streams of
-				[#stream{id=StreamID}|_] ->
-					terminate(stream_terminate(State, StreamID, Reason), Reason);
+			case Stream of
+				#stream{} ->
+					terminate(stream_terminate(State, Reason), Reason);
 				%% Stream already terminated.
-				_ ->
+				undefined ->
 					terminate(State, Reason)
 			end;
 		[_] ->
@@ -1092,7 +1106,7 @@ parse_trailer(Buffer, State=#state{in_streamid=StreamID, streams=Streams}) ->
 		[_, Rest] ->
 			parse(Rest, State#state{
 				in_streamid=StreamID + 1,
-				in_state=#ps_request_line{}
+				in_state=ps_next_request
 			})
 	end.
 
@@ -1113,26 +1127,23 @@ down(State=#state{opts=Opts, children=Children0}, Pid, Msg) ->
 			State
 	end.
 
-info(State=#state{opts=Opts, streams=Streams0}, StreamID, Msg) ->
-	case lists:keyfind(StreamID, #stream.id, Streams0) of
-		Stream = #stream{state=StreamState0} ->
-			try cowboy_stream:info(StreamID, Msg, StreamState0) of
-				{Commands, StreamState} ->
-					Streams = lists:keyreplace(StreamID, #stream.id, Streams0,
-						Stream#stream{state=StreamState}),
-					commands(State#state{streams=Streams}, StreamID, Commands)
-			catch Class:Exception:Stacktrace ->
-				cowboy:log(cowboy_stream:make_error_log(info,
-					[StreamID, Msg, StreamState0],
-					Class, Exception, Stacktrace), Opts),
-				stream_terminate(State, StreamID, {internal_error, {Class, Exception},
-					'Unhandled exception in cowboy_stream:info/3.'})
-			end;
-		false ->
-			cowboy:log(warning, "Received message ~p for unknown stream ~p.~n",
-				[Msg, StreamID], Opts),
-			State
-	end.
+info(State=#state{opts=Opts, stream=Stream0=#stream{id=StreamID, state=StreamState0}},
+		StreamID, Msg) ->
+	try cowboy_stream:info(StreamID, Msg, StreamState0) of
+		{Commands, StreamState} ->
+			Stream = Stream0#stream{state=StreamState},
+			commands(State#state{stream=Stream}, Commands)
+	catch Class:Exception:Stacktrace ->
+		cowboy:log(cowboy_stream:make_error_log(info,
+			[StreamID, Msg, StreamState0],
+			Class, Exception, Stacktrace), Opts),
+		stream_terminate(State, {internal_error, {Class, Exception},
+			'Unhandled exception in cowboy_stream:info/3.'})
+	end;
+info(State=#state{opts=Opts}, StreamID, Msg) ->
+	cowboy:log(warning, "Received message ~p for unknown stream ~p.~n",
+		[Msg, StreamID], Opts),
+	State.
 
 %% Commands.
 %%
@@ -1141,30 +1152,21 @@ info(State=#state{opts=Opts, streams=Streams0}, StreamID, Msg) ->
 %% error occurred, such as a socket error. Critical commands such
 %% as 'spawn' should always be given first.
 
-commands(State, _, []) ->
+commands(State, []) ->
 	State;
 %% Supervise a child process.
-commands(State=#state{children=Children}, StreamID, [{spawn, Pid, Shutdown}|Tail]) ->
-	commands(State#state{children=cowboy_children:up(Children, Pid, StreamID, Shutdown)},
-		StreamID, Tail);
+commands(State=#state{stream=#stream{id=StreamID}, children=Children0},
+		[{spawn, Pid, Shutdown}|Tail]) ->
+	Children = cowboy_children:up(Children0, Pid, StreamID, Shutdown),
+	commands(State#state{children=Children}, Tail);
 %% Error handling.
-commands(State, StreamID, [Error = {internal_error, _, _}|Tail]) ->
-	commands(stream_terminate(State, StreamID, Error), StreamID, Tail);
-%% Commands for a stream currently inactive.
-commands(State=#state{out_streamid=Current, streams=Streams0}, StreamID, Commands)
-		when Current =/= StreamID ->
-
-	%% @todo We still want to handle some commands...
-
-	Stream = #stream{queue=Queue} = lists:keyfind(StreamID, #stream.id, Streams0),
-	Streams = lists:keyreplace(StreamID, #stream.id, Streams0,
-		Stream#stream{queue=Queue ++ Commands}),
-	State#state{streams=Streams};
+commands(State, [Error = {internal_error, _, _}|Tail]) ->
+	commands(stream_terminate(State, Error), Tail);
 %% When we have finished reading the request body, do nothing.
-commands(State=#state{flow=infinity}, StreamID, [{flow, _}|Tail]) ->
-	commands(State, StreamID, Tail);
+commands(State=#state{flow=infinity}, [{flow, _}|Tail]) ->
+	commands(State, Tail);
 %% Read the request body.
-commands(State0=#state{flow=Flow0}, StreamID, [{flow, Size}|Tail]) ->
+commands(State0=#state{flow=Flow0}, [{flow, Size}|Tail]) ->
 	%% We must read *at least* Size of data otherwise functions
 	%% like cowboy_req:read_body/1,2 will wait indefinitely.
 	Flow = if
@@ -1178,9 +1180,9 @@ commands(State0=#state{flow=Flow0}, StreamID, [{flow, Size}|Tail]) ->
 		true ->
 			State0
 	end,
-	commands(State#state{flow=Flow}, StreamID, Tail);
+	commands(State#state{flow=Flow}, Tail);
 %% Error responses are sent only if a response wasn't sent already.
-commands(State=#state{out_state=wait, out_streamid=StreamID}, StreamID,
+commands(State=#state{out_state=wait},
 		[{error_response, Status, Headers0, Body}|Tail]) ->
 	%% We close the connection when the error response is 408, as it
 	%% indicates a timeout and the RFC recommends that we stop here. (RFC7231 6.5.7)
@@ -1189,23 +1191,21 @@ commands(State=#state{out_state=wait, out_streamid=StreamID}, StreamID,
 		<<"408", _/bits>> -> Headers0#{<<"connection">> => <<"close">>};
 		_ -> Headers0
 	end,
-	commands(State, StreamID, [{response, Status, Headers, Body}|Tail]);
-commands(State, StreamID, [{error_response, _, _, _}|Tail]) ->
-	commands(State, StreamID, Tail);
+	commands(State, [{response, Status, Headers, Body}|Tail]);
+commands(State, [{error_response, _, _, _}|Tail]) ->
+	commands(State, Tail);
 %% Send an informational response.
-commands(State0=#state{socket=Socket, transport=Transport, out_state=wait, streams=Streams},
-		StreamID, [{inform, StatusCode, Headers}|Tail]) ->
+commands(State0=#state{socket=Socket, transport=Transport, out_state=wait,
+		stream=#stream{version=Version}},
+		[{inform, StatusCode, Headers}|Tail]) ->
 	case maybe_invalid_response_headers(Headers, State0) of
 		error_terminate ->
 			Reason = {internal_error, invalid_response_header,
 				'An invalid response header was detected in an informational response.'},
-			terminate(stream_terminate(State0, StreamID, Reason), Reason);
+			terminate(stream_terminate(State0, Reason), Reason);
 		ok ->
 			ok
 	end,
-	%% @todo I'm pretty sure the last stream in the list is the one we want
-	%% considering all others are queued.
-	#stream{version=Version} = lists:keyfind(StreamID, #stream.id, Streams),
 	_ = case Version of
 		'HTTP/1.1' ->
 			ok = maybe_socket_error(State0, Transport:send(Socket,
@@ -1215,26 +1215,23 @@ commands(State0=#state{socket=Socket, transport=Transport, out_state=wait, strea
 			ok
 	end,
 	State = maybe_reset_idle_timeout(State0),
-	commands(State, StreamID, Tail);
+	commands(State, Tail);
 %% Send a full response.
 %%
 %% @todo Kill the stream if it sent a response when one has already been sent.
 %% @todo Keep IsFin in the state.
 %% @todo Same two things above apply to DATA, possibly promise too.
-commands(State0=#state{socket=Socket, transport=Transport, out_state=wait, streams=Streams}, StreamID,
+commands(State0=#state{socket=Socket, transport=Transport, out_state=wait},
 		[{response, StatusCode, Headers0, Body}|Tail]) ->
 	case maybe_invalid_response_headers(Headers0, State0) of
 		error_terminate ->
 			Reason = {internal_error, invalid_response_header,
 				'An invalid response header was detected.'},
-			terminate(stream_terminate(State0, StreamID, Reason), Reason);
+			terminate(stream_terminate(State0, Reason), Reason);
 		ok ->
 			ok
 	end,
-	%% @todo I'm pretty sure the last stream in the list is the one we want
-	%% considering all others are queued.
-	#stream{version=Version} = lists:keyfind(StreamID, #stream.id, Streams),
-	{State1, Headers} = connection(State0, Headers0, StreamID, Version),
+	{State1, Headers} = connection(State0, Headers0),
 	State2 = State1#state{out_state=done},
 	%% @todo Ensure content-length is set. 204 must never have content-length set.
 	Response = cow_http:response(StatusCode, 'HTTP/1.1', headers_to_list(Headers)),
@@ -1247,21 +1244,20 @@ commands(State0=#state{socket=Socket, transport=Transport, out_state=wait, strea
 			ok = maybe_socket_error(State2, Transport:send(Socket, [Response, Body]))
 	end,
 	State = maybe_reset_idle_timeout(State2),
-	commands(State, StreamID, Tail);
+	commands(State, Tail);
 %% Send response headers and initiate chunked encoding or streaming.
 commands(State0=#state{socket=Socket, transport=Transport,
-		opts=Opts, overriden_opts=Override, streams=Streams0, out_state=OutState},
-		StreamID, [{headers, StatusCode, Headers0}|Tail]) ->
+		opts=Opts, overriden_opts=Override, stream=Stream0},
+		[{headers, StatusCode, Headers0}|Tail]) ->
 	case maybe_invalid_response_headers(Headers0, State0) of
 		error_terminate ->
 			Reason = {internal_error, invalid_response_header,
 				'An invalid response header was detected.'},
-			terminate(stream_terminate(State0, StreamID, Reason), Reason);
+			terminate(stream_terminate(State0, Reason), Reason);
 		ok ->
 			ok
 	end,
-	%% @todo Same as above (about the last stream in the list).
-	Stream = #stream{version=Version} = lists:keyfind(StreamID, #stream.id, Streams0),
+	#stream{id=StreamID, version=Version} = Stream0,
 	Status = cow_http:status_to_integer(StatusCode),
 	ContentLength = maps:get(<<"content-length">>, Headers0, undefined),
 	%% Chunked transfer-encoding can be disabled on a per-request basis.
@@ -1283,23 +1279,22 @@ commands(State0=#state{socket=Socket, transport=Transport,
 		%% Stream the response body without chunked transfer-encoding.
 		_ ->
 			ExpectedSize = cow_http_hd:parse_content_length(ContentLength),
-			Streams = lists:keyreplace(StreamID, #stream.id, Streams0,
-				Stream#stream{local_expected_size=ExpectedSize}),
-			{State0#state{out_state=streaming, streams=Streams}, Headers0}
+			Stream = Stream0#stream{local_expected_size=ExpectedSize},
+			{State0#state{out_state=streaming, stream=Stream}, Headers0}
 	end,
-	Headers2 = case stream_te(OutState, Stream) of
+	Headers2 = case stream_te(State1) of
 		trailers -> Headers1;
 		_ -> maps:remove(<<"trailer">>, Headers1)
 	end,
-	{State2, Headers} = connection(State1, Headers2, StreamID, Version),
+	{State2, Headers} = connection(State1, Headers2),
 	ok = maybe_socket_error(State2, Transport:send(Socket,
 		cow_http:response(StatusCode, 'HTTP/1.1', headers_to_list(Headers)))),
 	State = maybe_reset_idle_timeout(State2),
-	commands(State, StreamID, Tail);
+	commands(State, Tail);
 %% Send a response body chunk.
 %% @todo We need to kill the stream if it tries to send data before headers.
-commands(State0=#state{socket=Socket, transport=Transport, streams=Streams0, out_state=OutState},
-		StreamID, [{data, IsFin, Data}|Tail]) ->
+commands(State0=#state{socket=Socket, transport=Transport, stream=Stream0=#stream{method=Method}, out_state=OutState},
+		[{data, IsFin, Data}|Tail]) ->
 	%% Do not send anything when the user asks to send an empty
 	%% data frame, as that would break the protocol.
 	Size = case Data of
@@ -1309,16 +1304,16 @@ commands(State0=#state{socket=Socket, transport=Transport, streams=Streams0, out
 	%% Depending on the current state we may need to send nothing,
 	%% the last chunk, chunked data with/without the last chunk,
 	%% or just the data as-is.
-	Stream = case lists:keyfind(StreamID, #stream.id, Streams0) of
-		Stream0=#stream{method= <<"HEAD">>} ->
+	Stream = if
+		Method =:= <<"HEAD">> ->
 			Stream0;
-		Stream0 when Size =:= 0, IsFin =:= fin, OutState =:= chunked ->
+		Size =:= 0, IsFin =:= fin, OutState =:= chunked ->
 			ok = maybe_socket_error(State0,
 				Transport:send(Socket, <<"0\r\n\r\n">>)),
 			Stream0;
-		Stream0 when Size =:= 0 ->
+		Size =:= 0 ->
 			Stream0;
-		Stream0 when is_tuple(Data), OutState =:= chunked ->
+		is_tuple(Data), OutState =:= chunked ->
 			ok = maybe_socket_error(State0,
 				Transport:send(Socket, [integer_to_binary(Size, 16), <<"\r\n">>])),
 			sendfile(State0, Data),
@@ -1330,7 +1325,7 @@ commands(State0=#state{socket=Socket, transport=Transport, streams=Streams0, out
 					end)
 			),
 			Stream0;
-		Stream0 when OutState =:= chunked ->
+		OutState =:= chunked ->
 			ok = maybe_socket_error(State0,
 				Transport:send(Socket, [
 					integer_to_binary(Size, 16), <<"\r\n">>, Data,
@@ -1341,7 +1336,7 @@ commands(State0=#state{socket=Socket, transport=Transport, streams=Streams0, out
 				])
 			),
 			Stream0;
-		Stream0 when OutState =:= streaming ->
+		OutState =:= streaming ->
 			#stream{local_sent_size=SentSize0, local_expected_size=ExpectedSize} = Stream0,
 			SentSize = SentSize0 + Size,
 			if
@@ -1360,10 +1355,9 @@ commands(State0=#state{socket=Socket, transport=Transport, streams=Streams0, out
 		nofin -> State0
 	end,
 	State = maybe_reset_idle_timeout(State1),
-	Streams = lists:keyreplace(StreamID, #stream.id, Streams0, Stream),
-	commands(State#state{streams=Streams}, StreamID, Tail);
-commands(State0=#state{socket=Socket, transport=Transport, streams=Streams, out_state=OutState},
-		StreamID, [{trailers, Trailers}|Tail]) ->
+	commands(State#state{stream=Stream}, Tail);
+commands(State0=#state{socket=Socket, transport=Transport},
+		[{trailers, Trailers}|Tail]) ->
 	case maybe_invalid_response_headers(Trailers, State0) of
 		error_terminate ->
 			%% When there are invalid trailer headers the only thing
@@ -1374,7 +1368,7 @@ commands(State0=#state{socket=Socket, transport=Transport, streams=Streams, out_
 		ok ->
 			ok
 	end,
-	case stream_te(OutState, lists:keyfind(StreamID, #stream.id, Streams)) of
+	case stream_te(State0) of
 		trailers ->
 			ok = maybe_socket_error(State0,
 				Transport:send(Socket, [
@@ -1390,20 +1384,19 @@ commands(State0=#state{socket=Socket, transport=Transport, streams=Streams, out_
 			ok
 	end,
 	State = maybe_reset_idle_timeout(State0#state{out_state=done}),
-	commands(State, StreamID, Tail);
+	commands(State, Tail);
 %% Protocol takeover.
 commands(State0=#state{ref=Ref, parent=Parent, socket=Socket, transport=Transport,
-		out_state=OutState, buffer=Buffer, children=Children}, StreamID,
+		out_state=OutState, buffer=Buffer, stream=Stream0, children=Children},
 		[{switch_protocol, Headers, Protocol, InitialState}|_Tail]) ->
 	case maybe_invalid_response_headers(Headers, State0) of
 		error_terminate ->
 			Reason = {internal_error, invalid_response_header,
 				'An invalid response header was detected when switching protocol.'},
-			terminate(stream_terminate(State0, StreamID, Reason), Reason);
+			terminate(stream_terminate(State0, Reason), Reason);
 		ok ->
 			ok
 	end,
-	%% @todo If there's streams opened after this one, fail instead of 101.
 	State1 = cancel_timeout(State0),
 	%% Before we send the 101 response we need to stop receiving data
 	%% from the socket, otherwise the data might be receive before the
@@ -1413,11 +1406,12 @@ commands(State0=#state{ref=Ref, parent=Parent, socket=Socket, transport=Transpor
 	%% to process or skip the body before the upgrade can be completed.
 	State = passive(State1),
 	%% Send a 101 response if necessary, then terminate the stream.
-	#state{streams=Streams} = case OutState of
+	#stream{id=StreamID} = Stream0,
+	#state{stream=Stream} = case OutState of
 		wait -> info(State, StreamID, {inform, 101, Headers});
 		_ -> State
 	end,
-	#stream{state=StreamState} = lists:keyfind(StreamID, #stream.id, Streams),
+	#stream{state=StreamState} = Stream,
 	stream_call_terminate(StreamID, switch_protocol, StreamState, State),
 	%% Terminate children processes and flush any remaining messages from the mailbox.
 	cowboy_children:terminate(Children),
@@ -1428,7 +1422,7 @@ commands(State0=#state{ref=Ref, parent=Parent, socket=Socket, transport=Transpor
 	Protocol:takeover(Parent, Ref, Socket, Transport,
 		opts_for_upgrade(State), Buffer, InitialState);
 %% Set options dynamically.
-commands(State0, StreamID, [{set_options, SetOpts}|Tail]) ->
+commands(State0, [{set_options, SetOpts}|Tail]) ->
 	State = maps:fold(fun
 		(chunked, Chunked, StateF=#state{overriden_opts=Opts}) ->
 			StateF#state{overriden_opts=Opts#{chunked => Chunked}};
@@ -1438,9 +1432,9 @@ commands(State0, StreamID, [{set_options, SetOpts}|Tail]) ->
 		(_, _, StateF) ->
 			StateF
 	end, State0, SetOpts),
-	commands(State, StreamID, Tail);
+	commands(State, Tail);
 %% Stream shutdown.
-commands(State, StreamID, [stop|Tail]) ->
+commands(State, [stop|_Tail]) ->
 	%% @todo Do we want to run the commands after a stop?
 	%% @todo We currently wait for the stop command before we
 	%% continue with the next request/response. In theory, if
@@ -1448,14 +1442,14 @@ commands(State, StreamID, [stop|Tail]) ->
 	%% was sent fully we should be able to start working on
 	%% the next request concurrently. This can be done as a
 	%% future optimization.
-	maybe_terminate(State, StreamID, Tail);
+	maybe_terminate(State);
 %% Log event.
-commands(State=#state{opts=Opts}, StreamID, [Log={log, _, _, _}|Tail]) ->
+commands(State=#state{opts=Opts}, [Log={log, _, _, _}|Tail]) ->
 	cowboy:log(Log, Opts),
-	commands(State, StreamID, Tail);
+	commands(State, Tail);
 %% HTTP/1.1 does not support push; ignore.
-commands(State, StreamID, [{push, _, _, _, _, _, _, _}|Tail]) ->
-	commands(State, StreamID, Tail).
+commands(State, [{push, _, _, _, _, _, _, _}|Tail]) ->
+	commands(State, Tail).
 
 maybe_invalid_response_headers(Headers, #state{opts=Opts}) ->
 	validate_response_headers(Headers, Opts).
@@ -1521,19 +1515,22 @@ flush(Parent) ->
 		ok
 	end.
 
-%% @todo In these cases I'm not sure if we should continue processing commands.
-maybe_terminate(State=#state{last_streamid=StreamID}, StreamID, _Tail) ->
-	terminate(stream_terminate(State, StreamID, normal), normal); %% @todo Reason ok?
-maybe_terminate(State, StreamID, _Tail) ->
-	stream_terminate(State, StreamID, normal).
+maybe_terminate(State=#state{last_streamid=StreamID, stream=#stream{id=StreamID}}) ->
+	terminate(stream_terminate(State, normal), normal); %% @todo Reason ok?
+maybe_terminate(State) ->
+	stream_terminate(State, normal).
 
-stream_terminate(State0=#state{opts=Opts, in_streamid=InStreamID, in_state=InState,
-		out_streamid=OutStreamID, out_state=OutState, streams=Streams0,
-		children=Children0}, StreamID, Reason) ->
-	#stream{version=Version, local_expected_size=ExpectedSize, local_sent_size=SentSize}
-		= lists:keyfind(StreamID, #stream.id, Streams0),
+stream_terminate(State0=#state{opts=Opts, active=Active,
+		in_state=InState, out_state=OutState, stream=Stream0,
+		children=Children0}, Reason) ->
+	#stream{
+		id=StreamID,
+		version=Version,
+		local_expected_size=ExpectedSize,
+		local_sent_size=SentSize
+	} = Stream0,
 	%% Send a response or terminate chunks depending on the current output state.
-	State1 = #state{streams=Streams1} = case OutState of
+	State1 = #state{stream=Stream} = case OutState of
 		wait when element(1, Reason) =:= internal_error ->
 			info(State0, StreamID, {response, 500, #{<<"content-length">> => <<"0">>}, <<>>});
 		wait when element(1, Reason) =:= connection_error ->
@@ -1548,50 +1545,27 @@ stream_terminate(State0=#state{opts=Opts, in_streamid=InStreamID, in_state=InSta
 			State0
 	end,
 	%% Stop the stream, shutdown children and reset overriden options.
-	{value, #stream{state=StreamState}, Streams}
-		= lists:keytake(StreamID, #stream.id, Streams1),
+	#stream{state=StreamState} = Stream,
 	stream_call_terminate(StreamID, Reason, StreamState, State1),
 	Children = cowboy_children:shutdown(Children0, StreamID),
-	State = State1#state{overriden_opts=#{}, streams=Streams, children=Children},
+	State = State1#state{overriden_opts=#{}, stream=undefined, children=Children},
 	%% We want to drop the connection if the body was not read fully
 	%% and we don't know its length or more remains to be read than
 	%% configuration allows.
 	MaxSkipBodyLength = maps:get(max_skip_body_length, Opts, 1000000),
 	case InState of
-		#ps_body{length=undefined}
-				when InStreamID =:= OutStreamID ->
+		#ps_body{length=undefined} ->
 			terminate(State, skip_body_unknown_length);
 		#ps_body{length=Len, received=Received}
-				when InStreamID =:= OutStreamID, Received + MaxSkipBodyLength < Len ->
+				when Received + MaxSkipBodyLength < Len ->
 			terminate(State, skip_body_too_large);
-		#ps_body{} when InStreamID =:= OutStreamID ->
-			stream_next(State#state{flow=infinity});
-		#ps_trailer{} when InStreamID =:= OutStreamID ->
-			stream_next(State#state{flow=infinity});
 		_ ->
-			stream_next(State)
-	end.
-
-stream_next(State0=#state{opts=Opts, active=Active, out_streamid=OutStreamID, streams=Streams}) ->
-	%% Enable active mode again if it was disabled.
-	State1 = case Active of
-		true -> State0;
-		false -> active(State0)
-	end,
-	NextOutStreamID = OutStreamID + 1,
-	case lists:keyfind(NextOutStreamID, #stream.id, Streams) of
-		false ->
-			State = State1#state{out_streamid=NextOutStreamID, out_state=wait},
-			%% There are no streams remaining. We therefore can
-			%% and want to switch back to the request_timeout.
-			set_timeout(State, request_timeout);
-		#stream{queue=Commands} ->
-			%% @todo Remove queue from the stream.
-			%% We set the flow to the initial flow size even though
-			%% we might have sent some data through already due to pipelining.
-			Flow = maps:get(initial_stream_flow_size, Opts, 65535),
-			commands(State1#state{flow=Flow, out_streamid=NextOutStreamID, out_state=wait},
-				NextOutStreamID, Commands)
+			%% Enable active mode again if it was disabled.
+			StateN = case Active of
+				true -> State;
+				false -> active(State)
+			end,
+			StateN#state{out_state=wait, flow=infinity}
 	end.
 
 stream_call_terminate(StreamID, Reason, StreamState, #state{opts=Opts}) ->
@@ -1627,35 +1601,38 @@ maybe_req_close(_, #{<<"connection">> := Conn}, 'HTTP/1.1') ->
 maybe_req_close(_, _, _) ->
 	keepalive.
 
-connection(State=#state{last_streamid=StreamID}, Headers=#{<<"connection">> := Conn}, StreamID, _) ->
+connection(State=#state{last_streamid=StreamID, stream=#stream{id=StreamID}},
+		Headers=#{<<"connection">> := Conn}) ->
 	case connection_hd_is_close(Conn) of
 		true -> {State, Headers};
 		%% @todo Here we need to remove keep-alive and add close, not just add close.
 		false -> {State, Headers#{<<"connection">> => [<<"close, ">>, Conn]}}
 	end;
-connection(State=#state{last_streamid=StreamID}, Headers, StreamID, _) ->
+connection(State=#state{last_streamid=StreamID, stream=#stream{id=StreamID}},
+		Headers) ->
 	{State, Headers#{<<"connection">> => <<"close">>}};
-connection(State, Headers=#{<<"connection">> := Conn}, StreamID, _) ->
+connection(State=#state{stream=#stream{id=StreamID}},
+		Headers=#{<<"connection">> := Conn}) ->
 	case connection_hd_is_close(Conn) of
 		true -> {State#state{last_streamid=StreamID}, Headers};
 		%% @todo Here we need to set keep-alive only if it wasn't set before.
 		false -> {State, Headers}
 	end;
-connection(State, Headers, _, 'HTTP/1.0') ->
+connection(State=#state{stream=#stream{version='HTTP/1.0'}}, Headers) ->
 	{State, Headers#{<<"connection">> => <<"keep-alive">>}};
-connection(State, Headers, _, _) ->
+connection(State, Headers) ->
 	{State, Headers}.
 
 connection_hd_is_close(Conn) ->
 	Conns = cow_http_hd:parse_connection(iolist_to_binary(Conn)),
 	lists:member(<<"close">>, Conns).
 
-stream_te(streaming, _) ->
+stream_te(#state{out_state=streaming}) ->
 	not_chunked;
 %% No TE header was sent.
-stream_te(_, #stream{te=undefined}) ->
+stream_te(#state{stream=#stream{te=undefined}}) ->
 	no_trailers;
-stream_te(_, #stream{te=TE0}) ->
+stream_te(#state{stream=#stream{te=TE0}}) ->
 	try cow_http_hd:parse_te(TE0) of
 		{TE1, _} -> TE1
 	catch _:_ ->
@@ -1665,6 +1642,7 @@ stream_te(_, #stream{te=TE0}) ->
 
 %% This function is only called when an error occurs on a new stream.
 -spec error_terminate(cowboy:http_status(), #state{}, _) -> no_return().
+
 error_terminate(StatusCode, State=#state{ref=Ref, peer=Peer, in_state=StreamState}, Reason) ->
 	PartialReq = case StreamState of
 		#ps_request_line{} -> #{
@@ -1729,14 +1707,10 @@ early_error_resp({response, StatusCode, RespHeaders, RespBody},
 		])
 	).
 
-initiate_closing(State=#state{streams=[]}, Reason) ->
+initiate_closing(State=#state{stream=undefined}, Reason) ->
 	terminate(State, Reason);
-initiate_closing(State=#state{streams=Streams,
-		out_streamid=OutStreamID}, Reason) ->
-	{value, LastStream, TerminatedStreams}
-		= lists:keytake(OutStreamID, #stream.id, Streams),
-	terminate_all_streams(State, TerminatedStreams, Reason),
-	State#state{streams=[LastStream], last_streamid=OutStreamID}.
+initiate_closing(State=#state{stream=#stream{id=LastStreamID}}, _Reason) ->
+	State#state{last_streamid=LastStreamID}.
 
 %% Function replicated in cowboy_http2.
 maybe_socket_error(State, {error, closed}) ->
@@ -1752,19 +1726,20 @@ maybe_socket_error(State, {error, Reason}, Human) ->
 	terminate(State, {socket_error, Reason, Human}).
 
 -spec terminate(#state{} | undefined, _) -> no_return().
+
 terminate(undefined, Reason) ->
 	exit({shutdown, Reason});
-terminate(State=#state{streams=Streams, children=Children}, Reason) ->
-	terminate_all_streams(State, Streams, Reason),
+terminate(State=#state{children=Children}, Reason) ->
+	terminate_last_stream(State, Reason),
 	cowboy_children:terminate(Children),
 	terminate_linger(State),
 	exit({shutdown, Reason}).
 
-terminate_all_streams(_, [], _) ->
+terminate_last_stream(#state{stream=undefined}, _) ->
 	ok;
-terminate_all_streams(State, [#stream{id=StreamID, state=StreamState}|Tail], Reason) ->
+terminate_last_stream(State=#state{stream=#stream{id=StreamID, state=StreamState}}, Reason) ->
 	stream_call_terminate(StreamID, Reason, StreamState, State),
-	terminate_all_streams(State, Tail, Reason).
+	ok.
 
 terminate_linger(State=#state{socket=Socket, transport=Transport, opts=Opts}) ->
 	case Transport:shutdown(Socket, write) of
@@ -1813,15 +1788,18 @@ terminate_linger_loop(State=#state{socket=Socket}, TimerRef, Messages) ->
 
 %% System callbacks.
 
--spec system_continue(_, _, #state{}) -> ok.
+-spec system_continue(_, _, #state{}) -> no_return().
+
 system_continue(_, _, State) ->
 	before_loop(State).
 
 -spec system_terminate(any(), _, _, #state{}) -> no_return().
+
 system_terminate(Reason0, _, _, State) ->
 	Reason = {stop, {exit, Reason0}, 'sys:terminate/2,3 was called.'},
 	before_loop(initiate_closing(State, Reason)).
 
 -spec system_code_change(Misc, _, _, _) -> {ok, Misc} when Misc::{#state{}, binary()}.
+
 system_code_change(Misc, _, _, _) ->
 	{ok, Misc}.

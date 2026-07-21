@@ -1222,8 +1222,7 @@ graceful_shutdown_connection(Config) ->
 	doc("Check that the current request is handled before gracefully "
 	    "shutting down a connection."),
 	Dispatch = cowboy_router:compile([{"localhost", [
-		{"/hello", delay_hello_h,
-			#{delay => 0, notify_received => self()}},
+		{"/hello", hello_h, #{}},
 		{"/delay_hello", delay_hello_h,
 			#{delay => 1000, notify_received => self()}}
 	]}]),
@@ -1240,7 +1239,6 @@ graceful_shutdown_connection(Config) ->
 			"GET /hello HTTP/1.1\r\n"
 			"Host: localhost\r\n\r\n"),
 		receive {request_received, <<"/delay_hello">>} -> ok end,
-		receive {request_received, <<"/hello">>} -> ok end,
 		CowboyConnPid = get_remote_pid_tcp(element(2, Client)),
 		CowboyConnRef = erlang:monitor(process, CowboyConnPid),
 		ok = sys:terminate(CowboyConnPid, system_is_going_down),
