@@ -577,7 +577,7 @@ headers_frame_parse_host1(State=#state{ref=Ref, peer=Peer, sock=Sock, cert=Cert,
 	try cow_http_hd:parse_host(Authority) of
 		{Host, Port0} ->
 			Port = ensure_port(Scheme, Port0),
-			try cow_http:parse_fullpath(PathWithQs) of
+			case cow_http:parse_fullpath(PathWithQs) of
 				{<<>>, _} ->
 					reset_stream(State, StreamID, {stream_error, protocol_error,
 						'The path component must not be empty. (RFC7540 8.1.2.3)'});
@@ -611,9 +611,6 @@ headers_frame_parse_host1(State=#state{ref=Ref, peer=Peer, sock=Sock, cert=Cert,
 						_ -> Req1
 					end,
 					headers_frame(State, StreamID, Req)
-			catch _:_ ->
-				reset_stream(State, StreamID, {stream_error, protocol_error,
-					'The :path pseudo-header is invalid. (RFC7540 8.1.2.3)'})
 			end
 	catch _:_ ->
 		reset_stream(State, StreamID, {stream_error, protocol_error,

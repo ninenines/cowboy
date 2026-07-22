@@ -4074,6 +4074,22 @@ reject_invalid_pseudo_header_path_nul(Config) ->
 	{ok, << _:24, 3:8, _:8, 1:32, 1:32 >>} = gen_tcp:recv(Socket, 13, 6000),
 	ok.
 
+reject_invalid_pseudo_header_path_fragment(Config) ->
+	doc("A request with an invalid path component must be rejected "
+		"with a PROTOCOL_ERROR stream error. (RFC9110 5.5)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame with an invalid :path pseudo-header.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/#fragment">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+	%% Receive a PROTOCOL_ERROR stream error.
+	{ok, << _:24, 3:8, _:8, 1:32, 1:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+	ok.
+
 reject_many_pseudo_header_path(Config) ->
 	doc("A request containing more than one path component must be rejected "
 		"with a PROTOCOL_ERROR stream error. (RFC7540 8.1.2.3, RFC7540 8.1.2.6)"),

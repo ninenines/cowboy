@@ -268,20 +268,18 @@ reject_two_sp_between_method_and_request_target(Config) ->
 
 %% Request target.
 
-ignore_uri_fragment_after_path(Config) ->
-	doc("The fragment part of the target URI is not sent. It must be "
-		"ignored by a server receiving it. (RFC7230 5.1)"),
-	Echo = <<"http://localhost/echo/uri">>,
-	#{code := 200, body := Echo} = do_raw(Config,
+reject_uri_fragment_after_path(Config) ->
+	doc("A target URI containing a fragment must be rejected with a 400 "
+		"error and the closing of the connection. (RFC9110 4.1, RFC9112 3.2)"),
+	#{code := 400} = do_raw(Config,
 		"GET /echo/uri#fragment HTTP/1.1\r\n"
 		"Host: localhost\r\n"
 		"\r\n").
 
-ignore_uri_fragment_after_query(Config) ->
-	doc("The fragment part of the target URI is not sent. It must be "
-		"ignored by a server receiving it. (RFC7230 5.1)"),
-	Echo = <<"http://localhost/echo/uri?key=value">>,
-	#{code := 200, body := Echo} = do_raw(Config,
+reject_uri_fragment_after_query(Config) ->
+	doc("A target URI containing a fragment must be rejected with a 400 "
+		"error and the closing of the connection. (RFC9110 4.1, RFC9112 3.2)"),
+	#{code := 400} = do_raw(Config,
 		"GET /echo/uri?key=value#fragment HTTP/1.1\r\n"
 		"Host: localhost\r\n"
 		"\r\n").
@@ -317,7 +315,7 @@ origin_form_tcp_scheme(Config) ->
 		"\r\n").
 
 origin_form_path(Config) ->
-	doc("The absolute-path always starts with \"/\" and ends with either \"?\", \"#\" "
+	doc("The absolute-path always starts with \"/\" and ends with either \"?\" "
 		"or the end of the URI. (RFC3986 3.3)"),
 	Echo = <<"/echo/path">>,
 	#{code := 200, body := Echo} = do_raw(Config,
@@ -335,7 +333,7 @@ origin_form_reject_invalid_path(Config) ->
 	{error, closed} = raw_recv(Client, 0, 1000).
 
 origin_form_path_query(Config) ->
-	doc("The absolute-path always starts with \"/\" and ends with either \"?\", \"#\" "
+	doc("The absolute-path always starts with \"/\" and ends with either \"?\" "
 		"or the end of the URI. (RFC3986 3.3)"),
 	Echo = <<"/echo/path">>,
 	#{code := 200, body := Echo} = do_raw(Config,
@@ -344,16 +342,15 @@ origin_form_path_query(Config) ->
 		"\r\n").
 
 origin_form_path_fragment(Config) ->
-	doc("The absolute-path always starts with \"/\" and ends with either \"?\", \"#\" "
-		"or the end of the URI. (RFC3986 3.3)"),
-	Echo = <<"/echo/path">>,
-	#{code := 200, body := Echo} = do_raw(Config,
+	doc("A target URI containing a fragment must be rejected with a 400 "
+		"error and the closing of the connection. (RFC9110 4.1, RFC9112 3.2)"),
+	#{code := 400} = do_raw(Config,
 		"GET /echo/path#fragment HTTP/1.1\r\n"
 		"Host: localhost\r\n"
 		"\r\n").
 
 origin_form_query(Config) ->
-	doc("The query starts with \"?\" and ends with \"#\" or the end of the URI. (RFC3986 3.4)"),
+	doc("The query starts with \"?\" and ends with the end of the URI. (RFC3986 3.4)"),
 	Echo = <<"key=value">>,
 	#{code := 200, body := Echo} = do_raw(Config,
 		"GET /echo/qs?key=value HTTP/1.1\r\n"
@@ -370,9 +367,9 @@ origin_form_reject_invalid_query(Config) ->
 	{error, closed} = raw_recv(Client, 0, 1000).
 
 origin_form_query_fragment(Config) ->
-	doc("The query starts with \"?\" and ends with \"#\" or the end of the URI. (RFC3986 3.4)"),
-	Echo = <<"key=value">>,
-	#{code := 200, body := Echo} = do_raw(Config,
+	doc("A target URI containing a fragment must be rejected with a 400 "
+		"error and the closing of the connection. (RFC9110 4.1, RFC9112 3.2)"),
+	#{code := 400} = do_raw(Config,
 		"GET /echo/qs?key=value#fragment HTTP/1.1\r\n"
 		"Host: localhost\r\n"
 		"\r\n").
@@ -577,7 +574,7 @@ absolute_form_reject_invalid_port_nul(Config) ->
 %% is the same in both, and errors out otherwise.
 
 absolute_form_path(Config) ->
-	doc("The path always starts with \"/\" and ends with either \"?\", \"#\" "
+	doc("The path always starts with \"/\" and ends with either \"?\" "
 		"or the end of the URI. (RFC3986 3.3)"),
 	Echo = <<"/echo/path">>,
 	#{code := 200, body := Echo} = do_raw(Config,
@@ -595,7 +592,7 @@ absolute_form_reject_invalid_path(Config) ->
 	{error, closed} = raw_recv(Client, 0, 1000).
 
 absolute_form_path_query(Config) ->
-	doc("The path always starts with \"/\" and ends with either \"?\", \"#\" "
+	doc("The path always starts with \"/\" and ends with either \"?\" "
 		"or the end of the URI. (RFC3986 3.3)"),
 	Echo = <<"/echo/path">>,
 	#{code := 200, body := Echo} = do_raw(Config,
@@ -613,10 +610,9 @@ absolute_form_reject_invalid_query(Config) ->
 	{error, closed} = raw_recv(Client, 0, 1000).
 
 absolute_form_path_fragment(Config) ->
-	doc("The path always starts with \"/\" and ends with either \"?\", \"#\" "
-		"or the end of the URI. (RFC3986 3.3)"),
-	Echo = <<"/echo/path">>,
-	#{code := 200, body := Echo} = do_raw(Config,
+	doc("A target URI containing a fragment must be rejected with a 400 "
+		"error and the closing of the connection. (RFC9110 4.1, RFC9112 3.2)"),
+	#{code := 400} = do_raw(Config,
 		"GET http://localhost/echo/path#fragment HTTP/1.1\r\n"
 		"Host: localhost\r\n"
 		"\r\n").
@@ -636,14 +632,15 @@ absolute_form_no_path_then_query(Config) ->
 		"\r\n").
 
 absolute_form_no_path_then_fragment(Config) ->
-	doc("An empty path component is equivalent to \"/\". (RFC7230 2.7.3)"),
-	#{code := 200, body := <<"Hello world!">>} = do_raw(Config,
+	doc("A target URI containing a fragment must be rejected with a 400 "
+		"error and the closing of the connection. (RFC9110 4.1, RFC9112 3.2)"),
+	#{code := 400} = do_raw(Config,
 		"GET http://localhost#fragment HTTP/1.1\r\n"
 		"Host: localhost\r\n"
 		"\r\n").
 
 absolute_form_query(Config) ->
-	doc("The query starts with \"?\" and ends with \"#\" or the end of the URI. (RFC3986 3.4)"),
+	doc("The query starts with \"?\" and ends with the end of the URI. (RFC3986 3.4)"),
 	Echo = <<"key=value">>,
 	#{code := 200, body := Echo} = do_raw(Config,
 		"GET http://localhost/echo/qs?key=value HTTP/1.1\r\n"
@@ -651,9 +648,9 @@ absolute_form_query(Config) ->
 		"\r\n").
 
 absolute_form_query_fragment(Config) ->
-	doc("The query starts with \"?\" and ends with \"#\" or the end of the URI. (RFC3986 3.4)"),
-	Echo = <<"key=value">>,
-	#{code := 200, body := Echo} = do_raw(Config,
+	doc("A target URI containing a fragment must be rejected with a 400 "
+		"error and the closing of the connection. (RFC9110 4.1, RFC9112 3.2)"),
+	#{code := 400} = do_raw(Config,
 		"GET http://localhost/echo/qs?key=value#fragment HTTP/1.1\r\n"
 		"Host: localhost\r\n"
 		"\r\n").

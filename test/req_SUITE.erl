@@ -372,8 +372,6 @@ do_path(Path0, Config) ->
 	Path = list_to_binary(Path0 ++ "/to/the/resource"),
 	Path = do_get_body(Path, Config),
 	Path = do_get_body([Path, "?query"], Config),
-	Path = do_get_body([Path, "?query#fragment"], Config),
-	Path = do_get_body([Path, "#fragment"], Config),
 	ok.
 
 path_info(Config) ->
@@ -383,8 +381,6 @@ path_info(Config) ->
 	<<"[]">> = do_get_body("/path_info/", Config),
 	<<"[<<\"to\">>,<<\"the\">>,<<\"resource\">>]">> = do_get_body("/path_info/to/the/resource", Config),
 	<<"[<<\"to\">>,<<\"the\">>,<<\"resource\">>]">> = do_get_body("/path_info/to/the/resource?query", Config),
-	<<"[<<\"to\">>,<<\"the\">>,<<\"resource\">>]">> = do_get_body("/path_info/to/the/resource?query#fragment", Config),
-	<<"[<<\"to\">>,<<\"the\">>,<<\"resource\">>]">> = do_get_body("/path_info/to/the/resource#fragment", Config),
 	ok.
 
 peer(Config) ->

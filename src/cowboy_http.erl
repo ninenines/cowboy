@@ -586,17 +586,16 @@ parse_uri_authority(<<C, Rest/bits>>, State, Method, SoFar, Remaining) ->
 		$@ ->
 			error_terminate(400, State, {connection_error, protocol_error,
 				'Absolute URIs must not include a userinfo component. (RFC7230 2.7.1)'});
-		C when SoFar =:= <<>> andalso
-				((C =:= $/) orelse (C =:= $\s) orelse (C =:= $?) orelse (C =:= $#)) ->
+		$# ->
 			error_terminate(400, State, {connection_error, protocol_error,
-				'Absolute URIs must include a non-empty host component. (RFC7230 2.7.1)'});
-		$: when SoFar =:= <<>> ->
+				'The request-target must not include a fragment component. (RFC9110 4.1, RFC9112 3.2)'});
+		C when SoFar =:= <<>> andalso
+				((C =:= $/) orelse (C =:= $\s) orelse (C =:= $?) orelse (C =:= $:)) ->
 			error_terminate(400, State, {connection_error, protocol_error,
 				'Absolute URIs must include a non-empty host component. (RFC7230 2.7.1)'});
 		$/ -> parse_uri_path(Rest, State, Method, SoFar, <<"/">>);
 		$\s -> parse_version(Rest, State, Method, SoFar, <<"/">>, <<>>);
 		$? -> parse_uri_query(Rest, State, Method, SoFar, <<"/">>, <<>>);
-		$# -> skip_uri_fragment(Rest, State, Method, SoFar, <<"/">>, <<>>);
 		C when Remaining > 0 ->
 			parse_uri_authority(Rest, State, Method, <<SoFar/binary, C>>, Remaining - 1);
 		_ ->
@@ -610,9 +609,10 @@ parse_uri_path(<<C, Rest/bits>>, State, Method, Authority, SoFar) ->
 			'NUL byte is not allowed in the request-target. (RFC7230 3.1.1)'});
 		$\r -> error_terminate(400, State, {connection_error, protocol_error,
 			'The request-target must not be followed by a line break. (RFC7230 3.1.1)'});
+		$# -> error_terminate(400, State, {connection_error, protocol_error,
+			'The request-target must not include a fragment component. (RFC9110 4.1, RFC9112 3.2)'});
 		$\s -> parse_version(Rest, State, Method, Authority, SoFar, <<>>);
 		$? -> parse_uri_query(Rest, State, Method, Authority, SoFar, <<>>);
-		$# -> skip_uri_fragment(Rest, State, Method, Authority, SoFar, <<>>);
 		_ -> parse_uri_path(Rest, State, Method, Authority, <<SoFar/binary, C>>)
 	end.
 
@@ -622,17 +622,10 @@ parse_uri_query(<<C, Rest/bits>>, State, M, A, P, SoFar) ->
 			'NUL byte is not allowed in the request-target. (RFC7230 3.1.1)'});
 		$\r -> error_terminate(400, State, {connection_error, protocol_error,
 			'The request-target must not be followed by a line break. (RFC7230 3.1.1)'});
+		$# -> error_terminate(400, State, {connection_error, protocol_error,
+			'The request-target must not include a fragment component. (RFC9110 4.1, RFC9112 3.2)'});
 		$\s -> parse_version(Rest, State, M, A, P, SoFar);
-		$# -> skip_uri_fragment(Rest, State, M, A, P, SoFar);
 		_ -> parse_uri_query(Rest, State, M, A, P, <<SoFar/binary, C>>)
-	end.
-
-skip_uri_fragment(<<C, Rest/bits>>, State, M, A, P, Q) ->
-	case C of
-		$\r -> error_terminate(400, State, {connection_error, protocol_error,
-			'The request-target must not be followed by a line break. (RFC7230 3.1.1)'});
-		$\s -> parse_version(Rest, State, M, A, P, Q);
-		_ -> skip_uri_fragment(Rest, State, M, A, P, Q)
 	end.
 
 parse_version(<< "HTTP/1.1\r\n", Rest/bits >>, State, M, A, P, Q) ->
