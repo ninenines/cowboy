@@ -1056,7 +1056,27 @@ limit_headers(Config) ->
 		"Host: localhost\r\n",
 		[["H-", integer_to_list(N), ": value\r\n"] || N <- lists:seq(1, 100)],
 		"\r\n"]),
-	{error, closed} = raw_recv(Client, 0, 1000).
+	{error, closed} = raw_recv(Client, 0, 1000),
+	%% 100 header lines with duplicates.
+	#{code := 200} = do_raw(Config, [
+		"GET / HTTP/1.1\r\n"
+		"Host: localhost\r\n",
+		["X: a\r\n" || _ <- lists:seq(1, 99)],
+		"\r\n"]),
+	%% 101 header lines with duplicates.
+	#{code := 431, client := Client2} = do_raw(Config, [
+		"GET / HTTP/1.1\r\n"
+		"Host: localhost\r\n",
+		["X: a\r\n" || _ <- lists:seq(1, 100)],
+		"\r\n"]),
+	{error, closed} = raw_recv(Client2, 0, 1000),
+	%% 101 header lines with duplicate cookie header.
+	#{code := 431, client := Client3} = do_raw(Config, [
+		"GET / HTTP/1.1\r\n"
+		"Host: localhost\r\n",
+		["Cookie: a=b\r\n" || _ <- lists:seq(1, 100)],
+		"\r\n"]),
+	{error, closed} = raw_recv(Client3, 0, 1000).
 
 %ignore_header_empty_list_elements(Config) ->
 %When parsing header field values, the server must ignore empty

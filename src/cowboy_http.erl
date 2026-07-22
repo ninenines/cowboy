@@ -86,6 +86,7 @@
 	qs = undefined :: binary(),
 	version = undefined :: cowboy:http_version(),
 	headers = undefined :: cowboy:http_headers() | undefined,
+	num_headers = 0 :: non_neg_integer(),
 	name = undefined :: binary() | undefined
 }).
 
@@ -403,14 +404,16 @@ parse(Buffer, State=#state{in_state=ps_next_request, stream=undefined}) ->
 	next_request(State#state{buffer=Buffer});
 parse(Buffer, State=#state{in_state=#ps_request_line{empty_lines=EmptyLines}}) ->
 	after_parse(parse_request(Buffer, State, EmptyLines));
-parse(Buffer, State=#state{in_state=PS=#ps_header{headers=Headers, name=undefined}}) ->
+parse(Buffer, State=#state{in_state=PS=#ps_header{
+		headers=Headers, num_headers=Num, name=undefined}}) ->
 	after_parse(parse_header(Buffer,
 		State#state{in_state=PS#ps_header{headers=undefined}},
-		Headers));
-parse(Buffer, State=#state{in_state=PS=#ps_header{headers=Headers, name=Name}}) ->
+		Headers, Num));
+parse(Buffer, State=#state{in_state=PS=#ps_header{
+		headers=Headers, num_headers=Num, name=Name}}) ->
 	after_parse(parse_hd_before_value(Buffer,
 		State#state{in_state=PS#ps_header{headers=undefined, name=undefined}},
-		Headers, Name));
+		Headers, Num, Name));
 parse(Buffer, State=#state{in_state=#ps_body{}}) ->
 	after_parse(parse_body(Buffer, State));
 parse(Buffer, State=#state{in_state=#ps_trailer{}}) ->
@@ -644,53 +647,59 @@ parse_version(_, State, _, _, _, _) ->
 
 before_parse_headers(Rest, State, M, A, P, Q, V) ->
 	parse_header(Rest, State#state{in_state=#ps_header{
-		method=M, authority=A, path=P, qs=Q, version=V}}, #{}).
+		method=M, authority=A, path=P, qs=Q, version=V}}, #{}, 0).
 
 %% Headers.
 
-parse_header(<< $\n, _/bits >>, State=#state{in_state=PS}, Headers) ->
-	error_terminate(400, State#state{in_state=PS#ps_header{headers=Headers}},
+parse_header(<< $\n, _/bits >>, State=#state{in_state=PS}, Headers, Num) ->
+	error_terminate(400, State#state{in_state=PS#ps_header{
+			headers=Headers, num_headers=Num}},
 		{connection_error, protocol_error,
 			'Header lines must use the CRLF line terminator. (RFC7230 3.2, RFC7230 3.5)'});
 %% We need two or more bytes in the buffer to continue.
-parse_header(Rest, State=#state{in_state=PS}, Headers) when byte_size(Rest) < 2 ->
-	{more, State#state{buffer=Rest, in_state=PS#ps_header{headers=Headers}}};
-parse_header(<< $\r, $\n, Rest/bits >>, S, Headers) ->
+parse_header(Rest, State=#state{in_state=PS}, Headers, Num) when byte_size(Rest) < 2 ->
+	{more, State#state{buffer=Rest, in_state=PS#ps_header{
+		headers=Headers, num_headers=Num}}};
+parse_header(<< $\r, $\n, Rest/bits >>, S, Headers, _) ->
 	request(Rest, S, Headers);
-parse_header(Buffer, State=#state{opts=Opts, in_state=PS}, Headers) ->
+parse_header(Buffer, State=#state{opts=Opts, in_state=PS}, Headers, Num) ->
 	MaxHeaders = maps:get(max_headers, Opts, 100),
-	NumHeaders = maps:size(Headers),
 	if
-		NumHeaders >= MaxHeaders ->
-			error_terminate(431, State#state{in_state=PS#ps_header{headers=Headers}},
+		Num >= MaxHeaders ->
+			error_terminate(431, State#state{in_state=PS#ps_header{
+					headers=Headers, num_headers=Num}},
 				{connection_error, limit_reached,
 					'The number of headers is larger than configuration allows. (RFC7230 3.2.5, RFC6585 5)'});
 		true ->
-			parse_header_colon(Buffer, State, Headers)
+			parse_header_colon(Buffer, State, Headers, Num)
 	end.
 
-parse_header_colon(Buffer, State=#state{opts=Opts, in_state=PS}, Headers) ->
+parse_header_colon(Buffer, State=#state{opts=Opts, in_state=PS}, Headers, Num) ->
 	MaxLength = maps:get(max_header_name_length, Opts, 64),
 	case match_colon(Buffer, 0) of
 		nomatch when byte_size(Buffer) > MaxLength ->
-			error_terminate(431, State#state{in_state=PS#ps_header{headers=Headers}},
+			error_terminate(431, State#state{in_state=PS#ps_header{
+					headers=Headers, num_headers=Num}},
 				{connection_error, limit_reached,
 					'A header name is larger than configuration allows. (RFC7230 3.2.5, RFC6585 5)'});
 		nomatch ->
 			case match_eol(Buffer, 0) of
 				nomatch ->
-					{more, State#state{buffer=Buffer, in_state=PS#ps_header{headers=Headers}}};
+					{more, State#state{buffer=Buffer, in_state=PS#ps_header{
+						headers=Headers, num_headers=Num}}};
 				error ->
-					error_terminate(400, State#state{in_state=PS#ps_header{headers=Headers}},
+					error_terminate(400, State#state{in_state=PS#ps_header{
+							headers=Headers, num_headers=Num}},
 						{connection_error, protocol_error,
 							'Header lines must use the CRLF line terminator. (RFC7230 3.2, RFC7230 3.5)'});
 				_ ->
-					error_terminate(400, State#state{in_state=PS#ps_header{headers=Headers}},
+					error_terminate(400, State#state{in_state=PS#ps_header{
+							headers=Headers, num_headers=Num}},
 						{connection_error, protocol_error,
 							'A header line is missing a colon separator. (RFC7230 3.2.4)'})
 			end;
 		_ ->
-			parse_hd_name(Buffer, State, Headers, <<>>)
+			parse_hd_name(Buffer, State, Headers, Num, <<>>)
 	end.
 
 match_colon(<< $:, _/bits >>, N) ->
@@ -700,47 +709,48 @@ match_colon(<< _, Rest/bits >>, N) ->
 match_colon(_, _) ->
 	nomatch.
 
-parse_hd_name(<< $:, Rest/bits >>, State, H, SoFar) ->
-	parse_hd_before_value(Rest, State, H, SoFar);
-parse_hd_name(<< C, _/bits >>, State=#state{in_state=PS}, H, <<>>) when ?IS_WS(C) ->
-	error_terminate(400, State#state{in_state=PS#ps_header{headers=H}},
+parse_hd_name(<< $:, Rest/bits >>, State, H, Num, SoFar) ->
+	parse_hd_before_value(Rest, State, H, Num, SoFar);
+parse_hd_name(<< C, _/bits >>, State=#state{in_state=PS}, H, Num, <<>>) when ?IS_WS(C) ->
+	error_terminate(400, State#state{in_state=PS#ps_header{headers=H, num_headers=Num}},
 		{connection_error, protocol_error,
 			'Whitespace is not allowed before the header name. (RFC7230 3.2)'});
-parse_hd_name(<< C, _/bits >>, State=#state{in_state=PS}, H, _) when ?IS_WS(C) ->
-	error_terminate(400, State#state{in_state=PS#ps_header{headers=H}},
+parse_hd_name(<< C, _/bits >>, State=#state{in_state=PS}, H, Num, _) when ?IS_WS(C) ->
+	error_terminate(400, State#state{in_state=PS#ps_header{headers=H, num_headers=Num}},
 		{connection_error, protocol_error,
 			'Whitespace is not allowed between the header name and the colon. (RFC7230 3.2.4)'});
-parse_hd_name(<< C, _/bits >>, State=#state{in_state=PS}, H, _)
+parse_hd_name(<< C, _/bits >>, State=#state{in_state=PS}, H, Num, _)
 		when C =:= $\r; C =:= $\n ->
-	error_terminate(400, State#state{in_state=PS#ps_header{headers=H}},
+	error_terminate(400, State#state{in_state=PS#ps_header{headers=H, num_headers=Num}},
 		{connection_error, protocol_error,
 			'A header line is missing a colon separator. (RFC7230 3.2.4)'});
-parse_hd_name(<< $\0, _/bits >>, State=#state{in_state=PS}, H, _) ->
-	error_terminate(400, State#state{in_state=PS#ps_header{headers=H}},
+parse_hd_name(<< $\0, _/bits >>, State=#state{in_state=PS}, H, Num, _) ->
+	error_terminate(400, State#state{in_state=PS#ps_header{headers=H, num_headers=Num}},
 		{connection_error, protocol_error,
 			'NUL byte is not allowed in header name. (RFC9110 5.5)'});
-parse_hd_name(<< C, Rest/bits >>, State, H, SoFar) ->
-	?LOWER(parse_hd_name, Rest, State, H, SoFar).
+parse_hd_name(<< C, Rest/bits >>, State, H, Num, SoFar) ->
+	?LOWER(parse_hd_name, Rest, State, H, Num, SoFar).
 
-parse_hd_before_value(<< $\s, Rest/bits >>, S, H, N) ->
-	parse_hd_before_value(Rest, S, H, N);
-parse_hd_before_value(<< $\t, Rest/bits >>, S, H, N) ->
-	parse_hd_before_value(Rest, S, H, N);
-parse_hd_before_value(Buffer, State=#state{opts=Opts, in_state=PS}, H, N) ->
+parse_hd_before_value(<< $\s, Rest/bits >>, S, H, Num, N) ->
+	parse_hd_before_value(Rest, S, H, Num, N);
+parse_hd_before_value(<< $\t, Rest/bits >>, S, H, Num, N) ->
+	parse_hd_before_value(Rest, S, H, Num, N);
+parse_hd_before_value(Buffer, State=#state{opts=Opts, in_state=PS}, H, Num, N) ->
 	MaxLength = max_header_value_length(N, Opts),
 	case match_eol(Buffer, 0) of
 		nomatch when byte_size(Buffer) > MaxLength ->
-			error_terminate(431, State#state{in_state=PS#ps_header{headers=H}},
+			error_terminate(431, State#state{in_state=PS#ps_header{headers=H, num_headers=Num}},
 				{connection_error, limit_reached,
 					'A header value is larger than configuration allows. (RFC7230 3.2.5, RFC6585 5)'});
 		nomatch ->
-			{more, State#state{buffer=Buffer, in_state=PS#ps_header{headers=H, name=N}}};
+			{more, State#state{buffer=Buffer, in_state=PS#ps_header{
+				headers=H, num_headers=Num, name=N}}};
 		error ->
-			error_terminate(400, State#state{in_state=PS#ps_header{headers=H}},
+			error_terminate(400, State#state{in_state=PS#ps_header{headers=H, num_headers=Num}},
 				{connection_error, protocol_error,
 					'Header lines must use the CRLF line terminator. (RFC7230 3.2, RFC7230 3.5)'});
 		_ ->
-			parse_hd_value(Buffer, State, H, N, <<>>)
+			parse_hd_value(Buffer, State, H, Num, N, <<>>)
 	end.
 
 max_header_value_length(<<"authorization">>, #{max_authorization_header_value_length := Max}) ->
@@ -757,7 +767,7 @@ max_header_value_length(_, #{max_header_value_length := Max}) ->
 max_header_value_length(_, _) ->
 	4096.
 
-parse_hd_value(<< $\r, $\n, Rest/bits >>, S, Headers0, Name, SoFar) ->
+parse_hd_value(<< $\r, $\n, Rest/bits >>, S, Headers0, Num, Name, SoFar) ->
 	Value = clean_value_ws_end(SoFar, byte_size(SoFar) - 1),
 	Headers = case maps:get(Name, Headers0, undefined) of
 		undefined -> Headers0#{Name => Value};
@@ -765,13 +775,13 @@ parse_hd_value(<< $\r, $\n, Rest/bits >>, S, Headers0, Name, SoFar) ->
 		Value0 when Name =:= <<"cookie">> -> Headers0#{Name => << Value0/binary, "; ", Value/binary >>};
 		Value0 -> Headers0#{Name => << Value0/binary, ", ", Value/binary >>}
 	end,
-	parse_header(Rest, S, Headers);
-parse_hd_value(<< $\0, _/bits >>, S=#state{in_state=PS}, H, _, _) ->
-	error_terminate(400, S#state{in_state=PS#ps_header{headers=H}},
+	parse_header(Rest, S, Headers, Num + 1);
+parse_hd_value(<< $\0, _/bits >>, S=#state{in_state=PS}, H, Num, _, _) ->
+	error_terminate(400, S#state{in_state=PS#ps_header{headers=H, num_headers=Num}},
 		{connection_error, protocol_error,
 			'NUL byte is not allowed in header value. (RFC9110 5.5)'});
-parse_hd_value(<< C, Rest/bits >>, S, H, N, SoFar) ->
-	parse_hd_value(Rest, S, H, N, << SoFar/binary, C >>).
+parse_hd_value(<< C, Rest/bits >>, S, H, Num, N, SoFar) ->
+	parse_hd_value(Rest, S, H, Num, N, << SoFar/binary, C >>).
 
 clean_value_ws_end(_, -1) ->
 	<<>>;
