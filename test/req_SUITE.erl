@@ -772,6 +772,41 @@ multipart_error_headers(Config) ->
 	], ReqBody, Config),
 	ok.
 
+multipart_error_headers_nul_name(Config) ->
+	doc("Multipart request body with invalid part headers."),
+	ReqBody = [
+		"--deadbeef\r\nx-", 0, "bad: value\r\n\r\nbody\r\n"
+		"--deadbeef--"
+	],
+	{400, _} = do_body_error("POST", "/multipart", [
+		{<<"content-type">>, <<"multipart/mixed; boundary=deadbeef">>}
+	], ReqBody, Config),
+	ok.
+
+multipart_error_headers_nul_value(Config) ->
+	doc("Multipart request body with invalid part headers."),
+	ReqBody = [
+		"--deadbeef\r\nx-bad: val", 0, "ue\r\n\r\nbody\r\n"
+		"--deadbeef--"
+	],
+	{400, _} = do_body_error("POST", "/multipart", [
+		{<<"content-type">>, <<"multipart/mixed; boundary=deadbeef">>}
+	], ReqBody, Config),
+	ok.
+
+multipart_error_headers_nul_filename(Config) ->
+	doc("Multipart request body with invalid part headers."),
+	ReqBody = [
+		"--deadbeef\r\n"
+		"content-disposition: form-data; name=\"f\"; filename=\"a", 0, "b.txt\"\r\n"
+		"\r\nbody\r\n"
+		"--deadbeef--"
+	],
+	{400, _} = do_body_error("POST", "/multipart", [
+		{<<"content-type">>, <<"multipart/form-data; boundary=deadbeef">>}
+	], ReqBody, Config),
+	ok.
+
 multipart_error_headers_too_large(Config) ->
 	doc("Multipart request body with part headers larger than 2048 bytes."),
 	ReqBody = [
