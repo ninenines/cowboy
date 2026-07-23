@@ -223,6 +223,13 @@ All request data, including parsed values, *MUST* be
 considered both untrusted and unsafe, and must be
 validated, sanitized or escaped before use.
 
+While Cowboy rejects NUL bytes in some of the request
+data, NUL bytes may still be found in unexpected places
+such as the query string and urlencoded bodies (where
+NUL bytes can legitimately be encoded as `%00`) or
+in request bodies in general. Request data *MUST NOT*
+be considered to be free of NUL bytes.
+
 Unsanitized or invalid data provided in responses is unsafe.
 Response data must be valid RFC-conformant components for
 status, header names, header values (with values appropriate
