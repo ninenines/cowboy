@@ -4005,10 +4005,43 @@ accept_host_header_on_missing_pseudo_header_authority(Config) ->
 	{_, <<"200">>} = lists:keyfind(<<":status">>, 1, RespHeaders),
 	ok.
 
-%% When both :authority and host headers are received, the current behavior
-%% is to favor :authority and ignore the host header. The specification does
-%% not describe the correct behavior to follow in that case.
-%% @todo The HTTP/3 spec says both values must be identical and non-empty.
+accept_host_header_same_as_pseudo_header_authority(Config) ->
+	doc("A request with both an authority and host component "
+		"that are equal must be accepted. (RFC9113 8.3.1)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame with same :authority pseudo-header and host header.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>},
+		{<<"host">>, <<"localhost">>} %% @todo Correct port number.
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+	%% Receive a 200 response.
+	{ok, << Len:24, 1:8, _:8, _:32 >>} = gen_tcp:recv(Socket, 9, 6000),
+	{ok, RespHeadersBlock} = gen_tcp:recv(Socket, Len, 6000),
+	{RespHeaders, _} = cow_hpack:decode(RespHeadersBlock),
+	{_, <<"200">>} = lists:keyfind(<<":status">>, 1, RespHeaders),
+	ok.
+
+reject_host_header_different_than_pseudo_header_authority(Config) ->
+	doc("A request with both an authority and host component "
+		"that are not equal must be rejected with a PROTOCOL_ERROR "
+		"stream error. (RFC9113 8.3.1)"),
+	{ok, Socket} = do_handshake(Config),
+	%% Send a HEADERS frame with different :authority pseudo-header and host header.
+	{HeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>},
+		{<<"host">>, <<"localhost.localdomain">>} %% @todo Correct port number.
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+	%% Receive a PROTOCOL_ERROR stream error.
+	{ok, << _:24, 3:8, _:8, 1:32, 1:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+	ok.
 
 reject_many_pseudo_header_authority(Config) ->
 	doc("A request containing more than one authority component must be rejected "

@@ -552,7 +552,15 @@ headers_frame(State, StreamID, IsFin, Headers,
 	early_error(State, StreamID, IsFin, Headers, PseudoHeaders, 501,
 		'The TRACE method is currently not implemented. (RFC7231 4.3.8)');
 headers_frame(State, StreamID, IsFin, Headers, PseudoHeaders=#{authority := Authority}, BodyLen) ->
-	headers_frame_parse_host(State, StreamID, IsFin, Headers, PseudoHeaders, BodyLen, Authority);
+	case lists:keyfind(<<"host">>, 1, Headers) of
+		false ->
+			headers_frame_parse_host(State, StreamID, IsFin, Headers, PseudoHeaders, BodyLen, Authority);
+		{_, Authority} ->
+			headers_frame_parse_host(State, StreamID, IsFin, Headers, PseudoHeaders, BodyLen, Authority);
+		{_, _} ->
+			reset_stream(State, StreamID, {stream_error, protocol_error,
+				'The host header is different than the :authority pseudo-header. (RFC9113 8.3.1)'})
+	end;
 headers_frame(State, StreamID, IsFin, Headers, PseudoHeaders, BodyLen) ->
 	case lists:keyfind(<<"host">>, 1, Headers) of
 		{_, Authority} ->
