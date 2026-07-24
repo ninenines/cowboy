@@ -63,6 +63,17 @@ apply_constraint(Type, Value, F) when is_function(F, 2) ->
 
 %% Constraint functions.
 
+%% Same bound as cow_http_hd (?MAX_DIGITS): enough for 64-bit
+%% integers without allowing arbitrary-precision bignum DoS.
+-define(MAX_DIGITS, 17).
+
+int(forward, <<$+,R/bits>>) when byte_size(R) > ?MAX_DIGITS ->
+	{error, limit_reached};
+int(forward, <<$-,R/bits>>) when byte_size(R) > ?MAX_DIGITS ->
+	{error, limit_reached};
+int(forward, Value = <<C,_/bits>>)
+		when C =/= $+, C =/= $-, byte_size(Value) > ?MAX_DIGITS ->
+	{error, limit_reached};
 int(forward, Value) ->
 	try
 		{ok, binary_to_integer(Value)}
@@ -76,7 +87,9 @@ int(reverse, Value) ->
 		{error, not_an_integer}
 	end;
 int(format_error, {not_an_integer, Value}) ->
-	io_lib:format("The value ~p is not an integer.", [Value]).
+	io_lib:format("The value ~p is not an integer.", [Value]);
+int(format_error, {limit_reached, _}) ->
+	"The value is larger than the constraint is willing to accept.".
 
 nonempty(Type, <<>>) when Type =/= format_error ->
 	{error, empty};
@@ -153,6 +166,21 @@ int_format_error_test() ->
 	{error, Reason} = validate(<<"string">>, int),
 	Bin = iolist_to_binary(format_error(Reason)),
 	true = is_binary(Bin),
+	ok.
+
+int_max_digits_test() ->
+	Max = list_to_binary(lists:duplicate(?MAX_DIGITS, $9)),
+	Over = list_to_binary(lists:duplicate(?MAX_DIGITS + 1, $9)),
+	NegMax = <<$-, Max/binary>>,
+	NegOver = <<$-, Over/binary>>,
+	{ok, 99999999999999999} = validate(Max, int),
+	{error, {int, limit_reached, Over}} = validate(Over, int),
+	{ok, -99999999999999999} = validate(NegMax, int),
+	{error, {int, limit_reached, NegOver}} = validate(NegOver, int),
+	%% Leading zeros count toward the digit budget.
+	{ok, 9} = validate(<<"00000000000000009">>, int),
+	{error, {int, limit_reached, <<"000000000000000009">>}}
+		= validate(<<"000000000000000009">>, int),
 	ok.
 
 nonempty_format_error_test() ->
