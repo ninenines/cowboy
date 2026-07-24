@@ -89,6 +89,8 @@ echo(<<"match">>, Req, Opts) ->
 		<<"qs_with_constraints">> -> cowboy_req:match_qs([{id, integer}], Req);
 		<<"qs_with_max_keys">> -> cowboy_req:match_qs([{a, nonempty}], Req, #{max_keys => 5});
 		<<"cookies">> -> cowboy_req:match_cookies(Fields, Req);
+		<<"cookies_with_max_cookies">> ->
+			cowboy_req:match_cookies([{a, nonempty}], Req, #{max_cookies => 5});
 		<<"body_qs">> ->
 			%% Note that the Req should not be discarded but for the
 			%% purpose of this test this has no ill impacts.
@@ -102,6 +104,9 @@ echo(<<"filter_then_parse_cookies">>, Req0, Opts) ->
 	{ok, cowboy_req:reply(200, #{}, value_to_iodata(Value), Req), Opts};
 echo(<<"parse_qs_with_max_keys">>, Req, Opts) ->
 	[_|_] = cowboy_req:parse_qs(Req, #{max_keys => 5}),
+	{ok, cowboy_req:reply(200, #{}, Req), Opts};
+echo(<<"parse_cookies_with_max_cookies">>, Req, Opts) ->
+	[_|_] = cowboy_req:parse_cookies(Req, #{max_cookies => 5}),
 	{ok, cowboy_req:reply(200, #{}, Req), Opts};
 echo(What, Req, Opts) ->
 	Key = binary_to_atom(What, latin1),

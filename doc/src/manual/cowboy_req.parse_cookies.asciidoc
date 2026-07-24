@@ -8,17 +8,20 @@ cowboy_req:parse_cookies - Parse cookie headers
 
 [source,erlang]
 ----
-parse_cookies(Req) -> [{Name, Value}]
+parse_cookies(Req :: cowboy_req:req()) -> parse_cookies(Req, #{})
+parse_cookies(Req :: cowboy_req:req(), Opts) -> [{Name, Value}]
 
 Name  :: binary() %% case sensitive
 Value :: binary() %% case sensitive
+Opts  :: #{max_cookies => non_neg_integer()}
 ----
 
 Parse cookie headers.
 
-Alias for link:man:cowboy_req:parse_header(3)[cowboy_req:parse_header(<<"cookie">>, Req)].
-
 When the cookie header is missing or empty, `[]` is returned.
+
+The `max_cookies` option limits the maximum number of
+cookies. It defaults to 100.
 
 This function will crash on invalid cookie data. Because
 invalid cookies are fairly common when dealing with browsers
@@ -54,6 +57,11 @@ Req::
 
 The Req object.
 
+Opts::
+
+The `max_cookies` option limits the maximum number of
+cookies. It defaults to 100.
+
 == Return value
 
 The cookies are returned as a list of key/values. Keys and
@@ -61,6 +69,7 @@ values are case sensitive binary strings.
 
 == Changelog
 
+* *2.18*: Function `parse_cookies/2` introduced with a `max_cookies` option.
 * *2.0*: Only the parsed header value is returned, it is no longer wrapped in a tuple.
 * *2.0*: Function introduced. Replaces `cookie/2,3` and `cookies/1`.
 

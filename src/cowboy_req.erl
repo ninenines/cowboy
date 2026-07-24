@@ -44,7 +44,9 @@
 -export([parse_header/3]).
 -export([filter_cookies/2]).
 -export([parse_cookies/1]).
+-export([parse_cookies/2]).
 -export([match_cookies/2]).
+-export([match_cookies/3]).
 
 %% Request body.
 -export([has_body/1]).
@@ -512,11 +514,33 @@ cookie_name(<<C, Rest/bits>>, Acc) -> cookie_name(Rest, <<Acc/binary, C>>).
 
 -spec parse_cookies(req()) -> [{binary(), binary()}].
 parse_cookies(Req) ->
-	parse_header(<<"cookie">>, Req).
+	parse_cookies(Req, #{}).
+
+-spec parse_cookies(req(), cow_cookie:parse_opts()) -> [{binary(), binary()}].
+parse_cookies(Req, Opts) ->
+	try
+		case header(<<"cookie">>, Req, undefined) of
+			undefined -> [];
+			Cookie -> cow_cookie:parse_cookie(Cookie, Opts)
+		end
+	catch
+		error:limit_reached:Stacktrace ->
+			erlang:raise(exit, {request_error, limit_reached,
+				'Limit reached while parsing cookie header.'
+			}, Stacktrace);
+		_:_:Stacktrace ->
+			erlang:raise(exit, {request_error, {header, <<"cookie">>},
+				'Malformed header. Please consult the relevant specification.'
+			}, Stacktrace)
+	end.
 
 -spec match_cookies(cowboy:fields(), req()) -> map().
 match_cookies(Fields, Req) ->
-	case filter(Fields, kvlist_to_map(Fields, parse_cookies(Req))) of
+	match_cookies(Fields, Req, #{}).
+
+-spec match_cookies(cowboy:fields(), req(), cow_cookie:parse_opts()) -> map().
+match_cookies(Fields, Req, Opts) ->
+	case filter(Fields, kvlist_to_map(Fields, parse_cookies(Req, Opts))) of
 		{ok, Map} ->
 			Map;
 		{error, Errors} ->

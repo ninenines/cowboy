@@ -251,6 +251,11 @@ match_cookies(Config) ->
 	%% Ensure match errors result in a 400 response.
 	{400, _, _} = do_get("/match/cookies/a/c",
 		[{<<"cookie">>, "a=b"}], Config),
+	%% Ensure too many cookies result in a 400 response.
+	{200, _, _} = do_get("/match/cookies_with_max_cookies",
+		[{<<"cookie">>, "a=b; c=d; e=f; g=h; i=j"}], Config),
+	{400, _, _} = do_get("/match/cookies_with_max_cookies",
+		[{<<"cookie">>, "a=b; c=d; e=f; g=h; i=j; k=l"}], Config),
 	%% This function is tested more extensively through unit tests.
 	ok.
 
@@ -311,6 +316,11 @@ parse_cookies(Config) ->
 		[{<<"cookie">>, "bad\tname=strawberry"}], Config),
 	{400, _, _} = do_get("/parse_cookies",
 		[{<<"cookie">>, "goodname=strawberry\tmilkshake"}], Config),
+	%% Ensure too many cookies result in a 400 response.
+	{200, _, _} = do_get("/parse_cookies_with_max_cookies",
+		[{<<"cookie">>, "a=b; c=d; e=f; g=h; i=j"}], Config),
+	{400, _, _} = do_get("/parse_cookies_with_max_cookies",
+		[{<<"cookie">>, "a=b; c=d; e=f; g=h; i=j; k=l"}], Config),
 	ok.
 
 filter_then_parse_cookies(Config) ->

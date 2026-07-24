@@ -9,7 +9,11 @@ cowboy_req:match_cookies - Match cookies against constraints
 [source,erlang]
 ----
 match_cookies(Fields :: cowboy:fields(), Req :: cowboy_req:req())
+    -> match_cookies(Fields, Req, #{})
+match_cookies(Fields :: cowboy:fields(), Req :: cowboy_req:req(), Opts)
     -> #{atom() => any()}
+
+Opts :: #{max_cookies => non_neg_integer()}
 ----
 
 Parse the cookies and match specific values against
@@ -47,6 +51,11 @@ Req::
 
 The Req object.
 
+Opts::
+
+The `max_cookies` option limits the maximum number of
+cookies. It defaults to 100.
+
 == Return value
 
 Desired values are returned as a map. The key is the atom
@@ -59,6 +68,7 @@ An exception is triggered when the match fails.
 
 == Changelog
 
+* *2.18*: Function `match_cookies/3` introduced with a `max_cookies` option.
 * *2.0*: Function introduced.
 
 == Examples
