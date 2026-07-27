@@ -113,6 +113,19 @@ http_upgrade_ignore_if_http_10(Config) ->
 	{ok, <<"HTTP/1.1 200">>} = gen_tcp:recv(Socket, 12, 1000),
 	ok.
 
+http_upgrade_ignore_if_empty(Config) ->
+	doc("The Upgrade header must be ignored if empty. (RFC7230 6.7)"),
+	{ok, Socket} = gen_tcp:connect("localhost", config(port, Config), [binary, {active, false}]),
+	ok = gen_tcp:send(Socket, [
+		"GET / HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Connection: Upgrade, HTTP2-Settings\r\n"
+		"Upgrade: \r\n"
+		"HTTP2-Settings: ", base64:encode(cow_http2:settings_payload(#{})), "\r\n",
+		"\r\n"]),
+	{ok, <<"HTTP/1.1 200">>} = gen_tcp:recv(Socket, 12, 1000),
+	ok.
+
 http_upgrade_ignore_missing_upgrade_in_connection(Config) ->
 	doc("The Upgrade header must be listed in the "
 		"Connection header field. (RFC7230 6.7)"),

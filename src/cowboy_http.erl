@@ -984,12 +984,16 @@ is_http2_upgrade(#{<<"connection">> := Conn, <<"upgrade">> := Upgrade,
 			andalso lists:member(<<"http2-settings">>, Conns)
 			andalso lists:member(http2, maps:get(protocols, Opts, [http2, http])) of
 		true ->
-			Protocols = cow_http_hd:parse_upgrade(Upgrade),
-			case lists:member(<<"h2c">>, Protocols) of
-				true ->
-					{true, HTTP2Settings};
-				false ->
-					false
+			try cow_http_hd:parse_upgrade(Upgrade) of
+				Protocols ->
+					case lists:member(<<"h2c">>, Protocols) of
+						true ->
+							{true, HTTP2Settings};
+						false ->
+							false
+					end
+			catch _:_ ->
+				false
 			end;
 		_ ->
 			false
