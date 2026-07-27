@@ -98,14 +98,16 @@ part is a file:
 multipart(Req0) ->
     case cowboy_req:read_part(Req0) of
         {ok, Headers, Req1} ->
-            Req = case cow_multipart:form_data(Headers) of
+            try cow_multipart:form_data(Headers) of
                 {data, _FieldName} ->
-                    {ok, _Body, Req2} = cowboy_req:read_part_body(Req1),
-                    Req2;
+                    {ok, _Body, Req} = cowboy_req:read_part_body(Req1),
+                    multipart(Req);
                 {file, _FieldName, _Filename, _CType} ->
-                    stream_file(Req1)
-            end,
-            multipart(Req);
+                    Req = stream_file(Req1),
+                    multipart(Req)
+            catch _:_ ->
+                cowboy_req:reply(400, Req1)
+            end;
         {done, Req} ->
             Req
     end.
