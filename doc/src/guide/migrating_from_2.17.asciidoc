@@ -1,0 +1,63 @@
+[appendix]
+== Migrating from Cowboy 2.17 to 2.18
+
+Cowboy 2.18 fixes a number of security vulnerabilities
+and improves the xref:security_checklist[security checklist].
+
+Cowboy 2.18 updates Cowlib to 2.19.0. Both applications
+must be updated as they both contain security fixes.
+
+Cowboy 2.18 requires Erlang/OTP 24.0 or greater.
+
+=== Features added
+
+* Defense-in-depth: Add the `max_cookies` option to
+  `cowboy_req` functions that parse cookies. This new
+  limit is applied in addition to existing length
+  limits. It defaults to 100. Note that the option
+  can't be overriden when parsing the cookie header
+  via `parse_header`.
+
+=== Bugs fixed
+
+* Concurrent processing of pipelined HTTP/1.1 requests
+  was removed. Pipelined requests are still supported.
+  HTTP/2 should be used when concurrent processing of
+  requests is necessary.
+
+* Defense-in-depth: request URIs with a fragment
+  component are now rejected instead of the component
+  stripped.
+
+* Defense-in-depth: CR, LF and NUL bytes are now
+  rejected everywhere applicable. Note that query
+  strings may still contain urlencoded CR, LF or
+  NUL bytes.
+
+* Defense-in-depth: integers now have a hard limit
+  of 17 digits when parsing headers or using the
+  `int` constraint. A custom constraint can be
+  written should the limit be a problem.
+
+* The `max_headers` HTTP/1.1 option now better
+  tracks duplicate header field lines.
+
+* A crash could occur during HTTP/2 Upgrade, it
+  has been resolved.
+
+* HTTP/2 will now reject requests that have both
+  :authority and host headers with values that
+  are different.
+
+* HTTP/2 will now reject empty CONTINUATION
+  frames in most cases to prevent abuse.
+
+* Websocket frames could get over `max_frame_size`
+  under certain conditions. This is now resolved.
+
+* Noisy crashes could occur when the PROXY protocol is
+  enabled; they should all have been resolved now.
+
+* Functions `cowboy_req:read_urlencoded_body/2` and
+  `cowboy_req:read_and_match_urlencoded_body/3` will
+  now use the correct defaults for options in all cases.

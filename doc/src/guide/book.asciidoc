@@ -79,6 +79,8 @@ include::security_checklist.asciidoc[Security checklist]
 
 = Additional information
 
+include::migrating_from_2.17.asciidoc[Migrating from Cowboy 2.17 to 2.18]
+
 include::migrating_from_2.16.asciidoc[Migrating from Cowboy 2.16 to 2.17]
 
 include::migrating_from_2.15.asciidoc[Migrating from Cowboy 2.15 to 2.16]
