@@ -35,6 +35,7 @@ groups() ->
 	H2CTests = [
 		http2_cancel_flood,
 		http2_data_dribble,
+		http2_empty_continuation_frames,
 		http2_empty_frame_flooding_data,
 		http2_empty_frame_flooding_headers_continuation,
 		http2_empty_frame_flooding_push_promise,
@@ -178,6 +179,19 @@ http2_empty_frame_flooding_data(Config) ->
 		{error, enotconn} ->
 			ok
 	end.
+
+http2_empty_continuation_frames(Config) ->
+	doc("Confirm that Cowboy rejects empty CONTINUATION frames that do not "
+		"have the END_HEADERS flag set."),
+	{ok, Socket} = rfc7540_SUITE:do_handshake(Config),
+	%% Start a fragmented header block with an empty HEADERS frame.
+	%% Empty HEADERS is allowed because there can only be one.
+	ok = gen_tcp:send(Socket, <<0:24, 1:8, 0:9, 1:31>>),
+	%% Send a single empty CONTINUATION without END_HEADERS.
+	ok = gen_tcp:send(Socket, <<0:24, 9:8, 0:9, 1:31>>),
+	%% Receive an ENHANCE_YOUR_CALM connection error.
+	{ok, <<_:24, 7:8, _:72, 11:32>>} = gen_tcp:recv(Socket, 17, 6000),
+	ok.
 
 http2_empty_frame_flooding_headers_continuation(Config) ->
 	doc("Confirm that Cowboy detects empty HEADERS/CONTINUATION frame flooding. (CVE-2019-9518)"),
