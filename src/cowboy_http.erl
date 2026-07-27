@@ -543,6 +543,8 @@ parse_request(Buffer, State=#state{opts=Opts, in_streamid=InStreamID}, EmptyLine
 
 match_eol(<< $\r, $\n, _/bits >>, N) ->
 	N;
+match_eol(<< $\r, _, _/bits >>, _) ->
+	error;
 match_eol(<< $\n, _/bits >>, _) ->
 	error;
 match_eol(<< _, Rest/bits >>, N) ->

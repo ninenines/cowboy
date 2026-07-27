@@ -833,7 +833,17 @@ reject_invalid_header_name(Config) ->
 		"\r\n"),
 	{error, closed} = raw_recv(Client, 0, 1000).
 
-reject_invalid_header_value(Config) ->
+reject_invalid_header_value_cr(Config) ->
+	doc("An invalid header field value must be rejected with a 400 status code "
+		"and the closing of the connection. (RFC9110 5.5)"),
+	#{code := 400, client := Client} = do_raw(Config,
+		"GET / HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"X-Bad: value\rrm rf the world\r\n"
+		"\r\n"),
+	{error, closed} = raw_recv(Client, 0, 1000).
+
+reject_invalid_header_value_nul(Config) ->
 	doc("An invalid header field value must be rejected with a 400 status code "
 		"and the closing of the connection. (RFC9110 5.5)"),
 	#{code := 400, client := Client} = do_raw(Config,
