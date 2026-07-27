@@ -1784,7 +1784,7 @@ continuation_wrong_stream_error(Config) ->
 	%% Send an unterminated HEADERS frame followed by a CONTINUATION frame for another stream.
 	ok = gen_tcp:send(Socket, [
 		<< 0:24, 1:8, 0:7, 1:1, 0:1, 1:31 >>,
-		<< 0:24, 9:8, 0:9, 3:31 >>
+		<< 12:24, 9:8, 0:9, 3:31, "header-block" >>
 	]),
 	%% Receive a PROTOCOL_ERROR connection error.
 	{ok, << _:24, 7:8, _:72, 1:32 >>} = gen_tcp:recv(Socket, 17, 6000),
