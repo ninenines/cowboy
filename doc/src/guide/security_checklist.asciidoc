@@ -277,8 +277,11 @@ headers and any other media type used in the response body:
 
 * Cookies set through `cowboy_req:set_resp_cookie/3,4` *MUST*
   have valid RFC-conformant name and value, as well as `domain`
-  and `path` fields when they are present. All cookie values
-  *MUST* be literals except for the cookie value.
+  and `path` fields when they are present. All cookie options
+  *MUST* be literals except for the cookie value. Cowboy does
+  not set `secure`, `http_only` or `same_site` by default;
+  session and other sensitive cookies *SHOULD* enable them
+  explicitly.
 
 * The path provided when pushing resources *MUST* be a valid
   application resource path. It is strongly recommended
@@ -369,6 +372,27 @@ where Cowboy provides limited or no automatic protection:
 The PROXY protocol, configured via the `proxy_header`
 option, *MUST* only be enabled for listeners reachable
 exclusively via trusted proxies or load balancers.
+
+=== Cross-site and browser concerns
+
+Cowboy does not implement browser-specific protections
+automatically; applications that serve browsers *MUST*
+apply them where relevant:
+
+* State-changing requests authenticated with cookies
+  (or other ambient browser credentials) *MUST* implement
+  CSRF protection. `same_site` cookie options alone are
+  not sufficient.
+
+* Framing controls (`x-frame-options` or CSP
+  `frame-ancestors`) *SHOULD* be set on HTML
+  responses to mitigate clickjacking.
+
+* Websocket upgrades do not validate the `origin` header.
+  Handlers that authenticate via cookies (or other ambient
+  browser credentials) *MUST* check `origin` in `init/2`
+  before upgrading, or only expose Websocket to non-browser
+  clients.
 
 === Information disclosure
 
