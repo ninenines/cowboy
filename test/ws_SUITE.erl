@@ -67,6 +67,7 @@ init_dispatch() ->
 			{"/ws_timeout_hibernate", ws_timeout_hibernate, []},
 			{"/ws_timeout_cancel", ws_timeout_cancel, []},
 			{"/ws_max_frame_size", ws_max_frame_size, []},
+			{"/ws_max_frame_size_deflate", ws_max_frame_size_deflate, []},
 			{"/ws_deflate_opts", ws_deflate_opts_h, []},
 			{"/ws_dont_validate_utf8", ws_dont_validate_utf8_h, []},
 			{"/ws_ping", ws_ping_h, []}
@@ -218,6 +219,46 @@ ws_deflate_max_frame_size_close(Config) ->
 	Len = byte_size(MaskedData),
 	true = Len < 8,
 	ok = gen_tcp:send(Socket, << 1:1, 1:1, 0:2, 1:4, 1:1, Len:7, Mask:32, MaskedData/binary >>),
+	{ok, << 1:1, 0:3, 8:4, 0:1, 2:7, 1009:16 >>} = gen_tcp:recv(Socket, 0, 6000),
+	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
+	ok.
+
+ws_deflate_max_frame_size_chunked_close(Config) ->
+	doc("Server closes connection when decompressed frame size exceeds "
+		"max_frame_size option, even when the compressed payload is "
+		"delivered over multiple separate TCP segments."),
+	%% max_frame_size is set to 100 bytes in ws_max_frame_size_deflate.
+	{ok, Socket, Headers} = do_handshake("/ws_max_frame_size_deflate",
+		"Sec-WebSocket-Extensions: permessage-deflate\r\n", Config),
+	{_, "permessage-deflate"} = lists:keyfind("sec-websocket-extensions", 1, Headers),
+	Mask = 16#11223344,
+	Z = zlib:open(),
+	zlib:deflateInit(Z, best_compression, deflated, -15, 8, default),
+	%% Three independently sync-flushed chunks, each decompressing to
+	%% exactly 50 bytes. After the first two (100 bytes, exactly at
+	%% max_frame_size) the server must not close yet; after the third
+	%% (150 bytes, over max_frame_size) it must close with code 1009,
+	%% regardless of the fact that each individual chunk's own wire
+	%% size (~8-10 bytes) never looks oversized by itself.
+	[Chunk1, Chunk2, Chunk3] = [iolist_to_binary(zlib:deflate(Z, <<0:400>>, sync))
+		|| _ <- lists:seq(1, 3)],
+	Chunk1Size = byte_size(Chunk1),
+	Chunk2Size = byte_size(Chunk2),
+	CompressedData0 = iolist_to_binary([Chunk1, Chunk2, Chunk3]),
+	CompressedData = binary:part(CompressedData0, 0, byte_size(CompressedData0) - 4),
+	MaskedData = do_mask(CompressedData, Mask, <<>>),
+	Len = byte_size(MaskedData),
+	true = Len < 100,
+	<< MaskedChunk1:Chunk1Size/binary, MaskedChunk2:Chunk2Size/binary,
+		MaskedChunk3/binary >> = MaskedData,
+	ok = gen_tcp:send(Socket, << 1:1, 1:1, 0:2, 1:4, 1:1, Len:7, Mask:32 >>),
+	ok = gen_tcp:send(Socket, MaskedChunk1),
+	ok = gen_tcp:send(Socket, MaskedChunk2),
+	%% 100 bytes decompressed so far: exactly at the limit, connection
+	%% must still be open.
+	{error, timeout} = gen_tcp:recv(Socket, 0, 200),
+	ok = gen_tcp:send(Socket, MaskedChunk3),
+	%% 150 bytes decompressed: over the limit, connection must close now.
 	{ok, << 1:1, 0:3, 8:4, 0:1, 2:7, 1009:16 >>} = gen_tcp:recv(Socket, 0, 6000),
 	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
 	ok.

@@ -312,7 +312,7 @@ websocket_handshake(State=#state{opts=Opts},
 	mask_key :: cow_ws:mask_key(),
 	rsv :: cow_ws:rsv(),
 	close_code = undefined :: undefined | cow_ws:close_code(),
-	unmasked = <<>> :: binary(),
+	payload = <<>> :: binary(),
 	unmasked_len = 0 :: non_neg_integer(),
 	buffer = <<>> :: binary()
 }).
@@ -540,37 +540,37 @@ parse_header(State=#state{opts=Opts, frag_state=FragState, extensions=Extensions
 parse_payload(State=#state{opts=Opts, frag_state=FragState, utf8_state=Incomplete, extensions=Extensions},
 		HandlerState, ParseState=#ps_payload{
 			type=Type, len=Len, mask_key=MaskKey, rsv=Rsv,
-			unmasked=Unmasked, unmasked_len=UnmaskedLen}, Data) ->
+			payload=Payload0, unmasked_len=UnmaskedLen}, Data) ->
 	MaxFrameSize = case maps:get(max_frame_size, Opts, ?MAX_FRAME_SIZE_DEFAULT) of
 		infinity -> infinity;
-		MaxFrameSize0 -> MaxFrameSize0 - UnmaskedLen
+		MaxFrameSize0 -> MaxFrameSize0 - byte_size(Payload0)
 	end,
 	case cow_ws:parse_payload(Data, MaskKey, Incomplete, UnmaskedLen,
 			Type, Len, FragState, Extensions#{max_inflate_size => MaxFrameSize}, Rsv) of
 		{ok, CloseCode, Payload, Utf8State, Rest} ->
 			dispatch_frame(State#state{utf8_state=Utf8State}, HandlerState,
-				ParseState#ps_payload{unmasked= <<Unmasked/binary, Payload/binary>>,
+				ParseState#ps_payload{payload= <<Payload0/binary, Payload/binary>>,
 					close_code=CloseCode}, Rest);
 		{ok, Payload, Utf8State, Rest} ->
 			dispatch_frame(State#state{utf8_state=Utf8State}, HandlerState,
-				ParseState#ps_payload{unmasked= <<Unmasked/binary, Payload/binary>>},
+				ParseState#ps_payload{payload= <<Payload0/binary, Payload/binary>>},
 				Rest);
 		{more, CloseCode, Payload, Utf8State} ->
 			before_loop(State#state{utf8_state=Utf8State}, HandlerState,
 				ParseState#ps_payload{len=Len - byte_size(Data), close_code=CloseCode,
-					unmasked= <<Unmasked/binary, Payload/binary>>,
+					payload= <<Payload0/binary, Payload/binary>>,
 					unmasked_len=UnmaskedLen + byte_size(Data)});
 		{more, Payload, Utf8State} ->
 			before_loop(State#state{utf8_state=Utf8State}, HandlerState,
 				ParseState#ps_payload{len=Len - byte_size(Data),
-					unmasked= <<Unmasked/binary, Payload/binary>>,
+					payload= <<Payload0/binary, Payload/binary>>,
 					unmasked_len=UnmaskedLen + byte_size(Data)});
 		Error = {error, _Reason} ->
 			websocket_close(State, HandlerState, Error)
 	end.
 
 dispatch_frame(State=#state{opts=Opts, frag_state=FragState, frag_buffer=SoFar}, HandlerState,
-		#ps_payload{type=Type0, unmasked=Payload0, close_code=CloseCode0}, RemainingData) ->
+		#ps_payload{type=Type0, payload=Payload0, close_code=CloseCode0}, RemainingData) ->
 	MaxFrameSize = maps:get(max_frame_size, Opts, ?MAX_FRAME_SIZE_DEFAULT),
 	case cow_ws:make_frame(Type0, Payload0, CloseCode0, FragState) of
 		%% @todo Allow receiving fragments.
