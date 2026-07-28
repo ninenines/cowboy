@@ -32,7 +32,7 @@
 %% handling all events in the WebTransport session.
 %%
 %% WebTransport sessions can be ended via a command, via a crash or
-%% exit, via the closing of the connection (client or server inititated),
+%% exit, via the closing of the connection (client or server initiated),
 %% via the client ending the session (mirroring the command) or via
 %% the client terminating the CONNECT stream.
 -module(cowboy_webtransport).
