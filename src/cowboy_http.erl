@@ -730,8 +730,12 @@ parse_hd_name(<< $\0, _/bits >>, State=#state{in_state=PS}, H, Num, _) ->
 	error_terminate(400, State#state{in_state=PS#ps_header{headers=H, num_headers=Num}},
 		{connection_error, protocol_error,
 			'NUL byte is not allowed in header name. (RFC9110 5.5)'});
-parse_hd_name(<< C, Rest/bits >>, State, H, Num, SoFar) ->
-	?LOWER(parse_hd_name, Rest, State, H, Num, SoFar).
+parse_hd_name(<< C, Rest/bits >>, State, H, Num, SoFar) when ?IS_TOKEN(C) ->
+	?LOWER(parse_hd_name, Rest, State, H, Num, SoFar);
+parse_hd_name(_, State=#state{in_state=PS}, H, Num, _) ->
+	error_terminate(400, State#state{in_state=PS#ps_header{headers=H, num_headers=Num}},
+		{connection_error, protocol_error,
+			'The header name must contain only valid token characters. (RFC9110 5.1)'}).
 
 parse_hd_before_value(<< $\s, Rest/bits >>, S, H, Num, N) ->
 	parse_hd_before_value(Rest, S, H, Num, N);
