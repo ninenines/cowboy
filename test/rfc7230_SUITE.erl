@@ -833,6 +833,41 @@ reject_invalid_header_name(Config) ->
 		"\r\n"),
 	{error, closed} = raw_recv(Client, 0, 1000).
 
+reject_header_name_not_token(Config) ->
+	doc("A header field name that contains anything other than token "
+		"characters must be rejected with a 400 status code and the "
+		"closing of the connection. (RFC9110 5.1)"),
+	#{code := 400, client := Client1} = do_raw(Config,
+		"GET / HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"X-\vBad: fooled you\r\n"
+		"\r\n"),
+	{error, closed} = raw_recv(Client1, 0, 1000),
+	#{code := 400, client := Client2} = do_raw(Config,
+		"GET / HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"X-Bad\"Name: fooled you\r\n"
+		"\r\n"),
+	{error, closed} = raw_recv(Client2, 0, 1000),
+	#{code := 400, client := Client3} = do_raw(Config,
+		"GET / HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"X-Bad\377Name: fooled you\r\n"
+		"\r\n"),
+	{error, closed} = raw_recv(Client3, 0, 1000),
+	#{code := 400, client := Client4} = do_raw(Config,
+		"GET / HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"\vBad: fooled you\r\n"
+		"\r\n"),
+	{error, closed} = raw_recv(Client4, 0, 1000),
+	#{code := 400, client := Client5} = do_raw(Config,
+		"GET / HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"X-Bad\": fooled you\r\n"
+		"\r\n"),
+	{error, closed} = raw_recv(Client5, 0, 1000).
+
 reject_invalid_header_value_cr(Config) ->
 	doc("An invalid header field value must be rejected with a 400 status code "
 		"and the closing of the connection. (RFC9110 5.5)"),
