@@ -251,7 +251,7 @@ http2_hpack_bomb(Config) ->
 		{<<":scheme">>, <<"http">>},
 		{<<":authority">>, <<"localhost">>},
 		{<<":path">>, <<"/">>}
-		|lists:duplicate(10000, {<<"cookie">>, <<"a=b">>})
+		|lists:duplicate(10000, {<<"user-agent">>, <<"ct">>})
 	]),
 	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
 	%% Receive an ENHANCE_YOUR_CALM connection error.

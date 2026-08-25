@@ -605,7 +605,7 @@ max_headers(Config0) ->
 			{<<":scheme">>, <<"http">>},
 			{<<":authority">>, <<"localhost">>},
 			{<<":path">>, <<"/">>}
-			|lists:duplicate(9996, {<<"x-custom">>, <<"value">>})
+			|lists:duplicate(9996, {<<"user-agent">>, <<"ct">>})
 		],
 		{HeadersBlock1, _} = cow_hpack:encode(Headers1),
 		ok = gen_tcp:send(Socket1, cow_http2:headers(1, fin, HeadersBlock1)),
@@ -619,7 +619,7 @@ max_headers(Config0) ->
 			{<<":scheme">>, <<"http">>},
 			{<<":authority">>, <<"localhost">>},
 			{<<":path">>, <<"/">>}
-			|lists:duplicate(9997, {<<"x-custom">>, <<"value">>})
+			|lists:duplicate(9997, {<<"user-agent">>, <<"ct">>})
 		],
 		{HeadersBlock2, _} = cow_hpack:encode(Headers2),
 		ok = gen_tcp:send(Socket2, cow_http2:headers(1, fin, HeadersBlock2)),
