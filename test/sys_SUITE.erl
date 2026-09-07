@@ -87,6 +87,93 @@ proc_lib_initial_call_tls(Config) ->
 	{cowboy_tls, _, _} = proc_lib:initial_call(Pid),
 	ok.
 
+proc_lib_label_clear(Config) ->
+	doc("Confirm that HTTP/1.1 connection processes have a process label."),
+	{ok, Socket} = gen_tcp:connect("localhost", config(clear_port, Config), []),
+	timer:sleep(100),
+	Pid = get_remote_pid_tcp(Socket),
+	{cowboy_http, clear} = proc_lib:get_label(Pid),
+	ok.
+
+proc_lib_label_tls(Config) ->
+	doc("Confirm that HTTP/1.1 connection processes have a process label."),
+	{ok, Socket} = ssl:connect("localhost", config(tls_port, Config), config(tls_opts, Config)),
+	timer:sleep(100),
+	Pid = get_remote_pid_tls(Socket),
+	{cowboy_http, tls} = proc_lib:get_label(Pid),
+	ok.
+
+proc_lib_label_h2(Config) ->
+	doc("Confirm that HTTP/2 connection processes have a process label."),
+	{ok, Socket} = ssl:connect("localhost", config(tls_port, Config),
+		[{alpn_advertised_protocols, [<<"h2">>]},
+			{active, false}, binary|config(tls_opts, Config)]),
+	%% Skip the SETTINGS frame.
+	{ok, <<_,_,_,4,_/bits>>} = ssl:recv(Socket, 0, 1000),
+	timer:sleep(100),
+	Pid = get_remote_pid_tls(Socket),
+	{cowboy_http2, tls} = proc_lib:get_label(Pid),
+	ok.
+
+proc_lib_label_loop(Config) ->
+	doc("Confirm that request processes have a process label "
+		"and that the connection process keeps its own."),
+	{ok, Socket} = gen_tcp:connect("localhost", config(clear_port, Config), [{active, false}]),
+	ok = gen_tcp:send(Socket,
+		"GET /loop HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"\r\n"),
+	timer:sleep(100),
+	SupPid = get_remote_pid_tcp(Socket),
+	{cowboy_http, clear} = proc_lib:get_label(SupPid),
+	[{_, Pid, _, _}] = supervisor:which_children(SupPid),
+	{cowboy_stream_h, clear} = proc_lib:get_label(Pid),
+	ok.
+
+proc_lib_label_ws(Config) ->
+	doc("Confirm that Websocket processes have a process label after takeover."),
+	{ok, Socket} = gen_tcp:connect("localhost", config(clear_port, Config),
+		[binary, {active, false}]),
+	ok = gen_tcp:send(Socket,
+		"GET /ws HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Connection: Upgrade\r\n"
+		"Origin: http://localhost\r\n"
+		"Sec-WebSocket-Version: 13\r\n"
+		"Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n"
+		"Upgrade: websocket\r\n"
+		"\r\n"),
+	{ok, Handshake} = gen_tcp:recv(Socket, 0, 5000),
+	{ok, {http_response, {1, 1}, 101, _}, _} = erlang:decode_packet(http, Handshake, []),
+	timer:sleep(100),
+	Pid = get_remote_pid_tcp(Socket),
+	{cowboy_websocket, clear} = proc_lib:get_label(Pid),
+	ok.
+
+proc_lib_label_tracer(Config) ->
+	doc("Confirm that tracer processes have a process label."),
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
+		env => #{dispatch => init_dispatch(Config)},
+		stream_handlers => [cowboy_tracer_h, cowboy_stream_h],
+		tracer_callback => fun(_, St) -> St end,
+		tracer_match_specs => []
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		{ok, Socket} = gen_tcp:connect("localhost", Port, [{active, false}]),
+		ok = gen_tcp:send(Socket,
+			"GET /loop HTTP/1.1\r\n"
+			"Host: localhost\r\n"
+			"\r\n"),
+		timer:sleep(100),
+		ConnPid = get_remote_pid_tcp(Socket),
+		{tracer, TracerPid} = erlang:trace_info(ConnPid, tracer),
+		true = is_pid(TracerPid),
+		{cowboy_tracer_h, ?FUNCTION_NAME} = proc_lib:get_label(TracerPid)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
 %% System messages.
 %%
 %% Plain system messages are received as {system, From, Msg}.

@@ -127,7 +127,8 @@ upgrade(Req, Env, Handler, HandlerState) ->
 	when Req::cowboy_req:req(), Env::cowboy_middleware:env().
 
 %% @todo Immediately crash if a response has already been sent.
-upgrade(Req=#{version := 'HTTP/3', pid := Pid, streamid := StreamID}, Env, Handler, HandlerState, Opts) ->
+upgrade(Req=#{version := 'HTTP/3', ref := Ref, pid := Pid, streamid := StreamID},
+		Env, Handler, HandlerState, Opts) ->
 	FilteredReq = case maps:get(req_filter, Opts, undefined) of
 		undefined -> maps:with([method, version, scheme, host, port, path, qs, peer], Req);
 		FilterFun -> FilterFun(Req)
@@ -144,6 +145,7 @@ upgrade(Req=#{version := 'HTTP/3', pid := Pid, streamid := StreamID}, Env, Handl
 			Headers = cowboy_req:response_headers(#{}, Req),
 			Pid ! {{Pid, StreamID}, {switch_protocol, Headers, ?MODULE,
 				#{session_pid => self()}}},
+			proc_lib:set_label({?MODULE, Ref}),
 			webtransport_init(State, HandlerState);
 		%% Use 501 Not Implemented to mirror the recommendation in
 		%% by RFC9220 3 (WebSockets Upgrade over HTTP/3).

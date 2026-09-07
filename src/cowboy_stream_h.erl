@@ -294,7 +294,8 @@ send_request_body(Pid, Ref, fin, BodyLen, Data) ->
 %% to simplify the debugging of errors. The proc_lib library
 %% already adds the stacktrace to other types of exceptions.
 -spec request_process(cowboy_req:req(), cowboy_middleware:env(), [module()]) -> ok.
-request_process(Req, Env, Middlewares) ->
+request_process(Req=#{ref := Ref}, Env, Middlewares) ->
+	proc_lib:set_label({?MODULE, Ref}),
 	try
 		execute(Req, Env, Middlewares)
 	catch

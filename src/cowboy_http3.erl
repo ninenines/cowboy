@@ -121,6 +121,7 @@
 	-> no_return().
 
 init(Parent, Ref, Conn, Opts) ->
+	proc_lib:set_label({?MODULE, Ref}),
 	{ok, SettingsBin, HTTP3Machine0} = cow_http3_machine:init(server, Opts),
 	%% Immediately open a control, encoder and decoder stream.
 	%% @todo An endpoint MAY avoid creating an encoder stream if it will not be used (for example, if its encoder does not wish to use the dynamic table or if the maximum size of the dynamic table permitted by the peer is zero).

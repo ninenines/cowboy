@@ -177,6 +177,7 @@
 	ranch_proxy_header:proxy_info(), cowboy:opts()) -> no_return().
 
 init(Parent, Ref, Socket, Transport, ProxyHeader, Opts) ->
+	proc_lib:set_label({?MODULE, Ref}),
 	{ok, Peer} = maybe_socket_error(undefined, Transport:peername(Socket),
 		'A socket error occurred when retrieving the peer name.'),
 	{ok, Sock} = maybe_socket_error(undefined, Transport:sockname(Socket),

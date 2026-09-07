@@ -324,6 +324,7 @@ websocket_handshake(State=#state{opts=Opts},
 	{#state{}, any()}) -> no_return().
 takeover(Parent, Ref, Socket, Transport, Opts, Buffer,
 		{State0=#state{opts=WsOpts, handler=Handler, req=Req}, HandlerState}) ->
+	proc_lib:set_label({?MODULE, Ref}),
 	case Req of
 		#{version := 'HTTP/3'} -> ok;
 		%% @todo We should have an option to disable this behavior.

@@ -164,6 +164,7 @@
 	ranch_proxy_header:proxy_info() | undefined, cowboy:opts()) -> no_return().
 
 init(Parent, Ref, Socket, Transport, ProxyHeader, Opts) ->
+	proc_lib:set_label({?MODULE, Ref}),
 	{ok, Peer} = maybe_socket_error(undefined, Transport:peername(Socket),
 		'A socket error occurred when retrieving the peer name.'),
 	{ok, Sock} = maybe_socket_error(undefined, Transport:sockname(Socket),
@@ -189,6 +190,7 @@ init(Parent, Ref, Socket, Transport, ProxyHeader, Opts) ->
 	binary() | undefined, binary()) -> no_return().
 
 init(Parent, Ref, Socket, Transport, ProxyHeader, Opts, Peer, Sock, Cert, Buffer) ->
+	proc_lib:set_label({?MODULE, Ref}),
 	DynamicBuffer = init_dynamic_buffer_size(Opts),
 	{ok, Preface, HTTP2Machine} = cow_http2_machine:init(server, Opts),
 	%% Send the preface before doing all the init in case we get a socket error.
@@ -240,6 +242,7 @@ add_period(Time, Period) -> Time + Period.
 
 init(Parent, Ref, Socket, Transport, ProxyHeader, Opts, Peer, Sock, Cert, Buffer,
 		_Settings, Req=#{method := Method}) ->
+	proc_lib:set_label({?MODULE, Ref}),
 	DynamicBuffer = init_dynamic_buffer_size(Opts),
 	{ok, Preface, HTTP2Machine0} = cow_http2_machine:init(server, Opts),
 	{ok, StreamID, HTTP2Machine}

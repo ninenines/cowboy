@@ -150,7 +150,9 @@ start_tracer(StreamID, Req, Opts) ->
 %% Tracer process.
 
 -spec tracer_process(_, _, _) -> no_return().
-tracer_process(StreamID, Req=#{pid := Parent}, Opts=#{tracer_callback := Fun}) ->
+tracer_process(StreamID, Req=#{ref := Ref, pid := Parent},
+		Opts=#{tracer_callback := Fun}) ->
+	proc_lib:set_label({?MODULE, Ref}),
 	%% This is necessary because otherwise the tracer could stop
 	%% before it has finished processing the events in its queue.
 	process_flag(trap_exit, true),
