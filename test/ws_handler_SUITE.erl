@@ -228,7 +228,10 @@ do_close_frame(Config, Path) ->
 	{ok, ConnPid, StreamRef} = gun_open_ws(Config, Path, [close]),
 	ensure_handle_is_called(ConnPid, StreamRef, Path),
 	{ok, close} = receive_ws(ConnPid, StreamRef),
-	gun_down(ConnPid).
+	case config(protocol, Config) of
+		http -> gun_down(ConnPid);
+		http2 -> ok
+	end.
 
 websocket_init_many_frames_then_close_frame(Config) ->
 	doc("Multiple frames are received followed by a close frame "
@@ -255,7 +258,10 @@ do_many_frames_then_close_frame(Config, Path) ->
 	{ok, {text, <<"One frame!">>}} = receive_ws(ConnPid, StreamRef),
 	{ok, {binary, <<"Two frames!">>}} = receive_ws(ConnPid, StreamRef),
 	{ok, close} = receive_ws(ConnPid, StreamRef),
-	gun_down(ConnPid).
+	case config(protocol, Config) of
+		http -> gun_down(ConnPid);
+		http2 -> ok
+	end.
 
 websocket_init_trap_exit_false(Config) ->
 	doc("The trap_exit process flag must be set back to false before "
@@ -339,11 +345,16 @@ websocket_set_options_idle_timeout(Config) ->
 	%% Trigger the change in idle_timeout and confirm that
 	%% the connection gets closed soon after.
 	gun:ws_send(ConnPid, StreamRef, {text, <<"idle_timeout_short">>}),
-	receive
-		{gun_down, ConnPid, _, _, _} ->
+	case config(protocol, Config) of
+		http ->
+			receive
+				{gun_down, ConnPid, _, _, _} ->
+					ok
+			after 2000 ->
+				error(timeout)
+			end;
+		http2 ->
 			ok
-	after 2000 ->
-		error(timeout)
 	end.
 
 websocket_set_options_max_frame_size(Config) ->
@@ -375,11 +386,16 @@ websocket_set_options_max_frame_size(Config) ->
 	%% Confirm that sending frames larger than 1000 bytes
 	%% results in the closing of the connection.
 	gun:ws_send(ConnPid, StreamRef, {binary, <<0:8008>>}),
-	receive
-		{gun_down, ConnPid, _, _, _} ->
+	case config(protocol, Config) of
+		http ->
+			receive
+				{gun_down, ConnPid, _, _, _} ->
+					ok
+			after 2000 ->
+				error(timeout)
+			end;
+		http2 ->
 			ok
-	after 2000 ->
-		error(timeout)
 	end.
 
 websocket_shutdown_reason(Config) ->

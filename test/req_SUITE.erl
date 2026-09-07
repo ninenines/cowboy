@@ -107,7 +107,8 @@ do_get(Path, Config) ->
 
 do_get(Path, Headers, Config) ->
 	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, Path, [{<<"accept-encoding">>, <<"gzip">>}|Headers]),
+	Ref = gun:get(ConnPid, Path, [{<<"accept-encoding">>, <<"gzip">>}|Headers],
+		#{invalid_request_headers => ignore}),
 	case gun:await(ConnPid, Ref, infinity) of
 		{response, IsFin, Status, RespHeaders} ->
 			{ok, RespBody} = case IsFin of
