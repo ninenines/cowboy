@@ -632,12 +632,6 @@ max_headers(Config0) ->
 
 persistent_term_router(Config) ->
 	doc("The router can retrieve the routes from persistent_term storage."),
-	case erlang:function_exported(persistent_term, get, 1) of
-		true -> do_persistent_term_router(Config);
-		false -> {skip, "This test uses the persistent_term functionality added in Erlang/OTP 21.2."}
-	end.
-
-do_persistent_term_router(Config) ->
 	persistent_term:put(?FUNCTION_NAME, init_dispatch(Config)),
 	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
 		env => #{dispatch => {persistent_term, ?FUNCTION_NAME}}

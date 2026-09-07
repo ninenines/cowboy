@@ -236,9 +236,8 @@ cowboy:start_clear(my_http_listener,
 
 === Using persistent_term
 
-The routes can be stored in `persistent_term` starting from
-Erlang/OTP 21.2. This may give a performance improvement when
-there are a large number of routes.
+The routes can be stored in `persistent_term`. This may give
+a performance improvement when there are a large number of routes.
 
 To use this functionality you need to compile the routes,
 store them in `persistent_term` and then inform Cowboy:
