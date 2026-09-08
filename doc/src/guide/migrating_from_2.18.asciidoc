@@ -1,0 +1,30 @@
+[appendix]
+== Migrating from Cowboy 2.18 to 2.19
+
+Cowboy 2.19 is a maintenance release containing a
+small number of fixes and improvements.
+
+Cowboy 2.19 requires Erlang/OTP 27.0 or greater.
+
+=== Features added
+
+* Support for Erlang/OTP versions below 27.0 was dropped.
+  Cowboy will now only support Erlang/OTP versions that
+  receive security patches.
+
+* Cowboy processes now have labels.
+
+* Update Cowlib to 2.20.0.
+
+=== Bugs fixed
+
+* HPACK: only index fields known to be safe; never
+  index other fields. This may result in larger
+  HTTP/2 messages.
+
+* HPACK: fix name-only indexing.
+
+* Parsing of numbers in protocol components was
+  made stricter. The limit in the number of digits
+  was increased from 17 to 20 to accomodate
+  peculiar implementations.
