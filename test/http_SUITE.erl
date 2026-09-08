@@ -1258,9 +1258,9 @@ graceful_shutdown_listener(Config) ->
 	},
 	Dispatch = cowboy_router:compile([{"localhost", [
 		{"/delay_hello", delay_hello_h,
-			#{delay => 500, notify_received => self()}},
+			#{delay => 0, notify_received => self(), wait_for_go => true}},
 		{"/long_delay_hello", delay_hello_h,
-			#{delay => 10000, notify_received => self()}}
+			#{delay => 0, notify_received => self(), wait_for_go => true}}
 	]}]),
 	ProtoOpts = #{
 		env => #{dispatch => Dispatch}
@@ -1271,19 +1271,38 @@ graceful_shutdown_listener(Config) ->
 	Ref1 = gun:get(ConnPid1, "/delay_hello"),
 	ConnPid2 = gun_open([{type, tcp}, {protocol, http}, {port, Port}|Config]),
 	Ref2 = gun:get(ConnPid2, "/long_delay_hello"),
-	%% Shutdown listener while the handlers are working.
-	receive {request_received, <<"/delay_hello">>} -> ok end,
-	receive {request_received, <<"/long_delay_hello">>} -> ok end,
-	%% Note: This call does not complete quickly and will
-	%% prevent other cowboy:stop_listener/1 calls to complete.
-	ok = cowboy:stop_listener(?FUNCTION_NAME),
+	Pid1 = receive {request_received, <<"/delay_hello">>, P1} -> P1 end,
+	receive {request_received, <<"/long_delay_hello">>, _} -> ok end,
+	%% stop_listener waits for the shutdown timeout of the long request.
+	%% Run it in another process so we can unblock the short request
+	%% after Ranch has delivered shutdown to the connection.
+	CowboyConnPid = ct_helper:get_parent_pid(Pid1),
+	Session = trace:session_create(?FUNCTION_NAME, self(), []),
+	1 = trace:process(Session, CowboyConnPid, true, ['receive']),
+	Self = self(),
+	_ = spawn(fun() ->
+		ok = cowboy:stop_listener(?FUNCTION_NAME),
+		Self ! {listener_stopped, self()}
+	end),
+	try
+		receive
+			{trace, CowboyConnPid, 'receive', {'EXIT', _, shutdown}} ->
+				ok
+		after 2000 ->
+			error({timeout, process_info(CowboyConnPid, messages)})
+		end
+	after
+		trace:session_destroy(Session)
+	end,
+	Pid1 ! go,
 	%% Check that the 1st request is handled before shutting down.
 	{response, nofin, 200, RespHeaders} = gun:await(ConnPid1, Ref1),
 	<<"close">> = proplists:get_value(<<"connection">>, RespHeaders),
 	{ok, RespBody} = gun:await_body(ConnPid1, Ref1),
 	<<"Hello world!">> = iolist_to_binary(RespBody),
 	gun:close(ConnPid1),
-	%% Check that the 2nd (very slow) request is not handled.
+	receive {listener_stopped, _} -> ok end,
+	%% Check that the 2nd request is not handled.
 	{error, {stream_error, closed}} = gun:await(ConnPid2, Ref2),
 	gun:close(ConnPid2).
 
