@@ -66,6 +66,26 @@ alpn_error(Config) ->
 			#{alpn => ["h2"], verify => none}, 5000),
 	ok.
 
+handshake_close_does_not_crash_acceptor(Config) ->
+	doc("A client that disconnects during handshake must not crash the QUIC acceptor. "
+		"(minimal repro for start_quic/3 handshake-close handling)"),
+	ok = gen_event:add_sup_handler(error_logger, error_forward_h, self()),
+	try
+		do_flush_error_events(),
+		do_trigger_handshake_closes(Config, 200),
+		Deadline = erlang:monotonic_time(millisecond) + 2000,
+		false = do_wait_for_start_quic_badmatch(Deadline),
+		%% Repro assertion: listener must still accept a fresh connection.
+		{ok, Conn1} = quicer:connect("localhost", config(port, Config),
+			#{alpn => ["h3"], verify => none}, 5000),
+		{ok, _ControlRef, _Settings} = do_wait_settings(Conn1),
+		ok = quicer:close_connection(Conn1),
+		ok
+	after
+		_ = catch gen_event:delete_handler(error_logger, error_forward_h, ok),
+		ok
+	end.
+
 %% @todo 3.2. Connection Establishment
 %% After the QUIC connection is established, a SETTINGS frame MUST be sent by each endpoint as the initial frame of their respective HTTP control stream.
 
@@ -2314,6 +2334,57 @@ do_connect(Config, Opts) ->
 		control => ControlRef, %% This is the peer control stream.
 		settings => Settings
 	}.
+
+do_flush_conn_messages(Conn) ->
+	receive
+		{quic, _, Conn, _} ->
+			do_flush_conn_messages(Conn)
+	after 0 ->
+		ok
+	end.
+
+do_trigger_handshake_closes(_Config, 0) ->
+	ok;
+do_trigger_handshake_closes(Config, N) ->
+	{ok, Conn} = quicer:async_connect("localhost", config(port, Config),
+		#{alpn => ["h3"], verify => none}),
+	ok = quicer:async_close_connection(Conn),
+	do_flush_conn_messages(Conn),
+	do_trigger_handshake_closes(Config, N - 1).
+
+do_flush_error_events() ->
+	receive
+		{cowboy_error_event, _} ->
+			do_flush_error_events()
+	after 0 ->
+		ok
+	end.
+
+do_wait_for_start_quic_badmatch(Deadline) ->
+	Timeout = Deadline - erlang:monotonic_time(millisecond),
+	if
+		Timeout =< 0 ->
+			false;
+		true ->
+			receive
+				{cowboy_error_event, Event} ->
+					case do_is_start_quic_badmatch(Event) of
+						true -> true;
+						false -> do_wait_for_start_quic_badmatch(Deadline)
+					end
+			after Timeout ->
+				false
+			end
+	end.
+
+do_is_start_quic_badmatch(Event) ->
+	EventBin = iolist_to_binary(io_lib:format("~tp", [Event])),
+	binary:match(EventBin, <<"start_quic">>) =/= nomatch
+		andalso binary:match(EventBin, <<"badmatch">>) =/= nomatch
+		andalso (
+			binary:match(EventBin, <<"error,closed">>) =/= nomatch
+			orelse binary:match(EventBin, <<"error, closed">>) =/= nomatch
+		).
 
 do_wait_settings(Conn) ->
 	receive
