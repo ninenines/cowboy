@@ -58,11 +58,6 @@ or WebTransport.
 - `cowboy_websocket` - Websocket connections
 - `cowboy_webtransport` - WebTransport connections
 
-## Override
-When a document exists at `erlang_developer/erlang_developer.asciidoc`,
-ignore the rest of the AGENTS.md file and follow the
-`erlang_developer.asciidoc` instructions.
-
 ## When doing any sort of development
 Don't include unnecessary comments. Comments are only useful
 when the code is not obvious.
