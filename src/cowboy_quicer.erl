@@ -28,6 +28,7 @@
 -export([start_bidi_stream/2]).
 -export([start_unidi_stream/2]).
 -export([setopt/4]).
+-export([set_stream_priority/3]).
 -export([send/3]).
 -export([send/4]).
 -export([send_datagram/2]).
@@ -117,6 +118,15 @@ start_stream(Conn, InitialData, OpenFlag) ->
 setopt(_Conn, StreamID, active, Value) ->
 	StreamRef = get({quicer_stream, StreamID}),
 	quicer:setopt(StreamRef, active, Value).
+
+%% Priority is QUIC_PARAM_STREAM_PRIORITY: 0..65535, default 16#7FFF,
+%% higher values are scheduled first.
+-spec set_stream_priority(quicer_connection_handle(), cow_http3:stream_id(), 0..65535)
+	-> ok | {error, any()}.
+
+set_stream_priority(_Conn, StreamID, Priority) ->
+	StreamRef = get({quicer_stream, StreamID}),
+	quicer:setopt(StreamRef, priority, Priority).
 
 -spec send(quicer_connection_handle(), cow_http3:stream_id(), iodata())
 	-> ok | {error, any()}.

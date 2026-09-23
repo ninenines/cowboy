@@ -208,6 +208,20 @@ bidirectional_streams_server(Config) ->
 	{fin, <<"Hello">>} = do_receive_data(RemoteStreamRef),
 	ok.
 
+set_stream_priority(Config) ->
+	doc("The WT server can change the priority of a stream via a command."),
+	%% Connect to the WebTransport server.
+	#{
+		conn := Conn,
+		session_id := SessionID
+	} = do_webtransport_connect(Config),
+	%% Create a bidi stream, send a special instruction to make
+	%% the server set the priority of the stream then send data.
+	{ok, LocalStreamRef} = quicer:start_stream(Conn, #{}),
+	{ok, _} = quicer:send(LocalStreamRef, <<1:2, 16#41:14, 0:2, SessionID:6, "TEST:set_priority">>),
+	{nofin, <<"priority_set">>} = do_receive_data(LocalStreamRef),
+	ok.
+
 %% Endpoints MUST NOT send WT_STREAM as a frame type on HTTP/3 streams other than the very first bytes of a request stream. Receiving this frame type in any other circumstances MUST be treated as a connection error of type H3_FRAME_ERROR. (4.2)
 
 %% 4.3. Resetting Data Streams
