@@ -1006,6 +1006,13 @@ wt_commands(State=#state{conn=Conn}, Session, [{send, StreamID, IsFin, Data}|Tai
 			wt_commands(State, Session, Tail)
 		%% @todo Handle errors.
 	end;
+wt_commands(State=#state{conn=Conn}, Session, [{set_stream_priority, StreamID, Priority}|Tail]) ->
+	%% @todo Check that StreamID belongs to Session.
+	case cowboy_quicer:set_stream_priority(Conn, StreamID, Priority) of
+		ok ->
+			wt_commands(State, Session, Tail)
+		%% @todo Handle errors.
+	end;
 wt_commands(State=#state{conn=Conn}, Session=#stream{id=SessionID}, [initiate_close|Tail]) ->
 	%% We must send a WT_DRAIN_SESSION capsule on the CONNECT stream.
 	Capsule = cow_capsule:wt_drain_session(),

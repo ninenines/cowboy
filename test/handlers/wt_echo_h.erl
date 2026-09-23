@@ -64,6 +64,9 @@ webtransport_handle(Event = {stream_data, StreamID, _IsFin, <<"TEST:", Test/bits
 			{[{close, 1234567890}], Streams};
 		<<"close_app_code_msg">> ->
 			{[{close, 1234567890, <<"onetwothreefourfivesixseveneightnineten">>}], Streams};
+		<<"set_priority">> ->
+			{[{set_stream_priority, StreamID, 16#ffff},
+				{send, StreamID, nofin, <<"priority_set">>}], Streams};
 		<<"event_pid:", EventPidBin/bits>> ->
 			{[{send, StreamID, nofin, <<"event_pid_received">>}],
 				Streams#{event_pid => binary_to_term(EventPidBin)}}

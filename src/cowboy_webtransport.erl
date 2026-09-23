@@ -58,6 +58,7 @@
 	{open_stream, open_stream_ref(), stream_type(), iodata()} |
 	{close_stream, cow_http3:stream_id(), cow_http3:wt_app_error_code()} |
 	{send, cow_http3:stream_id() | datagram, iodata()} |
+	{set_stream_priority, cow_http3:stream_id(), 0..65535} |
 	initiate_close |
 	close |
 	{close, cow_http3:wt_app_error_code()} |
@@ -240,6 +241,9 @@ commands([Command={send, _, _}|Tail], State, Res, Acc) ->
 	commands(Tail, State, Res, [Command|Acc]);
 %% {send, StreamID, IsFin, Data}.
 commands([Command={send, _, _, _}|Tail], State, Res, Acc) ->
+	commands(Tail, State, Res, [Command|Acc]);
+%% {set_stream_priority, StreamID, Priority}.
+commands([Command={set_stream_priority, _, _}|Tail], State, Res, Acc) ->
 	commands(Tail, State, Res, [Command|Acc]);
 %% initiate_close - DRAIN_WT_SESSION
 commands([Command=initiate_close|Tail], State, Res, Acc) ->
