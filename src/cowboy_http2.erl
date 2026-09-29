@@ -132,6 +132,9 @@
 	http2_status :: sequence | settings | upgrade | connected | closing_initiated | closing,
 	http2_machine :: cow_http2_machine:http2_machine(),
 
+	%% Continuation for an in-progress DATA frame payload (cow_http2:parse_data/2).
+	data_cont = undefined :: undefined | cow_http2:data_cont(),
+
 	%% HTTP/2 frame rate flood protection.
 	frame_rate_num :: undefined | pos_integer(),
 	frame_rate_time :: undefined | integer(),
@@ -402,6 +405,18 @@ parse(State=#state{http2_status=sequence}, Data) ->
 		Error = {connection_error, _, _} ->
 			terminate(State, Error)
 	end;
+%% Continue an in-progress DATA frame without re-buffering the payload.
+parse(State=#state{data_cont=Cont}, Data) when Cont =/= undefined ->
+	case cow_http2:parse_data(Data, Cont) of
+		{ok, Frame, Rest} ->
+			parse(frame(State#state{data_cont=undefined}, Frame), Rest);
+		{more, Frame = {data, _, _, _}, Cont2} ->
+			before_loop(frame(State#state{data_cont=Cont2}, Frame), <<>>);
+		{more, Cont2} ->
+			before_loop(State#state{data_cont=Cont2}, <<>>);
+		Error = {connection_error, _, _} ->
+			terminate(State, Error)
+	end;
 parse(State=#state{http2_status=Status, http2_machine=HTTP2Machine, streams=Streams}, Data) ->
 	MaxFrameSize = cow_http2_machine:get_local_setting(max_frame_size, HTTP2Machine),
 	case cow_http2:parse(Data, MaxFrameSize) of
@@ -413,6 +428,11 @@ parse(State=#state{http2_status=Status, http2_machine=HTTP2Machine, streams=Stre
 			parse(reset_stream(State, StreamID, {stream_error, Reason, Human}), Rest);
 		Error = {connection_error, _, _} ->
 			terminate(State, Error);
+		%% Incomplete DATA: forward what we have and continue via parse_data/2.
+		{more, Frame = {data, _, _, _}, Cont} ->
+			before_loop(frame_rate(State#state{data_cont=Cont}, Frame), <<>>);
+		{more, Cont} ->
+			before_loop(State#state{data_cont=Cont}, <<>>);
 		%% Terminate the connection if we are closing and all streams have completed.
 		more when Status =:= closing, Streams =:= #{} ->
 			terminate(State, {stop, normal, 'The connection is going away.'});
