@@ -70,6 +70,7 @@
 -export([resp_header/2]).
 -export([resp_header/3]).
 -export([resp_headers/1]).
+-export([has_sent_resp/1]).
 -export([set_resp_header/3]).
 -export([set_resp_headers/2]).
 -export([has_resp_header/2]).
@@ -151,7 +152,7 @@
 	has_read_body => true,
 	multipart => {binary(), binary()} | done,
 
-	has_sent_resp => headers | true,
+	has_sent_resp => {headers | full, cowboy:http_status()},
 	resp_cookies => #{iodata() => iodata()},
 	resp_headers => #{binary() => iodata()},
 	resp_body => resp_body(),
@@ -823,6 +824,12 @@ resp_header(Name, #{resp_headers := Headers}, Default) ->
 resp_header(_, #{}, Default) ->
 	Default.
 
+-spec has_sent_resp(req()) -> false | {headers | full, cowboy:http_status()}.
+has_sent_resp(#{has_sent_resp := HasSentResp}) ->
+	HasSentResp;
+has_sent_resp(#{}) ->
+	false.
+
 -spec resp_headers(req()) -> cowboy:http_headers().
 resp_headers(#{resp_headers := RespHeaders}) ->
 	RespHeaders;
@@ -928,10 +935,10 @@ do_reply_ensure_no_body(Status, Headers, Body, Req) ->
 %% data around if we can avoid it.
 do_reply(Status, Headers, _, Req=#{method := <<"HEAD">>}) ->
 	cast({response, Status, response_headers(Headers, Req), <<>>}, Req),
-	done_replying(Req, true);
+	done_replying(Req, {full, Status});
 do_reply(Status, Headers, Body, Req) ->
 	cast({response, Status, response_headers(Headers, Req), Body}, Req),
-	done_replying(Req, true).
+	done_replying(Req, {full, Status}).
 
 done_replying(Req, HasSentResp) ->
 	maps:without([resp_cookies, resp_headers, resp_body], Req#{has_sent_resp => HasSentResp}).
@@ -960,30 +967,30 @@ stream_reply(Status = <<"304",_/bits>>, Headers=#{}, Req) ->
 	reply(Status, Headers, <<>>, Req);
 stream_reply(Status, Headers=#{}, Req) when is_integer(Status); is_binary(Status) ->
 	cast({headers, Status, response_headers(Headers, Req)}, Req),
-	done_replying(Req, headers).
+	done_replying(Req, {headers, Status}).
 
 -spec stream_body(resp_body(), fin | nofin, req()) -> ok.
 %% Error out if headers were not sent.
 %% Don't send any body for HEAD responses.
-stream_body(_, _, #{method := <<"HEAD">>, has_sent_resp := headers}) ->
+stream_body(_, _, #{method := <<"HEAD">>, has_sent_resp := {headers, _}}) ->
 	ok;
 %% Don't send a message if the data is empty, except for the
 %% very last message with IsFin=fin. When using sendfile this
 %% is converted to a data tuple, however.
 stream_body({sendfile, _, 0, _}, nofin, _) ->
 	ok;
-stream_body({sendfile, _, 0, _}, IsFin=fin, Req=#{has_sent_resp := headers}) ->
+stream_body({sendfile, _, 0, _}, IsFin=fin, Req=#{has_sent_resp := {headers, _}}) ->
 	stream_body({data, self(), IsFin, <<>>}, Req);
-stream_body({sendfile, O, B, P}, IsFin, Req=#{has_sent_resp := headers})
+stream_body({sendfile, O, B, P}, IsFin, Req=#{has_sent_resp := {headers, _}})
 		when is_integer(O), O >= 0, is_integer(B), B > 0 ->
 	stream_body({data, self(), IsFin, {sendfile, O, B, P}}, Req);
-stream_body(Data, IsFin=nofin, Req=#{has_sent_resp := headers})
+stream_body(Data, IsFin=nofin, Req=#{has_sent_resp := {headers, _}})
 		when not is_tuple(Data) ->
 	case iolist_size(Data) of
 		0 -> ok;
 		_ -> stream_body({data, self(), IsFin, Data}, Req)
 	end;
-stream_body(Data, IsFin, Req=#{has_sent_resp := headers})
+stream_body(Data, IsFin, Req=#{has_sent_resp := {headers, _}})
 		when not is_tuple(Data) ->
 	stream_body({data, self(), IsFin, Data}, Req).
 
@@ -995,14 +1002,14 @@ stream_body(Msg, Req=#{pid := Pid}) ->
 -spec stream_events(cow_sse:event() | [cow_sse:event()], fin | nofin, req()) -> ok.
 stream_events(Event, IsFin, Req) when is_map(Event) ->
 	stream_events([Event], IsFin, Req);
-stream_events(Events, IsFin, Req=#{has_sent_resp := headers}) ->
+stream_events(Events, IsFin, Req=#{has_sent_resp := {headers, _}}) ->
 	stream_body({data, self(), IsFin, cow_sse:events(Events)}, Req).
 
 -spec stream_trailers(cowboy:http_headers(), req()) -> ok.
 stream_trailers(#{<<"set-cookie">> := _}, _) ->
 	exit({response_error, invalid_header,
 		'Response cookies must be set using cowboy_req:set_resp_cookie/3,4.'});
-stream_trailers(Trailers, Req=#{has_sent_resp := headers}) ->
+stream_trailers(Trailers, Req=#{has_sent_resp := {headers, _}}) ->
 	cast({trailers, Trailers}, Req).
 
 -spec push(iodata(), cowboy:http_headers(), req()) -> ok.
