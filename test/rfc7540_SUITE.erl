@@ -2037,6 +2037,46 @@ rst_stream_closed_reject_headers(Config) ->
 	{ok, << _:24, 7:8, _:72, 5:32 >>} = gen_tcp:recv(Socket, 17, 6000),
 	ok.
 
+headers_after_sending_rst_stream(Config) ->
+	doc("A HEADERS block received after sending RST_STREAM must be "
+		"decoded and discarded. (RFC7540 4.3, RFC7540 5.1)"),
+	{ok, Socket} = do_handshake(Config),
+	%% The request does not end the stream. The handler replies without
+	%% reading a body, so the server resets the stream.
+	{ReqHeaders1, Enc1} = cow_hpack:encode([
+		{<<":method">>, <<"POST">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+		{<<":path">>, <<"/">>}
+	]),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, nofin, ReqHeaders1)),
+	%% Receive the response.
+	{ok, << Length1:24, 1:8, _:9, 1:31 >>} = gen_tcp:recv(Socket, 9, 6000),
+	{ok, _} = gen_tcp:recv(Socket, Length1, 6000),
+	{ok, <<12:24, 0, 1, 0:1, 1:31, "Hello world!">>} = gen_tcp:recv(Socket, 21, 1000),
+	%% Receive a NO_ERROR stream error.
+	{ok, << _:24, 3:8, _:40, 0:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+	%% This field is indexed. The next request references that entry,
+	%% so discarding the block without decoding it fails decompression.
+	{Discarded, Enc2} = cow_hpack:encode([
+		{<<"accept">>, <<"x-cowlib-linger">>}
+	], Enc1),
+	{ReqHeaders2, _} = cow_hpack:encode([
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":authority">>, <<"localhost">>},
+		{<<":path">>, <<"/">>},
+		{<<"accept">>, <<"x-cowlib-linger">>}
+	], Enc2),
+	ok = gen_tcp:send(Socket, [
+		cow_http2:headers(1, fin, Discarded),
+		cow_http2:headers(3, fin, ReqHeaders2)
+	]),
+	%% Receive the response.
+	{ok, << Length2:24, 1:8, _:9, 3:31 >>} = gen_tcp:recv(Socket, 9, 6000),
+	{ok, _} = gen_tcp:recv(Socket, Length2, 6000),
+	ok.
+
 rst_stream_closed_accept_priority(Config) ->
 	doc("PRIORITY frames received on a stream closed via RST_STREAM "
 		"must be accepted. (RFC7540 5.1)"),

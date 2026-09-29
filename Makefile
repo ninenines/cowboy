@@ -16,7 +16,7 @@ CT_OPTS += -ct_hooks cowboy_ct_hook [] # -boot start_sasl
 LOCAL_DEPS = crypto
 
 DEPS = cowlib ranch
-dep_cowlib = git https://github.com/ninenines/cowlib 2.20.0
+dep_cowlib = git https://github.com/ninenines/cowlib reponse_timeout
 dep_ranch = git https://github.com/ninenines/ranch 1.8.1
 
 ifeq ($(COWBOY_QUICER),1)
