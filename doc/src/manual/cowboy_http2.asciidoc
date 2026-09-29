@@ -211,7 +211,8 @@ max_encode_table_size (4096)::
 
 Maximum header table size in bytes used by the encoder. The server will
 compare this value to what the client advertises and choose the smallest
-one as the encoder's header table size.
+one as the encoder's header table size. The encoder starts at size 0
+and is raised after the peer SETTINGS frame (see cowlib#102 / cowlib#181).
 
 max_fragmented_header_block_size (32768)::
 
