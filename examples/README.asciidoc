@@ -9,6 +9,9 @@
 * link:cookie[]:
   set cookies from server and client side
 
+* link:cors_hello_world[]:
+  simplest CORS middleware example
+
 * link:echo_get[]:
   parse and echo a GET query string
 
