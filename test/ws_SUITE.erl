@@ -661,61 +661,37 @@ ws_timeout_reset(Config) ->
 	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
 	ok.
 
-ws_webkit_deflate(Config) ->
-	doc("x-webkit-deflate-frame compression."),
-	{ok, Socket, Headers} = do_handshake("/ws_echo",
+ws_webkit_deflate_ignored(Config) ->
+	doc("An x-webkit-deflate-frame offer is ignored. A text frame is echoed, "
+		"then a text frame with RSV1 set fails the connection."),
+	{ok, _, Headers1} = do_handshake("/ws_echo",
 		"Sec-WebSocket-Extensions: x-webkit-deflate-frame\r\n", Config),
-	{_, "x-webkit-deflate-frame"} = lists:keyfind("sec-websocket-extensions", 1, Headers),
-	%% Send and receive a compressed "Hello" frame.
+	false = lists:keyfind("sec-websocket-extensions", 1, Headers1),
+	{ok, Socket, Headers2} = do_handshake("/ws_echo",
+		"Sec-WebSocket-Extensions: x-webkit-deflate-frame; max_window_bits=10\r\n",
+		Config),
+	false = lists:keyfind("sec-websocket-extensions", 1, Headers2),
 	Mask = 16#11223344,
-	CompressedHello = << 242, 72, 205, 201, 201, 7, 0 >>,
-	MaskedHello = do_mask(CompressedHello, Mask, <<>>),
-	ok = gen_tcp:send(Socket, << 1:1, 1:1, 0:2, 1:4, 1:1, 7:7, Mask:32, MaskedHello/binary >>),
-	{ok, << 1:1, 1:1, 0:2, 1:4, 0:1, 7:7, CompressedHello/binary >>} = gen_tcp:recv(Socket, 0, 6000),
-	%% Client-initiated close.
-	ok = gen_tcp:send(Socket, << 1:1, 0:3, 8:4, 1:1, 0:7, 0:32 >>),
-	{ok, << 1:1, 0:3, 8:4, 0:8 >>} = gen_tcp:recv(Socket, 0, 6000),
+	MaskedHello = do_mask(<<"Hello">>, Mask, <<>>),
+	ok = gen_tcp:send(Socket, <<1:1, 0:3, 1:4, 1:1, 5:7, Mask:32, MaskedHello/binary>>),
+	{ok, <<1:1, 0:3, 1:4, 0:1, 5:7, "Hello">>} = gen_tcp:recv(Socket, 0, 6000),
+	ok = gen_tcp:send(Socket, <<1:1, 1:1, 0:2, 1:4, 1:1, 5:7, Mask:32, MaskedHello/binary>>),
+	{ok, <<1:1, 0:3, 8:4, 0:1, 2:7, 1002:16>>} = gen_tcp:recv(Socket, 0, 6000),
 	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
 	ok.
 
-ws_webkit_deflate_fragments(Config) ->
-	doc("Client sends an x-webkit-deflate-frame compressed and fragmented text frame."),
-	{ok, Socket, Headers} = do_handshake("/ws_echo",
-		"Sec-WebSocket-Extensions: x-webkit-deflate-frame\r\n", Config),
-	{_, "x-webkit-deflate-frame"} = lists:keyfind("sec-websocket-extensions", 1, Headers),
-	%% Send a compressed "Hello" over two fragments and two sends.
-	Mask = 16#11223344,
-	CompressedHello = << 242, 72, 205, 201, 201, 7, 0 >>,
-	MaskedHello1 = do_mask(binary:part(CompressedHello, 0, 4), Mask, <<>>),
-	MaskedHello2 = do_mask(binary:part(CompressedHello, 4, 3), Mask, <<>>),
-	ok = gen_tcp:send(Socket, << 0:1, 1:1, 0:2, 1:4, 1:1, 4:7, Mask:32, MaskedHello1/binary >>),
-	ok = gen_tcp:send(Socket, << 1:1, 1:1, 0:2, 0:4, 1:1, 3:7, Mask:32, MaskedHello2/binary >>),
-	{ok, << 1:1, 1:1, 0:2, 1:4, 0:1, 7:7, CompressedHello/binary >>} = gen_tcp:recv(Socket, 0, 6000),
-	ok.
-
-ws_webkit_deflate_single_bytes(Config) ->
-	doc("Client sends an x-webkit-deflate-frame compressed text frame one byte at a time."),
-	{ok, Socket, Headers} = do_handshake("/ws_echo",
-		"Sec-WebSocket-Extensions: x-webkit-deflate-frame\r\n", Config),
-	{_, "x-webkit-deflate-frame"} = lists:keyfind("sec-websocket-extensions", 1, Headers),
-	%% We sleep between sends to make sure only one byte is sent.
-	Mask = 16#11223344,
-	CompressedHello = << 242, 72, 205, 201, 201, 7, 0 >>,
-	MaskedHello = do_mask(CompressedHello, Mask, <<>>),
-	ok = gen_tcp:send(Socket, << 16#c1 >>), timer:sleep(100),
-	ok = gen_tcp:send(Socket, << 16#87 >>), timer:sleep(100),
-	ok = gen_tcp:send(Socket, << 16#11 >>), timer:sleep(100),
-	ok = gen_tcp:send(Socket, << 16#22 >>), timer:sleep(100),
-	ok = gen_tcp:send(Socket, << 16#33 >>), timer:sleep(100),
-	ok = gen_tcp:send(Socket, << 16#44 >>), timer:sleep(100),
-	ok = gen_tcp:send(Socket, [binary:at(MaskedHello, 0)]), timer:sleep(100),
-	ok = gen_tcp:send(Socket, [binary:at(MaskedHello, 1)]), timer:sleep(100),
-	ok = gen_tcp:send(Socket, [binary:at(MaskedHello, 2)]), timer:sleep(100),
-	ok = gen_tcp:send(Socket, [binary:at(MaskedHello, 3)]), timer:sleep(100),
-	ok = gen_tcp:send(Socket, [binary:at(MaskedHello, 4)]), timer:sleep(100),
-	ok = gen_tcp:send(Socket, [binary:at(MaskedHello, 5)]), timer:sleep(100),
-	ok = gen_tcp:send(Socket, [binary:at(MaskedHello, 6)]),
-	{ok, << 1:1, 1:1, 0:2, 1:4, 0:1, 7:7, CompressedHello/binary >>} = gen_tcp:recv(Socket, 0, 6000),
+ws_webkit_deflate_with_permessage_deflate(Config) ->
+	doc("permessage-deflate is negotiated when x-webkit-deflate-frame is also offered."),
+	{ok, _, Headers1} = do_handshake("/ws_echo",
+		"Sec-WebSocket-Extensions: x-webkit-deflate-frame, permessage-deflate\r\n",
+		Config),
+	{_, "permessage-deflate"}
+		= lists:keyfind("sec-websocket-extensions", 1, Headers1),
+	{ok, _, Headers2} = do_handshake("/ws_echo",
+		"Sec-WebSocket-Extensions: permessage-deflate, x-webkit-deflate-frame\r\n",
+		Config),
+	{_, "permessage-deflate"}
+		= lists:keyfind("sec-websocket-extensions", 1, Headers2),
 	ok.
 
 %% Internal.

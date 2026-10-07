@@ -238,23 +238,6 @@ websocket_extensions(State=#state{opts=Opts, extensions=Extensions},
 	catch exit:{error, incompatible_zlib_version, _} ->
 		websocket_extensions(State, Req, Tail, RespHeader)
 	end;
-websocket_extensions(State=#state{opts=Opts, extensions=Extensions},
-		Req=#{pid := Pid, version := Version},
-		[{<<"x-webkit-deflate-frame">>, Params}|Tail], RespHeader) ->
-	DeflateOpts0 = maps:get(deflate_opts, Opts, #{}),
-	DeflateOpts = case Version of
-		'HTTP/1.1' -> DeflateOpts0#{owner => Pid};
-		_ -> DeflateOpts0
-	end,
-	try cow_ws:negotiate_x_webkit_deflate_frame(Params, Extensions, DeflateOpts) of
-		{ok, RespExt, Extensions2} ->
-			websocket_extensions(State#state{extensions=Extensions2},
-				Req, Tail, [<<", ">>, RespExt|RespHeader]);
-		ignore ->
-			websocket_extensions(State, Req, Tail, RespHeader)
-	catch exit:{error, incompatible_zlib_version, _} ->
-		websocket_extensions(State, Req, Tail, RespHeader)
-	end;
 websocket_extensions(State, Req, [_|Tail], RespHeader) ->
 	websocket_extensions(State, Req, Tail, RespHeader).
 
