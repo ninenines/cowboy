@@ -64,10 +64,10 @@ include erlang.mk
 HEX_TARBALL_FILES += doc/src/guide/security_model.asciidoc \
 	doc/src/guide/security_checklist.asciidoc
 
-# Don't run the examples/autobahn test suites by default.
+# Don't run the examples and performance test suites by default.
 
 ifndef FULL
-CT_SUITES := $(filter-out examples http_perf ws_autobahn ws_perf,$(CT_SUITES))
+CT_SUITES := $(filter-out examples http_perf ws_perf,$(CT_SUITES))
 endif
 
 # Don't run HTTP/3 test suites on Windows.

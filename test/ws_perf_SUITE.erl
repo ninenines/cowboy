@@ -24,17 +24,20 @@
 %% ct.
 
 all() ->
-	[{group, binary}, {group, ascii}, {group, mixed}, {group, japanese}].
+	[{group, binary}, {group, ascii}, {group, mixed}, {group, japanese}, {group, frag}].
 
 groups() ->
-	CommonGroups = cowboy_test:common_groups(ct_helper:all(?MODULE), no_parallel),
+	All = ct_helper:all(?MODULE),
+	Frag = [F || F <- All, lists:prefix("echo_frag_", atom_to_list(F))],
+	CommonGroups = cowboy_test:common_groups(All -- Frag, no_parallel),
 	SubGroups = [G || G = {GN, _, _} <- CommonGroups,
 		GN =:= http orelse GN =:= h2c orelse GN =:= http_compress orelse GN =:= h2c_compress],
 	[
 		{binary, [], SubGroups},
 		{ascii, [], SubGroups},
 		{mixed, [], SubGroups},
-		{japanese, [], SubGroups}
+		{japanese, [], SubGroups},
+		{frag, [], Frag}
 	].
 
 init_per_suite(Config) ->
@@ -73,7 +76,13 @@ init_per_group(mixed, Config) ->
 init_per_group(japanese, Config) ->
 	init_text_data("japanese.txt", Config);
 init_per_group(binary, Config) ->
-	[{frame_type, binary}|Config].
+	[{frame_type, binary}|Config];
+init_per_group(frag, Config) ->
+	Config1 = init_text_data("ascii.txt", Config),
+	ct:pal("Fragmented Websocket frames (ascii.txt and binary)"),
+	cowboy_test:init_http(frag, #{
+		env => #{dispatch => init_dispatch(Config1)}
+	}, Config1).
 
 init_info(Name, Config) ->
 	DataInfo = case config(frame_type, Config) of
@@ -102,10 +111,12 @@ end_per_group(Name, _Config) ->
 %% Dispatch configuration.
 
 init_dispatch(_Config) ->
+	%% Single frames go up to 16384KiB - 1, plus deflate expansion.
+	WsOpts = #{max_frame_size => 16 * 1024 * 1024 + 64 * 1024},
 	cowboy_router:compile([
 		{"localhost", [
-			{"/ws_echo", ws_echo, []},
-			{"/ws_ignore", ws_ignore, []}
+			{"/ws_echo", ws_echo, WsOpts},
+			{"/ws_ignore", ws_ignore, WsOpts}
 		]}
 	]).
 
@@ -122,7 +133,11 @@ do_gun_open_ws(Path, Config) ->
 			stream_window_margin_size => 64*1024
 		},
 		tcp_opts => [{nodelay, true}],
-		ws_opts => #{compress => config(flavor, Config) =:= compress}
+		ws_opts => #{
+			compress => config(flavor, Config) =:= compress,
+			%% Gun defaults to 1000000. Frames here go up to 16384KiB - 1.
+			max_frame_size => 16 * 1024 * 1024 + 64 * 1024
+		}
 	}),
 	case config(protocol, Config) of
 		http -> ok;
@@ -455,6 +470,137 @@ do_tcp_wait_for_check(Socket) ->
 			end
 	after 5000 ->
 		error(timeout)
+	end.
+
+echo_frag_text_00256KiB_00064B(Config) ->
+	doc("Echo a 256KiB text message sent as 64-byte fragments."),
+	do_echo_frag(Config, text, 256 * 1024, 64).
+
+echo_frag_text_00256KiB_04096B(Config) ->
+	doc("Echo a 256KiB text message sent as 4096-byte fragments."),
+	do_echo_frag(Config, text, 256 * 1024, 4096).
+
+echo_frag_text_00256KiB_65536B(Config) ->
+	doc("Echo a 256KiB text message sent as 65536-byte fragments."),
+	do_echo_frag(Config, text, 256 * 1024, 65536).
+
+echo_frag_bin_00256KiB_00064B(Config) ->
+	doc("Echo a 256KiB binary message sent as 64-byte fragments."),
+	do_echo_frag(Config, binary, 256 * 1024, 64).
+
+echo_frag_bin_00256KiB_04096B(Config) ->
+	doc("Echo a 256KiB binary message sent as 4096-byte fragments."),
+	do_echo_frag(Config, binary, 256 * 1024, 4096).
+
+echo_frag_bin_00256KiB_65536B(Config) ->
+	doc("Echo a 256KiB binary message sent as 65536-byte fragments."),
+	do_echo_frag(Config, binary, 256 * 1024, 65536).
+
+echo_frag_text_01024KiB_00064B(Config) ->
+	doc("Echo a 1024KiB text message sent as 64-byte fragments."),
+	do_echo_frag(Config, text, 1024 * 1024, 64).
+
+echo_frag_text_01024KiB_04096B(Config) ->
+	doc("Echo a 1024KiB text message sent as 4096-byte fragments."),
+	do_echo_frag(Config, text, 1024 * 1024, 4096).
+
+echo_frag_text_01024KiB_65536B(Config) ->
+	doc("Echo a 1024KiB text message sent as 65536-byte fragments."),
+	do_echo_frag(Config, text, 1024 * 1024, 65536).
+
+echo_frag_bin_01024KiB_00064B(Config) ->
+	doc("Echo a 1024KiB binary message sent as 64-byte fragments."),
+	do_echo_frag(Config, binary, 1024 * 1024, 64).
+
+echo_frag_bin_01024KiB_04096B(Config) ->
+	doc("Echo a 1024KiB binary message sent as 4096-byte fragments."),
+	do_echo_frag(Config, binary, 1024 * 1024, 4096).
+
+echo_frag_bin_01024KiB_65536B(Config) ->
+	doc("Echo a 1024KiB binary message sent as 65536-byte fragments."),
+	do_echo_frag(Config, binary, 1024 * 1024, 65536).
+
+echo_frag_text_04096KiB_04096B(Config) ->
+	doc("Echo a 4096KiB text message sent as 4096-byte fragments."),
+	do_echo_frag(Config, text, 4096 * 1024, 4096).
+
+echo_frag_text_04096KiB_65536B(Config) ->
+	doc("Echo a 4096KiB text message sent as 65536-byte fragments."),
+	do_echo_frag(Config, text, 4096 * 1024, 65536).
+
+echo_frag_bin_04096KiB_04096B(Config) ->
+	doc("Echo a 4096KiB binary message sent as 4096-byte fragments."),
+	do_echo_frag(Config, binary, 4096 * 1024, 4096).
+
+echo_frag_bin_04096KiB_65536B(Config) ->
+	doc("Echo a 4096KiB binary message sent as 65536-byte fragments."),
+	do_echo_frag(Config, binary, 4096 * 1024, 65536).
+
+%% Minus one because frames can only get so big.
+echo_frag_text_16384KiB_04096B(Config) ->
+	doc("Echo a 16384KiB - 1 text message sent as 4096-byte fragments."),
+	do_echo_frag(Config, text, 16384 * 1024 - 1, 4096).
+
+echo_frag_text_16384KiB_65536B(Config) ->
+	doc("Echo a 16384KiB - 1 text message sent as 65536-byte fragments."),
+	do_echo_frag(Config, text, 16384 * 1024 - 1, 65536).
+
+echo_frag_bin_16384KiB_04096B(Config) ->
+	doc("Echo a 16384KiB - 1 binary message sent as 4096-byte fragments."),
+	do_echo_frag(Config, binary, 16384 * 1024 - 1, 4096).
+
+echo_frag_bin_16384KiB_65536B(Config) ->
+	doc("Echo a 16384KiB - 1 binary message sent as 65536-byte fragments."),
+	do_echo_frag(Config, binary, 16384 * 1024 - 1, 65536).
+
+do_echo_frag(Config, Type, MessageSize, FragSize) ->
+	{ok, Socket, _Headers} = ws_SUITE:do_handshake(<<"/ws_echo">>, Config),
+	Payload = case Type of
+		text -> do_text_data(Config, MessageSize);
+		binary -> rand:bytes(MessageSize)
+	end,
+	Opcode = case Type of
+		text -> 1;
+		binary -> 2
+	end,
+	Mask = 16#37fa213d,
+	Frames = do_echo_frag_frames(Payload, FragSize, Opcode, Mask, true, []),
+	{Time, _} = timer:tc(fun() ->
+		ok = gen_tcp:send(Socket, Frames),
+		{ok, Header} = gen_tcp:recv(Socket, 10, 120000),
+		<<1:1, 0:3, Opcode:4, 0:1, 127:7, MessageSize:64>> = Header,
+		{ok, Echo} = gen_tcp:recv(Socket, MessageSize, 120000),
+		Echo = Payload
+	end),
+	do_log("~-9s ~-6s ~6s ~6s: ~8bµs",
+		[echo_frag, Type, do_format_size(MessageSize), do_format_size(FragSize), Time]),
+	gen_tcp:close(Socket).
+
+do_echo_frag_frames(Payload, FragSize, Opcode, Mask, First, Acc) ->
+	{Frag, Rest, Fin} = case byte_size(Payload) > FragSize of
+		true ->
+			<<Frag0:FragSize/binary, Rest0/binary>> = Payload,
+			{Frag0, Rest0, 0};
+		false ->
+			{Payload, <<>>, 1}
+	end,
+	FrameOpcode = case First of
+		true -> Opcode;
+		false -> 0
+	end,
+	Masked = ws_SUITE:do_mask(Frag, Mask, <<>>),
+	Len = byte_size(Masked),
+	LenBits = case Len of
+		N when N =< 125 -> << N:7 >>;
+		N when N =< 16#ffff -> << 126:7, N:16 >>;
+		N when N =< 16#7fffffffffffffff -> << 127:7, N:64 >>
+	end,
+	Frame = <<Fin:1, 0:3, FrameOpcode:4, 1:1, LenBits/bits, Mask:32, Masked/binary>>,
+	case Rest of
+		<<>> ->
+			lists:reverse([Frame|Acc]);
+		_ ->
+			do_echo_frag_frames(Rest, FragSize, Opcode, Mask, false, [Frame|Acc])
 	end.
 
 %% Internal.

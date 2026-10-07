@@ -556,11 +556,6 @@ parse_payload(State=#state{opts=Opts, frag_state=FragState, utf8_state=Incomplet
 			dispatch_frame(State#state{utf8_state=Utf8State}, HandlerState,
 				ParseState#ps_payload{payload= <<Payload0/binary, Payload/binary>>},
 				Rest);
-		{more, CloseCode, Payload, Utf8State} ->
-			before_loop(State#state{utf8_state=Utf8State}, HandlerState,
-				ParseState#ps_payload{len=Len - byte_size(Data), close_code=CloseCode,
-					payload= <<Payload0/binary, Payload/binary>>,
-					unmasked_len=UnmaskedLen + byte_size(Data)});
 		{more, Payload, Utf8State} ->
 			before_loop(State#state{utf8_state=Utf8State}, HandlerState,
 				ParseState#ps_payload{len=Len - byte_size(Data),

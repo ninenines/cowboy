@@ -6,8 +6,10 @@
 -export([websocket_handle/2]).
 -export([websocket_info/2]).
 
-init(Req, _) ->
-	{cowboy_websocket, Req, undefined, #{
+init(Req, Opts) when not is_map(Opts) ->
+	init(Req, #{});
+init(Req, Opts) ->
+	{cowboy_websocket, Req, undefined, Opts#{
 		data_delivery => relay,
 		compress => true
 	}}.

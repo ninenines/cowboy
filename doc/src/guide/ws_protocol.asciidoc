@@ -56,10 +56,9 @@ switches to Websocket. Please consult the next chapter for
 more information on initiating and handling Websocket
 connections.
 
-The implementation of Websocket in Cowboy is validated using
-the Autobahn test suite, which is an extensive suite of tests
-covering all aspects of the protocol. Cowboy passes the
-suite with 100% success, including all optional tests.
+The implementation of Websocket in Cowboy is validated
+using an extensive test suite covering all aspects of
+the protocol.
 
 Cowboy's Websocket implementation also includes the
 permessage-deflate and x-webkit-deflate-frame compression
