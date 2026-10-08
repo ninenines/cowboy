@@ -1,0 +1,59 @@
+[appendix]
+== Migrating from Cowboy 2.19 to 2.20
+
+Cowboy 2.20 is a maintenance release. It updates
+Cowlib to 2.21 to benefit from security and
+bug fixes.
+
+Cowboy 2.20 requires Erlang/OTP 27.0 or greater.
+
+=== Features added
+
+* Update Cowlib to 2.21.0.
+
+=== Features removed
+
+* The obsolete `x-webkit-deflate-frame` Websocket
+  extension is no longer negotiated. An offer
+  of that extension is ignored. Clients that offered
+  only `x-webkit-deflate-frame` now get an uncompressed
+  connection. `permessage-deflate` is unchanged.
+
+=== Bugs fixed
+
+* Websocket close reason in the middle of a fragmented
+  text message could fail UTF-8 validation despite
+  being valid.
+
+* A ping, pong or close frame sent between fragments
+  of a compressed message is no longer inflated.
+
+* The empty final fragment of a compressed message
+  is now inflated and checked. Bad deflate data or
+  a bad UTF-8 state fails the connection. Bytes
+  flushed by the compression trailer are delivered.
+
+* Unexpected RSV1 on a Websocket control frame is now
+  rejected and the connection closed.
+
+* HPACK was not using the configured header table
+  size if below 4096 until the peer sent its own
+  setting.
+
+* After `RST_STREAM` is sent, a `HEADERS` or
+  `CONTINUATION` frame for that stream was not
+  decoded, desynchronizing the HPACK state.
+
+* An invalid last chunk in a chunked body is now
+  rejected immediately.
+
+* The chunk before the last chunk is no longer left
+  unparsed longer than necessary.
+
+* HTTP date parsing was made stricter.
+
+* The cookie code was updated to the current
+  RFC6265bis draft.
+
+* Cowboy no longer sends the obsolete Expires
+  attribute in Set-Cookie headers.
