@@ -77,7 +77,7 @@ fail_gracefully_on_disconnect(Config) ->
 		[binary, {active, false}, {packet, raw}]),
 	timer:sleep(50),
 	Pid = do_get_remote_pid(Socket, Config),
-	Ref = erlang:monitor(process, Pid),
+	Ref = do_monitor(Pid),
 	gen_tcp:close(Socket),
 	receive
 		{'DOWN', Ref, process, Pid, {shutdown, closed}} ->
@@ -94,7 +94,7 @@ fail_gracefully_on_timeout(Config) ->
 		[binary, {active, false}, {packet, raw}]),
 	timer:sleep(50),
 	Pid = do_get_remote_pid(Socket, Config),
-	Ref = erlang:monitor(process, Pid),
+	Ref = do_monitor(Pid),
 	receive
 		{'DOWN', Ref, process, Pid, {shutdown, closed}} ->
 			ok;
@@ -110,7 +110,7 @@ fail_gracefully_on_invalid_proxy_header(Config) ->
 		[binary, {active, false}, {packet, raw}]),
 	timer:sleep(50),
 	Pid = do_get_remote_pid(Socket, Config),
-	Ref = erlang:monitor(process, Pid),
+	Ref = do_monitor(Pid),
 	ok = gen_tcp:send(Socket, <<"invalid data instead of a proxy header">>),
 	receive
 		{'DOWN', Ref, process, Pid, {shutdown, {connection_error, protocol_error, _}}} ->
@@ -127,7 +127,7 @@ fail_gracefully_on_partial_header_disconnect(Config) ->
 		[binary, {active, false}, {packet, raw}]),
 	timer:sleep(50),
 	Pid = do_get_remote_pid(Socket, Config),
-	Ref = erlang:monitor(process, Pid),
+	Ref = do_monitor(Pid),
 	ok = gen_tcp:send(Socket, <<"PROXY TCP4 127.0.0.1">>),
 	gen_tcp:close(Socket),
 	receive
@@ -144,6 +144,17 @@ do_get_remote_pid(Socket, Config) ->
 		tcp -> ct_helper:get_remote_pid_tcp(Socket);
 		ssl -> ct_helper:get_remote_pid_tls(Socket)
 	end.
+
+%% The monitor is set up asynchronously. When the connection process
+%% exits before it has processed the monitor signal, we receive a
+%% 'DOWN' message with reason noproc instead of the real exit reason.
+%% We make sure the monitor is in place before doing anything that
+%% may cause the connection process to exit.
+do_monitor(Pid) ->
+	Ref = erlang:monitor(process, Pid),
+	{monitored_by, MonitoredBy} = erlang:process_info(Pid, monitored_by),
+	true = lists:member(self(), MonitoredBy),
+	Ref.
 
 v1_proxy_header(Config) ->
 	doc("Confirm we can read the proxy header at the start of the connection."),
