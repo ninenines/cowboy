@@ -21,7 +21,6 @@
 
 %% API.
 -export([start_link/0]).
--export([stop/0]).
 -export([rfc1123/0]).
 -export([rfc1123/1]).
 
@@ -44,10 +43,6 @@
 -spec start_link() -> {ok, pid()}.
 start_link() ->
 	gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
-
--spec stop() -> stopped.
-stop() ->
-	gen_server:call(?MODULE, stop).
 
 %% When the ets table doesn't exist, either because of a bug
 %% or because Cowboy is being restarted, we perform in a
@@ -77,12 +72,7 @@ init([]) ->
 	ets:insert(?MODULE, {rfc1123, B}),
 	{ok, #state{universaltime=T, rfc1123=B, tref=TRef}}.
 
--type from() :: {pid(), term()}.
--spec handle_call
-	(stop, from(), State) -> {stop, normal, stopped, State}
-	when State::#state{}.
-handle_call(stop, _From, State) ->
-	{stop, normal, stopped, State};
+-spec handle_call(_, _, State) -> {reply, ignored, State} when State::#state{}.
 handle_call(_Request, _From, State) ->
 	{reply, ignored, State}.
 
