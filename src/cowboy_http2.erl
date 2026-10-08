@@ -107,6 +107,9 @@
 %% the connection. This value is the number of ticks.
 -define(IDLE_TIMEOUT_TICKS, 10).
 
+%% How many file bytes to batch to send them more efficiently.
+-define(FILE_COALESCE_LIMIT, 65536).
+
 -record(state, {
 	parent = undefined :: pid(),
 	ref :: ranch:ref(),
@@ -1124,22 +1127,68 @@ maybe_send_data(State0=#state{socket=Socket, transport=Transport,
 			end
 	end.
 
-send_data(State0=#state{socket=Socket, transport=Transport, opts=Opts}, SendData, Prefix) ->
+send_data(State0=#state{transport=Transport, opts=Opts}, SendData, Prefix) ->
 	{Acc, State} = prepare_data(State0, SendData, [], Prefix),
-	_ = [case Data of
-		{sendfile, Offset, Bytes, Path} ->
-			%% When sendfile is disabled we explicitly use the fallback.
-			{ok, _} = maybe_socket_error(State,
-				case maps:get(sendfile, Opts, true) of
-					true -> Transport:sendfile(Socket, Path, Offset, Bytes);
-					false -> ranch_transport:sendfile(Transport, Socket, Path, Offset, Bytes, [])
-				end
-			),
-			ok;
-		_ ->
-			ok = maybe_socket_error(State, Transport:send(Socket, Data))
-	end || Data <- Acc],
+	Sendfile = maps:get(sendfile, Opts, true) andalso Transport:name() =:= tcp,
+	Fds = send_acc(State, Acc, Sendfile, [], 0, #{}),
+	maps:foreach(fun(_, Fd) -> file:close(Fd) end, Fds),
 	send_data_terminate(State, SendData).
+
+%% If not using TCP sendfile coalesce file chunk to reduce calls to the TLS
+%% connection process
+send_acc(State, [], _, Buffer, _, Fds) ->
+	ok = send_buffer(State, Buffer),
+	Fds;
+send_acc(State, [{sendfile, Offset, Bytes, Path}|Tail], Sendfile, Buffer, _, Fds)
+		when Sendfile; Bytes =:= 0; Bytes > ?FILE_COALESCE_LIMIT ->
+	ok = send_buffer(State, Buffer),
+	{ok, _} = maybe_socket_error(State, sendfile(State, Path, Offset, Bytes)),
+	send_acc(State, Tail, Sendfile, [], 0, Fds);
+send_acc(State, [{sendfile, Offset, Bytes, Path}|Tail], Sendfile, Buffer, FileBytes, Fds0)
+		when FileBytes + Bytes > ?FILE_COALESCE_LIMIT ->
+	%% Read before flushing so if we fail to read we terminate on a frame boundary
+	{Bin, Fds} = read_file(State, Path, Offset, Bytes, Fds0),
+	ok = send_buffer(State, [Bin|Buffer]),
+	send_acc(State, Tail, Sendfile, [], 0, Fds);
+send_acc(State, [{sendfile, Offset, Bytes, Path}|Tail], Sendfile, Buffer, FileBytes, Fds0) ->
+	{Bin, Fds} = read_file(State, Path, Offset, Bytes, Fds0),
+	send_acc(State, Tail, Sendfile, [Bin|Buffer], FileBytes + Bytes, Fds);
+send_acc(State, [Data|Tail], Sendfile, Buffer, FileBytes, Fds) ->
+	send_acc(State, Tail, Sendfile, [Data|Buffer], FileBytes, Fds).
+
+send_buffer(_, []) ->
+	ok;
+send_buffer(State=#state{socket=Socket, transport=Transport}, Buffer) ->
+	ok = maybe_socket_error(State, Transport:send(Socket, lists:reverse(Buffer))).
+
+sendfile(#state{socket=Socket, transport=Transport, opts=Opts}, Path, Offset, Bytes) ->
+	case maps:get(sendfile, Opts, true) of
+		true -> Transport:sendfile(Socket, Path, Offset, Bytes);
+		false -> ranch_transport:sendfile(Transport, Socket, Path, Offset, Bytes, [])
+	end.
+
+read_file(State, Path, Offset, Bytes, Fds0) ->
+	{Fd, Fds} = case Fds0 of
+		#{Path := Fd0} ->
+			{Fd0, Fds0};
+		_ ->
+			case file:open(Path, [read, raw, binary]) of
+				{ok, Fd0} ->
+					{Fd0, Fds0#{Path => Fd0}};
+				{error, OpenError} ->
+					terminate(State, {internal_error, {sendfile, OpenError},
+						'File open error when sending response body.'})
+			end
+	end,
+	case file:pread(Fd, Offset, Bytes) of
+		{ok, Bin} when byte_size(Bin) =:= Bytes ->
+			{Bin, Fds};
+		{error, ReadError} ->
+			terminate(State, {internal_error, {sendfile, ReadError},
+				'File read error when sending response body.'});
+		_ ->
+			terminate(State, {internal_error, {sendfile, truncated}, 'File changed size.'})
+	end.
 
 send_data_terminate(State, []) ->
 	State;
