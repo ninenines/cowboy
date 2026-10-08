@@ -108,7 +108,8 @@
 is_upgrade_request(#{version := Version, method := <<"CONNECT">>, protocol := Protocol})
 		when Version =:= 'HTTP/3' ->
 	%% @todo scheme MUST BE "https"
-	<<"webtransport">> =:= cowboy_bstr:to_lower(Protocol);
+	Protocol =:= <<"webtransport">> orelse
+		string:lowercase(Protocol) =:= <<"webtransport">>;
 
 is_upgrade_request(_) ->
 	false.

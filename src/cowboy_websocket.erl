@@ -126,7 +126,8 @@
 -spec is_upgrade_request(cowboy_req:req()) -> boolean().
 is_upgrade_request(#{version := Version, method := <<"CONNECT">>, protocol := Protocol})
 		when Version =:= 'HTTP/2'; Version =:= 'HTTP/3' ->
-	<<"websocket">> =:= cowboy_bstr:to_lower(Protocol);
+	Protocol =:= <<"websocket">> orelse
+		string:lowercase(Protocol) =:= <<"websocket">>;
 is_upgrade_request(Req=#{version := 'HTTP/1.1', method := <<"GET">>}) ->
 	ConnTokens = cowboy_req:parse_header(<<"connection">>, Req, []),
 	case lists:member(<<"upgrade">>, ConnTokens) of

@@ -31,7 +31,6 @@ or WebTransport.
 ## Modules
 - `cowboy` - Listener management
 - `cowboy_app` - OTP application callback module
-- `cowboy_bstr` - Binary string helpers
 - `cowboy_children` - Manager of request processes
 - `cowboy_clear` - Entry-point for clear-text connections
 - `cowboy_clock` - Builds a valid Date string every second

@@ -569,7 +569,7 @@ match_constraints_test() ->
 		<<"ninenines.eu">>, <<"/path//more">>),
 	Dispatch2 = [{'_', [], [{[<<"path">>, username],
 		[{username, fun(_, Value) ->
-			case cowboy_bstr:to_lower(Value) of
+			case string:lowercase(Value) of
 				Value -> {ok, Value};
 				_ -> {error, not_lowercase}
 			end end}],
