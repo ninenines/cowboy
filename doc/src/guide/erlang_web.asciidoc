@@ -178,18 +178,6 @@ If you are new to Erlang, you may want to grab a book or
 two to get started. Those are my recommendations as the
 author of Cowboy.
 
-==== The Erlanger Playbook
-
-The Erlanger Playbook is an ebook I am currently writing,
-which covers a number of different topics from code to
-documentation to testing Erlang applications. It also has
-an Erlang section where it covers directly the building
-blocks and patterns, rather than details like the syntax.
-
-You can most likely read it as a complete beginner, but
-you will need a companion book to make the most of it.
-Buy it from the https://ninenines.eu[Nine Nines website].
-
 ==== Programming Erlang
 
 This book is from one of the creator of Erlang, Joe
