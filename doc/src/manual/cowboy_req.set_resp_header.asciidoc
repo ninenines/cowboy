@@ -9,7 +9,7 @@ cowboy_req:set_resp_header - Set a response header
 [source,erlang]
 ----
 set_resp_header(Name, Value, Req :: cowboy_req:req())
-	-> Req
+    -> Req
 
 Name  :: binary()  %% lowercase; case insensitive
 Value :: iodata()  %% case depends on header

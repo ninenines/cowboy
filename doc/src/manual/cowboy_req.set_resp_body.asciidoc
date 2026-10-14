@@ -9,7 +9,7 @@ cowboy_req:set_resp_body - Set the response body
 [source,erlang]
 ----
 set_resp_body(Body, Req :: cowboy_req:req())
-	-> Req
+    -> Req
 
 Body :: cowboy_req:resp_body()
 ----

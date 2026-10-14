@@ -103,11 +103,11 @@ user input would have been.
 [source,erlang]
 ----
 int(reverse, Value) ->
-	try
-		{ok, integer_to_binary(Value)}
-	catch _:_ ->
-		{error, not_an_integer}
-	end;
+    try
+        {ok, integer_to_binary(Value)}
+    catch _:_ ->
+        {error, not_an_integer}
+    end;
 ----
 
 Finally, the `format_error` operation takes an error
@@ -117,7 +117,7 @@ human-readable error message.
 [source,erlang]
 ----
 int(format_error, {not_an_integer, Value}) ->
-	io_lib:format("The value ~p is not an integer.", [Value]).
+    io_lib:format("The value ~p is not an integer.", [Value]).
 ----
 
 Notice that for this case you get both the error and

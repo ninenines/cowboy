@@ -25,8 +25,8 @@ may be decoded; or be empty otherwise.
 [source,erlang]
 ----
 opts() :: #{
-	decompress_enabled => boolean(),
-	decompress_ratio_limit => non_neg_integer()
+    decompress_enabled => boolean(),
+    decompress_ratio_limit => non_neg_integer()
 }
 ----
 
