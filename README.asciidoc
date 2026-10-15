@@ -34,5 +34,4 @@ Cowboy is *clean* and *well tested* Erlang code.
 
 * https://discord.gg/x25nNq2fFE[Discord server]
 * https://github.com/ninenines/cowboy/issues[Issues tracker]
-* https://ninenines.eu/services[Commercial Support]
 * https://github.com/sponsors/essen[Sponsor me!]
