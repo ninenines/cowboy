@@ -101,7 +101,7 @@ was not tested and is not supported.
   malformed accept-encoding headers instead of crashing.
 
 * The manual pages for `cowboy:start_clear(3)` and
-  `cowboy:start_tls(3)` now mentions that some protocol
+  `cowboy:start_tls(3)` now mention that some protocol
   options may be documented in the relevant stream
   handler.
 

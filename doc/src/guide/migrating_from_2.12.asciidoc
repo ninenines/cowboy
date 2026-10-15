@@ -33,7 +33,7 @@ Cowboy 2.13 requires Erlang/OTP 24.0 or greater.
   This allows configuring a smaller max size and
   increase it after authentication or other checks.
 
-* `cowboy_req:set_resp_headers` now accept lists of
+* `cowboy_req:set_resp_headers` now accepts lists of
   headers. This can be used to simplify passing
   headers coming from client applications such as
   Gun. Note that the set-cookie header cannot be

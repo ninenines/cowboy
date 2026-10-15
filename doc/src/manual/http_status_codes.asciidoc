@@ -14,7 +14,7 @@ replies.
 == 100 Continue
 
 When the client sends an `expect: 100-continue` header,
-Cowboy automatically sends a this status code before
+Cowboy automatically sends this status code before
 trying to read the request body. This behavior can be
 disabled using the appropriate body option.
 
