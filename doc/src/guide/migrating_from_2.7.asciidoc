@@ -102,7 +102,7 @@ was not tested and is not supported.
 
 * The manual pages for `cowboy:start_clear(3)` and
   `cowboy:start_tls(3)` now mentions that some protocol
-  options may be documented in the releevant stream
+  options may be documented in the relevant stream
   handler.
 
 * The manual page for `cowboy_req:parse_header(3)` was
