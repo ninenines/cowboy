@@ -151,7 +151,7 @@ only accept `bytes` units can use the callback name
 Other callbacks should have a name prefix of `ranged_`
 for clarity. For example, `ranged_bytes` or `ranged_pages`.
 If the resource needs to perform additional checks before
-accepting to do a ranged responses, implement the
+accepting to do a ranged response, implement the
 `range_satisfiable` callback.
 
 Is there any other header that may make the representation

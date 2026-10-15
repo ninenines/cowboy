@@ -672,7 +672,7 @@ Return the list of range units the resource provides.
 
 During content negotiation Cowboy will build an accept-ranges
 response header with the list of ranges provided. Cowboy
-does not choose a range at this time; ranges are choosen
+does not choose a range at this time; ranges are chosen
 when it comes time to call the `ProvideCallback`.
 
 By default ranged requests will be handled the same as normal
@@ -738,10 +738,10 @@ Returning `false` will result in a 416 Range Not Satisfiable
 response being sent. The content-range header will be
 set automatically in the response if a tuple is
 returned. The integer value represents the total
-size (in the choosen unit) of the resource. An
+size (in the chosen unit) of the resource. An
 iodata value may also be returned and will be
 used as-is to build the content range header,
-prepended with the unit choosen.
+prepended with the unit chosen.
 
 === rate_limited
 

@@ -26,5 +26,5 @@ Cowboy 2.19 requires Erlang/OTP 27.0 or greater.
 
 * Parsing of numbers in protocol components was
   made stricter. The limit in the number of digits
-  was increased from 17 to 20 to accomodate
+  was increased from 17 to 20 to accommodate
   peculiar implementations.

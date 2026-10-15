@@ -46,7 +46,7 @@ the key `<<"edit">>` will always have the value `true`:
 == Changelog
 
 * *2.17*: Function `parse_qs/2` introduced with a `max_keys` option.
-* *2.0*: The parsed value is not longer cached in the Req object.
+* *2.0*: The parsed value is no longer cached in the Req object.
 * *2.0*: Only the parsed query string is returned, it is no longer wrapped in a tuple.
 * *2.0*: Function introduced. Replaces `qs_val/1` and `qs_vals/1`.
 

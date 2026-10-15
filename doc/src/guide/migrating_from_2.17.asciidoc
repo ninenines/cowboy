@@ -15,7 +15,7 @@ Cowboy 2.18 requires Erlang/OTP 24.0 or greater.
   `cowboy_req` functions that parse cookies. This new
   limit is applied in addition to existing length
   limits. It defaults to 100. Note that the option
-  can't be overriden when parsing the cookie header
+  can't be overridden when parsing the cookie header
   via `parse_header`.
 
 === Bugs fixed

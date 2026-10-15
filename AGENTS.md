@@ -89,7 +89,7 @@ scenarios, not just a handful.
 
 There should be tests that exercise limits but are expected
 to pass. For example if limiting a component to at most 128
-characters, there must tests for 128 and 129 characters at a
+characters, there must be tests for 128 and 129 characters at a
 minimum. If a value ranges from 0 to 128, there must be tests
 around the boundaries (-1, 0, 128, 129 are good candidates)
 with success expected for values within and failures otherwise.
@@ -101,7 +101,7 @@ as a whole is working as intended.
 ### When optimising performance
 Same as for fixing bugs, first write horse tests and then ensure
 they run faster after doing the changes. As performance tests are
-fiddle a few test runs may be necessary to be sure.
+fiddly a few test runs may be necessary to be sure.
 
 ### When you think you are done
 Review the changes and ensure all changes are necessary.

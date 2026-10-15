@@ -59,7 +59,7 @@ features understood or safely ignored by HTTP/1.0 clients. (RFC7230 A)
 
 It is recommended to limit the request-line length to a configurable
 limit of at least 8000 octets. However, as the possible line length is
-highly dependent on what form the request-target takes, it is preferrable
+highly dependent on what form the request-target takes, it is preferable
 to limit each individual components of the request-target. (RFC7230 3.1.1)
 
 A request line too long must be rejected with a 414 status code
