@@ -62,7 +62,7 @@
      pagecolor="#ffffff"
      bordercolor="#666666"
      borderopacity="1.0"
-     inkscape:pageopacity="1"
+     inkscape:pageopacity="0"
      inkscape:pageshadow="2"
      inkscape:zoom="1.4142136"
      inkscape:cx="172.08527"
@@ -133,7 +133,7 @@
       <path
          inkscape:connector-curvature="0"
          id="path5570-2-0"
-         d="m -57.78256,351.41962 v 52.3259"
+         d="m -57.78256,367.91962 v 35.8259"
          style="opacity:0.8;fill:none;stroke:#6d8e41;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
       <path
          transform="matrix(0.58787746,0,0,0.58787746,73.160466,163.35774)"
@@ -206,7 +206,7 @@
          sodipodi:type="star" />
     </g>
     <rect
-       style="fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:#a9ca7d;stroke-width:2.44279909;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       style="fill:#a9ca7d;fill-opacity:0.15;fill-rule:nonzero;stroke:#a9ca7d;stroke-width:2.44279909;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
        id="rect5367"
        width="207.05719"
        height="171.55719"
@@ -480,7 +480,7 @@
          style="font-size:16px;line-height:1.25;font-family:sans-serif">middlewares</tspan></text>
     <text
        xml:space="preserve"
-       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#9b3b1c;fill-opacity:1;stroke:none"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;-inkscape-font-specification:Sans;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#d0603a;fill-opacity:1;stroke:none"
        x="-58.692513"
        y="236.95154"
        id="text5371-4"><tspan
