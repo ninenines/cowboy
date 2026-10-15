@@ -32,7 +32,7 @@ The result of the compilation is the dispatch rules.
 
 === Syntax
 
-The general structure for the routes is defined as follow.
+The general structure for the routes is defined as follows.
 
 [source,erlang]
 Routes = [Host1, Host2, ... HostN].

@@ -96,7 +96,7 @@ The representation metadata gives information about the
 representation, such as its media type, the date of last
 modification, or even a checksum.
 
-Resource metadata could be link to related resources or
+Resource metadata could be links to related resources or
 information about additional representations of the resource.
 
 Control data allows parameterizing the request or response.
@@ -145,7 +145,7 @@ enough to find and identify hyperlinks and link relations.
 
 To give a simple example, if your service only works with
 the `application/json` media type then this constraint
-cannot be respected (as there are no concept of links in
+cannot be respected (as there is no concept of links in
 JSON) and thus your service isn't RESTful. This is the case
 for the majority of self-proclaimed REST services.
 

@@ -21,7 +21,7 @@ link:man:cowboy_stream(3)[Stream handlers]
 must implement five different callbacks.
 Four of them are directly related; one is special.
 
-All callbacks receives the stream ID as first argument.
+All callbacks receive the stream ID as first argument.
 
 Most of them can return a list of commands to be executed
 by Cowboy. When callbacks are chained, it is possible to
