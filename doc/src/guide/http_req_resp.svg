@@ -133,7 +133,7 @@
       <path
          inkscape:connector-curvature="0"
          id="path5570-2-0"
-         d="m -57.78256,351.41962 v 52.3259"
+         d="m -57.78256,367.91962 v 35.8259"
          style="opacity:0.8;fill:none;stroke:#6d8e41;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
       <path
          transform="matrix(0.58787746,0,0,0.58787746,73.160466,163.35774)"
@@ -206,7 +206,7 @@
          sodipodi:type="star" />
     </g>
     <rect
-       style="fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:#a9ca7d;stroke-width:2.44279909;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       style="fill:#a9ca7d;fill-opacity:0.15;fill-rule:nonzero;stroke:#a9ca7d;stroke-width:2.44279909;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
        id="rect5367"
        width="207.05719"
        height="171.55719"
