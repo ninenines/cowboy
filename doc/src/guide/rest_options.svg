@@ -62,7 +62,7 @@
      pagecolor="#ffffff"
      bordercolor="#666666"
      borderopacity="1.0"
-     inkscape:pageopacity="1"
+     inkscape:pageopacity="0"
      inkscape:pageshadow="2"
      inkscape:zoom="1.0000001"
      inkscape:cx="166.77748"
@@ -278,7 +278,7 @@
          y="53.112247">some text</tspan></text>
     <text
        xml:space="preserve"
-       style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#9b3b1c;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
+       style="font-size:16px;font-style:normal;font-weight:normal;text-align:center;line-height:125%;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#d0603a;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
        x="-58.692513"
        y="236.95154"
        id="text5371-4"
@@ -338,7 +338,7 @@
          inkscape:connector-curvature="0"
          id="path5570-2"
          d="m -57.78256,275.13761 0,129.13992"
-         style="opacity:0.8;fill:none;stroke:#9b3b1c;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none" />
+         style="opacity:0.8;fill:none;stroke:#d0603a;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none" />
       <path
          transform="matrix(0.58787746,0,0,0.58787746,73.160466,163.35774)"
          inkscape:transform-center-y="2.1823437"
@@ -354,7 +354,7 @@
          sodipodi:cx="-222.73865"
          sodipodi:sides="3"
          id="path5576-12"
-         style="opacity:0.8;fill:#9b3b1c;fill-opacity:1;fill-rule:nonzero;stroke:#9b3b1c;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
+         style="opacity:0.8;fill:#d0603a;fill-opacity:1;fill-rule:nonzero;stroke:#d0603a;stroke-width:0;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
          sodipodi:type="star" />
     </g>
     <rect
