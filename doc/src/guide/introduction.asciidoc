@@ -59,7 +59,7 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 === Versioning
 
-Cowboy uses http://semver.org/[Semantic Versioning 2.0.0].
+Cowboy uses https://semver.org/[Semantic Versioning 2.0.0].
 
 === Conventions
 

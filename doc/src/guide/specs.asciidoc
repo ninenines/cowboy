@@ -24,14 +24,14 @@ for or related to HTTP.
 
 ==== Current
 
-* http://www.w3.org/TR/cors/[CORS]: Cross-Origin Resource Sharing
-* http://www.w3.org/TR/CSP2/[CSP2]: Content Security Policy Level 2
-* http://www.w3.org/TR/tracking-dnt/[DNT]: Tracking Preference Expression (DNT)
-* http://www.w3.org/TR/eventsource/[eventsource]: Server-Sent Events
+* https://www.w3.org/TR/cors/[CORS]: Cross-Origin Resource Sharing
+* https://www.w3.org/TR/CSP2/[CSP2]: Content Security Policy Level 2
+* https://www.w3.org/TR/tracking-dnt/[DNT]: Tracking Preference Expression (DNT)
+* https://www.w3.org/TR/eventsource/[eventsource]: Server-Sent Events
 * https://www.w3.org/TR/html4/interact/forms.html#h-17.13.4[Form content types]: Form content types
 * https://www.w3.org/TR/preload/[Preload]: Preload
 * https://www.haproxy.org/download/1.8/doc/proxy-protocol.txt[PROXY]: The PROXY protocol
-* http://www.ics.uci.edu/~fielding/pubs/dissertation/rest_arch_style.htm[REST]: Fielding's Dissertation
+* https://ics.uci.edu/~fielding/pubs/dissertation/rest_arch_style.htm[REST]: Fielding's Dissertation
 * https://tools.ietf.org/html/rfc1945[RFC 1945]: HTTP/1.0
 * https://tools.ietf.org/html/rfc1951[RFC 1951]: DEFLATE Compressed Data Format Specification version 1.3
 * https://tools.ietf.org/html/rfc1952[RFC 1952]: GZIP file format specification version 4.3
@@ -108,12 +108,12 @@ for or related to HTTP.
 * https://www.w3.org/TR/csp-embedded-enforcement/[Content Security Policy: Embedded Enforcement]
 * https://www.w3.org/TR/CSP3/[Content Security Policy Level 3]
 * https://www.w3.org/TR/csp-pinning/[Content Security Policy Pinning]
-* http://www.w3.org/TR/referrer-policy/[Referrer Policy]
-* http://www.w3.org/TR/UISecurity/[User Interface Security Directives for Content Security Policy]
+* https://www.w3.org/TR/referrer-policy/[Referrer Policy]
+* https://www.w3.org/TR/UISecurity/[User Interface Security Directives for Content Security Policy]
 
 ==== Informative
 
-* http://www.w3.org/TR/webarch/[Architecture of the World Wide Web]
+* https://www.w3.org/TR/webarch/[Architecture of the World Wide Web]
 * https://tools.ietf.org/html/rfc2936[RFC 2936]: HTTP MIME Type Handler Detection
 * https://tools.ietf.org/html/rfc2964[RFC 2964]: Use of HTTP State Management
 * https://tools.ietf.org/html/rfc3143[RFC 3143]: Known HTTP Proxy/Caching Problems
@@ -123,30 +123,30 @@ for or related to HTTP.
 
 ==== Related
 
-* http://www.w3.org/TR/app-uri/[app: URL Scheme]
-* http://www.w3.org/TR/beacon/[Beacon]
-* http://www.w3.org/TR/FileAPI/[File API]
+* https://www.w3.org/TR/app-uri/[app: URL Scheme]
+* https://www.w3.org/TR/beacon/[Beacon]
+* https://www.w3.org/TR/FileAPI/[File API]
 * https://tools.ietf.org/html/rfc8030[Generic Event Delivery Using HTTP Push]
-* http://www.w3.org/TR/capability-urls/[Good Practices for Capability URLs]
+* https://www.w3.org/TR/capability-urls/[Good Practices for Capability URLs]
 * https://html.spec.whatwg.org/multipage/[HTML Living Standard]
 * https://developers.whatwg.org/[HTML Living Standard for Web developers]
-* http://www.w3.org/TR/html401/[HTML4.01]
-* http://www.w3.org/TR/html5/[HTML5]
-* http://www.w3.org/TR/html51/[HTML5.1]
+* https://www.w3.org/TR/html401/[HTML4.01]
+* https://www.w3.org/TR/html5/[HTML5]
+* https://www.w3.org/TR/html51/[HTML5.1]
 * https://www.w3.org/TR/html52/[HTML5.2]
-* http://www.w3.org/TR/media-frags/[Media Fragments URI 1.0]
+* https://www.w3.org/TR/media-frags/[Media Fragments URI 1.0]
 * https://tools.ietf.org/html/rfc5829[RFC 5829]: Link Relation Types for Simple Version Navigation between Web Resources
 * https://tools.ietf.org/html/rfc6657[RFC 6657]: Update to MIME regarding "charset" Parameter Handling in Textual Media Types
 * https://tools.ietf.org/html/rfc6690[RFC 6690]: Constrained RESTful Environments (CoRE) Link Format
 * https://tools.ietf.org/html/rfc7807[RFC 7807]: Problem Details for HTTP APIs
 * https://tools.ietf.org/html/rfc6906[RFC 6906]: The 'profile' Link Relation Type
 * https://tools.ietf.org/html/rfc8631[RFC 8631]: Link Relation Types for Web Services
-* http://www.w3.org/TR/SRI/[Subresource Integrity]
-* http://www.w3.org/TR/tracking-compliance/[Tracking Compliance and Scope]
-* http://www.w3.org/TR/media-frags-reqs/[Use cases and requirements for Media Fragments]
-* http://www.w3.org/TR/webrtc/[WebRTC 1.0: Real-time Communication Between Browsers]
-* http://www.w3.org/TR/websockets/[Websocket API]
-* http://www.w3.org/TR/XMLHttpRequest/[XMLHttpRequest Level 1]
+* https://www.w3.org/TR/SRI/[Subresource Integrity]
+* https://www.w3.org/TR/tracking-compliance/[Tracking Compliance and Scope]
+* https://www.w3.org/TR/media-frags-reqs/[Use cases and requirements for Media Fragments]
+* https://www.w3.org/TR/webrtc/[WebRTC 1.0: Real-time Communication Between Browsers]
+* https://www.w3.org/TR/websockets/[Websocket API]
+* https://www.w3.org/TR/XMLHttpRequest/[XMLHttpRequest Level 1]
 * https://xhr.spec.whatwg.org/[XMLHttpRequest Living Standard]
 
 ==== Seemingly obsolete
@@ -160,7 +160,7 @@ for or related to HTTP.
 * https://tools.ietf.org/html/rfc3229[RFC 3229]: Delta encoding in HTTP
 * https://tools.ietf.org/html/rfc7168[RFC 7168]: The Hyper Text Coffee Pot Control Protocol for Tea Efflux Appliances (HTCPCP-TEA)
 * https://tools.ietf.org/html/rfc8565[RFC 8565]: Hypertext Jeopardy Protocol (HTJP/1.0)
-* http://dev.chromium.org/spdy/spdy-protocol[SPDY]: SPDY Protocol
+* https://www.chromium.org/spdy/spdy-protocol[SPDY]: SPDY Protocol
 * https://tools.ietf.org/html/draft-tyoshino-hybi-websocket-perframe-deflate-06[x-webkit-deflate-frame]: Deprecated Websocket compression
 
 === URL
@@ -170,7 +170,7 @@ for or related to HTTP.
 * https://tools.ietf.org/html/rfc6874[RFC 6874]: Representing IPv6 Zone Identifiers in Address Literals and URIs
 * https://tools.ietf.org/html/rfc7320[RFC 7320]: URI Design and Ownership
 * https://tools.ietf.org/html/rfc8615[RFC 8615]: Well-Known URIs
-* http://www.w3.org/TR/url-1/[URL]
+* https://www.w3.org/TR/url-1/[URL]
 * https://url.spec.whatwg.org/[URL Living Standard]
 
 === WebDAV

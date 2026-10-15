@@ -11,7 +11,7 @@ and POST methods. That's highly misguided at best.
 We will first attempt to define REST and will look at what
 it means in the context of HTTP and the Web.
 For a more in-depth explanation of REST, you can read
-http://www.ics.uci.edu/~fielding/pubs/dissertation/top.htm[Roy T. Fielding's dissertation]
+https://ics.uci.edu/~fielding/pubs/dissertation/top.htm[Roy T. Fielding's dissertation]
 as it does a great job explaining where it comes from and
 what it achieves.
 

@@ -17,7 +17,7 @@ you need to push your first Cowboy application to production.
 
 We are going to use the https://github.com/ninenines/erlang.mk[Erlang.mk]
 build system. If you are using Windows, please check the
-http://erlang.mk/guide/installation.html[Installation instructions]
+https://erlang.mk/guide/installation.html[Installation instructions]
 to get your environment setup before you continue.
 
 === Bootstrap
