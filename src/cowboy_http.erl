@@ -1267,7 +1267,7 @@ commands(State0=#state{socket=Socket, transport=Transport,
 		ok ->
 			ok
 	end,
-	#stream{id=StreamID, version=Version} = Stream0,
+	#stream{id=StreamID, method=Method, version=Version} = Stream0,
 	Status = cow_http:status_to_integer(StatusCode),
 	ContentLength = maps:get(<<"content-length">>, Headers0, undefined),
 	%% Chunked transfer-encoding can be disabled on a per-request basis.
@@ -1299,7 +1299,12 @@ commands(State0=#state{socket=Socket, transport=Transport,
 	{State2, Headers} = connection(State1, Headers2),
 	ok = maybe_socket_error(State2, Transport:send(Socket,
 		cow_http:response(StatusCode, 'HTTP/1.1', headers_to_list(Headers)))),
-	State = maybe_reset_idle_timeout(State2),
+	State3 = maybe_reset_idle_timeout(State2),
+	%% A HEAD response is complete once its headers are sent.
+	State = case Method of
+		<<"HEAD">> -> State3#state{out_state=done};
+		_ -> State3
+	end,
 	commands(State, Tail);
 %% Send a response body chunk.
 %% @todo We need to kill the stream if it tries to send data before headers.
