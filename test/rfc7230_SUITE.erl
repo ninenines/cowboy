@@ -1715,6 +1715,39 @@ http10_no_connection_header_close(Config) ->
 	{_, <<"close">>} = lists:keyfind(<<"connection">>, 1, RespHeaders),
 	{error, closed} = raw_recv(Client, 0, 1000).
 
+http10_connection_keepalive_head_content_length(Config) ->
+	doc("HTTP/1.0 HEAD requests with the \"keep-alive\" option "
+		"indicate the connection will persist, including when the "
+		"response is streamed with a content-length header and no "
+		"body. (RFC7230 3.3.3, RFC7230 6.3, RFC7230 A.1.2)"),
+	Client = raw_open(Config),
+	ok = raw_send(Client, [
+		"HEAD /resp/stream_body_content_length/nobody HTTP/1.0\r\n"
+		"Host: localhost\r\n"
+		"Connection: keep-alive\r\n"
+		"\r\n"]),
+	{_, 200, _, Rest} = cow_http:parse_status_line(raw_recv_head(Client)),
+	{Headers, <<>>} = cow_http:parse_headers(Rest),
+	{_, <<"12">>} = lists:keyfind(<<"content-length">>, 1, Headers),
+	{_, <<"keep-alive">>} = lists:keyfind(<<"connection">>, 1, Headers),
+	{error, timeout} = raw_recv(Client, 0, 1000).
+
+connection_close_head_content_length(Config) ->
+	doc("HTTP/1.1 HEAD requests with the \"close\" option indicate "
+		"the connection will be closed, including when the response "
+		"is streamed with a content-length header and no body. "
+		"(RFC7230 6.1, RFC7230 6.3)"),
+	Client = raw_open(Config),
+	ok = raw_send(Client, [
+		"HEAD /resp/stream_body_content_length/nobody HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Connection: close\r\n"
+		"\r\n"]),
+	{_, 200, _, Rest} = cow_http:parse_status_line(raw_recv_head(Client)),
+	{Headers, <<>>} = cow_http:parse_headers(Rest),
+	{_, <<"close">>} = lists:keyfind(<<"connection">>, 1, Headers),
+	{error, closed} = raw_recv(Client, 0, 1000).
+
 connection_invalid(Config) ->
 	doc("HTTP/1.1 requests with an invalid Connection header "
 		"must be rejected with a 400 status code and the closing "

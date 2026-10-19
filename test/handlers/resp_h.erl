@@ -368,6 +368,10 @@ do(<<"stream_body_content_length">>, Req0, Opts) ->
 			Req1 = cowboy_req:set_resp_header(<<"content-length">>, <<"12">>, Req0),
 			Req = cowboy_req:stream_reply(200, Req1),
 			cowboy_req:stream_body(<<"Hello">>, nofin, Req),
+			{ok, Req, Opts};
+		<<"nobody">> ->
+			Req1 = cowboy_req:set_resp_header(<<"content-length">>, <<"12">>, Req0),
+			Req = cowboy_req:stream_reply(200, Req1),
 			{ok, Req, Opts}
 	end;
 do(<<"stream_events">>, Req0, Opts) ->
