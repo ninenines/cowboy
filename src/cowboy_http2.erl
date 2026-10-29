@@ -445,12 +445,12 @@ frame_rate(State0=#state{frame_rate_num=Num0, frame_rate_time=Time}, Frame) ->
 
 %% Frames received.
 
-%% We do nothing when receiving a lingering DATA frame.
-%% We already removed the stream flow from the connection
-%% flow and are therefore already accounting for the window
-%% being reduced by these frames.
+%% We give back the connection window that a lingering DATA
+%% frame uses, because no stream will read its data.
 frame(State=#state{http2_machine=HTTP2Machine0}, Frame) ->
 	case cow_http2_machine:frame(Frame, HTTP2Machine0) of
+		{ok, HTTP2Machine} when element(1, Frame) =:= data ->
+			discard_data(State#state{http2_machine=HTTP2Machine}, byte_size(element(4, Frame)));
 		{ok, HTTP2Machine} ->
 			maybe_ack(State#state{http2_machine=HTTP2Machine}, Frame);
 		{ok, {data, StreamID, IsFin, Data}, HTTP2Machine} ->
@@ -542,8 +542,19 @@ data_frame(State0=#state{opts=Opts, flow=Flow0, streams=Streams}, StreamID, IsFi
 			update_window(State0, StreamID);
 		%% We ignore DATA frames for streams that are stopping.
 		#{} ->
-			State0
+			discard_data(State0, byte_size(Data))
 	end.
+
+%% DATA frames for a stopped or reset stream use up connection window, and
+%% no stream reads them. Give that window back, or the other streams can wait
+%% for window forever.
+discard_data(State, 0) ->
+	State;
+discard_data(State=#state{socket=Socket, transport=Transport,
+		http2_machine=HTTP2Machine0}, Size) ->
+	HTTP2Machine = cow_http2_machine:update_window(Size, HTTP2Machine0),
+	ok = maybe_socket_error(State, Transport:send(Socket, cow_http2:window_update(Size))),
+	State#state{http2_machine=HTTP2Machine}.
 
 headers_frame(State, StreamID, IsFin, Headers,
 		PseudoHeaders=#{method := <<"CONNECT">>}, _)

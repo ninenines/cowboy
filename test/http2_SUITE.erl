@@ -669,6 +669,50 @@ preface_timeout_infinity(Config) ->
 		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
 
+reset_stream_discarded_data_window_update(Config) ->
+	doc("Confirm the server gives back the connection window used by "
+		"DATA frames that arrive after the server reset the stream."),
+	ProtoOpts = #{
+		env => #{dispatch => init_dispatch(Config)}
+	},
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], ProtoOpts),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		{ok, Socket} = do_handshake([{port, Port}|Config]),
+		%% Send a request that the handler replies to without reading the body.
+		{HeadersBlock, _} = cow_hpack:encode([
+			{<<":method">>, <<"POST">>},
+			{<<":scheme">>, <<"http">>},
+			{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+			{<<":path">>, <<"/">>}
+		]),
+		ok = gen_tcp:send(Socket, cow_http2:headers(1, nofin, HeadersBlock)),
+		%% Receive the response, then an RST_STREAM frame because the body was not read.
+		{ok, << RespHeadersLen:24, 1:8, 4:8, 1:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+		{ok, _} = gen_tcp:recv(Socket, RespHeadersLen, 1000),
+		{ok, << 12:24, 0:8, 1:8, 1:32, "Hello world!" >>} = gen_tcp:recv(Socket, 21, 1000),
+		{ok, << 4:24, 3:8, 0:8, 1:32, 0:32 >>} = gen_tcp:recv(Socket, 13, 1000),
+		%% Use up the default connection window of 65535 bytes with DATA frames
+		%% that the client sent before it received the RST_STREAM frame.
+		ok = gen_tcp:send(Socket, [
+			cow_http2:data(1, nofin, <<0:16384/unit:8>>),
+			cow_http2:data(1, nofin, <<0:16384/unit:8>>),
+			cow_http2:data(1, nofin, <<0:16384/unit:8>>),
+			cow_http2:data(1, nofin, <<0:16383/unit:8>>)
+		]),
+		%% Receive WINDOW_UPDATE frames that give back the whole connection window.
+		ok = do_recv_connection_window_update(Socket, 65535),
+		gen_tcp:close(Socket)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+do_recv_connection_window_update(_, 0) ->
+	ok;
+do_recv_connection_window_update(Socket, Size) ->
+	{ok, << 4:24, 8:8, 0:8, 0:32, 0:1, Increment:31 >>} = gen_tcp:recv(Socket, 13, 1000),
+	do_recv_connection_window_update(Socket, Size - Increment).
+
 resp_iolist_body(Config) ->
 	doc("Regression test when response bodies are iolists that "
 		"include improper lists, empty lists and empty binaries. "
@@ -709,6 +753,46 @@ settings_timeout_infinity(Config) ->
 		after 1000 ->
 			gen_tcp:close(Socket)
 		end
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+stopping_stream_discarded_data_window_update(Config) ->
+	doc("Confirm the server gives back the connection window used by "
+		"DATA frames that arrive while the stream is stopping."),
+	ProtoOpts = #{
+		env => #{dispatch => init_dispatch(Config)}
+	},
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], ProtoOpts),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		%% Set SETTINGS_INITIAL_WINDOW_SIZE to 0 to prevent sending of the response body.
+		{ok, Socket} = do_handshake(#{initial_window_size => 0}, [{port, Port}|Config]),
+		%% Send a request that the handler replies to without reading the body.
+		{HeadersBlock, _} = cow_hpack:encode([
+			{<<":method">>, <<"POST">>},
+			{<<":scheme">>, <<"http">>},
+			{<<":authority">>, <<"localhost">>}, %% @todo Correct port number.
+			{<<":path">>, <<"/">>}
+		]),
+		ok = gen_tcp:send(Socket, cow_http2:headers(1, nofin, HeadersBlock)),
+		%% Receive the response headers. The stream stops but cannot send the body.
+		{ok, << RespHeadersLen:24, 1:8, 4:8, 1:32 >>} = gen_tcp:recv(Socket, 9, 1000),
+		{ok, _} = gen_tcp:recv(Socket, RespHeadersLen, 1000),
+		{error, timeout} = gen_tcp:recv(Socket, 9, 1000),
+		%% Send DATA frames for the stopping stream.
+		ok = gen_tcp:send(Socket, [
+			cow_http2:data(1, nofin, <<0:16384/unit:8>>),
+			cow_http2:data(1, nofin, <<0:16384/unit:8>>)
+		]),
+		%% Receive WINDOW_UPDATE frames that give back the connection window.
+		ok = do_recv_connection_window_update(Socket, 32768),
+		%% Let the server send the response body. The server then resets
+		%% the stream because the body was not read.
+		ok = gen_tcp:send(Socket, cow_http2:window_update(1, 12)),
+		{ok, << 12:24, 0:8, 1:8, 1:32, "Hello world!" >>} = gen_tcp:recv(Socket, 21, 1000),
+		{ok, << 4:24, 3:8, 0:8, 1:32, 0:32 >>} = gen_tcp:recv(Socket, 13, 1000),
+		gen_tcp:close(Socket)
 	after
 		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
