@@ -82,7 +82,8 @@ vulnerable to memory exhaustion attacks:
   `max_concurrent_streams`, `max_connection_buffer_size`,
   `max_connection_window_size`, `max_decode_table_size`,
   `max_encode_table_size`, `max_fragmented_header_block_size`,
-  `max_frame_size_received`, `max_headers`, `max_stream_buffer_size`,
+  `max_frame_size_received`, `max_header_list_size`, `max_headers`,
+  `max_stream_buffer_size`,
   `max_stream_window_size`, `stream_window_margin_size`
   and `stream_window_update_threshold`.
 

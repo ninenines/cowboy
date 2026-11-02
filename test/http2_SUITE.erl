@@ -50,12 +50,13 @@ do_handshake(Settings, Config) ->
 	ok = gen_tcp:send(Socket, ["PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n", cow_http2:settings(Settings)]),
 	%% Receive the server preface.
 	{ok, << Len:24 >>} = gen_tcp:recv(Socket, 3, 1000),
-	{ok, << 4:8, 0:40, _:Len/binary >>} = gen_tcp:recv(Socket, 6 + Len, 1000),
+	{ok, << 4:8, 0:40, SettingsPayload:Len/binary >>}
+		= gen_tcp:recv(Socket, 6 + Len, 1000),
 	%% Send the SETTINGS ack.
 	ok = gen_tcp:send(Socket, cow_http2:settings_ack()),
 	%% Receive the SETTINGS ack.
 	{ok, << 0:24, 4:8, 1:8, 0:32 >>} = gen_tcp:recv(Socket, 9, 1000),
-	{ok, Socket}.
+	{ok, Socket, cow_http2:parse_settings_payload(SettingsPayload)}.
 
 hibernate(Config) ->
 	doc("Ensure that we can enable hibernation for HTTP/1.1 connections."),
@@ -87,7 +88,7 @@ idle_timeout(Config) ->
 	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], ProtoOpts),
 	Port = ranch:get_port(?FUNCTION_NAME),
 	try
-		{ok, Socket} = do_handshake([{port, Port}|Config]),
+		{ok, Socket, _} = do_handshake([{port, Port}|Config]),
 		timer:sleep(1000),
 		%% Receive a GOAWAY frame back with NO_ERROR.
 		{ok, << _:24, 7:8, _:72, 0:32 >>} = gen_tcp:recv(Socket, 17, 1000),
@@ -105,7 +106,7 @@ idle_timeout_infinity(Config) ->
 	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], ProtoOpts),
 	Port = ranch:get_port(?FUNCTION_NAME),
 	try
-		{ok, Socket} = do_handshake([{port, Port}|Config]),
+		{ok, Socket, _} = do_handshake([{port, Port}|Config]),
 		timer:sleep(1000),
 		%% Don't receive a GOAWAY frame.
 		{error, timeout} = gen_tcp:recv(Socket, 17, 1000),
@@ -123,7 +124,7 @@ idle_timeout_reset_on_data(Config) ->
 	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], ProtoOpts),
 	Port = ranch:get_port(?FUNCTION_NAME),
 	try
-		{ok, Socket} = do_handshake([{port, Port}|Config]),
+		{ok, Socket, _} = do_handshake([{port, Port}|Config]),
 		%% We wait a little, send a PING, receive a PING ack.
 		{error, timeout} = gen_tcp:recv(Socket, 17, 500),
 		ok = gen_tcp:send(Socket, cow_http2:ping(0)),
@@ -162,7 +163,7 @@ inactivity_timeout(Config) ->
 	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], ProtoOpts),
 	Port = ranch:get_port(?FUNCTION_NAME),
 	try
-		{ok, Socket} = do_handshake([{port, Port}|Config]),
+		{ok, Socket, _} = do_handshake([{port, Port}|Config]),
 		receive after 1000 -> ok end,
 		%% Receive a GOAWAY frame back with an INTERNAL_ERROR.
 		{ok, << _:24, 7:8, _:72, 2:32 >>} = gen_tcp:recv(Socket, 17, 1000),
@@ -477,7 +478,7 @@ max_authority_length_authority_pseudo_header(Config0) ->
 	Config = [{port, Port}|Config0],
 	try
 		%% At limit.
-		{ok, Socket1} = do_handshake(Config),
+		{ok, Socket1, _} = do_handshake(Config),
 		Headers1 = [
 			{<<":method">>, <<"GET">>},
 			{<<":scheme">>, <<"http">>},
@@ -489,7 +490,7 @@ max_authority_length_authority_pseudo_header(Config0) ->
 		{ok, <<_:24, 1:8, _:40>>} = gen_tcp:recv(Socket1, 9, 6000),
 		gen_tcp:close(Socket1),
 		%% Over limit.
-		{ok, Socket2} = do_handshake(Config),
+		{ok, Socket2, _} = do_handshake(Config),
 		Headers2 = [
 			{<<":method">>, <<"GET">>},
 			{<<":scheme">>, <<"http">>},
@@ -516,7 +517,7 @@ max_authority_length_host_header(Config0) ->
 	Config = [{port, Port}|Config0],
 	try
 		%% At limit.
-		{ok, Socket1} = do_handshake(Config),
+		{ok, Socket1, _} = do_handshake(Config),
 		Headers1 = [
 			{<<":method">>, <<"GET">>},
 			{<<":scheme">>, <<"http">>},
@@ -528,7 +529,7 @@ max_authority_length_host_header(Config0) ->
 		{ok, <<_:24, 1:8, _:40>>} = gen_tcp:recv(Socket1, 9, 6000),
 		gen_tcp:close(Socket1),
 		%% Over limit.
-		{ok, Socket2} = do_handshake(Config),
+		{ok, Socket2, _} = do_handshake(Config),
 		Headers2 = [
 			{<<":method">>, <<"GET">>},
 			{<<":scheme">>, <<"http">>},
@@ -554,7 +555,7 @@ max_frame_size_sent(Config) ->
 	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], ProtoOpts),
 	Port = ranch:get_port(?FUNCTION_NAME),
 	try
-		{ok, Socket} = do_handshake(#{max_frame_size => MaxFrameSize + 10000},
+		{ok, Socket, _} = do_handshake(#{max_frame_size => MaxFrameSize + 10000},
 			[{port, Port}|Config]),
 		%% Send a request with a 30000 bytes body.
 		{HeadersBlock, _} = cow_hpack:encode([
@@ -592,14 +593,16 @@ max_headers(Config0) ->
 		"by the max_headers configuration value."),
 	ProtoOpts = #{
 		env => #{dispatch => init_dispatch(Config0)},
-		max_headers => 10000
+		max_headers => 10000,
+		%% 10000 small fields exceed the default list size.
+		max_header_list_size => infinity
 	},
 	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], ProtoOpts),
 	Port = ranch:get_port(?FUNCTION_NAME),
 	Config = [{port, Port}|Config0],
 	try
 		%% Sending exactly 10000 headers.
-		{ok, Socket1} = do_handshake(Config),
+		{ok, Socket1, _} = do_handshake(Config),
 		Headers1 = [
 			{<<":method">>, <<"GET">>},
 			{<<":scheme">>, <<"http">>},
@@ -613,7 +616,7 @@ max_headers(Config0) ->
 		{ok, <<_:24, 1:8, _:40>>} = gen_tcp:recv(Socket1, 9, 6000),
 		gen_tcp:close(Socket1),
 		%% Sending 10001 headers, above the limit.
-		{ok, Socket2} = do_handshake(Config),
+		{ok, Socket2, _} = do_handshake(Config),
 		Headers2 = [
 			{<<":method">>, <<"GET">>},
 			{<<":scheme">>, <<"http">>},
@@ -626,6 +629,132 @@ max_headers(Config0) ->
 		%% Receive an ENHANCE_YOUR_CALM connection error.
 		{ok, <<_:24, 7:8, _:72, 11:32>>} = gen_tcp:recv(Socket2, 17, 6000),
 		ok
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+max_header_list_size(Config0) ->
+	doc("An oversized header list resets the stream and the connection "
+		"stays usable. (RFC9113 6.5.2)"),
+	ProtoOpts = #{
+		env => #{dispatch => init_dispatch(Config0)}
+	},
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], ProtoOpts),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	Config = [{port, Port}|Config0],
+	try
+		{ok, Socket, #{max_header_list_size := 32768}} = do_handshake(Config),
+		Value = binary:copy(<<$a>>, 4000),
+		Headers = [
+			{<<":method">>, <<"GET">>},
+			{<<":scheme">>, <<"http">>},
+			{<<":authority">>, <<"localhost">>},
+			{<<":path">>, <<"/">>}
+		],
+		%% Sending eight copies of a 4000-byte user-agent, within 32768.
+		{HeadersBlock1, State1} = cow_hpack:encode(
+			Headers ++ lists:duplicate(8, {<<"user-agent">>, Value}),
+			cow_hpack:init(), #{huffman => false}),
+		ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock1)),
+		%% Success: we get a response back.
+		{ok, << HdrLen:24, 1:8, _:8, 1:32 >>} = gen_tcp:recv(Socket, 9, 6000),
+		{ok, _} = gen_tcp:recv(Socket, HdrLen, 6000),
+		{ok, << DataLen:24, 0:8, _:40 >>} = gen_tcp:recv(Socket, 9, 6000),
+		{ok, _} = gen_tcp:recv(Socket, DataLen, 6000),
+		%% Sending nine copies, above the limit.
+		{HeadersBlock2, State2} = cow_hpack:encode(
+			Headers ++ lists:duplicate(9, {<<"user-agent">>, Value}),
+			State1, #{huffman => false}),
+		ok = gen_tcp:send(Socket, cow_http2:headers(3, fin, HeadersBlock2)),
+		%% Receive an ENHANCE_YOUR_CALM stream error.
+		{ok, << _:24, 3:8, _:8, 3:32, 11:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+		%% A normal request still gets a response.
+		{HeadersBlock3, _} = cow_hpack:encode(Headers, State2,
+			#{huffman => false}),
+		ok = gen_tcp:send(Socket, cow_http2:headers(5, fin, HeadersBlock3)),
+		{ok, << _:24, 1:8, _:40 >>} = gen_tcp:recv(Socket, 9, 6000),
+		gen_tcp:close(Socket)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+max_header_list_size_at(Config0) ->
+	doc("A header list of exactly max_header_list_size is accepted."),
+	%% :method GET, :scheme http, :path / and :authority localhost: 174.
+	ProtoOpts = #{
+		env => #{dispatch => init_dispatch(Config0)},
+		max_header_list_size => 174
+	},
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], ProtoOpts),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	Config = [{port, Port}|Config0],
+	try
+		{ok, Socket, #{max_header_list_size := 174}} = do_handshake(Config),
+		{Encoded, _} = cow_hpack:encode([
+			{<<":method">>, <<"GET">>},
+			{<<":scheme">>, <<"http">>},
+			{<<":authority">>, <<"localhost">>},
+			{<<":path">>, <<"/">>}
+		]),
+		ok = gen_tcp:send(Socket, cow_http2:headers(1, fin,
+			iolist_to_binary(Encoded))),
+		{ok, << _:24, 1:8, _:40 >>} = gen_tcp:recv(Socket, 9, 6000),
+		gen_tcp:close(Socket)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+max_header_list_size_above(Config0) ->
+	doc("A header list one octet above max_header_list_size resets the stream."),
+	%% :method GET, :scheme http, :path / and :authority localhost: 174.
+	ProtoOpts = #{
+		env => #{dispatch => init_dispatch(Config0)},
+		max_header_list_size => 173
+	},
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], ProtoOpts),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	Config = [{port, Port}|Config0],
+	try
+		{ok, Socket, #{max_header_list_size := 173}} = do_handshake(Config),
+		{Encoded, _} = cow_hpack:encode([
+			{<<":method">>, <<"GET">>},
+			{<<":scheme">>, <<"http">>},
+			{<<":authority">>, <<"localhost">>},
+			{<<":path">>, <<"/">>}
+		]),
+		ok = gen_tcp:send(Socket, cow_http2:headers(1, fin,
+			iolist_to_binary(Encoded))),
+		{ok, << _:24, 3:8, _:8, 1:32, 11:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+		gen_tcp:close(Socket)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+max_header_list_size_infinity(Config0) ->
+	doc("infinity disables the header list size limit and omits the setting."),
+	ProtoOpts = #{
+		env => #{dispatch => init_dispatch(Config0)},
+		max_header_list_size => infinity
+	},
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], ProtoOpts),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	Config = [{port, Port}|Config0],
+	try
+		{ok, Socket, Settings} = do_handshake(Config),
+		false = maps:is_key(max_header_list_size, Settings),
+		%% Sending nine copies of a 4000-byte user-agent, above 32768.
+		Value = binary:copy(<<$a>>, 4000),
+		{HeadersBlock, _} = cow_hpack:encode([
+			{<<":method">>, <<"GET">>},
+			{<<":scheme">>, <<"http">>},
+			{<<":authority">>, <<"localhost">>},
+			{<<":path">>, <<"/">>}
+			|lists:duplicate(9, {<<"user-agent">>, Value})
+		], cow_hpack:init(), #{huffman => false}),
+		ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+		%% Success: we get a response back.
+		{ok, << _:24, 1:8, _:40 >>} = gen_tcp:recv(Socket, 9, 6000),
+		gen_tcp:close(Socket)
 	after
 		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
@@ -656,7 +785,7 @@ preface_timeout_infinity(Config) ->
 	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], ProtoOpts),
 	Port = ranch:get_port(?FUNCTION_NAME),
 	try
-		{ok, Socket} = do_handshake([{port, Port}|Config]),
+		{ok, Socket, _} = do_handshake([{port, Port}|Config]),
 		Pid = get_remote_pid_tcp(Socket),
 		Ref = erlang:monitor(process, Pid),
 		receive
@@ -700,7 +829,7 @@ settings_timeout_infinity(Config) ->
 	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], ProtoOpts),
 	Port = ranch:get_port(?FUNCTION_NAME),
 	try
-		{ok, Socket} = do_handshake([{port, Port}|Config]),
+		{ok, Socket, _} = do_handshake([{port, Port}|Config]),
 		Pid = get_remote_pid_tcp(Socket),
 		Ref = erlang:monitor(process, Pid),
 		receive
@@ -878,7 +1007,7 @@ send_timeout_close(Config) ->
 	Port = ranch:get_port(?FUNCTION_NAME),
 	try
 		%% Connect a client that sends a request and waits indefinitely.
-		{ok, ClientSocket} = do_handshake([{port, Port},
+		{ok, ClientSocket, _} = do_handshake([{port, Port},
 			{tcp_opts, [{recbuf, 10}, {buffer, 10}, {active, false}]}|Config]),
 		{HeadersBlock, _} = cow_hpack:encode([
 			{<<":method">>, <<"GET">>},

@@ -55,6 +55,7 @@
 	max_fragmented_header_block_size => 16384..16#7fffffff,
 	max_frame_size_received => 16384..16777215,
 	max_frame_size_sent => 16384..16777215 | infinity,
+	max_header_list_size => 0..16#ffffffff | infinity,
 	max_headers => non_neg_integer(),
 	max_received_frame_rate => {pos_integer(), timeout()},
 	max_reset_stream_rate => {pos_integer(), timeout()},

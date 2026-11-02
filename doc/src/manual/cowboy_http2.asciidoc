@@ -43,6 +43,7 @@ opts() :: #{
     max_fragmented_header_block_size => 16384..16#7fffffff,
     max_frame_size_received        => 16384..16777215,
     max_frame_size_sent            => 16384..16777215 | infinity,
+    max_header_list_size           => 0..16#ffffffff | infinity,
     max_headers                    => non_neg_integer(),
     max_received_frame_rate        => {pos_integer(), timeout()},
     max_reset_stream_rate          => {pos_integer(), timeout()},
@@ -242,6 +243,10 @@ following the client's advertised maximum.
 Note that actual frame sizes may be lower than the limit when
 there is not enough space left in the flow control window.
 
+max_header_list_size (32768)::
+
+Maximum size of the header fields block.
+
 max_headers (100)::
 
 Maximum number of header fields allowed per request field blocks.
@@ -334,6 +339,7 @@ too many `WINDOW_UPDATE` frames.
 
 == Changelog
 
+* *2.21*: The `max_header_list_size` option was added.
 * *2.17*: The `max_concurrent_streams` option now defaults to 100.
 * *2.17*: The `max_authority_length` option was added.
 * *2.16*: The `max_headers` option was added.
