@@ -75,7 +75,8 @@ reject_handshake_when_disabled(Config0) ->
 	Config = cowboy_test:init_http(disabled, #{
 		enable_connect_protocol => false,
 		env => #{dispatch => cowboy_router:compile(init_routes(Config0))},
-		max_concurrent_streams => infinity
+		max_concurrent_streams => infinity,
+		max_header_list_size => infinity
 	}, Config0),
 	%% Connect to server and confirm that SETTINGS_ENABLE_CONNECT_PROTOCOL = 0.
 	{ok, Socket, Settings} = do_handshake(Config),
@@ -103,7 +104,8 @@ reject_handshake_disabled_by_default(Config0) ->
 		"PROTOCOL_ERROR stream error with default enable_connect_protocol. (draft-01 3)"),
 	Config = cowboy_test:init_http(disabled_by_default, #{
 		env => #{dispatch => cowboy_router:compile(init_routes(Config0))},
-		max_concurrent_streams => infinity
+		max_concurrent_streams => infinity,
+		max_header_list_size => infinity
 	}, Config0),
 	%% Connect to server and confirm that SETTINGS_ENABLE_CONNECT_PROTOCOL = 0.
 	{ok, Socket, Settings} = do_handshake(Config),
