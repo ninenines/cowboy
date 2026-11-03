@@ -18,6 +18,8 @@
 
 -import(ct_helper, [config/2]).
 -import(ct_helper, [doc/1]).
+-import(ct_helper, [get_remote_pid_tcp/1]).
+-import(ct_helper, [get_remote_pid_tls/1]).
 -import(cowboy_test, [gun_open/1]).
 -import(cowboy_test, [raw_open/1]).
 -import(cowboy_test, [raw_send/2]).
@@ -31,7 +33,7 @@ all() ->
 
 groups() ->
 	Tests = [nc_rand, nc_zero],
-	H1Tests = [slowloris, slowloris_chunks],
+	H1Tests = [slowloris, slowloris_chunks, pipeline_flood_get],
 	H2CTests = [
 		http2_cancel_flood,
 		http2_data_dribble,
@@ -436,3 +438,61 @@ slowloris_chunks(Config) ->
 	{Headers, _} = cow_http:parse_headers(Rest),
 	{_, <<"close">>} = lists:keyfind(<<"connection">>, 1, Headers),
 	{error, closed} = raw_recv(Client, 0, 1000).
+
+pipeline_flood_get(Config) ->
+	doc("Pipelined data after a finished GET stays small while the handler runs."),
+	Dispatch = cowboy_router:compile([{"localhost", [
+		{"/hold", delay_hello_h, #{
+			delay => 0, notify_received => self(), wait_for_go => true}}
+	]}]),
+	ProtoOpts = case config(flavor, Config) of
+		compress ->
+			#{env => #{dispatch => Dispatch},
+				stream_handlers => [cowboy_compress_h, cowboy_stream_h]};
+		_ ->
+			#{env => #{dispatch => Dispatch}}
+	end,
+	ListenerConfig = case config(type, Config) of
+		tcp ->
+			cowboy_test:init_http(?FUNCTION_NAME, ProtoOpts, Config);
+		ssl ->
+			cowboy_test:init_https(?FUNCTION_NAME, ProtoOpts, Config)
+	end,
+	try
+		%% raw_open uses the first opts. send_timeout keeps the flood from blocking until go.
+		Client = raw_open([{opts, [{send_timeout, 500}, {send_timeout_close, false}
+			|config(opts, ListenerConfig)]}|ListenerConfig]),
+		{raw_client, Socket, Transport} = Client,
+		ok = raw_send(Client,
+			"GET /hold HTTP/1.1\r\n"
+			"Host: localhost\r\n"
+			"\r\n"),
+		HandlerPid = receive
+			{request_received, <<"/hold">>, Pid} ->
+				Pid
+		after 5000 ->
+			error(timeout)
+		end,
+		Junk = binary:copy(<<$X>>, 4 * 1024 * 1024),
+		%% send may return ok or {error, timeout} once the window fills.
+		_ = raw_send(Client, Junk),
+		%% An active socket needs this time to read the flood.
+		timer:sleep(1000),
+		ConnPid = case Transport of
+			gen_tcp -> get_remote_pid_tcp(Socket);
+			ssl -> get_remote_pid_tls(Socket)
+		end,
+		{binary, Bins} = process_info(ConnPid, binary),
+		Size = lists:sum([BinSize || {_, BinSize, _} <- Bins]),
+		case Size < 1024 * 1024 of
+			true ->
+				ok;
+			false ->
+				error({connection_buffer, Size})
+		end,
+		HandlerPid ! go,
+		Data = raw_recv_head(Client),
+		{'HTTP/1.1', 200, _, _} = cow_http:parse_status_line(Data)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.

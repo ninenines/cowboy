@@ -274,7 +274,13 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport, opts=Opts,
 		{Passive, Socket} when Passive =:= element(4, Messages);
 				%% Hardcoded for compatibility with Ranch 1.x.
 				Passive =:= tcp_passive; Passive =:= ssl_passive ->
-			safe_setopts_active(State),
+			%% A leftover passive message would undo passive/1.
+			case State#state.active of
+				true ->
+					safe_setopts_active(State);
+				false ->
+					ok
+			end,
 			before_loop(State);
 		%% Timeouts.
 		{timeout, Ref, {shutdown, Pid}} ->
@@ -390,6 +396,7 @@ timeout(State, idle_timeout) ->
 	terminate(State, {connection_error, timeout,
 		'Connection idle longer than configuration allows.'}).
 
+%% Empty buffer stays active so tcp_closed/ssl_closed still arrive.
 parse(<<>>, State) ->
 	before_loop(State#state{buffer= <<>>});
 %% Do not process requests that come in after the last request
@@ -400,7 +407,7 @@ parse(_, State=#state{in_streamid=InStreamID, in_state=InState,
 	before_loop(State#state{buffer= <<>>});
 %% Delay parsing pipelined requests until current stream stops.
 parse(Buffer, State=#state{in_state=ps_next_request, stream=#stream{}}) ->
-	before_loop(State#state{buffer=Buffer});
+	before_loop(passive(State#state{buffer=Buffer}));
 parse(Buffer, State=#state{in_state=ps_next_request, stream=undefined}) ->
 	next_request(State#state{buffer=Buffer});
 parse(Buffer, State=#state{in_state=#ps_request_line{empty_lines=EmptyLines}}) ->
