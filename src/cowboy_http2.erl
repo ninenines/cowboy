@@ -47,7 +47,7 @@
 	logger => module(),
 	max_authority_length => non_neg_integer(),
 	max_cancel_stream_rate => {pos_integer(), timeout()},
-	max_concurrent_streams => non_neg_integer() | infinity,
+	max_concurrent_streams => 0..16#ffffffff | infinity,
 	max_connection_buffer_size => non_neg_integer(),
 	max_connection_window_size => 0..16#7fffffff,
 	max_decode_table_size => 0..16#ffffffff,
