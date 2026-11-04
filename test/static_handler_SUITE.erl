@@ -911,6 +911,20 @@ range_request(Config) ->
 	{_, <<"application/octet-stream">>} = lists:keyfind(<<"content-type">>, 1, Headers),
 	ok.
 
+range_last_pos_equal(Config) ->
+	doc("A last-pos equal to the file size is the last byte of the file. "
+		"(RFC9110 14.1.2)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/dir/plain.txt", [
+		{<<"range">>, <<"bytes=14-16">>}
+	]),
+	{response, nofin, 206, Headers} = gun:await(ConnPid, Ref),
+	%% Headers are matched before the body so a short send fails here.
+	{_, <<"bytes 14-15/16">>} = lists:keyfind(<<"content-range">>, 1, Headers),
+	{_, <<"2">>} = lists:keyfind(<<"content-length">>, 1, Headers),
+	{ok, <<".\n">>} = gun:await_body(ConnPid, Ref, 5000),
+	ok.
+
 unicode_basic_latin(Config) ->
 	doc("Get a file with non-urlencoded characters from Unicode Basic Latin block."),
 	%% Excluding the dot which has a special meaning in URLs

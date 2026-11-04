@@ -1252,10 +1252,15 @@ maybe_set_ranged_body_auto(Req=#{range := {_, Ranges}}, State, Body) ->
 		{sendfile, _, Bytes, _} -> Bytes;
 		_ -> iolist_size(Body)
 	end,
+	%% RFC9110 14.1.2. A last-pos past the end is still in range.
+	%% So is a non-zero suffix of a non-empty body.
 	Checks = [case Range of
-		{From, infinity} -> From < Size;
-		{From, To} -> (From < Size) andalso (From =< To) andalso (To =< Size);
-		Neg -> (Neg =/= 0) andalso (-Neg < Size)
+		{From, infinity} ->
+			From < Size;
+		{From, To} ->
+			(From < Size) andalso (From =< To);
+		Neg ->
+			Neg < 0 andalso Size > 0
 	end || Range <- Ranges],
 	case lists:usort(Checks) of
 		[true] -> set_ranged_body_auto(Req, State, Body);
@@ -1275,11 +1280,22 @@ set_ranged_body_auto(Req=#{range := {_, Ranges}}, State, Body) ->
 		_ -> set_multipart_ranged_body(Req, State, Parts)
 	end.
 
+%% A last-pos past the end stops at the last byte. A suffix
+%% that runs past the start selects the whole body.
 ranged_partition(Range, {sendfile, Offset0, Bytes0, Path}) ->
 	{From, To, Offset, Bytes} = case Range of
-		{From0, infinity} -> {From0, Bytes0 - 1, Offset0 + From0, Bytes0 - From0};
-		{From0, To0} -> {From0, To0, Offset0 + From0, 1 + To0 - From0};
-		Neg -> {Bytes0 + Neg, Bytes0 - 1, Offset0 + Bytes0 + Neg, -Neg}
+		{From0, infinity} ->
+			{From0, Bytes0 - 1, Offset0 + From0, Bytes0 - From0};
+		{From0, To0} ->
+			To1 = case To0 >= Bytes0 of
+				true -> Bytes0 - 1;
+				false -> To0
+			end,
+			{From0, To1, Offset0 + From0, 1 + To1 - From0};
+		Neg when Neg < 0, -Neg >= Bytes0 ->
+			{0, Bytes0 - 1, Offset0, Bytes0};
+		Neg ->
+			{Bytes0 + Neg, Bytes0 - 1, Offset0 + Bytes0 + Neg, -Neg}
 	end,
 	{{From, To, Bytes0}, {sendfile, Offset, Bytes, Path}};
 ranged_partition(Range, Data0) ->
@@ -1289,9 +1305,15 @@ ranged_partition(Range, Data0) ->
 			{_, Data1} = cow_iolists:split(From0, Data0),
 			{From0, Total - 1, Data1};
 		{From0, To0} ->
+			To1 = case To0 >= Total of
+				true -> Total - 1;
+				false -> To0
+			end,
 			{_, Data1} = cow_iolists:split(From0, Data0),
-			{Data2, _} = cow_iolists:split(To0 - From0 + 1, Data1),
-			{From0, To0, Data2};
+			{Data2, _} = cow_iolists:split(To1 - From0 + 1, Data1),
+			{From0, To1, Data2};
+		Neg when Neg < 0, -Neg >= Total ->
+			{0, Total - 1, Data0};
 		Neg ->
 			{_, Data1} = cow_iolists:split(Total + Neg, Data0),
 			{Total + Neg, Total - 1, Data1}
@@ -1319,6 +1341,13 @@ ranged_partition_test_() ->
 		{{6, 11}, {sendfile, 3, 12, "t"}, {{6, 11, 12}, {sendfile, 9, 6, "t"}}},
 		{{11, 11}, {sendfile, 3, 12, "t"}, {{11, 11, 12}, {sendfile, 14, 1, "t"}}},
 		{{1, 10}, {sendfile, 3, 12, "t"}, {{1, 10, 12}, {sendfile, 4, 10, "t"}}},
+		%% Sendfile with a last-pos at or past the end.
+		{{3, 5}, {sendfile, 0, 5, "t"}, {{3, 4, 5}, {sendfile, 3, 2, "t"}}},
+		{{3, 9}, {sendfile, 0, 5, "t"}, {{3, 4, 5}, {sendfile, 3, 2, "t"}}},
+		{{3, 5}, {sendfile, 3, 5, "t"}, {{3, 4, 5}, {sendfile, 6, 2, "t"}}},
+		%% Sendfile with a suffix longer than the representation.
+		{-100, {sendfile, 0, 12, "t"}, {{0, 11, 12}, {sendfile, 0, 12, "t"}}},
+		{-100, {sendfile, 3, 12, "t"}, {{0, 11, 12}, {sendfile, 3, 12, "t"}}},
 		%% Sendfile with negative range.
 		{-12, {sendfile, 0, 12, "t"}, {{0, 11, 12}, {sendfile, 0, 12, "t"}}},
 		{-6, {sendfile, 0, 12, "t"}, {{6, 11, 12}, {sendfile, 6, 6, "t"}}},
@@ -1337,6 +1366,11 @@ ranged_partition_test_() ->
 		{{6, 11}, <<"Hello world!">>, {{6, 11, 12}, [<<"world!">>]}},
 		{{11, 11}, <<"Hello world!">>, {{11, 11, 12}, [<<"!">>]}},
 		{{1, 10}, <<"Hello world!">>, {{1, 10, 12}, [<<"ello world">>]}},
+		%% Iodata with a last-pos at or past the end.
+		{{3, 5}, <<"01234">>, {{3, 4, 5}, [<<"34">>]}},
+		{{3, 9}, <<"01234">>, {{3, 4, 5}, [<<"34">>]}},
+		%% Iodata with a suffix longer than the representation.
+		{-100, <<"Hello world!">>, {{0, 11, 12}, <<"Hello world!">>}},
 		%% Iodata with negative range.
 		{-12, <<"Hello world!">>, {{0, 11, 12}, <<"Hello world!">>}},
 		{-6, <<"Hello world!">>, {{6, 11, 12}, <<"world!">>}},
