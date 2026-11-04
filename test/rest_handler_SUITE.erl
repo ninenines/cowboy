@@ -1257,6 +1257,89 @@ ranges_provided_auto_not_satisfiable_sendfile(Config) ->
 	{_, ContentRange} = lists:keyfind(<<"content-range">>, 1, Headers),
 	ok.
 
+ranges_provided_auto_last_pos_equal(Config) ->
+	doc("A last-pos equal to the representation length is the last "
+		"byte of the representation. (RFC9110 14.1.2)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/ranges_provided_auto?01234", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"range">>, <<"bytes=3-5">>}
+	]),
+	{response, nofin, 206, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"bytes 3-4/5">>} = lists:keyfind(<<"content-range">>, 1, Headers),
+	{_, <<"2">>} = lists:keyfind(<<"content-length">>, 1, Headers),
+	{ok, <<"34">>} = gun:await_body(ConnPid, Ref),
+	ok.
+
+ranges_provided_auto_last_pos_larger(Config) ->
+	doc("A last-pos past the end of the representation is the "
+		"remainder of the representation. (RFC9110 14.1.2)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/ranges_provided_auto?01234", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"range">>, <<"bytes=3-9">>}
+	]),
+	{response, nofin, 206, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"bytes 3-4/5">>} = lists:keyfind(<<"content-range">>, 1, Headers),
+	{_, <<"2">>} = lists:keyfind(<<"content-length">>, 1, Headers),
+	{ok, <<"34">>} = gun:await_body(ConnPid, Ref),
+	ok.
+
+ranges_provided_auto_suffix_equal(Config) ->
+	doc("A suffix as long as the representation is the whole "
+		"representation. (RFC9110 14.1.2)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/ranges_provided_auto?01234", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"range">>, <<"bytes=-5">>}
+	]),
+	{response, nofin, 206, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"bytes 0-4/5">>} = lists:keyfind(<<"content-range">>, 1, Headers),
+	{_, <<"5">>} = lists:keyfind(<<"content-length">>, 1, Headers),
+	{ok, <<"01234">>} = gun:await_body(ConnPid, Ref),
+	ok.
+
+ranges_provided_auto_suffix_larger(Config) ->
+	doc("A suffix longer than the representation is the whole "
+		"representation. (RFC9110 14.1.2)"),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/ranges_provided_auto?01234", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"range">>, <<"bytes=-100">>}
+	]),
+	{response, nofin, 206, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"bytes 0-4/5">>} = lists:keyfind(<<"content-range">>, 1, Headers),
+	{_, <<"5">>} = lists:keyfind(<<"content-length">>, 1, Headers),
+	{ok, <<"01234">>} = gun:await_body(ConnPid, Ref),
+	ok.
+
+ranges_provided_auto_sendfile_last_pos_equal(Config) ->
+	doc("A last-pos equal to the declared sendfile length stops at "
+		"that length. The following byte of a longer file is not sent."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/ranges_provided_auto?sendfile5", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"range">>, <<"bytes=3-5">>}
+	]),
+	Path = code:lib_dir(cowboy) ++ "/ebin/cowboy.app",
+	{ok, <<_:3/binary, Body:2/binary, _/bits>>} = file:read_file(Path),
+	{response, nofin, 206, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"bytes 3-4/5">>} = lists:keyfind(<<"content-range">>, 1, Headers),
+	{_, <<"2">>} = lists:keyfind(<<"content-length">>, 1, Headers),
+	{ok, Body} = gun:await_body(ConnPid, Ref),
+	ok.
+
+ranges_provided_auto_one_unsatisfiable(Config) ->
+	doc("One unsatisfiable range makes the whole range set unsatisfiable."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/ranges_provided_auto?01234", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"range">>, <<"bytes=0-1,5-">>}
+	]),
+	{response, fin, 416, Headers} = gun:await(ConnPid, Ref),
+	{_, <<"bytes */5">>} = lists:keyfind(<<"content-range">>, 1, Headers),
+	ok.
+
 ranges_provided_empty_accept_ranges_none(Config) ->
 	doc("When the ranges_provided callback exists but returns an empty list "
 		"the accept-ranges header is sent in the response with the value none. (RFC7233 2.3)"),

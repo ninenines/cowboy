@@ -21,7 +21,14 @@ ranges_provided(Req, State) ->
 
 get_text_plain(Req=#{qs := <<"data">>}, State) ->
 	{<<"This is ranged REST!">>, Req, State};
+get_text_plain(Req=#{qs := <<"01234">>}, State) ->
+	{<<"01234">>, Req, State};
 get_text_plain(Req=#{qs := <<"sendfile">>}, State) ->
 	Path = code:lib_dir(cowboy) ++ "/ebin/cowboy.app",
 	Size = filelib:file_size(Path),
-	{{sendfile, 0, Size, Path}, Req, State}.
+	{{sendfile, 0, Size, Path}, Req, State};
+%% Declared length is shorter than the file so a range that ends
+%% on that length can include the following byte.
+get_text_plain(Req=#{qs := <<"sendfile5">>}, State) ->
+	Path = code:lib_dir(cowboy) ++ "/ebin/cowboy.app",
+	{{sendfile, 0, 5, Path}, Req, State}.
