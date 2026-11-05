@@ -887,17 +887,42 @@ early_reset_data_window(Config0) ->
 		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
 
-%% Read a response. A HEADERS frame without END_STREAM is followed by DATA.
-recv_response(Socket, StreamID) ->
-	{ok, << Len:24, 1:8, Flags:8, StreamID:32 >>} = gen_tcp:recv(Socket, 9, 6000),
-	{ok, _} = gen_tcp:recv(Socket, Len, 6000),
-	case Flags band 1 of
-		1 ->
-			ok;
-		0 ->
-			{ok, << DataLen:24, 0:8, 1:8, StreamID:32 >>} = gen_tcp:recv(Socket, 9, 6000),
-			{ok, _} = gen_tcp:recv(Socket, DataLen, 6000),
-			ok
+connect_nofin_data_window(Config0) ->
+	doc("DATA after an unimplemented CONNECT fills the window."),
+	ProtoOpts = #{env => #{dispatch => init_dispatch(Config0)}},
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], ProtoOpts),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	Config = [{port, Port}|Config0],
+	try
+		{ok, Socket, _} = do_handshake(Config),
+		{Connect, _} = cow_hpack:encode([
+			{<<":method">>, <<"CONNECT">>},
+			{<<":authority">>, <<"localhost">>}
+		]),
+		ok = gen_tcp:send(Socket, cow_http2:headers(1, nofin, Connect)),
+		{ok, << CLen:24, 1:8, _:8, 1:32 >>} = gen_tcp:recv(Socket, 9, 6000),
+		{ok, CBlock} = gen_tcp:recv(Socket, CLen, 6000),
+		{CHeaders, _} = cow_hpack:decode(CBlock),
+		{<<":status">>, <<"501">>} = lists:keyfind(<<":status">>, 1, CHeaders),
+		{ok, << _:24, 3:8, _:8, 1:32, 0:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+		Frame = binary:copy(<<$a>>, 16384),
+		ok = gen_tcp:send(Socket, cow_http2:data(1, nofin, Frame)),
+		ok = gen_tcp:send(Socket, cow_http2:data(1, nofin, Frame)),
+		{Next, _} = cow_hpack:encode([
+			{<<":method">>, <<"GET">>},
+			{<<":scheme">>, <<"http">>},
+			{<<":authority">>, <<"localhost">>},
+			{<<":path">>, <<"/">>}
+		]),
+		ok = gen_tcp:send(Socket, cow_http2:headers(3, fin, Next)),
+		{ok, << NLen:24, 1:8, 4:8, 3:32 >>} = gen_tcp:recv(Socket, 9, 6000),
+		{ok, _} = gen_tcp:recv(Socket, NLen, 6000),
+		{ok, << 12:24, 0:8, 1:8, 3:32, "Hello world!" >>} = gen_tcp:recv(Socket, 21, 6000),
+		ok = gen_tcp:send(Socket, cow_http2:data(1, nofin, Frame)),
+		{ok, << 4:24, 8:8, 0:8, 0:32, 65536:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+		gen_tcp:close(Socket)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
 
 persistent_term_router(Config) ->

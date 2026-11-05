@@ -700,7 +700,8 @@ early_error(State0=#state{ref=Ref, opts=Opts, peer=Peer},
 						{internal_error, invalid_response_header,
 							'An invalid response header was detected.'});
 				ok ->
-					send_response(State0, StreamID, StatusCode, RespHeaders, RespBody)
+					State1 = send_response(State0, StreamID, StatusCode, RespHeaders, RespBody),
+					early_reset_if_open(State1, StreamID)
 			end
 	catch Class:Exception:Stacktrace ->
 		cowboy:log(cowboy_stream:make_error_log(early_error,
@@ -708,7 +709,24 @@ early_error(State0=#state{ref=Ref, opts=Opts, peer=Peer},
 			Class, Exception, Stacktrace), Opts),
 		%% We still need to send an error response, so send what we initially
 		%% wanted to send. It's better than nothing.
-		send_headers(State0, StreamID, fin, StatusCode0, RespHeaders0)
+		State1 = send_headers(State0, StreamID, fin, StatusCode0, RespHeaders0),
+		early_reset_if_open(State1, StreamID)
+	end.
+
+%% The response is finished. If the request body is still open,
+%% reset the stream. No handler reserved flow.
+%% A normal unread body does not count toward the reset rate.
+early_reset_if_open(State0=#state{socket=Socket, transport=Transport,
+		http2_machine=HTTP2Machine0}, StreamID) ->
+	case cow_http2_machine:get_stream_local_state(StreamID, HTTP2Machine0) of
+		{ok, fin, _} ->
+			ok = maybe_socket_error(State0, Transport:send(Socket,
+				cow_http2:rst_stream(StreamID, no_error))),
+			{ok, HTTP2Machine} = cow_http2_machine:reset_stream(
+				StreamID, HTTP2Machine0),
+			State0#state{http2_machine=HTTP2Machine};
+		_ ->
+			State0
 	end.
 
 rst_stream_frame(State=#state{streams=Streams0, children=Children0}, StreamID, Reason) ->
