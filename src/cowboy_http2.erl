@@ -446,14 +446,13 @@ frame_rate(State0=#state{frame_rate_num=Num0, frame_rate_time=Time}, Frame) ->
 
 %% Frames received.
 
-%% We do nothing when receiving a lingering DATA frame.
-%% We already removed the stream flow from the connection
-%% flow and are therefore already accounting for the window
-%% being reduced by these frames.
 frame(State=#state{http2_machine=HTTP2Machine0}, Frame) ->
 	case cow_http2_machine:frame(Frame, HTTP2Machine0) of
 		{ok, HTTP2Machine} ->
 			maybe_ack(State#state{http2_machine=HTTP2Machine}, Frame);
+		{window_changed, Increment, HTTP2Machine} ->
+			State1 = maybe_ack(State#state{http2_machine=HTTP2Machine}, Frame),
+			window_changed(State1, Increment);
 		{ok, {data, StreamID, IsFin, Data}, HTTP2Machine} ->
 			data_frame(State#state{http2_machine=HTTP2Machine}, StreamID, IsFin, Data);
 		{ok, {headers, StreamID, IsFin, Headers, PseudoHeaders, BodyLen}, HTTP2Machine} ->
@@ -478,6 +477,19 @@ frame(State=#state{http2_machine=HTTP2Machine0}, Frame) ->
 				StreamID, {stream_error, Reason, Human});
 		{error, Error={connection_error, _, _}, HTTP2Machine} ->
 			terminate(State#state{http2_machine=HTTP2Machine}, Error)
+	end.
+
+%% `Increment` was just counted against the connection window.
+%% `Flow` is what handlers have asked to read.
+window_changed(State=#state{socket=Socket, transport=Transport,
+		http2_machine=HTTP2Machine0, flow=Flow}, Increment) ->
+	case cow_http2_machine:ensure_window(Flow + Increment, HTTP2Machine0) of
+		ok ->
+			State;
+		{ok, Update, HTTP2Machine} ->
+			ok = maybe_socket_error(State, Transport:send(Socket,
+				cow_http2:window_update(Update))),
+			State#state{http2_machine=HTTP2Machine}
 	end.
 
 %% We use this opportunity to mark the HTTP/2 status as connected
@@ -541,9 +553,9 @@ data_frame(State0=#state{opts=Opts, flow=Flow0, streams=Streams}, StreamID, IsFi
 			%% function will always maintain this value (of course with
 			%% thresholds applying).
 			update_window(State0, StreamID);
-		%% We ignore DATA frames for streams that are stopping.
+		%% The handler is no longer reading this stream.
 		#{} ->
-			State0
+			window_changed(State0, byte_size(Data))
 	end.
 
 headers_frame(State, StreamID, IsFin, Headers,
@@ -1514,9 +1526,9 @@ terminate_stream(State0=#state{socket=Socket, transport=Transport,
 	end,
 	terminate_stream(State, StreamID, normal).
 
-%% We remove the stream flow from the connection flow. Any further
-%% data received for this stream is therefore fully contained within
-%% the extra window we allocated for this stream.
+%% Drop this stream's remaining flow so later window updates do not
+%% keep its reservation. DATA that arrives afterwards is accounted
+%% when that frame is received.
 terminate_stream(State=#state{flow=Flow, streams=Streams0, children=Children0}, StreamID, Reason) ->
 	case maps:take(StreamID, Streams0) of
 		{#stream{flow=StreamFlow, state=StreamState}, Streams} ->

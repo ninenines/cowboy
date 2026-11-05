@@ -759,6 +759,147 @@ max_header_list_size_infinity(Config0) ->
 		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
 
+refused_stream_data_window_fill(Config0) ->
+	doc("DATA on a refused request does not run the connection window out."),
+	ProtoOpts = #{
+		env => #{dispatch => init_dispatch(Config0)},
+		max_concurrent_streams => 0
+	},
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], ProtoOpts),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	Config = [{port, Port}|Config0],
+	try
+		{ok, Socket, #{max_concurrent_streams := 0}} = do_handshake(Config),
+		{Req, _} = cow_hpack:encode([
+			{<<":method">>, <<"POST">>},
+			{<<":scheme">>, <<"http">>},
+			{<<":authority">>, <<"localhost">>},
+			{<<":path">>, <<"/">>}
+		]),
+		ok = gen_tcp:send(Socket, cow_http2:headers(1, nofin, Req)),
+		{ok, << _:24, 3:8, _:8, 1:32, 7:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+		Frame = binary:copy(<<$a>>, 16384),
+		%% Two frames leave the window at 32767, still above the payload.
+		ok = gen_tcp:send(Socket, cow_http2:data(1, nofin, Frame)),
+		ok = gen_tcp:send(Socket, cow_http2:data(1, nofin, Frame)),
+		ok = gen_tcp:send(Socket, cow_http2:headers(3, fin, Req)),
+		{ok, << _:24, 3:8, _:8, 3:32, 7:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+		%% Remaining window is 16383. This frame crosses Flow + Increment.
+		%% The update is the default margin plus one byte.
+		ok = gen_tcp:send(Socket, cow_http2:data(1, nofin, Frame)),
+		{ok, << 4:24, 8:8, 0:8, 0:32, 65536:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+		ok = gen_tcp:send(Socket, cow_http2:headers(5, fin, Req)),
+		{ok, << _:24, 3:8, _:8, 5:32, 7:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+		gen_tcp:close(Socket)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+stopping_stream_data_window(Config0) ->
+	doc("DATA while a stream is stopping fills the connection window and the server updates it."),
+	ProtoOpts = #{
+		env => #{dispatch => init_dispatch(Config0)}
+	},
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], ProtoOpts),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	Config = [{port, Port}|Config0],
+	try
+		%% The response body cannot be sent until the client opens the stream window.
+		{ok, Socket, _} = do_handshake(#{initial_window_size => 0}, Config),
+		{Req, _} = cow_hpack:encode([
+			{<<":method">>, <<"POST">>},
+			{<<":scheme">>, <<"http">>},
+			{<<":authority">>, <<"localhost">>},
+			{<<":path">>, <<"/">>}
+		]),
+		ok = gen_tcp:send(Socket, cow_http2:headers(1, nofin, Req)),
+		{ok, << Len:24, 1:8, 4:8, 1:32 >>} = gen_tcp:recv(Socket, 9, 6000),
+		{ok, _} = gen_tcp:recv(Socket, Len, 6000),
+		{error, timeout} = gen_tcp:recv(Socket, 9, 1000),
+		Frame = binary:copy(<<$a>>, 16384),
+		%% Two frames leave the window at 32767, still above the payload.
+		ok = gen_tcp:send(Socket, [
+			cow_http2:data(1, nofin, Frame),
+			cow_http2:data(1, nofin, Frame)
+		]),
+		{error, timeout} = gen_tcp:recv(Socket, 13, 1000),
+		%% These two use the remaining 32767 and exhaust the default window.
+		ok = gen_tcp:send(Socket, [
+			cow_http2:data(1, nofin, Frame),
+			cow_http2:data(1, nofin, binary:copy(<<$a>>, 16383))
+		]),
+		%% The third frame crosses Flow + Increment.
+		%% The update is the default margin plus one byte.
+		{ok, << 4:24, 8:8, 0:8, 0:32, 65536:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+		%% The response body can now be sent. The unread request is reset.
+		ok = gen_tcp:send(Socket, cow_http2:window_update(1, 12)),
+		{ok, << 12:24, 0:8, 1:8, 1:32, "Hello world!" >>} = gen_tcp:recv(Socket, 21, 6000),
+		{ok, << _:24, 3:8, _:8, 1:32, 0:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+		gen_tcp:close(Socket)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+early_reset_data_window(Config0) ->
+	doc("DATA that drops the window after an early reset fills it."),
+	ProtoOpts = #{
+		env => #{dispatch => init_dispatch(Config0)}
+	},
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], ProtoOpts),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	Config = [{port, Port}|Config0],
+	try
+		{ok, Socket, _} = do_handshake(Config),
+		{Req, _} = cow_hpack:encode([
+			{<<":method">>, <<"POST">>},
+			{<<":scheme">>, <<"http">>},
+			{<<":authority">>, <<"localhost">>},
+			{<<":path">>, <<"/">>},
+			{<<"host">>, <<"other">>}
+		]),
+		ok = gen_tcp:send(Socket, cow_http2:headers(1, nofin, Req)),
+		%% host does not match :authority. The stream never reserved flow.
+		{ok, << _:24, 3:8, _:8, 1:32, 1:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+		Frame = binary:copy(<<$a>>, 16384),
+		%% Two frames leave the window at 32767, still above the payload.
+		ok = gen_tcp:send(Socket, cow_http2:data(1, nofin, Frame)),
+		ok = gen_tcp:send(Socket, cow_http2:data(1, nofin, Frame)),
+		{Next, _} = cow_hpack:encode([
+			{<<":method">>, <<"GET">>},
+			{<<":scheme">>, <<"http">>},
+			{<<":authority">>, <<"localhost">>},
+			{<<":path">>, <<"/">>}
+		]),
+		ok = gen_tcp:send(Socket, cow_http2:headers(3, fin, Next)),
+		{ok, << HLen3:24, 1:8, 4:8, 3:32 >>} = gen_tcp:recv(Socket, 9, 6000),
+		{ok, _} = gen_tcp:recv(Socket, HLen3, 6000),
+		{ok, << 12:24, 0:8, 1:8, 3:32, "Hello world!" >>} = gen_tcp:recv(Socket, 21, 6000),
+		%% Remaining window is 16383. This frame crosses Flow + Increment.
+		%% The update is the default margin plus one byte.
+		ok = gen_tcp:send(Socket, cow_http2:data(1, nofin, Frame)),
+		{ok, << 4:24, 8:8, 0:8, 0:32, 65536:32 >>} = gen_tcp:recv(Socket, 13, 6000),
+		ok = gen_tcp:send(Socket, cow_http2:headers(5, fin, Next)),
+		{ok, << HLen5:24, 1:8, 4:8, 5:32 >>} = gen_tcp:recv(Socket, 9, 6000),
+		{ok, _} = gen_tcp:recv(Socket, HLen5, 6000),
+		{ok, << 12:24, 0:8, 1:8, 5:32, "Hello world!" >>} = gen_tcp:recv(Socket, 21, 6000),
+		gen_tcp:close(Socket)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+%% Read a response. A HEADERS frame without END_STREAM is followed by DATA.
+recv_response(Socket, StreamID) ->
+	{ok, << Len:24, 1:8, Flags:8, StreamID:32 >>} = gen_tcp:recv(Socket, 9, 6000),
+	{ok, _} = gen_tcp:recv(Socket, Len, 6000),
+	case Flags band 1 of
+		1 ->
+			ok;
+		0 ->
+			{ok, << DataLen:24, 0:8, 1:8, StreamID:32 >>} = gen_tcp:recv(Socket, 9, 6000),
+			{ok, _} = gen_tcp:recv(Socket, DataLen, 6000),
+			ok
+	end.
+
 persistent_term_router(Config) ->
 	doc("The router can retrieve the routes from persistent_term storage."),
 	persistent_term:put(?FUNCTION_NAME, init_dispatch(Config)),
