@@ -543,7 +543,8 @@ ws_max_frame_size_intermediate_fragment_close(Config) ->
 	MaskedHello = do_mask(<<"Hello">>, Mask, <<>>),
 	ok = gen_tcp:send(Socket, << 0:1, 0:3, 2:4, 1:1, 5:7, Mask:32, MaskedHello/binary >>),
 	ok = gen_tcp:send(Socket, << 0:1, 0:3, 0:4, 1:1, 5:7, Mask:32, MaskedHello/binary >>),
-	ok = gen_tcp:send(Socket, << 1:1, 0:3, 0:4, 1:1, 5:7, Mask:32, MaskedHello/binary >>),
+	%% Don't send the final fragment: the server already closed the
+	%% connection and Windows would reset it before we read the close frame.
 	{ok, << 1:1, 0:3, 8:4, 0:1, 2:7, 1009:16 >>} = gen_tcp:recv(Socket, 0, 6000),
 	{error, closed} = gen_tcp:recv(Socket, 0, 6000),
 	ok.
