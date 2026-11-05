@@ -1161,10 +1161,10 @@ ranges_provided_auto_multipart_data(Config) ->
 		"Cowboy will call the normal ProvideCallback and perform "
 		"the range calculations automatically."),
 	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, "/ranges_provided_auto?data", [
+	Ref = gun:get(ConnPid, "/ranges_provided_auto?multipart", [
 		{<<"accept-encoding">>, <<"gzip">>},
 		%% This range selects everything except the space characters.
-		{<<"range">>, <<"bytes=0-3, 5-6, 8-13, 15-">>}
+		{<<"range">>, <<"bytes=0-3, 5-6, 8-13, 15-19">>}
 	]),
 	{response, nofin, 206, Headers} = gun:await(ConnPid, Ref),
 	{_, <<"bytes">>} = lists:keyfind(<<"accept-ranges">>, 1, Headers),
@@ -1176,10 +1176,10 @@ ranges_provided_auto_multipart_data(Config) ->
 	%% We will receive the ranges in the same order as requested.
 	{ContentRanges, BodyAcc} = do_provide_range_callback_multipart_body(Body, Boundary, [], <<>>),
 	[
-		{bytes, 0, 3, 20},
-		{bytes, 5, 6, 20},
-		{bytes, 8, 13, 20},
-		{bytes, 15, 19, 20}
+		{bytes, 0, 3, 1041},
+		{bytes, 5, 6, 1041},
+		{bytes, 8, 13, 1041},
+		{bytes, 15, 19, 1041}
 	] = ContentRanges,
 	<<"ThisisrangedREST!">> = BodyAcc,
 	ok.
@@ -1189,12 +1189,12 @@ ranges_provided_auto_multipart_sendfile(Config) ->
 		"Cowboy will call the normal ProvideCallback and perform "
 		"the range calculations automatically."),
 	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, "/ranges_provided_auto?sendfile", [
+	Ref = gun:get(ConnPid, "/ranges_provided_auto?sendfile-large", [
 		{<<"accept-encoding">>, <<"gzip">>},
 		%% This range selects a few random chunks of the file.
 		{<<"range">>, <<"bytes=50-99, 150-199, 250-299, -99">>}
 	]),
-	Path = code:lib_dir(cowboy) ++ "/ebin/cowboy.app",
+	Path = code:lib_dir(cowboy) ++ "/src/cowboy_rest.erl",
 	Size = filelib:file_size(Path),
 	Skip = Size - 399,
 	{ok, <<
@@ -1338,6 +1338,75 @@ ranges_provided_auto_one_unsatisfiable(Config) ->
 	]),
 	{response, fin, 416, Headers} = gun:await(ConnPid, Ref),
 	{_, <<"bytes */5">>} = lists:keyfind(<<"content-range">>, 1, Headers),
+	ok.
+
+ranges_provided_auto_repeated(Config) ->
+	doc("Two ranges that each select the whole representation "
+		"are answered with that representation."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/ranges_provided_auto?01234", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"range">>, <<"bytes=0-,0-">>}
+	]),
+	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
+	false = lists:keyfind(<<"content-range">>, 1, Headers),
+	{_, <<"text/plain">>} = lists:keyfind(<<"content-type">>, 1, Headers),
+	{_, <<"5">>} = lists:keyfind(<<"content-length">>, 1, Headers),
+	{ok, <<"01234">>} = gun:await_body(ConnPid, Ref),
+	ok.
+
+ranges_provided_auto_sendfile_repeated(Config) ->
+	doc("Two ranges that each select the whole representation "
+		"are answered with that representation."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/ranges_provided_auto?sendfile5", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"range">>, <<"bytes=0-,0-">>}
+	]),
+	Path = code:lib_dir(cowboy) ++ "/ebin/cowboy.app",
+	{ok, <<Body:5/binary, _/bits>>} = file:read_file(Path),
+	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
+	false = lists:keyfind(<<"content-range">>, 1, Headers),
+	{_, <<"5">>} = lists:keyfind(<<"content-length">>, 1, Headers),
+	{ok, Body} = gun:await_body(ConnPid, Ref),
+	ok.
+
+ranges_provided_auto_framing_over(Config) ->
+	doc("Two one-byte ranges whose framing makes the response "
+		"one byte larger than the representation are the whole representation."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/ranges_provided_auto?size-513", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"range">>, <<"bytes=0-0,1-1">>}
+	]),
+	{response, nofin, 200, Headers} = gun:await(ConnPid, Ref),
+	false = lists:keyfind(<<"content-range">>, 1, Headers),
+	{_, <<"text/plain">>} = lists:keyfind(<<"content-type">>, 1, Headers),
+	{ok, Body0} = gun:await_body(ConnPid, Ref),
+	Body = do_decode(Headers, Body0),
+	513 = byte_size(Body),
+	ok.
+
+ranges_provided_auto_framing_equal(Config) ->
+	doc("Two one-byte ranges whose framing equals the representation "
+		"are sent in the requested order."),
+	ConnPid = gun_open(Config),
+	Ref = gun:get(ConnPid, "/ranges_provided_auto?size-514", [
+		{<<"accept-encoding">>, <<"gzip">>},
+		{<<"range">>, <<"bytes=1-1,0-0">>}
+	]),
+	{response, nofin, 206, Headers} = gun:await(ConnPid, Ref),
+	false = lists:keyfind(<<"content-range">>, 1, Headers),
+	{_, <<"multipart/byteranges; boundary=", Boundary/bits>>}
+		= lists:keyfind(<<"content-type">>, 1, Headers),
+	{ok, Body0} = gun:await_body(ConnPid, Ref),
+	Body = do_decode(Headers, Body0),
+	{ContentRanges, BodyAcc} = do_provide_range_callback_multipart_body(Body, Boundary, [], <<>>),
+	[
+		{bytes, 1, 1, 514},
+		{bytes, 0, 0, 514}
+	] = ContentRanges,
+	<<"aa">> = BodyAcc,
 	ok.
 
 ranges_provided_empty_accept_ranges_none(Config) ->

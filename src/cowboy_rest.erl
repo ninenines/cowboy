@@ -1263,9 +1263,39 @@ maybe_set_ranged_body_auto(Req=#{range := {_, Ranges}}, State, Body) ->
 			Neg < 0 andalso Size > 0
 	end || Range <- Ranges],
 	case lists:usort(Checks) of
-		[true] -> set_ranged_body_auto(Req, State, Body);
-		_ -> range_not_satisfiable(Req, State, [<<"*/">>, integer_to_binary(Size)])
+		[true] ->
+			case ranged_response_too_large(Ranges, Size) of
+				true ->
+					Req1 = cowboy_req:set_resp_body(Body, Req),
+					multiple_choices(Req1, State);
+				false ->
+					set_ranged_body_auto(Req, State, Body)
+			end;
+		_ ->
+			range_not_satisfiable(Req, State, [<<"*/">>, integer_to_binary(Size)])
 	end.
+
+%% Multipart framing is about 256 bytes per range. A single
+%% range is not multipart. When the ranges and that framing
+%% are larger than the representation, send the whole body.
+ranged_response_too_large([_], _) ->
+	false;
+ranged_response_too_large(Ranges, Size) ->
+	Bytes = lists:foldl(fun(Range, Acc) ->
+		Acc + range_length(Range, Size)
+	end, 0, Ranges),
+	Bytes + 256 * length(Ranges) > Size.
+
+range_length({From, infinity}, Size) ->
+	Size - From;
+range_length({From, To}, Size) when To >= Size ->
+	Size - From;
+range_length({From, To}, _) ->
+	To - From + 1;
+range_length(Neg, Size) when Neg < 0, -Neg >= Size ->
+	Size;
+range_length(Neg, _) when Neg < 0 ->
+	-Neg.
 
 %% We might also want to have some checks about range order,
 %% number of ranges, and perhaps also join ranges that are
