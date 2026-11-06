@@ -1311,7 +1311,7 @@ commands(State0=#state{socket=Socket, transport=Transport,
 	ok = maybe_socket_error(State2, Transport:send(Socket,
 		cow_http:response(StatusCode, 'HTTP/1.1', headers_to_list(Headers)))),
 	State3 = maybe_reset_idle_timeout(State2),
-	%% A HEAD response is complete once its headers are sent.
+	%% Responses to HEAD requests end at the header block.
 	State = case Method of
 		<<"HEAD">> -> State3#state{out_state=done};
 		_ -> State3
@@ -1653,6 +1653,9 @@ connection_hd_is_close(Conn) ->
 	Conns = cow_http_hd:parse_connection(iolist_to_binary(Conn)),
 	lists:member(<<"close">>, Conns).
 
+%% HEAD has no message body or trailer section. (RFC9112 6.3)
+stream_te(#state{stream=#stream{method= <<"HEAD">>}}) ->
+	not_chunked;
 stream_te(#state{out_state=streaming}) ->
 	not_chunked;
 %% No TE header was sent.

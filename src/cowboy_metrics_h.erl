@@ -117,6 +117,8 @@
 	callback :: fun((metrics()) -> any()),
 	resp_headers_filter :: undefined | fun((cowboy:http_headers()) -> cowboy:http_headers()),
 	req :: map(),
+	%% Method from the req before metrics_req_filter.
+	method :: binary(),
 	resp_status :: undefined | cowboy:http_status(),
 	resp_headers :: undefined | cowboy:http_headers(),
 	ref :: ranch:ref(),
@@ -135,7 +137,7 @@
 
 -spec init(cowboy_stream:streamid(), cowboy_req:req(), cowboy:opts())
 	-> {[{spawn, pid(), timeout()}], #state{}}.
-init(StreamID, Req=#{ref := Ref}, Opts=#{metrics_callback := Fun}) ->
+init(StreamID, Req=#{method := Method, ref := Ref}, Opts=#{metrics_callback := Fun}) ->
 	ReqStart = erlang:monotonic_time(),
 	{Commands, Next} = cowboy_stream:init(StreamID, Req, Opts),
 	FilteredReq = case maps:get(metrics_req_filter, Opts, undefined) of
@@ -148,6 +150,7 @@ init(StreamID, Req=#{ref := Ref}, Opts=#{metrics_callback := Fun}) ->
 		callback=Fun,
 		resp_headers_filter=RespHeadersFilter,
 		req=FilteredReq,
+		method=Method,
 		ref=Ref,
 		req_start=ReqStart
 	})}.
@@ -237,15 +240,21 @@ fold([{error_response, Status, Headers, Body}|Tail],
 			fold(Tail, State)
 	end;
 fold([{headers, Status, Headers}|Tail],
-		State=#state{resp_headers_filter=RespHeadersFilter}) ->
+		State=#state{resp_headers_filter=RespHeadersFilter, method=Method}) ->
 	RespStart = erlang:monotonic_time(),
+	%% Responses to HEAD requests end at the header block.
+	RespEnd = case Method of
+		<<"HEAD">> -> RespStart;
+		_ -> undefined
+	end,
 	fold(Tail, State#state{
 		resp_status=Status,
 		resp_headers=case RespHeadersFilter of
 			undefined -> Headers;
 			_ -> RespHeadersFilter(Headers)
 		end,
-		resp_start=RespStart
+		resp_start=RespStart,
+		resp_end=RespEnd
 	});
 %% @todo It might be worthwhile to keep the sendfile information around,
 %% especially if these frames ultimately result in a sendfile syscall.

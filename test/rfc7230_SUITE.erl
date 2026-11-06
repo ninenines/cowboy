@@ -2407,6 +2407,34 @@ te_trailers(Config) ->
 	%% @todo We probably want to check the body received too.
 	ok.
 
+no_trailers_in_head_response(Config) ->
+	doc("A HEAD response ends at the header block. A chunked response "
+		"does not include the last chunk or a trailer section, even when "
+		"the request accepts trailers. (RFC7230 3.3, RFC7230 4.1.2)"),
+	Client = raw_open(Config),
+	ok = raw_send(Client, [
+		"HEAD /resp/stream_trailers HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"TE: trailers\r\n"
+		"\r\n"]),
+	{_, 200, _, Rest0} = cow_http:parse_status_line(raw_recv_head(Client)),
+	{Headers, <<>>} = cow_http:parse_headers(Rest0),
+	{_, <<"chunked">>} = lists:keyfind(<<"transfer-encoding">>, 1, Headers),
+	false = lists:keyfind(<<"trailer">>, 1, Headers),
+	ok = raw_send(Client, [
+		"GET /resp/stream_trailers HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"TE: trailers\r\n"
+		"\r\n"]),
+	{_, 200, _, Rest1} = cow_http:parse_status_line(raw_recv_head(Client)),
+	{RespHeaders, Body0} = cow_http:parse_headers(Rest1),
+	{_, <<"chunked">>} = lists:keyfind(<<"transfer-encoding">>, 1, RespHeaders),
+	{_, <<"grpc-status">>} = lists:keyfind(<<"trailer">>, 1, RespHeaders),
+	%% Chunk size is the hexadecimal length of "Hello world!".
+	Expected = <<"C\r\nHello world!\r\n0\r\ngrpc-status: 0\r\n\r\n">>,
+	Expected = raw_recv_rest(Client, byte_size(Expected), Body0),
+	ok.
+
 te_ignore_chunked(Config) ->
 	doc("The presence of \"chunked\" in a TE header must be ignored as it "
 		"is always acceptable with HTTP/1.1. (RFC7230 4.3)"),

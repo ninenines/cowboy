@@ -377,6 +377,86 @@ stream_reply(Config) ->
 	doc("Confirm metrics are correct for long polling."),
 	do_get("/resp/stream_reply2/200", #{}, Config).
 
+stream_reply_head_http10(Config) ->
+	doc("An HTTP/1.0 streamed HEAD response ends normally."),
+	case config(protocol, Config) of
+		http ->
+			Client = raw_open(Config),
+			ok = raw_send(Client, [
+				"HEAD /resp/stream_reply2/200 HTTP/1.0\r\n"
+				"Host: localhost\r\n"
+				"x-test-pid: ", pid_to_list(self()), "\r\n"
+				"\r\n"]),
+			{_, 200, _, _} = cow_http:parse_status_line(raw_recv_head(Client)),
+			receive
+				{metrics, _, #{reason := Reason,
+						resp_start := RespStart, resp_end := RespEnd}} ->
+					normal = Reason,
+					RespStart = RespEnd
+			after 1000 ->
+				error(timeout)
+			end;
+		http2 ->
+			{skip, "This case is specific to HTTP/1.0."};
+		http3 ->
+			{skip, "Implement the test for HTTP/3."}
+	end.
+
+stream_reply_head(Config) ->
+	doc("A streamed HEAD response ends when the headers are sent."),
+	case config(protocol, Config) of
+		http3 ->
+			{skip, "Implement the test for HTTP/3."};
+		_ ->
+			ConnPid = gun_open(Config),
+			Ref = gun:head(ConnPid, "/resp/stream_reply2/200", [
+				{<<"accept-encoding">>, <<"gzip">>},
+				{<<"x-test-pid">>, pid_to_list(self())}
+			]),
+			{response, fin, 200, _} = gun:await(ConnPid, Ref, infinity),
+			receive
+				{metrics, _, #{resp_start := RespStart, resp_end := RespEnd}} ->
+					RespStart = RespEnd,
+					gun:close(ConnPid)
+			after 1000 ->
+				error(timeout)
+			end
+	end.
+
+stream_reply_head_req_filter(Config) ->
+	doc("A streamed HEAD response ends at the headers even when "
+		"the req filter drops the method."),
+	case config(ref, Config) of
+		http ->
+			Name = ?FUNCTION_NAME,
+			{ok, _} = cowboy:start_clear(Name, [{port, 0}], #{
+				env => #{dispatch => cowboy_router:compile(init_routes(Config))},
+				metrics_callback => do_metrics_callback(),
+				metrics_req_filter => fun(Req) -> maps:remove(method, Req) end,
+				stream_handlers => [cowboy_metrics_h, cowboy_stream_h]
+			}),
+			Port = ranch:get_port(Name),
+			try
+				Client = raw_open([{type, tcp}, {port, Port}, {opts, []}|Config]),
+				ok = raw_send(Client, [
+					"HEAD /resp/stream_reply2/200 HTTP/1.1\r\n"
+					"Host: localhost\r\n"
+					"x-test-pid: ", pid_to_list(self()), "\r\n"
+					"\r\n"]),
+				{_, 200, _, _} = cow_http:parse_status_line(raw_recv_head(Client)),
+				receive
+					{metrics, _, #{resp_start := RespStart, resp_end := RespEnd}} ->
+						RespStart = RespEnd
+				after 1000 ->
+					error(timeout)
+				end
+			after
+				cowboy:stop_listener(Name)
+			end;
+		_ ->
+			{skip, "The req filter behavior does not depend on the protocol."}
+	end.
+
 ws(Config) ->
 	case config(protocol, Config) of
 		http -> do_ws(Config);
