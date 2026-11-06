@@ -83,6 +83,23 @@ do(<<"resp_header_default">>, Req, Opts) ->
 	undefined = cowboy_req:resp_header(<<"content-type">>, Req),
 	default = cowboy_req:resp_header(<<"content-type">>, Req, default),
 	{ok, cowboy_req:reply(200, #{}, "OK", Req), Opts};
+do(<<"has_sent_resp">>, Req0, Opts) ->
+	false = cowboy_req:has_sent_resp(Req0),
+	Req = case cowboy_req:binding(arg, Req0) of
+		<<"reply">> ->
+			cowboy_req:reply(201, #{}, <<"OK">>, Req0);
+		<<"stream_reply">> ->
+			Req1 = cowboy_req:stream_reply(202, Req0),
+			cowboy_req:stream_body(<<"OK">>, fin, Req1),
+			Req1;
+		<<"stream_reply_204">> ->
+			cowboy_req:stream_reply(204, Req0);
+		<<"binary">> ->
+			cowboy_req:reply(<<"200 GOOD">>, #{}, <<"OK">>, Req0)
+	end,
+	Pid = list_to_pid(binary_to_list(cowboy_req:header(<<"x-test-pid">>, Req0))),
+	Pid ! {has_sent_resp, cowboy_req:has_sent_resp(Req)},
+	{ok, Req, Opts};
 do(<<"resp_headers">>, Req0, Opts) ->
 	Req1 = cowboy_req:set_resp_header(<<"server">>, <<"nginx">>, Req0),
 	Req = cowboy_req:set_resp_headers(#{
