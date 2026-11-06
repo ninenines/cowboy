@@ -1242,7 +1242,9 @@ stream_body_content_length_head_trailers(Config) ->
 
 do_stream_body_content_length_head(Arg, Config) ->
 	case config(protocol, Config) of
-		http ->
+		http3 ->
+			{skip, "Implement the test for HTTP/3."};
+		_ ->
 			ConnPid = gun_open(Config),
 			Ref1 = gun:head(ConnPid, "/resp/stream_body_content_length/" ++ Arg),
 			{response, fin, 200, Headers} = gun:await(ConnPid, Ref1, infinity),
@@ -1250,13 +1252,7 @@ do_stream_body_content_length_head(Arg, Config) ->
 			Ref2 = gun:get(ConnPid, "/resp/stream_body_content_length/multiple"),
 			{response, nofin, 200, _} = gun:await(ConnPid, Ref2, infinity),
 			{ok, <<"Hello world!">>} = gun:await_body(ConnPid, Ref2, infinity),
-			gun:close(ConnPid);
-		http2 ->
-			%% @todo HTTP/2 sends a DATA frame after the HEADERS frame ended the stream.
-			{skip, "HEAD responses started with stream_reply break HTTP/2 connections."};
-		http3 ->
-			%% @todo Implement the test for HTTP/3.
-			{skip, "Implement the test for HTTP/3."}
+			gun:close(ConnPid)
 	end.
 
 stream_body_concurrent(Config) ->
@@ -1272,6 +1268,27 @@ stream_body_concurrent(Config) ->
 %% @todo Crash when calling stream_body after the fin flag has been set.
 %% @todo Crash when calling stream_body after calling reply.
 %% @todo Crash when calling stream_body before calling stream_reply.
+
+stream_events_head(Config) ->
+	doc("Events streamed in response to a HEAD request must not be sent. "
+		"The connection must remain usable."),
+	case config(protocol, Config) of
+		http3 ->
+			{skip, "Implement the test for HTTP/3."};
+		_ ->
+			ConnPid = gun_open(Config),
+			Ref1 = gun:head(ConnPid, "/resp/stream_events/single"),
+			{response, fin, 200, _} = gun:await(ConnPid, Ref1, infinity),
+			Ref2 = gun:get(ConnPid, "/resp/stream_events/single"),
+			{response, nofin, 200, _} = gun:await(ConnPid, Ref2, infinity),
+			{ok, <<
+				"event: add_comment\n"
+				"data: Comment text.\n"
+				"data: With many lines.\n"
+				"\n"
+			>>} = gun:await_body(ConnPid, Ref2, infinity),
+			gun:close(ConnPid)
+	end.
 
 stream_events_single(Config) ->
 	doc("Streamed event."),

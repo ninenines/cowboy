@@ -3356,6 +3356,35 @@ settings_initial_window_size_reject_overflow(Config) ->
 %   behavior.  These MAY be treated by an implementation as being
 %   equivalent to INTERNAL_ERROR.
 
+head_response_no_data(Config0) ->
+	doc("A response to a HEAD request must not include a message body. (RFC7540 8.1)"),
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
+		stream_handlers => [stream_handler_h]
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		{ok, Socket} = do_handshake([{port, Port}|Config0]),
+		{HeadersBlock, _} = cow_hpack:encode([
+			{<<":method">>, <<"HEAD">>},
+			{<<":scheme">>, <<"http">>},
+			{<<":authority">>, <<"localhost">>},
+			{<<":path">>, <<"/">>},
+			{<<"x-test-case">>, <<"set_options_ignore_unknown">>},
+			{<<"x-test-pid">>, list_to_binary(pid_to_list(self()))}
+		]),
+		ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
+		%% END_STREAM is set on the response HEADERS frame.
+		{ok, <<Len:24, 1:8, Flags:8, 0:1, 1:31>>} = gen_tcp:recv(Socket, 9, 1000),
+		1 = Flags band 1,
+		{ok, _} = gen_tcp:recv(Socket, Len, 1000),
+		%% A PING acknowledgment is the next frame.
+		ok = gen_tcp:send(Socket, cow_http2:ping(0)),
+		{ok, <<8:24, 6:8, 0:7, 1:1, 0:96>>} = gen_tcp:recv(Socket, 17, 1000),
+		gen_tcp:close(Socket)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
 accept_trailers(Config) ->
 	doc("Trailing HEADERS frames must be accepted. (RFC7540 8.1)"),
 	{ok, Socket} = do_handshake(Config),
