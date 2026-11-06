@@ -1235,6 +1235,11 @@ stream_body_content_length_head_nobody(Config) ->
 		"The connection must remain usable."),
 	do_stream_body_content_length_head("nobody", Config).
 
+stream_body_content_length_head_trailers(Config) ->
+	doc("Trailers after a HEAD response must not be written. "
+		"The connection must remain usable."),
+	do_stream_body_content_length_head("trailers", Config).
+
 do_stream_body_content_length_head(Arg, Config) ->
 	case config(protocol, Config) of
 		http ->

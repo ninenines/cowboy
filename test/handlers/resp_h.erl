@@ -372,6 +372,12 @@ do(<<"stream_body_content_length">>, Req0, Opts) ->
 		<<"nobody">> ->
 			Req1 = cowboy_req:set_resp_header(<<"content-length">>, <<"12">>, Req0),
 			Req = cowboy_req:stream_reply(200, Req1),
+			{ok, Req, Opts};
+		<<"trailers">> ->
+			Req1 = cowboy_req:set_resp_header(<<"content-length">>, <<"12">>, Req0),
+			Req2 = cowboy_req:set_resp_header(<<"trailer">>, <<"grpc-status">>, Req1),
+			Req = cowboy_req:stream_reply(200, Req2),
+			cowboy_req:stream_trailers(#{<<"grpc-status">> => <<"0">>}, Req),
 			{ok, Req, Opts}
 	end;
 do(<<"stream_events">>, Req0, Opts) ->

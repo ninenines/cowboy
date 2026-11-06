@@ -1278,7 +1278,7 @@ commands(State0=#state{socket=Socket, transport=Transport,
 		ok ->
 			ok
 	end,
-	#stream{id=StreamID, method=Method, version=Version} = Stream0,
+	#stream{id=StreamID, version=Version, method=Method} = Stream0,
 	Status = cow_http:status_to_integer(StatusCode),
 	ContentLength = maps:get(<<"content-length">>, Headers0, undefined),
 	%% Chunked transfer-encoding can be disabled on a per-request basis.
@@ -1295,13 +1295,24 @@ commands(State0=#state{socket=Socket, transport=Transport,
 			{State0#state{out_state=chunked}, Headers0#{<<"transfer-encoding">> => <<"chunked">>}};
 		%% Close the connection after streaming without content-length
 		%% to all HTTP/1.0 clients and to HTTP/1.1 clients when chunked is disabled.
+		%% HEAD has no body, so the missing length is not a short send.
 		{_, undefined, _} ->
-			{State0#state{out_state=streaming, last_streamid=StreamID}, Headers0};
+			OutState = case Method of
+				<<"HEAD">> -> done;
+				_ -> streaming
+			end,
+			{State0#state{out_state=OutState, last_streamid=StreamID}, Headers0};
 		%% Stream the response body without chunked transfer-encoding.
 		_ ->
 			ExpectedSize = cow_http_hd:parse_content_length(ContentLength),
 			Stream = Stream0#stream{local_expected_size=ExpectedSize},
-			{State0#state{out_state=streaming, stream=Stream}, Headers0}
+			%% HEAD ends at the header block. Content-Length is the
+			%% representation size, not a body that follows. (RFC9112 6.3)
+			OutState = case Method of
+				<<"HEAD">> -> done;
+				_ -> streaming
+			end,
+			{State0#state{out_state=OutState, stream=Stream}, Headers0}
 	end,
 	Headers2 = case stream_te(State1) of
 		trailers -> Headers1;
@@ -1310,12 +1321,7 @@ commands(State0=#state{socket=Socket, transport=Transport,
 	{State2, Headers} = connection(State1, Headers2),
 	ok = maybe_socket_error(State2, Transport:send(Socket,
 		cow_http:response(StatusCode, 'HTTP/1.1', headers_to_list(Headers)))),
-	State3 = maybe_reset_idle_timeout(State2),
-	%% A HEAD response is complete once its headers are sent.
-	State = case Method of
-		<<"HEAD">> -> State3#state{out_state=done};
-		_ -> State3
-	end,
+	State = maybe_reset_idle_timeout(State2),
 	commands(State, Tail);
 %% Send a response body chunk.
 %% @todo We need to kill the stream if it tries to send data before headers.
@@ -1653,6 +1659,9 @@ connection_hd_is_close(Conn) ->
 	Conns = cow_http_hd:parse_connection(iolist_to_binary(Conn)),
 	lists:member(<<"close">>, Conns).
 
+%% HEAD has no message body or trailer section. (RFC9112 6.3)
+stream_te(#state{stream=#stream{method= <<"HEAD">>}}) ->
+	not_chunked;
 stream_te(#state{out_state=streaming}) ->
 	not_chunked;
 %% No TE header was sent.
