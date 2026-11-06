@@ -1293,6 +1293,9 @@ commands(State0=#state{socket=Socket, transport=Transport,
 			{State0#state{out_state=done}, Headers0};
 		{_, undefined, 'HTTP/1.1'} when Chunked ->
 			{State0#state{out_state=chunked}, Headers0#{<<"transfer-encoding">> => <<"chunked">>}};
+		%% Responses to HEAD requests end at the header block.
+		{_, undefined, _} when Method =:= <<"HEAD">> ->
+			{State0, Headers0};
 		%% Close the connection after streaming without content-length
 		%% to all HTTP/1.0 clients and to HTTP/1.1 clients when chunked is disabled.
 		{_, undefined, _} ->

@@ -1739,6 +1739,28 @@ http10_connection_keepalive_head_content_length(Config) ->
 	{_, Body} = cow_http:parse_headers(Rest2),
 	<<"Hello world!">> = raw_recv_rest(Client, 12, Body).
 
+http10_connection_keepalive_head(Config) ->
+	doc("HTTP/1.0 HEAD requests with the \"keep-alive\" option "
+		"indicate the connection will persist when the response "
+		"has no content-length and no body. (RFC7230 6.3, RFC7230 A.1.2)"),
+	Client = raw_open(Config),
+	ok = raw_send(Client, [
+		"HEAD /resp/stream_reply2/200 HTTP/1.0\r\n"
+		"Host: localhost\r\n"
+		"Connection: keep-alive\r\n"
+		"\r\n"]),
+	{_, 200, _, Rest} = cow_http:parse_status_line(raw_recv_head(Client)),
+	{Headers, <<>>} = cow_http:parse_headers(Rest),
+	{_, <<"keep-alive">>} = lists:keyfind(<<"connection">>, 1, Headers),
+	ok = raw_send(Client, [
+		"GET / HTTP/1.0\r\n"
+		"Host: localhost\r\n"
+		"Connection: keep-alive\r\n"
+		"\r\n"]),
+	{_, 200, _, Rest2} = cow_http:parse_status_line(raw_recv_head(Client)),
+	{_, Body} = cow_http:parse_headers(Rest2),
+	<<"Hello world!">> = raw_recv_rest(Client, 12, Body).
+
 connection_close_head_content_length(Config) ->
 	doc("HTTP/1.1 HEAD requests with the \"close\" option indicate "
 		"the connection will be closed, including when the response "

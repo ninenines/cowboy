@@ -84,6 +84,36 @@ chunked_false(Config) ->
 		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
 
+chunked_false_head(Config) ->
+	doc("A HEAD response without a content-length does not close "
+		"the connection when chunked transfer-encoding is disabled."),
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
+		env => #{dispatch => init_dispatch(Config)},
+		chunked => false
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		Client = raw_open([{type, tcp}, {port, Port}, {opts, []}|Config]),
+		ok = raw_send(Client, [
+			"HEAD /resp/stream_reply2/200 HTTP/1.1\r\n"
+			"Host: localhost\r\n"
+			"\r\n"]),
+		{'HTTP/1.1', 200, _, Rest} = cow_http:parse_status_line(raw_recv_head(Client)),
+		{Headers, <<>>} = cow_http:parse_headers(Rest),
+		false = lists:keyfind(<<"content-length">>, 1, Headers),
+		false = lists:keyfind(<<"transfer-encoding">>, 1, Headers),
+		false = lists:keyfind(<<"connection">>, 1, Headers),
+		ok = raw_send(Client, [
+			"GET / HTTP/1.1\r\n"
+			"Host: localhost\r\n"
+			"\r\n"]),
+		{'HTTP/1.1', 200, _, Rest2} = cow_http:parse_status_line(raw_recv_head(Client)),
+		{_, Body} = cow_http:parse_headers(Rest2),
+		<<"Hello world!">> = raw_recv_rest(Client, 12, Body)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
 chunked_one_byte_at_a_time(Config) ->
 	doc("Confirm that chunked transfer-encoding works when "
 		"the body is received one byte at a time."),
