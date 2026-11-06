@@ -1242,7 +1242,10 @@ stream_body_content_length_head_trailers(Config) ->
 
 do_stream_body_content_length_head(Arg, Config) ->
 	case config(protocol, Config) of
-		http ->
+		http3 ->
+			%% @todo Implement the test for HTTP/3.
+			{skip, "Implement the test for HTTP/3."};
+		_ ->
 			ConnPid = gun_open(Config),
 			Ref1 = gun:head(ConnPid, "/resp/stream_body_content_length/" ++ Arg),
 			{response, fin, 200, Headers} = gun:await(ConnPid, Ref1, infinity),
@@ -1250,13 +1253,7 @@ do_stream_body_content_length_head(Arg, Config) ->
 			Ref2 = gun:get(ConnPid, "/resp/stream_body_content_length/multiple"),
 			{response, nofin, 200, _} = gun:await(ConnPid, Ref2, infinity),
 			{ok, <<"Hello world!">>} = gun:await_body(ConnPid, Ref2, infinity),
-			gun:close(ConnPid);
-		http2 ->
-			%% @todo HTTP/2 sends a DATA frame after the HEADERS frame ended the stream.
-			{skip, "HEAD responses started with stream_reply break HTTP/2 connections."};
-		http3 ->
-			%% @todo Implement the test for HTTP/3.
-			{skip, "Implement the test for HTTP/3."}
+			gun:close(ConnPid)
 	end.
 
 stream_body_content_length_nobody_error(Config) ->

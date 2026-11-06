@@ -85,6 +85,9 @@
 -export_type([opts/0]).
 
 -record(stream, {
+	%% Request method. HEAD responses are ended with the headers.
+	method = undefined :: undefined | binary(),
+
 	%% Whether the stream is currently in a special state.
 	%%
 	%% - The running state is the normal state of a stream.
@@ -665,7 +668,9 @@ headers_frame(State=#state{opts=Opts, streams=Streams}, StreamID, Req) ->
 	try cowboy_stream:init(StreamID, Req, Opts) of
 		{Commands, StreamState} ->
 			commands(State#state{
-				streams=Streams#{StreamID => #stream{state=StreamState}}},
+				streams=Streams#{StreamID => #stream{
+					method=maps:get(method, Req),
+					state=StreamState}}},
 				StreamID, Commands)
 	catch Class:Exception:Stacktrace ->
 		cowboy:log(cowboy_stream:make_error_log(init,
@@ -862,42 +867,61 @@ commands(State0, StreamID, [{response, StatusCode, Headers, Body}|Tail]) ->
 			commands(State, StreamID, Tail)
 	end;
 %% Send response headers.
-commands(State0, StreamID, [{headers, StatusCode, Headers}|Tail]) ->
+commands(State0=#state{streams=Streams}, StreamID, [{headers, StatusCode, Headers}|Tail]) ->
 	case maybe_invalid_response_headers(Headers, State0) of
 		error_terminate ->
 			reset_stream(State0, StreamID,
 				{internal_error, invalid_response_header,
 					'An invalid response header was detected.'});
 		ok ->
-			State1 = send_headers(State0, StreamID, nofin, StatusCode, Headers),
+			%% cow_http2_machine sends END_STREAM for HEAD but stores the
+			%% flag we give it. fin keeps a later DATA frame off the stream.
+			#{StreamID := #stream{method=Method}} = Streams,
+			IsFin = case Method of
+				<<"HEAD">> -> fin;
+				_ -> nofin
+			end,
+			State1 = send_headers(State0, StreamID, IsFin, StatusCode, Headers),
 			State = maybe_reset_idle_timeout(State1),
 			commands(State, StreamID, Tail)
 	end;
 %% Send a response body chunk.
-commands(State0, StreamID, [{data, IsFin, Data}|Tail]) ->
-	State = case maybe_send_data(State0, StreamID, IsFin, Data, []) of
-		{data_sent, State1} ->
-			maybe_reset_idle_timeout(State1);
-		{no_data_sent, State1} ->
-			State1
-	end,
-	commands(State, StreamID, Tail);
-%% Send trailers.
-commands(State0, StreamID, [{trailers, Trailers}|Tail]) ->
-	case maybe_invalid_response_headers(Trailers, State0) of
-		error_terminate ->
-			reset_stream(State0, StreamID,
-				{internal_error, invalid_response_header,
-					'An invalid response header was detected in trailers.'});
-		ok ->
-			State = case maybe_send_data(State0, StreamID, fin,
-					{trailers, maps:to_list(Trailers)}, []) of
+commands(State0=#state{streams=Streams}, StreamID, [{data, IsFin, Data}|Tail]) ->
+	State = case Streams of
+		%% HEAD has no body. The headers already ended the stream.
+		#{StreamID := #stream{method= <<"HEAD">>}} ->
+			State0;
+		_ ->
+			case maybe_send_data(State0, StreamID, IsFin, Data, []) of
 				{data_sent, State1} ->
 					maybe_reset_idle_timeout(State1);
 				{no_data_sent, State1} ->
 					State1
-			end,
-			commands(State, StreamID, Tail)
+			end
+	end,
+	commands(State, StreamID, Tail);
+%% Send trailers.
+commands(State0=#state{streams=Streams}, StreamID, [{trailers, Trailers}|Tail]) ->
+	case Streams of
+		%% HEAD has no trailer section. (RFC9112 6.3)
+		#{StreamID := #stream{method= <<"HEAD">>}} ->
+			commands(State0, StreamID, Tail);
+		_ ->
+			case maybe_invalid_response_headers(Trailers, State0) of
+				error_terminate ->
+					reset_stream(State0, StreamID,
+						{internal_error, invalid_response_header,
+							'An invalid response header was detected in trailers.'});
+				ok ->
+					State = case maybe_send_data(State0, StreamID, fin,
+							{trailers, maps:to_list(Trailers)}, []) of
+						{data_sent, State1} ->
+							maybe_reset_idle_timeout(State1);
+						{no_data_sent, State1} ->
+							State1
+					end,
+					commands(State, StreamID, Tail)
+			end
 	end;
 %% Send a push promise.
 %%
@@ -1081,8 +1105,15 @@ update_window(State0=#state{socket=Socket, transport=Transport,
 
 %% Send the response, trailers or data.
 
-send_response(State0=#state{http2_machine=HTTP2Machine0}, StreamID, StatusCode, Headers, Body) ->
+send_response(State0=#state{streams=Streams, http2_machine=HTTP2Machine0},
+		StreamID, StatusCode, Headers, Body) ->
+	%% early_error/7 sends a response before the stream is stored.
+	Method = case Streams of
+		#{StreamID := #stream{method=Method0}} -> Method0;
+		_ -> undefined
+	end,
 	Size = case Body of
+		_ when Method =:= <<"HEAD">> -> 0;
 		{sendfile, _, Bytes, _} -> Bytes;
 		_ -> iolist_size(Body)
 	end,
@@ -1091,8 +1122,6 @@ send_response(State0=#state{http2_machine=HTTP2Machine0}, StreamID, StatusCode, 
 			State = send_headers(State0, StreamID, fin, StatusCode, Headers),
 			maybe_terminate_stream(State, StreamID, fin);
 		_ ->
-			%% @todo Add a test for HEAD to make sure we don't send the body when
-			%% returning {response...} from a stream handler (or {headers...} then {data...}).
 			{ok, _IsFin, HeaderBlock, HTTP2Machine}
 				= cow_http2_machine:prepare_headers(StreamID, HTTP2Machine0, nofin,
 					#{status => cow_http:status_to_integer(StatusCode)},
