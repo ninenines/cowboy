@@ -377,6 +377,54 @@ stream_reply(Config) ->
 	doc("Confirm metrics are correct for long polling."),
 	do_get("/resp/stream_reply2/200", #{}, Config).
 
+stream_reply_head_http10(Config) ->
+	doc("An HTTP/1.0 streamed HEAD response ends normally."),
+	case config(protocol, Config) of
+		http ->
+			Client = raw_open(Config),
+			ok = raw_send(Client, [
+				"HEAD /resp/stream_reply2/200 HTTP/1.0\r\n"
+				"Host: localhost\r\n"
+				"x-test-pid: ", pid_to_list(self()), "\r\n"
+				"\r\n"]),
+			{_, 200, _, _} = cow_http:parse_status_line(raw_recv_head(Client)),
+			receive
+				{metrics, _, #{reason := Reason}} ->
+					normal = Reason
+			after 1000 ->
+				error(timeout)
+			end;
+		http2 ->
+			{skip, "HEAD responses started with stream_reply break HTTP/2 connections."};
+		http3 ->
+			{skip, "Implement the test for HTTP/3."}
+	end.
+
+stream_reply_head(Config) ->
+	doc("A chunked HEAD response still ends for stream handlers."),
+	case config(protocol, Config) of
+		http ->
+			ConnPid = gun_open(Config),
+			Ref = gun:head(ConnPid, "/resp/stream_reply2/200", [
+				{<<"accept-encoding">>, <<"gzip">>},
+				{<<"x-test-pid">>, pid_to_list(self())}
+			]),
+			{response, fin, 200, _} = gun:await(ConnPid, Ref, infinity),
+			receive
+				{metrics, _, Metrics} ->
+					#{resp_start := RespStart, resp_end := RespEnd} = Metrics,
+					true = is_integer(RespStart) andalso is_integer(RespEnd),
+					true = RespStart =< RespEnd,
+					gun:close(ConnPid)
+			after 1000 ->
+				error(timeout)
+			end;
+		http2 ->
+			{skip, "HEAD responses started with stream_reply break HTTP/2 connections."};
+		http3 ->
+			{skip, "Implement the test for HTTP/3."}
+	end.
+
 ws(Config) ->
 	case config(protocol, Config) of
 		http -> do_ws(Config);

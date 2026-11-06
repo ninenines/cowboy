@@ -1225,6 +1225,60 @@ stream_body_content_length_nofin_error(Config) ->
 			{skip, "Implement the test for HTTP/3."}
 	end.
 
+stream_body_content_length_head_fin0(Config) ->
+	doc("Streamed body with last chunk of size 0 in response to a HEAD request. "
+		"The connection must remain usable."),
+	do_stream_body_content_length_head("fin0", Config).
+
+stream_body_content_length_head_nobody(Config) ->
+	doc("No response body sent in response to a HEAD request. "
+		"The connection must remain usable."),
+	do_stream_body_content_length_head("nobody", Config).
+
+stream_body_content_length_head_trailers(Config) ->
+	doc("Trailers after a HEAD response must not be written. "
+		"The connection must remain usable."),
+	do_stream_body_content_length_head("trailers", Config).
+
+do_stream_body_content_length_head(Arg, Config) ->
+	case config(protocol, Config) of
+		http3 ->
+			%% @todo Implement the test for HTTP/3.
+			{skip, "Implement the test for HTTP/3."};
+		_ ->
+			ConnPid = gun_open(Config),
+			Ref1 = gun:head(ConnPid, "/resp/stream_body_content_length/" ++ Arg),
+			{response, fin, 200, Headers} = gun:await(ConnPid, Ref1, infinity),
+			{_, <<"12">>} = lists:keyfind(<<"content-length">>, 1, Headers),
+			Ref2 = gun:get(ConnPid, "/resp/stream_body_content_length/multiple"),
+			{response, nofin, 200, _} = gun:await(ConnPid, Ref2, infinity),
+			{ok, <<"Hello world!">>} = gun:await_body(ConnPid, Ref2, infinity),
+			gun:close(ConnPid)
+	end.
+
+stream_body_content_length_nobody_error(Config) ->
+	doc("No response body sent."),
+	case config(protocol, Config) of
+		http ->
+			ConnPid = gun_open(Config),
+			Ref = gun:get(ConnPid, "/resp/stream_body_content_length/nobody"),
+			{response, nofin, 200, _} = gun:await(ConnPid, Ref, infinity),
+			%% The server closes the connection when the body couldn't be sent fully.
+			{error, {stream_error, closed}} = gun:await_body(ConnPid, Ref, infinity),
+			receive
+				{gun_down, ConnPid, _, _, _} ->
+					gun:close(ConnPid)
+			after 1000 ->
+				error(timeout)
+			end;
+		http2 ->
+			%% @todo HTTP/2 should have the same content-length checks.
+			{skip, "Implement the test for HTTP/2."};
+		http3 ->
+			%% @todo HTTP/3 should have the same content-length checks.
+			{skip, "Implement the test for HTTP/3."}
+	end.
+
 stream_body_concurrent(Config) ->
 	ConnPid = gun_open(Config),
 	Ref1 = gun:get(ConnPid, "/resp/stream_body/loop", [{<<"accept-encoding">>, <<"gzip">>}]),
