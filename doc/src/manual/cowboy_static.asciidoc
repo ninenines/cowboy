@@ -157,7 +157,7 @@ generate_etag(Path, Size, Mtime) ->
 .Custom MIME type function
 [source,erlang]
 ----
-always_octet_stream(_Path) ->
+always_octet_stream(Path) ->
     case filename:extension(Path) of
         <<".erl">> -> {<<"text">>, <<"plain">>, []};
         _ -> {<<"application">>, <<"octet-stream">>, []}
