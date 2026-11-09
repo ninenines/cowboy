@@ -29,6 +29,7 @@
 %% @todo Graceful shutdown? Linger? Timeouts? Frame rates? PROXY header?
 -type opts() :: #{
 	compress_buffering => boolean(),
+	compress_level => zlib:zlevel(),
 	compress_threshold => non_neg_integer(),
 	connection_type => worker | supervisor,
 	enable_connect_protocol => boolean(),

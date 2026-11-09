@@ -31,6 +31,7 @@
 	alpn_default_protocol => http | http2,
 	chunked => boolean(),
 	compress_buffering => boolean(),
+	compress_level => zlib:zlevel(),
 	compress_threshold => non_neg_integer(),
 	connection_type => worker | supervisor,
 	dynamic_buffer => false | {pos_integer(), pos_integer()},

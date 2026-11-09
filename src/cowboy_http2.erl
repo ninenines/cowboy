@@ -27,6 +27,7 @@
 	active_n => pos_integer(),
 	alpn_default_protocol => http | http2,
 	compress_buffering => boolean(),
+	compress_level => zlib:zlevel(),
 	compress_threshold => non_neg_integer(),
 	connection_type => worker | supervisor,
 	connection_window_margin_size => 0..16#7fffffff,
