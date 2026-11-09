@@ -1,0 +1,85 @@
+[appendix]
+== Migrating from Cowboy 2.20 to 2.21
+
+Cowboy 2.21 is a maintenance release. It updates
+Cowlib to 2.22.0 to benefit from security and
+bug fixes. It also adds an HTTP/2 header list
+limit and removes code archive support from
+`cowboy_static`.
+
+Cowboy 2.21 requires Erlang/OTP 27.0 or greater.
+
+=== Features added
+
+* Potential incompatibility: the HTTP/2 option
+  `max_header_list_size` defaults to 32768.
+
+* HTTP/2 lingering streams are now kept for two
+  generations, with at most 100 local and 10
+  remote stream ids per generation.
+
+* Potential incompatibility: A Host or
+  `:authority` reg-name may now contain
+  percent-encoded octets, for example when
+  clients connect to Unix domain sockets.
+
+* Update Cowlib to 2.22.0.
+
+=== Features removed
+
+* Potential incompatibility: `cowboy_static` no
+  longer reads code archives. `{priv_file, App, Path}`
+  and `{priv_dir, App, Path}` always use the
+  filesystem. Application archives were deprecated
+  in Erlang/OTP 27 and removed in Erlang/OTP 30.
+
+=== Bugs fixed
+
+* HTTP/2 204 responses may now include a
+  content-length header of 0.
+
+* Structured field building is now strict in
+  what it can output.
+
+* A `HEAD` response is properly finished when
+  the headers are sent, including when streaming
+  response bodies.
+
+* A byte range that
+  runs past the end of the representation now
+  uses a `Content-Range` for the bytes that were
+  sent. `bytes=3-5` on a 5-byte body is
+  `bytes 3-4/5`. A range that starts inside the
+  body and ends past it is that partial response,
+  not a 416. A suffix as long as the body, or
+  longer, is the whole body.
+
+* When automatic byte ranges would produce a
+  multipart body larger than the representation,
+  Cowboy sends the whole representation with a
+  200 status code. A single range is unchanged.
+
+* HTTP/1.1 header field parsing was made stricter.
+
+* Chunked transfer-encoding parsing was
+  made stricter.
+
+* HTTP/2 DATA frames following a stream
+  reset or when the handler stopped reading
+  now properly update flow control windows.
+
+* Padded HTTP/2 DATA frames now properly
+  update flow control windows.
+
+* Incomplete HTTP/2 GOAWAY frames now
+  wait for more data instead of being
+  a connection error.
+
+* An HTTP/2 `CONNECT` or `TRACE` request answered
+  with 501 now resets the stream when the request
+  body is still open.
+
+* Once the write side of a connection has been
+  shut down, the socket is reset if the OS
+  process exits. A killed OS process no longer
+  leaves the socket and its port open.
