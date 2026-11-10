@@ -783,19 +783,39 @@ max_header_value_length(_, _) ->
 
 parse_hd_value(<< $\r, $\n, Rest/bits >>, S, Headers0, Num, Name, SoFar) ->
 	Value = clean_value_ws_end(SoFar, byte_size(SoFar) - 1),
-	Headers = case maps:get(Name, Headers0, undefined) of
-		undefined -> Headers0#{Name => Value};
-		%% The cookie header does not use proper HTTP header lists.
-		Value0 when Name =:= <<"cookie">> -> Headers0#{Name => << Value0/binary, "; ", Value/binary >>};
-		Value0 -> Headers0#{Name => << Value0/binary, ", ", Value/binary >>}
-	end,
-	parse_header(Rest, S, Headers, Num + 1);
+	case validate_header_value(Value) of
+		ok ->
+			Headers = case maps:get(Name, Headers0, undefined) of
+				undefined -> Headers0#{Name => Value};
+				%% The cookie header does not use proper HTTP header lists.
+				Value0 when Name =:= <<"cookie">> ->
+					Headers0#{Name => << Value0/binary, "; ", Value/binary >>};
+				Value0 -> Headers0#{Name => << Value0/binary, ", ", Value/binary >>}
+			end,
+			parse_header(Rest, S, Headers, Num + 1);
+		error ->
+			header_value_error(S, Headers0, Num)
+	end;
 parse_hd_value(<< $\0, _/bits >>, S=#state{in_state=PS}, H, Num, _, _) ->
 	error_terminate(400, S#state{in_state=PS#ps_header{headers=H, num_headers=Num}},
 		{connection_error, protocol_error,
 			'NUL byte is not allowed in header value. (RFC9110 5.5)'});
 parse_hd_value(<< C, Rest/bits >>, S, H, Num, N, SoFar) ->
 	parse_hd_value(Rest, S, H, Num, N, << SoFar/binary, C >>).
+
+-spec header_value_error(#state{}, cowboy:http_headers(), non_neg_integer()) -> no_return().
+
+header_value_error(S=#state{in_state=PS}, H, Num) ->
+	error_terminate(400, S#state{in_state=PS#ps_header{headers=H, num_headers=Num}},
+		{connection_error, protocol_error,
+			'An invalid header value was detected. (RFC9110 5.5)'}).
+
+validate_header_value(<<C, R/bits>>) when ?IS_VCHAR_OBS(C) ->
+	validate_header_value(R);
+validate_header_value(<<>>) ->
+	ok;
+validate_header_value(<<_, _/bits>>) ->
+	error.
 
 clean_value_ws_end(_, -1) ->
 	<<>>;
