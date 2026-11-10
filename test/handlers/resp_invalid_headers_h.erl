@@ -20,6 +20,16 @@ init(Req0, Opts) ->
 				<<"X-Test">> => <<"value">>
 			}, <<"OK">>, Req0),
 			{ok, Req, Opts};
+		<<"/reply_sp">> ->
+			Req = cowboy_req:reply(200, #{
+				<<"x-test">> => <<" a">>
+			}, <<"OK">>, Req0),
+			{ok, Req, Opts};
+		<<"/reply_del">> ->
+			Req = cowboy_req:reply(200, #{
+				<<"x-test">> => <<$a, 127>>
+			}, <<"OK">>, Req0),
+			{ok, Req, Opts};
 		<<"/stream_reply">> ->
 			Req = cowboy_req:stream_reply(200, #{
 				<<"x-test">> => "bad\r\nvalue"

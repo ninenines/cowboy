@@ -783,8 +783,8 @@ max_header_value_length(_, _) ->
 
 parse_hd_value(<< $\r, $\n, Rest/bits >>, S, Headers0, Num, Name, SoFar) ->
 	Value = clean_value_ws_end(SoFar, byte_size(SoFar) - 1),
-	case validate_header_value(Value) of
-		ok ->
+	case is_field_chars(Value) of
+		true ->
 			Headers = case maps:get(Name, Headers0, undefined) of
 				undefined -> Headers0#{Name => Value};
 				%% The cookie header does not use proper HTTP header lists.
@@ -793,7 +793,7 @@ parse_hd_value(<< $\r, $\n, Rest/bits >>, S, Headers0, Num, Name, SoFar) ->
 				Value0 -> Headers0#{Name => << Value0/binary, ", ", Value/binary >>}
 			end,
 			parse_header(Rest, S, Headers, Num + 1);
-		error ->
+		false ->
 			header_value_error(S, Headers0, Num)
 	end;
 parse_hd_value(<< $\0, _/bits >>, S=#state{in_state=PS}, H, Num, _, _) ->
@@ -809,13 +809,6 @@ header_value_error(S=#state{in_state=PS}, H, Num) ->
 	error_terminate(400, S#state{in_state=PS#ps_header{headers=H, num_headers=Num}},
 		{connection_error, protocol_error,
 			'An invalid header value was detected. (RFC9110 5.5)'}).
-
-validate_header_value(<<C, R/bits>>) when ?IS_VCHAR_OBS(C) ->
-	validate_header_value(R);
-validate_header_value(<<>>) ->
-	ok;
-validate_header_value(<<_, _/bits>>) ->
-	error.
 
 clean_value_ws_end(_, -1) ->
 	<<>>;
@@ -1518,8 +1511,16 @@ validate_response_headers(Headers, Opts) ->
 			ok
 	end.
 
+%% Each set-cookie list element is its own field value.
+validate_response_headers({<<"set-cookie">>, Values, It}) when is_list(Values) ->
+	case is_field_values(Values) of
+		true ->
+			validate_response_headers(maps:next(It));
+		false ->
+			error_terminate
+	end;
 validate_response_headers({K, V, It}) when is_binary(V) ->
-	case is_field_name(K) andalso nomatch =:= binary:match(V, [<<$\r>>, <<$\n>>]) of
+	case is_field_name(K) andalso is_field_value(V) of
 		true ->
 			validate_response_headers(maps:next(It));
 		false ->
@@ -1531,6 +1532,29 @@ validate_response_headers({K, V, It}) ->
 	validate_response_headers({K, iolist_to_binary(V), It});
 validate_response_headers(none) ->
 	ok.
+
+is_field_values([]) ->
+	true;
+is_field_values([Value|Tail]) ->
+	is_field_value(iolist_to_binary(Value)) andalso is_field_values(Tail).
+
+is_field_value(<<>>) ->
+	true;
+is_field_value(<<C, _/bits>>) when C =:= $\s; C =:= $\t ->
+	false;
+is_field_value(Value) ->
+	case binary:last(Value) of
+		$\s -> false;
+		$\t -> false;
+		_ -> is_field_chars(Value)
+	end.
+
+is_field_chars(<<C, R/bits>>) when ?IS_VCHAR_OBS(C) ->
+	is_field_chars(R);
+is_field_chars(<<>>) ->
+	true;
+is_field_chars(_) ->
+	false.
 
 is_field_name(<<>>) ->
 	false;
