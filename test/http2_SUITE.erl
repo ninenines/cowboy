@@ -32,6 +32,7 @@ init_dispatch(_) ->
 		{"/resp_iolist_body", resp_iolist_body_h, []},
 		{"/streamed_result/:n/:interval", streamed_result_h, []},
 		{"/inform", resp_invalid_headers_h, []},
+		{"/reply_name", resp_invalid_headers_h, []},
 		{"/reply", resp_invalid_headers_h, []},
 		{"/stream_reply", resp_invalid_headers_h, []},
 		{"/stream_trailers", resp_invalid_headers_h, []},
@@ -228,6 +229,24 @@ invalid_response_headers_inform_ignore(Config) ->
 		StreamRef = gun:get(ConnPid, "/inform"),
 		%% Gun rejects invalid response headers with a protocol_error stream error.
 		{error,{stream_error,{stream_error,protocol_error,_}}}
+			= gun:await(ConnPid, StreamRef),
+		gun:close(ConnPid)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+invalid_response_headers_reply_name(Config) ->
+	doc("Ensure a response header name that is not a lowercase token "
+		"is rejected by default."),
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
+		env => #{dispatch => init_dispatch(Config)}
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		ConnPid = gun_open([{type, tcp}, {protocol, http2}, {port, Port}|Config]),
+		{ok, http2} = gun:await_up(ConnPid),
+		StreamRef = gun:get(ConnPid, "/reply_name"),
+		{error,{stream_error,{stream_error,internal_error,_}}}
 			= gun:await(ConnPid, StreamRef),
 		gun:close(ConnPid)
 	after

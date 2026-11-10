@@ -15,6 +15,11 @@ init(Req0, Opts) ->
 				<<"x-list">> => "good value as a list"
 			}, <<"OK">>, Req0),
 			{ok, Req, Opts};
+		<<"/reply_name">> ->
+			Req = cowboy_req:reply(200, #{
+				<<"X-Test">> => <<"value">>
+			}, <<"OK">>, Req0),
+			{ok, Req, Opts};
 		<<"/stream_reply">> ->
 			Req = cowboy_req:stream_reply(200, #{
 				<<"x-test">> => "bad\r\nvalue"

@@ -1498,11 +1498,11 @@ validate_response_headers(Headers, Opts) ->
 			ok
 	end.
 
-validate_response_headers({_, V, It}) when is_binary(V) ->
-	case binary:match(V, [<<$\r>>, <<$\n>>]) of
-		nomatch ->
+validate_response_headers({K, V, It}) when is_binary(V) ->
+	case is_field_name(K) andalso nomatch =:= binary:match(V, [<<$\r>>, <<$\n>>]) of
+		true ->
 			validate_response_headers(maps:next(It));
-		_ ->
+		false ->
 			error_terminate
 	end;
 validate_response_headers({K, V, It}) ->
@@ -1511,6 +1511,18 @@ validate_response_headers({K, V, It}) ->
 	validate_response_headers({K, iolist_to_binary(V), It});
 validate_response_headers(none) ->
 	ok.
+
+is_field_name(<<>>) ->
+	false;
+is_field_name(Name) ->
+	is_field_name1(Name).
+
+is_field_name1(<<C, R/bits>>) when ?IS_LTOKEN(C) ->
+	is_field_name1(R);
+is_field_name1(<<>>) ->
+	true;
+is_field_name1(_) ->
+	false.
 
 %% The set-cookie header is special; we can only send one cookie per header.
 headers_to_list(Headers0=#{<<"set-cookie">> := SetCookies}) ->

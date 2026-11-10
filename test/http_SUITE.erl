@@ -589,6 +589,27 @@ invalid_response_headers_inform_ignore(Config) ->
 		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
 
+invalid_response_headers_reply_name(Config) ->
+	doc("Ensure a response header name that is not a lowercase token "
+		"is rejected by default."),
+	Dispatch = cowboy_router:compile([{'_', [
+		{"/reply_name", resp_invalid_headers_h, []}
+	]}]),
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
+		env => #{dispatch => Dispatch}
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		Request = "GET /reply_name HTTP/1.1\r\nhost: localhost\r\n\r\n",
+		Client = raw_open([{type, tcp}, {port, Port}, {opts, []}|Config]),
+		ok = raw_send(Client, Request),
+		{'HTTP/1.1', 500, _, Rest} = cow_http:parse_status_line(raw_recv_head(Client)),
+		{_, _} = cow_http:parse_headers(Rest),
+		ok
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
 invalid_response_headers_reply(Config) ->
 	doc("Ensure invalid response headers are rejected by default."),
 	Dispatch = cowboy_router:compile([{'_', [
