@@ -719,7 +719,7 @@ match_colon(<< _, Rest/bits >>, N) ->
 match_colon(_, _) ->
 	nomatch.
 
-parse_hd_name(<< $:, Rest/bits >>, State, H, Num, SoFar) ->
+parse_hd_name(<< $:, Rest/bits >>, State, H, Num, SoFar) when SoFar =/= <<>> ->
 	parse_hd_before_value(Rest, State, H, Num, SoFar);
 parse_hd_name(<< C, _/bits >>, State=#state{in_state=PS}, H, Num, <<>>) when ?IS_WS(C) ->
 	error_terminate(400, State#state{in_state=PS#ps_header{headers=H, num_headers=Num}},
