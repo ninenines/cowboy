@@ -833,6 +833,16 @@ reject_invalid_header_name(Config) ->
 		"\r\n"),
 	{error, closed} = raw_recv(Client, 0, 1000).
 
+reject_empty_header_name(Config) ->
+	doc("An empty header field name must be rejected with a 400 status code "
+		"and the closing of the connection. (RFC9110 5.1)"),
+	#{code := 400, client := Client} = do_raw(Config,
+		"GET / HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		": fooled you\r\n"
+		"\r\n"),
+	{error, closed} = raw_recv(Client, 0, 1000).
+
 reject_header_name_not_token(Config) ->
 	doc("A header field name that contains anything other than token "
 		"characters must be rejected with a 400 status code and the "
