@@ -21,31 +21,52 @@
 -import(ct_helper, [get_remote_pid_tcp/1]).
 -import(cowboy_test, [gun_open/1]).
 -import(cowboy_test, [gun_down/1]).
+-import(cowboy_test, [node_call/4]).
 -import(cowboy_test, [raw_open/1]).
 -import(cowboy_test, [raw_send/2]).
 -import(cowboy_test, [raw_recv_head/1]).
 -import(cowboy_test, [raw_recv_rest/3]).
 -import(cowboy_test, [raw_recv/3]).
 -import(cowboy_test, [raw_expect_recv/2]).
+-import(cowboy_test, [wait_for_linger_loop/1]).
 
 -include_lib("stdlib/include/assert.hrl").
 
 all() ->
-	[{group, clear_no_parallel}, {group, clear}].
+	%% Distribution may fail to start with the socket backend
+	%% on Windows. See erlang/otp#10935.
+	case os:type() of
+		{win32, _} -> [{group, clear_no_parallel}, {group, clear}];
+		_ -> [{group, clear_no_parallel}, {group, clear}, {group, socket_backend}]
+	end.
 
 groups() ->
+	NoParallel = [graceful_shutdown_listener, linger_timeout_stop_listener,
+		linger_timeout_stop_listener_queued_data],
+	%% On Windows the connection may stay open instead of
+	%% being reset. See the security checklist.
+	NoWindows = case os:type() of
+		{win32, _} -> [linger_timeout_slow_client_deadline, linger_timeout_system_message];
+		_ -> []
+	end,
 	[
 		%% cowboy:stop_listener can be slow when called many times
-		%% in parallel so we must run this test separately from the others.
-		{clear_no_parallel, [], [graceful_shutdown_listener]},
-		{clear, [parallel], ct_helper:all(?MODULE) -- [graceful_shutdown_listener]}
+		%% in parallel so we must run these tests separately from the others.
+		{clear_no_parallel, [], NoParallel},
+		{clear, [parallel], ct_helper:all(?MODULE) -- (NoParallel ++ NoWindows)},
+		%% These tests run against a listener using the socket backend.
+		{socket_backend, [parallel], [linger_timeout_slow_client]}
 	].
 
+init_per_group(socket_backend, Config) ->
+	cowboy_test:init_socket_backend(Config);
 init_per_group(Name, Config) ->
 	cowboy_test:init_http(Name, #{
 		env => #{dispatch => init_dispatch(Config)}
 	}, Config).
 
+end_per_group(socket_backend, Config) ->
+	cowboy_test:stop_socket_backend(Config);
 end_per_group(Name, _) ->
 	cowboy:stop_listener(Name).
 
@@ -806,6 +827,313 @@ invalid_response_headers_early_error_ignore(Config) ->
 		{'HTTP/1.1', 501, _, Rest} = cow_http:parse_status_line(raw_recv_head(Client)),
 		?assertError(function_clause, cow_http:parse_headers(Rest),
 			"Invalid header goes through.")
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+linger_timeout_0_slow_client(Config) ->
+	doc("The connection must be closed immediately, discarding "
+		"the data still queued for sending, when linger_timeout is 0."),
+	%% The high watermark allows queueing the whole response without blocking.
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME,
+			[{port, 0}, {sndbuf, 4096}, {high_watermark, 64000000}], #{
+		env => #{dispatch => init_dispatch(Config)},
+		linger_timeout => 0
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		Client = raw_open([{type, tcp}, {port, Port}, {opts, [{recbuf, 4096}]}|Config]),
+		timer:sleep(100),
+		[ConnPid] = ranch:procs(?FUNCTION_NAME, connections),
+		MRef = monitor(process, ConnPid),
+		ok = raw_send(Client, "GET /resp/stream_body/large HTTP/1.0\r\nhost: localhost\r\n\r\n"),
+		%% The connection process would otherwise wait for
+		%% the default send_timeout of 30 seconds.
+		receive {'DOWN', MRef, process, ConnPid, _} -> ok after 5000 -> error(timeout) end,
+		{error, closed} = raw_recv(Client, 4000000, 1000)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+linger_timeout_slow_client(Config) ->
+	doc("Data still queued for sending when the linger timeout expires "
+		"must reach clients that read slowly, including the data left "
+		"in the kernel buffers after the connection process exits."),
+	%% The high watermark allows queueing the whole response without blocking.
+	{ok, _} = node_call(Config, cowboy, start_clear, [?FUNCTION_NAME,
+		[{port, 0}, {sndbuf, 212992}, {high_watermark, 64000000}], #{
+			env => #{dispatch => init_dispatch(Config)},
+			linger_timeout => 100
+		}]),
+	Port = node_call(Config, ranch, get_port, [?FUNCTION_NAME]),
+	try
+		Client = raw_open([{type, tcp}, {port, Port}, {opts, [{recbuf, 4096}]}|Config]),
+		ok = raw_send(Client, "GET /resp/stream_body/large HTTP/1.0\r\nhost: localhost\r\n\r\n"),
+		timer:sleep(100),
+		[ConnPid] = node_call(Config, ranch, procs, [?FUNCTION_NAME, connections]),
+		MRef = monitor(process, ConnPid),
+		%% Only start reading after the linger timeout has expired. With
+		%% the socket backend the connection process is still sending.
+		timer:sleep(1000),
+		Data = raw_recv_head(Client),
+		{'HTTP/1.1', 200, _, Rest0} = cow_http:parse_status_line(Data),
+		{_, Rest} = cow_http:parse_headers(Rest0),
+		%% Read until the connection process has handed all the data
+		%% to the kernel. How much data the kernel buffers can hold
+		%% depends on the system so we do not assume a size. The
+		%% connection process then exits without waiting for the
+		%% client to read the rest of the data.
+		RecvUntilSent = fun RecvUntilSent(Acc) ->
+			case node_call(Config, cowboy_test, is_send_queue_empty, [ConnPid]) of
+				true ->
+					Acc;
+				false ->
+					{ok, Bin} = raw_recv(Client, 0, 10000),
+					RecvUntilSent(<<Acc/binary, Bin/binary>>)
+			end
+		end,
+		Body0 = RecvUntilSent(Rest),
+		receive {'DOWN', MRef, process, ConnPid, _} -> ok after 5000 -> error(timeout) end,
+		Recv = fun Recv(Acc) ->
+			case raw_recv(Client, 0, 1000) of
+				{ok, Bin} -> Recv(<<Acc/binary, Bin/binary>>);
+				{error, closed} -> Acc
+			end
+		end,
+		Body1 = Recv(<<>>),
+		true = byte_size(Body1) > 0,
+		%% The whole response body was received.
+		true = <<Body0/binary, Body1/binary>> =:= <<0:32000000>>
+	after
+		node_call(Config, cowboy, stop_listener, [?FUNCTION_NAME])
+	end.
+
+linger_timeout_slow_client_deadline(Config) ->
+	doc("The connection must be reset send_timeout after the linger timeout "
+		"expires when data is still queued for sending, even if the client "
+		"keeps reading."),
+	%% The high watermark allows queueing the whole response without blocking.
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME,
+			[{port, 0}, {sndbuf, 4096}, {high_watermark, 64000000}, {send_timeout, 1000}], #{
+		env => #{dispatch => init_dispatch(Config)},
+		linger_timeout => 100
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		Client = raw_open([{type, tcp}, {port, Port}, {opts, [{recbuf, 4096}]}|Config]),
+		ok = raw_send(Client, "GET /resp/stream_body/large HTTP/1.0\r\nhost: localhost\r\n\r\n"),
+		Data = raw_recv_head(Client),
+		[ConnPid] = ranch:procs(?FUNCTION_NAME, connections),
+		MRef = monitor(process, ConnPid),
+		{'HTTP/1.1', 200, _, Rest0} = cow_http:parse_status_line(Data),
+		{_, Rest} = cow_http:parse_headers(Rest0),
+		%% Read 500000 bytes every 300ms, about 2.4s in total,
+		%% until the connection gets reset.
+		Recv = fun
+			Recv(0) ->
+				ok;
+			Recv(Left) ->
+				Len = min(Left, 500000),
+				case raw_recv(Client, Len, 5000) of
+					{ok, _} ->
+						timer:sleep(300),
+						Recv(Left - Len);
+					{error, closed} ->
+						{closed, Left}
+				end
+		end,
+		Size = 4000000 - byte_size(Rest),
+		{closed, Left} = Recv(Size),
+		%% Data is sent until the deadline.
+		true = Left =< Size - 1000000,
+		%% The connection process exits around 100ms + 1000ms.
+		receive {'DOWN', MRef, process, ConnPid, _} -> ok after 1000 -> error(timeout) end
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+linger_timeout_slow_client_send_timeout_infinity(Config) ->
+	doc("Data still queued for sending when the linger timeout expires "
+		"must reach clients that read slowly when send_timeout is infinity."),
+	%% The high watermark allows queueing the whole response without blocking.
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME,
+			[{port, 0}, {sndbuf, 4096}, {high_watermark, 64000000}, {send_timeout, infinity}], #{
+		env => #{dispatch => init_dispatch(Config)},
+		linger_timeout => 100
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		Client = raw_open([{type, tcp}, {port, Port}, {opts, [{recbuf, 4096}]}|Config]),
+		ok = raw_send(Client, "GET /resp/stream_body/large HTTP/1.0\r\nhost: localhost\r\n\r\n"),
+		%% Only start reading after the linger timeout has expired.
+		timer:sleep(1000),
+		Data = raw_recv_head(Client),
+		{'HTTP/1.1', 200, _, Rest0} = cow_http:parse_status_line(Data),
+		{_, Rest} = cow_http:parse_headers(Rest0),
+		Bits = 32000000 - bit_size(Rest),
+		raw_expect_recv(Client, <<0:Bits>>),
+		{error, closed} = raw_recv(Client, 1, 1000)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+linger_timeout_stop_listener(Config) ->
+	doc("The connection process must stop waiting for queued data to be "
+		"sent when the listener is stopped during the linger loop."),
+	%% The high watermark allows queueing the whole response without blocking.
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME,
+			[{port, 0}, {sndbuf, 4096}, {high_watermark, 64000000}], #{
+		env => #{dispatch => init_dispatch(Config)},
+		linger_timeout => 100
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	Client = raw_open([{type, tcp}, {port, Port}, {opts, [{recbuf, 4096}]}|Config]),
+	ok = raw_send(Client, "GET /resp/stream_body/large HTTP/1.0\r\nhost: localhost\r\n\r\n"),
+	_ = raw_recv_head(Client),
+	[ConnPid] = ranch:procs(?FUNCTION_NAME, connections),
+	ok = wait_for_linger_loop(ConnPid),
+	%% The client does not read. The connection process would otherwise
+	%% wait for the data to be sent until the Ranch shutdown timeout.
+	{Time, ok} = timer:tc(cowboy, stop_listener, [?FUNCTION_NAME]),
+	true = Time < 1000000.
+
+linger_timeout_stop_listener_queued_data(Config) ->
+	doc("When the listener is stopped, data still queued for sending must "
+		"reach clients that read it within the linger timeout, without "
+		"waiting past the linger timeout for clients that do not, "
+		"including when the response is still being sent."),
+	%% The high watermark allows queueing the whole response without blocking.
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME,
+			[{port, 0}, {sndbuf, 4096}, {high_watermark, 64000000}], #{
+		env => #{dispatch => init_dispatch(Config)},
+		linger_timeout => 1500
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	%% The slow client's response is still being sent when the listener is
+	%% stopped. The slow client does not read.
+	Slow = raw_open([{type, tcp}, {port, Port}, {opts, [{recbuf, 4096}]}|Config]),
+	ok = raw_send(Slow, "GET /resp/stream_body/large_delayed_fin HTTP/1.1\r\nhost: localhost\r\n\r\n"),
+	_ = raw_recv_head(Slow),
+	[SlowPid] = ranch:procs(?FUNCTION_NAME, connections),
+	%% The fast client's response is queued and the connection
+	%% process is in the linger loop when the listener is stopped.
+	Fast = raw_open([{type, tcp}, {port, Port}, {opts, [{recbuf, 4096}]}|Config]),
+	ok = raw_send(Fast, "GET /resp/stream_body/large HTTP/1.0\r\nhost: localhost\r\n\r\n"),
+	Data = raw_recv_head(Fast),
+	[FastPid] = ranch:procs(?FUNCTION_NAME, connections) -- [SlowPid],
+	ok = wait_for_linger_loop(FastPid),
+	Self = self(),
+	_ = spawn_link(fun() ->
+		Self ! {stop_listener, timer:tc(cowboy, stop_listener, [?FUNCTION_NAME])}
+	end),
+	%% The fast client reads the whole response.
+	{'HTTP/1.1', 200, _, Rest0} = cow_http:parse_status_line(Data),
+	{_, Rest} = cow_http:parse_headers(Rest0),
+	Bits = 32000000 - bit_size(Rest),
+	raw_expect_recv(Fast, <<0:Bits>>),
+	{error, closed} = raw_recv(Fast, 1, 5000),
+	%% The linger timeout still applies to the slow client's connection.
+	ok = wait_for_linger_loop(SlowPid),
+	%% The data queued for the slow client is discarded once the linger
+	%% timeout expires. The connection process would otherwise wait
+	%% for it to be sent until the Ranch shutdown timeout.
+	receive
+		{stop_listener, {Time, ok}} -> true = Time < 4000000
+	after 10000 ->
+		error(timeout)
+	end.
+
+linger_timeout_system_message(Config) ->
+	doc("The connection process must handle system messages while "
+		"waiting for queued data to be sent, without extending the deadline."),
+	%% The high watermark allows queueing the whole response without blocking.
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME,
+			[{port, 0}, {sndbuf, 4096}, {high_watermark, 64000000}, {send_timeout, 3000}], #{
+		env => #{dispatch => init_dispatch(Config)},
+		linger_timeout => 100
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		Client = raw_open([{type, tcp}, {port, Port}, {opts, [{recbuf, 4096}]}|Config]),
+		ok = raw_send(Client, "GET /resp/stream_body/large HTTP/1.0\r\nhost: localhost\r\n\r\n"),
+		timer:sleep(100),
+		[ConnPid] = ranch:procs(?FUNCTION_NAME, connections),
+		MRef = monitor(process, ConnPid),
+		%% The linger timeout has expired and the client is not reading.
+		timer:sleep(200),
+		_ = sys:get_state(ConnPid, 1000),
+		%% Keep sending system messages until the connection process
+		%% gives up about send_timeout after the linger timeout expired.
+		%% The deadline would never be reached if they extended it.
+		SysLoop = fun
+			SysLoop(0) ->
+				error(timeout);
+			SysLoop(N) ->
+				receive
+					{'DOWN', MRef, process, ConnPid, _} ->
+						ok
+				after 200 ->
+					_ = catch sys:get_state(ConnPid, 1000),
+					SysLoop(N - 1)
+				end
+		end,
+		ok = SysLoop(45),
+		{error, closed} = raw_recv(Client, 4000000, 1000)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+linger_timeout_system_terminate(Config) ->
+	doc("The connection process must exit with the same reason as outside "
+		"the linger loop when sys:terminate/2 is called during the linger loop."),
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
+		env => #{dispatch => init_dispatch(Config)},
+		linger_timeout => infinity
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		Client = raw_open([{type, tcp}, {port, Port}|Config]),
+		ok = raw_send(Client, "GET / HTTP/1.1\r\nhost: localhost\r\nconnection: close\r\n\r\n"),
+		_ = raw_recv_head(Client),
+		[ConnPid] = ranch:procs(?FUNCTION_NAME, connections),
+		MRef = monitor(process, ConnPid),
+		ok = wait_for_linger_loop(ConnPid),
+		ok = sys:terminate(ConnPid, ?FUNCTION_NAME),
+		receive
+			{'DOWN', MRef, process, ConnPid, {shutdown, {stop, {exit, ?FUNCTION_NAME}, _}}} ->
+				ok
+		after 1000 ->
+			error(timeout)
+		end
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+linger_timeout_system_terminate_queued_data(Config) ->
+	doc("When sys:terminate/2 is called, the connection process must not "
+		"wait past the linger timeout for queued data to be sent."),
+	%% The high watermark allows queueing the whole response without blocking.
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}, {sndbuf, 4096},
+			{high_watermark, 64000000}, {send_timeout, 10000}], #{
+		env => #{dispatch => init_dispatch(Config)},
+		linger_timeout => 100
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		Client = raw_open([{type, tcp}, {port, Port}, {opts, [{recbuf, 4096}]}|Config]),
+		ok = raw_send(Client, "GET /resp/stream_body/large_delayed_fin HTTP/1.1\r\nhost: localhost\r\n\r\n"),
+		_ = raw_recv_head(Client),
+		[ConnPid] = ranch:procs(?FUNCTION_NAME, connections),
+		MRef = monitor(process, ConnPid),
+		%% The response is still being sent and the client does not read.
+		%% The connection process would otherwise wait for the data to be
+		%% sent until the send timeout after the linger timeout expired.
+		ok = sys:terminate(ConnPid, shutdown),
+		receive
+			{'DOWN', MRef, process, ConnPid, _} -> ok
+		after 4000 ->
+			error(timeout)
+		end
 	after
 		cowboy:stop_listener(?FUNCTION_NAME)
 	end.

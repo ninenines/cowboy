@@ -159,10 +159,18 @@
 	%% by the client or by the server through PUSH_PROMISE frames.
 	streams = #{} :: #{cow_http2:streamid() => #stream{}},
 
+	%% Whether the parent process or sys:terminate/2,3
+	%% asked the connection process to stop.
+	stop_requested = false :: boolean(),
+
 	%% Streams can spawn zero or more children which are then managed
 	%% by this module if operating as a supervisor.
 	children = cowboy_children:init() :: cowboy_children:children()
 }).
+
+%% State of the linger loop when handling system messages.
+-type linger_misc() :: {linger, #state{}, reference() | undefined,
+	tuple(), undefined | integer() | infinity}.
 
 -spec init(pid(), ranch:ref(), inet:socket(), module(),
 	ranch_proxy_header:proxy_info() | undefined, cowboy:opts()) -> no_return().
@@ -320,9 +328,10 @@ loop(State=#state{parent=Parent, socket=Socket, transport=Transport,
 		%% System messages.
 		{'EXIT', Parent, shutdown} ->
 			Reason = {stop, {exit, shutdown}, 'Parent process requested shutdown.'},
-			before_loop(initiate_closing(State, Reason), Buffer);
+			before_loop(initiate_closing(State#state{stop_requested=true}, Reason), Buffer);
 		{'EXIT', Parent, Reason} ->
-			terminate(State, {stop, {exit, Reason}, 'Parent process terminated.'});
+			terminate(State#state{stop_requested=true},
+				{stop, {exit, Reason}, 'Parent process terminated.'});
 		{system, From, Request} ->
 			sys:handle_system_msg(Request, From, Parent, ?MODULE, [], {State, Buffer});
 		%% Timeouts.
@@ -1433,25 +1442,35 @@ terminate_all_streams(State, [{StreamID, #stream{state=StreamState}}|Tail], Reas
 	terminate_all_streams(State, Tail, Reason).
 
 %% This code is copied from cowboy_http.
-terminate_linger(State=#state{socket=Socket, transport=Transport, opts=Opts}) ->
+terminate_linger(State=#state{socket=Socket, transport=Transport, opts=Opts,
+		stop_requested=StopRequested}) ->
 	case Transport:shutdown(Socket, write) of
 		ok ->
 			%% Release the socket on process exit. See erlang/otp#9529.
 			_ = Transport:setopts(Socket, [{linger, {true, 0}}]),
+			%% When the listener or the node shuts down or when
+			%% sys:terminate/2,3 was called we do not wait for queued
+			%% data to be sent after the linger timeout. Otherwise the
+			%% connection process may be killed before it closes the
+			%% socket gracefully.
+			Deadline = case StopRequested of
+				true -> erlang:monotonic_time(millisecond);
+				false -> undefined
+			end,
 			case maps:get(linger_timeout, Opts, 1000) of
 				0 ->
 					ok;
 				infinity ->
-					terminate_linger_before_loop(State, undefined, Transport:messages());
+					terminate_linger_before_loop(State, undefined, Transport:messages(), Deadline);
 				Timeout ->
 					TimerRef = erlang:start_timer(Timeout, self(), linger_timeout),
-					terminate_linger_before_loop(State, TimerRef, Transport:messages())
+					terminate_linger_before_loop(State, TimerRef, Transport:messages(), Deadline)
 			end;
 		{error, _} ->
 			ok
 	end.
 
-terminate_linger_before_loop(State, TimerRef, Messages) ->
+terminate_linger_before_loop(State, TimerRef, Messages, Deadline) ->
 	%% We may already be in active mode when we do this
 	%% but it's OK because we are shutting down anyway.
 	%%
@@ -1459,25 +1478,103 @@ terminate_linger_before_loop(State, TimerRef, Messages) ->
 	%% when an error occurs.
 	case setopts_active(State) of
 		ok ->
-			terminate_linger_loop(State, TimerRef, Messages);
+			terminate_linger_loop(State, TimerRef, Messages, Deadline);
 		{error, _} ->
 			ok
 	end.
 
-terminate_linger_loop(State=#state{socket=Socket}, TimerRef, Messages) ->
+terminate_linger_loop(State=#state{parent=Parent, socket=Socket},
+		TimerRef, Messages, Deadline) ->
 	receive
 		{OK, Socket, _} when OK =:= element(1, Messages) ->
-			terminate_linger_loop(State, TimerRef, Messages);
+			terminate_linger_loop(State, TimerRef, Messages, Deadline);
 		{Closed, Socket} when Closed =:= element(2, Messages) ->
 			ok;
 		{Error, Socket, _} when Error =:= element(3, Messages) ->
 			ok;
 		{Passive, Socket} when Passive =:= tcp_passive; Passive =:= ssl_passive ->
-			terminate_linger_before_loop(State, TimerRef, Messages);
+			terminate_linger_before_loop(State, TimerRef, Messages, Deadline);
 		{timeout, TimerRef, linger_timeout} ->
-			ok;
+			terminate_linger_flush(State, Messages, Deadline);
+		%% When the listener or the node shuts down we stop waiting
+		%% for queued data to be sent, as we would have done had
+		%% the 'EXIT' message been received before the linger loop.
+		{'EXIT', Parent, _} ->
+			terminate_linger_loop(State, TimerRef, Messages,
+				erlang:monotonic_time(millisecond));
+		{system, From, Request} ->
+			sys:handle_system_msg(Request, From, Parent, ?MODULE, [],
+				{linger, State, TimerRef, Messages, Deadline});
 		_ ->
-			terminate_linger_loop(State, TimerRef, Messages)
+			terminate_linger_loop(State, TimerRef, Messages, Deadline)
+	end.
+
+%% We set {linger, {true, 0}} before the linger loop because when
+%% the owner process of a port exits, the port keeps flushing its
+%% driver queue until it is empty. This never ends when the peer
+%% stops reading: the port outlives the process and prevents the
+%% node from stopping. Only {linger, {true, 0}} makes inet_drv
+%% discard that queue. See erlang/otp#9529.
+%%
+%% But it also makes the kernel discard its own send buffer and
+%% reset the connection, truncating responses that slow clients
+%% have not finished reading. See cowboy#1753. When sendfile
+%% returns all the data is in the kernel. On the other hand
+%% gen_tcp:send can return while a large part of the data is
+%% still queued in inet_drv, waiting for room in the kernel.
+%%
+%% When the linger timeout triggers we therefore wait for the
+%% inet_drv queue to be empty, checking it every 100ms. We then
+%% disable linger so that the port is released immediately on exit
+%% while the kernel delivers the rest of the data in the background.
+%% We do not restore the original linger: with {true, N} the close
+%% would block the scheduler for up to N seconds when the client
+%% does not read. With {true, 0} the data would be discarded.
+%% We give up and the connection gets reset when the queue is
+%% still not empty send_timeout after the linger timeout triggered.
+%% This deadline is not extended when data gets sent, otherwise
+%% a client reading very slowly could keep the connection process
+%% around for as long as it wants. The deadline only applies to
+%% the connection process: once linger is disabled the operating
+%% system may keep sending the rest of the data after the process
+%% exits, within its own limits. See the security checklist.
+terminate_linger_flush(State=#state{socket=Socket, transport=Transport},
+		Messages, undefined) ->
+	case Transport:getopts(Socket, [send_timeout]) of
+		{ok, [{send_timeout, infinity}]} ->
+			terminate_linger_flush(State, Messages, infinity);
+		{ok, [{send_timeout, SendTimeout}]} ->
+			terminate_linger_flush(State, Messages,
+				erlang:monotonic_time(millisecond) + SendTimeout);
+		_ ->
+			ok
+	end;
+terminate_linger_flush(State=#state{socket=Socket, transport=Transport},
+		Messages, Deadline) ->
+	case Transport:getstat(Socket, [send_pend]) of
+		{ok, [{send_pend, 0}]} ->
+			_ = Transport:setopts(Socket, [{linger, {false, 0}}]),
+			ok;
+		%% The socket backend does not report send_pend: its
+		%% gen_tcp:send only returns once the kernel has accepted
+		%% all the data, so nothing is ever queued.
+		{ok, []} ->
+			_ = Transport:setopts(Socket, [{linger, {false, 0}}]),
+			ok;
+		{ok, [{send_pend, _}]} ->
+			terminate_linger_flush_wait(State, Messages, Deadline);
+		_ ->
+			ok
+	end.
+
+terminate_linger_flush_wait(State, Messages, Deadline) ->
+	Now = erlang:monotonic_time(millisecond),
+	if
+		Deadline =:= infinity; Now < Deadline ->
+			TimerRef = erlang:start_timer(100, self(), linger_timeout),
+			terminate_linger_loop(State, TimerRef, Messages, Deadline);
+		true ->
+			ok
 	end.
 
 %% @todo Don't send an RST_STREAM if one was already sent.
@@ -1597,18 +1694,28 @@ terminate_stream_handler(#state{opts=Opts}, StreamID, Reason, StreamState) ->
 
 %% System callbacks.
 
--spec system_continue(_, _, {#state{}, binary()}) -> no_return().
+-spec system_continue(_, _, {#state{}, binary()} | linger_misc()) -> ok.
 
+system_continue(_, _, {linger, State, TimerRef, Messages, Deadline}) ->
+	terminate_linger_loop(State, TimerRef, Messages, Deadline);
 system_continue(_, _, {State, Buffer}) ->
 	before_loop(State, Buffer).
 
--spec system_terminate(any(), _, _, {#state{}, binary()}) -> no_return().
+-spec system_terminate(any(), _, _, {#state{}, binary()} | linger_misc()) -> no_return().
 
+%% We are already closing the connection. We stop immediately instead
+%% of waiting for the rest of the linger timeout as we do when the parent
+%% exits, so that we exit with the reason given to sys:terminate/2,3.
+%% The socket is reset because {linger, {true, 0}} is set.
+system_terminate(Reason0, _, _, {linger, _, _, _, _}) ->
+	Reason = {stop, {exit, Reason0}, 'sys:terminate/2,3 was called.'},
+	exit({shutdown, Reason});
 system_terminate(Reason0, _, _, {State, Buffer}) ->
 	Reason = {stop, {exit, Reason0}, 'sys:terminate/2,3 was called.'},
-	before_loop(initiate_closing(State, Reason), Buffer).
+	before_loop(initiate_closing(State#state{stop_requested=true}, Reason), Buffer).
 
--spec system_code_change(Misc, _, _, _) -> {ok, Misc} when Misc::{#state{}, binary()}.
+-spec system_code_change(Misc, _, _, _) -> {ok, Misc}
+	when Misc::{#state{}, binary()} | linger_misc().
 
 system_code_change(Misc, _, _, _) ->
 	{ok, Misc}.
