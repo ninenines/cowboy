@@ -33,11 +33,17 @@ all() ->
 
 groups() ->
 	NoParallel = [linger_timeout_stop_listener, linger_timeout_stop_listener_queued_data],
+	%% On Windows the connection may stay open instead of
+	%% being reset. See the security checklist.
+	NoWindows = case os:type() of
+		{win32, _} -> [linger_timeout_system_message];
+		_ -> []
+	end,
 	[
 		%% cowboy:stop_listener can be slow when called many times
 		%% in parallel so we must run these tests separately from the others.
 		{clear_no_parallel, [], NoParallel},
-		{clear, [parallel], ct_helper:all(?MODULE) -- NoParallel},
+		{clear, [parallel], ct_helper:all(?MODULE) -- (NoParallel ++ NoWindows)},
 		%% These tests run against a listener using the socket backend.
 		{socket_backend, [parallel], [linger_timeout_slow_client]}
 	].
@@ -749,6 +755,59 @@ linger_timeout_stop_listener_queued_data(Config) ->
 		{stop_listener, {Time, ok}} -> true = Time < 4000000
 	after 10000 ->
 		error(timeout)
+	end.
+
+linger_timeout_system_message(Config) ->
+	doc("The connection process must handle system messages while "
+		"waiting for queued data to be sent, without extending the deadline."),
+	%% The high watermark allows queueing the whole response without blocking.
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}, {sndbuf, 4096},
+			{high_watermark, 64000000}, {send_timeout, 3000}], #{
+		env => #{dispatch => init_dispatch(Config)},
+		linger_timeout => 100
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		{ok, Socket, _} = do_handshake(#{initial_window_size => 2147483647},
+			[{port, Port}, {tcp_opts, [{recbuf, 4096}]}|Config]),
+		[ConnPid] = ranch:procs(?FUNCTION_NAME, connections),
+		MRef = monitor(process, ConnPid),
+		%% Send a request followed by a GOAWAY frame. The server
+		%% closes the connection once the whole response is queued.
+		{HeadersBlock, _} = cow_hpack:encode([
+			{<<":method">>, <<"GET">>},
+			{<<":scheme">>, <<"http">>},
+			{<<":authority">>, <<"localhost">>},
+			{<<":path">>, <<"/resp/stream_body/large">>}
+		]),
+		ok = gen_tcp:send(Socket, [
+			cow_http2:window_update(2147483647 - 65535),
+			cow_http2:headers(1, fin, HeadersBlock),
+			cow_http2:goaway(1, no_error, <<>>)
+		]),
+		%% The linger timeout expires while the client is not reading.
+		ok = wait_for_linger_loop(ConnPid),
+		timer:sleep(300),
+		_ = sys:get_state(ConnPid, 1000),
+		%% Keep sending system messages until the connection process
+		%% gives up about send_timeout after the linger timeout expired.
+		%% The deadline would never be reached if they extended it.
+		SysLoop = fun
+			SysLoop(0) ->
+				error(timeout);
+			SysLoop(N) ->
+				receive
+					{'DOWN', MRef, process, ConnPid, _} ->
+						ok
+				after 200 ->
+					_ = catch sys:get_state(ConnPid, 1000),
+					SysLoop(N - 1)
+				end
+		end,
+		ok = SysLoop(45),
+		{error, closed} = gen_tcp:recv(Socket, 4000000, 1000)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
 
 linger_timeout_system_terminate_queued_data(Config) ->

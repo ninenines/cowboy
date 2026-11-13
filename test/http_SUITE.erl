@@ -46,7 +46,7 @@ groups() ->
 	%% On Windows the connection may stay open instead of
 	%% being reset. See the security checklist.
 	NoWindows = case os:type() of
-		{win32, _} -> [linger_timeout_slow_client_deadline];
+		{win32, _} -> [linger_timeout_slow_client_deadline, linger_timeout_system_message];
 		_ -> []
 	end,
 	[
@@ -1041,6 +1041,72 @@ linger_timeout_stop_listener_queued_data(Config) ->
 		{stop_listener, {Time, ok}} -> true = Time < 4000000
 	after 10000 ->
 		error(timeout)
+	end.
+
+linger_timeout_system_message(Config) ->
+	doc("The connection process must handle system messages while "
+		"waiting for queued data to be sent, without extending the deadline."),
+	%% The high watermark allows queueing the whole response without blocking.
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME,
+			[{port, 0}, {sndbuf, 4096}, {high_watermark, 64000000}, {send_timeout, 3000}], #{
+		env => #{dispatch => init_dispatch(Config)},
+		linger_timeout => 100
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		Client = raw_open([{type, tcp}, {port, Port}, {opts, [{recbuf, 4096}]}|Config]),
+		ok = raw_send(Client, "GET /resp/stream_body/large HTTP/1.0\r\nhost: localhost\r\n\r\n"),
+		timer:sleep(100),
+		[ConnPid] = ranch:procs(?FUNCTION_NAME, connections),
+		MRef = monitor(process, ConnPid),
+		%% The linger timeout has expired and the client is not reading.
+		timer:sleep(200),
+		_ = sys:get_state(ConnPid, 1000),
+		%% Keep sending system messages until the connection process
+		%% gives up about send_timeout after the linger timeout expired.
+		%% The deadline would never be reached if they extended it.
+		SysLoop = fun
+			SysLoop(0) ->
+				error(timeout);
+			SysLoop(N) ->
+				receive
+					{'DOWN', MRef, process, ConnPid, _} ->
+						ok
+				after 200 ->
+					_ = catch sys:get_state(ConnPid, 1000),
+					SysLoop(N - 1)
+				end
+		end,
+		ok = SysLoop(45),
+		{error, closed} = raw_recv(Client, 4000000, 1000)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+linger_timeout_system_terminate(Config) ->
+	doc("The connection process must exit with the same reason as outside "
+		"the linger loop when sys:terminate/2 is called during the linger loop."),
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
+		env => #{dispatch => init_dispatch(Config)},
+		linger_timeout => infinity
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		Client = raw_open([{type, tcp}, {port, Port}|Config]),
+		ok = raw_send(Client, "GET / HTTP/1.1\r\nhost: localhost\r\nconnection: close\r\n\r\n"),
+		_ = raw_recv_head(Client),
+		[ConnPid] = ranch:procs(?FUNCTION_NAME, connections),
+		MRef = monitor(process, ConnPid),
+		ok = wait_for_linger_loop(ConnPid),
+		ok = sys:terminate(ConnPid, ?FUNCTION_NAME),
+		receive
+			{'DOWN', MRef, process, ConnPid, {shutdown, {stop, {exit, ?FUNCTION_NAME}, _}}} ->
+				ok
+		after 1000 ->
+			error(timeout)
+		end
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
 
 linger_timeout_system_terminate_queued_data(Config) ->

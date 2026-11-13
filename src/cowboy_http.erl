@@ -174,6 +174,10 @@
 	children = cowboy_children:init() :: cowboy_children:children()
 }).
 
+%% State of the linger loop when handling system messages.
+-type linger_misc() :: {linger, #state{}, reference() | undefined,
+	tuple(), undefined | integer() | infinity}.
+
 -include_lib("cowlib/include/cow_inline.hrl").
 -include_lib("cowlib/include/cow_parse.hrl").
 
@@ -1838,6 +1842,9 @@ terminate_linger_loop(State=#state{parent=Parent, socket=Socket},
 		{'EXIT', Parent, _} ->
 			terminate_linger_loop(State, TimerRef, Messages,
 				erlang:monotonic_time(millisecond));
+		{system, From, Request} ->
+			sys:handle_system_msg(Request, From, Parent, ?MODULE, [],
+				{linger, State, TimerRef, Messages, Deadline});
 		_ ->
 			terminate_linger_loop(State, TimerRef, Messages, Deadline)
 	end.
@@ -1912,18 +1919,28 @@ terminate_linger_flush_wait(State, Messages, Deadline) ->
 
 %% System callbacks.
 
--spec system_continue(_, _, #state{}) -> no_return().
+-spec system_continue(_, _, #state{} | linger_misc()) -> ok.
 
+system_continue(_, _, {linger, State, TimerRef, Messages, Deadline}) ->
+	terminate_linger_loop(State, TimerRef, Messages, Deadline);
 system_continue(_, _, State) ->
 	before_loop(State).
 
--spec system_terminate(any(), _, _, #state{}) -> no_return().
+-spec system_terminate(any(), _, _, #state{} | linger_misc()) -> no_return().
 
+%% We are already closing the connection. We stop immediately instead
+%% of waiting for the rest of the linger timeout as we do when the parent
+%% exits, so that we exit with the reason given to sys:terminate/2,3.
+%% The socket is reset because {linger, {true, 0}} is set.
+system_terminate(Reason0, _, _, {linger, _, _, _, _}) ->
+	Reason = {stop, {exit, Reason0}, 'sys:terminate/2,3 was called.'},
+	exit({shutdown, Reason});
 system_terminate(Reason0, _, _, State) ->
 	Reason = {stop, {exit, Reason0}, 'sys:terminate/2,3 was called.'},
 	before_loop(initiate_closing(State#state{stop_requested=true}, Reason)).
 
--spec system_code_change(Misc, _, _, _) -> {ok, Misc} when Misc::{#state{}, binary()}.
+-spec system_code_change(Misc, _, _, _) -> {ok, Misc}
+	when Misc::#state{} | linger_misc().
 
 system_code_change(Misc, _, _, _) ->
 	{ok, Misc}.
