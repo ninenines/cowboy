@@ -168,6 +168,12 @@ necessary to avoid the TCP reset problem as described in the
 https://tools.ietf.org/html/rfc7230#section-6.6[section 6.6 of RFC7230].
 In HTTP/2's case the GOAWAY message might also be lost when
 closing the connection immediately.
+When data is still queued for sending once the linger timeout
+expires, Cowboy waits up to the socket's `send_timeout` more for
+it to be sent, or indefinitely when the `send_timeout` is `infinity`.
+It does not wait past the linger timeout when the listener is stopped.
+When the linger timeout is 0 the connection is closed immediately
+and queued data is discarded.
 
 logger (error_logger)::
 
@@ -339,6 +345,9 @@ too many `WINDOW_UPDATE` frames.
 
 == Changelog
 
+* *2.22*: The `linger_timeout` option may now be exceeded by up
+  to the socket's `send_timeout` while data is still queued for
+  sending.
 * *2.21*: The `max_header_list_size` option was added.
 * *2.17*: The `max_concurrent_streams` option now defaults to 100.
 * *2.17*: The `max_authority_length` option was added.
