@@ -719,7 +719,7 @@ match_colon(<< _, Rest/bits >>, N) ->
 match_colon(_, _) ->
 	nomatch.
 
-parse_hd_name(<< $:, Rest/bits >>, State, H, Num, SoFar) ->
+parse_hd_name(<< $:, Rest/bits >>, State, H, Num, SoFar) when SoFar =/= <<>> ->
 	parse_hd_before_value(Rest, State, H, Num, SoFar);
 parse_hd_name(<< C, _/bits >>, State=#state{in_state=PS}, H, Num, <<>>) when ?IS_WS(C) ->
 	error_terminate(400, State#state{in_state=PS#ps_header{headers=H, num_headers=Num}},
@@ -783,19 +783,32 @@ max_header_value_length(_, _) ->
 
 parse_hd_value(<< $\r, $\n, Rest/bits >>, S, Headers0, Num, Name, SoFar) ->
 	Value = clean_value_ws_end(SoFar, byte_size(SoFar) - 1),
-	Headers = case maps:get(Name, Headers0, undefined) of
-		undefined -> Headers0#{Name => Value};
-		%% The cookie header does not use proper HTTP header lists.
-		Value0 when Name =:= <<"cookie">> -> Headers0#{Name => << Value0/binary, "; ", Value/binary >>};
-		Value0 -> Headers0#{Name => << Value0/binary, ", ", Value/binary >>}
-	end,
-	parse_header(Rest, S, Headers, Num + 1);
+	case is_field_chars(Value) of
+		true ->
+			Headers = case maps:get(Name, Headers0, undefined) of
+				undefined -> Headers0#{Name => Value};
+				%% The cookie header does not use proper HTTP header lists.
+				Value0 when Name =:= <<"cookie">> ->
+					Headers0#{Name => << Value0/binary, "; ", Value/binary >>};
+				Value0 -> Headers0#{Name => << Value0/binary, ", ", Value/binary >>}
+			end,
+			parse_header(Rest, S, Headers, Num + 1);
+		false ->
+			header_value_error(S, Headers0, Num)
+	end;
 parse_hd_value(<< $\0, _/bits >>, S=#state{in_state=PS}, H, Num, _, _) ->
 	error_terminate(400, S#state{in_state=PS#ps_header{headers=H, num_headers=Num}},
 		{connection_error, protocol_error,
 			'NUL byte is not allowed in header value. (RFC9110 5.5)'});
 parse_hd_value(<< C, Rest/bits >>, S, H, Num, N, SoFar) ->
 	parse_hd_value(Rest, S, H, Num, N, << SoFar/binary, C >>).
+
+-spec header_value_error(#state{}, cowboy:http_headers(), non_neg_integer()) -> no_return().
+
+header_value_error(S=#state{in_state=PS}, H, Num) ->
+	error_terminate(400, S#state{in_state=PS#ps_header{headers=H, num_headers=Num}},
+		{connection_error, protocol_error,
+			'An invalid header value was detected. (RFC9110 5.5)'}).
 
 clean_value_ws_end(_, -1) ->
 	<<>>;
@@ -1498,11 +1511,19 @@ validate_response_headers(Headers, Opts) ->
 			ok
 	end.
 
-validate_response_headers({_, V, It}) when is_binary(V) ->
-	case binary:match(V, [<<$\r>>, <<$\n>>]) of
-		nomatch ->
+%% Each set-cookie list element is its own field value.
+validate_response_headers({<<"set-cookie">>, Values, It}) when is_list(Values) ->
+	case is_field_values(Values) of
+		true ->
 			validate_response_headers(maps:next(It));
-		_ ->
+		false ->
+			error_terminate
+	end;
+validate_response_headers({K, V, It}) when is_binary(V) ->
+	case is_field_name(K) andalso is_field_value(V) of
+		true ->
+			validate_response_headers(maps:next(It));
+		false ->
 			error_terminate
 	end;
 validate_response_headers({K, V, It}) ->
@@ -1511,6 +1532,41 @@ validate_response_headers({K, V, It}) ->
 	validate_response_headers({K, iolist_to_binary(V), It});
 validate_response_headers(none) ->
 	ok.
+
+is_field_values([]) ->
+	true;
+is_field_values([Value|Tail]) ->
+	is_field_value(iolist_to_binary(Value)) andalso is_field_values(Tail).
+
+is_field_value(<<>>) ->
+	true;
+is_field_value(<<C, _/bits>>) when C =:= $\s; C =:= $\t ->
+	false;
+is_field_value(Value) ->
+	case binary:last(Value) of
+		$\s -> false;
+		$\t -> false;
+		_ -> is_field_chars(Value)
+	end.
+
+is_field_chars(<<C, R/bits>>) when ?IS_VCHAR_OBS(C) ->
+	is_field_chars(R);
+is_field_chars(<<>>) ->
+	true;
+is_field_chars(_) ->
+	false.
+
+is_field_name(<<>>) ->
+	false;
+is_field_name(Name) ->
+	is_field_name1(Name).
+
+is_field_name1(<<C, R/bits>>) when ?IS_LTOKEN(C) ->
+	is_field_name1(R);
+is_field_name1(<<>>) ->
+	true;
+is_field_name1(_) ->
+	false.
 
 %% The set-cookie header is special; we can only send one cookie per header.
 headers_to_list(Headers0=#{<<"set-cookie">> := SetCookies}) ->
