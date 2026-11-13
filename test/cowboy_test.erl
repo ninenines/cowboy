@@ -65,6 +65,51 @@ stop_group(Ref) ->
 			quicer:close_listener(Listener)
 	end.
 
+%% Connection processes.
+
+%% Wait for a connection process to enter the linger loop.
+wait_for_linger_loop(Pid) ->
+	wait_for_linger_loop(Pid, 500).
+
+wait_for_linger_loop(_, 0) ->
+	error(timeout);
+wait_for_linger_loop(Pid, N) ->
+	case process_info(Pid, current_function) of
+		{current_function, {_, terminate_linger_loop, _}} ->
+			ok;
+		{current_function, _} ->
+			timer:sleep(10),
+			wait_for_linger_loop(Pid, N - 1)
+	end.
+
+%% Whether a connection process in the linger loop has handed all
+%% the data queued for sending to the kernel. Only clear TCP
+%% connections are supported: the TCP port is then owned by the
+%% connection process. The socket backend has no such queue: the
+%% process only enters the linger loop once the kernel has accepted
+%% all the data. A process that already exited has nothing left
+%% to hand to the kernel either.
+is_send_queue_empty(Pid) ->
+	case process_info(Pid, [current_function, links]) of
+		[{current_function, {_, terminate_linger_loop, _}}, {links, Links}] ->
+			%% Going through all the ports can take seconds under heavy load.
+			lists:all(fun
+				(Port) when is_port(Port) ->
+					case erlang:port_info(Port, name) of
+						{name, "tcp_inet"} ->
+							inet:getstat(Port, [send_pend]) =:= {ok, [{send_pend, 0}]};
+						_ ->
+							true
+					end;
+				(_) ->
+					true
+			end, Links);
+		[{current_function, _}, _] ->
+			false;
+		undefined ->
+			true
+	end.
+
 %% Common group of listeners used by most suites.
 
 common_all() ->
