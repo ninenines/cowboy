@@ -1148,7 +1148,30 @@ headers_to_list(Headers) ->
 	maps:to_list(Headers).
 
 maybe_invalid_response_headers(Headers, #state{opts=Opts}) ->
-	cowboy_http:validate_response_headers(Headers, Opts).
+	case maps:get(invalid_response_headers, Opts, error_terminate) of
+		error_terminate ->
+			validate_response_headers(maps:next(maps:iterator(Headers)));
+		ignore ->
+			ok
+	end.
+
+%% HTTP/2 field names must be lowercase tokens. (RFC9113 8.2.1)
+validate_response_headers({Name, Value, It}) when is_binary(Value) ->
+	try
+		_ = cow_http:ensure_token_lowercase(Name),
+		nomatch = binary:match(Value, [<<$\r>>, <<$\n>>])
+	of
+		_ ->
+			validate_response_headers(maps:next(It))
+	catch error:_ ->
+		error_terminate
+	end;
+validate_response_headers({Name, Value, It}) ->
+	%% We build a temporary binary for simplicity's sake
+	%% when we have a list/iolist.
+	validate_response_headers({Name, iolist_to_binary(Value), It});
+validate_response_headers(none) ->
+	ok.
 
 maybe_send_data(State0=#state{socket=Socket, transport=Transport,
 		http2_machine=HTTP2Machine0}, StreamID, IsFin, Data0, Prefix) ->

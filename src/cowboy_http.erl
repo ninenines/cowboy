@@ -19,9 +19,6 @@
 -export([init/6]).
 -export([loop/1]).
 
-%% Shared with other HTTP versions.
--export([validate_response_headers/2]).
-
 -export([system_continue/3]).
 -export([system_terminate/4]).
 -export([system_code_change/4]).
@@ -1487,8 +1484,6 @@ maybe_invalid_response_headers(Headers, #state{opts=Opts}) ->
 		#{invalid_response_headers => error_terminate | ignore})
 	-> ok | error_terminate.
 
-%% @todo This function is common to all HTTP versions.
-
 validate_response_headers(Headers, Opts) ->
 	case maps:get(invalid_response_headers, Opts, error_terminate) of
 		error_terminate ->
@@ -1498,12 +1493,15 @@ validate_response_headers(Headers, Opts) ->
 			ok
 	end.
 
-validate_response_headers({_, V, It}) when is_binary(V) ->
-	case binary:match(V, [<<$\r>>, <<$\n>>]) of
-		nomatch ->
-			validate_response_headers(maps:next(It));
+validate_response_headers({Name, Value, It}) when is_binary(Value) ->
+	try
+		_ = cow_http:ensure_token(Name),
+		nomatch = binary:match(Value, [<<$\r>>, <<$\n>>])
+	of
 		_ ->
-			error_terminate
+			validate_response_headers(maps:next(It))
+	catch error:_ ->
+		error_terminate
 	end;
 validate_response_headers({K, V, It}) ->
 	%% We build a temporary binary for simplicity's sake

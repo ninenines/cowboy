@@ -589,6 +589,58 @@ invalid_response_headers_inform_ignore(Config) ->
 		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
 
+invalid_response_headers_reply_name(Config) ->
+	doc("HTTP/1 sends an uppercase response header name."),
+	Dispatch = cowboy_router:compile([{'_', [
+		{"/reply_name", resp_invalid_headers_h, []}
+	]}]),
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
+		env => #{dispatch => Dispatch}
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		Request = "GET /reply_name HTTP/1.1\r\nhost: localhost\r\n\r\n",
+		Client = raw_open([{type, tcp}, {port, Port}, {opts, []}|Config]),
+		ok = raw_send(Client, Request),
+		{'HTTP/1.1', 200, _, Rest} = cow_http:parse_status_line(raw_recv_head(Client)),
+		{_, _} = binary:match(Rest, <<"X-Test: value\r\n">>),
+		ok
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+invalid_response_headers_name(Config) ->
+	doc("HTTP/1 allows a one-character token and rejects a name that is not a token."),
+	Dispatch = cowboy_router:compile([{'_', [
+		{"/reply_name_x", resp_invalid_headers_h, []},
+		{"/reply_name_colon", resp_invalid_headers_h, []},
+		{"/reply_name_empty", resp_invalid_headers_h, []}
+	]}]),
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
+		env => #{dispatch => Dispatch}
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		Client1 = raw_open([{type, tcp}, {port, Port}, {opts, []}|Config]),
+		ok = raw_send(Client1,
+			"GET /reply_name_x HTTP/1.1\r\nhost: localhost\r\n\r\n"),
+		{'HTTP/1.1', 200, _, Rest1} = cow_http:parse_status_line(raw_recv_head(Client1)),
+		{_, _} = binary:match(Rest1, <<"X: value\r\n">>),
+		Client2 = raw_open([{type, tcp}, {port, Port}, {opts, []}|Config]),
+		ok = raw_send(Client2,
+			"GET /reply_name_colon HTTP/1.1\r\nhost: localhost\r\n\r\n"),
+		{'HTTP/1.1', 500, _, Rest2} = cow_http:parse_status_line(raw_recv_head(Client2)),
+		{_, _} = cow_http:parse_headers(Rest2),
+		Client3 = raw_open([{type, tcp}, {port, Port}, {opts, []}|Config]),
+		ok = raw_send(Client3,
+			"GET /reply_name_empty HTTP/1.1\r\nhost: localhost\r\n\r\n"),
+		{'HTTP/1.1', 500, _, Rest3} = cow_http:parse_status_line(raw_recv_head(Client3)),
+		{_, _} = cow_http:parse_headers(Rest3),
+		ok
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
 invalid_response_headers_reply(Config) ->
 	doc("Ensure invalid response headers are rejected by default."),
 	Dispatch = cowboy_router:compile([{'_', [
