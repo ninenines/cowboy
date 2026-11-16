@@ -589,6 +589,106 @@ invalid_response_headers_inform_ignore(Config) ->
 		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
 
+invalid_response_headers_reply_sp(Config) ->
+	doc("Ensure a response header value that starts with SP "
+		"is rejected by default."),
+	Dispatch = cowboy_router:compile([{'_', [
+		{"/reply_sp", resp_invalid_headers_h, []}
+	]}]),
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
+		env => #{dispatch => Dispatch}
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		Request = "GET /reply_sp HTTP/1.1\r\nhost: localhost\r\n\r\n",
+		Client = raw_open([{type, tcp}, {port, Port}, {opts, []}|Config]),
+		ok = raw_send(Client, Request),
+		{'HTTP/1.1', 500, _, Rest} = cow_http:parse_status_line(raw_recv_head(Client)),
+		{_, _} = cow_http:parse_headers(Rest),
+		ok
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+invalid_response_headers_set_cookie(Config) ->
+	doc("Each set-cookie value is checked on its own."),
+	Dispatch = cowboy_router:compile([{'_', [
+		{"/set_cookie", resp_invalid_headers_h, []},
+		{"/set_cookie_bad", resp_invalid_headers_h, []},
+		{"/set_cookie_bad_last", resp_invalid_headers_h, []}
+	]}]),
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
+		env => #{dispatch => Dispatch}
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		Client1 = raw_open([{type, tcp}, {port, Port}, {opts, []}|Config]),
+		ok = raw_send(Client1,
+			"GET /set_cookie HTTP/1.1\r\nhost: localhost\r\n\r\n"),
+		{'HTTP/1.1', 200, _, Rest1} = cow_http:parse_status_line(raw_recv_head(Client1)),
+		{_, _} = binary:match(Rest1, <<"set-cookie: id=1; Path=/a b\r\n">>),
+		{_, _} = binary:match(Rest1, <<"set-cookie: other=2\r\n">>),
+		Client2 = raw_open([{type, tcp}, {port, Port}, {opts, []}|Config]),
+		ok = raw_send(Client2,
+			"GET /set_cookie_bad HTTP/1.1\r\nhost: localhost\r\n\r\n"),
+		{'HTTP/1.1', 500, _, Rest2} = cow_http:parse_status_line(raw_recv_head(Client2)),
+		{_, _} = cow_http:parse_headers(Rest2),
+		Client3 = raw_open([{type, tcp}, {port, Port}, {opts, []}|Config]),
+		ok = raw_send(Client3,
+			"GET /set_cookie_bad_last HTTP/1.1\r\nhost: localhost\r\n\r\n"),
+		{'HTTP/1.1', 500, _, Rest3} = cow_http:parse_status_line(raw_recv_head(Client3)),
+		{_, _} = cow_http:parse_headers(Rest3),
+		ok
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+invalid_response_headers_set_cookie_string(Config) ->
+	doc("A set-cookie value is a list of cookies. "
+		"A character list or a non-iodata element is rejected."),
+	Dispatch = cowboy_router:compile([{'_', []}]),
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
+		env => #{dispatch => Dispatch},
+		stream_handlers => [stream_handler_set_cookie_string_h]
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		Client1 = raw_open([{type, tcp}, {port, Port}, {opts, []}|Config]),
+		ok = raw_send(Client1,
+			"GET /set_cookie_string HTTP/1.1\r\nhost: localhost\r\n\r\n"),
+		{'HTTP/1.1', 500, _, Rest1} = cow_http:parse_status_line(raw_recv_head(Client1)),
+		{_, _} = cow_http:parse_headers(Rest1),
+		Client2 = raw_open([{type, tcp}, {port, Port}, {opts, []}|Config]),
+		ok = raw_send(Client2,
+			"GET /set_cookie_bad_element HTTP/1.1\r\nhost: localhost\r\n\r\n"),
+		{'HTTP/1.1', 500, _, Rest2} = cow_http:parse_status_line(raw_recv_head(Client2)),
+		{_, _} = cow_http:parse_headers(Rest2),
+		ok
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+invalid_response_headers_reply_del(Config) ->
+	doc("Ensure a response header value containing DEL "
+		"is rejected by default."),
+	Dispatch = cowboy_router:compile([{'_', [
+		{"/reply_del", resp_invalid_headers_h, []}
+	]}]),
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
+		env => #{dispatch => Dispatch}
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		Request = "GET /reply_del HTTP/1.1\r\nhost: localhost\r\n\r\n",
+		Client = raw_open([{type, tcp}, {port, Port}, {opts, []}|Config]),
+		ok = raw_send(Client, Request),
+		{'HTTP/1.1', 500, _, Rest} = cow_http:parse_status_line(raw_recv_head(Client)),
+		{_, _} = cow_http:parse_headers(Rest),
+		ok
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
 invalid_response_headers_reply_name(Config) ->
 	doc("HTTP/1 sends an uppercase response header name."),
 	Dispatch = cowboy_router:compile([{'_', [

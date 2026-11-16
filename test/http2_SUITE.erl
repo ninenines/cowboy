@@ -33,6 +33,11 @@ init_dispatch(_) ->
 		{"/streamed_result/:n/:interval", streamed_result_h, []},
 		{"/inform", resp_invalid_headers_h, []},
 		{"/reply_name", resp_invalid_headers_h, []},
+		{"/reply_sp", resp_invalid_headers_h, []},
+		{"/reply_del", resp_invalid_headers_h, []},
+		{"/set_cookie", resp_invalid_headers_h, []},
+		{"/set_cookie_bad", resp_invalid_headers_h, []},
+		{"/set_cookie_bad_last", resp_invalid_headers_h, []},
 		{"/reply", resp_invalid_headers_h, []},
 		{"/stream_reply", resp_invalid_headers_h, []},
 		{"/stream_trailers", resp_invalid_headers_h, []},
@@ -231,6 +236,98 @@ invalid_response_headers_inform_ignore(Config) ->
 		{error,{stream_error,{stream_error,protocol_error,_}}}
 			= gun:await(ConnPid, StreamRef),
 		gun:close(ConnPid)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+invalid_response_headers_reply_sp(Config) ->
+	doc("Ensure a response header value that starts with SP "
+		"is rejected by default."),
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
+		env => #{dispatch => init_dispatch(Config)}
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		ConnPid = gun_open([{type, tcp}, {protocol, http2}, {port, Port}|Config]),
+		{ok, http2} = gun:await_up(ConnPid),
+		StreamRef = gun:get(ConnPid, "/reply_sp"),
+		{error,{stream_error,{stream_error,internal_error,_}}}
+			= gun:await(ConnPid, StreamRef),
+		gun:close(ConnPid)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+invalid_response_headers_reply_del(Config) ->
+	doc("Ensure a response header value containing DEL "
+		"is rejected by default."),
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
+		env => #{dispatch => init_dispatch(Config)}
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		ConnPid = gun_open([{type, tcp}, {protocol, http2}, {port, Port}|Config]),
+		{ok, http2} = gun:await_up(ConnPid),
+		StreamRef = gun:get(ConnPid, "/reply_del"),
+		{error,{stream_error,{stream_error,internal_error,_}}}
+			= gun:await(ConnPid, StreamRef),
+		gun:close(ConnPid)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+invalid_response_headers_set_cookie(Config) ->
+	doc("Each set-cookie value is checked on its own."),
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
+		env => #{dispatch => init_dispatch(Config)}
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		ConnPid1 = gun_open([{type, tcp}, {protocol, http2}, {port, Port}|Config]),
+		{ok, http2} = gun:await_up(ConnPid1),
+		StreamRef1 = gun:get(ConnPid1, "/set_cookie"),
+		{response, nofin, 200, Headers} = gun:await(ConnPid1, StreamRef1),
+		[<<"id=1; Path=/a b">>, <<"other=2">>] = lists:sort(
+			[V || {<<"set-cookie">>, V} <- Headers]),
+		gun:close(ConnPid1),
+		ConnPid2 = gun_open([{type, tcp}, {protocol, http2}, {port, Port}|Config]),
+		{ok, http2} = gun:await_up(ConnPid2),
+		StreamRef2 = gun:get(ConnPid2, "/set_cookie_bad"),
+		{error, {stream_error, {stream_error, internal_error, _}}}
+			= gun:await(ConnPid2, StreamRef2),
+		gun:close(ConnPid2),
+		ConnPid3 = gun_open([{type, tcp}, {protocol, http2}, {port, Port}|Config]),
+		{ok, http2} = gun:await_up(ConnPid3),
+		StreamRef3 = gun:get(ConnPid3, "/set_cookie_bad_last"),
+		{error, {stream_error, {stream_error, internal_error, _}}}
+			= gun:await(ConnPid3, StreamRef3),
+		gun:close(ConnPid3)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+invalid_response_headers_set_cookie_string(Config) ->
+	doc("A set-cookie value is a list of cookies. "
+		"A character list or a non-iodata element is rejected."),
+	Dispatch = cowboy_router:compile([{'_', []}]),
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
+		env => #{dispatch => Dispatch},
+		stream_handlers => [stream_handler_set_cookie_string_h]
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		ConnPid1 = gun_open([{type, tcp}, {protocol, http2}, {port, Port}|Config]),
+		{ok, http2} = gun:await_up(ConnPid1),
+		StreamRef1 = gun:get(ConnPid1, "/set_cookie_string"),
+		{error, {stream_error, {stream_error, internal_error, _}}}
+			= gun:await(ConnPid1, StreamRef1),
+		gun:close(ConnPid1),
+		ConnPid2 = gun_open([{type, tcp}, {protocol, http2}, {port, Port}|Config]),
+		{ok, http2} = gun:await_up(ConnPid2),
+		StreamRef2 = gun:get(ConnPid2, "/set_cookie_bad_element"),
+		{error, {stream_error, {stream_error, internal_error, _}}}
+			= gun:await(ConnPid2, StreamRef2),
+		gun:close(ConnPid2)
 	after
 		cowboy:stop_listener(?FUNCTION_NAME)
 	end.

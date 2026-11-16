@@ -898,6 +898,42 @@ reject_invalid_header_value_nul(Config) ->
 		"\r\n"),
 	{error, closed} = raw_recv(Client, 0, 1000).
 
+reject_invalid_header_value_ctl(Config) ->
+	doc("A header field value containing a control other than HTAB must be "
+		"rejected with a 400 status code and the closing of the connection. "
+		"(RFC9110 5.5)"),
+	Lists = [
+		["X-Bad: a", <<127>>, "b\r\n"],
+		["X-Bad: a", <<1>>, "b\r\n"],
+		["X-Bad: a", <<31>>, "b\r\n"],
+		["X-Bad: a", <<11>>, "b\r\n"]
+	],
+	_ = [begin
+		#{code := 400, client := Client} = do_raw(Config, [
+			"GET / HTTP/1.1\r\n"
+			"Host: localhost\r\n",
+			Bad,
+			"\r\n"]),
+		{error, closed} = raw_recv(Client, 0, 1000)
+	end || Bad <- Lists],
+	ok.
+
+accept_header_value_obs_text(Config) ->
+	doc("obs-text is a valid header field value octet. (RFC9110 5.5)"),
+	#{code := 200} = do_raw(Config, [
+		"GET / HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"X-Obs: a", <<128>>, <<255>>, "b\r\n"
+		"\r\n"]).
+
+accept_header_value_internal_ws(Config) ->
+	doc("SP and HTAB inside a header field value are kept. (RFC9110 5.5)"),
+	#{code := 200} = do_raw(Config, [
+		"GET / HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"X-Ok: a \tb\r\n"
+		"\r\n"]).
+
 lower_case_header(Config) ->
 	doc("The header field name is case insensitive. (RFC7230 3.2)"),
 	#{code := 200} = do_raw(Config, [

@@ -18,10 +18,14 @@ Output construction for protocol elements (status lines, headers,
 bodies in some cases) is performed by Cowlib, which is lax when
 building data: it will output largely what it is given, without
 performing validation or sanitization. Cowboy itself performs only
-limited sanitization in some cases. For example when using the
-HTTP/1.1 or HTTP/2 protocol it will reject response header values containing
-CRLF characters by default (via the `invalid_response_headers` option
-set to `error_terminate`). It is the responsibility of the application
+limited sanitization in some cases. For example, when using the
+HTTP/1.1 or HTTP/2 protocol, Cowboy rejects by default a response
+whose header name is not a token (a lowercase token on HTTP/2),
+whose header value is not field-content (the value may be empty,
+and must not start or end with SP or HTAB), or whose `set-cookie`
+list contains an element that is not its own field-content. This
+is controlled by the `invalid_response_headers` option, which
+defaults to `error_terminate`. It is the responsibility of the application
 (and by extension Cowboy when it calls into Cowlib) to sanitize any
 data provided for use in responses. Response data must be valid
 according to the relevant specifications.
