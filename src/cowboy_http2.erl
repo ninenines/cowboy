@@ -704,8 +704,8 @@ early_error(State0=#state{ref=Ref, opts=Opts, peer=Peer},
 					reset_stream(State0, StreamID,
 						{internal_error, invalid_response_header,
 							'An invalid response header was detected.'});
-				ok ->
-					State1 = send_response(State0, StreamID, StatusCode, RespHeaders, RespBody),
+				{ok, RespHeaders1} ->
+					State1 = send_response(State0, StreamID, StatusCode, RespHeaders1, RespBody),
 					early_reset_if_open(State1, StreamID)
 			end
 	catch Class:Exception:Stacktrace ->
@@ -849,8 +849,8 @@ commands(State0, StreamID, [{inform, StatusCode, Headers}|Tail]) ->
 			reset_stream(State0, StreamID,
 				{internal_error, invalid_response_header,
 					'An invalid response header was detected in an informational response.'});
-		ok ->
-			State1 = send_headers(State0, StreamID, idle, StatusCode, Headers),
+		{ok, Headers1} ->
+			State1 = send_headers(State0, StreamID, idle, StatusCode, Headers1),
 			State = maybe_reset_idle_timeout(State1),
 			commands(State, StreamID, Tail)
 	end;
@@ -861,8 +861,8 @@ commands(State0, StreamID, [{response, StatusCode, Headers, Body}|Tail]) ->
 			reset_stream(State0, StreamID,
 				{internal_error, invalid_response_header,
 					'An invalid response header was detected.'});
-		ok ->
-			State1 = send_response(State0, StreamID, StatusCode, Headers, Body),
+		{ok, Headers1} ->
+			State1 = send_response(State0, StreamID, StatusCode, Headers1, Body),
 			State = maybe_reset_idle_timeout(State1),
 			commands(State, StreamID, Tail)
 	end;
@@ -873,13 +873,13 @@ commands(State0=#state{streams=Streams}, StreamID, [{headers, StatusCode, Header
 			reset_stream(State0, StreamID,
 				{internal_error, invalid_response_header,
 					'An invalid response header was detected.'});
-		ok ->
+		{ok, Headers1} ->
 			#{StreamID := #stream{method=Method}} = Streams,
 			IsFin = case Method of
 				<<"HEAD">> -> fin;
 				_ -> nofin
 			end,
-			State1 = send_headers(State0, StreamID, IsFin, StatusCode, Headers),
+			State1 = send_headers(State0, StreamID, IsFin, StatusCode, Headers1),
 			State = maybe_reset_idle_timeout(State1),
 			commands(State, StreamID, Tail)
 	end;
@@ -910,9 +910,9 @@ commands(State0=#state{streams=Streams}, StreamID, [{trailers, Trailers}|Tail]) 
 					reset_stream(State0, StreamID,
 						{internal_error, invalid_response_header,
 							'An invalid response header was detected in trailers.'});
-				ok ->
+				{ok, Trailers1} ->
 					State = case maybe_send_data(State0, StreamID, fin,
-							{trailers, maps:to_list(Trailers)}, []) of
+							{trailers, maps:to_list(Trailers1)}, []) of
 						{data_sent, State1} ->
 							maybe_reset_idle_timeout(State1);
 						{no_data_sent, State1} ->
@@ -935,7 +935,7 @@ commands(State0=#state{socket=Socket, transport=Transport, http2_machine=HTTP2Ma
 			reset_stream(State0, StreamID,
 				{internal_error, invalid_response_header,
 					'An invalid response header was detected in push promise.'});
-		ok ->
+		{ok, Headers1} ->
 			Authority = case {Scheme, Port} of
 				{<<"http">>, 80} -> Host;
 				{<<"https">>, 443} -> Host;
@@ -953,7 +953,7 @@ commands(State0=#state{socket=Socket, transport=Transport, http2_machine=HTTP2Ma
 			},
 			%% We need to make sure the header value is binary before we can
 			%% create the Req object, as it expects them to be flat.
-			Headers = maps:to_list(maps:map(fun(_, V) -> iolist_to_binary(V) end, Headers0)),
+			Headers = maps:to_list(maps:map(fun(_, V) -> iolist_to_binary(V) end, Headers1)),
 			State = case cow_http2_machine:prepare_push_promise(StreamID, HTTP2Machine0,
 					PseudoHeaders, Headers) of
 				{ok, PromisedStreamID, HeaderBlock, HTTP2Machine} ->
@@ -995,10 +995,10 @@ commands(State=#state{socket=Socket, transport=Transport, http2_status=upgrade},
 			reset_stream(State, StreamID,
 				{internal_error, invalid_response_header,
 					'An invalid response header was detected when upgrading to HTTP/2.'});
-		ok ->
+		{ok, Headers1} ->
 			%% @todo This 101 response needs to be passed through stream handlers.
 			ok = maybe_socket_error(State, Transport:send(Socket,
-				cow_http:response(101, 'HTTP/1.1', maps:to_list(Headers)))),
+				cow_http:response(101, 'HTTP/1.1', maps:to_list(Headers1)))),
 			commands(State, StreamID, Tail)
 	end;
 %% Use a different protocol within the stream (CONNECT :protocol).
@@ -1018,8 +1018,8 @@ commands(State0=#state{flow=Flow, streams=Streams}, StreamID,
 			reset_stream(State0, StreamID,
 				{internal_error, invalid_response_header,
 					'An invalid response header was detected when switching protocols.'});
-		ok ->
-			State1 = info(State0, StreamID, {headers, 200, Headers}),
+		{ok, Headers1} ->
+			State1 = info(State0, StreamID, {headers, 200, Headers1}),
 			#{StreamID := Stream} = Streams,
 			#{data_delivery_pid := RelayPid} = ModState,
 			%% WINDOW_UPDATE frames updating the window will be sent after
@@ -1036,8 +1036,8 @@ commands(State0, StreamID, [{switch_protocol, Headers, _Mod, _ModState}|Tail]) -
 			reset_stream(State0, StreamID,
 				{internal_error, invalid_response_header,
 					'An invalid response header was detected when switching protocols.'});
-		ok ->
-			State = info(State0, StreamID, {headers, 200, Headers}),
+		{ok, Headers1} ->
+			State = info(State0, StreamID, {headers, 200, Headers1}),
 			commands(State, StreamID, Tail)
 	end;
 %% Set options dynamically.
@@ -1150,28 +1150,36 @@ headers_to_list(Headers) ->
 maybe_invalid_response_headers(Headers, #state{opts=Opts}) ->
 	case maps:get(invalid_response_headers, Opts, error_terminate) of
 		error_terminate ->
-			validate_response_headers(maps:next(maps:iterator(Headers)));
+			validate_response_headers(maps:next(maps:iterator(Headers)), #{});
 		ignore ->
-			ok
+			{ok, Headers}
 	end.
 
-%% HTTP/2 field names must be lowercase tokens. (RFC9113 8.2.1)
-validate_response_headers({Name, Value, It}) when is_binary(Value) ->
-	try
-		_ = cow_http:ensure_token_lowercase(Name),
-		nomatch = binary:match(Value, [<<$\r>>, <<$\n>>])
-	of
-		_ ->
-			validate_response_headers(maps:next(It))
+%% Each set-cookie list element is its own field value.
+validate_response_headers({<<"set-cookie">>, Values, It}, Acc)
+		when is_list(Values) ->
+	try ensure_set_cookie(Values) of
+		Checked ->
+			validate_response_headers(maps:next(It),
+				Acc#{<<"set-cookie">> => Checked})
 	catch error:_ ->
 		error_terminate
 	end;
-validate_response_headers({Name, Value, It}) ->
-	%% We build a temporary binary for simplicity's sake
-	%% when we have a list/iolist.
-	validate_response_headers({Name, iolist_to_binary(Value), It});
-validate_response_headers(none) ->
-	ok.
+%% HTTP/2 field names must be lowercase tokens. (RFC9113 8.2.1)
+validate_response_headers({Name, Value, It}, Acc) ->
+	try Acc#{cow_http:ensure_token_lowercase(Name) =>
+			cow_http:ensure_field_value(iolist_to_binary(Value))} of
+		Acc1 ->
+			validate_response_headers(maps:next(It), Acc1)
+	catch error:_ ->
+		error_terminate
+	end;
+validate_response_headers(none, Acc) ->
+	{ok, Acc}.
+
+%% Each list element is one cookie.
+ensure_set_cookie(Values) ->
+	[cow_http:ensure_field_value(iolist_to_binary(Value)) || Value <- Values].
 
 maybe_send_data(State0=#state{socket=Socket, transport=Transport,
 		http2_machine=HTTP2Machine0}, StreamID, IsFin, Data0, Prefix) ->

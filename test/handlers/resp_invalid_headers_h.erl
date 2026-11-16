@@ -35,6 +35,39 @@ init(Req0, Opts) ->
 				<<>> => <<"value">>
 			}, <<"OK">>, Req0),
 			{ok, Req, Opts};
+		<<"/reply_sp">> ->
+			Req = cowboy_req:reply(200, #{
+				<<"x-test">> => <<" a">>
+			}, <<"OK">>, Req0),
+			{ok, Req, Opts};
+		<<"/reply_del">> ->
+			Req = cowboy_req:reply(200, #{
+				<<"x-test">> => <<$a, 127>>
+			}, <<"OK">>, Req0),
+			{ok, Req, Opts};
+		<<"/set_cookie">> ->
+			Req1 = cowboy_req:set_resp_cookie(<<"id">>, <<"1">>,
+				Req0, #{path => <<"/a b">>}),
+			Req2 = cowboy_req:set_resp_cookie(<<"other">>, <<"2">>, Req1),
+			Req = cowboy_req:reply(200, #{}, <<"OK">>, Req2),
+			{ok, Req, Opts};
+		%% maps:values/1 follows key order.
+		%% The bad cookie sorts first. Joining the two values
+		%% would hide its trailing SP in the middle.
+		<<"/set_cookie_bad">> ->
+			Req1 = cowboy_req:set_resp_cookie(<<"a">>, <<"1">>,
+				Req0, #{path => <<"/ ">>}),
+			Req2 = cowboy_req:set_resp_cookie(<<"z">>, <<"2">>, Req1),
+			Req = cowboy_req:reply(200, #{}, <<"OK">>, Req2),
+			{ok, Req, Opts};
+		%% The bad cookie sorts last. Checking only the first
+		%% value would accept the response.
+		<<"/set_cookie_bad_last">> ->
+			Req1 = cowboy_req:set_resp_cookie(<<"a">>, <<"1">>, Req0),
+			Req2 = cowboy_req:set_resp_cookie(<<"z">>, <<"2">>,
+				Req1, #{path => <<"/ ">>}),
+			Req = cowboy_req:reply(200, #{}, <<"OK">>, Req2),
+			{ok, Req, Opts};
 		<<"/stream_reply">> ->
 			Req = cowboy_req:stream_reply(200, #{
 				<<"x-test">> => "bad\r\nvalue"

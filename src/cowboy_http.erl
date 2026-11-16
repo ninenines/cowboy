@@ -787,12 +787,12 @@ parse_hd_value(<< $\r, $\n, Rest/bits >>, S, Headers0, Num, Name, SoFar) ->
 		Value0 -> Headers0#{Name => << Value0/binary, ", ", Value/binary >>}
 	end,
 	parse_header(Rest, S, Headers, Num + 1);
-parse_hd_value(<< $\0, _/bits >>, S=#state{in_state=PS}, H, Num, _, _) ->
+parse_hd_value(<< C, Rest/bits >>, S, H, Num, N, SoFar) when ?IS_VCHAR_OBS(C) ->
+	parse_hd_value(Rest, S, H, Num, N, << SoFar/binary, C >>);
+parse_hd_value(<< _, _/bits >>, S=#state{in_state=PS}, H, Num, _, _) ->
 	error_terminate(400, S#state{in_state=PS#ps_header{headers=H, num_headers=Num}},
 		{connection_error, protocol_error,
-			'NUL byte is not allowed in header value. (RFC9110 5.5)'});
-parse_hd_value(<< C, Rest/bits >>, S, H, Num, N, SoFar) ->
-	parse_hd_value(Rest, S, H, Num, N, << SoFar/binary, C >>).
+			'An invalid header value was detected. (RFC9110 5.5)'}).
 
 clean_value_ws_end(_, -1) ->
 	<<>>;
@@ -1215,14 +1215,14 @@ commands(State, [{error_response, _, _, _}|Tail]) ->
 %% Send an informational response.
 commands(State0=#state{socket=Socket, transport=Transport, out_state=wait,
 		stream=#stream{version=Version}},
-		[{inform, StatusCode, Headers}|Tail]) ->
-	case maybe_invalid_response_headers(Headers, State0) of
+		[{inform, StatusCode, Headers0}|Tail]) ->
+	Headers = case maybe_invalid_response_headers(Headers0, State0) of
 		error_terminate ->
 			Reason = {internal_error, invalid_response_header,
 				'An invalid response header was detected in an informational response.'},
 			terminate(stream_terminate(State0, Reason), Reason);
-		ok ->
-			ok
+		{ok, Headers1} ->
+			Headers1
 	end,
 	_ = case Version of
 		'HTTP/1.1' ->
@@ -1241,15 +1241,15 @@ commands(State0=#state{socket=Socket, transport=Transport, out_state=wait,
 %% @todo Same two things above apply to DATA, possibly promise too.
 commands(State0=#state{socket=Socket, transport=Transport, out_state=wait},
 		[{response, StatusCode, Headers0, Body}|Tail]) ->
-	case maybe_invalid_response_headers(Headers0, State0) of
+	Headers1 = case maybe_invalid_response_headers(Headers0, State0) of
 		error_terminate ->
 			Reason = {internal_error, invalid_response_header,
 				'An invalid response header was detected.'},
 			terminate(stream_terminate(State0, Reason), Reason);
-		ok ->
-			ok
+		{ok, Headers2} ->
+			Headers2
 	end,
-	{State1, Headers} = connection(State0, Headers0),
+	{State1, Headers} = connection(State0, Headers1),
 	State2 = State1#state{out_state=done},
 	%% @todo Ensure content-length is set. 204 must never have content-length set.
 	Response = cow_http:response(StatusCode, 'HTTP/1.1', headers_to_list(Headers)),
@@ -1266,14 +1266,14 @@ commands(State0=#state{socket=Socket, transport=Transport, out_state=wait},
 %% Send response headers and initiate chunked encoding or streaming.
 commands(State0=#state{socket=Socket, transport=Transport,
 		opts=Opts, overriden_opts=Override, stream=Stream0},
-		[{headers, StatusCode, Headers0}|Tail]) ->
-	case maybe_invalid_response_headers(Headers0, State0) of
+		[{headers, StatusCode, HeadersIn}|Tail]) ->
+	Headers0 = case maybe_invalid_response_headers(HeadersIn, State0) of
 		error_terminate ->
 			Reason = {internal_error, invalid_response_header,
 				'An invalid response header was detected.'},
 			terminate(stream_terminate(State0, Reason), Reason);
-		ok ->
-			ok
+		{ok, Checked} ->
+			Checked
 	end,
 	#stream{id=StreamID, method=Method, version=Version} = Stream0,
 	Status = cow_http:status_to_integer(StatusCode),
@@ -1383,16 +1383,16 @@ commands(State0=#state{socket=Socket, transport=Transport, stream=Stream0=#strea
 	State = maybe_reset_idle_timeout(State1),
 	commands(State#state{stream=Stream}, Tail);
 commands(State0=#state{socket=Socket, transport=Transport},
-		[{trailers, Trailers}|Tail]) ->
-	case maybe_invalid_response_headers(Trailers, State0) of
+		[{trailers, Trailers0}|Tail]) ->
+	Trailers = case maybe_invalid_response_headers(Trailers0, State0) of
 		error_terminate ->
 			%% When there are invalid trailer headers the only thing
 			%% we can do is drop the connection.
 			Reason = {internal_error, invalid_response_header,
 				'An invalid response header was detected in trailers.'},
 			terminate(State0, Reason);
-		ok ->
-			ok
+		{ok, Trailers1} ->
+			Trailers1
 	end,
 	case stream_te(State0) of
 		trailers ->
@@ -1414,14 +1414,14 @@ commands(State0=#state{socket=Socket, transport=Transport},
 %% Protocol takeover.
 commands(State0=#state{ref=Ref, parent=Parent, socket=Socket, transport=Transport,
 		out_state=OutState, buffer=Buffer, stream=Stream0, children=Children},
-		[{switch_protocol, Headers, Protocol, InitialState}|_Tail]) ->
-	case maybe_invalid_response_headers(Headers, State0) of
+		[{switch_protocol, Headers0, Protocol, InitialState}|_Tail]) ->
+	Headers = case maybe_invalid_response_headers(Headers0, State0) of
 		error_terminate ->
 			Reason = {internal_error, invalid_response_header,
 				'An invalid response header was detected when switching protocol.'},
 			terminate(stream_terminate(State0, Reason), Reason);
-		ok ->
-			ok
+		{ok, Headers1} ->
+			Headers1
 	end,
 	State1 = cancel_timeout(State0),
 	%% Before we send the 101 response we need to stop receiving data
@@ -1478,37 +1478,37 @@ commands(State, [{push, _, _, _, _, _, _, _}|Tail]) ->
 	commands(State, Tail).
 
 maybe_invalid_response_headers(Headers, #state{opts=Opts}) ->
-	validate_response_headers(Headers, Opts).
-
--spec validate_response_headers(cowboy:http_headers(),
-		#{invalid_response_headers => error_terminate | ignore})
-	-> ok | error_terminate.
-
-validate_response_headers(Headers, Opts) ->
 	case maps:get(invalid_response_headers, Opts, error_terminate) of
 		error_terminate ->
-			It = maps:iterator(Headers),
-			validate_response_headers(maps:next(It));
+			validate_response_headers(maps:next(maps:iterator(Headers)), #{});
 		ignore ->
-			ok
+			{ok, Headers}
 	end.
 
-validate_response_headers({Name, Value, It}) when is_binary(Value) ->
-	try
-		_ = cow_http:ensure_token(Name),
-		nomatch = binary:match(Value, [<<$\r>>, <<$\n>>])
-	of
-		_ ->
-			validate_response_headers(maps:next(It))
+%% Each set-cookie list element is its own field value.
+validate_response_headers({<<"set-cookie">>, Values, It}, Acc)
+		when is_list(Values) ->
+	try ensure_set_cookie(Values) of
+		Checked ->
+			validate_response_headers(maps:next(It),
+				Acc#{<<"set-cookie">> => Checked})
 	catch error:_ ->
 		error_terminate
 	end;
-validate_response_headers({K, V, It}) ->
-	%% We build a temporary binary for simplicity's sake
-	%% when we have a list/iolist.
-	validate_response_headers({K, iolist_to_binary(V), It});
-validate_response_headers(none) ->
-	ok.
+validate_response_headers({Name, Value, It}, Acc) ->
+	try Acc#{cow_http:ensure_token(Name) =>
+			cow_http:ensure_field_value(iolist_to_binary(Value))} of
+		Acc1 ->
+			validate_response_headers(maps:next(It), Acc1)
+	catch error:_ ->
+		error_terminate
+	end;
+validate_response_headers(none, Acc) ->
+	{ok, Acc}.
+
+%% Each list element is one cookie.
+ensure_set_cookie(Values) ->
+	[cow_http:ensure_field_value(iolist_to_binary(Value)) || Value <- Values].
 
 %% The set-cookie header is special; we can only send one cookie per header.
 headers_to_list(Headers0=#{<<"set-cookie">> := SetCookies}) ->
@@ -1704,21 +1704,19 @@ early_error(StatusCode, State=#state{opts=Opts, in_streamid=StreamID},
 	RespHeaders1 = RespHeaders0#{<<"content-length">> => <<"0">>},
 	Resp0 = {response, StatusCode, RespHeaders1, <<>>},
 	try cowboy_stream:early_error(StreamID, Reason, PartialReq, Resp0, Opts) of
-		Resp = {response, _, RespHeaders, _} ->
+		{response, StatusCode1, RespHeaders, RespBody} ->
 			case maybe_invalid_response_headers(RespHeaders, State) of
 				error_terminate ->
 					%% We still need to send an error response, so send what we
 					%% initially wanted to send. It's better than nothing.
 					early_error_resp(Resp0, State),
-					Reason1 = {internal_error, invalid_response_header,
-						'An invalid response header was detected.'},
-					terminate(State, Reason1);
-				ok ->
-					ok
-			end,
-			%% @todo We shouldn't send the body when the method is HEAD.
-			%% @todo Technically we allow the sendfile tuple.
-			early_error_resp(Resp, State)
+					terminate(State, {internal_error, invalid_response_header,
+						'An invalid response header was detected.'});
+				{ok, RespHeaders2} ->
+					%% @todo We shouldn't send the body when the method is HEAD.
+					%% @todo Technically we allow the sendfile tuple.
+					early_error_resp({response, StatusCode1, RespHeaders2, RespBody}, State)
+			end
 	catch Class:Exception:Stacktrace ->
 		cowboy:log(cowboy_stream:make_error_log(early_error,
 			[StreamID, Reason, PartialReq, Resp0, Opts],
