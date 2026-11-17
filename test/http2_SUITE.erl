@@ -621,6 +621,48 @@ max_authority_length_authority_pseudo_header(Config0) ->
 		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
 
+authority_port(Config0) ->
+	doc("Port 0 and an empty host with a port are rejected. "
+		"Port 1 and 65535 and a bare empty authority are accepted."),
+	ProtoOpts = #{env => #{dispatch => init_dispatch(Config0)}},
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], ProtoOpts),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	Config = [{port, Port}|Config0],
+	try
+		do_authority_port(Config, [{<<":authority">>, <<"localhost:1">>}], headers),
+		do_authority_port(Config, [{<<":authority">>, <<"localhost:65535">>}], headers),
+		do_authority_port(Config, [{<<":authority">>, <<>>}], headers),
+		do_authority_port(Config, [{<<":authority">>, <<"localhost:0">>}], rst),
+		do_authority_port(Config, [{<<":authority">>, <<"localhost:65536">>}], rst),
+		do_authority_port(Config, [{<<":authority">>, <<":1">>}], rst),
+		do_authority_port(Config, [{<<":authority">>, <<":80">>}], rst),
+		do_authority_port(Config, [{<<":authority">>, <<":65535">>}], rst),
+		do_authority_port(Config, [{<<"host">>, <<"localhost:1">>}], headers),
+		do_authority_port(Config, [{<<"host">>, <<"localhost:0">>}], rst),
+		do_authority_port(Config, [{<<"host">>, <<":80">>}], rst),
+		do_authority_port(Config, [{<<":authority">>, <<":80">>}, {<<"host">>, <<":80">>}], rst)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+do_authority_port(Config, Extra, Expect) ->
+	{ok, Socket, _} = do_handshake(Config),
+	Headers = [
+		{<<":method">>, <<"GET">>},
+		{<<":scheme">>, <<"http">>},
+		{<<":path">>, <<"/">>}
+		|Extra],
+	{Block, _} = cow_hpack:encode(Headers),
+	ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, Block)),
+	case Expect of
+		headers ->
+			{ok, <<_:24, 1:8, _:40>>} = gen_tcp:recv(Socket, 9, 6000);
+		rst ->
+			{ok, <<_:24, 3:8, _:8, 1:32, 1:32>>}
+				= gen_tcp:recv(Socket, 13, 6000)
+	end,
+	gen_tcp:close(Socket).
+
 max_authority_length_host_header(Config0) ->
 	doc("Confirm the max_authority_length option correctly limits "
 		"the length of the authority component in the host header."),

@@ -2056,6 +2056,48 @@ reject_absolute_form_different_host(Config) ->
 %identical to the host header. Invalid requests must be rejected
 %with a 400 status code and the closing of the connection.
 
+host_port(Config) ->
+	doc("Port 0 and an empty host with a port are rejected. "
+		"Port 1 and 65535 are accepted. (RFC9110 7.2, RFC9110 4.2.1)"),
+	#{code := 200, body := <<"1">>} = do_raw(Config, [
+		"GET /echo/port HTTP/1.1\r\n"
+		"Host: localhost:1\r\n"
+		"\r\n"]),
+	#{code := 200, body := <<"65535">>} = do_raw(Config, [
+		"GET /echo/port HTTP/1.1\r\n"
+		"Host: localhost:65535\r\n"
+		"\r\n"]),
+	#{code := 400, client := Client1} = do_raw(Config, [
+		"GET /echo/port HTTP/1.1\r\n"
+		"Host: :1\r\n"
+		"\r\n"]),
+	{error, closed} = raw_recv(Client1, 0, 1000),
+	#{code := 400, client := Client2} = do_raw(Config, [
+		"GET /echo/port HTTP/1.1\r\n"
+		"Host: :80\r\n"
+		"\r\n"]),
+	{error, closed} = raw_recv(Client2, 0, 1000),
+	#{code := 400, client := Client3} = do_raw(Config, [
+		"GET /echo/port HTTP/1.1\r\n"
+		"Host: :65535\r\n"
+		"\r\n"]),
+	{error, closed} = raw_recv(Client3, 0, 1000),
+	#{code := 400, client := Client4} = do_raw(Config, [
+		"GET /echo/port HTTP/1.1\r\n"
+		"Host: localhost:0\r\n"
+		"\r\n"]),
+	{error, closed} = raw_recv(Client4, 0, 1000),
+	#{code := 400, client := Client5} = do_raw(Config, [
+		"GET /echo/port HTTP/1.1\r\n"
+		"Host: localhost:65536\r\n"
+		"\r\n"]),
+	{error, closed} = raw_recv(Client5, 0, 1000),
+	#{code := 400, client := Client6} = do_raw(Config, [
+		"GET /echo/port HTTP/1.1\r\n"
+		"Host: local\0host\r\n"
+		"\r\n"]),
+	{error, closed} = raw_recv(Client6, 0, 1000).
+
 empty_host(Config0) ->
 	doc("The host header is empty when the authority component is undefined. (RFC7230 5.4)"),
 	Routes = [{'_', [{"/echo/:key[/:arg]", echo_h, []}]}],

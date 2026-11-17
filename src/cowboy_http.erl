@@ -867,11 +867,8 @@ request_parse_host1(Buffer, State=#state{transport=Transport, in_state=PS}, Head
 		{Host, undefined} ->
 			request_parse_connection(Buffer, State, Headers, Host,
 				default_port(Transport:secure()));
-		{Host, Port} when Port > 0, Port =< 65535 ->
-			request_parse_connection(Buffer, State, Headers, Host, Port);
-		_ ->
-			error_terminate(400, State, {stream_error, protocol_error,
-				'The port component of the absolute-form is not in the range 0..65535. (RFC7230 2.7.1)'})
+		{Host, Port} ->
+			request_parse_connection(Buffer, State, Headers, Host, Port)
 	catch _:_ ->
 		error_terminate(400, State#state{in_state=PS#ps_header{headers=Headers}},
 			{stream_error, protocol_error,
