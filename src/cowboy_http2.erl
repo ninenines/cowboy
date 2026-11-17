@@ -571,22 +571,28 @@ headers_frame(State, StreamID, IsFin, Headers,
 	early_error(State, StreamID, IsFin, Headers, PseudoHeaders, 501,
 		'The TRACE method is currently not implemented. (RFC7231 4.3.8)');
 headers_frame(State, StreamID, IsFin, Headers, PseudoHeaders=#{authority := Authority}, BodyLen) ->
-	case lists:keyfind(<<"host">>, 1, Headers) of
-		false ->
+	case [Value || {<<"host">>, Value} <- Headers] of
+		[] ->
 			headers_frame_parse_host(State, StreamID, IsFin, Headers, PseudoHeaders, BodyLen, Authority);
-		{_, Authority} ->
+		[Authority] ->
 			headers_frame_parse_host(State, StreamID, IsFin, Headers, PseudoHeaders, BodyLen, Authority);
-		{_, _} ->
+		[_] ->
 			reset_stream(State, StreamID, {stream_error, protocol_error,
-				'The host header is different than the :authority pseudo-header. (RFC9113 8.3.1)'})
-	end;
-headers_frame(State, StreamID, IsFin, Headers, PseudoHeaders, BodyLen) ->
-	case lists:keyfind(<<"host">>, 1, Headers) of
-		{_, Authority} ->
-			headers_frame_parse_host(State, StreamID, IsFin, Headers, PseudoHeaders, BodyLen, Authority);
+				'The host header is different than the :authority pseudo-header. (RFC9113 8.3.1)'});
 		_ ->
 			reset_stream(State, StreamID, {stream_error, protocol_error,
-				'Requests translated from HTTP/1.1 must include a host header. (RFC7540 8.1.2.3, RFC7230 5.4)'})
+				'A request must not contain more than one host header. (RFC9110 5.3)'})
+	end;
+headers_frame(State, StreamID, IsFin, Headers, PseudoHeaders, BodyLen) ->
+	case [Value || {<<"host">>, Value} <- Headers] of
+		[Authority] ->
+			headers_frame_parse_host(State, StreamID, IsFin, Headers, PseudoHeaders, BodyLen, Authority);
+		[] ->
+			reset_stream(State, StreamID, {stream_error, protocol_error,
+				'Requests translated from HTTP/1.1 must include a host header. (RFC7540 8.1.2.3, RFC7230 5.4)'});
+		_ ->
+			reset_stream(State, StreamID, {stream_error, protocol_error,
+				'A request must not contain more than one host header. (RFC9110 5.3)'})
 	end.
 
 headers_frame_parse_host(State=#state{opts=Opts}, StreamID, IsFin, Headers, PseudoHeaders, BodyLen, Authority) ->

@@ -663,6 +663,33 @@ do_authority_port(Config, Extra, Expect) ->
 	end,
 	gen_tcp:close(Socket).
 
+duplicate_host(Config0) ->
+	doc("A request with more than one host field is rejected. "
+		"One host field, alone or equal to :authority, is accepted."),
+	ProtoOpts = #{env => #{dispatch => init_dispatch(Config0)}},
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], ProtoOpts),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	Config = [{port, Port}|Config0],
+	try
+		do_authority_port(Config, [{<<"host">>, <<"localhost">>}], headers),
+		do_authority_port(Config, [{<<":authority">>, <<"localhost">>}], headers),
+		do_authority_port(Config, [{<<":authority">>, <<"localhost">>},
+			{<<"host">>, <<"localhost">>}], headers),
+		do_authority_port(Config, [{<<"host">>, <<"localhost">>},
+			{<<"host">>, <<"localhost">>}], rst),
+		do_authority_port(Config, [{<<"host">>, <<"localhost">>},
+			{<<"host">>, <<"example.com">>}], rst),
+		do_authority_port(Config, [{<<":authority">>, <<"localhost">>},
+			{<<"host">>, <<"localhost">>},
+			{<<"host">>, <<"localhost">>}], rst),
+		do_authority_port(Config, [{<<":authority">>, <<"localhost">>},
+			{<<"host">>, <<"localhost">>},
+			{<<"x-test">>, <<"a">>},
+			{<<"host">>, <<"example.com">>}], rst)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
 max_authority_length_host_header(Config0) ->
 	doc("Confirm the max_authority_length option correctly limits "
 		"the length of the authority component in the host header."),
