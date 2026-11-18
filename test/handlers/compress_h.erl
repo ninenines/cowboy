@@ -4,6 +4,8 @@
 -module(compress_h).
 
 -export([init/2]).
+-export([level_chunks/0]).
+-export([small_chunks/0]).
 
 init(Req0, State=reply) ->
 	Req = case cowboy_req:binding(what, Req0) of
@@ -28,7 +30,12 @@ init(Req0, State=reply) ->
 			cowboy_req:reply(200, #{}, {sendfile, 0, Size, AppFile}, Req0);
 		<<"set_options_threshold0">> ->
 			cowboy_req:cast({set_options, #{compress_threshold => 0}}, Req0),
-			cowboy_req:reply(200, #{}, lists:duplicate(100, $a), Req0)
+			cowboy_req:reply(200, #{}, lists:duplicate(100, $a), Req0);
+		<<"level">> ->
+			cowboy_req:reply(200, #{}, iolist_to_binary(level_chunks(Req0)), Req0);
+		<<"set_options_level">> ->
+			cowboy_req:cast({set_options, #{compress_level => qs_level(Req0)}}, Req0),
+			cowboy_req:reply(200, #{}, iolist_to_binary(level_chunks(Req0)), Req0)
 	end,
 	{ok, Req, State};
 init(Req0, State=stream_reply) ->
@@ -69,7 +76,22 @@ init(Req0, State=stream_reply) ->
 			stream_delayed(Req0);
 		<<"set_options_buffering_true">> ->
 			cowboy_req:cast({set_options, #{compress_buffering => true}}, Req0),
-			stream_delayed(Req0)
+			stream_delayed(Req0);
+		<<"level">> ->
+			Req1 = cowboy_req:stream_reply(200, Req0),
+			{Chunks, [Last]} = lists:split(9, level_chunks(Req0)),
+			_ = [cowboy_req:stream_body(C, nofin, Req1) || C <- Chunks],
+			cowboy_req:stream_body(Last, fin, Req1),
+			Req1;
+		<<"set_options_level">> ->
+			Req1 = cowboy_req:stream_reply(200, Req0),
+			{Chunks1, Chunks2} = lists:split(5, level_chunks(Req0)),
+			{Chunks3, [Last]} = lists:split(4, Chunks2),
+			_ = [cowboy_req:stream_body(C, nofin, Req1) || C <- Chunks1],
+			cowboy_req:cast({set_options, #{compress_level => qs_level(Req0)}}, Req1),
+			_ = [cowboy_req:stream_body(C, nofin, Req1) || C <- Chunks3],
+			cowboy_req:stream_body(Last, fin, Req1),
+			Req1
 	end,
 	{ok, Req, State}.
 
@@ -88,3 +110,26 @@ stream_delayed(Req0) ->
 	timer:sleep(1000),
 	cowboy_req:stream_body(<<"data: Closing!\r\n\r\n">>, fin, Req),
 	Req.
+
+%% Every compression level produces a different output for this data.
+level_chunks(Req) ->
+	case lists:keymember(<<"small">>, 1, cowboy_req:parse_qs(Req)) of
+		true -> small_chunks();
+		false -> level_chunks()
+	end.
+
+%% Used when the stream handler is expected to crash.
+small_chunks() ->
+	[iolist_to_binary(lists:duplicate(100, $0 + N)) || N <- lists:seq(0, 9)].
+
+level_chunks() ->
+	[iolist_to_binary([integer_to_list(N * N) || N <- lists:seq(From, From + 1999)])
+		|| From <- lists:seq(1, 20000, 2000)].
+
+qs_level(Req) ->
+	#{level := Level} = cowboy_req:match_qs([level], Req),
+	try
+		binary_to_integer(Level)
+	catch error:badarg ->
+		binary_to_existing_atom(Level)
+	end.
