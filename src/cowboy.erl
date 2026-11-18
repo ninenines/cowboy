@@ -120,12 +120,18 @@ start_quic(Ref, TransOpts, ProtoOpts) ->
 				%% the connection otherwise streams may come in before
 				%% the controlling process is changed and messages will
 				%% not be sent to the correct process.
-				{ok, Conn} = quicer:handshake(Conn),
-				process_flag(trap_exit, true), %% @todo Only if supervisor though.
-				try cowboy_http3:init(Parent, Ref, Conn, ProtoOpts)
-				catch
-					exit:{shutdown,_} -> ok;
-					C:E:S -> log(error, "CRASH ~p:~p:~p", [C,E,S], ProtoOpts)
+				case quicer:handshake(Conn) of
+					{ok, Conn1} ->
+						process_flag(trap_exit, true), %% @todo Only if supervisor though.
+						try cowboy_http3:init(Parent, Ref, Conn1, ProtoOpts)
+						catch
+							exit:{shutdown,_} -> ok;
+							C:E:S -> log(error, "CRASH ~p:~p:~p", [C,E,S], ProtoOpts)
+						end;
+					{error, closed} ->
+						ok;
+					{error, Reason} ->
+						log(warning, "QUIC handshake failed: ~p", [Reason], ProtoOpts)
 				end
 			end),
 			ok = quicer:controlling_process(Conn, Pid),
