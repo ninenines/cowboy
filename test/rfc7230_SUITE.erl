@@ -374,6 +374,99 @@ origin_form_query_fragment(Config) ->
 		"Host: localhost\r\n"
 		"\r\n").
 
+origin_form_pchar(Config0) ->
+	doc("absolute-path and query use pchar. pct-encoded stays encoded. "
+		"(RFC9110 4.1, RFC3986 3.3, RFC3986 3.4)"),
+	%% :key is "path" so echo_h calls cowboy_req:path/1. The next
+	%% segment is path_info, not the optional :arg binding.
+	Routes = [{'_', [{"/:key/[...]", echo_h, []}]}],
+	Config = cowboy_test:init_http(?FUNCTION_NAME, #{
+		env => #{dispatch => cowboy_router:compile(Routes)}
+	}, Config0),
+	try
+		_ = [begin
+			#{code := 200, body := Path} = do_raw(Config, [
+				"GET ", Path, " HTTP/1.1\r\n"
+				"Host: localhost\r\n"
+				"\r\n"
+			])
+		end || Path <- [
+			<<"/path/a:b">>,
+			<<"/path/a@b">>,
+			<<"/path/a*b">>,
+			<<"/path/a(b)">>,
+			<<"/path/a%2Fb">>,
+			<<"/path/a%2fb">>
+		]],
+		#{code := 200, body := <<"a?b">>} = do_raw(Config0,
+			"GET /echo/qs?a?b HTTP/1.1\r\nHost: localhost\r\n\r\n"),
+		#{code := 200, body := <<"a/b">>} = do_raw(Config0,
+			"GET /echo/qs?a/b HTTP/1.1\r\nHost: localhost\r\n\r\n"),
+		#{code := 404} = do_raw(Config0,
+			"GET // HTTP/1.1\r\nHost: localhost\r\n\r\n")
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+origin_form_whatwg_query(Config) ->
+	doc("WHATWG leaves these query octets raw."),
+	#{code := 200, body := <<"a[]=1">>} = do_raw(Config,
+		"GET /echo/qs?a[]=1 HTTP/1.1\r\nHost: localhost\r\n\r\n"),
+	#{code := 200, body := <<"a^b">>} = do_raw(Config,
+		"GET /echo/qs?a^b HTTP/1.1\r\nHost: localhost\r\n\r\n"),
+	#{code := 200, body := <<"a`b">>} = do_raw(Config,
+		"GET /echo/qs?a`b HTTP/1.1\r\nHost: localhost\r\n\r\n"),
+	#{code := 200, body := <<"{x}">>} = do_raw(Config,
+		"GET /echo/qs?{x} HTTP/1.1\r\nHost: localhost\r\n\r\n"),
+	#{code := 200, body := <<"a\\b">>} = do_raw(Config,
+		"GET /echo/qs?a\\b HTTP/1.1\r\nHost: localhost\r\n\r\n"),
+	#{code := 200, body := <<"a|b">>} = do_raw(Config,
+		"GET /echo/qs?a|b HTTP/1.1\r\nHost: localhost\r\n\r\n").
+
+origin_form_reject_pchar(Config) ->
+	doc("A request-target that is not absolute-path or query must be "
+		"rejected with a 400 status code and the closing of the connection. "
+		"(RFC9110 4.1, RFC3986 3.3, RFC3986 3.4)"),
+	Targets = [
+		"/echo/a\t",
+		"/echo/a\\b",
+		"/echo/a^b",
+		"/echo/a`b",
+		"/echo/{x}",
+		"/echo/a\177",
+		"/echo/a\200",
+		"/echo/qs?a<b>",
+		"/echo/qs?a>b",
+		"/echo/qs?a\"b"
+	],
+	_ = [begin
+		#{code := 400, client := Client} = do_raw(Config, [
+			"GET ", Target, " HTTP/1.1\r\n"
+			"Host: localhost\r\n"
+			"\r\n"
+		]),
+		{error, closed} = raw_recv(Client, 0, 1000)
+	end || Target <- Targets].
+
+origin_form_router_keeps_connection(Config) ->
+	doc("A target the path grammar accepts but the router cannot "
+		"percent-decode is a 400 and the connection stays usable."),
+	Targets = [
+		"/echo/%GG",
+		"/echo/%",
+		"/echo/a[]",
+		"/echo/a|b"
+	],
+	_ = [begin
+		#{code := 400, client := Client} = do_raw(Config, [
+			"GET ", Target, " HTTP/1.1\r\n"
+			"Host: localhost\r\n"
+			"\r\n"
+		]),
+		ok = raw_send(Client, "GET / HTTP/1.1\r\nHost: localhost\r\n\r\n"),
+		{_, 200, _, _} = cow_http:parse_status_line(raw_recv_head(Client))
+	end || Target <- Targets].
+
 %% @todo origin_form: reject paths with too large depth or query strings with too many keys
 
 %% Request target: absolute-form.
@@ -669,13 +762,52 @@ authority_form_reject_if_not_connect(Config) ->
 		"\r\n"),
 	{error, closed} = raw_recv(Client, 0, 1000).
 
+authority_form(Config) ->
+	doc("A valid authority-form is uri-host \":\" port. CONNECT is not implemented. "
+		"(RFC9112 3.2.3, RFC7231 4.3.6)"),
+	#{code := 501, client := Client1} = do_raw(Config,
+		"CONNECT localhost:80 HTTP/1.1\r\n\r\n"),
+	{error, closed} = raw_recv(Client1, 0, 1000),
+	#{code := 501, client := Client2} = do_raw(Config,
+		"CONNECT [::1]:80 HTTP/1.0\r\n\r\n"),
+	{error, closed} = raw_recv(Client2, 0, 1000).
+
+authority_form_reject(Config) ->
+	doc("An authority-form that is not uri-host \":\" port must be rejected "
+		"with a 400 status code and the closing of the connection. (RFC9112 3.2.3)"),
+	Targets = [
+		"localhost",
+		":80",
+		"user@localhost:80",
+		"localhost:80/",
+		"localhost:80 "
+	],
+	_ = [begin
+		#{code := 400, client := Client} = do_raw(Config, [
+			"CONNECT ", Target, " HTTP/1.1\r\n\r\n"
+		]),
+		{error, closed} = raw_recv(Client, 0, 1000)
+	end || Target <- Targets],
+	#{code := 505, client := Client} = do_raw(Config,
+		"CONNECT localhost:80 HTTP/2.0\r\n\r\n"),
+	{error, closed} = raw_recv(Client, 0, 1000).
+
+authority_form_limit(Config) ->
+	doc("An authority-form longer than the configured limit must be rejected "
+		"with a 414 status code. (RFC7230 3.1.1)"),
+	%% 252 bytes of host plus ":80" is 255. One more byte is 256.
+	Host255 = binary:copy(<<$a>>, 252),
+	#{code := 501, client := Client1} = do_raw(Config, [
+		"CONNECT ", Host255, ":80 HTTP/1.1\r\n\r\n"
+	]),
+	{error, closed} = raw_recv(Client1, 0, 1000),
+	Host256 = binary:copy(<<$a>>, 253),
+	#{code := 414, client := Client2} = do_raw(Config, [
+		"CONNECT ", Host256, ":80 HTTP/1.1\r\n\r\n"
+	]),
+	{error, closed} = raw_recv(Client2, 0, 1000).
+
 %% @todo Implement CONNECT.
-%authority_form_reject_userinfo(Config) ->
-%An authority component with a userinfo component (and its
-%"@" delimiter) is invalid. The request must be rejected with
-%a 400 status code and the closing of the connection. (RFC7230 2.7.1)
-%
-%authority_form_limit_host(Config) ->
 %authority_form_limit_port0(Config) ->
 %authority_form_limit_port65536(Config) ->
 %

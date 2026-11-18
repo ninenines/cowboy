@@ -525,9 +525,8 @@ parse_request(Buffer, State=#state{opts=Opts, in_streamid=InStreamID}, EmptyLine
 				%% @todo * is only for server-wide OPTIONS request (RFC7230 5.3.4); tests
 				<< "OPTIONS * ", Rest/bits >> ->
 					parse_version(Rest, State, <<"OPTIONS">>, undefined, <<"*">>, <<>>);
-				<<"CONNECT ", _/bits>> ->
-					error_terminate(501, State, {connection_error, no_error,
-						'The CONNECT method is currently not implemented. (RFC7231 4.3.6)'});
+				<<"CONNECT ", Rest/bits>> ->
+					parse_authority_form(Rest, State);
 				<<"TRACE ", _/bits>> ->
 					error_terminate(501, State, {connection_error, no_error,
 						'The TRACE method is currently not implemented. (RFC7231 4.3.8)'});
@@ -623,7 +622,10 @@ parse_uri_path(<<C, Rest/bits>>, State, Method, Authority, SoFar) ->
 			'The request-target must not include a fragment component. (RFC9110 4.1, RFC9112 3.2)'});
 		$\s -> parse_version(Rest, State, Method, Authority, SoFar, <<>>);
 		$? -> parse_uri_query(Rest, State, Method, Authority, SoFar, <<>>);
-		_ -> parse_uri_path(Rest, State, Method, Authority, <<SoFar/binary, C>>)
+		_ when ?IS_PCHAR(C); C =:= $/ ->
+			parse_uri_path(Rest, State, Method, Authority, <<SoFar/binary, C>>);
+		_ -> error_terminate(400, State, {connection_error, protocol_error,
+			'The request-target contains invalid characters. (RFC9110 4.1, RFC3986 3.3)'})
 	end.
 
 parse_uri_query(<<C, Rest/bits>>, State, M, A, P, SoFar) ->
@@ -635,8 +637,60 @@ parse_uri_query(<<C, Rest/bits>>, State, M, A, P, SoFar) ->
 		$# -> error_terminate(400, State, {connection_error, protocol_error,
 			'The request-target must not include a fragment component. (RFC9110 4.1, RFC9112 3.2)'});
 		$\s -> parse_version(Rest, State, M, A, P, SoFar);
-		_ -> parse_uri_query(Rest, State, M, A, P, <<SoFar/binary, C>>)
+		_ when ?IS_QUERY(C) ->
+			parse_uri_query(Rest, State, M, A, P, <<SoFar/binary, C>>);
+		_ -> error_terminate(400, State, {connection_error, protocol_error,
+			'The request-target contains invalid characters. (RFC9110 4.1, RFC3986 3.4)'})
 	end.
+
+%% authority-form is uri-host ":" port. A valid target is left unimplemented.
+parse_authority_form(Rest, State=#state{opts=Opts}) ->
+	parse_authority_form(Rest, State, <<>>,
+		maps:get(max_authority_length, Opts, 255)).
+
+parse_authority_form(<<$\r, _/bits>>, State, _, _) ->
+	error_terminate(400, State, {connection_error, protocol_error,
+		'The request-target must not be followed by a line break. (RFC7230 3.1.1)'});
+parse_authority_form(<<$\s, Rest/bits>>, State, Authority, _) ->
+	authority_form(Rest, State, Authority);
+parse_authority_form(<<C, Rest/bits>>, State, Authority, Remaining)
+		when Remaining > 0 ->
+	parse_authority_form(Rest, State, <<Authority/binary, C>>, Remaining - 1);
+parse_authority_form(_, State, _, _) ->
+	error_terminate(414, State, {connection_error, limit_reached,
+		'The authority component of the request-target is longer than configuration allows. (RFC7230 3.1.1)'}).
+
+-spec authority_form(binary(), #state{}, binary()) -> no_return().
+
+authority_form(Rest, State, Authority) ->
+	try cow_http_hd:parse_host(Authority) of
+		{Host, Port} when Host =/= <<>>, is_integer(Port) ->
+			authority_form_version(Rest, State);
+		_ ->
+			error_terminate(400, State, {connection_error, protocol_error,
+				'The authority-form request-target is invalid. (RFC9112 3.2.3)'})
+	catch _:_ ->
+		error_terminate(400, State, {connection_error, protocol_error,
+			'The authority-form request-target is invalid. (RFC9112 3.2.3)'})
+	end.
+
+-spec authority_form_version(binary(), #state{}) -> no_return().
+
+authority_form_version(<<"HTTP/1.1\r\n", _/bits>>, State) ->
+	error_terminate(501, State, {connection_error, no_error,
+		'The CONNECT method is currently not implemented. (RFC7231 4.3.6)'});
+authority_form_version(<<"HTTP/1.0\r\n", _/bits>>, State) ->
+	error_terminate(501, State, {connection_error, no_error,
+		'The CONNECT method is currently not implemented. (RFC7231 4.3.6)'});
+authority_form_version(<<"HTTP/1.", _, C, _/bits>>, State) when C =:= $\s; C =:= $\t ->
+	error_terminate(400, State, {connection_error, protocol_error,
+		'Whitespace is not allowed after the HTTP version. (RFC7230 3.1.1)'});
+authority_form_version(<<C, _/bits>>, State) when C =:= $\s; C =:= $\t ->
+	error_terminate(400, State, {connection_error, protocol_error,
+		'The separator between request target and version must be a single SP. (RFC7230 3.1.1)'});
+authority_form_version(_, State) ->
+	error_terminate(505, State, {connection_error, protocol_error,
+		'Unsupported HTTP version. (RFC7230 2.6)'}).
 
 parse_version(<< "HTTP/1.1\r\n", Rest/bits >>, State, M, A, P, Q) ->
 	before_parse_headers(Rest, State, M, A, P, Q, 'HTTP/1.1');

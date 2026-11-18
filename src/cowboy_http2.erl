@@ -561,11 +561,23 @@ data_frame(State0=#state{opts=Opts, flow=Flow0, streams=Streams}, StreamID, IsFi
 			window_changed(State0, byte_size(Data))
 	end.
 
-headers_frame(State, StreamID, IsFin, Headers,
-		PseudoHeaders=#{method := <<"CONNECT">>}, _)
+headers_frame(State=#state{opts=Opts}, StreamID, IsFin, Headers,
+		PseudoHeaders=#{method := <<"CONNECT">>, authority := Authority}, _)
 		when map_size(PseudoHeaders) =:= 2 ->
-	early_error(State, StreamID, IsFin, Headers, PseudoHeaders, 501,
-		'The CONNECT method is currently not implemented. (RFC7231 4.3.6)');
+	case byte_size(Authority) > maps:get(max_authority_length, Opts, 255) of
+		true ->
+			reset_stream(State, StreamID, {stream_error, protocol_error,
+				'The request authority is longer than configuration allows. (RFC7540 8.1.2.3)'});
+		false ->
+			case connect_authority(Authority) of
+				ok ->
+					early_error(State, StreamID, IsFin, Headers, PseudoHeaders, 501,
+						'The CONNECT method is currently not implemented. (RFC7231 4.3.6)');
+				error ->
+					reset_stream(State, StreamID, {stream_error, protocol_error,
+						'The :authority pseudo-header is invalid. (RFC7540 8.1.2.3)'})
+			end
+	end;
 headers_frame(State, StreamID, IsFin, Headers,
 		PseudoHeaders=#{method := <<"TRACE">>}, _) ->
 	early_error(State, StreamID, IsFin, Headers, PseudoHeaders, 501,
@@ -611,9 +623,6 @@ headers_frame_parse_host1(State=#state{ref=Ref, peer=Peer, sock=Sock, cert=Cert,
 		{Host, Port0} ->
 			Port = ensure_port(Scheme, Port0),
 			case cow_http:parse_fullpath(PathWithQs) of
-				{<<>>, _} ->
-					reset_stream(State, StreamID, {stream_error, protocol_error,
-						'The path component must not be empty. (RFC7540 8.1.2.3)'});
 				{Path, Qs} ->
 					Req0 = #{
 						ref => Ref,
@@ -653,6 +662,16 @@ headers_frame_parse_host1(State=#state{ref=Ref, peer=Peer, sock=Sock, cert=Cert,
 ensure_port(<<"http">>, undefined) -> 80;
 ensure_port(<<"https">>, undefined) -> 443;
 ensure_port(_, Port) -> Port.
+
+connect_authority(Authority) ->
+	try cow_http_hd:parse_host(Authority) of
+		{Host, Port} when Host =/= <<>>, is_integer(Port) ->
+			ok;
+		_ ->
+			error
+	catch _:_ ->
+		error
+	end.
 
 %% This function is necessary to properly handle duplicate headers
 %% and the special-case cookie header.
