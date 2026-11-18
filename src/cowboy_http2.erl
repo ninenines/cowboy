@@ -610,41 +610,36 @@ headers_frame_parse_host1(State=#state{ref=Ref, peer=Peer, sock=Sock, cert=Cert,
 	try cow_http_hd:parse_host(Authority) of
 		{Host, Port0} ->
 			Port = ensure_port(Scheme, Port0),
-			case cow_http:parse_fullpath(PathWithQs) of
-				{<<>>, _} ->
-					reset_stream(State, StreamID, {stream_error, protocol_error,
-						'The path component must not be empty. (RFC7540 8.1.2.3)'});
-				{Path, Qs} ->
-					Req0 = #{
-						ref => Ref,
-						pid => self(),
-						streamid => StreamID,
-						peer => Peer,
-						sock => Sock,
-						cert => Cert,
-						method => Method,
-						scheme => Scheme,
-						host => Host,
-						port => Port,
-						path => Path,
-						qs => Qs,
-						version => 'HTTP/2',
-						headers => headers_to_map(Headers, #{}),
-						has_body => IsFin =:= nofin,
-						body_length => BodyLen
-					},
-					%% We add the PROXY header information if any.
-					Req1 = case ProxyHeader of
-						undefined -> Req0;
-						_ -> Req0#{proxy_header => ProxyHeader}
-					end,
-					%% We add the protocol information for extended CONNECTs.
-					Req = case PseudoHeaders of
-						#{protocol := Protocol} -> Req1#{protocol => Protocol};
-						_ -> Req1
-					end,
-					headers_frame(State, StreamID, Req)
-			end
+			{Path, Qs} = cow_http:parse_fullpath(PathWithQs),
+			Req0 = #{
+				ref => Ref,
+				pid => self(),
+				streamid => StreamID,
+				peer => Peer,
+				sock => Sock,
+				cert => Cert,
+				method => Method,
+				scheme => Scheme,
+				host => Host,
+				port => Port,
+				path => Path,
+				qs => Qs,
+				version => 'HTTP/2',
+				headers => headers_to_map(Headers, #{}),
+				has_body => IsFin =:= nofin,
+				body_length => BodyLen
+			},
+			%% We add the PROXY header information if any.
+			Req1 = case ProxyHeader of
+				undefined -> Req0;
+				_ -> Req0#{proxy_header => ProxyHeader}
+			end,
+			%% We add the protocol information for extended CONNECTs.
+			Req = case PseudoHeaders of
+				#{protocol := Protocol} -> Req1#{protocol => Protocol};
+				_ -> Req1
+			end,
+			headers_frame(State, StreamID, Req)
 	catch _:_ ->
 		reset_stream(State, StreamID, {stream_error, protocol_error,
 			'The :authority pseudo-header is invalid. (RFC7540 8.1.2.3)'})

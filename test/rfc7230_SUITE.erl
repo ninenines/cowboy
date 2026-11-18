@@ -45,6 +45,7 @@ init_routes(_) -> [
 	{"localhost", [
 		{"/", hello_h, []},
 		{"/echo/:key[/:arg]", echo_h, []},
+		{"/pchar/:key/[...]", echo_h, []},
 		{"/full/:key[/:arg]", echo_h, []},
 		{"/length/echo/:key", echo_h, []},
 		{"/resp/:key[/:arg]", resp_h, []},
@@ -373,6 +374,87 @@ origin_form_query_fragment(Config) ->
 		"GET /echo/qs?key=value#fragment HTTP/1.1\r\n"
 		"Host: localhost\r\n"
 		"\r\n").
+
+origin_form_pchar(Config) ->
+	doc("absolute-path and query use pchar. pct-encoded stays encoded. "
+		"WHATWG leaves these query octets raw. "
+		"(RFC9110 4.1, RFC3986 3.3, RFC3986 3.4, WHATWG URL)"),
+	%% :key is "path" so echo_h calls cowboy_req:path/1. The next
+	%% segment is path_info, not the optional :arg binding.
+	#{code := 200, body := <<"/pchar/path/a:b">>} = do_raw(Config,
+		"GET /pchar/path/a:b HTTP/1.1\r\nHost: localhost\r\n\r\n"),
+	#{code := 200, body := <<"/pchar/path/a@b">>} = do_raw(Config,
+		"GET /pchar/path/a@b HTTP/1.1\r\nHost: localhost\r\n\r\n"),
+	#{code := 200, body := <<"/pchar/path/a*b">>} = do_raw(Config,
+		"GET /pchar/path/a*b HTTP/1.1\r\nHost: localhost\r\n\r\n"),
+	#{code := 200, body := <<"/pchar/path/a(b)">>} = do_raw(Config,
+		"GET /pchar/path/a(b) HTTP/1.1\r\nHost: localhost\r\n\r\n"),
+	#{code := 200, body := <<"/pchar/path/a%2Fb">>} = do_raw(Config,
+		"GET /pchar/path/a%2Fb HTTP/1.1\r\nHost: localhost\r\n\r\n"),
+	#{code := 200, body := <<"/pchar/path/a%2fb">>} = do_raw(Config,
+		"GET /pchar/path/a%2fb HTTP/1.1\r\nHost: localhost\r\n\r\n"),
+	#{code := 200, body := <<"a?b">>} = do_raw(Config,
+		"GET /echo/qs?a?b HTTP/1.1\r\nHost: localhost\r\n\r\n"),
+	#{code := 200, body := <<"a/b">>} = do_raw(Config,
+		"GET /echo/qs?a/b HTTP/1.1\r\nHost: localhost\r\n\r\n"),
+	#{code := 404} = do_raw(Config,
+		"GET // HTTP/1.1\r\nHost: localhost\r\n\r\n"),
+	#{code := 200, body := <<"a[]=1">>} = do_raw(Config,
+		"GET /echo/qs?a[]=1 HTTP/1.1\r\nHost: localhost\r\n\r\n"),
+	#{code := 200, body := <<"a^b">>} = do_raw(Config,
+		"GET /echo/qs?a^b HTTP/1.1\r\nHost: localhost\r\n\r\n"),
+	#{code := 200, body := <<"a`b">>} = do_raw(Config,
+		"GET /echo/qs?a`b HTTP/1.1\r\nHost: localhost\r\n\r\n"),
+	#{code := 200, body := <<"{x}">>} = do_raw(Config,
+		"GET /echo/qs?{x} HTTP/1.1\r\nHost: localhost\r\n\r\n"),
+	#{code := 200, body := <<"a\\b">>} = do_raw(Config,
+		"GET /echo/qs?a\\b HTTP/1.1\r\nHost: localhost\r\n\r\n"),
+	#{code := 200, body := <<"a|b">>} = do_raw(Config,
+		"GET /echo/qs?a|b HTTP/1.1\r\nHost: localhost\r\n\r\n").
+
+origin_form_reject_pchar(Config) ->
+	doc("A request-target that is not absolute-path or query must be "
+		"rejected with a 400 status code and the closing of the connection. "
+		"(RFC9110 4.1, RFC3986 3.3, RFC3986 3.4)"),
+	Targets = [
+		"/echo/a\t",
+		"/echo/a\\b",
+		"/echo/a^b",
+		"/echo/a`b",
+		"/echo/{x}",
+		"/echo/a\177",
+		"/echo/a\200",
+		"/echo/qs?a<b>",
+		"/echo/qs?a>b",
+		"/echo/qs?a\"b"
+	],
+	_ = [begin
+		#{code := 400, client := Client} = do_raw(Config, [
+			"GET ", Target, " HTTP/1.1\r\n"
+			"Host: localhost\r\n"
+			"\r\n"
+		]),
+		{error, closed} = raw_recv(Client, 0, 1000)
+	end || Target <- Targets].
+
+origin_form_router_keeps_connection(Config) ->
+	doc("A target the path grammar accepts but the router cannot "
+		"percent-decode is a 400 and the connection stays usable. (WHATWG URL)"),
+	Targets = [
+		"/echo/%GG",
+		"/echo/%",
+		"/echo/a[]",
+		"/echo/a|b"
+	],
+	_ = [begin
+		#{code := 400, client := Client} = do_raw(Config, [
+			"GET ", Target, " HTTP/1.1\r\n"
+			"Host: localhost\r\n"
+			"\r\n"
+		]),
+		ok = raw_send(Client, "GET / HTTP/1.1\r\nHost: localhost\r\n\r\n"),
+		{_, 200, _, _} = cow_http:parse_status_line(raw_recv_head(Client))
+	end || Target <- Targets].
 
 %% @todo origin_form: reject paths with too large depth or query strings with too many keys
 
