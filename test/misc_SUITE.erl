@@ -80,10 +80,16 @@ restart_gracefully(Config) ->
 	ok.
 
 router_invalid_path(Config) ->
-	doc("Ensure a path with invalid percent-encoded characters results in a 400."),
+	doc("A path containing a backslash is rejected."),
 	ConnPid = gun_open(Config),
 	Ref = gun:get(ConnPid, "/version/path/%\\u0016\\u0016/path"),
-	{response, _, 400, _} = gun:await(ConnPid, Ref),
+	case config(protocol, Config) of
+		http ->
+			{response, _, 400, _} = gun:await(ConnPid, Ref);
+		http2 ->
+			{error, {stream_error, {stream_error, protocol_error, _}}}
+				= gun:await(ConnPid, Ref)
+	end,
 	ok.
 
 get_env(Config0) ->
