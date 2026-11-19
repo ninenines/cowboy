@@ -1,0 +1,73 @@
+= cowboy_req:has_sent_resp(3)
+
+== Name
+
+cowboy_req:has_sent_resp - Has the response been sent?
+
+== Description
+
+[source,erlang]
+----
+has_sent_resp(Req :: cowboy_req:req())
+    -> false | {headers | full, cowboy:http_status()}
+----
+
+Return whether the response has been sent and, if so,
+how and with which status code.
+
+Only the Req object returned by the function that sent
+the response knows about it, for example the one returned
+by link:man:cowboy_req:reply(3)[cowboy_req:reply(3)] or
+link:man:cowboy_req:stream_reply(3)[cowboy_req:stream_reply(3)].
+Handlers can use it in `terminate/3` to know what was sent,
+for example for logging.
+
+== Arguments
+
+Req::
+
+The Req object.
+
+== Return value
+
+`false` is returned when no response was sent using
+this Req object.
+
+`{headers, Status}` is returned when the response headers
+were sent using
+link:man:cowboy_req:stream_reply(3)[cowboy_req:stream_reply(3)].
+The body may then be sent using
+link:man:cowboy_req:stream_body(3)[cowboy_req:stream_body(3)].
+
+`{full, Status}` is returned when the entire response
+was sent using link:man:cowboy_req:reply(3)[cowboy_req:reply(3)].
+This is also the case for 204 and 304 responses sent using
+link:man:cowboy_req:stream_reply(3)[cowboy_req:stream_reply(3)],
+as those must not have a body.
+
+The status code is returned exactly as it was given
+when sending the response.
+
+== Changelog
+
+* *2.20*: Function introduced.
+
+== Examples
+
+.Log the status code of the response in terminate/3
+[source,erlang]
+----
+terminate(_Reason, Req, _State) ->
+    Status = case cowboy_req:has_sent_resp(Req) of
+        {_, S} -> S;
+        false -> none
+    end,
+    logger:info("~s ~s ~p", [cowboy_req:method(Req),
+        cowboy_req:path(Req), Status]).
+----
+
+== See also
+
+link:man:cowboy_req(3)[cowboy_req(3)],
+link:man:cowboy_req:reply(3)[cowboy_req:reply(3)],
+link:man:cowboy_req:stream_reply(3)[cowboy_req:stream_reply(3)]
