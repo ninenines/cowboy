@@ -238,7 +238,7 @@ do_crash_in_early_error_fatal(Config) ->
 		{<<"host">>, <<"host:port">>},
 		{<<"x-test-case">>, <<"crash_in_early_error_fatal">>},
 		{<<"x-test-pid">>, pid_to_list(Self)}
-	]),
+	], #{invalid_request_headers => ignore}),
 	%% Confirm init/3 is NOT called. The error occurs before we reach this step.
 	receive {Self, _, init, _, _, _} -> error(init) after 1000 -> ok end,
 	%% Confirm terminate/3 is NOT called. We have no state to give to it.
@@ -266,7 +266,7 @@ early_error_stream_error_reason(Config) ->
 		{<<"accept-encoding">>, <<"gzip">>},
 		{<<"x-test-case">>, <<"early_error_stream_error_reason">>},
 		{<<"x-test-pid">>, pid_to_list(Self)}
-	|Headers], <<>>),
+	|Headers], <<>>, #{invalid_request_headers => ignore}),
 	%% Confirm init/3 is NOT called. The error occurs before we reach this step.
 	receive {Self, _, init, _, _, _} -> error(init) after 1000 -> ok end,
 	%% Confirm terminate/3 is NOT called. We have no state to give to it.
