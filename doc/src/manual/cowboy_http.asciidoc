@@ -139,6 +139,12 @@ linger_timeout (1000)::
 Time in ms that Cowboy will wait when closing the connection. This is
 necessary to avoid the TCP reset problem as described in the
 https://tools.ietf.org/html/rfc7230#section-6.6[section 6.6 of RFC7230].
+When data is still queued for sending once the linger timeout
+expires, Cowboy waits up to the socket's `send_timeout` more for
+it to be sent, or indefinitely when the `send_timeout` is `infinity`.
+It does not wait past the linger timeout when the listener is stopped.
+When the linger timeout is 0 the connection is closed immediately
+and queued data is discarded.
 
 logger (error_logger)::
 
@@ -226,6 +232,9 @@ Ordered list of stream handlers that will handle all stream events.
 
 == Changelog
 
+* *2.22*: The `linger_timeout` option may now be exceeded by up
+  to the socket's `send_timeout` while data is still queued for
+  sending.
 * *2.17*: The `max_authority_length` option was added.
 * *2.16*: The `invalid_response_headers` option was added.
 * *2.15*: The `max_authorization_header_value_length` and `max_cookie_header_value_length` options were added.

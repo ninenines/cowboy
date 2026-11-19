@@ -65,6 +65,78 @@ stop_group(Ref) ->
 			quicer:close_listener(Listener)
 	end.
 
+%% Node using the socket backend.
+%%
+%% The inet_backend option must be the first socket option
+%% but Ranch adds its defaults first. We therefore start the
+%% listeners in a node that uses the socket backend by default.
+
+init_socket_backend(Config) ->
+	{ok, Peer, Node} = peer:start(#{
+		name => peer:random_name(),
+		args => ["-kernel", "inet_backend", "socket", "-pa"|code:get_path()]
+	}),
+	{ok, _} = erpc:call(Node, application, ensure_all_started, [cowboy]),
+	%% Load the modules beforehand: code loading in the new node can
+	%% otherwise take seconds when the machine is under heavy load.
+	Mods = lists:append([begin
+		{ok, AppMods} = erpc:call(Node, application, get_key, [App, modules]),
+		AppMods
+	end || App <- [cowlib, ranch, cowboy]]),
+	ok = erpc:call(Node, code, ensure_modules_loaded, [Mods]),
+	[{inet_backend, socket}, {peer, Peer}, {peer_node, Node}|Config].
+
+stop_socket_backend(Config) ->
+	peer:stop(config(peer, Config)).
+
+%% Call the function in the node running the listeners.
+node_call(Config, M, F, A) ->
+	case lists:keyfind(peer_node, 1, Config) of
+		false -> apply(M, F, A);
+		{_, Node} -> erpc:call(Node, M, F, A)
+	end.
+
+%% Connection processes.
+
+%% Wait for a connection process to enter the linger loop.
+wait_for_linger_loop(Pid) ->
+	wait_for_linger_loop(Pid, 500).
+
+wait_for_linger_loop(_, 0) ->
+	error(timeout);
+wait_for_linger_loop(Pid, N) ->
+	case process_info(Pid, current_function) of
+		{current_function, {_, terminate_linger_loop, _}} ->
+			ok;
+		{current_function, _} ->
+			timer:sleep(10),
+			wait_for_linger_loop(Pid, N - 1)
+	end.
+
+%% Whether a connection process in the linger loop has handed all
+%% the data queued for sending to the kernel. Only clear TCP
+%% connections are supported: the TCP port is then owned by the
+%% connection process. The socket backend has no such queue: the
+%% process only enters the linger loop once the kernel has accepted
+%% all the data. A process that already exited has nothing left
+%% to hand to the kernel either.
+is_send_queue_empty(Pid) ->
+	case process_info(Pid, current_function) of
+		{current_function, {_, terminate_linger_loop, _}} ->
+			lists:all(fun(Port) ->
+				case {erlang:port_info(Port, name), erlang:port_info(Port, connected)} of
+					{{name, "tcp_inet"}, {connected, Pid}} ->
+						inet:getstat(Port, [send_pend]) =:= {ok, [{send_pend, 0}]};
+					_ ->
+						true
+				end
+			end, erlang:ports());
+		{current_function, _} ->
+			false;
+		undefined ->
+			true
+	end.
+
 %% Common group of listeners used by most suites.
 
 common_all() ->

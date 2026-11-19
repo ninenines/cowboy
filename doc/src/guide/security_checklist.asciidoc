@@ -168,6 +168,31 @@ or limits may make your application unreachable:
   `send_timeout` is `30000` which may be too large for some
   applications.
 
+* When data is still queued for sending once the `linger_timeout`
+  has expired, Cowboy keeps the connection open for up to the
+  socket's `send_timeout` to deliver it. When `send_timeout` is
+  `infinity` a client that stops reading can keep the connection,
+  its `max_connections` slot and the queued data around
+  indefinitely. Always use a finite `send_timeout`. Note that
+  Ranch's default `send_timeout` is `30000`.
+
+* Once the queued data has been handed over to the operating
+  system, Cowboy closes the socket and the connection process
+  exits. The operating system may keep sending the data left in
+  the socket's send buffer afterwards. Such orphaned sockets are
+  neither subject to `send_timeout` nor counted in
+  `max_connections`. A client that keeps reading very slowly can
+  keep them around for as long as it wants, and a client that
+  stops reading until the operating system gives up. They are
+  only bounded by the operating system's limits. On Linux the
+  relevant settings are `net.ipv4.tcp_max_orphans` (orphaned
+  sockets beyond this limit are reset), `net.ipv4.tcp_mem`,
+  `net.ipv4.tcp_orphan_retries` and `net.ipv4.tcp_fin_timeout`.
+  The amount of data per socket is limited by the send buffer
+  size, set with the Ranch `sndbuf` option or by
+  `net.ipv4.tcp_wmem`. On Windows the connection may stay open
+  for as long as the client acknowledges TCP zero window probes.
+
 * Many `cowboy_http` options may be unsafe if the value
   configured is too large: `idle_timeout`, `inactivity_timeout`,
   `linger_timeout`, `max_keepalive` (also see `http10_keepalive`),

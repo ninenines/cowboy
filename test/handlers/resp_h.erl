@@ -298,6 +298,19 @@ do(<<"stream_body">>, Req0, Opts) ->
 			cowboy_req:stream_body(<<"world">>, nofin, Req),
 			cowboy_req:stream_body(<<"!">>, fin, Req),
 			{ok, Req, Opts};
+		<<"large">> ->
+			Req = cowboy_req:stream_reply(200, Req0),
+			_ = [cowboy_req:stream_body(<<0:62500/unit:8>>, nofin, Req)
+				|| _ <- lists:seq(1, 63)],
+			cowboy_req:stream_body(<<0:62500/unit:8>>, fin, Req),
+			{ok, Req, Opts};
+		<<"large_delayed_fin">> ->
+			Req = cowboy_req:stream_reply(200, Req0),
+			_ = [cowboy_req:stream_body(<<0:62500/unit:8>>, nofin, Req)
+				|| _ <- lists:seq(1, 64)],
+			timer:sleep(1000),
+			cowboy_req:stream_body(<<>>, fin, Req),
+			{ok, Req, Opts};
 		<<"loop">> ->
 			Req = cowboy_req:stream_reply(200, Req0),
 			_ = [cowboy_req:stream_body(<<0:1000000/unit:8>>, nofin, Req)
