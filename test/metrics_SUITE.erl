@@ -311,7 +311,7 @@ early_error(Config) ->
 	Ref = gun:request(ConnPid, Method, "/", [
 		{<<"accept-encoding">>, <<"gzip">>},
 		{<<"x-test-pid">>, pid_to_list(self())}
-	|Headers], <<>>),
+	|Headers], <<>>, #{invalid_request_headers => ignore}),
 	{response, fin, Status, RespHeaders} = gun:await(ConnPid, Ref, infinity),
 	%% Receive the metrics and validate them.
 	receive
