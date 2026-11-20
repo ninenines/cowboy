@@ -611,9 +611,6 @@ headers_frame_parse_host1(State=#state{ref=Ref, peer=Peer, sock=Sock, cert=Cert,
 		{Host, Port0} ->
 			Port = ensure_port(Scheme, Port0),
 			case cow_http:parse_fullpath(PathWithQs) of
-				{<<>>, _} ->
-					reset_stream(State, StreamID, {stream_error, protocol_error,
-						'The path component must not be empty. (RFC7540 8.1.2.3)'});
 				{Path, Qs} ->
 					Req0 = #{
 						ref => Ref,

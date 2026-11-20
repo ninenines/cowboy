@@ -1082,7 +1082,7 @@ connect_nofin_data_window(Config0) ->
 		{ok, Socket, _} = do_handshake(Config),
 		{Connect, _} = cow_hpack:encode([
 			{<<":method">>, <<"CONNECT">>},
-			{<<":authority">>, <<"localhost">>}
+			{<<":authority">>, <<"localhost:80">>}
 		]),
 		ok = gen_tcp:send(Socket, cow_http2:headers(1, nofin, Connect)),
 		{ok, << CLen:24, 1:8, _:8, 1:32 >>} = gen_tcp:recv(Socket, 9, 6000),

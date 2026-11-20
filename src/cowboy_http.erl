@@ -615,27 +615,21 @@ parse_uri_authority(<<C, Rest/bits>>, State, Method, SoFar, Remaining) ->
 
 parse_uri_path(<<C, Rest/bits>>, State, Method, Authority, SoFar) ->
 	case C of
-		$\0 -> error_terminate(400, State, {connection_error, protocol_error,
-			'NUL byte is not allowed in the request-target. (RFC7230 3.1.1)'});
-		$\r -> error_terminate(400, State, {connection_error, protocol_error,
-			'The request-target must not be followed by a line break. (RFC7230 3.1.1)'});
-		$# -> error_terminate(400, State, {connection_error, protocol_error,
-			'The request-target must not include a fragment component. (RFC9110 4.1, RFC9112 3.2)'});
 		$\s -> parse_version(Rest, State, Method, Authority, SoFar, <<>>);
 		$? -> parse_uri_query(Rest, State, Method, Authority, SoFar, <<>>);
-		_ -> parse_uri_path(Rest, State, Method, Authority, <<SoFar/binary, C>>)
+		_ when ?IS_PCHAR(C); C =:= $/ ->
+			parse_uri_path(Rest, State, Method, Authority, <<SoFar/binary, C>>);
+		_ -> error_terminate(400, State, {connection_error, protocol_error,
+			'The request-target contains invalid characters. (RFC9110 4.1, RFC3986 3.3)'})
 	end.
 
 parse_uri_query(<<C, Rest/bits>>, State, M, A, P, SoFar) ->
 	case C of
-		$\0 -> error_terminate(400, State, {connection_error, protocol_error,
-			'NUL byte is not allowed in the request-target. (RFC7230 3.1.1)'});
-		$\r -> error_terminate(400, State, {connection_error, protocol_error,
-			'The request-target must not be followed by a line break. (RFC7230 3.1.1)'});
-		$# -> error_terminate(400, State, {connection_error, protocol_error,
-			'The request-target must not include a fragment component. (RFC9110 4.1, RFC9112 3.2)'});
 		$\s -> parse_version(Rest, State, M, A, P, SoFar);
-		_ -> parse_uri_query(Rest, State, M, A, P, <<SoFar/binary, C>>)
+		_ when ?IS_QUERY(C) ->
+			parse_uri_query(Rest, State, M, A, P, <<SoFar/binary, C>>);
+		_ -> error_terminate(400, State, {connection_error, protocol_error,
+			'The request-target contains invalid characters. (RFC9110 4.1, RFC3986 3.4)'})
 	end.
 
 parse_version(<< "HTTP/1.1\r\n", Rest/bits >>, State, M, A, P, Q) ->

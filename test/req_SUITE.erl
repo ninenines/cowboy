@@ -367,7 +367,7 @@ parse_qs(Config) ->
 	<<"[]">> = do_get_body("/parse_qs", Config),
 	<<"[{<<\"abc\">>,true}]">> = do_get_body("/parse_qs?abc", Config),
 	<<"[{<<\"a\">>,<<\"b\">>},{<<\"c\">>,<<\"d e\">>}]">> = do_get_body("/parse_qs?a=b&c=d+e", Config),
-	%% Ensure parse errors result in a 400 response.
+	%% A % that is not two hex digits reaches parse_qs and is a 400.
 	{400, _, _} = do_get("/parse_qs?%%%%%%%", Config),
 	%% Ensure too many keys result in a 400 response.
 	{200, _, _} = do_get("/parse_qs_with_max_keys?a=b&c=d&e=f&g=h&i=j", Config),
