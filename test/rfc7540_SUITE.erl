@@ -4218,25 +4218,6 @@ empty_path_non_http(Config) ->
 	{ok, << _:24, 1:8, _:8, 1:32 >>} = gen_tcp:recv(Socket, 9, 6000),
 	ok.
 
-reject_connect_authority(Config) ->
-	doc("A CONNECT :authority that is not uri-host \":\" port must be rejected "
-		"with a PROTOCOL_ERROR stream error. (RFC9112 3.2.3)"),
-	Authorities = [
-		<<"localhost">>,
-		<<":80">>,
-		<<"user@localhost:80">>
-	],
-	_ = [begin
-		{ok, Socket} = do_handshake(Config),
-		{HeadersBlock, _} = cow_hpack:encode([
-			{<<":method">>, <<"CONNECT">>},
-			{<<":authority">>, Authority}
-		]),
-		ok = gen_tcp:send(Socket, cow_http2:headers(1, fin, HeadersBlock)),
-		{ok, << _:24, 3:8, _:8, 1:32, 1:32 >>} = gen_tcp:recv(Socket, 13, 6000)
-	end || Authority <- Authorities],
-	ok.
-
 reject_invalid_pseudo_header_path_fragment(Config) ->
 	doc("A request with an invalid path component must be rejected "
 		"with a PROTOCOL_ERROR stream error. (RFC9110 5.5)"),

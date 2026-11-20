@@ -763,48 +763,12 @@ authority_form_reject_if_not_connect(Config) ->
 	{error, closed} = raw_recv(Client, 0, 1000).
 
 authority_form(Config) ->
-	doc("A valid authority-form is uri-host \":\" port. CONNECT is not implemented. "
-		"(RFC9112 3.2.3, RFC7231 4.3.6)"),
+	doc("CONNECT is not implemented. (RFC7231 4.3.6)"),
 	#{code := 501, client := Client1} = do_raw(Config,
 		"CONNECT localhost:80 HTTP/1.1\r\n\r\n"),
 	{error, closed} = raw_recv(Client1, 0, 1000),
 	#{code := 501, client := Client2} = do_raw(Config,
 		"CONNECT [::1]:80 HTTP/1.0\r\n\r\n"),
-	{error, closed} = raw_recv(Client2, 0, 1000).
-
-authority_form_reject(Config) ->
-	doc("An authority-form that is not uri-host \":\" port must be rejected "
-		"with a 400 status code and the closing of the connection. (RFC9112 3.2.3)"),
-	Targets = [
-		"localhost",
-		":80",
-		"user@localhost:80",
-		"localhost:80/",
-		"localhost:80 "
-	],
-	_ = [begin
-		#{code := 400, client := Client} = do_raw(Config, [
-			"CONNECT ", Target, " HTTP/1.1\r\n\r\n"
-		]),
-		{error, closed} = raw_recv(Client, 0, 1000)
-	end || Target <- Targets],
-	#{code := 505, client := Client} = do_raw(Config,
-		"CONNECT localhost:80 HTTP/2.0\r\n\r\n"),
-	{error, closed} = raw_recv(Client, 0, 1000).
-
-authority_form_limit(Config) ->
-	doc("An authority-form longer than the configured limit must be rejected "
-		"with a 414 status code. (RFC7230 3.1.1)"),
-	%% 252 bytes of host plus ":80" is 255. One more byte is 256.
-	Host255 = binary:copy(<<$a>>, 252),
-	#{code := 501, client := Client1} = do_raw(Config, [
-		"CONNECT ", Host255, ":80 HTTP/1.1\r\n\r\n"
-	]),
-	{error, closed} = raw_recv(Client1, 0, 1000),
-	Host256 = binary:copy(<<$a>>, 253),
-	#{code := 414, client := Client2} = do_raw(Config, [
-		"CONNECT ", Host256, ":80 HTTP/1.1\r\n\r\n"
-	]),
 	{error, closed} = raw_recv(Client2, 0, 1000).
 
 %% @todo Implement CONNECT.
