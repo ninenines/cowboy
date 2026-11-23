@@ -82,7 +82,9 @@ restart_gracefully(Config) ->
 router_invalid_path(Config) ->
 	doc("A path containing a backslash is rejected."),
 	ConnPid = gun_open(Config),
-	Ref = gun:get(ConnPid, "/version/path/%\\u0016\\u0016/path"),
+	%% Gun would otherwise reject the invalid path itself.
+	Ref = gun:get(ConnPid, "/version/path/%\\u0016\\u0016/path", [],
+		#{invalid_request_headers => ignore}),
 	case config(protocol, Config) of
 		http ->
 			{response, _, 400, _} = gun:await(ConnPid, Ref);
