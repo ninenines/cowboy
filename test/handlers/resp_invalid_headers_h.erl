@@ -15,6 +15,30 @@ init(Req0, Opts) ->
 				<<"x-list">> => "good value as a list"
 			}, <<"OK">>, Req0),
 			{ok, Req, Opts};
+		<<"/status_empty">> ->
+			Req = cowboy_req:reply(<<"200 ">>, Req0),
+			{ok, Req, Opts};
+		<<"/status_phrase">> ->
+			Req = cowboy_req:reply(<<"200 OK\t", 128>>, Req0),
+			{ok, Req, Opts};
+		<<"/status_inject">> ->
+			Req = cowboy_req:reply(<<"200 OK\r\nX-Injected: 1">>, Req0),
+			{ok, Req, Opts};
+		<<"/status_short">> ->
+			Req = cowboy_req:reply(<<"200">>, Req0),
+			{ok, Req, Opts};
+		<<"/status_del">> ->
+			Req = cowboy_req:reply(<<"200 ", 127>>, Req0),
+			{ok, Req, Opts};
+		<<"/status_stream">> ->
+			Req = cowboy_req:stream_reply(<<"200 OK\nX">>, Req0),
+			cowboy_req:stream_body(<<"OK">>, fin, Req),
+			{ok, Req, Opts};
+		<<"/status_inform">> ->
+			ok = cowboy_req:inform(<<"102 On\r\nX-Injected: 1">>, Req0),
+			timer:sleep(100),
+			Req = cowboy_req:reply(200, #{}, <<"OK">>, Req0),
+			{ok, Req, Opts};
 		<<"/reply_name">> ->
 			Req = cowboy_req:reply(200, #{
 				<<"X-Test">> => <<"value">>
