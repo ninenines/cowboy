@@ -741,6 +741,91 @@ invalid_response_headers_name(Config) ->
 		cowboy:stop_listener(?FUNCTION_NAME)
 	end.
 
+invalid_response_status(Config) ->
+	doc("A binary status must be three digits, one space and a reason-phrase."),
+	Dispatch = cowboy_router:compile([{'_', [
+		{"/status_empty", resp_invalid_headers_h, []},
+		{"/status_phrase", resp_invalid_headers_h, []},
+		{"/status_inject", resp_invalid_headers_h, []},
+		{"/status_short", resp_invalid_headers_h, []},
+		{"/status_del", resp_invalid_headers_h, []},
+		{"/status_stream", resp_invalid_headers_h, []}
+	]}]),
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
+		env => #{dispatch => Dispatch}
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		Client1 = raw_open([{type, tcp}, {port, Port}, {opts, []}|Config]),
+		ok = raw_send(Client1,
+			"GET /status_empty HTTP/1.1\r\nhost: localhost\r\n\r\n"),
+		{'HTTP/1.1', 200, <<>>, _} = cow_http:parse_status_line(raw_recv_head(Client1)),
+		Client2 = raw_open([{type, tcp}, {port, Port}, {opts, []}|Config]),
+		ok = raw_send(Client2,
+			"GET /status_phrase HTTP/1.1\r\nhost: localhost\r\n\r\n"),
+		{'HTTP/1.1', 200, <<"OK\t", 128>>, _} =
+			cow_http:parse_status_line(raw_recv_head(Client2)),
+		Client3 = raw_open([{type, tcp}, {port, Port}, {opts, []}|Config]),
+		ok = raw_send(Client3,
+			"GET /status_inject HTTP/1.1\r\nhost: localhost\r\n\r\n"),
+		{'HTTP/1.1', 500, _, Rest3} = cow_http:parse_status_line(raw_recv_head(Client3)),
+		{Headers3, _} = cow_http:parse_headers(Rest3),
+		false = lists:keymember(<<"x-injected">>, 1, Headers3),
+		Client4 = raw_open([{type, tcp}, {port, Port}, {opts, []}|Config]),
+		ok = raw_send(Client4,
+			"GET /status_short HTTP/1.1\r\nhost: localhost\r\n\r\n"),
+		{'HTTP/1.1', 500, _, _} = cow_http:parse_status_line(raw_recv_head(Client4)),
+		Client5 = raw_open([{type, tcp}, {port, Port}, {opts, []}|Config]),
+		ok = raw_send(Client5,
+			"GET /status_del HTTP/1.1\r\nhost: localhost\r\n\r\n"),
+		{'HTTP/1.1', 500, _, _} = cow_http:parse_status_line(raw_recv_head(Client5)),
+		Client6 = raw_open([{type, tcp}, {port, Port}, {opts, []}|Config]),
+		ok = raw_send(Client6,
+			"GET /status_stream HTTP/1.1\r\nhost: localhost\r\n\r\n"),
+		{'HTTP/1.1', 500, _, _} = cow_http:parse_status_line(raw_recv_head(Client6)),
+		ok
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+invalid_response_status_early_error(Config) ->
+	doc("An early error replaces a bad binary status with 500."),
+	Dispatch = cowboy_router:compile([{'_', []}]),
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
+		env => #{dispatch => Dispatch},
+		stream_handlers => [stream_handler_invalid_status_h]
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		Client = raw_open([{type, tcp}, {port, Port}, {opts, []}|Config]),
+		ok = raw_send(Client, "TRACE / HTTP/1.1\r\nhost: localhost\r\n\r\n"),
+		{'HTTP/1.1', 500, _, Rest} = cow_http:parse_status_line(raw_recv_head(Client)),
+		{Headers, _} = cow_http:parse_headers(Rest),
+		false = lists:keymember(<<"x-injected">>, 1, Headers)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
+invalid_response_status_inform(Config) ->
+	doc("An informational response with a bad binary status is a 500."),
+	Dispatch = cowboy_router:compile([{'_', [
+		{"/status_inform", resp_invalid_headers_h, []}
+	]}]),
+	{ok, _} = cowboy:start_clear(?FUNCTION_NAME, [{port, 0}], #{
+		env => #{dispatch => Dispatch}
+	}),
+	Port = ranch:get_port(?FUNCTION_NAME),
+	try
+		Client = raw_open([{type, tcp}, {port, Port}, {opts, []}|Config]),
+		ok = raw_send(Client,
+			"GET /status_inform HTTP/1.1\r\nhost: localhost\r\n\r\n"),
+		{'HTTP/1.1', 500, _, Rest} = cow_http:parse_status_line(raw_recv_head(Client)),
+		{Headers, _} = cow_http:parse_headers(Rest),
+		false = lists:keymember(<<"x-injected">>, 1, Headers)
+	after
+		cowboy:stop_listener(?FUNCTION_NAME)
+	end.
+
 invalid_response_headers_reply(Config) ->
 	doc("Ensure invalid response headers are rejected by default."),
 	Dispatch = cowboy_router:compile([{'_', [

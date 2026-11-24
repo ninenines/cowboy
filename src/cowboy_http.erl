@@ -1215,6 +1215,13 @@ commands(State0=#state{socket=Socket, transport=Transport, out_state=wait,
 		{ok, Headers1} ->
 			Headers1
 	end,
+	case validate_response_status(StatusCode) of
+		ok -> ok;
+		error ->
+			StatusReason = {internal_error, invalid_response_status,
+				'An invalid response status was detected.'},
+			terminate(stream_terminate(State0, StatusReason), StatusReason)
+	end,
 	_ = case Version of
 		'HTTP/1.1' ->
 			ok = maybe_socket_error(State0, Transport:send(Socket,
@@ -1239,6 +1246,13 @@ commands(State0=#state{socket=Socket, transport=Transport, out_state=wait},
 			terminate(stream_terminate(State0, Reason), Reason);
 		{ok, Headers2} ->
 			Headers2
+	end,
+	case validate_response_status(StatusCode) of
+		ok -> ok;
+		error ->
+			StatusReason = {internal_error, invalid_response_status,
+				'An invalid response status was detected.'},
+			terminate(stream_terminate(State0, StatusReason), StatusReason)
 	end,
 	{State1, Headers} = connection(State0, Headers1),
 	State2 = State1#state{out_state=done},
@@ -1265,6 +1279,13 @@ commands(State0=#state{socket=Socket, transport=Transport,
 			terminate(stream_terminate(State0, Reason), Reason);
 		{ok, Checked} ->
 			Checked
+	end,
+	case validate_response_status(StatusCode) of
+		ok -> ok;
+		error ->
+			StatusReason = {internal_error, invalid_response_status,
+				'An invalid response status was detected.'},
+			terminate(stream_terminate(State0, StatusReason), StatusReason)
 	end,
 	#stream{id=StreamID, method=Method, version=Version} = Stream0,
 	Status = cow_http:status_to_integer(StatusCode),
@@ -1467,6 +1488,15 @@ commands(State=#state{opts=Opts}, [Log={log, _, _, _}|Tail]) ->
 %% HTTP/1.1 does not support push; ignore.
 commands(State, [{push, _, _, _, _, _, _, _}|Tail]) ->
 	commands(State, Tail).
+
+validate_response_status(Status) when is_integer(Status) ->
+	ok;
+validate_response_status(Status) ->
+	try cow_http1:ensure_status(Status) of
+		_ -> ok
+	catch _:_ ->
+		error
+	end.
 
 maybe_invalid_response_headers(Headers, #state{opts=Opts}) ->
 	case maps:get(invalid_response_headers, Opts, error_terminate) of
@@ -1717,8 +1747,12 @@ early_error(StatusCode, State=#state{opts=Opts, in_streamid=StreamID},
 		early_error_resp(Resp0, State)
 	end.
 
-early_error_resp({response, StatusCode, RespHeaders, RespBody},
+early_error_resp({response, StatusCode0, RespHeaders, RespBody},
 		State=#state{socket=Socket, transport=Transport}) ->
+	StatusCode = case validate_response_status(StatusCode0) of
+		ok -> StatusCode0;
+		error -> 500
+	end,
 	ok = maybe_socket_error(State,
 		Transport:send(Socket, [
 			cow_http:response(StatusCode, 'HTTP/1.1', maps:to_list(RespHeaders)),
