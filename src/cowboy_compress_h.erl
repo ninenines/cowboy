@@ -26,7 +26,8 @@
 	threshold :: non_neg_integer() | undefined,
 	compress = undefined :: undefined | gzip,
 	deflate = undefined :: undefined | zlib:zstream(),
-	deflate_flush = sync :: none | sync
+	deflate_flush = sync :: none | sync,
+	level = default :: zlib:zlevel()
 }).
 
 -spec init(cowboy_stream:streamid(), cowboy_req:req(), cowboy:opts())
@@ -35,10 +36,12 @@ init(StreamID, Req, Opts) ->
 	State0 = check_req(Req),
 	CompressThreshold = maps:get(compress_threshold, Opts, 300),
 	DeflateFlush = buffering_to_zflush(maps:get(compress_buffering, Opts, false)),
+	CompressLevel = maps:get(compress_level, Opts, default),
 	{Commands0, Next} = cowboy_stream:init(StreamID, Req, Opts),
 	fold(Commands0, State0#state{next=Next,
 		threshold=CompressThreshold,
-		deflate_flush=DeflateFlush}).
+		deflate_flush=DeflateFlush,
+		level=CompressLevel}).
 
 -spec data(cowboy_stream:streamid(), cowboy_stream:fin(), cowboy_req:resp_body(), State)
 	-> {cowboy_stream:commands(), State} when State::#state{}.
@@ -150,7 +153,8 @@ fold([Trailers={trailers, _}|Tail], State0=#state{compress=gzip}, Acc) ->
 %% All the options from this handler can be updated for the current stream.
 %% The set_options command must be propagated as-is regardless.
 fold([SetOptions={set_options, Opts}|Tail], State=#state{
-		threshold=CompressThreshold0, deflate_flush=DeflateFlush0}, Acc) ->
+		threshold=CompressThreshold0, deflate_flush=DeflateFlush0,
+		deflate=Deflate, level=CompressLevel0}, Acc) ->
 	CompressThreshold = maps:get(compress_threshold, Opts, CompressThreshold0),
 	DeflateFlush = case Opts of
 		#{compress_buffering := CompressBuffering} ->
@@ -158,8 +162,14 @@ fold([SetOptions={set_options, Opts}|Tail], State=#state{
 		_ ->
 			DeflateFlush0
 	end,
-	fold(Tail, State#state{threshold=CompressThreshold, deflate_flush=DeflateFlush},
-		[SetOptions|Acc]);
+	CompressLevel = maps:get(compress_level, Opts, CompressLevel0),
+	case Deflate =/= undefined andalso
+			level_to_integer(CompressLevel) =/= level_to_integer(CompressLevel0) of
+		true -> zlib:deflateParams(Deflate, CompressLevel, default);
+		false -> ok
+	end,
+	fold(Tail, State#state{threshold=CompressThreshold, deflate_flush=DeflateFlush,
+		level=CompressLevel}, [SetOptions|Acc]);
 %% Otherwise, we have an unrelated command or compression is disabled.
 fold([Command|Tail], State, Acc) ->
 	fold(Tail, State, [Command|Acc]).
@@ -176,7 +186,13 @@ fold_vary_only([Command|Tail], State, Acc) ->
 buffering_to_zflush(true) -> none;
 buffering_to_zflush(false) -> sync.
 
-gzip_response({response, Status, Headers, Body}, State) ->
+level_to_integer(none) -> 0;
+level_to_integer(best_speed) -> 1;
+level_to_integer(default) -> 6;
+level_to_integer(best_compression) -> 9;
+level_to_integer(Level) -> Level.
+
+gzip_response({response, Status, Headers, Body}, State=#state{level=CompressLevel}) ->
 	%% We can't call zlib:gzip/1 because it does an
 	%% iolist_to_binary(GzBody) at the end to return
 	%% a binary(). Therefore the code here is largely
@@ -185,7 +201,7 @@ gzip_response({response, Status, Headers, Body}, State) ->
 	GzBody = try
 		%% 31 = 16+?MAX_WBITS from zlib.erl
 		%% @todo It might be good to allow them to be configured?
-		zlib:deflateInit(Z, default, deflated, 31, 8, default),
+		zlib:deflateInit(Z, CompressLevel, deflated, 31, 8, default),
 		Gz = zlib:deflate(Z, Body, finish),
 		zlib:deflateEnd(Z),
 		Gz
@@ -197,11 +213,11 @@ gzip_response({response, Status, Headers, Body}, State) ->
 		<<"content-encoding">> => <<"gzip">>
 	}, GzBody}, State}.
 
-gzip_headers({headers, Status, Headers0}, State) ->
+gzip_headers({headers, Status, Headers0}, State=#state{level=CompressLevel}) ->
 	Z = zlib:open(),
 	%% We use the same arguments as when compressing the body fully.
 	%% @todo It might be good to allow them to be configured?
-	zlib:deflateInit(Z, default, deflated, 31, 8, default),
+	zlib:deflateInit(Z, CompressLevel, deflated, 31, 8, default),
 	Headers = maps:remove(<<"content-length">>, Headers0),
 	{{headers, Status, Headers#{
 		<<"content-encoding">> => <<"gzip">>
