@@ -35,7 +35,8 @@ all() -> [{group, clear}, {group, tls}].
 
 groups() ->
 	Tests = ct_helper:all(?MODULE),
-	RejectTLS = [http_upgrade_reject_tls, prior_knowledge_reject_tls],
+	RejectTLS = [http_upgrade_reject_tls, http_upgrade_reject_tls_with_body,
+		prior_knowledge_reject_tls],
 	Clear = [T || T <- Tests, lists:sublist(atom_to_list(T), 4) =/= "alpn"] -- RejectTLS,
 	TLS = [T || T <- Tests, lists:sublist(atom_to_list(T), 4) =:= "alpn"] ++ RejectTLS,
 	[{clear, [parallel], Clear}, {tls, [parallel], TLS}].
@@ -84,6 +85,24 @@ http_upgrade_reject_tls(Config) ->
 		"\r\n"]),
 	%% We expect the server to send an HTTP 400 error
 	%% when trying to use HTTP/2 without going through ALPN negotiation.
+	{ok, <<"HTTP/1.1 400">>} = ssl:recv(Socket, 12, 1000),
+	ok.
+
+http_upgrade_reject_tls_with_body(Config) ->
+	doc("Implementations that support HTTP/2 over TLS must use ALPN. (RFC7540 3.4)"),
+	TlsOpts = ct_helper:get_certs_from_ets(),
+	{ok, Socket} = ssl:connect("localhost", config(port, Config),
+		[binary, {active, false}|TlsOpts]),
+	ok = ssl:send(Socket, [
+		"POST /echo/read_body HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Connection: Upgrade, HTTP2-Settings\r\n"
+		"Upgrade: h2c\r\n"
+		"HTTP2-Settings: ", base64:encode(cow_http2:settings_payload(#{})), "\r\n",
+		"Content-Length: 5\r\n"
+		"\r\n"
+		"hello"]),
+	%% A body does not turn the h2c attempt into an HTTP/1.1 request.
 	{ok, <<"HTTP/1.1 400">>} = ssl:recv(Socket, 12, 1000),
 	ok.
 
@@ -219,6 +238,25 @@ http_upgrade_101(Config) ->
 		"HTTP2-Settings: ", base64:encode(cow_http2:settings_payload(#{})), "\r\n",
 		"\r\n"]),
 	ok = do_recv_101(Socket),
+	ok.
+
+http_upgrade_content_length_0(Config) ->
+	doc("A cleartext h2c request with Content-Length 0 is an upgrade. "
+		"The following bytes are the client preface. (RFC7540 3.2)"),
+	{ok, Socket} = gen_tcp:connect("localhost", config(port, Config), [binary, {active, false}]),
+	ok = gen_tcp:send(Socket, [
+		"GET / HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Connection: Upgrade, HTTP2-Settings\r\n"
+		"Upgrade: h2c\r\n"
+		"Content-Length: 0\r\n"
+		"HTTP2-Settings: ", base64:encode(cow_http2:settings_payload(#{})), "\r\n",
+		"\r\n"]),
+	ok = do_recv_101(Socket),
+	ok = gen_tcp:send(Socket, ["PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n", cow_http2:settings(#{})]),
+	%% Receive the server preface.
+	{ok, << Len:24 >>} = gen_tcp:recv(Socket, 3, 1000),
+	{ok, << 4:8, 0:40, _:Len/binary >>} = gen_tcp:recv(Socket, 6 + Len, 1000),
 	ok.
 
 http_upgrade_server_preface(Config) ->
@@ -501,17 +539,60 @@ http_upgrade_client_preface_settings_ack_timeout(Config) ->
 %%   (Section 6.5.3) is not necessary, since a 101 response serves as
 %%   implicit acknowledgement.
 
-%% @todo We need to test an upgrade with a request body. It is probably
-%% worth having a configuration value for how much we accept while still
-%% upgrading (if too big, we would just stay on HTTP/1.1). We therefore
-%% needs a test for when the body is small enough, and one for when the
-%% body is larger than we accept. The relevant RFC quote is:
-%%
-%% 3.2
-%%   Requests that contain a payload body MUST be sent in their entirety
-%%   before the client can send HTTP/2 frames.  This means that a large
-%%   request can block the use of the connection until it is completely
-%%   sent.
+http_upgrade_content_length_body(Config) ->
+	doc("A cleartext h2c request with a content-length body is HTTP/1.1. "
+		"The body is not parsed as a client preface. (RFC7540 3.2)"),
+	{ok, Socket} = gen_tcp:connect("localhost", config(port, Config), [binary, {active, false}]),
+	%% A valid client preface. The response stays HTTP/1.1.
+	Preface = iolist_to_binary([
+		"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n",
+		cow_http2:settings(#{})
+	]),
+	ok = gen_tcp:send(Socket, [
+		"POST /echo/read_body HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Connection: Upgrade, HTTP2-Settings\r\n"
+		"Upgrade: h2c\r\n"
+		"HTTP2-Settings: ", base64:encode(cow_http2:settings_payload(#{})), "\r\n",
+		"Content-Length: ", integer_to_binary(byte_size(Preface)), "\r\n",
+		"\r\n",
+		Preface]),
+	{ok, <<"HTTP/1.1 200">>} = gen_tcp:recv(Socket, 12, 1000),
+	ok.
+
+http_upgrade_chunked_body(Config) ->
+	doc("A cleartext h2c request with a chunked body is HTTP/1.1. (RFC7540 3.2)"),
+	{ok, Socket} = gen_tcp:connect("localhost", config(port, Config), [binary, {active, false}]),
+	ok = gen_tcp:send(Socket, [
+		"POST /echo/read_body HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Connection: Upgrade, HTTP2-Settings\r\n"
+		"Upgrade: h2c\r\n"
+		"HTTP2-Settings: ", base64:encode(cow_http2:settings_payload(#{})), "\r\n",
+		"Transfer-Encoding: chunked\r\n",
+		"\r\n",
+		"5\r\nhello\r\n"
+		"0\r\n\r\n"]),
+	{ok, <<"HTTP/1.1 200">>} = gen_tcp:recv(Socket, 12, 1000),
+	ok.
+
+http_upgrade_bad_settings_with_body(Config) ->
+	doc("A bad HTTP2-Settings value is not an error when the "
+		"cleartext request has a body and is therefore not an upgrade. "
+		"(RFC7540 3.2, RFC7540 3.2.1)"),
+	{ok, Socket} = gen_tcp:connect("localhost", config(port, Config), [binary, {active, false}]),
+	ok = gen_tcp:send(Socket, [
+		"POST /echo/read_body HTTP/1.1\r\n"
+		"Host: localhost\r\n"
+		"Connection: Upgrade, HTTP2-Settings\r\n"
+		"Upgrade: h2c\r\n"
+		%% A full SETTINGS frame, not a SETTINGS payload.
+		"HTTP2-Settings: ", base64:encode(iolist_to_binary(cow_http2:settings(#{}))), "\r\n",
+		"Content-Length: 5\r\n",
+		"\r\n",
+		"hello"]),
+	{ok, <<"HTTP/1.1 200">>} = gen_tcp:recv(Socket, 12, 1000),
+	ok.
 
 %% @todo We should definitely have a test with OPTIONS. The relevant
 %% RFC quote is:

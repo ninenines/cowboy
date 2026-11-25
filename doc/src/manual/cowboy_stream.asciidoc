@@ -223,6 +223,12 @@ switching to and its initial state.
 Note that the 101 informational response will not be sent
 after a final response.
 
+Note that on HTTP/1.1 the request body must be read to
+completion before this command is sent.
+The connection buffer is given to the new protocol, so
+bytes that were not consumed as the HTTP/1 body become
+that protocol's input.
+
 === stop
 
 Stop the stream.
