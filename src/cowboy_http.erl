@@ -955,8 +955,14 @@ request(Buffer, State0=#state{ref=Ref, transport=Transport, peer=Peer, sock=Sock
 		undefined -> Req0;
 		_ -> Req0#{proxy_header => ProxyHeader}
 	end,
+	Secure = Transport:secure(),
 	case is_http2_upgrade(Headers, Version, Opts) of
-		false ->
+		{true, HTTP2Settings} when Secure =:= true; HasBody =:= false ->
+			%% We save the headers in case the upgrade will fail
+			%% and we need to pass them to cowboy_stream:early_error.
+			http2_upgrade(State0#state{in_state=PS#ps_header{headers=Headers}},
+				Buffer, HTTP2Settings, Req);
+		_ ->
 			State = case HasBody of
 				true ->
 					State0#state{in_state=#ps_body{
@@ -967,12 +973,7 @@ request(Buffer, State0=#state{ref=Ref, transport=Transport, peer=Peer, sock=Sock
 				false ->
 					State0#state{in_streamid=StreamID + 1, in_state=ps_next_request}
 			end,
-			{request, Req, State#state{buffer=Buffer}};
-		{true, HTTP2Settings} ->
-			%% We save the headers in case the upgrade will fail
-			%% and we need to pass them to cowboy_stream:early_error.
-			http2_upgrade(State0#state{in_state=PS#ps_header{headers=Headers}},
-				Buffer, HTTP2Settings, Req)
+			{request, Req, State#state{buffer=Buffer}}
 	end.
 
 %% HTTP/2 upgrade.
@@ -1020,10 +1021,6 @@ http2_upgrade(State=#state{parent=Parent, ref=Ref, socket=Socket, transport=Tran
 		Buffer, HTTP2Settings, Req) ->
 	case Transport:secure() of
 		false ->
-			%% @todo
-			%% However if the client sent a body, we need to read the body in full
-			%% and if we can't do that, return a 413 response. Some options are in order.
-			%% Always half-closed stream coming from this side.
 			try cow_http_hd:parse_http2_settings(HTTP2Settings) of
 				Settings ->
 					_ = cancel_timeout(State),
@@ -1440,8 +1437,8 @@ commands(State0=#state{ref=Ref, parent=Parent, socket=Socket, transport=Transpor
 	%% from the socket, otherwise the data might be receive before the
 	%% call to flush/0 and we end up inadvertently dropping a packet.
 	%%
-	%% @todo Handle cases where the request came with a body. We need
-	%% to process or skip the body before the upgrade can be completed.
+	%% The request body is not read here. Bytes left in the buffer
+	%% are given to the new protocol.
 	State = passive(State1),
 	%% Send a 101 response if necessary, then terminate the stream.
 	#stream{id=StreamID} = Stream0,

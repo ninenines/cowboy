@@ -238,7 +238,6 @@ init_cancel_rate_limiting(State=#state{opts=Opts}, CurrentTime) ->
 add_period(_, infinity) -> infinity;
 add_period(Time, Period) -> Time + Period.
 
-%% @todo Add an argument for the request body.
 -spec init(pid(), ranch:ref(), inet:socket(), module(),
 	ranch_proxy_header:proxy_info() | undefined, cowboy:opts(),
 	{inet:ip_address(), inet:port_number()}, {inet:ip_address(), inet:port_number()},
