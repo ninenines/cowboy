@@ -160,9 +160,9 @@ port_0() ->
 
 ensure_alpn(TransOpts) ->
 	SocketOpts = maps:get(socket_opts, TransOpts, []),
-	TransOpts#{socket_opts => [
-		{alpn_preferred_protocols, [<<"h2">>, <<"http/1.1">>]}
-	|SocketOpts]}.
+	TransOpts#{socket_opts => add_socket_opt(
+		{alpn_preferred_protocols, [<<"h2">>, <<"http/1.1">>]},
+		SocketOpts)}.
 
 ensure_connection_type(TransOpts=#{connection_type := ConnectionType}) ->
 	{TransOpts, ConnectionType};
@@ -179,10 +179,16 @@ ensure_dynamic_buffer(TransOpts, #{dynamic_buffer := DynamicBuffer}) ->
 ensure_dynamic_buffer(TransOpts=#{socket_opts := SocketOpts}, _) ->
 	case proplists:get_value(buffer, SocketOpts, undefined) of
 		undefined ->
-			{TransOpts#{socket_opts => [{buffer, 512}|SocketOpts]}, {512, 131072}};
+			{TransOpts#{socket_opts => add_socket_opt({buffer, 512}, SocketOpts)}, {512, 131072}};
 		_ ->
 			{TransOpts, false}
 	end.
+
+%% The inet_backend option must remain the first option.
+add_socket_opt(Opt, [Backend={inet_backend, _}|SocketOpts]) ->
+	[Backend, Opt|SocketOpts];
+add_socket_opt(Opt, SocketOpts) ->
+	[Opt|SocketOpts].
 
 -spec stop_listener(ranch:ref()) -> ok | {error, not_found}.
 
