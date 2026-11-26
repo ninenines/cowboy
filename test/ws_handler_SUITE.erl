@@ -58,6 +58,20 @@ init_per_group(Name, Config)
 end_per_group(Name, _) ->
 	cowboy:stop_listener(Name).
 
+init_per_testcase(Name, Config) when
+		Name =:= websocket_data_delivery_n;
+		Name =:= websocket_data_delivery_n_passive;
+		Name =:= websocket_data_delivery_n_empty;
+		Name =:= websocket_data_delivery_n_late_ack;
+		Name =:= websocket_data_delivery_n_conn_window;
+		Name =:= websocket_data_delivery_n_late_active ->
+	case config(ref, Config) of
+		h2_relay -> Config;
+		_ -> {skip, "HTTP/2 relay only."}
+	end;
+init_per_testcase(_, Config) ->
+	Config.
+
 %% Dispatch configuration.
 
 init_dispatch(Name) ->
@@ -72,6 +86,8 @@ init_dispatch(Name) ->
 		{"/info", ws_info_commands_h, InitialState},
 		{"/trap_exit", ws_init_h, InitialState},
 		{"/active", ws_active_commands_h, InitialState},
+		{"/delivery_n/:n", ws_delivery_n_h, InitialState},
+		{"/delivery_n/:n/:mode", ws_delivery_n_h, InitialState},
 		{"/deflate", ws_deflate_commands_h, InitialState},
 		{"/set_options", ws_set_options_commands_h, InitialState},
 		{"/shutdown_reason", ws_shutdown_reason_commands_h, InitialState},
@@ -283,6 +299,261 @@ websocket_active_false(Config) ->
 	{ok, {text, <<"Not received until the handler enables active again.">>}}
 		= receive_ws(ConnPid, StreamRef),
 	gun:close(ConnPid).
+
+websocket_data_delivery_n(Config) ->
+	doc("HTTP/2 relay delivers DATA frames received after data_delivery_n."),
+	%% The next frame is delivered while the handler is blocked.
+	do_data_delivery_n(Config, 1, 1),
+	%% Both following frames are delivered. The pause does not hold them.
+	do_data_delivery_n(Config, 2, 2),
+	ok.
+
+do_data_delivery_n(Config, N, ExpectInMailbox) ->
+	{ok, ConnPid, StreamRef} = gun_open_ws(Config,
+		"/delivery_n/" ++ integer_to_list(N), []),
+	gun:ws_send(ConnPid, StreamRef, {binary, term_to_binary({self(), ExpectInMailbox})}),
+	WsPid = receive
+		{blocked, Pid} ->
+			Pid
+	after 1000 ->
+		error(timeout)
+	end,
+	%% Forwarded while the handler is blocked, so not echoed yet.
+	_ = [gun:ws_send(ConnPid, StreamRef, {text, <<"x">>})
+		|| _ <- lists:seq(1, ExpectInMailbox)],
+	{error, timeout} = receive
+		{gun_ws, ConnPid, StreamRef, Frame} ->
+			{ok, Frame}
+	after 1000 ->
+		{error, timeout}
+	end,
+	WsPid ! release,
+	{ok, {text, <<"ok">>}} = receive_ws(ConnPid, StreamRef),
+	_ = [{ok, {text, <<"x">>}} = receive_ws(ConnPid, StreamRef)
+		|| _ <- lists:seq(1, ExpectInMailbox)],
+	gun:close(ConnPid).
+
+websocket_data_delivery_n_passive(Config) ->
+	doc("A DATA frame already in the window is delivered while active is false."),
+	{ok, ConnPid, StreamRef} = gun_open_ws(Config, "/delivery_n/1/passive", []),
+	{ok, {text, PidBin}} = receive_ws(ConnPid, StreamRef),
+	WsPid = list_to_pid(binary_to_list(PidBin)),
+	gun:ws_send(ConnPid, StreamRef, {text, <<"one">>}),
+	{ok, {text, <<"one">>}} = receive_ws(ConnPid, StreamRef),
+	%% Already allowed by the stream window, so it is delivered
+	%% while active is false. Active still controls the window.
+	gun:ws_send(ConnPid, StreamRef, {text, <<"two">>}),
+	{ok, {text, <<"two">>}} = receive_ws(ConnPid, StreamRef),
+	WsPid ! go_active,
+	gun:close(ConnPid).
+
+websocket_data_delivery_n_empty(Config) ->
+	doc("Empty DATA frames are not relayed."),
+	%% N=2: an empty frame before the pause is not delivered
+	%% and does not consume a credit.
+	CreditSocket = do_h2_ws(Config, <<"/delivery_n/2/empty">>),
+	ok = ssl:send(CreditSocket, cow_http2:data(1, nofin,
+		do_ws_masked(2, term_to_binary({self(), before})))),
+	CreditPid = receive
+		{blocked, Pid0, _} ->
+			Pid0
+	after 1000 ->
+		error(timeout)
+	end,
+	ok = ssl:send(CreditSocket, cow_http2:data(1, nofin, <<>>)),
+	ok = ssl:send(CreditSocket, cow_http2:ping(1)),
+	ok = do_recv_ping_ack(CreditSocket),
+	CreditPid ! release,
+	[<<"ok">>] = do_recv_ws_payloads(CreditSocket, 1),
+	ssl:close(CreditSocket),
+	%% An empty END_STREAM is not relayed either.
+	FinSocket = do_h2_ws(Config, <<"/delivery_n/1/empty">>),
+	ok = ssl:send(FinSocket, cow_http2:data(1, nofin,
+		do_ws_masked(2, term_to_binary({self(), fin})))),
+	FinPid = receive
+		{blocked, Pid1, _} ->
+			Pid1
+	after 1000 ->
+		error(timeout)
+	end,
+	ok = ssl:send(FinSocket, cow_http2:data(1, fin, <<>>)),
+	ok = ssl:send(FinSocket, cow_http2:ping(2)),
+	ok = do_recv_ping_ack(FinSocket),
+	FinPid ! release,
+	[<<"ok">>] = do_recv_ws_payloads(FinSocket, 1),
+	ssl:close(FinSocket),
+	%% Empty nofin frames must not grow the connection. A later
+	%% non-empty frame is delivered while waiting.
+	Socket = do_h2_ws(Config, <<"/delivery_n/1/empty">>),
+	ok = ssl:send(Socket, cow_http2:data(1, nofin,
+		do_ws_masked(2, term_to_binary({self(), forward})))),
+	{FloodPid, ConnPid} = receive
+		{blocked, Pid2, Conn} ->
+			{Pid2, Conn}
+	after 1000 ->
+		error(timeout)
+	end,
+	erlang:garbage_collect(ConnPid),
+	{memory, Before} = process_info(ConnPid, memory),
+	ok = ssl:send(Socket, lists:duplicate(2500, cow_http2:data(1, nofin, <<>>))),
+	ok = ssl:send(Socket, cow_http2:ping(2)),
+	ok = do_recv_ping_ack(Socket),
+	erlang:garbage_collect(ConnPid),
+	{memory, After} = process_info(ConnPid, memory),
+	%% 2500 queued frames grew the connection by about 200KB.
+	case After - Before < 32768 of
+		true ->
+			ok;
+		false ->
+			error({connection_memory_grew, Before, After})
+	end,
+	ok = ssl:send(Socket, cow_http2:data(1, nofin, do_ws_masked(1, <<"x">>))),
+	ok = ssl:send(Socket, cow_http2:ping(3)),
+	ok = do_recv_ping_ack(Socket),
+	FloodPid ! release,
+	[<<"ok">>, <<"x">>] = do_recv_ws_payloads(Socket, 2),
+	ssl:close(Socket).
+
+websocket_data_delivery_n_late_ack(Config) ->
+	doc("A late acknowledgement does not crash the HTTP/2 connection."),
+	%% The client resets the stream before the session acknowledges.
+	ResetSocket = do_h2_ws(Config, <<"/delivery_n/1/empty">>),
+	ok = ssl:send(ResetSocket, cow_http2:data(1, nofin,
+		do_ws_masked(2, term_to_binary({self(), nofin})))),
+	ResetConn = receive
+		{blocked, _, Pid1} ->
+			Pid1
+	after 1000 ->
+		error(timeout)
+	end,
+	ok = ssl:send(ResetSocket, cow_http2:rst_stream(1, cancel)),
+	ok = ssl:send(ResetSocket, cow_http2:ping(1)),
+	ok = do_recv_ping_ack(ResetSocket),
+	ResetConn ! {'$cowboy_relay_command', {ResetConn, 1}, ack},
+	ok = ssl:send(ResetSocket, cow_http2:ping(2)),
+	ok = do_recv_ping_ack(ResetSocket),
+	ssl:close(ResetSocket),
+	%% The session acknowledges twice. The second time nothing is waiting.
+	Socket = do_h2_ws(Config, <<"/delivery_n/1/empty">>),
+	ok = ssl:send(Socket, cow_http2:data(1, nofin,
+		do_ws_masked(2, term_to_binary({self(), nofin})))),
+	{WsPid, ConnPid} = receive
+		{blocked, Pid2, Pid3} ->
+			{Pid2, Pid3}
+	after 1000 ->
+		error(timeout)
+	end,
+	WsPid ! release,
+	[<<"ok">>] = do_recv_ws_payloads(Socket, 1),
+	ConnPid ! {'$cowboy_relay_command', {ConnPid, 1}, ack},
+	ok = ssl:send(Socket, cow_http2:ping(3)),
+	ok = do_recv_ping_ack(Socket),
+	ssl:close(Socket).
+
+websocket_data_delivery_n_conn_window(Config) ->
+	doc("Pausing one relay stream does not freeze the connection receive window."),
+	Socket = do_h2_ws(Config, <<"/delivery_n/1/empty">>),
+	ok = ssl:send(Socket, cow_http2:data(1, nofin,
+		do_ws_masked(2, term_to_binary({self(), nofin})))),
+	WsPid = receive
+		{blocked, Pid, _} ->
+			Pid
+	after 1000 ->
+		error(timeout)
+	end,
+	%% Connection window moves. The stream window stays where it is.
+	{ok, <<4:24, 8:8, 0:8, 0:32, _:32>>} = ssl:recv(Socket, 13, 1000),
+	{error, timeout} = ssl:recv(Socket, 1, 200),
+	WsPid ! release,
+	ssl:close(Socket).
+
+websocket_data_delivery_n_late_active(Config) ->
+	doc("A late active or passive command does not crash the HTTP/2 connection."),
+	ok = do_late_relay_command(Config, active),
+	ok = do_late_relay_command(Config, passive).
+
+do_late_relay_command(Config, Command) ->
+	Socket = do_h2_ws(Config, <<"/delivery_n/1/empty">>),
+	ok = ssl:send(Socket, cow_http2:data(1, nofin,
+		do_ws_masked(2, term_to_binary({self(), nofin})))),
+	ConnPid = receive
+		{blocked, _, Pid} ->
+			Pid
+	after 1000 ->
+		error(timeout)
+	end,
+	ok = ssl:send(Socket, cow_http2:rst_stream(1, cancel)),
+	ok = ssl:send(Socket, cow_http2:ping(1)),
+	ok = do_recv_ping_ack(Socket),
+	ConnPid ! {'$cowboy_relay_command', {ConnPid, 1}, Command},
+	ok = ssl:send(Socket, cow_http2:ping(2)),
+	ok = do_recv_ping_ack(Socket),
+	ssl:close(Socket).
+
+%% HTTP/2 Websocket over TLS, the way h2_relay listens.
+do_h2_ws(Config, Path) ->
+	TlsOpts = config(opts, Config),
+	{ok, Socket} = ssl:connect("localhost", config(port, Config),
+		[{alpn_advertised_protocols, [<<"h2">>]}, binary, {active, false}|TlsOpts]),
+	{ok, <<"h2">>} = ssl:negotiated_protocol(Socket),
+	ok = ssl:send(Socket, ["PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n", cow_http2:settings(#{})]),
+	{ok, << Len:24 >>} = ssl:recv(Socket, 3, 1000),
+	{ok, << 4:8, 0:40, _:Len/binary >>} = ssl:recv(Socket, 6 + Len, 1000),
+	ok = ssl:send(Socket, cow_http2:settings_ack()),
+	{ok, << 0:24, 4:8, 1:8, 0:32 >>} = ssl:recv(Socket, 9, 1000),
+	{ReqHeadersBlock, _} = cow_hpack:encode([
+		{<<":method">>, <<"CONNECT">>},
+		{<<":protocol">>, <<"websocket">>},
+		{<<":scheme">>, <<"https">>},
+		{<<":path">>, Path},
+		{<<":authority">>, <<"localhost">>},
+		{<<"sec-websocket-version">>, <<"13">>}
+	]),
+	ok = ssl:send(Socket, cow_http2:headers(1, nofin, ReqHeadersBlock)),
+	{ok, << Len1:24, 1:8, _:8, 1:32 >>} = ssl:recv(Socket, 9, 1000),
+	{ok, RespHeadersBlock} = ssl:recv(Socket, Len1, 1000),
+	{RespHeaders, _} = cow_hpack:decode(RespHeadersBlock),
+	{_, <<"200">>} = lists:keyfind(<<":status">>, 1, RespHeaders),
+	Socket.
+
+do_ws_masked(Opcode, Payload) ->
+	Mask = 16#37fa213d,
+	Masked = ws_SUITE:do_mask(Payload, Mask, <<>>),
+	Len = byte_size(Payload),
+	true = Len < 126,
+	<<1:1, 0:3, Opcode:4, 1:1, Len:7, Mask:32, Masked/binary>>.
+
+do_recv_ping_ack(Socket) ->
+	{ok, <<Len:24, Type:8, Flags:8, _:32>>} = ssl:recv(Socket, 9, 2000),
+	_ = case Len of
+		0 -> ok;
+		_ -> {ok, _} = ssl:recv(Socket, Len, 2000)
+	end,
+	case {Type, Flags} of
+		{6, 1} -> ok;
+		_ -> do_recv_ping_ack(Socket)
+	end.
+
+do_recv_ws_payloads(Socket, N) ->
+	do_recv_ws_payloads(Socket, N, []).
+
+do_recv_ws_payloads(_, 0, Acc) ->
+	lists:reverse(Acc);
+do_recv_ws_payloads(Socket, N, Acc) ->
+	{ok, <<Len:24, Type:8, _:8, _:32>>} = ssl:recv(Socket, 9, 2000),
+	Payload = case Len of
+		0 -> <<>>;
+		_ ->
+			{ok, Data} = ssl:recv(Socket, Len, 2000),
+			Data
+	end,
+	case Type of
+		0 ->
+			<<1:1, 0:3, _:4, 0:1, PLen:7, Bin:PLen/binary>> = Payload,
+			do_recv_ws_payloads(Socket, N - 1, [Bin|Acc]);
+		_ ->
+			do_recv_ws_payloads(Socket, N, Acc)
+	end.
 
 websocket_deflate_false(Config) ->
 	doc("The {deflate, false} command temporarily disables compression. "

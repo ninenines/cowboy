@@ -89,7 +89,7 @@ vulnerable to memory exhaustion attacks:
 
 * Many `cowboy_websocket` options may be unsafe if the value
   configured is too large: `active_n`, `data_delivery_flow`,
-  `dynamic_buffer` and `max_frame_size`. Note that the
+  `data_delivery_n`, `dynamic_buffer` and `max_frame_size`. Note that the
   `max_frame_size` option may be changed dynamically via
   the `set_options` command.
 
