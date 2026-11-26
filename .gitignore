@@ -11,6 +11,7 @@ ebin/*.beam
 ebin/test
 examples/*/ebin
 examples/*/*.d
+lock.mk
 logs
 relx
 test/*.beam
