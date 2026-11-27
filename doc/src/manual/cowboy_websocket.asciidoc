@@ -204,6 +204,7 @@ opts() :: #{
     compress           => boolean(),
     data_delivery      => stream_handlers | relay,
     data_delivery_flow => pos_integer(),
+    data_delivery_n    => pos_integer(),
     deflate_opts       => cow_ws:deflate_opts(),
     dynamic_buffer     => false | {pos_integer(), pos_integer()},
     idle_timeout       => timeout(),
@@ -258,6 +259,13 @@ When the `relay` data delivery method is used,
 this value may be used to decide how much the
 flow control window should be for the Websocket
 stream. Currently only applies to HTTP/2.
+
+data_delivery_n (100)::
+
+When the `relay` data delivery method is used,
+this value may be used to decide how many DATA
+frames are delivered before an acknowledgement
+is required. Currently only applies to HTTP/2.
 
 deflate_opts (#{})::
 
@@ -317,6 +325,7 @@ normal circumstances if necessary.
 
 == Changelog
 
+* *2.22*: The `data_delivery_n` option was added.
 * *2.17*: The `max_frame_size` option now defaults to 1MB.
 * *2.14*: The `data_delivery` and `data_delivery_flow` options
           were added. The `relay` data delivery mechanism

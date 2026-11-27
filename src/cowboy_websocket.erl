@@ -70,6 +70,7 @@
 	compress => boolean(),
 	data_delivery => stream_handlers | relay,
 	data_delivery_flow => pos_integer(),
+	data_delivery_n => pos_integer(),
 	deflate_opts => cow_ws:deflate_opts(),
 	dynamic_buffer => false | {pos_integer(), pos_integer()},
 	dynamic_buffer_initial_average => non_neg_integer(),
@@ -98,6 +99,8 @@
 	transport :: module() | {data_delivery, stream_handlers | relay},
 	opts = #{} :: opts(),
 	active = true :: boolean(),
+	%% need_ack arrived while active was false.
+	relay_need_ack = false :: boolean(),
 	handler :: module(),
 	key = undefined :: undefined | binary(),
 	timeout_ref = undefined :: undefined | reference(),
@@ -276,9 +279,12 @@ websocket_handshake(State=#state{opts=Opts},
 	ModState = #{
 		data_delivery => DataDelivery,
 		%% For relay data_delivery. The flow is a hint and may
-		%% not be used by the underlying protocol.
+		%% not be used by the underlying protocol. data_delivery_n
+		%% is the number of messages sent before an acknowledgement
+		%% is required. Currently only HTTP/2 uses these values.
 		data_delivery_pid => self(),
-		data_delivery_flow => maps:get(data_delivery_flow, Opts, 131072)
+		data_delivery_flow => maps:get(data_delivery_flow, Opts, 131072),
+		data_delivery_n => maps:get(data_delivery_n, Opts, 100)
 	},
 	Pid ! {{Pid, StreamID}, {switch_protocol, Headers, ?MODULE, ModState}},
 	takeover(Pid, Ref, {Pid, StreamID}, {data_delivery, DataDelivery}, #{}, <<>>,
@@ -375,6 +381,11 @@ maybe_read_body(_) ->
 	ok.
 
 active(State=#state{transport={data_delivery, relay},
+		socket=Stream={Pid, _}, relay_need_ack=true}) ->
+	Pid ! {'$cowboy_relay_command', Stream, ack},
+	Pid ! {'$cowboy_relay_command', Stream, active},
+	State#state{active=true, relay_need_ack=false};
+active(State=#state{transport={data_delivery, relay},
 		socket=Stream={Pid, _}}) ->
 	Pid ! {'$cowboy_relay_command', Stream, active},
 	State#state{active=true};
@@ -407,6 +418,13 @@ flush_passive(Socket, Messages) ->
 	after 0 ->
 		ok
 	end.
+
+relay_need_ack(State=#state{active=true, socket=Stream={Pid, _}},
+		HandlerState, ParseState) ->
+	Pid ! {'$cowboy_relay_command', Stream, ack},
+	before_loop(State, HandlerState, ParseState);
+relay_need_ack(State, HandlerState, ParseState) ->
+	before_loop(State#state{relay_need_ack=true}, HandlerState, ParseState).
 
 before_loop(State=#state{hibernate=true}, HandlerState, ParseState) ->
 	proc_lib:hibernate(?MODULE, loop,
@@ -472,6 +490,8 @@ loop(State=#state{parent=Parent, socket=Socket, messages=Messages,
 		%% @todo We must ensure that IsFin=fin is handled like a socket close?
 		{'$cowboy_relay_data', {Pid, _StreamID}, _IsFin, Data} when Pid =:= Parent ->
 			parse(?reset_idle_timeout(State), HandlerState, ParseState, Data);
+		{'$cowboy_relay_data', {Pid, _StreamID}, need_ack} when Pid =:= Parent ->
+			relay_need_ack(State, HandlerState, ParseState);
 		%% Timeouts.
 		{timeout, TRef, ?MODULE} ->
 			tick_idle_timeout(State, HandlerState, ParseState);

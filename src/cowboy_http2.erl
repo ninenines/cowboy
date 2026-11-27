@@ -84,6 +84,18 @@
 }.
 -export_type([opts/0]).
 
+%% Relay data_delivery state for one stream.
+%%
+%% left starts at n and counts down on each relayed DATA
+%% frame. 0 means need_ack was sent. acked means that
+%% acknowledgement arrived while reading was disabled.
+-record(relay, {
+	flow :: non_neg_integer(),
+	pid :: pid(),
+	n :: pos_integer(),
+	left :: non_neg_integer() | acked
+}).
+
 -record(stream, {
 	%% Request method.
 	method :: binary(),
@@ -94,7 +106,7 @@
 	%% - The relaying state is used by extended CONNECT protocols to
 	%%   use a 'relay' data_delivery method.
 	%% - The stopping state indicates the stream used the 'stop' command.
-	status = running :: running | {relaying, non_neg_integer(), pid()} | stopping,
+	status = running :: running | {relaying, #relay{}} | stopping,
 
 	%% Flow requested for this stream.
 	flow = 0 :: non_neg_integer(),
@@ -548,13 +560,8 @@ data_frame(State0=#state{opts=Opts, flow=Flow0, streams=Streams}, StreamID, IsFi
 					'Unhandled exception in cowboy_stream:data/4.'})
 			end;
 		%% Stream handlers are not used for the data when relaying.
-		#{StreamID := #stream{status={relaying, _, RelayPid}}} ->
-			RelayPid ! {'$cowboy_relay_data', {self(), StreamID}, IsFin, Data},
-			%% We keep a steady flow using the configured flow value.
-			%% Because we do not change the 'flow' value the update_window/2
-			%% function will always maintain this value (of course with
-			%% thresholds applying).
-			update_window(State0, StreamID);
+		#{StreamID := Stream=#stream{status={relaying, Relay}}} ->
+			relay_data(State0, StreamID, Stream, Relay, IsFin, Data);
 		%% The handler is no longer reading this stream.
 		#{} ->
 			window_changed(State0, byte_size(Data))
@@ -1025,8 +1032,10 @@ commands(State0=#state{flow=Flow, streams=Streams}, StreamID,
 			%% WINDOW_UPDATE frames updating the window will be sent after
 			%% the first DATA frame has been received.
 			RelayFlow = maps:get(data_delivery_flow, ModState, 131072),
+			RelayN = maps:get(data_delivery_n, ModState, 100),
 			State = State1#state{flow=Flow + RelayFlow, streams=Streams#{StreamID => Stream#stream{
-				status={relaying, RelayFlow, RelayPid},
+				status={relaying, #relay{flow=RelayFlow, pid=RelayPid,
+					n=RelayN, left=RelayN}},
 				flow=RelayFlow}}},
 			commands(State, StreamID, Tail)
 	end;
@@ -1057,20 +1066,111 @@ commands(State=#state{opts=Opts}, StreamID, [Log={log, _, _, _}|Tail]) ->
 relay_command(State, StreamID, DataCmd = {data, _, _}) ->
 	commands(State, StreamID, [DataCmd]);
 %% When going active mode again we set the RelayFlow again
-%% and update the window if necessary.
+%% and update the window if necessary. An acknowledgement
+%% that arrived while reading was disabled is applied now.
 relay_command(State=#state{flow=Flow, streams=Streams}, StreamID, active) ->
-	#{StreamID := Stream} = Streams,
-	#stream{status={relaying, RelayFlow, _}} = Stream,
-	update_window(State#state{flow=Flow + RelayFlow,
-		streams=Streams#{StreamID => Stream#stream{flow=RelayFlow}}},
-		StreamID);
+	case Streams of
+		#{StreamID := Stream=#stream{status={relaying,
+				Relay=#relay{flow=RelayFlow, left=Left}}}} ->
+			State1 = relay_set(State#state{flow=Flow + RelayFlow}, StreamID,
+				Stream#stream{flow=RelayFlow}, Relay),
+			relay_active(State1, StreamID, Left);
+		%% The stream may already be gone.
+		_ ->
+			State
+	end;
 %% When going passive mode we don't update the window
 %% since we have not incremented it.
 relay_command(State=#state{flow=Flow, streams=Streams}, StreamID, passive) ->
-	#{StreamID := Stream} = Streams,
-	#stream{flow=StreamFlow} = Stream,
-	State#state{flow=Flow - StreamFlow,
-		streams=Streams#{StreamID => Stream#stream{flow=0}}}.
+	case Streams of
+		#{StreamID := Stream=#stream{status={relaying, _}, flow=StreamFlow}} ->
+			State#state{flow=Flow - StreamFlow,
+				streams=Streams#{StreamID => Stream#stream{flow=0}}};
+		%% The stream may already be gone.
+		_ ->
+			State
+	end;
+relay_command(State=#state{streams=Streams}, StreamID, ack) ->
+	case Streams of
+		%% A relay process may acknowledge while reading is disabled.
+		%% Remember the acknowledgement and do not replenish the
+		%% window.
+		#{StreamID := Stream=#stream{flow=0,
+				status={relaying, Relay=#relay{left=0}}}} ->
+			relay_set(State, StreamID, Stream, Relay#relay{left=acked});
+		#{StreamID := #stream{status={relaying, #relay{left=0}}}} ->
+			relay_ack(State, StreamID);
+		%% The stream may already be gone, or it may no longer be
+		%% waiting. A late acknowledgement must not kill the connection.
+		_ ->
+			State
+	end.
+
+%% Empty DATA is not relayed. The session parses the payload,
+%% and an empty payload carries nothing. Padding still consumed
+%% flow-control credit, so the connection window is restored.
+%% While an acknowledgement is outstanding the stream window
+%% stays shut.
+relay_data(State, _, _, #relay{left=Left}, _, <<>>) when Left =:= 0; Left =:= acked ->
+	update_connection_window(State);
+relay_data(State, StreamID, _, #relay{}, _, <<>>) ->
+	update_window(State, StreamID);
+%% A frame received while waiting is delivered. The stream window
+%% is not replenished, so the peer stops once the advertised window
+%% is exhausted. The connection window is restored so other streams
+%% can proceed.
+relay_data(State, StreamID, _, #relay{left=Left, pid=RelayPid}, IsFin, Data)
+		when Left =:= 0; Left =:= acked ->
+	RelayPid ! {'$cowboy_relay_data', {self(), StreamID}, IsFin, Data},
+	update_connection_window(State);
+relay_data(State, StreamID, Stream, Relay=#relay{pid=RelayPid, left=Left},
+		IsFin, Data) when Left > 0 ->
+	RelayPid ! {'$cowboy_relay_data', {self(), StreamID}, IsFin, Data},
+	case Left - 1 of
+		0 ->
+			RelayPid ! {'$cowboy_relay_data', {self(), StreamID}, need_ack},
+			update_connection_window(relay_set(State, StreamID, Stream,
+				Relay#relay{left=0}));
+		%% The flow value is left unchanged so update_window/2 keeps
+		%% the configured window, with the usual thresholds.
+		Left1 ->
+			update_window(relay_set(State, StreamID, Stream,
+				Relay#relay{left=Left1}), StreamID)
+	end.
+
+relay_active(State, StreamID, acked) ->
+	relay_ack(State, StreamID);
+%% Still waiting for the handler to acknowledge. The stream
+%% window stays shut. The connection window may move.
+relay_active(State, _, 0) ->
+	update_connection_window(State);
+relay_active(State, StreamID, _) ->
+	update_window(State, StreamID).
+
+%% The acknowledgement resumes stream window updates.
+relay_ack(State=#state{streams=Streams}, StreamID) ->
+	#{StreamID := Stream=#stream{status={relaying,
+		Relay=#relay{n=N}}}} = Streams,
+	update_window(relay_set(State, StreamID, Stream,
+		Relay#relay{left=N}), StreamID).
+
+relay_set(State=#state{streams=Streams}, StreamID, Stream, Relay) ->
+	State#state{streams=Streams#{StreamID => Stream#stream{status={relaying, Relay}}}}.
+
+%% Replenish the connection window only. A paused relay keeps
+%% its stream window so the peer cannot send more on that stream
+%% than was already advertised.
+update_connection_window(State0=#state{socket=Socket, transport=Transport,
+		http2_machine=HTTP2Machine0, flow=Flow}) ->
+	case cow_http2_machine:ensure_window(Flow, HTTP2Machine0) of
+		ok ->
+			State0;
+		{ok, Increment, HTTP2Machine} ->
+			State = State0#state{http2_machine=HTTP2Machine},
+			ok = maybe_socket_error(State, Transport:send(Socket,
+				cow_http2:window_update(Increment))),
+			maybe_reset_idle_timeout(State)
+	end.
 
 %% Tentatively update the window after the flow was updated.
 
